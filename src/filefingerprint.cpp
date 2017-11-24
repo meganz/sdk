@@ -23,6 +23,7 @@
 #include "mega/serialize64.h"
 #include "mega/base64.h"
 #include "mega/logging.h"
+#include "mega/utils.h"
 
 namespace mega {
 bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)

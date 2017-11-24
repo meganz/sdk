@@ -53,6 +53,12 @@ public:
         TYPE_NONE = 2
     };
 
+    enum {
+        API_CACHE = 0,
+        API_NO_CACHE = 1,    // use this for DB mode
+        API_NONE = 2
+    };
+
     FetchNodesStats();
     void init();
     void toJsonArray(string *json);
@@ -61,6 +67,7 @@ public:
     // General info //
     //////////////////
     int mode; // DB = 0, API = 1
+    int cache; // no-cache = 0, no-cache = 1
     int type; // Account = 0, Folder = 1
     dstime startTime; // startup time (ds)
 
@@ -197,6 +204,7 @@ public:
     // splitted implementation of wait() for a better thread management
     int preparewait();
     int dowait();
+    int checkevents();
 
     // abort exponential backoff
     bool abortbackoff(bool = true);
@@ -259,6 +267,14 @@ public:
     // open exported file link
     error openfilelink(const char*, int);
 
+    // decrypt password-protected public link
+    // the caller takes the ownership of the returned value in decryptedLink parameter
+    error decryptlink(const char* link, const char* pwd, string *decryptedLink);
+
+    // encrypt public link with password
+    // the caller takes the ownership of the returned value
+    error encryptlink(const char* link, const char* pwd, string *encryptedLink);
+
     // change login password
     error changepw(const byte*, const byte*);
 
@@ -277,6 +293,9 @@ public:
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
+    // check if the available bandwidth quota is enough to transfer an amount of bytes
+    void querytransferquota(m_off_t size);
+
     // update node attributes
     error setattr(Node*, const char* prevattr = NULL);
 
@@ -290,7 +309,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*);
+    error unlink(Node*, bool = false);
 
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
@@ -384,7 +403,8 @@ public:
     void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
+    error isnodesyncable(Node*, bool* = NULL);
+    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
@@ -516,6 +536,15 @@ public:
     void registerPushNotification(int deviceType, const char *token = NULL);
 #endif
 
+    // get mega achievements
+    void getaccountachievements(AchievementsDetails *details);
+
+    // get mega achievements list (for advertising for unregistered users)
+    void getmegaachievements(AchievementsDetails *details);
+
+    // get welcome pdf
+    void getwelcomepdf();
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -535,6 +564,9 @@ public:
 
     // get max upload speed
     m_off_t getmaxuploadspeed();
+
+    // get the handle of the older version for a NewNode
+    handle getovhandle(Node *parent, string *name);
 
     // use HTTPS for all communications
     bool usehttps;
@@ -965,6 +997,11 @@ public:
     bool syncnagleretry;
     BackoffTimer syncnaglebt;
 
+    // timer for extra notifications
+    // (workaround for buggy network filesystems)
+    bool syncextraretry;
+    BackoffTimer syncextrabt;
+
     // rescan timer if fs notification unavailable or broken
     bool syncscanfailed;
     BackoffTimer syncscanbt;
@@ -1088,7 +1125,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node* childnodebyname(Node*, const char*);
+    Node* childnodebyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
@@ -1184,7 +1221,7 @@ public:
     handle getpublicfolderhandle();
 
     // process node subtree
-    void proctree(Node*, TreeProc*, bool skipinshares = false);
+    void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
 
     // hash password
     error pw_key(const char*, byte*) const;
@@ -1192,7 +1229,8 @@ public:
     // convert hex digit to number
     static int hexval(char);
 
-    SymmCipher tmpcipher;
+    SymmCipher tmpnodecipher;
+    SymmCipher tmptransfercipher;
 
     void exportDatabase(string filename);
     bool compareDatabases(string filename1, string filename2);
@@ -1220,6 +1258,11 @@ public:
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
+
+    // achievements enabled for the account
+    bool achievements_enabled;
+
+    bool tsLogin;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

@@ -92,10 +92,17 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         UIImage *thumbnailImage = [[UIImage alloc] initWithCGImage:imgRef];
         CGImageRelease(imgRef);
         
-        [UIImageJPEGRepresentation(thumbnailImage, 1) writeToFile:nameString.stringByDeletingPathExtension atomically:YES];
+        NSError *error;
+        if ([UIImageJPEGRepresentation(thumbnailImage, 1) writeToFile:nameString.stringByDeletingPathExtension options:NSDataWritingFileProtectionNone error:&error]) {
+            dataProvider = CGDataProviderCreateWithFilename([nameString.stringByDeletingPathExtension UTF8String]);
+            if (![[NSFileManager defaultManager] removeItemAtPath:nameString.stringByDeletingPathExtension error:&error]) {
+                LOG_err << "removeItemAtPath failed with error: " << error.localizedDescription <<  "code: " << error.code << "domain: " << error.domain;
+            }
+        } else {
+            LOG_err << "writeToFile failed with error: " << error.localizedDescription << "code: " << error.code << "domain: " << error.domain;
+        }
         
-        dataProvider = CGDataProviderCreateWithFilename([nameString.stringByDeletingPathExtension UTF8String]);
-        [[NSFileManager defaultManager] removeItemAtPath:nameString.stringByDeletingPathExtension error:nil];
+        
     } else {
         dataProvider = CGDataProviderCreateWithFilename(name->c_str());
     }
@@ -153,8 +160,7 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
 }
 
 CGImageRef GfxProcCG::createThumbnailWithMaxSize(int size) {
-    const double maxSizeDouble = size;
-    CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &maxSizeDouble);
+    CFNumberRef maxSize = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &size);
     CFDictionarySetValue(thumbnailParams, kCGImageSourceThumbnailMaxPixelSize, maxSize);
     CFRelease(maxSize);
 
@@ -184,7 +190,7 @@ int GfxProcCG::maxSizeForThumbnail(const int rw, const int rh) {
         return std::max(rw, rh);
     }
     // square rw*rw crop thumbnail
-    return (int)(rw * std::max(w, h) / std::min(w, h));
+    return ceil(rw * ((double)std::max(w, h) / (double)std::min(w, h)));
 }
 
 bool GfxProcCG::resizebitmap(int rw, int rh, string* jpegout) {

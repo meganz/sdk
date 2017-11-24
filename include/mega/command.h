@@ -24,7 +24,6 @@
 
 #include "types.h"
 #include "node.h"
-#include "megaclient.h"
 #include "account.h"
 #include "http.h"
 
@@ -319,7 +318,7 @@ class MEGA_API CommandDelNode : public Command
 public:
     void procresult();
 
-    CommandDelNode(MegaClient*, handle);
+    CommandDelNode(MegaClient*, handle, bool = false);
 };
 
 class MEGA_API CommandKillSessions : public Command
@@ -478,6 +477,14 @@ public:
     void procresult();
 
     CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool);
+};
+
+class MEGA_API CommandQueryTransferQuota : public Command
+{
+public:
+    void procresult();
+
+    CommandQueryTransferQuota(MegaClient*, m_off_t size);
 };
 
 class MEGA_API CommandGetUserTransactions : public Command
@@ -849,6 +856,22 @@ public:
 
 #endif
 
+class MEGA_API CommandGetMegaAchievements : public Command
+{
+    AchievementsDetails* details;
+public:
+    void procresult();
+
+    CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details, bool registered_user = true);
+};
+
+class MEGA_API CommandGetWelcomePDF : public Command
+{
+public:
+    void procresult();
+
+    CommandGetWelcomePDF(MegaClient*);
+};
 
 } // namespace
 

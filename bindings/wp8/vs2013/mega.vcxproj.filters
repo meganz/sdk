@@ -279,6 +279,9 @@
     <ClInclude Include="..\MChildrenLists.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\MAchievementsDetails.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -492,6 +495,12 @@
       <Filter>Bindings</Filter>
     </ClCompile>
     <ClCompile Include="..\MChildrenLists.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MAchievementsDetails.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>

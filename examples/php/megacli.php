@@ -9,7 +9,11 @@ set_time_limit(0);
 set_include_path(get_include_path() . PATH_SEPARATOR . "../../bindings/php");
 
 include 'megaapi.php';
-require_once('vendor/autoload.php');
+
+if (file_exists('vendor/autoload.php'))
+    require_once('vendor/autoload.php');
+else
+    require_once('Symfony/autoload.php');
 
 use Symfony\Component\Console\Shell;
 use Symfony\Component\Console\Application; 
@@ -18,6 +22,11 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
+
+if (!PHP_ZTS)
+{
+   print("WARNING: Your version of PHP is not thread-safe (ZTS).\nThe MEGA SDK uses a worker thread to send callbacks to apps so this app could crash for that reason.\n");
+}
 
 $megaapi = NULL;
 $cwd = NULL;

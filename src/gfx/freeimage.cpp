@@ -90,24 +90,6 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
             return false;
         }
-
-        if (FreeImage_GetMetadata(FIMD_COMMENTS, dib, "OriginalJPEGWidth", &tag))
-        {
-            w = atoi((char*)FreeImage_GetTagValue(tag));
-        }
-        else
-        {
-            w = FreeImage_GetWidth(dib);
-        }
-
-        if (FreeImage_GetMetadata(FIMD_COMMENTS, dib, "OriginalJPEGHeight", &tag))
-        {
-            h = atoi((char*)FreeImage_GetTagValue(tag));
-        }
-        else
-        {
-            h = FreeImage_GetHeight(dib);
-        }
     }
     else
 #endif
@@ -125,10 +107,10 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
             return false;
         }
-
-        w = FreeImage_GetWidth(dib);
-        h = FreeImage_GetHeight(dib);
     }
+
+    w = FreeImage_GetWidth(dib);
+    h = FreeImage_GetHeight(dib);
 
     if (!w || !h)
     {
@@ -145,6 +127,8 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
     int px, py;
 
     if (!w || !h) return false;
+
+    if (dib == NULL) return false;
 
     transform(w, h, rw, rh, px, py);
 
@@ -168,6 +152,7 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
             if (bpp != 24) {
                 if ((tdib = FreeImage_ConvertTo24Bits(dib)) == NULL) {
                     FreeImage_Unload(dib);
+                    dib = tdib;
                     return 0;
                 }
                 FreeImage_Unload(dib);
@@ -199,6 +184,9 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
 void GfxProcFreeImage::freebitmap()
 {
-    FreeImage_Unload(dib);
+    if (dib != NULL)
+    {
+        FreeImage_Unload(dib);
+    }
 }
 } // namespace

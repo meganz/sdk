@@ -19,7 +19,6 @@
  * program.
  */
 
-#include "mega.h"
 #include "mega/thread/qtthread.h"
 
 #define STACK_SIZE 1048576
@@ -55,9 +54,9 @@ QtThread::~QtThread()
 
 }
 
-uint64_t QtThread::currentThreadId()
+unsigned long long QtThread::currentThreadId()
 {
-    return (uint64_t) QThread::currentThreadId();
+    return (unsigned long long) QThread::currentThreadId();
 }
 
 //mutex

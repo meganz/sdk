@@ -17,7 +17,6 @@ sh build-libws.sh
 
 # WebRTC deps
 if [ "$2" == "--enable-webrtc" ]; then
-sh build-expat.sh
 sh build-webrtc.sh
 fi
 

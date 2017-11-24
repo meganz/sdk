@@ -63,6 +63,9 @@ struct MEGA_API MegaApp
     virtual void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool) { }
     virtual void account_details(AccountDetails*, error) { }
 
+    // query bandwidth quota result
+    virtual void querytransferquota_result(int) { }
+
     // sessionid is undef if all sessions except the current were killed
     virtual void sessions_killed(handle /*sessionid*/, error) { }
 
@@ -218,6 +221,12 @@ struct MEGA_API MegaApp
     virtual void chats_updated(textchat_map *, int) { }
 #endif
 
+    // get mega-achievements
+    virtual void getmegaachievements_result(AchievementsDetails*, error) {}
+
+    // get welcome pdf
+    virtual void getwelcomepdf_result(handle, string*, error) {}
+
     // global transfer queue updates
     virtual void file_added(File*) { }
     virtual void file_removed(File*, error) { }
@@ -253,12 +262,12 @@ struct MEGA_API MegaApp
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(Node*)
+    virtual bool sync_syncable(Sync*, const char*, string*, Node*)
     {
         return true;
     }
 
-    virtual bool sync_syncable(const char*, string*, string*)
+    virtual bool sync_syncable(Sync*, const char*, string*)
     {
         return true;
     }
@@ -274,8 +283,13 @@ struct MEGA_API MegaApp
 
     virtual void notify_dbcommit() { }
 
+    virtual void notify_change_to_https() { }
+
     // account confirmation via signup link
     virtual void notify_confirmation(const char* email) { }
+
+    // network layer disconnected
+    virtual void notify_disconnect() { }
 
     // HTTP request finished
     virtual void http_result(error, int, byte*, int) { }

@@ -32,6 +32,7 @@ namespace mega
     {
         friend ref class MegaSDK;
         friend ref class MNode;
+        friend ref class MAchievementsDetails;
 
     public:        
         virtual ~MStringList();

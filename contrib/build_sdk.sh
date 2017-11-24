@@ -326,9 +326,9 @@ cryptopp_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Crypto++"
-    local cryptopp_ver="563"
+    local cryptopp_ver="565"
     local cryptopp_url="http://www.cryptopp.com/cryptopp$cryptopp_ver.zip"
-    local cryptopp_md5="3c5b70e2ec98b7a24988734446242d07"
+    local cryptopp_md5="df5ef4647b4e978bba0cac79a83aaed5"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
 
@@ -530,12 +530,12 @@ curl_pkg() {
     if [ $use_dynamic -eq 1 ]; then
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual \
+            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
             --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     else
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual \
+            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
             --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
@@ -554,9 +554,9 @@ readline_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Readline"
-    local readline_ver="6.3"
-    local readline_url="ftp://ftp.cwru.edu/pub/bash/readline-$readline_ver.tar.gz"
-    local readline_md5="33c8fb279e981274f485fd91da77e94a"
+    local readline_ver="7.0"
+    local readline_url="https://ftp.gnu.org/gnu/readline/readline-$readline_ver.tar.gz"
+    local readline_md5="205b03a87fc83dab653b628c59b9fc91"
     local readline_file="readline-$readline_ver.tar.gz"
     local readline_dir="readline-$readline_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -873,7 +873,7 @@ main() {
                 make_opts="$OPTARG"
                 ;;
             n)
-                no_examples="--disable-examples --disable-megacmd"
+                no_examples="--disable-examples"
                 ;;
             o)
                 local_dir=$(readlink -f $OPTARG)

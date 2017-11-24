@@ -31,7 +31,7 @@ namespace mega {
 
 MUTEX_CLASS CurlHttpIO::curlMutex(false);
 
-#ifdef USE_OPENSSL
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
 MUTEX_CLASS **CurlHttpIO::sslMutexes = NULL;
 void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
@@ -53,7 +53,7 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
     }
 }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10000000
+#if OPENSSL_VERSION_NUMBER >= 0x10000000 || defined (LIBRESSL_VERSION_NUMBER)
 void CurlHttpIO::id_function(CRYPTO_THREADID* id)
 {
     CRYPTO_THREADID_set_pointer(id, (void *)THREAD_CLASS::currentThreadId());
@@ -134,10 +134,10 @@ CurlHttpIO::CurlHttpIO()
 
     curlMutex.lock();
 
-#ifdef USE_OPENSSL
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
     if (!CRYPTO_get_locking_callback()
-#if OPENSSL_VERSION_NUMBER >= 0x10000000
+#if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
         && !CRYPTO_THREADID_get_callback())
 #else
         && !CRYPTO_get_id_callback())
@@ -147,7 +147,7 @@ CurlHttpIO::CurlHttpIO()
         int numLocks = CRYPTO_num_locks();
         sslMutexes = new MUTEX_CLASS*[numLocks];
         memset(sslMutexes, 0, numLocks * sizeof(MUTEX_CLASS*));
-#if OPENSSL_VERSION_NUMBER >= 0x10000000
+#if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
         CRYPTO_THREADID_set_callback(CurlHttpIO::id_function);
 #else
         CRYPTO_set_id_callback(CurlHttpIO::id_function);
@@ -2241,6 +2241,10 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     {
         req->timeleft = atol((char*)ptr + 17);
     }
+    else if (len > 15 && !memcmp(ptr, "Content-Type:", 13))
+    {
+        req->contenttype.assign((char *)ptr + 13, len - 15);
+    }
     else
     {
         return len;
@@ -2396,7 +2400,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
     return CURLE_OK;
 }
 
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
    #define X509_STORE_CTX_get0_cert(ctx) (ctx->cert)
    #define X509_STORE_CTX_get0_untrusted(ctx) (ctx->untrusted)
    #define EVP_PKEY_get0_DSA(_pkey_) ((_pkey_)->pkey.dsa)
@@ -2405,7 +2409,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
 
 const BIGNUM *RSA_get0_n(const RSA *rsa)
 {
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
     return rsa->n;
 #else
     const BIGNUM *result;
@@ -2416,7 +2420,7 @@ const BIGNUM *RSA_get0_n(const RSA *rsa)
 
 const BIGNUM *RSA_get0_e(const RSA *rsa)
 {
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
     return rsa->e;
 #else
     const BIGNUM *result;
@@ -2427,7 +2431,7 @@ const BIGNUM *RSA_get0_e(const RSA *rsa)
 
 const BIGNUM *RSA_get0_d(const RSA *rsa)
 {
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
     return rsa->d;
 #else
     const BIGNUM *result;

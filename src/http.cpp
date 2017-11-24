@@ -22,6 +22,8 @@
 #include "mega/http.h"
 #include "mega/megaclient.h"
 #include "mega/logging.h"
+#include "mega/proxy.h"
+#include "mega/base64.h"
 
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include "mega/osx/osxutils.h"
@@ -441,6 +443,7 @@ void HttpReq::init()
     lastdata = NEVER;
     outpos = 0;
     in.clear();
+    contenttype.clear();
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
@@ -597,6 +600,7 @@ void HttpReqDL::finalize(Transfer *transfer)
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     m_off_t chunksize = endpos - startpos;
+    SymmCipher *cipher = transfer->transfercipher();
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
@@ -604,7 +608,7 @@ void HttpReqDL::finalize(Transfer *transfer)
         if (!chunkmac.finished)
         {
             chunkmac = transfer->chunkmacs[chunkid];
-            transfer->key.ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
+            cipher->ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
                                     chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
             if (endpos == ChunkedHash::chunkceil(chunkid, transfer->size))
             {

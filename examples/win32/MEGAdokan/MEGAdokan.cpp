@@ -57,127 +57,13 @@ MegaApi* megaApi;
 string megaBasePath;
 
 //Helper objects
-class SynchronousRequestListener : public MegaRequestListener
+class SynchronousDataTransferListener : public SynchronousTransferListener
 {
 public:
-	SynchronousRequestListener()
-	{
-		request = NULL;
-		error = NULL;
-		notified = false;
-		finished = CreateEvent(NULL, FALSE, FALSE, NULL);
-	}
-
-	~SynchronousRequestListener()
-	{
-		delete request;
-		delete error;
-		CloseHandle(finished);
-	}
-
-	void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *error)
-	{
-		this->error = error->copy();
-		this->request = request->copy();
-
-		notified = true;
-		SetEvent(finished);
-	}
-
-	void wait()
-	{
-		while (!notified)
-		{
-			WaitForSingleObject(finished, INFINITE);
-		}
-	}
-
-	void reset()
-	{
-		delete request;
-		delete error;
-		request = NULL;
-		error = NULL;
-		notified = false;
-		ResetEvent(finished);
-	}
-
-	MegaRequest *getRequest()
-	{
-		return request;
-	}
-
-	MegaError *getError()
-	{
-		return error;
-	}
-
-private:
-	bool notified;
-	MegaError *error;
-	MegaRequest *request;
-	HANDLE finished;
-};
-
-class SynchronousTransferListener : public MegaTransferListener
-{
-public:
-	SynchronousTransferListener()
-	{
-		transfer = NULL;
-		error = NULL;
-		notified = false;
-		finished = CreateEvent(NULL, FALSE, FALSE, NULL);;
-	}
-
-	~SynchronousTransferListener()
-	{
-		delete transfer;
-		delete error;
-		CloseHandle(finished);
-	}
-
-	void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
-	{
-		this->error = error->copy();
-		this->transfer = transfer->copy();
-
-		notified = true;
-		SetEvent(finished);
-	}
-
 	bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t s)
 	{
 		data.append(buffer, s);
 		return true;
-	}
-
-	void wait()
-	{
-		while (!notified)
-		{
-			WaitForSingleObject(finished, INFINITE);
-		}
-	}
-
-	void reset()
-	{
-		delete transfer;
-		delete error;
-		transfer = NULL;
-		error = NULL;
-		notified = false;
-		ResetEvent(finished);
-	}
-
-	MegaTransfer *getTransfer()
-	{
-		return transfer;
-	}
-
-	MegaError *getError()
-	{
-		return error;
 	}
 
 	const char *getData()
@@ -191,11 +77,7 @@ public:
 	}
 
 private:
-	bool notified;
-	MegaError *error;
-	MegaTransfer *transfer;
 	string data;
-	HANDLE finished;
 };
 ////
 
@@ -390,7 +272,7 @@ static int __stdcall MEGAReadFile(
 	}
 
 	DokanResetTimeout(60000, DokanFileInfo);
-	SynchronousTransferListener listener;
+	SynchronousDataTransferListener listener;
 	megaApi->startStreaming(node, offset, *ReadLength, &listener);
 	listener.wait();
 	delete node;
@@ -723,7 +605,6 @@ static int __stdcall MEGAMoveFile(
 
 	if (strcmp(source->getName(), destname.c_str()))
 	{
-		listener.reset();
 		megaApi->renameNode(source, destname.c_str(), &listener);
 		listener.wait();
 
@@ -979,7 +860,6 @@ int main(int argc, char *argv[])
 	MegaApi::log(MegaApi::LOG_LEVEL_INFO, "Login OK. Fetching nodes");
 
 	//Fetch nodes
-	listener.reset();
 	megaApi->fetchNodes(&listener);
 	listener.wait();
 	if (listener.getError()->getErrorCode() != MegaError::API_OK)
@@ -998,7 +878,6 @@ int main(int argc, char *argv[])
 	}
 
 	int status;
-	ULONG command;
 	PDOKAN_OPERATIONS dokanOperations =
 		(PDOKAN_OPERATIONS)malloc(sizeof(DOKAN_OPERATIONS));
 	PDOKAN_OPTIONS dokanOptions =

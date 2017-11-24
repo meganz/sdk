@@ -91,11 +91,18 @@ namespace mega
     };
 
     public enum class MUserAttrType{
-        USER_ATTR_AVATAR            = 0,
-        USER_ATTR_FIRSTNAME         = 1,
-        USER_ATTR_LASTNAME          = 2,
-        USER_ATTR_AUTHRING          = 3,
-        USER_ATTR_LAST_INTERACTION  = 4
+        USER_ATTR_AVATAR                = 0,    // public - char array
+        USER_ATTR_FIRSTNAME             = 1,    // public - char array
+        USER_ATTR_LASTNAME              = 2,    // public - char array
+        USER_ATTR_AUTHRING              = 3,    // private - byte array
+        USER_ATTR_LAST_INTERACTION      = 4,    // private - byte array
+        USER_ATTR_ED25519_PUBLIC_KEY    = 5,    // public - byte array
+        USER_ATTR_CU25519_PUBLIC_KEY    = 6,    // public - byte array
+        USER_ATTR_KEYRING               = 7,    // private - byte array
+        USER_ATTR_SIG_RSA_PUBLIC_KEY    = 8,    // public - byte array
+        USER_ATTR_SIG_CU255_PUBLIC_KEY  = 9,    // public - byte array
+        USER_ATTR_LANGUAGE              = 14,   // private - char array
+        USER_ATTR_PWD_REMINDER          = 15    // private - char array
     };
 
     public enum class MPaymentMethod {
@@ -109,6 +116,14 @@ namespace mega
         PAYMENT_METHOD_CREDIT_CARD = 8,
         PAYMENT_METHOD_CENTILI = 9,
         PAYMENT_METHOD_WINDOWS_STORE = 13
+    };
+
+    public enum class MPasswordStrength{
+        PASSWORD_STRENGTH_VERYWEAK  = 0,
+        PASSWORD_STRENGTH_WEAK      = 1,
+        PASSWORD_STRENGTH_MEDIUM    = 2,
+        PASSWORD_STRENGTH_GOOD      = 3,
+        PASSWORD_STRENGTH_STRONG    = 4
     };
 
     public ref class MegaSDK sealed
@@ -212,6 +227,7 @@ namespace mega
         String^ getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
         MUser^ getMyUser();
+        bool isAchievementsEnabled();
 
         //Logging
         static void setLogLevel(MLogLevel logLevel);
@@ -248,6 +264,10 @@ namespace mega
         void loginToFolder(String^ megaFolderLink);
         void importFileLink(String^ megaFileLink, MNode^ parent, MRequestListenerInterface^ listener);
         void importFileLink(String^ megaFileLink, MNode^ parent);
+        void decryptPasswordProtectedLink(String^ link, String^ password, MRequestListenerInterface^ listener);
+        void decryptPasswordProtectedLink(String^ link, String^ password);
+        void encryptLinkWithPassword(String^ link, String^ password, MRequestListenerInterface^ listener);
+        void encryptLinkWithPassword(String^ link, String^ password);
         void getPublicNode(String^ megaFileLink, MRequestListenerInterface^ listener);
         void getPublicNode(String^ megaFileLink);
         void getThumbnail(MNode^ node, String^ dstFilePath, MRequestListenerInterface^ listener);
@@ -294,6 +314,8 @@ namespace mega
         void fetchNodes();
         void getAccountDetails(MRequestListenerInterface^ listener);
         void getAccountDetails();
+        void queryTransferQuota(int64 size, MRequestListenerInterface^ listener);
+        void queryTransferQuota(int64 size);
         void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MRequestListenerInterface^ listener);
         void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions);
         void getPricing(MRequestListenerInterface^ listener);
@@ -323,6 +345,8 @@ namespace mega
         void getPaymentMethods();
 
         String^ exportMasterKey();
+        void masterKeyExported(MRequestListenerInterface^ listener);
+        void masterKeyExported();
 
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
         void changePassword(String^ oldPassword, String^ newPassword);
@@ -337,6 +361,7 @@ namespace mega
         void logout();
         void localLogout(MRequestListenerInterface^ listener);
         void localLogout();
+        int getPasswordStrength(String^ password);
         void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
         void submitFeedback(int rating, String^ comment);
         void reportDebugEvent(String^ text, MRequestListenerInterface^ listener);
@@ -534,6 +559,11 @@ namespace mega
         bool createPreview(String^ imagePath, String^ dstPath);
 
         bool isOnline();
+
+        void getAccountAchievements(MRequestListenerInterface^ listener);
+        void getAccountAchievements();
+        void getMegaAchievements(MRequestListenerInterface^ listener);
+        void getMegaAchievements();
 
     private:
         std::set<DelegateMRequestListener *> activeRequestListeners;

@@ -29,9 +29,6 @@ m4_include([m4/ax_check_link_flag.m4])
 
 AC_PREREQ([2.61])
 
-#override default /usr/local prefix
-AC_PREFIX_DEFAULT([/])
-
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
 m4_define([mega_major_version], [$(cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3)])
@@ -48,6 +45,8 @@ m4_define([mega_lt_age], [0])
 
 AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | awk '{print $3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf $1"."$2"."$3}']), [https://github.com/meganz/sdk])
 
+#override default /usr/local prefix
+AC_PREFIX_DEFAULT([/])
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE
@@ -141,6 +140,8 @@ if test "x$enable_debug" = "xyes" ; then
     CXXFLAGS="-Wall -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
+else
+    CXXFLAGS="$CXXFLAGS -DNDEBUG=1"
 fi
 
 # Check if we can use -fPIC flag
@@ -189,7 +190,7 @@ case $host in
     WIN32=yes
     ;;
   *-*-mingw*)
-    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
     CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
     WIN32=yes
     ;;
@@ -251,13 +252,24 @@ if test x$enable_gcc_hardening != xno; then
 fi
 
 # sync subsystem
+
 AC_ARG_ENABLE(sync,
     AS_HELP_STRING([--enable-sync], [include sync subsystem [default=yes]]),
-    [enable_sync=$enableval],
+    [enable_sync=$enableval
+    if test "x$enable_sync" = "xyes" && (test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes"); then
+        AC_MSG_ERROR([--enable-sync not allowed when building bindings (php/python/java)!])
+    fi
+    ],
     [enable_sync=yes])
+
+if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+    enable_sync=no
+fi
+
 if test x$enable_sync = xyes; then
     AC_DEFINE(ENABLE_SYNC, 1, [Defined if sync subsystem is enabled])
 fi
+
 
 # MEGA API
 AC_ARG_ENABLE(megaapi,
@@ -327,7 +339,7 @@ AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
 AC_ARG_ENABLE(chat,
     AS_HELP_STRING([--enable-chat], [enable chat support]),
     [], [enable_chat=no])
-if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" ; then
+if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
     enable_chat=yes
     AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
 fi
@@ -516,6 +528,9 @@ AC_ARG_WITH(pcre,
     AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
             AC_MSG_ERROR([Could not find libpcrecpp])
     ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
+            AC_MSG_ERROR([Could not find libpcre])
+    ])
     pcre=true
      ;;
    *)
@@ -546,6 +561,9 @@ AC_ARG_WITH(pcre,
     fi
 
     AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcrecpp])
+    ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
             AC_MSG_ERROR([Could not find libpcre])
     ])
 
@@ -558,10 +576,7 @@ AC_ARG_WITH(pcre,
     ;;
    esac
   ],
-  [AC_MSG_RESULT([--with-pcre not specified])
-      AC_CHECK_HEADERS([pcrecpp.h], [pcre=true], [])
-    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[])
-  ])
+)
 AC_SUBST(PCRE_CXXFLAGS)
 AC_SUBST(PCRE_CPPFLAGS)
 AC_SUBST(PCRE_LDFLAGS)
@@ -1164,15 +1179,6 @@ AC_ARG_ENABLE(examples,
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
-# MEGAcmd
-AC_MSG_CHECKING([if building megacmd application])
-AC_ARG_ENABLE(megacmd,
-    AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=yes]]),
-    [], [enable_megacmd=yes])
-AM_CONDITIONAL([BUILD_MEGACMD], [test "$enable_megacmd" = "yes"])
-AC_MSG_RESULT([$enable_megacmd])
-
-
 # FreeImage
 freeimage=false
 AC_MSG_CHECKING(for FreeImage)
@@ -1258,7 +1264,7 @@ AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
-if test "x$enable_examples" = "xyes" || test "x$enable_megacmd" = "xyes" ; then
+if test "x$enable_examples" = "xyes" ; then
     #termcap
     AC_MSG_CHECKING(for termcap)
     AC_ARG_WITH(termcap,
@@ -1596,9 +1602,17 @@ if test "x$enable_php" = "xyes" ; then
     fi
 
     AC_SUBST(PHPINC)
-	AC_SUBST(PHPEXT)
-	AC_SUBST(PHPLIBDIR)
+    AC_SUBST(PHPEXT)
+    AC_SUBST(PHPLIBDIR)
 
+    m4_define([php_version], [$(php-config --version | cut -d '.' -f 1)])
+    if test "x"php_version = "x7" ; then
+        AX_PKG_SWIG(3.0.11, [SWIG_FLAGS_PHP='-php7'], AC_MSG_ERROR([PHP 7 requires SWIG >=3.0.11]))
+    else
+        SWIG_FLAGS_PHP='-php'
+    fi
+
+    #do AX_PKG_SWIG again to have $SWIG correctly defined, no only for >=3.0.11
     AX_PKG_SWIG(2.0.0, [], [
         AC_MSG_ERROR([SWIG executable not found!])
     ])
@@ -1608,6 +1622,9 @@ if test "x$enable_php" = "xyes" ; then
     if test -z "$SWIG"; then
         AC_MSG_ERROR([SWIG executable not found!])
     fi
+    
+    AC_SUBST([SWIG_FLAGS_PHP])
+
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 
@@ -1651,7 +1668,6 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
-  megacmd app:      $enable_megacmd
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
@@ -1659,6 +1675,8 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Python bindings:  $enable_python
   Python3 bindings: $USE_PYTHON3
   PHP bindings:     $enable_php
+  SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
+  
   Java bindings:    $enable_java
 
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS

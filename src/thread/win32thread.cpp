@@ -17,11 +17,18 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#include "mega.h"
 #include "mega/thread/win32thread.h"
+#include "mega/logging.h"
+#include <limits.h>
 
+#ifdef _WIN32
+#include "windows.h"
+#endif
 
 namespace mega {
 //Thread
@@ -49,9 +56,9 @@ void Win32Thread::join()
     WaitForSingleObject(hThread, INFINITE);
 }
 
-uint64_t Win32Thread::currentThreadId()
+unsigned long long Win32Thread::currentThreadId()
 {
-    return (uint64_t) GetCurrentThreadId();
+    return (unsigned long long) GetCurrentThreadId();
 }
 
 Win32Thread::~Win32Thread()

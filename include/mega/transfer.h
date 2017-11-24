@@ -25,6 +25,7 @@
 #include "filefingerprint.h"
 #include "backofftimer.h"
 #include "http.h"
+#include "command.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -60,8 +61,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // meta MAC
     int64_t metamac;
 
-    // file crypto key
-    SymmCipher key;
+    // file crypto key and shared cipher
+    byte transferkey[SymmCipher::KEYLENGTH];
+    SymmCipher *transfercipher();
 
     chunkmac_map chunkmacs;
 

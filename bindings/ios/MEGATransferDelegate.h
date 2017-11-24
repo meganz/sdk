@@ -93,8 +93,7 @@
  * @param api MEGASdk object that started the transfer
  * @param transfer Information about the transfer
  * @param buffer Buffer with the last readed bytes
- * @param size Size of the buffer
- * @return true to continue the transfer, false to cancel it
+ * @return YES to continue the transfer, NO to cancel it
  *
  * @see [MEGASdk startStreamingNode:startPos:size:]
  */

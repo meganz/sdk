@@ -1153,6 +1153,11 @@ MUser^ MegaSDK::getMyUser()
     return ref new MUser(megaApi->getMyUser(), true);
 }
 
+bool MegaSDK::isAchievementsEnabled()
+{
+    return megaApi->isAchievementsEnabled();
+}
+
 void MegaSDK::setLogLevel(MLogLevel logLevel)
 {
     MegaApi::setLogLevel((int)logLevel);
@@ -1453,6 +1458,64 @@ void MegaSDK::importFileLink(String^ megaFileLink, MNode^ parent)
 
 	megaApi->importFileLink((megaFileLink != nullptr) ? utf8megaFileLink.c_str() : NULL,
 		(parent != nullptr) ? parent->getCPtr() : NULL);
+}
+
+void MegaSDK::decryptPasswordProtectedLink(String^ link, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->decryptPasswordProtectedLink((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::decryptPasswordProtectedLink(String^ link, String^ password)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->decryptPasswordProtectedLink((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
+}
+
+void MegaSDK::encryptLinkWithPassword(String^ link, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->encryptLinkWithPassword((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::encryptLinkWithPassword(String^ link, String^ password)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->encryptLinkWithPassword((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
 }
 
 void MegaSDK::getPublicNode(String^ megaFileLink, MRequestListenerInterface^ listener)
@@ -1843,6 +1906,16 @@ void MegaSDK::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
     megaApi->getExtendedAccountDetails(sessions, purchases, transactions);
 }
 
+void MegaSDK::queryTransferQuota(int64 size, MRequestListenerInterface^ listener)
+{
+    megaApi->queryTransferQuota(size, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::queryTransferQuota(int64 size)
+{
+    megaApi->queryTransferQuota(size);
+}
+
 void MegaSDK::getPricing(MRequestListenerInterface^ listener)
 {
 	megaApi->getPricing(createDelegateMRequestListener(listener));
@@ -2082,6 +2155,16 @@ String^ MegaSDK::exportMasterKey()
 	return ref new String((wchar_t *)utf16key.data());
 }
 
+void MegaSDK::masterKeyExported(MRequestListenerInterface^ listener)
+{
+    megaApi->masterKeyExported(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::masterKeyExported()
+{
+    megaApi->masterKeyExported();
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
@@ -2180,6 +2263,15 @@ void MegaSDK::localLogout(MRequestListenerInterface^ listener)
 void MegaSDK::localLogout()
 {
     megaApi->localLogout();
+}
+
+int MegaSDK::getPasswordStrength(String^ password)
+{
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    return megaApi->getPasswordStrength((password != nullptr) ? utf8password.c_str() : NULL);
 }
 
 void MegaSDK::submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener)
@@ -3450,6 +3542,26 @@ bool MegaSDK::createPreview(String^ imagePath, String^ dstPath)
 bool MegaSDK::isOnline()
 {
     return megaApi->isOnline();
+}
+
+void MegaSDK::getAccountAchievements(MRequestListenerInterface^ listener)
+{
+    megaApi->getAccountAchievements(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getAccountAchievements()
+{
+    megaApi->getAccountAchievements();
+}
+
+void MegaSDK::getMegaAchievements(MRequestListenerInterface^ listener)
+{
+    megaApi->getMegaAchievements(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getMegaAchievements()
+{
+    megaApi->getMegaAchievements();
 }
 
 MegaRequestListener *MegaSDK::createDelegateMRequestListener(MRequestListenerInterface^ listener, bool singleListener)

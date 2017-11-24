@@ -204,6 +204,8 @@ if __name__ == "__main__":
     parser.add_argument("--test6", help="test_local_operations", action="store_true")
     parser.add_argument("--test7", help="test_update_mtime", action="store_true")
     parser.add_argument("--test8", help="test_create_rename_delete_unicode_files_dirs", action="store_true")
+    parser.add_argument("--test9", help="test_create_move_delete_files", action="store_true")
+    parser.add_argument("--test10", help="test_mimic_update_with_backup_files", action="store_true")
     parser.add_argument("-a", "--all", help="run all tests", action="store_true")
     parser.add_argument("-b", "--basic", help="run basic, stable tests", action="store_true")
     parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
@@ -226,7 +228,7 @@ if __name__ == "__main__":
         lvl = logging.INFO
 
     if args.all:
-        args.test1 = args.test2 = args.test3 = args.test4 = args.test5 = args.test6 = args.test7 = args.test8 = True
+        args.test1 = args.test2 = args.test3 = args.test4 = args.test5 = args.test6 = args.test7 = args.test8 = args.test9 = args.test10 = True
     if args.basic:
         args.test1 = args.test2 = args.test3 = args.test4 = True
 
@@ -267,6 +269,12 @@ if __name__ == "__main__":
 
         if args.test8:
             synctests.append(SyncTest("test_create_rename_delete_unicode_files_dirs", app))
+
+        if args.test9:
+            synctests.append(SyncTest("test_create_move_delete_files", app))
+          
+        if args.test10:
+            synctests.append(SyncTest("test_mimic_update_with_backup_files", app))
 
 
         for st in synctests:
