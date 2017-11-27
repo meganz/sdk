@@ -766,6 +766,7 @@ void MegaClient::init()
     syncactivity = false;
     syncops = false;
     syncdebrisadding = false;
+    syncdebrisminute = 0;
     syncscanfailed = false;
     syncfslockretry = false;
     syncfsopsfailed = false;
@@ -11282,6 +11283,7 @@ void MegaClient::execmovetosyncdebris()
     ts = time(NULL);
     ptm = localtime(&ts);
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    m_time_t currentminute = ts / 60;
 
     // locate //bin/SyncDebris
     if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)) && n->type == FOLDERNODE)
@@ -11330,6 +11332,7 @@ void MegaClient::execmovetosyncdebris()
                 }
                 else
                 {
+                    LOG_debug << "SyncDebris daily folder not created. Final target: " << n->syncdeleted;
                     n->syncdeleted = SYNCDEL_NONE;
                     n->todebris_it = todebris.end();
                     todebris.erase(it++);
@@ -11340,8 +11343,10 @@ void MegaClient::execmovetosyncdebris()
                 it++;
             }
         }
-        else if (n->syncdeleted == SYNCDEL_DEBRISDAY)
+        else if (n->syncdeleted == SYNCDEL_DEBRISDAY
+                 || n->syncdeleted == SYNCDEL_FAILED)
         {
+            LOG_debug << "Move to SyncDebris finished. Final target: " << n->syncdeleted;
             n->syncdeleted = SYNCDEL_NONE;
             n->todebris_it = todebris.end();
             todebris.erase(it++);
@@ -11352,9 +11357,12 @@ void MegaClient::execmovetosyncdebris()
         }
     }
 
-    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding)
+    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding
+            && (target == SYNCDEL_BIN || syncdebrisminute != currentminute))
     {
         syncdebrisadding = true;
+        syncdebrisminute = currentminute;
+        LOG_debug << "Creating daily SyncDebris folder: " << buf << " Target: " << target;
 
         // create missing component(s) of the sync debris folder of the day
         NewNode* nn;
