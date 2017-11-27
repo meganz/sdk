@@ -121,6 +121,11 @@ public:
 
     // true if the local synced folder is a network folder
     bool isnetwork;
+
+    // values related to possible files being updated
+    m_off_t updatedfilesize;
+    m_time_t updatedfilets;
+    m_time_t updatedfileinitialts;
     
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();

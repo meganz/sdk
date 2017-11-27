@@ -767,11 +767,6 @@ public:
     // directory change notification
     struct FileSystemAccess* fsaccess;
 
-    // values related to possible files being updated
-    m_off_t updatedfilesize;
-    m_time_t updatedfilets;
-    m_time_t updatedfileinitialts;
-
     // bitmap graphics handling
     GfxProc* gfx;
     
@@ -780,6 +775,9 @@ public:
 
     // state cache table for logged in user
     DbTable* sctable;
+
+    // there is data to commit to the database when possible
+    bool pendingsccommit;
 
     // transfer cache table
     DbTable* tctable;
@@ -973,6 +971,9 @@ public:
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
 
+    // minute of the last created folder in SyncDebris
+    m_time_t syncdebrisminute;
+
     // activity flag
     bool syncactivity;
 
@@ -1130,7 +1131,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node* childnodebyname(Node*, const char*);
+    Node* childnodebyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();

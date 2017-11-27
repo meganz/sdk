@@ -1157,7 +1157,23 @@ void CommandMoveNode::procresult()
                 }
                 else
                 {
-                    syncn->syncdeleted = SYNCDEL_NONE;
+                    Node *tn = NULL;
+                    if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
+                            || !(tn = client->nodebyhandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
+                    {
+                        LOG_err << "Error moving node to the Rubbish Bin";
+                        syncn->syncdeleted = SYNCDEL_NONE;
+                        client->todebris.erase(syncn->todebris_it);
+                        syncn->todebris_it = client->todebris.end();
+                    }
+                    else
+                    {
+                        int creqtag = client->reqtag;
+                        client->reqtag = syncn->tag;
+                        LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
+                        client->rename(syncn, tn, SYNCDEL_FAILED, pp);
+                        client->reqtag = creqtag;
+                    }
                 }
             }
         }
@@ -1485,6 +1501,7 @@ void CommandLogin::procresult()
                         client->sctable->remove();
                         delete client->sctable;
                         client->sctable = NULL;
+                        client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
 
@@ -3898,6 +3915,7 @@ void CommandFetchNodes::procresult()
                 client->mergenewshares(0);
                 client->applykeys();
                 client->initsc();
+                client->pendingsccommit = false;
                 client->fetchnodestag = tag;
 
                 WAIT_CLASS::bumpds();
