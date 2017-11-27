@@ -1485,6 +1485,7 @@ void CommandLogin::procresult()
                         client->sctable->remove();
                         delete client->sctable;
                         client->sctable = NULL;
+                        client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
 
@@ -3898,6 +3899,7 @@ void CommandFetchNodes::procresult()
                 client->mergenewshares(0);
                 client->applykeys();
                 client->initsc();
+                client->pendingsccommit = false;
                 client->fetchnodestag = tag;
 
                 WAIT_CLASS::bumpds();
