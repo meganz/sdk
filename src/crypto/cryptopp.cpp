@@ -453,7 +453,9 @@ int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numby
 
 int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
-    return decodeintarray(key, numints, data, len);
+    int ret = decodeintarray(key, numints, data, len);
+    padding = (numints == PUBKEY && ret) ? (len - key[PUB_PQ].ByteCount() - key[PUB_E].ByteCount() - 4) : 0;
+    return ret;
 }
 
 void AsymmCipher::resetkey()
@@ -461,17 +463,18 @@ void AsymmCipher::resetkey()
     for (int i = 0; i < PRIVKEY; i++)
     {
         key[i] = Integer::Zero();
+        padding = 0;
     }
 }
 
-void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
+void AsymmCipher::serializekeyforjs(string& d)
 {
     unsigned sizePQ = key[PUB_PQ].ByteCount();
     unsigned sizeE = key[PUB_E].ByteCount();
     char c;
 
     d.clear();
-    d.reserve(!fixedSize ? sizePQ + sizeE : sizePQ + 4);
+    d.reserve(sizePQ + sizeE + padding);
 
     for (int j = key[PUB_PQ].ByteCount(); j--;)
     {
@@ -479,15 +482,12 @@ void AsymmCipher::serializekeyforjs(string& d, bool fixedSize)
         d.append(&c, sizeof c);
     }
 
-    if (fixedSize)
+    // accounts created by webclient use 4 bytes for serialization of exponent
+    // --> add left-padding up to 4 bytes for compatibility reasons
+    c = 0;
+    for (unsigned j = 0; j < padding; j++)
     {
-        // accounts created by webclient use 4 bytes for serialization of exponent
-        // --> add left-padding up to 4 bytes for compatibility reasons
-        c = 0;
-        for (unsigned j = 0; j < 4 - sizeE; j++)
-        {
-            d.append(&c, sizeof c);
-        }
+        d.append(&c, sizeof c);
     }
 
     for (int j = sizeE; j--;)

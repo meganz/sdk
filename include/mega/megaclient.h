@@ -767,11 +767,6 @@ public:
     // directory change notification
     struct FileSystemAccess* fsaccess;
 
-    // values related to possible files being updated
-    m_off_t updatedfilesize;
-    m_time_t updatedfilets;
-    m_time_t updatedfileinitialts;
-
     // bitmap graphics handling
     GfxProc* gfx;
     
@@ -1130,7 +1125,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node* childnodebyname(Node*, const char*);
+    Node* childnodebyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
