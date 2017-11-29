@@ -435,6 +435,48 @@ void Transfer::failed(error e, dstime timeleft)
 }
 
 
+static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
+{
+    // returns the last half, ie the nonce+crc
+    return (uint32_t*)(filekey + FILENODEKEYLENGTH / 2);
+}
+
+
+void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath, MegaClient* client, handle* uploadTransferHandle)
+{
+#ifdef USE_MEDIAINFO
+    char ext[8];
+    if (node && (uploadTransferHandle || node->nodekey.size() == FILENODEKEYLENGTH) &&
+        client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
+        MediaProperties::isMediaFilenameExt(ext))
+    {
+        // for upload, the key is in the transfer.  for download, the key is in the node.
+        uint32_t* attrKey = fileAttributeKeyPtr(uploadTransferHandle ? filekey : (byte*)node->nodekey.data());
+
+        if (!node->hasfileattribute(8) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
+        {
+            // if we don't have the codec id mappings yet, send the request
+            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+
+            // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
+            MediaProperties vp;
+            vp.extractMediaPropertyFileAttributes(localpath);
+            client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributes(node->nodehandle, vp, fileAttributeKeyPtr(filekey), client, uploadTransferHandle);
+            if (uploadTransferHandle)
+            {
+                minfa += 1;  // ensure we keep the transfer till the media file properties are ready (we may need to wait for the codec mappings)
+            }
+        }
+    }
+#else
+    node;
+    localpath;
+    client;
+    uploadTransferHandle;
+#endif
+}
+
+
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files
 void Transfer::complete()
@@ -723,25 +765,15 @@ void Transfer::complete()
                         success = true;
                     }
 
-#ifdef USE_MEDIAINFO
                     // Add video file attributes for video files that don't have any yet.  Just for the first copy of this file.
                     if (success)
                     {
-                        char ext[8];
-                        Node* n;
-                        if (client->fsaccess->getextension(&tmplocalname, ext, sizeof(ext)) &&
-                            VideoProperties::isVideoFilenameExt(ext) &&
-                            (n = client->nodebyhandle((*it)->h)))
+                        Node* node = client->nodebyhandle((*it)->h);
+                        if (node)
                         {
-                            //if (!n->hasfileattribute(8) || VideoProperties::timeToRetryVideoPropertyExtraction(n->fileattrstring, (uint32_t*)(filekey + FILENODEKEYLENGTH / 2)))
-                            {
-                                // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
-                                std::string mediafileattributes = VideoProperties::extractVideoPropertyFileAttributes(tmplocalname, (uint32_t*)(filekey + FILENODEKEYLENGTH / 2));   // using the 'nonce', not the file encryption key
-                                client->reqs.add(new CommandAttachFADirect(n->nodehandle, mediafileattributes.c_str()));
-                            }
+                            addAnyMissingMediaFileAttributes(node, tmplocalname, client, NULL);
                         }
                     }
-#endif
                 }
 
                 if (!success)
@@ -839,6 +871,7 @@ void Transfer::complete()
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
         delete slot->fa;
         slot->fa = NULL;
+        bool checked_media = false;
 
         // files must not change during a PUT transfer
         for (file_list::iterator it = files.begin(); it != files.end(); )
@@ -901,6 +934,14 @@ void Transfer::complete()
             }
             else
             {
+                Node* node = client->nodebyhandle((*it)->h);
+                if (!checked_media && node)
+                {
+                    // Add video file attributes for video files that don't have any yet.  Just for the first copy of this file.
+                    addAnyMissingMediaFileAttributes(node, *localpath, client, &uploadhandle);
+                    checked_media = true;
+                }
+
                 it++;
             }
             delete fa;

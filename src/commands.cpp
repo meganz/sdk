@@ -29,6 +29,7 @@
 #include "mega/utils.h"
 #include "mega/user.h"
 #include "mega.h"
+#include "mega/mediafileattribute.h"
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
@@ -297,7 +298,15 @@ CommandAttachFADirect::CommandAttachFADirect(handle nh, const char* attribs)
 
 void CommandAttachFADirect::procresult()
 {
-    // no need to notify app in this case
+    if (client->json.isnumeric())
+    {
+        LOG_err << "pfa result: " << client->json.getint();
+    }
+    else
+    {
+        string fa;
+        client->json.storeobject(&fa);
+    }
 }
 
 
@@ -886,6 +895,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 string s;
 
                 client->pendingattrstring(nn[i].uploadhandle, &s);
+
+                #ifdef USE_MEDIAINFO
+                client->mediaFileInfo.addUploadMediaFileAttributes(th, &s);
+                #endif              
 
                 if (s.size())
                 {
@@ -5496,6 +5509,29 @@ void CommandGetWelcomePDF::procresult()
                 }
                 break;
         }
+    }
+}
+
+
+CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
+{
+    cmd("mc");
+
+    tag = c->reqtag;
+
+    client = c;
+    callback = cb;
+}
+
+void CommandMediaCodecs::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        LOG_err << "mc result: " << client->json.getint();
+    }
+    else
+    {
+        callback(client);
     }
 }
 

@@ -885,6 +885,22 @@ public:
     CommandGetWelcomePDF(MegaClient*);
 };
 
+
+class MEGA_API CommandMediaCodecs : public Command
+{
+public:
+
+    typedef void(*Callback)(MegaClient* client);
+
+    void procresult();
+
+    CommandMediaCodecs(MegaClient*, Callback );
+
+private:
+    Callback callback;
+
+};
+
 } // namespace
 
 #endif

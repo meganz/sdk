@@ -58,7 +58,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>C:\Users\MATTW\source\repos\3rdparty\zenlib\ZenLib\Source;C:\Users\MATTW\source\repos\3rdparty\mediainfolib\MediaInfoLib\Source;$(CRYPTOPP_INCLUDE);$(OPENSSL_INCLUDE);$(CURL_INCLUDE);$(CARES_INCLUDE);$(ZLIB_INCLUDE);$(SQLITE_INCLUDE);..\..\include\mega\wincurl;..\..\include;..\..\third_party\utf8proc;.;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\MATTW\source\repos\3rdparty\ZenLib\Source;C:\Users\MATTW\source\repos\3rdparty\MediaInfoLib\Source;$(CRYPTOPP_INCLUDE);$(OPENSSL_INCLUDE);$(CURL_INCLUDE);$(CARES_INCLUDE);$(ZLIB_INCLUDE);$(SQLITE_INCLUDE);..\..\include\mega\wincurl;..\..\include;..\..\third_party\utf8proc;.;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zm200 -w34100 -w34189 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>debug\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>

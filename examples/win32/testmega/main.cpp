@@ -20,15 +20,18 @@
  */
 
 #include <megaapi.h>
-#include <Windows.h>
 #include <iostream>
 #include <memory>
+#ifdef _WIN32
+#include <Windows.h>
 #include <filesystem>
+#endif
 #include <mega/logging.h>
-//#include <mega/raid.h>
 #include <fstream>
 #include "mega/base64.h"
-//#include "mega/testhooks.h"
+#include "mega/mediafileattribute.h"
+#include "mega/megaclient.h"
+#include "ZenLib/Ztring.h"
 
 
 //ENTER YOUR CREDENTIALS HERE
@@ -42,9 +45,9 @@
 using namespace mega;
 using namespace std;
 
-auto loglevel = MegaApi::LOG_LEVEL_WARNING;
+int loglevel = MegaApi::LOG_LEVEL_DEBUG;
 
-std::unique_ptr<MegaNode> bigFileNode = NULL;
+std::auto_ptr<MegaNode> bigFileNode(NULL);
 
 class MyMegaRequestListener : public MegaRequestListener
 {
@@ -72,23 +75,23 @@ MyMegaRequestListener myMyMegaRequestListener;
 
 class MyMegaTransferListener : public MegaTransferListener
 {
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) /*override*/
     {
         cout << "onTransferStart" << endl;
     }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) override
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) /*override*/
     {
         cout << "onTransferFinish" << endl;
     }
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) /*override*/
     {
         cout << "onTransferUpdate" << endl;
     }
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override
+    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) /*override*/
     {
         cout << "onTransferTemporaryError" << endl;
     }
-    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) override
+    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) /*override*/
     {
         cout << "onTransferData " << size << endl;
         return true;
@@ -101,10 +104,31 @@ time_t pauseTime = 0;
 size_t pauseByteCount = 1000000000;
 bool onetime = false;
 
+void StartRecursiveDownloadTransfer(MegaNode *node, MegaApi* api, const std::string& targetpath)
+{
+    std::string name(node->getName());
+    if (node->isFile())
+    {
+        api->startDownload(node->copy(), (targetpath + name).c_str());
+    }
+    else if (node->isFolder())
+    {
+        std::experimental::filesystem::create_directory(targetpath + name);
+        MegaNodeList *list = api->getChildren(node);
+        for (int i = 0; i < list->size(); i++)
+        {
+            StartRecursiveDownloadTransfer(list->get(i), api, targetpath + name + "\\");
+        }
+        delete list;
+    }
+}
+
+
 class MyListener: public MegaListener
 {
 public:
 	bool finished;
+    bool fetchnodesdone = false;
 
 	MyListener()
 	{
@@ -149,21 +173,28 @@ public:
                     if (name == "MEGA.png")
                         megaPNGPresent = true;
 
-#if 0
-                    if (name) == "kimorg-20110421-021857+0600.tif")  
-                        bigFileNode.reset(node->copy());
-#elif 0
-    if (name == "nonRaidVersion.tst") //"out.dat.original")
-        bigFileNode.reset(node->copy());
-#else
-    if (name == "IMG_7112.MOV") //"out.dat.original")
-        bigFileNode.reset(node->copy());
-#endif
+//#if 0
+//                    if (name) == "kimorg-20110421-021857+0600.tif")  
+//                        bigFileNode.reset(node->copy());
+//#elif 0
+//    if (name == "nonRaidVersion.tst") //"out.dat.original")
+//        bigFileNode.reset(node->copy());
+//#else
+//    if (name == "IMG_7112.MOV") //"out.dat.original")
+//        bigFileNode.reset(node->copy());
+//#endif
+//
+   // if (name.size() >= 8 && name.substr(0,8) == "drop.avi") 
+     //   api->startDownload(node->copy(), ("c:\\tmp\\" + name).c_str());
 
-    if (name.size() > 5 && name.substr(0,5) == "small") 
+
+      if (name.size() >= 5 && name.substr(0,5) == "Adele") 
         api->startDownload(node->copy(), ("c:\\tmp\\" + name).c_str());
 
-
+                    if (name == "test_videos_standaloneinstaller" && node->isFolder())
+                    {
+                        StartRecursiveDownloadTransfer(node, api, "c:\\tmp\\");
+                    }
 				}
 				cout << "***** Done" << endl;
 				delete list;
@@ -175,8 +206,17 @@ public:
                     cout << "***** Uploading the image MEGA.png" << endl;
                     api->startUpload("MEGA.png", root);
                 }
-				delete root;
 
+                static bool once = false;
+                if (once)
+                {
+                    api->startUpload("C:\\Users\\MATTW\\Desktop\\21\\Adele_10_Lovesong.mp3", root);
+                    once = false;
+                }
+
+
+				delete root;
+                fetchnodesdone = true;
 				break;
 			}
 			default:
@@ -206,9 +246,9 @@ public:
 			cout << "***** Transfer finished OK" << endl;
             //g_fileinputs.clear();
 
-            if (bigFileNode)
+            if (bigFileNode.get())
             {
-                std::experimental::filesystem::remove("c:\\tmp\\test_mega_download");
+                //std::experimental::filesystem::remove("c:\\tmp\\test_mega_download");
                 //api->startDownload(bigFileNode.get(), "c:\\tmp\\test_mega_download", &myTL);
 
                 paused = false;
@@ -267,6 +307,14 @@ public:
 };
 
 
+void mySleep(int ms)
+{
+#ifdef _WIN32
+    Sleep(ms);
+#else
+    usleep(ms * 1000);
+#endif
+}
 
 
 
@@ -281,17 +329,21 @@ void continueTransfersForAWhile(int nSeconds, std::string sessionString)
     MyMegaRequestListener fastLogonListener;
     megaApi.fastLogin(sessionString.c_str(), &fastLogonListener);
     while (!fastLogonListener.finished)
-        Sleep(100);
+    {
+        mySleep(100);
+    }
     
     paused = false;
     cout << "fast logon complete" << endl;
-    auto t = time(NULL);
+    time_t t = time(NULL);
     while (time(NULL) - t < nSeconds && !paused)
-        Sleep(100);
+    {
+        mySleep(100);
+    }
 }
 
-std::unique_ptr<byte[]> compareEncryptedData;
-std::unique_ptr<byte[]> compareDecryptedData;
+//std::unique_ptr<byte[]> compareEncryptedData;
+//std::unique_ptr<byte[]> compareDecryptedData;
 
 
 namespace mega
@@ -400,16 +452,91 @@ namespace mega
 
 };
 
+#ifdef USE_MEDIAINFO
+
+uint32_t averageSum = 0;
+uint32_t averageCount = 0;
+#ifdef _WIN32
+void ExamineVideos(const std::experimental::filesystem::path& path, MegaClient* api)
+{
+    if (std::experimental::filesystem::is_directory(path))
+    {
+        for (auto f = std::experimental::filesystem::directory_iterator(path); f != std::experimental::filesystem::directory_iterator(); ++f)
+        {
+            ExamineVideos(f->path(), api);
+        }
+    }
+    else
+    {
+        auto n = GetTickCount();
+        ZenLib::Ztring s(path.c_str());
+        std::wstring sc = s.To_Unicode();
+        uint32_t attributekey[4] = { 0,0,0,0 };
+        MediaProperties vp;
+        vp.extractMediaPropertyFileAttributes(std::string((const char*)sc.data(), sc.size() * 2));
+        std::string s2 = vp.convertMediaPropertyFileAttributes(attributekey, api->mediaFileInfo);
+        auto t = GetTickCount() - n;
+        averageSum += t;
+        averageCount += 1;
+        if (t > 500)
+        {
+            LOG_err << " took: " << t;
+        }
+    }
+}
+#else
+void ExamineVideos(const std::string& path)
+{
+    struct stat sb;
+    if (stat(path.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode))
+    {
+
+        struct dirent *dp;
+        DIR *dfd;
+
+        if ((dfd = opendir(path.c_str())) == NULL)
+        {
+            while ((dp = readdir(dfd)) != NULL)
+            {
+                ExamineVideos(path + "/" + dp->d_name);
+            }
+        }
+    }
+    else
+    {
+        //auto n = GetTickCount();
+        ZenLib::Ztring s(path.c_str());
+        std::wstring sc = s.To_Unicode();
+        uint32_t attributekey[4] = { 0,0,0,0 };
+        std::string ss = VideoProperties::extractVideoPropertyFileAttributes(std::string((const char*)sc.data(), sc.size() * 2), attributekey);
+        //auto t = GetTickCount() - n;
+        //averageSum += t;
+        //averageCount += 1;
+        //if (t > 500)
+        //{
+        //    LOG_err << " tooK: " << t;
+        //}
+    }
+}
+#endif
+
+#endif
 
 int main()
 {
-	//Check the documentation of MegaApi to know how to enable local caching
-	MegaApi *megaApi = new MegaApi(APP_KEY, "C:\\tmp\\MegaCache", USER_AGENT);
+    //Check the documentation of MegaApi to know how to enable local caching
+    MegaApi *megaApi = new MegaApi(APP_KEY, "C:\\tmp\\MegaCache", USER_AGENT);
 
 	//By default, logs are sent to stdout
 	//You can use MegaApi::setLoggerObject to receive SDK logs in your app
 	megaApi->setLogLevel(loglevel);
     SimpleLogger::setAllOutputs(&cout);
+
+
+    //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\", megaApi->client);
+    //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mts\\video-sample.mpg");
+    //LOG_err << " average time: " << (averageSum / averageCount);
+
 
 	MyListener listener;
 
@@ -425,15 +552,16 @@ int main()
 		exit(0);
 	}
 
-    {
-        auto filesize = std::experimental::filesystem::file_size(R"(C:\Users\MATTW\source\repos\cloudraidproxy\cloudraidproxy\out.dat.original)");
-        std::ifstream compareEncryptedFile(R"(C:\Users\MATTW\source\repos\cloudraidproxy\cloudraidproxy\out.dat.original)", ios::binary);
-        compareEncryptedData.reset(new byte[filesize]);
-        compareEncryptedFile.read((char*)compareEncryptedData.get(), filesize);
-        std::ifstream compareDecryptedFile(R"("C:\Users\MATTW\Downloads\kimorg-20110421-021857+0600copy.tif")", ios::binary);
-        compareDecryptedData.reset(new byte[filesize]);
-        compareDecryptedFile.read((char*)compareDecryptedData.get(), filesize);
-    }
+
+    //{
+    //    auto filesize = std::experimental::filesystem::file_size(R"(C:\Users\MATTW\source\repos\cloudraidproxy\cloudraidproxy\out.dat.original)");
+    //    std::ifstream compareEncryptedFile(R"(C:\Users\MATTW\source\repos\cloudraidproxy\cloudraidproxy\out.dat.original)", ios::binary);
+    //    compareEncryptedData.reset(new byte[filesize]);
+    //    compareEncryptedFile.read((char*)compareEncryptedData.get(), filesize);
+    //    std::ifstream compareDecryptedFile(R"("C:\Users\MATTW\Downloads\kimorg-20110421-021857+0600copy.tif")", ios::binary);
+    //    compareDecryptedData.reset(new byte[filesize]);
+    //    compareDecryptedFile.read((char*)compareDecryptedData.get(), filesize);
+    //}
 
 
     std::string sessionString;
@@ -448,7 +576,7 @@ int main()
             MyMegaRequestListener fastLogonListener;
             megaApi->fastLogin(sessionString.c_str(), &fastLogonListener);
             while (!fastLogonListener.finished)
-                Sleep(1000);
+                mySleep(1000);
             fastLogonSucceeded = megaApi->isLoggedIn();
         }
     }
@@ -462,18 +590,20 @@ int main()
         megaApi->login(MEGA_EMAIL, password.c_str());
 
         //You can use the main thread to show a GUI or anything else. MegaApi runs in a background thread.
-        while (!listener.finished)
+        while (!listener.finished && !listener.fetchnodesdone)
         {
-            Sleep(1000);
+            mySleep(1000);
         }
     }
 
-    std::unique_ptr<char[]> sessionKeyString(megaApi->dumpSession());
+    std::unique_ptr<MegaNode> rootNode(megaApi->getRootNode());
+
+    /*std::unique_ptr<char[]>*/ char* sessionKeyString(megaApi->dumpSession());
     if (sessionKeyString)
     {
-        sessionString = std::string(sessionKeyString.get());
+        sessionString = std::string(sessionKeyString);
         std::ofstream sessionFile("C:\\tmp\\MegaSession.txt");
-        sessionFile << sessionKeyString.get();
+        sessionFile << sessionKeyString;
     }
 
 
@@ -484,38 +614,38 @@ int main()
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
 #endif
 
-    if (bigFileNode)
+    if (bigFileNode.get())
     {
-        std::experimental::filesystem::remove("c:\\tmp\\test_mega_download");
+        //std::experimental::filesystem::remove("c:\\tmp\\test_mega_download");
         //megaApi->startDownload(bigFileNode.get(), "c:\\tmp\\test_mega_download", &myTL);
-
-
 
 
         pauseByteCount = 1500000000;
         for (int i = 0; !paused; ++i)
         {
-            Sleep(1000);
+            mySleep(1000);
             if (DebugTestHook::countdownToTimeout < -1)
                 DebugTestHook::countdownToTimeout = 17;
         }
 
     }
 
-    cout << "delete api object!!!" << endl;
-    delete megaApi;
-    cout << "sleep a bit!!!" << endl;
-    Sleep(3);
-    for (int i = 0; i < 100; ++i)
-    {
-        pauseByteCount += 10000000;
-        paused = false;
-        cout << "start api for a while!!!" << endl;
-        continueTransfersForAWhile(20, sessionString);
-        cout << "api gone, sleep for a while!!!" << endl;
-        Sleep(1000);
-    }
+    //cout << "delete api object!!!" << endl;
+    //delete megaApi;
+    //cout << "sleep a bit!!!" << endl;
+    //mySleep(3);
+    //for (int i = 0; i < 100; ++i)
+    //{
+    //    pauseByteCount += 10000000;
+    //    paused = false;
+    //    cout << "start api for a while!!!" << endl;
+    //    continueTransfersForAWhile(20, sessionString);
+    //    cout << "api gone, sleep for a while!!!" << endl;
+    //    mySleep(1000);
+    //}
 
+    for (;;)
+        mySleep(1000);
 
 
 
