@@ -437,7 +437,7 @@ void Transfer::failed(error e, dstime timeleft)
 
 static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
 {
-    // returns the last half, ie the nonce+crc
+    // returns the last half, beyond the actual key, ie the nonce+crc
     return (uint32_t*)(filekey + FILENODEKEYLENGTH / 2);
 }
 
@@ -461,7 +461,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
             // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
             MediaProperties vp;
             vp.extractMediaPropertyFileAttributes(localpath);
-            client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributes(node->nodehandle, vp, fileAttributeKeyPtr(filekey), client, uploadTransferHandle);
+            client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributes(node->nodehandle, vp, attrKey, client, uploadTransferHandle);
             if (uploadTransferHandle)
             {
                 minfa += 1;  // ensure we keep the transfer till the media file properties are ready (we may need to wait for the codec mappings)

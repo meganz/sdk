@@ -64,16 +64,10 @@ void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSu
     }
 }
 
-unsigned MediaFileInfo::Lookup(std::string name, ::vector<MediaFileInfo::MediaCodecs::idrecord>& vec, unsigned notfoundvalue)
+unsigned MediaFileInfo::Lookup(const std::string& name, std::map<std::string, MediaFileInfo::MediaCodecs::idrecord>& data, unsigned notfoundvalue)
 {
-    for (unsigned i = vec.size(); i--; )
-    {
-        if (name == vec[i].mediainfoname)
-        {
-            return vec[i].id;
-        }
-    }
-    return notfoundvalue;
+    std::map<std::string, MediaFileInfo::MediaCodecs::idrecord>::iterator i = data.find(name);
+    return i == data.end() ? notfoundvalue : i->second.id;
 }
 
 byte MediaFileInfo::LookupShortFormat(unsigned containerid, unsigned videocodecid, unsigned audiocodecid)
@@ -92,7 +86,7 @@ byte MediaFileInfo::LookupShortFormat(unsigned containerid, unsigned videocodeci
 
 
 
-void MediaFileInfo::ReadIdRecords(std::vector<MediaCodecs::idrecord>& vec, MegaClient* client)
+void MediaFileInfo::ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>& data, MegaClient* client)
 {
     bool working = client->json.enterarray();
     if (working)
@@ -100,18 +94,20 @@ void MediaFileInfo::ReadIdRecords(std::vector<MediaCodecs::idrecord>& vec, MegaC
         while (working = client->json.enterarray())
         {
             MediaFileInfo::MediaCodecs::idrecord rec;
-            rec.id = atoi(client->json.getvalue());
-            working = client->json.storeobject(&rec.mediainfoname)
-                && client->json.storeobject(&rec.mediasourcemimetype);
+            std::string idString;
+            working = client->json.storeobject(&idString) &&
+                      client->json.storeobject(&rec.mediainfoname);
+            client->json.storeobject(&rec.mediasourcemimetype);
             if (working)
             {
+                rec.id = atoi(idString.c_str());
                 if (!rec.id)
                 {
                     downloadedCodecMapsVersion += atoi(rec.mediainfoname.c_str());
                 }
                 else
                 {
-                    vec.push_back(rec);
+                    data[rec.mediainfoname] = rec;
                 }
             }
             client->json.leavearray();
@@ -154,9 +150,9 @@ void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client)
 void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client)
 {
     downloadedCodecMapsVersion = 0;
-    ReadIdRecords(mediaCodecs.containers, client->json);
-    ReadIdRecords(mediaCodecs.videocodecs, client->json);
-    ReadIdRecords(mediaCodecs.audiocodecs, client->json);
+    ReadIdRecords(mediaCodecs.containers, client);
+    ReadIdRecords(mediaCodecs.videocodecs, client);
+    ReadIdRecords(mediaCodecs.audiocodecs, client);
     ReadShortFormats(mediaCodecs.shortformats, client->json);
     mediaCodecsReceived = true;
 
@@ -595,8 +591,8 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
     audiocodecid = mediaInfo.Lookup(audiocodecName, mediaInfo.mediaCodecs.audiocodecs, 0);
 
     if ((!videocodecid && !audiocodecid || !containerid) ||
-        (!videocodecid && (!width || !height || (!fps && !is_VFR) || !playtime || (!audiocodecid && !no_audio))) ||
-        (!audiocodecid && !playtime))
+        (videocodecid && (!width || !height || (!fps && !is_VFR) || !playtime || (!audiocodecid && !no_audio))) ||
+        (!videocodecid && audiocodecid && (!playtime || width || height)))
     {
         LOG_warn << "mediainfo failed to extract media information for this file";
         shortformat = 255;   // mediaInfo could not interpret this file.  Maybe a later version can.
