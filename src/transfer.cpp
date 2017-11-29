@@ -570,14 +570,14 @@ void Transfer::complete()
 
         if (!transient_error)
         {
-            
+            // set FileFingerprint on source node(s) if missing
             for (file_list::iterator it = files.begin(); it != files.end(); it++)
             {
                 if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                 {
                     if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
-                        nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
-                        client->checkaccess(n, OWNER))
+                            nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
+                            client->checkaccess(n, OWNER))
                     {
                         int missingattr = 0;
                         nodes.insert(n->nodehandle);
@@ -596,7 +596,6 @@ void Transfer::complete()
                         }
                     }
 
-                    // set FileFingerprint on source node(s) if missing
                     if (fingerprint.isvalid && success && (!n->isvalid || fixfingerprint)
                             && fingerprint.size == n->size)
                     {
@@ -605,7 +604,6 @@ void Transfer::complete()
                         n->serializefingerprint(&n->attrs.map['c']);
                         client->setattr(n);
                     }
-
                 }
             }
 
@@ -613,7 +611,6 @@ void Transfer::complete()
             {
                 (*(FileFingerprint*)this) = fingerprint;
             }
-
 
             // ...and place it in all target locations. first, update the files'
             // local target filenames, in case they have changed during the upload
