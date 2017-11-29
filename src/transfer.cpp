@@ -471,8 +471,6 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 #else
     node;
     localpath;
-    client;
-    uploadTransferHandle;
 #endif
 }
 
