@@ -573,13 +573,9 @@ void Transfer::complete()
             
             for (file_list::iterator it = files.begin(); it != files.end(); it++)
             {
-                if (NULL != (n = client->nodebyhandle((*it)->h)))
+                if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                 {
-                    bool weCanUpdate = (*it)->hprivate && !(*it)->hforeign;
-                    
-                    // add preview / thumbnail for image files if they don't have any yet
-                    if (weCanUpdate &&
-                        client->gfx && client->gfx->isgfx(&(*it)->localname) &&
+                    if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
                         nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
                         client->checkaccess(n, OWNER))
                     {
@@ -601,9 +597,8 @@ void Transfer::complete()
                     }
 
                     // set FileFingerprint on source node(s) if missing
-                    if (weCanUpdate &&
-                        fingerprint.isvalid && success && (!n->isvalid || fixfingerprint) &&
-                        fingerprint.size == n->size)
+                    if (fingerprint.isvalid && success && (!n->isvalid || fixfingerprint)
+                            && fingerprint.size == n->size)
                     {
                         *(FileFingerprint*)n = fingerprint;
 
