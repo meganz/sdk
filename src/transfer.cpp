@@ -442,16 +442,16 @@ static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
 }
 
 
-void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath, MegaClient* client, handle* uploadTransferHandle)
+void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath)
 {
 #ifdef USE_MEDIAINFO
     char ext[8];
-    if (node && (uploadTransferHandle || node->nodekey.size() == FILENODEKEYLENGTH) &&
+    if (node && ((type == PUT) || node->nodekey.size() == FILENODEKEYLENGTH) &&
         client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
         MediaProperties::isMediaFilenameExt(ext))
     {
         // for upload, the key is in the transfer.  for download, the key is in the node.
-        uint32_t* attrKey = fileAttributeKeyPtr(uploadTransferHandle ? filekey : (byte*)node->nodekey.data());
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey.data());
 
         if (!node->hasfileattribute(8) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
@@ -461,8 +461,8 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
             // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
             MediaProperties vp;
             vp.extractMediaPropertyFileAttributes(localpath);
-            client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributes(node->nodehandle, vp, attrKey, client, uploadTransferHandle);
-            if (uploadTransferHandle)
+            client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributes(node->nodehandle, vp, attrKey, client, (type == PUT) ? &uploadhandle : NULL);
+            if ((type == PUT))
             {
                 minfa += 1;  // ensure we keep the transfer till the media file properties are ready (we may need to wait for the codec mappings)
             }
@@ -771,7 +771,7 @@ void Transfer::complete()
                         Node* node = client->nodebyhandle((*it)->h);
                         if (node)
                         {
-                            addAnyMissingMediaFileAttributes(node, tmplocalname, client, NULL);
+                            addAnyMissingMediaFileAttributes(node, tmplocalname);
                         }
                     }
                 }
@@ -938,7 +938,7 @@ void Transfer::complete()
                 if (!checked_media && node)
                 {
                     // Add video file attributes for video files that don't have any yet.  Just for the first copy of this file.
-                    addAnyMissingMediaFileAttributes(node, *localpath, client, &uploadhandle);
+                    addAnyMissingMediaFileAttributes(node, *localpath);
                     checked_media = true;
                 }
 

@@ -180,8 +180,6 @@ typedef set<handle> handle_set;
 // file attribute type
 typedef uint16_t fatype;
 
-enum fatypeTag { fa_media = 8, fa_mediaext = 9 };
-
 // list of files
 typedef list<struct File*> file_list;
 
