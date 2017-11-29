@@ -33,7 +33,6 @@ bool MegaClient::disablepkp = false;
 
 // root URL for API access
 string MegaClient::APIURL = "https://g.api.mega.co.nz/";
-//string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 
 // root URL for GeLB requests
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
