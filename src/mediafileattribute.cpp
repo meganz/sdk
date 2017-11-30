@@ -458,6 +458,7 @@ bool MediaProperties::isMediaFilenameExt(const std::string& ext)
         ".m2v.m4a.m4b.m4p.m4s.m4t.m4v.m4v.mkv.mk3d.mka.mks.mov.mp1.mp1v.mp2.mp2v.mp3.mp4.mp4v.mpa1.mpa2.mpeg"
         ".mpg.mpgv.mpv.mqv.ogg.ogm.ogv.opus.pss.qt.spx.tmf.tp.trp.ts.ty.vc1.vob.wav.webm.wma.wmv.wtv.";
 
+    assert(ext.size() >= 2 && ext[0] == '.');
     for (const char* ptr = supportedformats; NULL != (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
     {
         if (ptr[ext.size()] == '.')

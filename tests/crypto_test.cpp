@@ -72,6 +72,11 @@ TEST(Crypto, AES_GCM)
     key.gcm_decrypt(&cipherText, ivBytes, ivLen, tagLen, &result);
 
     ASSERT_STREQ(result.data(), plainText.data()) << "GCM decryption: plain text doesn't match the expected value";
+
+    delete[] keyBytes;
+    delete[] ivBytes;
+    delete[] plainBytes;
+    delete[] cipherBytes;
 }
 
 
