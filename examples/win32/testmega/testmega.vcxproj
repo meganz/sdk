@@ -54,7 +54,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;CARES_STATICLIB;WIN32;_DEBUG;_CONSOLE;WIN32_LEAN_AND_MEAN;xZLIB_WINAPI;UNICODE;xUSE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;USE_MEDIAINFO;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;xHAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;CARES_STATICLIB;WIN32;_DEBUG;_CONSOLE;WIN32_LEAN_AND_MEAN;xZLIB_WINAPI;UNICODE;xUSE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;xHAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>C:\Users\MATTW\source\repos\3rdparty\ZenLib\Source;../../../include;../3rdparty/include;$(CRYPTOPP_INCLUDE);$(OPENSSL_INCLUDE);$(CURL_INCLUDE);$(CARES_INCLUDE)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
