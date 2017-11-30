@@ -179,4 +179,15 @@ TEST(PayCrypterTest, allFeatures)
     Base64::btoa((const byte *)finalResult.data(), finalResult.size(), finalCheck);
     ASSERT_STREQ(finalCheck, expectedBase64Result);
     //////////////////////
+
+    
+    delete[] finalCheck;
+    delete[] expectedBase64Result;
+    delete[] cryptKeysBytes;
+    delete[] rsaResult;
+    delete[] base64Result;
+    delete[] macResult;
+    delete[] expectedPayload;
+    delete[] encryptPayloadResult;
+
 }
