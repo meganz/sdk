@@ -32,7 +32,7 @@
 #include "mega/mediafileattribute.h"
 #include "mega/megaclient.h"
 #include "ZenLib/Ztring.h"
-
+#include "MediaInfo/MediaInfo.h"
 
 //ENTER YOUR CREDENTIALS HERE
 #define MEGA_EMAIL "mattw@mega.co.nz" //"mattweir73+megatest1@gmail.com"//
@@ -188,13 +188,14 @@ public:
      //   api->startDownload(node->copy(), ("c:\\tmp\\" + name).c_str());
 
 
-      if (name.size() >= 5 && name.substr(0,5) == "Adele") 
-        api->startDownload(node->copy(), ("c:\\tmp\\" + name).c_str());
+      //if (name.size() >= 5 && name.substr(0,5) == "Adele") 
+      //  api->startDownload(node->copy(), ("c:\\tmp\\" + name).c_str());
 
-                    if (name == "test_videos_standaloneinstaller" && node->isFolder())
-                    {
-                        StartRecursiveDownloadTransfer(node, api, "c:\\tmp\\");
-                    }
+      //              if (name == "test_videos_standaloneinstaller" && node->isFolder())
+      //              {
+      //                  StartRecursiveDownloadTransfer(node, api, "c:\\tmp\\");
+      //              }
+
 				}
 				cout << "***** Done" << endl;
 				delete list;
@@ -454,6 +455,182 @@ namespace mega
 
 #ifdef USE_MEDIAINFO
 
+std::map<std::string, int> detailcounts;
+std::map<std::string, int> codeccounts;
+std::map<std::string, int> formatcounts;
+std::map<std::string, int> extformats;
+size_t bytesreadcount = 0;
+size_t maxbytesreadcount = 0;
+size_t filesreadcount = 0;
+size_t jumpcount = 0;
+size_t maxjumps = 0;
+size_t mstaken = 0;
+size_t maxmstaken = 0;
+
+void inc(std::map < std::string, int>& m, const std::string& s)
+{
+    auto i = m.find(s);
+    if (i == m.end())
+        m[s] = 1;
+    else
+        i->second++;
+}
+
+void listmap(std::map < std::string, int>& m)
+{
+    for (auto i : m)
+        cout << i.first << "," << i.second << endl;
+}
+
+void ExamineFileIndirect(const std::string filename)
+{
+    MediaInfoLib::MediaInfo mi;
+
+    std::ifstream ifs(filename, ios::binary);
+
+    if (ifs.bad() || ifs.fail())
+    {
+        cout << " open failed " << filename;
+        return;
+    }
+
+    ifs.seekg(0, ios_base::end);
+    size_t filesize = (size_t)ifs.tellg();
+    ifs.seekg(0);
+
+    size_t totalBytesRead = 0, jumps = 0;
+    auto t = GetTickCount();
+
+    int reads_after_video = 0;
+    int reads_after_audio = 0;
+
+    mi.Option(__T("File_IsSeekable"), __T("1"));
+
+    size_t opened = mi.Open_Buffer_Init(filesize, 0);
+    for (;;)
+    {
+        char buf[30 * 1024];
+        size_t n = std::min<std::size_t>(filesize - (size_t)ifs.tellg(), sizeof(buf));
+
+        if (n == 0)
+        {
+            break;
+        }
+
+        ifs.read(buf, n);
+
+        if (ifs.bad() || ifs.fail())
+        {
+            cout << " read failed " << filename;
+            return;
+        }
+
+        totalBytesRead += n;
+        auto bitfield = mi.Open_Buffer_Continue((byte*)buf, n);
+        bool accepted = bitfield & 1;
+        bool filled = bitfield & 2;
+        bool updated = bitfield & 4;
+        bool finalised = bitfield & 8;
+        if (filled)//(finalised)
+        {
+            break;
+        }
+
+        if (accepted)
+        {
+            bool hasGeneral = 0 < mi.Count_Get(MediaInfoLib::Stream_General, 0);
+            bool hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
+            bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
+
+            bool genDuration = !mi.Get(MediaInfoLib::Stream_General, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+            bool vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+            bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+
+            //if (hasGeneral && genDuration)  // this one stops too early in catherine_part1.wmv, (flags say we know there is audio but we didnt' get the audio duration yet)
+            //{
+            //    break;
+            //} else
+            //if (hasVideo && !hasAudio && vidDuration && reads_after_video >= 8)   // this one almost works but fails on metaxas-keller-Bell.mov and metaxas-keller-Bell.mkv. 
+            //{
+            //    break;
+            //}
+            //else if (hasAudio && !hasVideo && audDuration && reads_after_audio >= 8)  // therefore this one probably isn't good either
+            //{
+            //    break;
+            //}else
+            if (hasVideo && hasAudio && vidDuration && audDuration)
+            {
+                break;
+            }
+
+            if (hasVideo)
+            {
+                reads_after_video += 1;
+                reads_after_audio += 1;
+            }
+        }
+
+        auto requestPos = mi.Open_Buffer_Continue_GoTo_Get();
+        if (requestPos != (uint64_t)-1)
+        {
+            ifs.seekg(requestPos);
+            opened = mi.Open_Buffer_Init(filesize, ifs.tellg());
+            jumps += 1;
+        }
+    }
+
+    mi.Open_Buffer_Finalize();
+
+    ZenLib::Ztring gf = mi.Get(MediaInfoLib::Stream_General, 0, __T("Format"), MediaInfoLib::Info_Text);
+    ZenLib::Ztring vw = mi.Get(MediaInfoLib::Stream_Video, 0, __T("Width"), MediaInfoLib::Info_Text);
+    ZenLib::Ztring vh = mi.Get(MediaInfoLib::Stream_Video, 0, __T("Height"), MediaInfoLib::Info_Text);
+    ZenLib::Ztring vd = mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text);
+    ZenLib::Ztring vr = mi.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate"), MediaInfoLib::Info_Text);
+    ZenLib::Ztring vrm = mi.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate_Mode"), MediaInfoLib::Info_Text);
+    ZenLib::Ztring vci = mi.Get(MediaInfoLib::Stream_Video, 0, __T("CodecID"), MediaInfoLib::Info_Text);  // todo: Perhaps we should use "Format" here
+    ZenLib::Ztring aci = mi.Get(MediaInfoLib::Stream_Audio, 0, __T("CodecID"), MediaInfoLib::Info_Text);
+    ZenLib::Ztring vcf = mi.Get(MediaInfoLib::Stream_Video, 0, __T("Format"), MediaInfoLib::Info_Text);  // todo: Perhaps we should use "Format" here
+    ZenLib::Ztring acf = mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Format"), MediaInfoLib::Info_Text);
+    ZenLib::Ztring ad = mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text);
+
+    cout << gf.To_Local() << "," << vci.To_Local() << "," << aci.To_Local() << "," << vcf.To_Local() << "," << acf.To_Local() << "," << totalBytesRead << "," << jumps << "," << (GetTickCount() - t) << "," << filename << endl;
+
+    inc(detailcounts, gf.To_Local() + "," + vci.To_Local() + "," + aci.To_Local() + "," + vcf.To_Local() + "," + acf.To_Local());
+    inc(codeccounts, gf.To_Local() + "," + vci.To_Local() + "," + aci.To_Local());
+    inc(formatcounts, gf.To_Local() + "," + vcf.To_Local() + "," + acf.To_Local());
+    inc(extformats, std::experimental::filesystem::path(filename).extension().string() + "," + gf.To_Local());
+    bytesreadcount += totalBytesRead;
+    maxbytesreadcount = std::max<size_t>(maxbytesreadcount, maxbytesreadcount);
+    filesreadcount += 1;
+    jumpcount += jumps;
+    maxjumps = std::max<size_t>(maxjumps, jumpcount);
+    mstaken += (GetTickCount() - t);
+    maxmstaken = std::max<size_t>(mstaken, maxmstaken);
+}
+
+void ExamineFilesIndirect(const std::experimental::filesystem::path& path)
+{
+    if (std::experimental::filesystem::is_directory(path))
+    {
+        for (auto f = std::experimental::filesystem::directory_iterator(path); f != std::experimental::filesystem::directory_iterator(); ++f)
+        {
+            ExamineFilesIndirect(f->path());
+        }
+    }
+    else
+    {
+        std::string ext, filename;
+        try {
+            ext = path.extension().string();  // in case it can't be converted
+            filename = path.string();
+        } catch (...) {}
+        if (!filename.empty() && !ext.empty() && MediaProperties::isMediaFilenameExt(ext))
+        {
+            ExamineFileIndirect(filename);
+        }
+    }
+}
+
 uint32_t averageSum = 0;
 uint32_t averageCount = 0;
 #ifdef _WIN32
@@ -484,6 +661,7 @@ void ExamineVideos(const std::experimental::filesystem::path& path, MegaClient* 
         }
     }
 }
+
 #else
 void ExamineVideos(const std::string& path)
 {
@@ -536,6 +714,26 @@ int main()
     //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\", megaApi->client);
     //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mts\\video-sample.mpg");
     //LOG_err << " average time: " << (averageSum / averageCount);
+
+
+    //ExamineFilesIndirect("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\");
+    //ExamineFilesIndirect("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\avi\\star_trails.avi");
+    //ExamineFilesIndirect("C:\\");
+    //ExamineFilesIndirect("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mts\\Canon_HFS21.mts");
+    ExamineFilesIndirect("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mkv\\jellyfish-25-mbps-hd-hevc.mkv");
+
+    cout << "detail counts" << endl;
+    listmap(detailcounts);
+    cout << endl << "codec counts" << endl;
+    listmap(codeccounts);
+    cout << endl << "format counts" << endl;
+    listmap(formatcounts);
+    cout << endl << "extension breakdown counts" << endl;
+    listmap(extformats);
+    cout << endl << "total files read " << filesreadcount << " average bytes read per file " << bytesreadcount/filesreadcount << " average jumps "  << jumpcount/(float)filesreadcount << " average ms " << (mstaken/filesreadcount) << endl;
+    cout << " max bytes read per file " << maxbytesreadcount << " max jumps " << maxjumps << " max ms " << maxmstaken << endl;
+
+    return 0;
 
 
 	MyListener listener;

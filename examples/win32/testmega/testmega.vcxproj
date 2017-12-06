@@ -61,7 +61,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>C:\Users\MATTW\source\repos\3rdparty\MediaInfoLib\Project\MSVC2017\Win32\Debug\MediaInfo-Static.lib;C:\Users\MATTW\source\repos\3rdparty\ZenLib\Project\MSVC2017\Win32\Debug\ZenLib.lib;cryptlib.lib;libcaresd.lib;libssl.lib;libcurl_a_debug.lib;winhttp.lib;ws2_32.lib;crypt32.lib;user32.lib;shlwapi.lib;kernel32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;Iphlpapi.lib;Psapi.lib;Userenv.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>C:\Users\MATTW\source\repos\3rdparty\zlib-1.2.11\contrib\vstudio\vc14\x86\ZlibStatDebug\zlibstat.lib;C:\Users\MATTW\source\repos\3rdparty\MediaInfoLib\Project\MSVC2017\Win32\Debug\MediaInfo-Static.lib;C:\Users\MATTW\source\repos\3rdparty\ZenLib\Project\MSVC2017\Win32\Debug\ZenLib.lib;cryptlib.lib;libcaresd.lib;libssl.lib;libcurl_a_debug.lib;winhttp.lib;ws2_32.lib;crypt32.lib;user32.lib;shlwapi.lib;kernel32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;Iphlpapi.lib;Psapi.lib;Userenv.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(CRYPTOPP_LIB);$(CARES_LIB);$(OPENSSL_LIB);$(CURL_LIB)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>

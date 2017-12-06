@@ -42,7 +42,7 @@ IF(WIN32)
 
     add_library(zlib STATIC IMPORTED)
     set_property(TARGET zlib PROPERTY INTERFACE_INCLUDE_DIRECTORIES "C:\\Users\\MATTW\\source\\repos\\3rdparty\\zlib-1.2.11")
-    set_property(TARGET zlib PROPERTY IMPORTED_LOCATION "/home/mattw/repo/libz.a")
+    set_property(TARGET zlib PROPERTY IMPORTED_LOCATION "C:\\Users\\MATTW\\source\\repos\\3rdparty\\zlib-1.2.11\\contrib\\vstudio\\vc14\\x86\\ZlibStatDebug\\zlibstat.lib")
 
     add_library(gtest STATIC IMPORTED)
     set_property(TARGET gtest PROPERTY INTERFACE_INCLUDE_DIRECTORIES "C:\\Users\\MATTW\\source\\repos\\3rdparty\\googletest\\googletest\\include")
