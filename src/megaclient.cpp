@@ -5832,6 +5832,11 @@ error MegaClient::unlink(Node* n, bool keepversions)
     return API_OK;
 }
 
+void MegaClient::unlinkversions()
+{
+    reqs.add(new CommandDelVersions(this));
+}
+
 // emulates the semantics of its JavaScript counterpart
 // (returns NULL if the input is invalid UTF-8)
 // unfortunately, discards bits 8-31 of multibyte characters for backwards compatibility

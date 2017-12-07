@@ -2014,7 +2014,7 @@ class MegaRequest
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
-            TYPE_RESTORE,
+            TYPE_RESTORE, TYPE_REMOVE_VERSIONS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -5943,6 +5943,18 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Remove all versions from the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_VERSIONS
+         *
+         * When the request finishes, file versions might not be deleted yet.
+         * Deletions are notified using onNodesUpdate callbacks.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeVersions(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove a version of a file from the MEGA account
