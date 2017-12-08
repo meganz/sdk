@@ -66,7 +66,7 @@
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>debug\</ObjectFileName>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;CARES_STATICLIB;WIN32_LEAN_AND_MEAN;xZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;_WIN32;xUSE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;USE_MEDIAINFO;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;xHAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>USE_MEDIAINFO;_CRT_SECURE_NO_WARNINGS;CURL_STATICLIB;CARES_STATICLIB;WIN32_LEAN_AND_MEAN;xZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;_WIN32;xUSE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;USE_MEDIAINFO;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;xHAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
       <ProgramDataBaseFileName>.\</ProgramDataBaseFileName>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>

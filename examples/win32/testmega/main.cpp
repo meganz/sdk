@@ -634,13 +634,16 @@ void ExamineFilesIndirect(const std::experimental::filesystem::path& path)
 uint32_t averageSum = 0;
 uint32_t averageCount = 0;
 #ifdef _WIN32
-void ExamineVideos(const std::experimental::filesystem::path& path, MegaClient* api)
+
+
+
+void ExamineVideos(const std::experimental::filesystem::path& path)
 {
     if (std::experimental::filesystem::is_directory(path))
     {
         for (auto f = std::experimental::filesystem::directory_iterator(path); f != std::experimental::filesystem::directory_iterator(); ++f)
         {
-            ExamineVideos(f->path(), api);
+            ExamineVideos(f->path());
         }
     }
     else
@@ -651,7 +654,7 @@ void ExamineVideos(const std::experimental::filesystem::path& path, MegaClient* 
         uint32_t attributekey[4] = { 0,0,0,0 };
         MediaProperties vp;
         vp.extractMediaPropertyFileAttributes(std::string((const char*)sc.data(), sc.size() * 2));
-        std::string s2 = vp.convertMediaPropertyFileAttributes(attributekey, api->mediaFileInfo);
+        std::string s2 = vp.convertMediaPropertyFileAttributes(attributekey, mfi);
         auto t = GetTickCount() - n;
         averageSum += t;
         averageCount += 1;
@@ -711,7 +714,7 @@ int main()
     SimpleLogger::setAllOutputs(&cout);
 
 
-    //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\", megaApi->client);
+    ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\");
     //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mts\\video-sample.mpg");
     //LOG_err << " average time: " << (averageSum / averageCount);
 
