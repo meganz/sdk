@@ -74,6 +74,12 @@ CONFIG(USE_LIBUV) {
     }
 }
 
+CONFIG(USE_FFMPEG) {
+    DEFINES += HAVE_FFMPEG
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+    LIBS += -lavcodec -lavformat -lavutil -lswscale
+}
+
 win32 {
     # comment this line to use WinHTTP on Windows
     CONFIG += USE_CURL
