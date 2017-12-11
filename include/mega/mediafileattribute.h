@@ -33,6 +33,8 @@ void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
 void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
 
 struct MEGA_API MediaFileInfo;
+struct MEGA_API FileSystemAccess;
+
 
 struct MEGA_API MediaProperties
 {
@@ -68,7 +70,7 @@ struct MEGA_API MediaProperties
     static bool isMediaFilenameExt(const std::string& ext);
 
     // Open the specified local file with mediainfoLib and get its video parameters.  This function fills in the names but not the IDs
-    void extractMediaPropertyFileAttributes(const std::string& localFilename);
+    void extractMediaPropertyFileAttributes(const std::string& localFilename, FileSystemAccess* fa);
 
     // Look up the IDs of the codecs and container, and encode and encrypt all the info into a string with file attribute 8, and possibly file attribute 9.
     std::string convertMediaPropertyFileAttributes(uint32_t attributekey[4], MediaFileInfo& mediaInfo);

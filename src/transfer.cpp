@@ -460,7 +460,8 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 
             // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
             MediaProperties vp;
-            vp.extractMediaPropertyFileAttributes(localpath);
+            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess);
+
             client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributes(node->nodehandle, vp, attrKey, client, (type == PUT) ? &uploadhandle : NULL);
             if ((type == PUT))
             {

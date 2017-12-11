@@ -33,6 +33,8 @@
 #include "mega/megaclient.h"
 #include "ZenLib/Ztring.h"
 #include "MediaInfo/MediaInfo.h"
+#include "mega/win32/megafs.h"
+
 
 //ENTER YOUR CREDENTIALS HERE
 #define MEGA_EMAIL "mattw@mega.co.nz" //"mattweir73+megatest1@gmail.com"//
@@ -191,10 +193,10 @@ public:
       //if (name.size() >= 5 && name.substr(0,5) == "Adele") 
       //  api->startDownload(node->copy(), ("c:\\tmp\\" + name).c_str());
 
-      //              if (name == "test_videos_standaloneinstaller" && node->isFolder())
-      //              {
-      //                  StartRecursiveDownloadTransfer(node, api, "c:\\tmp\\");
-      //              }
+                    if (name == "test_videos_standaloneinstaller" && node->isFolder())
+                    {
+                        StartRecursiveDownloadTransfer(node, api, "c:\\tmp\\");
+                    }
 
 				}
 				cout << "***** Done" << endl;
@@ -587,9 +589,9 @@ void ExamineFileIndirect(const std::string filename)
     ZenLib::Ztring vd = mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text);
     ZenLib::Ztring vr = mi.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate"), MediaInfoLib::Info_Text);
     ZenLib::Ztring vrm = mi.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate_Mode"), MediaInfoLib::Info_Text);
-    ZenLib::Ztring vci = mi.Get(MediaInfoLib::Stream_Video, 0, __T("CodecID"), MediaInfoLib::Info_Text);  // todo: Perhaps we should use "Format" here
+    ZenLib::Ztring vci = mi.Get(MediaInfoLib::Stream_Video, 0, __T("CodecID"), MediaInfoLib::Info_Text); 
     ZenLib::Ztring aci = mi.Get(MediaInfoLib::Stream_Audio, 0, __T("CodecID"), MediaInfoLib::Info_Text);
-    ZenLib::Ztring vcf = mi.Get(MediaInfoLib::Stream_Video, 0, __T("Format"), MediaInfoLib::Info_Text);  // todo: Perhaps we should use "Format" here
+    ZenLib::Ztring vcf = mi.Get(MediaInfoLib::Stream_Video, 0, __T("Format"), MediaInfoLib::Info_Text);  
     ZenLib::Ztring acf = mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Format"), MediaInfoLib::Info_Text);
     ZenLib::Ztring ad = mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text);
 
@@ -653,7 +655,10 @@ void ExamineVideos(const std::experimental::filesystem::path& path)
         std::wstring sc = s.To_Unicode();
         uint32_t attributekey[4] = { 0,0,0,0 };
         MediaProperties vp;
-        vp.extractMediaPropertyFileAttributes(std::string((const char*)sc.data(), sc.size() * 2));
+        WinFileSystemAccess* fsa = new WinFileSystemAccess();
+        vp.extractMediaPropertyFileAttributes(std::string((const char*)sc.data(), sc.size() * 2), fsa);
+        delete fsa;
+        MediaFileInfo mfi;
         std::string s2 = vp.convertMediaPropertyFileAttributes(attributekey, mfi);
         auto t = GetTickCount() - n;
         averageSum += t;
@@ -714,7 +719,7 @@ int main()
     SimpleLogger::setAllOutputs(&cout);
 
 
-    ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\");
+    //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\");
     //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mts\\video-sample.mpg");
     //LOG_err << " average time: " << (averageSum / averageCount);
 
@@ -723,20 +728,20 @@ int main()
     //ExamineFilesIndirect("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\avi\\star_trails.avi");
     //ExamineFilesIndirect("C:\\");
     //ExamineFilesIndirect("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mts\\Canon_HFS21.mts");
-    ExamineFilesIndirect("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mkv\\jellyfish-25-mbps-hd-hevc.mkv");
+    //ExamineFilesIndirect("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mkv\\jellyfish-25-mbps-hd-hevc.mkv");
 
-    cout << "detail counts" << endl;
-    listmap(detailcounts);
-    cout << endl << "codec counts" << endl;
-    listmap(codeccounts);
-    cout << endl << "format counts" << endl;
-    listmap(formatcounts);
-    cout << endl << "extension breakdown counts" << endl;
-    listmap(extformats);
-    cout << endl << "total files read " << filesreadcount << " average bytes read per file " << bytesreadcount/filesreadcount << " average jumps "  << jumpcount/(float)filesreadcount << " average ms " << (mstaken/filesreadcount) << endl;
-    cout << " max bytes read per file " << maxbytesreadcount << " max jumps " << maxjumps << " max ms " << maxmstaken << endl;
+    //cout << "detail counts" << endl;
+    //listmap(detailcounts);
+    //cout << endl << "codec counts" << endl;
+    //listmap(codeccounts);
+    //cout << endl << "format counts" << endl;
+    //listmap(formatcounts);
+    //cout << endl << "extension breakdown counts" << endl;
+    //listmap(extformats);
+    //cout << endl << "total files read " << filesreadcount << " average bytes read per file " << bytesreadcount/filesreadcount << " average jumps "  << jumpcount/(float)filesreadcount << " average ms " << (mstaken/filesreadcount) << endl;
+    //cout << " max bytes read per file " << maxbytesreadcount << " max jumps " << maxjumps << " max ms " << maxmstaken << endl;
 
-    return 0;
+    //return 0;
 
 
 	MyListener listener;
@@ -815,19 +820,19 @@ int main()
     globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
 #endif
 
-    if (bigFileNode.get())
+    //if (bigFileNode.get())
     {
         //std::experimental::filesystem::remove("c:\\tmp\\test_mega_download");
         //megaApi->startDownload(bigFileNode.get(), "c:\\tmp\\test_mega_download", &myTL);
 
 
-        pauseByteCount = 1500000000;
-        for (int i = 0; !paused; ++i)
-        {
-            mySleep(1000);
-            if (DebugTestHook::countdownToTimeout < -1)
-                DebugTestHook::countdownToTimeout = 17;
-        }
+        //pauseByteCount = 1500000000;
+        //for (int i = 0; !paused; ++i)
+        //{
+        //    mySleep(1000);
+        //    if (DebugTestHook::countdownToTimeout < -1)
+        //        DebugTestHook::countdownToTimeout = 17;
+        //}
 
     }
 

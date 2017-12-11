@@ -3,10 +3,10 @@ project (mega_sdk)
 
 #set (CMAKE_CXX_STANDARD 11)
 
-string(TOLOWER ${CMAKE_BUILD_TYPE} buildType)
-IF (buildType STREQUAL "debug")
-    add_definitions(-DDEBUG -D_DEBUG)
-ENDIF()
+#string(TOLOWER ${CMAKE_BUILD_TYPE} buildType)
+#IF (buildType STREQUAL "debug")
+#    add_definitions(-DDEBUG -D_DEBUG)
+#ENDIF()
 
 IF(WIN32)
     #Link against the static C/C++ libraries on windows
