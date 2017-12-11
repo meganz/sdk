@@ -473,10 +473,11 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
 bool MediaProperties::isMediaFilenameExt(const std::string& ext)
 {
     static const char* supportedformats = 
-        ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.act.aif.aifc.aiff.amr.asf.au.avc.avi.caf.dd+.dif.divx.dv.eac3.ec3"
-        ".evo.f4a.f4b.f4v.flv.h261.h263.h264.h265.hevc.isma.ismt.ismv.jpm.jpx.k3g.lxf.m1a.m1v.m2a.m2p.m2s.m2t"
-        ".m2v.m4a.m4b.m4p.m4s.m4t.m4v.m4v.mkv.mk3d.mka.mks.mov.mp1.mp1v.mp2.mp2v.mp3.mp4.mp4v.mpa1.mpa2.mpeg"
-        ".mpg.mpgv.mpv.mqv.ogg.ogm.ogv.opus.pss.qt.spx.tmf.tp.trp.ts.ty.vc1.vob.wav.webm.wma.wmv.wtv.";
+        ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.aac.aacp.ac3.act.adts.aif.aifc.aiff.als.apl.at3.avc"
+        ".avi.dd+.dde.divx.dts.dtshd.eac3.ec3.evo.f4a.f4b.f4v.flac.gvi.h261.h263.h264.h265.hevc.isma"
+        ".ismt.ismv.ivf.jpm.k3g.m1a.m1v.m2a.m2p.m2s.m2t.m2v.m4a.m4b.m4p.m4s.m4t.m4v.m4v.mac.mkv.mk3d"
+        ".mka.mks.mlp.mov.mp1.mp1v.mp2.mp2v.mp3.mp4.mp4v.mpa1.mpa2.mpeg.mpg.mpgv.mpv.mqv.ogg.ogm.ogv"
+        ".omg.opus.qt.sls.spx.thd.tmf.trp.ts.ty.vc1.vob.vr.w64.wav.webm.wma.wmv.";
 
     assert(ext.size() >= 2 && ext[0] == '.');
     for (const char* ptr = supportedformats; NULL != (ptr = strstr(ptr, ext.c_str())); ptr += ext.size())
