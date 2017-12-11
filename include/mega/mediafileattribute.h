@@ -32,9 +32,11 @@ enum fatype_ids { fa_media = 8, fa_mediaext = 9 };
 void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
 void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
 
-struct MediaFileInfo;
+struct MEGA_API MediaFileInfo;
+struct MEGA_API FileSystemAccess;
 
-struct MediaProperties
+
+struct MEGA_API MediaProperties
 {
     byte shortformat;
     uint32_t width;
@@ -42,8 +44,10 @@ struct MediaProperties
     uint32_t fps;
     uint32_t playtime;
     std::string containerName;
-    std::string videocodecName;
-    std::string audiocodecName;
+    std::string videocodecNames;
+    std::string audiocodecNames;
+    std::string videocodecFormat;
+    std::string audiocodecFormat;
     uint32_t containerid;
     uint32_t videocodecid;
     uint32_t audiocodecid;
@@ -66,7 +70,7 @@ struct MediaProperties
     static bool isMediaFilenameExt(const std::string& ext);
 
     // Open the specified local file with mediainfoLib and get its video parameters.  This function fills in the names but not the IDs
-    void extractMediaPropertyFileAttributes(const std::string& localFilename);
+    void extractMediaPropertyFileAttributes(const std::string& localFilename, FileSystemAccess* fa);
 
     // Look up the IDs of the codecs and container, and encode and encrypt all the info into a string with file attribute 8, and possibly file attribute 9.
     std::string convertMediaPropertyFileAttributes(uint32_t attributekey[4], MediaFileInfo& mediaInfo);
@@ -74,8 +78,9 @@ struct MediaProperties
 
 };
 
+struct MEGA_API JSON;
 
-struct MediaFileInfo
+struct MEGA_API MediaFileInfo
 {
     struct MediaCodecs
     {
@@ -120,7 +125,7 @@ struct MediaFileInfo
     void requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename);
     static void onCodecMappingsReceiptStatic(MegaClient* client);
     void onCodecMappingsReceipt(MegaClient* client);
-    void ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>&  data, MegaClient* client);
+    void ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>&  data, JSON& json);
 
     // get the cached media attributes for a file just before sending CommandPutNodes (for a newly uploaded file)
     void addUploadMediaFileAttributes(handle& fh, std::string* s);

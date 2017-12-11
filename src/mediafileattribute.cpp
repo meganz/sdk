@@ -64,8 +64,28 @@ void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSu
     }
 }
 
+static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformatrec>& vec, JSON& json);
+
 unsigned MediaFileInfo::Lookup(const std::string& name, std::map<std::string, MediaFileInfo::MediaCodecs::idrecord>& data, unsigned notfoundvalue)
 {
+    
+
+    size_t seppos = name.find(" / ");
+    if (seppos != std::string::npos)
+    {
+        // CodecId can contain a list in order of preference, separated by " / "
+        size_t pos = 0;
+        while (seppos != std::string::npos)
+        {
+            unsigned result = MediaFileInfo::Lookup(name.substr(pos, seppos), data, notfoundvalue);
+            if (result != notfoundvalue)
+                return result;
+            pos = seppos + 3;
+            seppos = name.find(" / ", pos);
+        }
+        return MediaFileInfo::Lookup(name.substr(pos), data, notfoundvalue);
+    }
+
     std::map<std::string, MediaFileInfo::MediaCodecs::idrecord>::iterator i = data.find(name);
     return i == data.end() ? notfoundvalue : i->second.id;
 }
@@ -86,18 +106,18 @@ byte MediaFileInfo::LookupShortFormat(unsigned containerid, unsigned videocodeci
 
 
 
-void MediaFileInfo::ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>& data, MegaClient* client)
+void MediaFileInfo::ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>& data, JSON& json)
 {
-    bool working = client->json.enterarray();
+    bool working = json.enterarray();
     if (working)
     {
-        while (working = client->json.enterarray())
+        while (working = json.enterarray())
         {
             MediaFileInfo::MediaCodecs::idrecord rec;
             std::string idString;
-            working = client->json.storeobject(&idString) &&
-                      client->json.storeobject(&rec.mediainfoname);
-            client->json.storeobject(&rec.mediasourcemimetype);
+            working = json.storeobject(&idString) &&
+                      json.storeobject(&rec.mediainfoname);
+            json.storeobject(&rec.mediasourcemimetype);
             if (working)
             {
                 rec.id = atoi(idString.c_str());
@@ -110,9 +130,9 @@ void MediaFileInfo::ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>& 
                     data[rec.mediainfoname] = rec;
                 }
             }
-            client->json.leavearray();
+            json.leavearray();
         }
-        client->json.leavearray();
+        json.leavearray();
     }
 }
 
@@ -150,9 +170,9 @@ void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client)
 void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client)
 {
     downloadedCodecMapsVersion = 0;
-    ReadIdRecords(mediaCodecs.containers, client);
-    ReadIdRecords(mediaCodecs.videocodecs, client);
-    ReadIdRecords(mediaCodecs.audiocodecs, client);
+    ReadIdRecords(mediaCodecs.containers, client->json);
+    ReadIdRecords(mediaCodecs.videocodecs, client->json);
+    ReadIdRecords(mediaCodecs.audiocodecs, client->json);
     ReadShortFormats(mediaCodecs.shortformats, client->json);
     mediaCodecsReceived = true;
 
@@ -520,76 +540,191 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
     return false;
 }
 
-void MediaProperties::extractMediaPropertyFileAttributes(const std::string& localFilename)
+
+bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filename, FileAccess* fa, unsigned maxBytesToRead, unsigned maxSeconds)
 {
-    try
+    if (!fa->fopen(&filename, true, false))
     {
-        MediaInfoLib::MediaInfo minfo;
+        LOG_err << "could not open local file for mediainfo";
+        return false;
+    }
+    m_off_t filesize = fa->size; 
 
-#ifdef _WIN32        
-        ZenLib::Ztring filename((wchar_t*)localFilename.data(), localFilename.size() / 2);
-#else
-        ZenLib::Ztring filename(localFilename.data(), localFilename.size());
-#endif
-        if (minfo.Open(filename))
+    size_t totalBytesRead = 0, jumps = 0;
+    auto t = GetTickCount();
+
+    size_t opened = mi.Open_Buffer_Init(filesize, 0);
+    m_off_t readpos = 0;
+    time_t startTime = 0;
+    for (;;)
+    {
+        byte buf[30 * 1024];
+
+        unsigned n = unsigned(std::min<m_off_t>(filesize - readpos, sizeof(buf)));
+
+        if (n == 0)
         {
-            if (!minfo.Count_Get(MediaInfoLib::Stream_General, 0))
-            {
-                LOG_warn << "no general information found in file " << filename.To_Local();
-            }
-            if (!minfo.Count_Get(MediaInfoLib::Stream_Video, 0))
-            {
-                LOG_warn << "no video information found in file " << filename.To_Local();
-            }
-            if (!minfo.Count_Get(MediaInfoLib::Stream_Audio, 0))
-            {
-                LOG_warn << "no audio information found in file " << filename.To_Local();
-                no_audio = true;
-            }
+            break;
+        }
 
-            ZenLib::Ztring gf = minfo.Get(MediaInfoLib::Stream_General, 0, __T("Format"), MediaInfoLib::Info_Text);
-            ZenLib::Ztring vw = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Width"), MediaInfoLib::Info_Text);
-            ZenLib::Ztring vh = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Height"), MediaInfoLib::Info_Text);
-            ZenLib::Ztring vd = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text);
-            ZenLib::Ztring vr = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate"), MediaInfoLib::Info_Text);
-            ZenLib::Ztring vrm = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate_Mode"), MediaInfoLib::Info_Text);
-            ZenLib::Ztring vci = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("CodecID"), MediaInfoLib::Info_Text);  // todo: Perhaps we should use "Format" here
-            ZenLib::Ztring aci = minfo.Get(MediaInfoLib::Stream_Audio, 0, __T("CodecID"), MediaInfoLib::Info_Text);
-            ZenLib::Ztring ad = minfo.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text);
+        if (totalBytesRead > maxBytesToRead || startTime != 0 && (time(NULL)-startTime > maxSeconds))
+        {
+            LOG_warn << "could not extract mediainfo data within reasonable limits";
+            fa->closef();
+            return false;
+        }
 
-            width = vw.To_int32u();
-            height = vh.To_int32u();
-            fps = vr.To_int32u();
-            playtime = (coalesce(vd.To_int32u(), ad.To_int32u()) + 500) / 1000;  // converting ms to sec
-            videocodecName = vci.To_Local();
-            audiocodecName = aci.To_Local();
-            containerName = gf.To_Local();
-            is_VFR = vrm.To_Local() == "VFR"; // variable frame rate - send through as 0 in fps field
+        if (!fa->frawread(buf, n, readpos))
+        {
+            LOG_err << "could not read local file";
+            fa->closef();
+            return false;
+        }
+        readpos += n;
+        if (startTime == 0)
+        {
+            startTime = time(NULL);
+        }
+
+        totalBytesRead += n;
+        size_t bitfield = mi.Open_Buffer_Continue((byte*)buf, n);
+        bool accepted = bitfield & 1;
+        bool filled = bitfield & 2;
+        bool updated = bitfield & 4;
+        bool finalised = bitfield & 8;
+        if (filled)//(finalised)
+        {
+            break;
+        }
+
+        if (accepted)
+        {
+            bool hasGeneral = 0 < mi.Count_Get(MediaInfoLib::Stream_General, 0);
+            bool hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
+            bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
+
+            bool genDuration = !mi.Get(MediaInfoLib::Stream_General, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+            bool vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+            bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+
+            if (hasVideo && hasAudio && vidDuration && audDuration)
+            {
+                break;
+            }
+        }
+
+        m_off_t requestPos = mi.Open_Buffer_Continue_GoTo_Get();
+        if (requestPos != (m_off_t)-1)
+        {
+            readpos = requestPos;
+            opened = mi.Open_Buffer_Init(filesize, readpos);
+            jumps += 1;
+        }
+    }
+
+    mi.Open_Buffer_Finalize();
+
+    fa->closef();
+    return true;
+}
+
+
+void MediaProperties::extractMediaPropertyFileAttributes(const std::string& localFilename, FileSystemAccess* fsa)
+{
+    FileAccess* tmpfa = fsa->newfileaccess();
+    if (tmpfa)
+    {
+        try
+        {
+            MediaInfoLib::MediaInfo minfo;
+
+            if (mediaInfoOpenFileWithLimits(minfo, localFilename, tmpfa, 10485760, 3))  // we can read more off local disk
+            {
+                if (!minfo.Count_Get(MediaInfoLib::Stream_General, 0))
+                {
+                    LOG_warn << "no general information found in file";
+                }
+                if (!minfo.Count_Get(MediaInfoLib::Stream_Video, 0))
+                {
+                    LOG_warn << "no video information found in file";
+                }
+                if (!minfo.Count_Get(MediaInfoLib::Stream_Audio, 0))
+                {
+                    LOG_warn << "no audio information found in file";
+                    no_audio = true;
+                }
+
+                ZenLib::Ztring gf = minfo.Get(MediaInfoLib::Stream_General, 0, __T("Format"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vw = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Width"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vh = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Height"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vd = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vr = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vrm = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate_Mode"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vci = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("CodecID"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vcf = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Format"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring aci = minfo.Get(MediaInfoLib::Stream_Audio, 0, __T("CodecID"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring acf = minfo.Get(MediaInfoLib::Stream_Audio, 0, __T("Format"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring ad = minfo.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text);
+
+                width = vw.To_int32u();
+                height = vh.To_int32u();
+                fps = vr.To_int32u();
+                playtime = (coalesce(vd.To_int32u(), ad.To_int32u()) + 500) / 1000;  // converting ms to sec
+                videocodecNames = vci.To_Local();
+                videocodecFormat = vcf.To_Local();
+                audiocodecNames = aci.To_Local();
+                audiocodecFormat = acf.To_Local();
+                containerName = gf.To_Local();
+                is_VFR = vrm.To_Local() == "VFR"; // variable frame rate - send through as 0 in fps field
+                if (!fps)
+                {
+                    ZenLib::Ztring vrn = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate_Num"), MediaInfoLib::Info_Text);
+                    ZenLib::Ztring vrd = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate_Den"), MediaInfoLib::Info_Text);
+                    uint32_t num = vrn.To_int32u();
+                    uint32_t den = vrd.To_int32u();
+                    if (num > 0 && den > 0)
+                    {
+                        fps = (num + den / 2) / den;
+                    }
+                }
+                if (!fps)
+                {
+                    ZenLib::Ztring vro = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate_Original"), MediaInfoLib::Info_Text);
+                    fps = vro.To_int32u();
+                }
 
 #ifdef _DEBUG
-            LOG_info << "MediaInfo on " << filename.To_Local() << " " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gf.To_Local() << "\" \"" << vci.To_Local() << "\" \"" << aci.To_Local() << "\"";
+                string path, local = localFilename;
+                fsa->local2path(&local, &path);
+                LOG_info << "MediaInfo on " << path << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
 #endif
+            }
         }
-        else
+        catch (std::exception& e)
         {
-            LOG_warn << "mediainfo could not open the file " << filename.To_Local();
+            LOG_err << "exception caught reading meda file attibutes: " << e.what();
         }
-    }
-    catch (std::exception& e)
-    {
-        LOG_err << "exception caught reading meda file attibutes: " << e.what();
-    }
-    catch (...)
-    {
-        LOG_err << "unknown excption caught reading media file attributes";
+        catch (...)
+        {
+            LOG_err << "unknown excption caught reading media file attributes";
+        }
+        delete tmpfa;
     }
 }
 
 std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4], MediaFileInfo& mediaInfo)
 {
     containerid = mediaInfo.Lookup(containerName, mediaInfo.mediaCodecs.containers, 0);
-    videocodecid = mediaInfo.Lookup(videocodecName, mediaInfo.mediaCodecs.videocodecs, 0);
-    audiocodecid = mediaInfo.Lookup(audiocodecName, mediaInfo.mediaCodecs.audiocodecs, 0);
+    videocodecid = mediaInfo.Lookup(videocodecNames, mediaInfo.mediaCodecs.videocodecs, 0);
+    if (!videocodecid)
+    {
+        videocodecid = mediaInfo.Lookup(videocodecFormat, mediaInfo.mediaCodecs.videocodecs, 0);
+    }
+    audiocodecid = mediaInfo.Lookup(audiocodecNames, mediaInfo.mediaCodecs.audiocodecs, 0);
+    if (!audiocodecid)
+    {
+        audiocodecid = mediaInfo.Lookup(audiocodecFormat, mediaInfo.mediaCodecs.audiocodecs, 0);
+    }
 
     if ((!videocodecid && !audiocodecid || !containerid) ||
         (videocodecid && (!width || !height || (!fps && !is_VFR) || !playtime || (!audiocodecid && !no_audio))) ||
