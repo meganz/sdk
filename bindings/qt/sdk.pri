@@ -77,6 +77,11 @@ CONFIG(USE_LIBUV) {
 CONFIG(USE_FFMPEG) {
     DEFINES += HAVE_FFMPEG
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+
+    unix:!macx {
+        INCLUDEPATH += /usr/include/ffmpeg
+    }
+
     LIBS += -lavcodec -lavformat -lavutil -lswscale
 }
 
