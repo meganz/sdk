@@ -448,7 +448,8 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
     char ext[8];
     if (node && ((type == PUT) || node->nodekey.size() == FILENODEKEYLENGTH) &&
         client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
-        MediaProperties::isMediaFilenameExt(ext))
+        MediaProperties::isMediaFilenameExt(ext) &&
+        !client->mediaFileInfo.mediaCodecsFailed)
     {
         // for upload, the key is in the transfer.  for download, the key is in the node.
         uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey.data());

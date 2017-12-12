@@ -33,7 +33,7 @@
 
 namespace mega {
 
-#define MEDIA_INFO_METHODOLOGY_VERSION 1    // Increment this anytime we change the way we use mediainfo, eq query new or different fields etc
+#define MEDIA_INFO_BUILD 1    // Increment this anytime we change the way we use mediainfo, eq query new or different fields etc.  Needs to be coordinated with the way the webclient works also.
 
 
 #ifdef USE_MEDIAINFO
@@ -41,6 +41,7 @@ namespace mega {
 MediaFileInfo::MediaFileInfo()
     : mediaCodecsRequested(false)
     , mediaCodecsReceived(false)
+    , mediaCodecsFailed(false)
     , downloadedCodecMapsVersion(0)
 {
 }
@@ -121,14 +122,7 @@ void MediaFileInfo::ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>& 
             if (working)
             {
                 rec.id = atoi(idString.c_str());
-                if (!rec.id)
-                {
-                    downloadedCodecMapsVersion += atoi(rec.mediainfoname.c_str());
-                }
-                else
-                {
-                    data[rec.mediainfoname] = rec;
-                }
+                data[rec.mediainfoname] = rec;
             }
             json.leavearray();
         }
@@ -162,14 +156,20 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
     }
 }
 
-void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client)
+void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, unsigned codecListVersion)
 {
-    client->mediaFileInfo.onCodecMappingsReceipt(client);
+    client->mediaFileInfo.onCodecMappingsReceipt(client, codecListVersion);
 }
 
-void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client)
+void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, unsigned codecListVersion)
 {
-    downloadedCodecMapsVersion = 0;
+    if (codecListVersion < 0)
+    {
+        mediaCodecsFailed = true;
+        return;
+    }
+
+    downloadedCodecMapsVersion = codecListVersion;
     ReadIdRecords(mediaCodecs.containers, client->json);
     ReadIdRecords(mediaCodecs.videocodecs, client->json);
     ReadIdRecords(mediaCodecs.audiocodecs, client->json);
@@ -525,15 +525,15 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
 
     if (vp.shortformat == 255) 
     {
-        if (vp.width < PrecomputedMediaInfoLibVersion)
-        {
-            return true;
-        }
-        else if (vp.height < MEDIA_INFO_METHODOLOGY_VERSION)
+        if (vp.fps != MEDIA_INFO_BUILD)
         {
             return true;
         } 
-        else if (vp.playtime < downloadedCodecMapsVersion)
+        if (vp.width != PrecomputedMediaInfoLibVersion)
+        {
+            return true;
+        }
+        if (vp.playtime < downloadedCodecMapsVersion)
         {
             return true;
         }
@@ -593,7 +593,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
         bool filled = bitfield & 2;
         bool updated = bitfield & 4;
         bool finalised = bitfield & 8;
-        if (filled)//(finalised)
+        if (filled || finalised)
         {
             break;
         }
@@ -733,8 +733,8 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
     {
         LOG_warn << "mediainfo failed to extract media information for this file";
         shortformat = 255;   // mediaInfo could not interpret this file.  Maybe a later version can.
+        fps = MEDIA_INFO_BUILD;                          // updated when we change relevant things in this executable
         width = PrecomputedMediaInfoLibVersion;          // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
-        height = MEDIA_INFO_METHODOLOGY_VERSION;         // updated when we change relevant stuff in the executable
         playtime = mediaInfo.downloadedCodecMapsVersion;           // updated when we add more codec names etc
     }
     else

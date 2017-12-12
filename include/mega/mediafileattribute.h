@@ -108,6 +108,7 @@ struct MEGA_API MediaFileInfo
     // a set of codec <-> id mappings supplied by Mega
     bool mediaCodecsRequested;
     bool mediaCodecsReceived;
+    bool mediaCodecsFailed;
     uint32_t downloadedCodecMapsVersion;
     MediaCodecs mediaCodecs;
 
@@ -123,8 +124,8 @@ struct MEGA_API MediaFileInfo
 
     // request MediaCodecs from Mega.  Only do this the first time we know we will need them.
     void requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename);
-    static void onCodecMappingsReceiptStatic(MegaClient* client);
-    void onCodecMappingsReceipt(MegaClient* client);
+    static void onCodecMappingsReceiptStatic(MegaClient* client, unsigned codecListVersion);
+    void onCodecMappingsReceipt(MegaClient* client, unsigned codecListVersion);
     void ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>&  data, JSON& json);
 
     // get the cached media attributes for a file just before sending CommandPutNodes (for a newly uploaded file)

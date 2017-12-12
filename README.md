@@ -96,6 +96,7 @@ Debian and RedHat derivatives, respectively):
 
 Optional dependency:
 * Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
+* MediaInfoLib (optional, see third_party/README_MediaInfo.txt)
 
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux `inotify` and the MacOS `fsevents` interfaces.

@@ -5525,14 +5525,17 @@ CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 
 void CommandMediaCodecs::procresult()
 {
+    unsigned version = 0;
     if (client->json.isnumeric())
     {
-        LOG_err << "mc result: " << client->json.getint();
+        m_off_t result = client->json.getint();
+        if (result < 0)
+        {
+            LOG_err << "mc result: " << result;
+        }
+        version = unsigned(result);
     }
-    else
-    {
-        callback(client);
-    }
+    callback(client, version);
 }
 
 } // namespace

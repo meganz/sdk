@@ -890,7 +890,7 @@ class MEGA_API CommandMediaCodecs : public Command
 {
 public:
 
-    typedef void(*Callback)(MegaClient* client);
+    typedef void(*Callback)(MegaClient* client, unsigned codecListVersion);
 
     void procresult();
 
