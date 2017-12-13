@@ -820,6 +820,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     asyncfopens = 0;
     achievements_enabled = false;
     tsLogin = false;
+    versions_disabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3117,6 +3118,7 @@ void MegaClient::locallogout()
     cachedscsn = UNDEF;
     achievements_enabled = false;
     tsLogin = false;
+    versions_disabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -4621,6 +4623,12 @@ void MegaClient::sc_userattr()
                         else
                         {
                             u->setChanged(type);
+                        }
+
+                        // silently fetch-upon-update this critical attribute
+                        if (type == ATTR_DISABLE_VERSIONS)
+                        {
+                            getua(u, type, 0);
                         }
                     }
                     u->setTag(0);
@@ -9393,6 +9401,8 @@ void MegaClient::fetchnodes(bool nocache)
         }
 #endif
         reqs.add(new CommandFetchNodes(this, nocache));
+
+        getua(finduser(me), ATTR_DISABLE_VERSIONS, 0);
     }
 }
 

@@ -760,6 +760,10 @@ bool User::setChanged(attr_t at)
             changed.pwdReminder = true;
             break;
 
+        case ATTR_DISABLE_VERSIONS:
+            changed.disableVersions = true;
+            break;
+
         default:
             return false;
     }

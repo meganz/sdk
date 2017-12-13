@@ -2666,6 +2666,11 @@ void CommandGetUA::procresult()
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
+
+                            if (at == ATTR_DISABLE_VERSIONS)
+                            {
+                                client->versions_disabled = !strcmp(value.data(), "1");
+                            }
                             break;
 
                         default:    // legacy attributes or unknown attribute

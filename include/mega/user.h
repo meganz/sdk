@@ -64,6 +64,7 @@ struct MEGA_API User : public Cachable
         bool email : 1;
         bool language : 1;  // preferred language code
         bool pwdReminder : 1;   // password-reminder-dialog information
+        bool disableVersions : 1;   // disable fileversioning
     } changed;
 
     // user's public key
