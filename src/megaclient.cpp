@@ -722,7 +722,7 @@ bool MegaClient::warnlevel()
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-Node* MegaClient::childnodebyname(Node* p, const char* name)
+Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 {
     string nname = name;
     Node *found = NULL;
@@ -738,12 +738,16 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            if ((*it)->type == FOLDERNODE)
+            if ((*it)->type != FILENODE && !skipfolders)
             {
                 return *it;
             }
 
             found = *it;
+            if (skipfolders)
+            {
+                return found;
+            }
         }
     }
 
@@ -757,9 +761,6 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
-    updatedfilesize = ~0;
-    updatedfilets = 0;
-    updatedfileinitialts = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -1893,11 +1894,19 @@ void MegaClient::exec()
                                             // (to avoid open-after-creation races with e.g. MS Office)
                                             if (EVER(dsretry))
                                             {
-                                                syncnaglebt.backoff(dsretry + 1);
+                                                if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
+                                                {
+                                                    syncnaglebt.backoff(dsretry + 1);
+                                                }
+
                                                 syncnagleretry = true;
                                             }
                                             else
                                             {
+                                                if (syncnagleretry)
+                                                {
+                                                    syncnaglebt.arm();
+                                                }
                                                 syncactivity = true;
                                             }
 
@@ -9548,26 +9557,16 @@ void MegaClient::initializekeys()
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            // Verification could fail because a legacy bug in Webclient. Retry...
-            LOG_warn << "Failed to verify signature. Retrying with webclient compatibility fix...";
+            LOG_warn << "Verification of signature of public key for RSA failed";
 
-            pubk.serializekeyforjs(pubkstr, true);
-            if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
-                                        pubkstr.size(),
-                                        &sigPubk,
-                                        (unsigned char*) puEd255.data()))
-            {
-                LOG_warn << "Verification of signature of public key for RSA failed";
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99414, "Verification of signature of public key for RSA failed");
+            reqtag = creqtag;
 
-                int creqtag = reqtag;
-                reqtag = 0;
-                sendevent(99414, "Verification of signature of public key for RSA failed");
-                reqtag = creqtag;
-
-                clearKeys();
-                resetKeyring();
-                return;
-            }
+            clearKeys();
+            resetKeyring();
+            return;
         }
 
         // if we reached this point, everything is OK
@@ -11755,7 +11754,7 @@ handle MegaClient::getovhandle(Node *parent, string *name)
     handle ovhandle = UNDEF;
     if (parent && name)
     {
-        Node *ovn = childnodebyname(parent, name->c_str());
+        Node *ovn = childnodebyname(parent, name->c_str(), true);
         if (ovn)
         {
             ovhandle = ovn->nodehandle;

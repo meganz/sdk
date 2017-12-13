@@ -87,24 +87,5 @@ megaclient_statecache*
 *.db-journal
 
 /third_party/Makefile
-/examples/mega-cmd
-/contrib/QtCreator/MEGAcmd/MEGAcmd.pro.user
-/contrib/QtCreator/MEGAcmd/MEGAcmd
-/contrib/QtCreator/MEGAcmd/Makefile
-/contrib/QtCreator/MEGAcmd/moc_*.cpp
-examples/megacmd/build/Release_x64
-MEGAcmdServer.pro.user
-/examples/megacmd/build/megacmd/megacmd.dsc
-/examples/megacmd/build/megacmd/megacmd.spec
-/examples/megacmd/build/megacmd/megacmd_*.tar.gz
-/examples/megacmd/build/megacmd/PKGBUILD
-/contrib/QtCreator/MEGAcmd/MEGAcmdClient/MEGAclient
-/contrib/QtCreator/MEGAcmd/MEGAcmdClient/Makefile
-/contrib/QtCreator/MEGAcmd/MEGAcmdServer/MEGAcmd
-/contrib/QtCreator/MEGAcmd/MEGAcmdServer/Makefile
-/examples/mega-exec
-/examples/megacmd/client/mega-exec
-/contrib/QtCreator/MEGAcmd/MEGAcmdLoader/MEGAcmdLoader
-/contrib/QtCreator/MEGAcmd/MEGAcmdLoader/Makefile
+
 /contrib/QtCreator/build-*
-/examples/mega-cmd-server

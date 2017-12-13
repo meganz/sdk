@@ -1179,15 +1179,6 @@ AC_ARG_ENABLE(examples,
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
-# MEGAcmd
-AC_MSG_CHECKING([if building megacmd application])
-AC_ARG_ENABLE(megacmd,
-    AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=yes]]),
-    [], [enable_megacmd=yes])
-AM_CONDITIONAL([BUILD_MEGACMD], [test "$enable_megacmd" = "yes"])
-AC_MSG_RESULT([$enable_megacmd])
-
-
 # FreeImage
 freeimage=false
 AC_MSG_CHECKING(for FreeImage)
@@ -1273,7 +1264,7 @@ AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
-if test "x$enable_examples" = "xyes" || test "x$enable_megacmd" = "xyes" ; then
+if test "x$enable_examples" = "xyes" ; then
     #termcap
     AC_MSG_CHECKING(for termcap)
     AC_ARG_WITH(termcap,
@@ -1677,7 +1668,6 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
-  megacmd app:      $enable_megacmd
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
