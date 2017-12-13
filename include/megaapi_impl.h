@@ -1756,10 +1756,15 @@ class MegaApiImpl : public MegaApp
         const char *getBasePath();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+
         bool setLanguage(const char* languageCode);
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);
         bool getLanguageCode(const char* languageCode, std::string* code);
+
+        void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
+        void getFileVersionsOption(MegaRequestListener *listener = NULL);
+
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
         void pauseActionPackets();

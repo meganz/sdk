@@ -1296,6 +1296,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_PWD_REMINDER;
     }
+    if(user->changed.disableVersions)
+    {
+        changed |= MegaUser::CHANGE_TYPE_DISABLE_VERSIONS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -8126,6 +8130,17 @@ bool MegaApiImpl::getLanguageCode(const char *languageCode, string *code)
 
     LOG_debug << "Unsupported language code: " << languageCode;
     return false;
+}
+
+void MegaApiImpl::setFileVersionsOption(bool disable, MegaRequestListener *listener)
+{
+    string av = disable ? "1" : "0";
+    setUserAttr(MegaApi::USER_ATTR_DISABLE_VERSIONS, av.data(), listener);
+}
+
+void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
+{
+    getUserAttr(NULL, MegaApi::USER_ATTR_DISABLE_VERSIONS, NULL, listener);
 }
 
 void MegaApiImpl::retrySSLerrors(bool enable)

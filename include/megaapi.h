@@ -1101,7 +1101,8 @@ class MegaUser
             CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
             CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
             CHANGE_TYPE_LANGUAGE        = 0x2000,
-            CHANGE_TYPE_PWD_REMINDER    = 0x4000
+            CHANGE_TYPE_PWD_REMINDER    = 0x4000,
+            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000
         };
 
         /**
@@ -1159,6 +1160,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_PWD_REMINDER     = 0x4000
          * Check if the data related to the password reminder dialog has changed
          *
+         * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
+         * Check if option for file versioning has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1215,6 +1219,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_PWD_REMINDER     = 0x4000
          * Check if the data related to the password reminder dialog has changed
+         *
+         * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
+         * Check if option for file versioning has changed
          */
         virtual int getChanges();
 
@@ -9623,6 +9630,30 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getLanguagePreference(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable or disable file versioning
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish:
+         * - MegaRequest::getText - "1" for disable, "0" for enable
+         *
+         * If the option has never been set, the error code will be MegaError::API_ENOENT.
+         *
+         * @param disable True to disable file versioning. False to enable it
+         * @param listener MegaRequestListener to track this request
+         */
+        void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the preferred language of the user
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - "1" for disable, "0" for enable
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getFileVersionsOption(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Keep retrying when public key pinning fails
