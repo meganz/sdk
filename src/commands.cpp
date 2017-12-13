@@ -2549,6 +2549,13 @@ void CommandGetUA::procresult()
             client->initializekeys(); // we have now all the required data
         }
 #endif
+        // if the attr does not exist, initialize it
+        if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
+        {
+            assert(!client->versions_disabled);
+            string av = client->versions_disabled ? "1" : "0";
+            client->putua(ATTR_DISABLE_VERSIONS, (const byte *) av.data(), av.size(), 0);
+        }
         return;
     }
     else
