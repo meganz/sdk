@@ -4215,6 +4215,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_PWD_REMINDER:
             attrname = "!pwd";
             break;
+
+        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
+            attrname = "!disableversions";
+            break;
     }
 
     return attrname;
@@ -4247,6 +4251,7 @@ char MegaApiImpl::userAttributeToScope(int type)
 
         case MegaApi::USER_ATTR_LANGUAGE:
         case MegaApi::USER_ATTR_PWD_REMINDER:
+        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
             scope = '^';
             break;
 

@@ -381,6 +381,10 @@ string User::attr2string(attr_t type)
             attrname = "^!prd";
             break;
 
+        case ATTR_DISABLE_VERSIONS:
+            attrname = "^!disableversions";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -454,6 +458,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_PWD_REMINDER;
     }
+    else if(!strcmp(name, "^!disableversions"))
+    {
+        return ATTR_DISABLE_VERSIONS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -473,6 +481,7 @@ bool User::needversioning(attr_t at)
         case ATTR_BIRTHYEAR:
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
+        case ATTR_DISABLE_VERSIONS:
             return 0;
 
         case ATTR_AUTHRING:
@@ -507,6 +516,7 @@ char User::scope(attr_t at)
 
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
+        case ATTR_DISABLE_VERSIONS:
             return '^';
 
         default:

@@ -4636,7 +4636,8 @@ class MegaApi
             USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,   // public - byte array
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
             USER_ATTR_LANGUAGE = 14,            // private - char array
-            USER_ATTR_PWD_REMINDER = 15         // private - char array
+            USER_ATTR_PWD_REMINDER = 15,        // private - char array
+            USER_ATTR_DISABLE_VERSIONS = 16     // private - byte array
         };
 
         enum {
@@ -6324,6 +6325,8 @@ class MegaApi
          * Get the preferred language of the user (private, non-encrypted)
          * MegaApi::USER_ATTR_PWD_REMINDER = 15
          * Get the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Get whether user has versions disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6373,6 +6376,8 @@ class MegaApi
          * Get the preferred language of the user (private, non-encrypted)
          * MegaApi::USER_ATTR_PWD_REMINDER = 15
          * Get the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Get whether user has versions disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6419,6 +6424,8 @@ class MegaApi
          * Get the preferred language of the user (private, non-encrypted)
          * MegaApi::USER_ATTR_PWD_REMINDER = 15
          * Get the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Get whether user has versions disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
