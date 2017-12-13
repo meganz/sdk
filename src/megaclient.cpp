@@ -9402,7 +9402,9 @@ void MegaClient::fetchnodes(bool nocache)
 #endif
         reqs.add(new CommandFetchNodes(this, nocache));
 
-        getua(finduser(me), ATTR_DISABLE_VERSIONS, 0);
+        char me64[12];
+        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, 0));
     }
 }
 
