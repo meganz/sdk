@@ -382,7 +382,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_DISABLE_VERSIONS:
-            attrname = "^!disableversions";
+            attrname = "^!dv";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -458,7 +458,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_PWD_REMINDER;
     }
-    else if(!strcmp(name, "^!disableversions"))
+    else if(!strcmp(name, "^!dv"))
     {
         return ATTR_DISABLE_VERSIONS;
     }

@@ -4221,7 +4221,7 @@ string MegaApiImpl::userAttributeToString(int type)
             break;
 
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-            attrname = "!disableversions";
+            attrname = "!dv";
             break;
     }
 
