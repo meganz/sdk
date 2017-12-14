@@ -9368,6 +9368,30 @@ void MegaClient::fetchnodes(bool nocache)
 
         app->fetchnodes_result(API_OK);
 
+        // if don't know fileversioning is enabled or disabled...
+        // (it can happen after AP invalidates the attribute, but app is closed before current value is retrieved and cached)
+        User *ownUser = finduser(me);
+        assert(ownUser);
+        const string *av = (ownUser->isattrvalid(ATTR_DISABLE_VERSIONS)) ? ownUser->getattr(ATTR_DISABLE_VERSIONS) : NULL;
+        if (!av)
+        {
+            char me64[12];
+            Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+            reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, 0));
+        }
+        else
+        {
+            versions_disabled = !strcmp(av->c_str(), "1");
+            if (versions_disabled)
+            {
+                LOG_info << "File versioning is disabled";
+            }
+            else
+            {
+                LOG_info << "File versioning is enabled";
+            }
+        }
+
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
     }
