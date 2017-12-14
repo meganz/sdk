@@ -9645,11 +9645,12 @@ class MegaApi
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get the preferred language of the user
+         * @brief Check if file versioning is enabled or disabled
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getText - "1" for disable, "0" for enable
+         * - MegaRequest::getFlag - True if disabled, false if enabled
          *
          * @param listener MegaRequestListener to track this request
          */

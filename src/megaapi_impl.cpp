@@ -11225,9 +11225,15 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         case MegaApi::USER_ATTR_LASTNAME:
         case MegaApi::USER_ATTR_LANGUAGE:   // it's a c-string in binary format, want the plain data
         case MegaApi::USER_ATTR_PWD_REMINDER:
+        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
+
+                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS)
+                {
+                    request->setFlag(str == "1");
+                }
             }
             break;
 
