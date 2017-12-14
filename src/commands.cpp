@@ -2552,9 +2552,8 @@ void CommandGetUA::procresult()
         // if the attr does not exist, initialize it
         if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
         {
-            assert(!client->versions_disabled);
-            string av = client->versions_disabled ? "1" : "0";
-            client->putua(ATTR_DISABLE_VERSIONS, (const byte *) av.data(), av.size(), 0);
+            LOG_info << "File versioning is enabled";
+            client->versions_disabled = false;
         }
         return;
     }
@@ -2677,6 +2676,14 @@ void CommandGetUA::procresult()
                             if (at == ATTR_DISABLE_VERSIONS)
                             {
                                 client->versions_disabled = !strcmp(value.data(), "1");
+                                if (client->versions_disabled)
+                                {
+                                    LOG_info << "File versioning is disabled";
+                                }
+                                else
+                                {
+                                    LOG_info << "File versioning is enabled";
+                                }
                             }
                             break;
 
