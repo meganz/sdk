@@ -312,7 +312,7 @@ void File::completed(Transfer* t, LocalNode* l)
                 t->client->syncadding++;
             }
 #endif
-            if (ISUNDEF(newnode->ovhandle))
+            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
             {
                 newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
             }
