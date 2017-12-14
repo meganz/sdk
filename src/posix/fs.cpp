@@ -1307,7 +1307,7 @@ bool PosixFileSystemAccess::getextension(string* filename, char* extension, int 
 
     size--;
 
-    if (size > filename->size())
+    if (size > (int) filename->size())
     {
         size = filename->size();
     }
