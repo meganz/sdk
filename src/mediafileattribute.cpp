@@ -116,6 +116,7 @@ void MediaFileInfo::ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>& 
         {
             MediaFileInfo::MediaCodecs::idrecord rec;
             std::string idString;
+            assert(json.isnumeric());
             working = json.storeobject(&idString) &&
                       json.storeobject(&rec.mediainfoname);
             json.storeobject(&rec.mediasourcemimetype);
@@ -170,10 +171,12 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, unsigned codecLis
     }
 
     downloadedCodecMapsVersion = codecListVersion;
+    client->json.enterarray();
     ReadIdRecords(mediaCodecs.containers, client->json);
     ReadIdRecords(mediaCodecs.videocodecs, client->json);
     ReadIdRecords(mediaCodecs.audiocodecs, client->json);
     ReadShortFormats(mediaCodecs.shortformats, client->json);
+    client->json.leavearray();
     mediaCodecsReceived = true;
 
     // update any download transfers we already processed
@@ -656,6 +659,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
                 }
 
                 ZenLib::Ztring gf = minfo.Get(MediaInfoLib::Stream_General, 0, __T("Format"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring gd = minfo.Get(MediaInfoLib::Stream_General, 0, __T("Duration"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vw = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Width"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vh = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Height"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vd = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text);
@@ -670,7 +674,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
                 width = vw.To_int32u();
                 height = vh.To_int32u();
                 fps = vr.To_int32u();
-                playtime = (coalesce(vd.To_int32u(), ad.To_int32u()) + 500) / 1000;  // converting ms to sec
+                playtime = (coalesce(gd.To_int32u(), coalesce(vd.To_int32u(), ad.To_int32u())) + 500) / 1000;  // converting ms to sec
                 videocodecNames = vci.To_Local();
                 videocodecFormat = vcf.To_Local();
                 audiocodecNames = aci.To_Local();
@@ -727,15 +731,16 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
         audiocodecid = mediaInfo.Lookup(audiocodecFormat, mediaInfo.mediaCodecs.audiocodecs, 0);
     }
 
-    if ((!videocodecid && !audiocodecid || !containerid) ||
-        (videocodecid && (!width || !height || (!fps && !is_VFR) || !playtime || (!audiocodecid && !no_audio))) ||
-        (!videocodecid && audiocodecid && (!playtime || width || height)))
+    if (!(containerid && (
+            (videocodecid && width && height && /*(fps || is_VFR) &&*/ (audiocodecid || no_audio)) || 
+            (audiocodecid && !videocodecid)))) 
     {
         LOG_warn << "mediainfo failed to extract media information for this file";
-        shortformat = 255;   // mediaInfo could not interpret this file.  Maybe a later version can.
-        fps = MEDIA_INFO_BUILD;                          // updated when we change relevant things in this executable
-        width = PrecomputedMediaInfoLibVersion;          // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
-        playtime = mediaInfo.downloadedCodecMapsVersion;           // updated when we add more codec names etc
+        shortformat = 255;                                  // mediaInfo could not fully identify this file.  Maybe a later version can.
+        fps = MEDIA_INFO_BUILD;                             // updated when we change relevant things in this executable
+        width = PrecomputedMediaInfoLibVersion;             // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
+        height = 0;
+        playtime = mediaInfo.downloadedCodecMapsVersion;    // updated when we add more codec names etc
     }
     else
     {
