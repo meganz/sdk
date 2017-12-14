@@ -2516,6 +2516,11 @@ void CommandPutUA::procresult()
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
+
+        if (at == ATTR_DISABLE_VERSIONS)
+        {
+            client->versions_disabled = (av == "1");
+        }
     }
 
     client->app->putua_result(e);
