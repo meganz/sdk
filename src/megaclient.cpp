@@ -4623,6 +4623,15 @@ void MegaClient::sc_userattr()
                         else
                         {
                             u->setChanged(type);
+
+                            // if this attr was just created, add it to cache with empty value and set it as invalid
+                            // (it will allow to detect if the attr exists upon resumption from cache, in case the value wasn't received yet)
+                            if (type == ATTR_DISABLE_VERSIONS && !u->getattr(type))
+                            {
+                                string emptyStr;
+                                u->setattr(type, &emptyStr, &emptyStr);
+                                u->invalidateattr(type);
+                            }
                         }
 
                         // silently fetch-upon-update this critical attribute
@@ -9372,24 +9381,31 @@ void MegaClient::fetchnodes(bool nocache)
         // (it can happen after AP invalidates the attribute, but app is closed before current value is retrieved and cached)
         User *ownUser = finduser(me);
         assert(ownUser);
-        const string *av = (ownUser->isattrvalid(ATTR_DISABLE_VERSIONS)) ? ownUser->getattr(ATTR_DISABLE_VERSIONS) : NULL;
-        if (!av)
+        const string *av = ownUser->getattr(ATTR_DISABLE_VERSIONS);
+        if (av)
         {
-            char me64[12];
-            Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-            reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, 0));
-        }
-        else
-        {
-            versions_disabled = !strcmp(av->c_str(), "1");
-            if (versions_disabled)
+            if (ownUser->isattrvalid((ATTR_DISABLE_VERSIONS)))
             {
-                LOG_info << "File versioning is disabled";
+                versions_disabled = !strcmp(av->c_str(), "1");
+                if (versions_disabled)
+                {
+                    LOG_info << "File versioning is disabled";
+                }
+                else
+                {
+                    LOG_info << "File versioning is enabled";
+                }
             }
             else
             {
-                LOG_info << "File versioning is enabled";
+                getua(ownUser, ATTR_DISABLE_VERSIONS, 0);
+                LOG_info << "File versioning option is unknown. Fetching...";
             }
+        }
+        else    // attribute does not exists
+        {
+            LOG_info << "File versioning is enabled";
+            versions_disabled = false;
         }
 
         WAIT_CLASS::bumpds();
