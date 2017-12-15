@@ -9399,7 +9399,7 @@ void MegaClient::fetchnodes(bool nocache)
             else
             {
                 getua(ownUser, ATTR_DISABLE_VERSIONS, 0);
-                LOG_info << "File versioning option is unknown. Fetching...";
+                LOG_info << "File versioning option exist but is unknown. Fetching...";
             }
         }
         else    // attribute does not exists

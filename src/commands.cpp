@@ -2753,7 +2753,7 @@ void CommandDelUA::procresult()
         {
             User *u = client->ownuser();
             attr_t at = User::string2attr(an.c_str());
-            u->invalidateattr(at);
+            u->removeattr(at);
 
 #ifdef ENABLE_CHAT
             if (at == ATTR_KEYRING)

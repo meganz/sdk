@@ -100,6 +100,7 @@ public:
     const string *getattrversion(attr_t at);
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
+    void removeattr(attr_t at);
 
     static string attr2string(attr_t at);
     static attr_t string2attr(const char *name);
