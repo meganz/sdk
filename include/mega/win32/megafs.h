@@ -71,7 +71,6 @@ public:
     bool expanselocalpath(string *path, string *absolutepath);
 
     void addevents(Waiter*, int);
-    int checkevents(Waiter*);
 
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
@@ -94,9 +93,9 @@ struct MEGA_API WinDirNotify : public DirNotify
     LocalNode* localrootnode;
 
     HANDLE hDirectory;
-    HANDLE hEvent;
 
     bool enabled;
+    bool exit;
     int active;
     string notifybuf[2];
 
@@ -105,6 +104,7 @@ struct MEGA_API WinDirNotify : public DirNotify
 
     void addnotify(LocalNode*, string*);
 
+    static VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped);
     void process(DWORD wNumberOfBytesTransfered);
     void readchanges();
 

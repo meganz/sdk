@@ -34,7 +34,6 @@ class MEGA_API WinWaiter : public Waiter
 
 public:
     PCRITICAL_SECTION pcsHTTP;
-    unsigned pendingfsevents;
 
     int wait();
 
