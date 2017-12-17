@@ -374,6 +374,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaAccountDetails::getSubscriptionMethod;
 %newobject mega::MegaAccountDetails::getSubscriptionCycle;
 
+%newobject mega::MegaApi::getMimeType;
+
 typedef long long time_t;
 typedef long long uint64_t;
 typedef long long int64_t;

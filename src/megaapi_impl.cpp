@@ -9879,7 +9879,6 @@ void MegaApiImpl::fetchnodes_result(error e)
         {
             request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
         }
-        fireOnRequestFinish(request, megaError);
 
         if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
         {
@@ -9887,6 +9886,7 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->tsLogin = false;
         }
 
+        fireOnRequestFinish(request, megaError);
         return;
     }
 
@@ -9917,13 +9917,13 @@ void MegaApiImpl::fetchnodes_result(error e)
             }
         }
 
-        fireOnRequestFinish(request, megaError);
-
         if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
         {
             updatePwdReminderData(false, false, false, false, true);
             client->tsLogin = false;
         }
+
+        fireOnRequestFinish(request, megaError);
     }
     else    // TYPE_CREATE_ACCOUNT
     {
