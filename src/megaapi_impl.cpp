@@ -2899,6 +2899,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
         case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
+        case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
     }
     return "UNKNOWN";
 }
@@ -4811,6 +4812,13 @@ void MegaApiImpl::remove(MegaNode *node, bool keepversions, MegaRequestListener 
     if(node) request->setNodeHandle(node->getHandle());
     request->setFlag(keepversions);
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeVersions(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_VERSIONS, listener);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -7858,6 +7866,10 @@ MegaNode *MegaApiImpl::authorizeNode(MegaNode *node)
 
 void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
 {
+    // Versions are not added to authorized MegaNodes.
+    // If it's decided to do so, it's needed to modify the processing
+    // of MegaNode copies accordingly
+
     node->setForeign(true);
     if (node->getType() == MegaNode::TYPE_FILE)
     {
@@ -9857,6 +9869,22 @@ void MegaApiImpl::unlink_result(handle h, error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::unlinkversions_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || request->getType() != MegaRequest::TYPE_REMOVE_VERSIONS)
+    {
+        return;
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::fetchnodes_result(error e)
 {    
     MegaError megaError(e);
@@ -9875,7 +9903,6 @@ void MegaApiImpl::fetchnodes_result(error e)
         {
             request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
         }
-        fireOnRequestFinish(request, megaError);
 
         if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
         {
@@ -9883,6 +9910,7 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->tsLogin = false;
         }
 
+        fireOnRequestFinish(request, megaError);
         return;
     }
 
@@ -9913,13 +9941,13 @@ void MegaApiImpl::fetchnodes_result(error e)
             }
         }
 
-        fireOnRequestFinish(request, megaError);
-
         if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
         {
             updatePwdReminderData(false, false, false, false, true);
             client->tsLogin = false;
         }
+
+        fireOnRequestFinish(request, megaError);
     }
     else    // TYPE_CREATE_ACCOUNT
     {
@@ -10859,6 +10887,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     string validName;
     string keystring;
     string fingerprint;
+    FileFingerprint ffp;
 
     attrstring.resize(a->length()*4/3+4);
     attrstring.resize(Base64::btoa((const byte *)a->data(),a->length(), (char *)attrstring.data()));
@@ -10881,6 +10910,11 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
         {
             JSON::unescape(t);
+
+            if (name == 'n')
+            {
+                client->fsaccess->normalize(t);
+            }
         }
 
         delete[] buf;
@@ -10904,9 +10938,9 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         it = attrs.map.find('c');
         if (it != attrs.map.end())
         {
-            FileFingerprint ffp;
             if (ffp.unserializefingerprint(&it->second))
             {
+                ffp.size = size;
                 mtime = ffp.mtime;
 
                 char bsize[sizeof(size)+1];
@@ -10932,6 +10966,36 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     if ((request->getType() == MegaRequest::TYPE_IMPORT_LINK)
             || (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT))
     {
+        handle ovhandle = UNDEF;
+        handle parenthandle = UNDEF;
+        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT) // importing Welcome PDF
+        {
+            parenthandle = client->rootnodes[0];
+        }
+        else
+        {
+            parenthandle = request->getParentHandle();
+        }
+
+        Node *target = client->nodebyhandle(parenthandle);
+        if (!target)
+        {
+            fireOnRequestFinish(request, MegaError(MegaError::API_EARGS));
+            return;
+        }
+
+        Node *ovn = client->childnodebyname(target, validName.c_str(), true);
+        if (ovn)
+        {
+            if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn)
+            {
+                fireOnRequestFinish(request, MegaError(API_OK));
+                return;
+            }
+
+            ovhandle = ovn->nodehandle;
+        }
+
         NewNode* newnode = new NewNode[1];
 
         // set up new node as folder node
@@ -10941,21 +11005,15 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         newnode->parenthandle = UNDEF;
         newnode->nodekey.assign((char*)key,FILENODEKEYLENGTH);
         newnode->attrstring = new string(*a);
-        newnode->ovhandle = client->getovhandle(client->nodebyhandle(request->getParentHandle()), &validName);
+        newnode->ovhandle = ovhandle;
 
         // add node
         requestMap.erase(request->getTag());
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT) // importing Welcome PDF
-        {
-            client->putnodes(client->rootnodes[0], newnode, 1);
-        }
-        else
-        {
-            client->putnodes(request->getParentHandle(), newnode, 1);
-        }
+
+        client->putnodes(parenthandle, newnode, 1);
     }
 	else
     {
@@ -13334,10 +13392,10 @@ void MegaApiImpl::sendPendingTransfers()
 
                 if (type == FILENODE)
                 {
-                    Node *previousNode = client->childnodebyname(parent, fileName);
+                    Node *previousNode = client->childnodebyname(parent, fileName, true);
                     if (previousNode && previousNode->type == type)
                     {
-                        if (fp == *((FileFingerprint *)previousNode))
+                        if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
                         {
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transferMap[nextTag] = transfer;
@@ -13927,14 +13985,34 @@ void MegaApiImpl::sendPendingRequests()
 
                 unsigned nc;
                 TreeProcCopy tc;
+                handle ovhandle = UNDEF;
+
+                if (node->type == FILENODE)
+                {
+                    attr_map::iterator it = node->attrs.map.find('n');
+                    if (it != node->attrs.map.end())
+                    {
+                        Node *ovn = client->childnodebyname(newParent, it->second.c_str(), true);
+                        if (ovn)
+                        {
+                            if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
+                            {
+                                fireOnRequestFinish(request, MegaError(API_OK));
+                                break;
+                            }
+
+                            ovhandle = ovn->nodehandle;
+                        }
+                    }
+                }
 
                 // determine number of nodes to be copied
-                client->proctree(node, &tc);
+                client->proctree(node, &tc, ovhandle != UNDEF);
                 tc.allocnodes();
                 nc = tc.nc;
 
                 // build new nodes array
-                client->proctree(node, &tc);
+                client->proctree(node, &tc, ovhandle != UNDEF);
                 if (!nc)
                 {
                     e = API_EARGS;
@@ -13942,14 +14020,8 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 tc.nn->parenthandle = UNDEF;
-                if (tc.nn->type == FILENODE)
-                {
-                    attr_map::iterator it = node->attrs.map.find('n');
-                    if (it != node->attrs.map.end())
-                    {
-                        tc.nn->ovhandle = client->getovhandle(newParent, &it->second);
-                    }
-                }
+                tc.nn->ovhandle = ovhandle;
+
                 client->putnodes(newParent->nodehandle, tc.nn, nc);
                 e = API_OK;
                 break;
@@ -13965,6 +14037,8 @@ void MegaApiImpl::sendPendingRequests()
 			const char* email = request->getEmail();
             MegaNode *megaNode = request->getPublicNode();
             const char *newName = request->getName();
+            handle ovhandle = UNDEF;
+            unsigned nc = 0;
 
             if (!megaNode || (!target && !email)
                     || (newName && !(*newName))
@@ -13986,15 +14060,9 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!node)
             {
-                unsigned nc;
-                MegaTreeProcCopy tc(client);
-
-                processMegaTree(megaNode, &tc);
-                tc.allocnodes();
-                nc = tc.nc;
-                if (!nc)
+                if (!megaNode->getNodeKey()->size())
                 {
-                    e = API_EARGS;
+                    e = API_EKEY;
                     break;
                 }
 
@@ -14014,17 +14082,42 @@ void MegaApiImpl::sendPendingRequests()
                     }
                 }
 
+                if (target && megaNode->getType() == MegaNode::TYPE_FILE)
+                {
+                    Node *ovn = client->childnodebyname(target, sname.c_str(), true);
+                    if (ovn)
+                    {
+                        FileFingerprint *fp = getFileFingerprintInternal(megaNode->getFingerprint());
+                        if (fp)
+                        {
+                            if (fp->isvalid && ovn->isvalid && *fp == *(FileFingerprint*)ovn)
+                            {
+                                fireOnRequestFinish(request, MegaError(API_OK));
+                                delete fp;
+                                break;
+                            }
+
+                            delete fp;
+                        }
+
+                        ovhandle = ovn->nodehandle;
+                    }
+                }
+
+                MegaTreeProcCopy tc(client);
+
+                processMegaTree(megaNode, &tc);
+                tc.allocnodes();
+                nc = tc.nc;
+
                 // build new nodes array
                 processMegaTree(megaNode, &tc);
 
                 tc.nn->parenthandle = UNDEF;
+                tc.nn->ovhandle = ovhandle;
 
                 if (target)
                 {
-                    if (megaNode->getType() == MegaNode::TYPE_FILE)
-                    {
-                        tc.nn->ovhandle = client->getovhandle(target, &sname);
-                    }
                     client->putnodes(target->nodehandle, tc.nn, nc);
                 }
                 else
@@ -14037,52 +14130,81 @@ void MegaApiImpl::sendPendingRequests()
                 unsigned nc;
                 TreeProcCopy tc;
 
+                if (!node->nodekey.size())
+                {
+                    e = API_EKEY;
+                    break;
+                }
+
+                if (node->attrstring)
+                {
+                    node->applykey();
+                    node->setattr();
+                    if (node->attrstring)
+                    {
+                        e = API_EKEY;
+                        break;
+                    }
+                }
+
+                string sname;
+                if (newName)
+                {
+                    sname = newName;
+                    fsAccess->normalize(&sname);
+                }
+                else
+                {
+                    attr_map::iterator it = node->attrs.map.find('n');
+                    if (it != node->attrs.map.end())
+                    {
+                        sname = it->second;
+                    }
+                }
+
+                if (target && node->type == FILENODE)
+                {
+                    Node *ovn = client->childnodebyname(target, sname.c_str(), true);
+                    if (ovn)
+                    {
+                        if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
+                        {
+                            fireOnRequestFinish(request, MegaError(API_OK));
+                            break;
+                        }
+
+                        ovhandle = ovn->nodehandle;
+                    }
+                }
+
                 // determine number of nodes to be copied
-                client->proctree(node,&tc);
+                client->proctree(node, &tc, false, ovhandle != UNDEF);
                 tc.allocnodes();
                 nc = tc.nc;
 
                 // build new nodes array
-                client->proctree(node,&tc);
-                if (!nc)
-                {
-                    e = API_EARGS;
-                    break;
-                }
-
+                client->proctree(node, &tc, false, ovhandle != UNDEF);
                 tc.nn->parenthandle = UNDEF;
+                tc.nn->ovhandle = ovhandle;
 
-                string sname;
-                attr_map::iterator it = node->attrs.map.find('n');
-                if (it != node->attrs.map.end())
-                {
-                    sname = it->second;
-                }
-
-                if (newName && tc.nn[0].nodekey.size())
+                if (newName)
                 {
                     SymmCipher key;
                     AttrMap attrs;
                     string attrstring;
 
-                    key.setkey((const byte*)tc.nn[0].nodekey.data(), node->type);
+                    key.setkey((const byte*)tc.nn->nodekey.data(), node->type);
                     attrs = node->attrs;
 
-                    sname = newName;
-                    fsAccess->normalize(&sname);
                     attrs.map['n'] = sname;
 
                     attrs.getjson(&attrstring);
-                    client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
+                    client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
                 }
 
                 if (target)
                 {
-                    if (tc.nn->type == FILENODE)
-                    {
-                        tc.nn->ovhandle = client->getovhandle(target, &sname);
-                    }
-                    client->putnodes(target->nodehandle,tc.nn,nc);
+                    client->putnodes(target->nodehandle, tc.nn, nc);
                 }
                 else
                 {
@@ -14181,6 +14303,11 @@ void MegaApiImpl::sendPendingRequests()
             e = client->unlink(node, keepversions);
 			break;
 		}
+        case MegaRequest::TYPE_REMOVE_VERSIONS:
+        {
+            client->unlinkversions();
+            break;
+        }
 		case MegaRequest::TYPE_SHARE:
 		{
 			Node *node = client->nodebyhandle(request->getNodeHandle());
@@ -14280,7 +14407,7 @@ void MegaApiImpl::sendPendingRequests()
                     client->sctable->remove();
                     delete client->sctable;
                     client->sctable = NULL;
-
+                    client->pendingsccommit = false;
                     client->cachedscsn = UNDEF;
                 }
 

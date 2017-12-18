@@ -723,7 +723,7 @@ bool MegaClient::warnlevel()
 
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
-Node* MegaClient::childnodebyname(Node* p, const char* name)
+Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 {
     string nname = name;
     Node *found = NULL;
@@ -739,12 +739,16 @@ Node* MegaClient::childnodebyname(Node* p, const char* name)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
         {
-            if ((*it)->type == FOLDERNODE)
+            if ((*it)->type != FILENODE && !skipfolders)
             {
                 return *it;
             }
 
             found = *it;
+            if (skipfolders)
+            {
+                return found;
+            }
         }
     }
 
@@ -758,14 +762,12 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
-    updatedfilesize = ~0;
-    updatedfilets = 0;
-    updatedfileinitialts = 0;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
     syncops = false;
     syncdebrisadding = false;
+    syncdebrisminute = 0;
     syncscanfailed = false;
     syncfslockretry = false;
     syncfsopsfailed = false;
@@ -808,6 +810,7 @@ void MegaClient::init()
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
 {
     sctable = NULL;
+    pendingsccommit = false;
     tctable = NULL;
     me = UNDEF;
     publichandle = UNDEF;
@@ -1365,6 +1368,15 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
 
+                                if (sctable && pendingsccommit && !reqs.cmdspending())
+                                {
+                                    LOG_debug << "Executing postponed DB commit";
+                                    sctable->commit();
+                                    sctable->begin();
+                                    app->notify_dbcommit();
+                                    pendingsccommit = false;
+                                }
+
                                 // increment unique request ID
                                 for (int i = sizeof reqid; i--; )
                                 {
@@ -1594,9 +1606,9 @@ void MegaClient::exec()
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry && !pendingcs && !csretrying)
+        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
 #else
-        if (!scpaused && jsonsc.pos && !pendingcs && !csretrying)
+        if (!scpaused && jsonsc.pos)
 #endif
         {
             // FIXME: reload in case of bad JSON
@@ -1894,11 +1906,19 @@ void MegaClient::exec()
                                             // (to avoid open-after-creation races with e.g. MS Office)
                                             if (EVER(dsretry))
                                             {
-                                                syncnaglebt.backoff(dsretry + 1);
+                                                if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
+                                                {
+                                                    syncnaglebt.backoff(dsretry + 1);
+                                                }
+
                                                 syncnagleretry = true;
                                             }
                                             else
                                             {
+                                                if (syncnagleretry)
+                                                {
+                                                    syncnaglebt.arm();
+                                                }
                                                 syncactivity = true;
                                             }
 
@@ -2301,7 +2321,7 @@ int MegaClient::preparewait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || syncdownrequired || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry && !pendingcs && !csretrying))
+    if (syncactivity || syncdownrequired || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry))
     {
         nds = Waiter::ds;
     }
@@ -3103,6 +3123,7 @@ void MegaClient::locallogout()
 
     delete sctable;
     sctable = NULL;
+    pendingsccommit = false;
 
     me = UNDEF;
     publichandle = UNDEF;
@@ -3200,14 +3221,19 @@ void MegaClient::removecaches()
     if (sctable)
     {
         sctable->remove();
+        delete sctable;
+        sctable = NULL;
+        pendingsccommit = false;
     }
 
 #ifdef ENABLE_SYNC
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
     {
-        if((*it)->statecachetable)
+        if ((*it)->statecachetable)
         {
             (*it)->statecachetable->remove();
+            delete (*it)->statecachetable;
+            (*it)->statecachetable = NULL;
         }
     }
 #endif
@@ -3335,6 +3361,7 @@ bool MegaClient::procsc()
                             {
                                 sctable->commit();
                                 sctable->begin();
+                                pendingsccommit = false;
                             }
 
                             WAIT_CLASS::bumpds();
@@ -3419,9 +3446,18 @@ bool MegaClient::procsc()
                     notifypurge();
                     if (sctable)
                     {
-                        sctable->commit();
-                        sctable->begin();
-                        app->notify_dbcommit();
+                        if (!pendingcs && !csretrying && !reqs.cmdspending())
+                        {
+                            sctable->commit();
+                            sctable->begin();
+                            app->notify_dbcommit();
+                            pendingsccommit = false;
+                        }
+                        else
+                        {
+                            LOG_debug << "Postponing DB commit until cs requests finish";
+                            pendingsccommit = true;
+                        }
                     }
                     break;
                     
@@ -3873,6 +3909,7 @@ void MegaClient::finalizesc(bool complete)
 
         delete sctable;
         sctable = NULL;
+        pendingsccommit = false;
     }
 }
 
@@ -5799,6 +5836,11 @@ error MegaClient::unlink(Node* n, bool keepversions)
     return API_OK;
 }
 
+void MegaClient::unlinkversions()
+{
+    reqs.add(new CommandDelVersions(this));
+}
+
 // emulates the semantics of its JavaScript counterpart
 // (returns NULL if the input is invalid UTF-8)
 // unfortunately, discards bits 8-31 of multibyte characters for backwards compatibility
@@ -7058,6 +7100,7 @@ void MegaClient::opensctable()
         if (dbname.size())
         {
             sctable = dbaccess->open(fsaccess, &dbname);
+            pendingsccommit = false;
         }
     }
 }
@@ -9349,6 +9392,7 @@ void MegaClient::fetchnodes(bool nocache)
         statecurrent = false;
 
         sctable->begin();
+        pendingsccommit = false;
 
         Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn;
@@ -9363,6 +9407,7 @@ void MegaClient::fetchnodes(bool nocache)
         fnstats.mode = FetchNodesStats::MODE_API;
         fnstats.cache = nocache ? FetchNodesStats::API_NO_CACHE : FetchNodesStats::API_CACHE;
         fetchingnodes = true;
+        pendingsccommit = false;
 
         // prevent the processing of previous sc requests
         delete pendingsc;
@@ -9552,26 +9597,16 @@ void MegaClient::initializekeys()
                                     &sigPubk,
                                     (unsigned char*) puEd255.data()))
         {
-            // Verification could fail because a legacy bug in Webclient. Retry...
-            LOG_warn << "Failed to verify signature. Retrying with webclient compatibility fix...";
+            LOG_warn << "Verification of signature of public key for RSA failed";
 
-            pubk.serializekeyforjs(pubkstr, true);
-            if (!signkey->verifyKey((unsigned char*) pubkstr.data(),
-                                        pubkstr.size(),
-                                        &sigPubk,
-                                        (unsigned char*) puEd255.data()))
-            {
-                LOG_warn << "Verification of signature of public key for RSA failed";
+            int creqtag = reqtag;
+            reqtag = 0;
+            sendevent(99414, "Verification of signature of public key for RSA failed");
+            reqtag = creqtag;
 
-                int creqtag = reqtag;
-                reqtag = 0;
-                sendevent(99414, "Verification of signature of public key for RSA failed");
-                reqtag = creqtag;
-
-                clearKeys();
-                resetKeyring();
-                return;
-            }
+            clearKeys();
+            resetKeyring();
+            return;
         }
 
         // if we reached this point, everything is OK
@@ -11257,6 +11292,7 @@ void MegaClient::execmovetosyncdebris()
     ts = time(NULL);
     ptm = localtime(&ts);
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
+    m_time_t currentminute = ts / 60;
 
     // locate //bin/SyncDebris
     if ((n = childnodebyname(tn, SYNCDEBRISFOLDERNAME)) && n->type == FOLDERNODE)
@@ -11305,6 +11341,7 @@ void MegaClient::execmovetosyncdebris()
                 }
                 else
                 {
+                    LOG_debug << "SyncDebris daily folder not created. Final target: " << n->syncdeleted;
                     n->syncdeleted = SYNCDEL_NONE;
                     n->todebris_it = todebris.end();
                     todebris.erase(it++);
@@ -11315,8 +11352,10 @@ void MegaClient::execmovetosyncdebris()
                 it++;
             }
         }
-        else if (n->syncdeleted == SYNCDEL_DEBRISDAY)
+        else if (n->syncdeleted == SYNCDEL_DEBRISDAY
+                 || n->syncdeleted == SYNCDEL_FAILED)
         {
+            LOG_debug << "Move to SyncDebris finished. Final target: " << n->syncdeleted;
             n->syncdeleted = SYNCDEL_NONE;
             n->todebris_it = todebris.end();
             todebris.erase(it++);
@@ -11327,9 +11366,12 @@ void MegaClient::execmovetosyncdebris()
         }
     }
 
-    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding)
+    if (target != SYNCDEL_DEBRISDAY && todebris.size() && !syncdebrisadding
+            && (target == SYNCDEL_BIN || syncdebrisminute != currentminute))
     {
         syncdebrisadding = true;
+        syncdebrisminute = currentminute;
+        LOG_debug << "Creating daily SyncDebris folder: " << buf << " Target: " << target;
 
         // create missing component(s) of the sync debris folder of the day
         NewNode* nn;
@@ -11763,7 +11805,7 @@ handle MegaClient::getovhandle(Node *parent, string *name)
     handle ovhandle = UNDEF;
     if (parent && name)
     {
-        Node *ovn = childnodebyname(parent, name->c_str());
+        Node *ovn = childnodebyname(parent, name->c_str(), true);
         if (ovn)
         {
             ovhandle = ovn->nodehandle;

@@ -321,6 +321,14 @@ public:
     CommandDelNode(MegaClient*, handle, bool = false);
 };
 
+class MEGA_API CommandDelVersions : public Command
+{
+public:
+    void procresult();
+
+    CommandDelVersions(MegaClient*);
+};
+
 class MEGA_API CommandKillSessions : public Command
 {
     handle h;
