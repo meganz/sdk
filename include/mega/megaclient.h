@@ -311,6 +311,9 @@ public:
     // delete node
     error unlink(Node*, bool = false);
 
+    // delete all versions
+    void unlinkversions();
+
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
