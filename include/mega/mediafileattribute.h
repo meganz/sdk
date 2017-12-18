@@ -85,13 +85,6 @@ struct MEGA_API MediaFileInfo
 {
     struct MediaCodecs
     {
-        struct idrecord
-        {
-            unsigned id;
-            std::string mediainfoname;
-            std::string mediasourcemimetype;
-        };
-
         struct shortformatrec
         {
             byte shortformatid;
@@ -100,9 +93,9 @@ struct MEGA_API MediaFileInfo
             unsigned audiocodecid;
         };
 
-        std::map<std::string, idrecord> containers;
-        std::map<std::string, idrecord> videocodecs;
-        std::map<std::string, idrecord> audiocodecs;
+        std::map<std::string, unsigned> containers;
+        std::map<std::string, unsigned> videocodecs;
+        std::map<std::string, unsigned> audiocodecs;
         std::vector<shortformatrec> shortformats;
     };
 
@@ -114,7 +107,7 @@ struct MEGA_API MediaFileInfo
     MediaCodecs mediaCodecs;
 
     // look up IDs from the various maps
-    unsigned Lookup(const std::string& name, std::map<std::string, MediaFileInfo::MediaCodecs::idrecord>& data, unsigned notfoundvalue);
+    unsigned Lookup(const std::string& name, std::map<std::string, unsigned>& data, unsigned notfoundvalue);
     byte LookupShortFormat(unsigned containerid, unsigned videocodecid, unsigned audiocodecid);
 
     
@@ -127,7 +120,7 @@ struct MEGA_API MediaFileInfo
     void requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename);
     static void onCodecMappingsReceiptStatic(MegaClient* client, unsigned codecListVersion);
     void onCodecMappingsReceipt(MegaClient* client, unsigned codecListVersion);
-    void ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>&  data, JSON& json);
+    void ReadIdRecords(std::map<std::string, unsigned>&  data, JSON& json);
 
     // get the cached media attributes for a file just before sending CommandPutNodes (for a newly uploaded file)
     void addUploadMediaFileAttributes(handle& fh, std::string* s);

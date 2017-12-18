@@ -67,10 +67,8 @@ void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSu
 
 static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformatrec>& vec, JSON& json);
 
-unsigned MediaFileInfo::Lookup(const std::string& name, std::map<std::string, MediaFileInfo::MediaCodecs::idrecord>& data, unsigned notfoundvalue)
+unsigned MediaFileInfo::Lookup(const std::string& name, std::map<std::string, unsigned>& data, unsigned notfoundvalue)
 {
-    
-
     size_t seppos = name.find(" / ");
     if (seppos != std::string::npos)
     {
@@ -87,8 +85,8 @@ unsigned MediaFileInfo::Lookup(const std::string& name, std::map<std::string, Me
         return MediaFileInfo::Lookup(name.substr(pos), data, notfoundvalue);
     }
 
-    std::map<std::string, MediaFileInfo::MediaCodecs::idrecord>::iterator i = data.find(name);
-    return i == data.end() ? notfoundvalue : i->second.id;
+    std::map<std::string, unsigned>::iterator i = data.find(name);
+    return i == data.end() ? notfoundvalue : i->second;
 }
 
 byte MediaFileInfo::LookupShortFormat(unsigned containerid, unsigned videocodecid, unsigned audiocodecid)
@@ -107,23 +105,18 @@ byte MediaFileInfo::LookupShortFormat(unsigned containerid, unsigned videocodeci
 
 
 
-void MediaFileInfo::ReadIdRecords(std::map<std::string, MediaCodecs::idrecord>& data, JSON& json)
+void MediaFileInfo::ReadIdRecords(std::map<std::string, unsigned>& data, JSON& json)
 {
-    bool working = json.enterarray();
-    if (working)
+    if (json.enterarray())
     {
-        while (working = json.enterarray())
+        while (json.enterarray())
         {
-            MediaFileInfo::MediaCodecs::idrecord rec;
-            std::string idString;
             assert(json.isnumeric());
-            working = json.storeobject(&idString) &&
-                      json.storeobject(&rec.mediainfoname);
-            json.storeobject(&rec.mediasourcemimetype);
-            if (working)
+            unsigned id = json.getint();
+            std::string name;
+            if (json.storeobject(&name))
             {
-                rec.id = atoi(idString.c_str());
-                data[rec.mediainfoname] = rec;
+                data[name] = id;
             }
             json.leavearray();
         }
