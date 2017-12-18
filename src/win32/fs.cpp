@@ -1252,7 +1252,7 @@ void WinDirNotify::process(DWORD dwBytes)
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
-        LOG_err << "Empty filesystem notification: " << localrootnode->name;
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL");
         readchanges();
         error = true;
     }
@@ -1292,7 +1292,7 @@ void WinDirNotify::process(DWORD dwBytes)
                                                      (char*)path.data(),
                                                      path.size() + 1,
                                                      NULL, NULL));
-                    LOG_debug << "Filesystem notification. Root: " << localrootnode->name << "   Path: " << path;
+                    LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
                 }
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
             }
@@ -1306,7 +1306,7 @@ void WinDirNotify::process(DWORD dwBytes)
                                                  (char*)path.data(),
                                                  path.size() + 1,
                                                  NULL, NULL));
-                LOG_debug << "Skipped filesystem notification. Root: " << localrootnode->name << "   Path: " << path;
+                LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
             }
 
 
