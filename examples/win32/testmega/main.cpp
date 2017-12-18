@@ -638,6 +638,7 @@ uint32_t averageCount = 0;
 #ifdef _WIN32
 
 
+MediaFileInfo mfi;
 
 void ExamineVideos(const std::experimental::filesystem::path& path)
 {
@@ -658,7 +659,6 @@ void ExamineVideos(const std::experimental::filesystem::path& path)
         WinFileSystemAccess* fsa = new WinFileSystemAccess();
         vp.extractMediaPropertyFileAttributes(std::string((const char*)sc.data(), sc.size() * 2), fsa);
         delete fsa;
-        MediaFileInfo mfi;
         std::string s2 = vp.convertMediaPropertyFileAttributes(attributekey, mfi);
         auto t = GetTickCount() - n;
         averageSum += t;
@@ -719,7 +719,7 @@ int main()
     SimpleLogger::setAllOutputs(&cout);
 
 
-    //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\");
+    ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\");
     //ExamineVideos("C:\\Users\\MATTW\\Desktop\\test_videos_standaloneinstaller\\mts\\video-sample.mpg");
     //LOG_err << " average time: " << (averageSum / averageCount);
 

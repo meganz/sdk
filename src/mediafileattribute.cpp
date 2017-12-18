@@ -658,6 +658,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
                     no_audio = true;
                 }
 
+                ZenLib::Ztring gci = minfo.Get(MediaInfoLib::Stream_General, 0, __T("CodecID"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring gf = minfo.Get(MediaInfoLib::Stream_General, 0, __T("Format"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring gd = minfo.Get(MediaInfoLib::Stream_General, 0, __T("Duration"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vw = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Width"), MediaInfoLib::Info_Text);
@@ -679,7 +680,8 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
                 videocodecFormat = vcf.To_Local();
                 audiocodecNames = aci.To_Local();
                 audiocodecFormat = acf.To_Local();
-                containerName = gf.To_Local();
+                containerName = gci.To_Local(); 
+                containerFormat = gf.To_Local();
                 is_VFR = vrm.To_Local() == "VFR"; // variable frame rate - send through as 0 in fps field
                 if (!fps)
                 {
@@ -701,7 +703,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
 #ifdef _DEBUG
                 string path, local = localFilename;
                 fsa->local2path(&local, &path);
-                LOG_info << "MediaInfo on " << path << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
+                LOG_info << "MediaInfo on " << path << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
 #endif
             }
         }
@@ -720,6 +722,10 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
 std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4], MediaFileInfo& mediaInfo)
 {
     containerid = mediaInfo.Lookup(containerName, mediaInfo.mediaCodecs.containers, 0);
+    if (!containerid)
+    {
+        containerid = mediaInfo.Lookup(containerFormat, mediaInfo.mediaCodecs.containers, 0);
+    }
     videocodecid = mediaInfo.Lookup(videocodecNames, mediaInfo.mediaCodecs.videocodecs, 0);
     if (!videocodecid)
     {

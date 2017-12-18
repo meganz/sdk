@@ -46,6 +46,7 @@ struct MEGA_API MediaProperties
     std::string containerName;
     std::string videocodecNames;
     std::string audiocodecNames;
+    std::string containerFormat;
     std::string videocodecFormat;
     std::string audiocodecFormat;
     uint32_t containerid;
