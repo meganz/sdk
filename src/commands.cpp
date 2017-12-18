@@ -1304,6 +1304,22 @@ void CommandDelNode::procresult()
     }
 }
 
+CommandDelVersions::CommandDelVersions(MegaClient* client)
+{
+    cmd("dv");
+    tag = client->reqtag;
+}
+
+void CommandDelVersions::procresult()
+{
+    error e = API_EINTERNAL;
+    if (client->json.isnumeric())
+    {
+        e = (error)client->json.getint();
+    }
+    client->app->unlinkversions_result(e);
+}
+
 CommandKillSessions::CommandKillSessions(MegaClient* client)
 {
     cmd("usr");
