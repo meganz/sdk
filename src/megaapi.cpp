@@ -1626,6 +1626,11 @@ void MegaApi::remove(MegaNode *node, MegaRequestListener *listener)
     pImpl->remove(node, false, listener);
 }
 
+void MegaApi::removeVersions(MegaRequestListener *listener)
+{
+    pImpl->removeVersions(listener);
+}
+
 void MegaApi::removeVersion(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->remove(node, true, listener);
