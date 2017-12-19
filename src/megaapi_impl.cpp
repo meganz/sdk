@@ -2899,6 +2899,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
         case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
+        case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
     }
     return "UNKNOWN";
 }
@@ -4811,6 +4812,13 @@ void MegaApiImpl::remove(MegaNode *node, bool keepversions, MegaRequestListener 
     if(node) request->setNodeHandle(node->getHandle());
     request->setFlag(keepversions);
 	requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeVersions(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_VERSIONS, listener);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -9861,6 +9869,22 @@ void MegaApiImpl::unlink_result(handle h, error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::unlinkversions_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || request->getType() != MegaRequest::TYPE_REMOVE_VERSIONS)
+    {
+        return;
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::fetchnodes_result(error e)
 {    
     MegaError megaError(e);
@@ -9879,7 +9903,6 @@ void MegaApiImpl::fetchnodes_result(error e)
         {
             request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
         }
-        fireOnRequestFinish(request, megaError);
 
         if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
         {
@@ -9887,6 +9910,7 @@ void MegaApiImpl::fetchnodes_result(error e)
             client->tsLogin = false;
         }
 
+        fireOnRequestFinish(request, megaError);
         return;
     }
 
@@ -9917,13 +9941,13 @@ void MegaApiImpl::fetchnodes_result(error e)
             }
         }
 
-        fireOnRequestFinish(request, megaError);
-
         if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
         {
             updatePwdReminderData(false, false, false, false, true);
             client->tsLogin = false;
         }
+
+        fireOnRequestFinish(request, megaError);
     }
     else    // TYPE_CREATE_ACCOUNT
     {
@@ -14279,6 +14303,11 @@ void MegaApiImpl::sendPendingRequests()
             e = client->unlink(node, keepversions);
 			break;
 		}
+        case MegaRequest::TYPE_REMOVE_VERSIONS:
+        {
+            client->unlinkversions();
+            break;
+        }
 		case MegaRequest::TYPE_SHARE:
 		{
 			Node *node = client->nodebyhandle(request->getNodeHandle());

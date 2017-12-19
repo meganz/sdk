@@ -660,39 +660,8 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
     return istransient(e);
 }
 
-// wake up from filesystem updates
 void WinFileSystemAccess::addevents(Waiter* w, int)
 {
-#ifndef WINDOWS_PHONE
-    for (set<WinDirNotify*>::iterator it = dirnotifys.begin(); it != dirnotifys.end(); it++)
-    {
-        if ((*it)->enabled)
-        {
-            ((WinWaiter *)w)->addhandle((*it)->hEvent, Waiter::NEEDEXEC);
-        }
-    }
-#endif
-}
-
-int WinFileSystemAccess::checkevents(Waiter *)
-{
-    int r = 0;
-#ifndef WINDOWS_PHONE
-    for (set<WinDirNotify*>::iterator it = dirnotifys.begin(); it != dirnotifys.end(); it++)
-    {
-        if ((*it)->enabled)
-        {
-            DWORD bytes = 0;
-            if (GetOverlappedResult((*it)->hDirectory, &((*it)->overlapped), &bytes, FALSE))
-            {
-                r |= Waiter::NEEDEXEC;
-                ResetEvent((*it)->hEvent);
-                (*it)->process(bytes);
-            }
-        }
-    }
-#endif
-    return r;
 }
 
 // generate unique local filename in the same fs as relatedpath
@@ -1263,12 +1232,27 @@ fsfp_t WinDirNotify::fsfingerprint()
 #endif
 }
 
+VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
+{
+#ifndef WINDOWS_PHONE
+    WinDirNotify *dirnotify = (WinDirNotify*)lpOverlapped->hEvent;
+    if (!dirnotify->exit && dwErrorCode != ERROR_OPERATION_ABORTED)
+    {
+        dirnotify->process(dwBytes);
+    }
+    else
+    {
+        dirnotify->enabled = false;
+    }
+#endif
+}
+
 void WinDirNotify::process(DWORD dwBytes)
 {
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
-        // empty notification: re-read all trees
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL");
         readchanges();
         error = true;
     }
@@ -1308,7 +1292,7 @@ void WinDirNotify::process(DWORD dwBytes)
                                                      (char*)path.data(),
                                                      path.size() + 1,
                                                      NULL, NULL));
-                    LOG_debug << "Filesystem notification. Root: " << localrootnode->name << "   Path: " << path;
+                    LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
                 }
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
             }
@@ -1322,7 +1306,7 @@ void WinDirNotify::process(DWORD dwBytes)
                                                  (char*)path.data(),
                                                  path.size() + 1,
                                                  NULL, NULL));
-                LOG_debug << "Skipped filesystem notification. Root: " << localrootnode->name << "   Path: " << path;
+                LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
             }
 
 
@@ -1341,8 +1325,6 @@ void WinDirNotify::process(DWORD dwBytes)
 void WinDirNotify::readchanges()
 {
 #ifndef WINDOWS_PHONE
-    ZeroMemory(&overlapped, sizeof(overlapped));
-    overlapped.hEvent = hEvent;
     if (ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
                               notifybuf[active].size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
@@ -1350,7 +1332,7 @@ void WinDirNotify::readchanges()
                             | FILE_NOTIFY_CHANGE_LAST_WRITE
                             | FILE_NOTIFY_CHANGE_SIZE
                             | FILE_NOTIFY_CHANGE_CREATION,
-                              &dwBytes, &overlapped, NULL))
+                              &dwBytes, &overlapped, completion))
     {
         failed = false;
         enabled = true;
@@ -1377,8 +1359,10 @@ void WinDirNotify::readchanges()
 WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
 #ifndef WINDOWS_PHONE
-    hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    ZeroMemory(&overlapped, sizeof(overlapped));
+    overlapped.hEvent = this;
     enabled = false;
+    exit = false;
     active = 0;
 
     notifybuf[0].resize(65534);
@@ -1409,19 +1393,22 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 
 WinDirNotify::~WinDirNotify()
 {
+     exit = true;
+
 #ifndef WINDOWS_PHONE
     if (hDirectory != INVALID_HANDLE_VALUE)
     {
         if (enabled)
         {
-            DWORD bytes = 0;
             CancelIo(hDirectory);
-            GetOverlappedResult(hDirectory, &overlapped, &bytes, TRUE);
+            while (enabled)
+            {
+                SleepEx(INFINITE, true);
+            }
         }
 
         CloseHandle(hDirectory);
     }
-    CloseHandle(hEvent);
     fsaccess->dirnotifys.erase(this);
 #endif
 }

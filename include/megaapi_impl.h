@@ -1504,6 +1504,7 @@ class MegaApiImpl : public MegaApp
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
         void remove(MegaNode* node, bool keepversions = false, MegaRequestListener *listener = NULL);
+        void removeVersions(MegaRequestListener *listener = NULL);
         void restoreVersion(MegaNode *version, MegaRequestListener *listener = NULL);
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
@@ -1988,6 +1989,7 @@ protected:
         virtual void setattr_result(handle, error);
         virtual void rename_result(handle, error);
         virtual void unlink_result(handle, error);
+        virtual void unlinkversions_result(error);
         virtual void nodes_updated(Node**, int);
         virtual void users_updated(User**, int);
         virtual void account_updated();
