@@ -11072,10 +11072,17 @@ void MegaClient::syncupdate()
 
                 if (n)
                 {
-                    // overwriting an existing remote node? tag it as the previous version
+                    // overwriting an existing remote node? tag it as the previous version or move to SyncDebris
                     if (l->node && l->node->parent && l->node->parent->localnode)
                     {
-                        nnp->ovhandle = l->node->nodehandle;
+                        if (versions_disabled)
+                        {
+                            movetosyncdebris(l->node, l->sync->inshare);
+                        }
+                        else
+                        {
+                            nnp->ovhandle = l->node->nodehandle;
+                        }
                     }
 
                     // this is a file - copy, use original key & attributes
