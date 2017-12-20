@@ -4719,6 +4719,7 @@ void CommandChatCreate::procresult()
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
+                        chat->dts = 0;
 
                         chat->setTag(tag ? tag : -1);
                         client->notifychat(chat);

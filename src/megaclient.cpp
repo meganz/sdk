@@ -5141,6 +5141,7 @@ void MegaClient::sc_chatupdate()
     handle ou = UNDEF;
     string title;
     m_time_t ts = -1;
+    m_time_t dts = -1;
 
     bool done = false;
     while (!done)
@@ -5179,6 +5180,10 @@ void MegaClient::sc_chatupdate()
                 ts = jsonsc.getint();
                 break;
 
+            case MAKENAMEID3('d', 't', 's'):  // actual creation timestamp
+                dts = jsonsc.getint();
+                break;
+
             case EOO:
                 done = true;
 
@@ -5211,6 +5216,10 @@ void MegaClient::sc_chatupdate()
                     if (ts != -1)
                     {
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
+                    }
+                    if (dts != -1)
+                    {
+                        chat->dts = dts;  // only in APs related to chat deletion
                     }
 
                     bool found = false;
@@ -8217,6 +8226,7 @@ void MegaClient::procmcf(JSON *j)
             bool group = false;
             string title;
             m_time_t ts = -1;
+            m_time_t dts = -1;
 
             bool readingChat = true;
             while(readingChat) // read the chat information
@@ -8251,6 +8261,10 @@ void MegaClient::procmcf(JSON *j)
                     ts = j->getint();
                     break;
 
+                case MAKENAMEID3('d', 't', 's'):  // deletion timestamp
+                    dts = j->getint();
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                     {
@@ -8266,6 +8280,7 @@ void MegaClient::procmcf(JSON *j)
                         chat->group = group;
                         chat->title = title;
                         chat->ts = (ts != -1) ? ts : 0;
+                        chat->dts = (dts != -1) ? dts : 0;
 
                         // remove yourself from the list of users (only peers matter)
                         if (userpriv)

@@ -689,6 +689,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     cout << "Chat ID: " << hstr << endl;
     cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
     cout << "\tCreation ts: " << chat->ts << endl;
+    cout << "\tDeletion ts: " << chat->dts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
     if (chat->group)
     {

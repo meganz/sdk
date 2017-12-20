@@ -1080,6 +1080,7 @@ public:
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
     virtual int64_t getCreationTime() const;
+    virtual int64_t getDeletionTime() const;
 
     virtual bool hasChanged(int changeType) const;
     virtual int getChanges() const;
@@ -1097,6 +1098,7 @@ private:
     int changed;
     int tag;
     int64_t ts;
+    int64_t dts;
 };
 
 class MegaTextChatListPrivate : public MegaTextChatList

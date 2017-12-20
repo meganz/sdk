@@ -1595,6 +1595,18 @@ public:
      * @return Creation date of the chat
      */
     virtual int64_t getCreationTime() const;
+
+    /**
+     * @brief Returns the deletion timestamp of the chat
+     *
+     * Chatrooms are considered deleted automatically when all participants have left the
+     * room. From that moment, none can operate on the room.
+     *
+     * In seconds since the Epoch
+     *
+     * @return Creation date of the chat
+     */
+    virtual int64_t getDeletionTime() const;
 };
 
 /**
