@@ -29,6 +29,7 @@
 #include "mega/utils.h"
 #include "mega/user.h"
 #include "mega.h"
+#include "mega/mediafileattribute.h"
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
@@ -256,6 +257,18 @@ CommandAttachFA::CommandAttachFA(handle nh, fatype t, handle ah, int ctag)
     sprintf(buf, "%u*", t);
     Base64::btoa((byte*)&ah, sizeof(ah), strchr(buf + 2, 0));
     arg("fa", buf);
+
+    h = nh;
+    type = t;
+    tag = ctag;
+}
+
+CommandAttachFA::CommandAttachFA(handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
+{
+    cmd("pfa");
+    arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
+
+    arg("fa", encryptedAttributes.c_str());
 
     h = nh;
     type = t;
@@ -869,6 +882,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 string s;
 
                 client->pendingattrstring(nn[i].uploadhandle, &s);
+
+                #ifdef USE_MEDIAINFO
+                client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
+                #endif              
 
                 if (s.size())
                 {
@@ -5514,6 +5531,32 @@ void CommandGetWelcomePDF::procresult()
                 break;
         }
     }
+}
+
+
+CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
+{
+    cmd("mc");
+
+    tag = c->reqtag;
+
+    client = c;
+    callback = cb;
+}
+
+void CommandMediaCodecs::procresult()
+{
+    int version = 0;
+    if (client->json.isnumeric())
+    {
+        m_off_t result = client->json.getint();
+        if (result < 0)
+        {
+            LOG_err << "mc result: " << result;
+        }
+        version = int(result);
+    }
+    callback(client, version);
 }
 
 } // namespace

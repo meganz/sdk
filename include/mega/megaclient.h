@@ -35,6 +35,7 @@
 #include "http.h"
 #include "pubkeyaction.h"
 #include "pendingcontactrequest.h"
+#include "mediafileattribute.h"
 
 namespace mega {
 
@@ -951,6 +952,10 @@ public:
 #ifdef ENABLE_CHAT
     textchat_map chatnotify;
     void notifychat(TextChat *);
+#endif
+
+#ifdef USE_MEDIAINFO
+    MediaFileInfo mediaFileInfo;
 #endif
 
     // write changed/added/deleted users to the DB cache and notify the
