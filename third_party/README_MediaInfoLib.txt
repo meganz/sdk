@@ -1,5 +1,6 @@
 Mega SDK optionally depends on MediaInfoLib library (https://github.com/MediaArea/MediaInfoLib)
-The latest version of that at the time of writing was v17.10, and there is a tag to select if you want to use exactly that version.
+The latest version of that at the time of writing was v17.10, and there is a tag to select if you want to use exactly that version.  
+However the mainline produces far fewer build issues with our settings below, so that is recommended (as at 20 Dec 2017).
 
 Turn on USE_MEDIAINFO in order to enable the dependency and functionality.    
 If USE_MEDIAINFO is enabled, Mega SDK will analyse media files (video, audio) and set file attributes on them to assist the web interface in playing them.
@@ -21,7 +22,7 @@ for the GNU build system (using configure):
 --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references 
 
 
-for windows (these can be added to MediaInfoLib's Setup.h, which is much more straightforward than editing the visual studio project file):
+for windows (these can be added to the top of MediaInfoLib's Setup.h, which is much more straightforward than editing the visual studio project file):
 
 #define MEDIAINFO_MINIMIZESIZE
 #define MEDIAINFO_MINIMAL_YES
@@ -78,3 +79,30 @@ for windows (these can be added to MediaInfoLib's Setup.h, which is much more st
 #define MEDIAINFO_TTA_NO 
 #define MEDIAINFO_TWINVQ_NO 
 #define MEDIAINFO_REFERENCES_NO 
+
+#define MEDIAINFO_ADVANCED_NO 
+#define MEDIAINFO_ADVANCED2_NO  
+#define MEDIAINFO_OTHER_NO  
+#define MEDIAINFO_ANCILLARY_NO 
+#define MEDIAINFO_SEQUENCEINFO_NO 
+#define MEDIAINFO_AFDBARDATA_NO 
+#define MEDIAINFO_MPCSV8_NO 
+#define MEDIAINFO_S3M_NO 
+#define MEDIAINFO_DOLBYE_NO 
+#define MEDIAINFO_CAF_NO 
+#define MEDIAINFO_IT_NO 
+#define MEDIAINFO_PCMVOB_NO 
+#define MEDIAINFO_MOD_NO 
+#define MEDIAINFO_DIRAC_NO 
+#define MEDIAINFO_FRAPS_NO 
+#define MEDIAINFO_LAGARITH_NO 
+#define MEDIAINFO_LXF_NO 
+#define MEDIAINFO_PTX_NO 
+#define MEDIAINFO_ISM_NO 
+#define MEDIAINFO_P2_NO 
+#define MEDIAINFO_IVF_NO 
+#define MEDIAINFO_VBI_NO 
+#define MEDIAINFO_XDCAM_NO 
+#define MEDIAINFO_TIMECODE_NO 
+#define MEDIAINFO_XM_NO 
+#define MEDIAINFO_VORBISCOM_NO 

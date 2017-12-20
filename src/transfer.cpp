@@ -444,9 +444,11 @@ static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
 
 void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath)
 {
+    assert(type == PUT || node && node->type == FILENODE);
+
 #ifdef USE_MEDIAINFO
     char ext[8];
-    if (node && ((type == PUT) || node->nodekey.size() == FILENODEKEYLENGTH) &&
+    if ((type == PUT || node && node->nodekey.size() == FILENODEKEYLENGTH) &&
         client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
         MediaProperties::isMediaFilenameExt(ext) &&
         !client->mediaFileInfo.mediaCodecsFailed)
@@ -454,7 +456,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
         // for upload, the key is in the transfer.  for download, the key is in the node.
         uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey.data());
 
-        if (!node->hasfileattribute(8) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
+        if (type == PUT || !node->hasfileattribute(8) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
             // if we don't have the codec id mappings yet, send the request
             client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
@@ -463,10 +465,13 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
             MediaProperties vp;
             vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess);
 
-            client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributes(node->nodehandle, vp, attrKey, client, (type == PUT) ? &uploadhandle : NULL);
             if ((type == PUT))
             {
-                minfa += 1;  // ensure we keep the transfer till the media file properties are ready (we may need to wait for the codec mappings)
+                minfa += client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle);
+            }
+            else
+            {
+                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodehandle);
             }
         }
     }
@@ -757,7 +762,7 @@ void Transfer::complete()
                         success = true;
                     }
 
-                    // Add video file attributes for video files that don't have any yet.  Just for the first copy of this file.
+                    // Add video file attributes for video files that don't have any yet.  Just for the first copy of this downloaded file.
                     if (success)
                     {
                         Node* node = client->nodebyhandle((*it)->h);
@@ -863,7 +868,6 @@ void Transfer::complete()
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
         delete slot->fa;
         slot->fa = NULL;
-        bool checked_media = false;
 
         // files must not change during a PUT transfer
         for (file_list::iterator it = files.begin(); it != files.end(); )
@@ -926,14 +930,6 @@ void Transfer::complete()
             }
             else
             {
-                Node* node = client->nodebyhandle((*it)->h);
-                if (!checked_media && node)
-                {
-                    // Add video file attributes for video files that don't have any yet.  Just for the first copy of this file.
-                    addAnyMissingMediaFileAttributes(node, *localpath);
-                    checked_media = true;
-                }
-
                 it++;
             }
             delete fa;

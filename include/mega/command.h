@@ -403,19 +403,13 @@ class MEGA_API CommandAttachFA : public Command
 public:
     void procresult();
 
+    // use this one for attribute blobs 
     CommandAttachFA(handle, fatype, handle, int);
-};
 
-class MEGA_API CommandAttachFADirect : public Command
-{
-    // for pre-prepared attribute strings that are not handles to something else.
-    handle h;
-    string attributes;
-
-public:
-    void procresult();
-
-    CommandAttachFADirect(handle, const char* attribs);
+    // use this one for numeric 64 bit attributes (which must be pre-encrypted with XXTEA)
+    // multiple attributes can be added at once, encryptedAttributes format "<N>*<attrib>/<M>*<attrib>"
+    // only the fatype specified will be notified back to the app
+    CommandAttachFA(handle, fatype, const std::string& encryptedAttributes, int);
 };
 
 
@@ -898,7 +892,7 @@ class MEGA_API CommandMediaCodecs : public Command
 {
 public:
 
-    typedef void(*Callback)(MegaClient* client, unsigned codecListVersion);
+    typedef void(*Callback)(MegaClient* client, int codecListVersion);
 
     void procresult();
 

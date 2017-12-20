@@ -69,6 +69,7 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
 
 unsigned MediaFileInfo::Lookup(const std::string& name, std::map<std::string, unsigned>& data, unsigned notfoundvalue)
 {
+
     size_t seppos = name.find(" / ");
     if (seppos != std::string::npos)
     {
@@ -112,11 +113,11 @@ void MediaFileInfo::ReadIdRecords(std::map<std::string, unsigned>& data, JSON& j
         while (json.enterarray())
         {
             assert(json.isnumeric());
-            unsigned id = json.getint();
+            m_off_t id = json.getint();
             std::string name;
-            if (json.storeobject(&name))
+            if (json.storeobject(&name) && id > 0)
             {
-                data[name] = id;
+                data[name] = (unsigned) id;
             }
             json.leavearray();
         }
@@ -150,85 +151,90 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
     }
 }
 
-void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, unsigned codecListVersion)
+void MediaFileInfo::onCodecMappingsReceiptStatic(MegaClient* client, int codecListVersion)
 {
     client->mediaFileInfo.onCodecMappingsReceipt(client, codecListVersion);
 }
 
-void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, unsigned codecListVersion)
+void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVersion)
 {
     if (codecListVersion < 0)
     {
         mediaCodecsFailed = true;
-        return;
-    }
-
-    downloadedCodecMapsVersion = codecListVersion;
-    client->json.enterarray();
-    ReadIdRecords(mediaCodecs.containers, client->json);
-    ReadIdRecords(mediaCodecs.videocodecs, client->json);
-    ReadIdRecords(mediaCodecs.audiocodecs, client->json);
-    ReadShortFormats(mediaCodecs.shortformats, client->json);
-    client->json.leavearray();
-    mediaCodecsReceived = true;
-
-    // update any download transfers we already processed
-    for (unsigned i = queuedForDownloadTranslation.size(); i--; )
-    {
-        queuedvp& q = queuedForDownloadTranslation[i];
-        sendOrQueueMediaPropertiesFileAttributes(q.filehandle, q.vp, q.fakey, client, NULL);
-    }
-    queuedForDownloadTranslation.clear();
-
-    // resume any upload transfers that were waiting for this
-    
-    for (std::map<handle, queuedvp>::iterator i = uploadFileAttributes.begin(); i != uploadFileAttributes.end(); )
-    {
-        handle th = i->second.transferhandle;
-        ++i;   // the call below may remove this item from the map
-        client->pendingfa[pair<handle, fatype>(th, fa_media)] = pair<handle, int>(0, 0);
-        client->checkfacompletion(th); 
-    }
-}
-
-void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributes(handle fh, MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle* uploadTransferHandle)
-{
-    if (uploadTransferHandle)
-    {
-        MediaFileInfo::queuedvp q;
-        q.filehandle = fh;
-        q.transferhandle = *uploadTransferHandle;
-        q.vp = vp;
-        memcpy(q.fakey, fakey, sizeof(q.fakey));
-        uploadFileAttributes[q.filehandle] = q;
-
-        if (mediaCodecsReceived)
-        {
-            // indicate we have this attribute ready to go. Otherwise the transfer will be put on hold till we can
-            client->pendingfa[pair<handle, fatype>(*uploadTransferHandle, fa_media)] = pair<handle, int>(0, 0);
-        }
     }
     else
     {
-        if (!mediaCodecsReceived)
+        downloadedCodecMapsVersion = codecListVersion;
+        assert(downloadedCodecMapsVersion < 10000);
+        client->json.enterarray();
+        ReadIdRecords(mediaCodecs.containers, client->json);
+        ReadIdRecords(mediaCodecs.videocodecs, client->json);
+        ReadIdRecords(mediaCodecs.audiocodecs, client->json);
+        ReadShortFormats(mediaCodecs.shortformats, client->json);
+        client->json.leavearray();
+        mediaCodecsReceived = true;
+
+        // update any download transfers we already processed
+        for (unsigned i = queuedForDownloadTranslation.size(); i--; )
         {
-            MediaFileInfo::queuedvp q;
-            q.filehandle = fh;
-            q.vp = vp;
-            memcpy(q.fakey, fakey, sizeof(q.fakey));
-            queuedForDownloadTranslation.push_back(q);
+            queuedvp& q = queuedForDownloadTranslation[i];
+            sendOrQueueMediaPropertiesFileAttributesForExistingFile(q.vp, q.fakey, client, q.handle);
         }
-        else
-        {
-            std::string mediafileattributes = vp.convertMediaPropertyFileAttributes(fakey, client->mediaFileInfo);
-            client->reqs.add(new CommandAttachFADirect(fh, mediafileattributes.c_str()));
-        }
+        queuedForDownloadTranslation.clear();
+    }
+
+    // resume any upload transfers that were waiting for this
+    for (std::map<handle, queuedvp>::iterator i = uploadFileAttributes.begin(); i != uploadFileAttributes.end(); )
+    {
+        handle th = i->second.handle;
+        ++i;   // the call below may remove this item from the map
+
+        // indicate that file attribute 8 can be retrieved now, allowing the transfer to complete
+        client->pendingfa[pair<handle, fatype>(th, fa_media)] = pair<handle, int>(0, 0);
+        client->checkfacompletion(th);
     }
 }
 
-void MediaFileInfo::addUploadMediaFileAttributes(handle& fh, std::string* s)
+unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle)
 {
-    std::map<handle, MediaFileInfo::queuedvp>::iterator i = uploadFileAttributes.find(fh);
+    MediaFileInfo::queuedvp q;
+    q.handle = uploadHandle;
+    q.vp = vp;
+    memcpy(q.fakey, fakey, sizeof(q.fakey));
+    uploadFileAttributes[uploadHandle] = q;
+
+    if (mediaCodecsFailed)
+    {
+        return 0;  // we can't do it - let the transfer complete anyway
+    }
+    else if (mediaCodecsReceived)
+    {
+        // indicate we have this attribute ready to go. Otherwise the transfer will be put on hold till we can
+        client->pendingfa[pair<handle, fatype>(uploadHandle, fa_media)] = pair<handle, int>(0, 0);
+    }
+    return 1;
+}
+
+void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle fileHandle)
+{
+    if (!mediaCodecsReceived)
+    {
+        MediaFileInfo::queuedvp q;
+        q.handle = fileHandle;
+        q.vp = vp;
+        memcpy(q.fakey, fakey, sizeof(q.fakey));
+        queuedForDownloadTranslation.push_back(q);
+    }
+    else
+    {
+        std::string mediafileattributes = vp.convertMediaPropertyFileAttributes(fakey, client->mediaFileInfo);
+        client->reqs.add(new CommandAttachFA(fileHandle, fa_media, mediafileattributes.c_str(), 0));
+    }
+}
+
+void MediaFileInfo::addUploadMediaFileAttributes(handle& uploadhandle, std::string* s)
+{
+    std::map<handle, MediaFileInfo::queuedvp>::iterator i = uploadFileAttributes.find(uploadhandle);
     if (i != uploadFileAttributes.end())
     {
         if (!s->empty())

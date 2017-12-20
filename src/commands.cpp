@@ -263,6 +263,18 @@ CommandAttachFA::CommandAttachFA(handle nh, fatype t, handle ah, int ctag)
     tag = ctag;
 }
 
+CommandAttachFA::CommandAttachFA(handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
+{
+    cmd("pfa");
+    arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
+
+    arg("fa", encryptedAttributes.c_str());
+
+    h = nh;
+    type = t;
+    tag = ctag;
+}
+
 void CommandAttachFA::procresult()
 {
     error e;
@@ -285,31 +297,6 @@ void CommandAttachFA::procresult()
 
     client->app->putfa_result(h, type, e);
 }
-
-
-CommandAttachFADirect::CommandAttachFADirect(handle nh, const char* attribs)
-{
-    cmd("pfa");
-    arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
-    arg("fa", attribs);
-
-    h = nh;
-}
-
-void CommandAttachFADirect::procresult()
-{
-    if (client->json.isnumeric())
-    {
-        LOG_err << "pfa result: " << client->json.getint();
-    }
-    else
-    {
-        string fa;
-        client->json.storeobject(&fa);
-    }
-}
-
-
 
 // request upload target URL
 CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
@@ -897,7 +884,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 client->pendingattrstring(nn[i].uploadhandle, &s);
 
                 #ifdef USE_MEDIAINFO
-                client->mediaFileInfo.addUploadMediaFileAttributes(th, &s);
+                client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
                 #endif              
 
                 if (s.size())
@@ -5559,7 +5546,7 @@ CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 
 void CommandMediaCodecs::procresult()
 {
-    unsigned version = 0;
+    int version = 0;
     if (client->json.isnumeric())
     {
         m_off_t result = client->json.getint();
@@ -5567,7 +5554,7 @@ void CommandMediaCodecs::procresult()
         {
             LOG_err << "mc result: " << result;
         }
-        version = unsigned(result);
+        version = int(result);
     }
     callback(client, version);
 }

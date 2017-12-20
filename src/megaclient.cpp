@@ -2844,17 +2844,21 @@ bool MegaClient::dispatch(direction_t d)
                         continue;
                     }
 
-                    // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
-                    if (gfx && nexttransfer->localfilename.size() && !nexttransfer->uploadhandle)
+                    // create thumbnail/preview imagery or video/audio attributes, if applicable (FIXME: do not re-create upon restart)
+                    if (nexttransfer->localfilename.size() && !nexttransfer->uploadhandle)
                     {
                         nexttransfer->uploadhandle = getuploadhandle();
 
-                        if (gfx->isgfx(&nexttransfer->localfilename))
+                        if (gfx && gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
                             nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                         }
+
+                        // also prepare file attributes for video/audio files if the file is suitable
+                        nexttransfer->addAnyMissingMediaFileAttributes(NULL, nexttransfer->localfilename);
                     }
+
                 }
                 else
                 {

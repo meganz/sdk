@@ -118,15 +118,16 @@ struct MEGA_API MediaFileInfo
 
     // request MediaCodecs from Mega.  Only do this the first time we know we will need them.
     void requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename);
-    static void onCodecMappingsReceiptStatic(MegaClient* client, unsigned codecListVersion);
-    void onCodecMappingsReceipt(MegaClient* client, unsigned codecListVersion);
+    static void onCodecMappingsReceiptStatic(MegaClient* client, int codecListVersion);
+    void onCodecMappingsReceipt(MegaClient* client, int codecListVersion);
     void ReadIdRecords(std::map<std::string, unsigned>&  data, JSON& json);
 
     // get the cached media attributes for a file just before sending CommandPutNodes (for a newly uploaded file)
     void addUploadMediaFileAttributes(handle& fh, std::string* s);
 
     // we figured out the properties, now attach them to a file.  Queues the action if we don't have the MediaCodecs yet.  Works for uploaded or downloaded files.
-    void sendOrQueueMediaPropertiesFileAttributes(handle fh, MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle* uploadTransferHandle);
+    unsigned queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle);
+    void sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle fileHandle);
 
     // Check if we should retry video property extraction, due to previous failure with older library
     bool timeToRetryMediaPropertyExtraction(const std::string& fileattributes, uint32_t fakey[4]);
@@ -136,9 +137,13 @@ struct MEGA_API MediaFileInfo
 
 struct MediaFileInfo::queuedvp
 {
-    handle filehandle;
-    handle transferhandle;
+    // for a download it is the handle of the node of the file.  For uploads that doens't exist yet and it is the uploadHandle of the transfer; 
+    handle handle;  
+
+    // The properties to upload.   These still need translation from strings to enums, plus file attribute encoding and encryption with XXTEA
     MediaProperties vp;
+
+    // the key to use for XXTEA encryption (which is not the same as the file data key)
     uint32_t fakey[4];
 };
 
