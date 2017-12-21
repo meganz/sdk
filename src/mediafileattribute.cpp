@@ -498,7 +498,7 @@ static inline uint32_t coalesce(uint32_t a, uint32_t b)
 
 static unsigned MediaInfoLibVersion()
 {
-    std::string s = ZenLib::Ztring(MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local();   // eg. __T("MediaInfoLib - v17.10")
+    std::string s = ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local();   // eg. __T("MediaInfoLib - v17.10")
     unsigned version = 0, column = 1;
     for (unsigned i = s.size(); i--; )
     {
