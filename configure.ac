@@ -899,6 +899,94 @@ else
     AC_DEFINE(USE_SQLITE, [0], [Define to use SQLite])
     AC_DEFINE(USE_DB, [1], [Define to use Berkeley DB])
 fi
+
+#
+# LIBMediaInfo
+#
+
+#libmediainfo
+
+LIBMEDIAINFO_LIBS=""
+AC_MSG_CHECKING(for libmediainfo)
+libmediainfo=false
+AC_ARG_WITH(libmediainfo,
+  AS_HELP_STRING(--with-libmediainfo=PATH, base of libmediainfo installation),
+  [
+   case $with_libmediainfo in
+   no)
+    libmediainfo=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([MediaInfo/MediaInfo.h],, [
+        AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo"],[
+            AC_MSG_ERROR([Could not find libmediainfo])
+    ])
+    libmediainfo=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_libmediainfo/lib"; then
+        LDFLAGS="-L$with_libmediainfo/lib $LDFLAGS"
+        CXXFLAGS="-I$with_libmediainfo/include $CXXFLAGS"
+        CPPFLAGS="-I$with_libmediainfo/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(MediaInfo/MediaInfo.h,
+         LIBMEDIAINFO_CXXFLAGS="-I$with_libmediainfo/include"
+         LIBMEDIAINFO_CPPFLAGS="-I$with_libmediainfo/include"
+         LIBMEDIAINFO_LDFLAGS="-L$with_libmediainfo/lib",
+         AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+         )
+    # assume we are using libmediainfo source directory
+    else
+        LDFLAGS="-L$with_libmediainfo/mediainfo $LDFLAGS"
+        CXXFLAGS="-I$with_libmediainfo $CXXFLAGS"
+        CPPFLAGS="-I$with_libmediainfo $CPPFLAGS"
+
+        AC_CHECK_HEADERS(MediaInfo/MediaInfo.h,
+         LIBMEDIAINFO_CXXFLAGS="-I$with_libmediainfo"
+         LIBMEDIAINFO_CPPFLAGS="-I$with_libmediainfo"
+         LIBMEDIAINFO_LDFLAGS="-L$with_libmediainfo/mediainfo",
+         AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo"],[
+            AC_MSG_ERROR([Could not find libmediainfo])
+    ])
+
+    libmediainfo=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-libmediainfo not specified])
+    AC_CHECK_HEADERS([MediaInfo/MediaInfo.h],
+        AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [
+        LIBMEDIAINFO_LIBS="-lmediainfo"
+        libmediainfo=true
+        ],)
+    ,)
+    
+  ]
+  )
+AC_SUBST(LIBMEDIAINFO_CXXFLAGS)
+AC_SUBST(LIBMEDIAINFO_CPPFLAGS)
+AC_SUBST(LIBMEDIAINFO_LDFLAGS)
+AC_SUBST(LIBMEDIAINFO_LIBS)
+if test "x$libmediainfo" = "xtrue" ; then
+    #AC_DEFINE(HAVE_LIBMEDIAINFO, [1], [Define to use libmediainfo])
+    AC_DEFINE(USE_MEDIAINFO, [1], [Define to use libmediainfo])    
+fi
+AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
+
+
 #
 # ** Posix dependent libraries **
 #
@@ -1691,4 +1779,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
   LIBUV:            $LIBUV_CXXFLAGS $LIBUV_LDFLAGS $LIBUV_LIBS
+  LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
 ])
