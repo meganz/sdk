@@ -27,7 +27,6 @@
 
 #ifdef USE_MEDIAINFO
 #include "MediaInfo/MediaInfo.h"
-#include "MediaInfo/MediaInfo_Config.h"
 #include "ZenLib/Ztring.h"
 #endif
 
@@ -499,7 +498,7 @@ static inline uint32_t coalesce(uint32_t a, uint32_t b)
 
 static unsigned MediaInfoLibVersion()
 {
-    std::string s = MediaInfoLib::MediaInfo_Config().Info_Version_Get().To_Local();   // eg. __T("MediaInfoLib - v17.10")
+    std::string s = ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local();   // eg. __T("MediaInfoLib - v17.10")
     unsigned version = 0, column = 1;
     for (unsigned i = s.size(); i--; )
     {
@@ -554,7 +553,6 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
     m_off_t filesize = fa->size; 
 
     size_t totalBytesRead = 0, jumps = 0;
-    auto t = GetTickCount();
 
     size_t opened = mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
