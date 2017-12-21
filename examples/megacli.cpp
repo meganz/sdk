@@ -2063,7 +2063,7 @@ static void process_line(char* l)
                 cout << "      debug" << endl;
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
-                cout << "      chats" << endl;
+                cout << "      chats [chatid]" << endl;
                 cout << "      chatc group [email ro|sta|mod]*" << endl;
                 cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
@@ -3694,6 +3694,21 @@ static void process_line(char* l)
                             {
                                 DemoApp::printChatInformation(it->second);
                             }
+                            return;
+                        }
+                        if (words.size() == 2)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            textchat_map::iterator it = client->chats.find(chatid);
+                            if (it == client->chats.end())
+                            {
+                                cout << "Chatid " << words[1].c_str() << " not found" << endl;
+                                return;
+                            }
+
+                            DemoApp::printChatInformation(it->second);
                             return;
                         }
                         else
