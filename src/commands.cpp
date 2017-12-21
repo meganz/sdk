@@ -4884,6 +4884,12 @@ void CommandChatRemove::procresult()
                 chat->priv = PRIV_RM;
             }
 
+            // if no more peers in chatroom, it gets "deleted" by API
+            if (chat->priv == PRIV_RM && !chat->userpriv)
+            {
+                chat->dts = time(NULL); // not the actual deletion ts from server, but roughly
+            }
+
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
         }
