@@ -20,6 +20,9 @@
  */
 
 #include "mega.h"
+
+#ifdef USE_FREEIMAGE
+
 #include "mega/gfx/freeimage.h"
 
 #ifdef _WIN32
@@ -190,3 +193,5 @@ void GfxProcFreeImage::freebitmap()
     }
 }
 } // namespace
+
+#endif // USE_FREEIMAGE

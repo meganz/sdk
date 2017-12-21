@@ -163,6 +163,7 @@
     <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\src\posix\net.cpp" />
+    <ClCompile Include="..\..\src\raid.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\src\gfx.cpp" />
@@ -217,6 +218,7 @@
     <ClInclude Include="..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\include\mega\mega_utf8proc.h" />
     <ClInclude Include="..\..\include\mega\posix\meganet.h" />
+    <ClInclude Include="..\..\include\mega\raid.h" />
     <ClInclude Include="..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsole.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsolewaiter.h" />

@@ -75,6 +75,7 @@ COMMON_SRC=\
 		src/json.cpp  \
 		src/node.cpp  \
 		src/pubkeyaction.cpp  \
+		src/raid.cpp \
 		src/request.cpp  \
 		src/serialize64.cpp  \
 		src/share.cpp  \

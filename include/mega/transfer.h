@@ -116,8 +116,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // transfer state
     bool finished;
 
-    // cached temp URL for upload/download data
-    string cachedtempurl;
+    // cached temp URLs for upload/download data.  6 for raid, 1 for non-raid
+    std::vector<string> cachedtempurls;
 
     // context of the async fopen operation
     AsyncIOContext* asyncopencontext;
