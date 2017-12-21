@@ -905,7 +905,7 @@ fi
 #
 
 #libmediainfo
-
+#TODO: check for libzen!
 LIBMEDIAINFO_LIBS=""
 AC_MSG_CHECKING(for libmediainfo)
 libmediainfo=false
@@ -920,7 +920,7 @@ AC_ARG_WITH(libmediainfo,
     AC_CHECK_HEADERS([MediaInfo/MediaInfo.h],, [
         AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
     ])
-    AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo"],[
+    AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo -lzen"],[
             AC_MSG_ERROR([Could not find libmediainfo])
     ])
     libmediainfo=true
@@ -953,7 +953,7 @@ AC_ARG_WITH(libmediainfo,
          )
     fi
 
-    AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo"],[
+    AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo -lzen"],[
             AC_MSG_ERROR([Could not find libmediainfo])
     ])
 
@@ -969,18 +969,52 @@ AC_ARG_WITH(libmediainfo,
   [AC_MSG_RESULT([--with-libmediainfo not specified])
     AC_CHECK_HEADERS([MediaInfo/MediaInfo.h],
         AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [
-        LIBMEDIAINFO_LIBS="-lmediainfo"
+        LIBMEDIAINFO_LIBS="-lmediainfo -lzen"
         libmediainfo=true
         ],)
     ,)
     
   ]
   )
-AC_SUBST(LIBMEDIAINFO_CXXFLAGS)
-AC_SUBST(LIBMEDIAINFO_CPPFLAGS)
-AC_SUBST(LIBMEDIAINFO_LDFLAGS)
-AC_SUBST(LIBMEDIAINFO_LIBS)
+
 if test "x$libmediainfo" = "xtrue" ; then
+ LDFLAGS="$LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS"
+ CXXFLAGS="$LIBMEDIAINFO_CXXFLAGS"
+ CPPFLAGS="$LIBMEDIAINFO_CPPFLAGS"
+ lmediainfo_prog='#include <iostream> 
+#include "ZenLib/Ztring.h"
+#include "MediaInfo/MediaInfo.h"
+int main () { std::cout << ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local().c_str() << std::endl; }
+'
+
+  AC_LINK_IFELSE(
+    [AC_LANG_SOURCE($lmediainfo_prog)],
+     AC_MSG_RESULT([libmediainfo worked]),
+     #Try again with -DUNICODE
+     LIBMEDIAINFO_LDFLAGS="$LIBMEDIAINFO_LDFLAGS -DUNICODE"
+     LDFLAGS="$LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS"
+     AC_LINK_IFELSE(
+    [AC_LANG_SOURCE($lmediainfo_prog)],
+     AC_MSG_RESULT([libmediainfo worked worked with -DUNICODE]),
+     AC_MSG_RESULT([libmediainfo failed to compile. Discarded])
+     libmediainfo=false
+     unset LIBMEDIAINFO_CXXFLAGS
+     unset LIBMEDIAINFO_CPPFLAGS
+     unset LIBMEDIAINFO_LDFLAGS
+     unset LIBMEDIAINFO_LIBS
+     )
+   )
+
+  #restore
+  LDFLAGS=$SAVE_LDFLAGS
+  CXXFLAGS=$SAVE_CXXFLAGS
+  CPPFLAGS=$SAVE_CPPFLAGS
+fi 
+if test "x$libmediainfo" = "xtrue" ; then
+    AC_SUBST(LIBMEDIAINFO_CXXFLAGS)
+    AC_SUBST(LIBMEDIAINFO_CPPFLAGS)
+    AC_SUBST(LIBMEDIAINFO_LDFLAGS)
+    AC_SUBST(LIBMEDIAINFO_LIBS)
     #AC_DEFINE(HAVE_LIBMEDIAINFO, [1], [Define to use libmediainfo])
     AC_DEFINE(USE_MEDIAINFO, [1], [Define to use libmediainfo])    
 fi
