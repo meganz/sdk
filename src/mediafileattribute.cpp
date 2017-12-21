@@ -37,17 +37,6 @@ namespace mega {
 
 #ifdef USE_MEDIAINFO
 
-#ifndef _WIN32
-unsigned GetTickCount()
-{
-        struct timeval tv;
-        if(gettimeofday(&tv, NULL) != 0)
-                return 0;
-
-        return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-}
-#endif
-
 MediaFileInfo::MediaFileInfo()
     : mediaCodecsRequested(false)
     , mediaCodecsReceived(false)
@@ -564,7 +553,6 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
     m_off_t filesize = fa->size; 
 
     size_t totalBytesRead = 0, jumps = 0;
-    auto t = GetTickCount();
 
     size_t opened = mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
