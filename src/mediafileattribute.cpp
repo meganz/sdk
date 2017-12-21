@@ -37,6 +37,17 @@ namespace mega {
 
 #ifdef USE_MEDIAINFO
 
+#ifndef _WIN32
+unsigned GetTickCount()
+{
+        struct timeval tv;
+        if(gettimeofday(&tv, NULL) != 0)
+                return 0;
+
+        return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+}
+#endif
+
 MediaFileInfo::MediaFileInfo()
     : mediaCodecsRequested(false)
     , mediaCodecsReceived(false)
