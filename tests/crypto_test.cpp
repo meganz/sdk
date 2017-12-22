@@ -33,25 +33,25 @@ TEST(Crypto, AES_GCM)
 //    string keyStr = "dGQhii+B7+eLLHRiOA690w==";   // Base64
     string keyStr = "dGQhii-B7-eLLHRiOA690w";     // Base64 URL encoding
     unsigned keyLen = SymmCipher::KEYLENGTH;
-    byte keyBytes[keyLen];
+    byte* keyBytes = new byte[keyLen];
     keyLen = Base64::atob(keyStr.data(), keyBytes, keyLen);
 
     string ivStr = "R8q1njARXS7urWv3";
     unsigned ivLen = 12;
-    byte ivBytes[ivLen];
+    byte* ivBytes = new byte[ivLen];
     ivLen = Base64::atob(ivStr.data(), ivBytes, ivLen);
 
     unsigned tagLen = 16;
 
     string plainStr = "dGQhwoovwoHDr8OnwossdGI4DsK9w5M";
     unsigned plainLen = plainStr.length();
-    byte plainBytes[plainLen];
+    byte* plainBytes = new byte[plainLen];
     plainLen = Base64::atob(plainStr.data(), plainBytes, plainLen);
     string plainText((const char*)plainBytes, plainLen);
 
     string cipherStr = "L3zqVYAOsRk7zMg2KsNTVShcad8TjIQ7umfsvia21QO0XTj8vaeR";
     unsigned cipherLen = cipherStr.length();
-    byte cipherBytes[cipherLen];
+    byte* cipherBytes = new byte[cipherLen];
     cipherLen = Base64::atob(cipherStr.data(), cipherBytes, cipherLen);
     string cipherText((const char*)cipherBytes, cipherLen);
 
@@ -72,6 +72,11 @@ TEST(Crypto, AES_GCM)
     key.gcm_decrypt(&cipherText, ivBytes, ivLen, tagLen, &result);
 
     ASSERT_STREQ(result.data(), plainText.data()) << "GCM decryption: plain text doesn't match the expected value";
+
+    delete[] keyBytes;
+    delete[] ivBytes;
+    delete[] plainBytes;
+    delete[] cipherBytes;
 }
 
 // Test encryption/decryption using AES in mode CCM

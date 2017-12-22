@@ -24,6 +24,7 @@
 #include "mega/logging.h"
 #include "mega/proxy.h"
 #include "mega/base64.h"
+#include "mega/testhooks.h"
 
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include "mega/osx/osxutils.h"
@@ -348,6 +349,8 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     method = METHOD_POST;
     contentlength = -1;
     lastdata = Waiter::ds;
+
+    DEBUG_TEST_HOOK_HTTPREQ_POST(this)
 
     httpio->post(this, data, len);
 }

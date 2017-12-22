@@ -2880,7 +2880,7 @@ bool MegaClient::dispatch(direction_t d)
                 if (!nexttransfer->cachedtempurls.empty())
                 {
                     app->transfer_prepare(nexttransfer);
-                    ts->transferbuf.setIsRaid(nexttransfer->cachedtempurls.size() == RAIDPARTS, nexttransfer, nexttransfer->cachedtempurls, nexttransfer->pos, ts->maxDownloadRequestSize);
+                    ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->cachedtempurls, nexttransfer->pos, ts->maxDownloadRequestSize);
                     nexttransfer->cachedtempurls.clear();
                 }
                 else
@@ -9940,7 +9940,7 @@ bool MegaClient::execdirectreads()
 
     while (!dsdrns.empty() && dsdrns.begin()->first <= Waiter::ds)
     {
-        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurl.size() || dsdrns.begin()->second->pendingcmd))
+        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurls.size() || dsdrns.begin()->second->pendingcmd))
         {
             LOG_warn << "DirectRead scheduled retry";
             dsdrns.begin()->second->retry(API_EAGAIN);

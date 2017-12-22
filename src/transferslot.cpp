@@ -32,7 +32,7 @@
 
 namespace mega {
 
-// transfer attempts are considered failed after XFERTIMEOUT seconds
+// transfer attempts are considered failed after XFERTIMEOUT deciseconds
 // without data flow
 const dstime TransferSlot::XFERTIMEOUT = 600;
 
@@ -179,7 +179,9 @@ TransferSlot::~TransferSlot()
                     && downloadRequest->contentlength == downloadRequest->size   
                     && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
             {
-                transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, downloadRequest->release_buf())); // resets size & bufpos of downloadrequest.
+                HttpReq::http_buf_t* buf = downloadRequest->release_buf();
+                buf->end -= buf->datalen() % RAIDSECTOR;
+                transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, buf)); // resets size & bufpos of downloadrequest.
             }
         }
 
@@ -384,6 +386,20 @@ void TransferSlot::doio(MegaClient* client)
             {
                 case REQ_INFLIGHT:
                     p += reqs[i]->transferred(client);
+
+                    assert(reqs[i]->lastdata != NEVER);
+                    if (transfer->type == GET && transferbuf.isRaid() && 
+                        (Waiter::ds - reqs[i]->lastdata) > (XFERTIMEOUT / 2) &&
+                        transferbuf.connectionRaidPeersAreAllPaused(i))
+                    {
+                        // switch to 5 channel raid to avoid the slow/delayed connection. (or if already switched, try a different 5).  If we already tried too many times then let the usual timeout occur
+                        if (tryRaidRecoveryFromHttpGetError(i))
+                        {
+                            LOG_warn << "Connection " << i << " is slow or stalled, trying the other 5 cloudraid connections --------------------------------------------------------------------------------------------------------";
+                            reqs[i]->disconnect();
+                            reqs[i]->status = REQ_READY;
+                        }
+                    }
                     break;
 
                 case REQ_SUCCESS:
@@ -792,7 +808,7 @@ void TransferSlot::doio(MegaClient* client)
                         LOG_warn << "Bandwidth overquota from storage server";
                         if (reqs[i]->timeleft > 0)
                         {
-                            backoff = reqs[i]->timeleft * 10;
+                            backoff = dstime(reqs[i]->timeleft * 10);
                         }
                         else
                         {
@@ -959,7 +975,7 @@ void TransferSlot::doio(MegaClient* client)
                         reqs[i]->status = REQ_PREPARED;
                     }
 
-                    transferbuf.transferPosUpdateMinimum(posrange.second, i);
+                    transferbuf.transferPos(i) = std::max<m_off_t>(transferbuf.transferPos(i), posrange.second);
                 }
                 else if (reqs[i])
                 {
@@ -1076,8 +1092,6 @@ void TransferSlot::doio(MegaClient* client)
 
 bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum)
 {
-    assert(reqs[connectionNum]->status == REQ_FAILURE);
-
     // If we are downloding a cloudraid file then we may be able to ignore one connection and download from the other 5.
     if (transferbuf.isRaid())
     {

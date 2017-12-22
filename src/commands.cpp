@@ -345,7 +345,7 @@ void CommandPutFile::procresult()
 
                 if (tempurls.size() == 1)
                 {
-                    tslot->transferbuf.setIsRaid(false, tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxDownloadRequestSize);
+                    tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxDownloadRequestSize);
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
                     return tslot->progress();
                 }
@@ -377,6 +377,8 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1);
 
+    arg("v", 2);  // version 2: server can supply details for cloudraid files
+
     if (client->usehttps)
     {
         arg("ssl", 2);
@@ -407,14 +409,38 @@ void CommandDirectRead::procresult()
     {
         error e = API_EINTERNAL;
         dstime tl = 0;
+        std::vector<std::string> tempurls;
 
         for (;;)
         {
             switch (client->json.getnameid())
             {
                 case 'g':
-                    client->json.storeobject(drn ? &drn->tempurl : NULL);
-                    e = API_OK;
+                    if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                    {
+                        for (;;) {
+                            std::string tu;
+                            if (!client->json.storeobject(&tu))
+                            {
+                                break;
+                            }
+                            tempurls.push_back(tu);
+                        }
+                        client->json.leavearray();
+                    }
+                    else
+                    {
+                        std::string tu;
+                        if (client->json.storeobject(&tu))
+                        {
+                            tempurls.push_back(tu);
+                        }
+                    }
+                    if (tempurls.size() == 1 || tempurls.size() == RAIDPARTS)
+                    {
+                        drn->tempurls.swap(tempurls);
+                        e = API_OK;
+                    }
                     break;
 
                 case 's':
@@ -447,7 +473,7 @@ void CommandDirectRead::procresult()
 
                         drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                     }
-                    
+
                     return;
 
                 default:
@@ -712,15 +738,10 @@ void CommandGetFile::procresult()
 
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
-                                        if (tempurls.size() == 1 && s >= 0)
+                                        if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                                         {
-                                            tslot->transferbuf.setIsRaid(false, tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxDownloadRequestSize);
+                                            tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxDownloadRequestSize);
                                             return tslot->progress();
-                                        }
-                                        else if (tempurls.size() == RAIDPARTS && s >= 0)
-                                        {
-                                            tslot->transferbuf.setIsRaid(true, tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxDownloadRequestSize);  // starting raid download
-                                            return tslot->progress();   
                                         }
 
                                         if (e == API_EOVERQUOTA && !tl)

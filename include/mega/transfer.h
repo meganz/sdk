@@ -26,6 +26,7 @@
 #include "backofftimer.h"
 #include "http.h"
 #include "command.h"
+#include "raid.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -190,7 +191,8 @@ struct MEGA_API DirectReadSlot
     static const int TEMPURL_TIMEOUT_DS = 3000;
 
     DirectRead* dr;
-    HttpReq* req;
+    
+    std::vector<HttpReq*> reqs;
 
     drs_list::iterator drs_it;
     SpeedController speedController;
@@ -201,6 +203,10 @@ struct MEGA_API DirectReadSlot
 
     DirectReadSlot(DirectRead*);
     ~DirectReadSlot();
+
+private:
+    std::string adjustURLPort(std::string url);
+    bool processAnyOutputPieces();
 };
 
 struct MEGA_API DirectRead
@@ -208,6 +214,9 @@ struct MEGA_API DirectRead
     m_off_t count;
     m_off_t offset;
     m_off_t progress;
+    m_off_t nextrequestpos;
+
+    DirectReadBufferManager drbuf;
 
     DirectReadNode* drn;
     DirectReadSlot* drs;
@@ -232,7 +241,7 @@ struct MEGA_API DirectReadNode
     m_off_t partiallen;
     dstime partialstarttime;
 
-    string tempurl;
+    std::vector<std::string> tempurls;
 
     m_off_t size;
 
@@ -268,6 +277,8 @@ struct MEGA_API DirectReadNode
     DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t);
     ~DirectReadNode();
 };
+
+
 } // namespace
 
 #endif
