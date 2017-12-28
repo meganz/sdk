@@ -7751,7 +7751,7 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
 
     if (!needversion)
     {
-        reqs.add(new CommandPutUA(this, at, av, avl));
+        reqs.add(new CommandPutUA(this, at, av, avl, (ctag != -1) ? ctag : reqtag));
     }
     else
     {
