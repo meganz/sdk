@@ -7733,45 +7733,49 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
         avl = data.size();
     }
 
+    int tag = (ctag != -1) ? ctag : reqtag;
     User *u = ownuser();
     assert(u);
     if (!u)
     {
         LOG_err << "Own user not found when attempting to set user attributes";
+        restag = tag;
         app->putua_result(API_EACCESS);
         return;
     }
     int needversion = u->needversioning(at);
     if (needversion == -1)
     {
-        restag = reqtag;
+        restag = tag;
         app->putua_result(API_EARGS);   // attribute not recognized
         return;
     }
 
     if (!needversion)
     {
-        reqs.add(new CommandPutUA(this, at, av, avl, (ctag != -1) ? ctag : reqtag));
+        reqs.add(new CommandPutUA(this, at, av, avl, tag));
     }
     else
     {
         // if the cached value is outdated, first need to fetch the latest version
         if (u->getattr(at) && !u->isattrvalid(at))
         {
-            restag = reqtag;
+            restag = tag;
             app->putua_result(API_EEXPIRED);
             return;
         }
-        reqs.add(new CommandPutUAVer(this, at, av, avl, (ctag != -1) ? ctag : reqtag));
+        reqs.add(new CommandPutUAVer(this, at, av, avl, tag));
     }
 }
 
 void MegaClient::putua(userattr_map *attrs, int ctag)
 {
+    int tag = (ctag != -1) ? ctag : reqtag;
     User *u = ownuser();
 
     if (!u || !attrs || !attrs->size())
     {
+        restag = tag;
         return app->putua_result(API_EARGS);
     }
 
@@ -7781,19 +7785,19 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
 
         if (!User::needversioning(type))
         {
-            restag = reqtag;
+            restag = tag;
             return app->putua_result(API_EARGS);
         }
 
         // if the cached value is outdated, first need to fetch the latest version
         if (u->getattr(type) && !u->isattrvalid(type))
         {
-            restag = reqtag;
+            restag = tag;
             return app->putua_result(API_EEXPIRED);
         }
     }
 
-    reqs.add(new CommandPutMultipleUAVer(this, attrs, (ctag != -1) ? ctag : reqtag));
+    reqs.add(new CommandPutMultipleUAVer(this, attrs, tag));
 }
 
 /**
@@ -7810,6 +7814,7 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
     {
         // if we can solve those requests locally (cached values)...
         const string *cachedav = u->getattr(at);
+        int tag = (ctag != -1) ? ctag : reqtag;
 
 #ifdef ENABLE_CHAT
         if (!fetchingkeys && cachedav && u->isattrvalid(at))
@@ -7820,21 +7825,21 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
             if (User::scope(at) == '*') // private attribute, TLV encoding
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
-                restag = reqtag;
+                restag = tag;
                 app->getua_result(tlv);
                 delete tlv;
                 return;
             }
             else
             {
-                restag = reqtag;
+                restag = tag;
                 app->getua_result((byte*) cachedav->data(), cachedav->size());
                 return;
             }
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, (ctag != -1) ? ctag : reqtag));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, tag));
         }
     }
 }
