@@ -15,9 +15,9 @@ Build-Depends:  debhelper,
 
 Package: megacmd
 Architecture: any
-Depends: ${shlibs:Depends}, libc-ares2
+Depends: ${shlibs:Depends}, libc-ares2, apt-transport-https
 Description: MEGA Command Line Interactive and Scriptable Application
- MegaCMD provides non UI access to MEGA services. 
+ MEGAcmd provides non UI access to MEGA services. 
  It intends to offer all the functionality 
  with your MEGA account via shell interaction. 
  It features 2 modes of interaction

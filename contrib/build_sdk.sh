@@ -56,8 +56,8 @@ on_exit_ok() {
         echo "Successfully configured MEGA SDK!"
     elif [ $download_only -eq 1 ]; then
         echo "Successfully downloaded MEGA SDK dependencies!"
-    elif [ $only_build_dependencies -eq 1]; then
-		echo "Successfully built MEGA SDK dependencies!"
+    elif [ $only_build_dependencies -eq 1 ]; then
+        echo "Successfully built MEGA SDK dependencies!"
     else
         echo "Successfully compiled MEGA SDK!"
     fi
@@ -119,35 +119,35 @@ package_download() {
         rm -f $file || true
     fi
 
-	# use packages previously downloaded in /tmp/megasdkbuild folder
-	# if not present download from URL specified
-	# if wget fail, try curl
-	mkdir -p /tmp/megasdkbuild/
-	
-#	cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
+    # use packages previously downloaded in /tmp/megasdkbuild folder
+    # if not present download from URL specified
+    # if wget fail, try curl
+    mkdir -p /tmp/megasdkbuild/
+    
+#    cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
 
-	cp /tmp/megasdkbuild/$3 $file || \
-	wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
-	curl -k $url > $file || exit 1
-	
-	echo "Checking MD5SUM for $file"
-	if ! echo $md5sum \*$file | md5sum -c - ; then
-		echo "Downloading $3 again"
-		#rm /tmp/megasdkbuild/$3
-		rm $file #this prevents unexpected "The file is already fully retrieved; nothing to do."
-		wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
-		curl -k $url > $file || exit 1
-		
-		echo "Checking (again) MD5SUM for $file"
-		if ! echo $md5sum \*$file | md5sum -c - ; then
-			echo "Aborting execution due to incorrect MD5SUM for $file. Expected: $md5sum. Calculated:"
-			md5sum $file
-			exit 1
-		fi
-	fi
-	
-	#copy to tmp download folder for next constructions
-	cp $file /tmp/megasdkbuild/$3
+    cp /tmp/megasdkbuild/$3 $file || \
+    wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+    curl -k $url > $file || exit 1
+    
+    echo "Checking MD5SUM for $file"
+    if ! echo $md5sum \*$file | md5sum -c - ; then
+        echo "Downloading $3 again"
+        #rm /tmp/megasdkbuild/$3
+        rm $file #this prevents unexpected "The file is already fully retrieved; nothing to do."
+        wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        curl -k $url > $file || exit 1
+        
+        echo "Checking (again) MD5SUM for $file"
+        if ! echo $md5sum \*$file | md5sum -c - ; then
+            echo "Aborting execution due to incorrect MD5SUM for $file. Expected: $md5sum. Calculated:"
+            md5sum $file
+            exit 1
+        fi
+    fi
+    
+    #copy to tmp download folder for next constructions
+    cp $file /tmp/megasdkbuild/$3
 }
 
 package_extract() {
@@ -355,15 +355,15 @@ sodium_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Sodium"
-    local sodium_ver="1.0.8"
+    local sodium_ver="1.0.12"
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
-    local sodium_md5="0a66b86fd3aab3fe4c858edcd2772760"
+    local sodium_md5="c308e3faa724b630b86cc0aaf887a5d4"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
     if [ $use_dynamic -eq 1 ]; then
         local sodium_params="--enable-shared"
     else
-        local sodium_params="--disable-shared --enable-static"
+        local sodium_params="--disable-shared --enable-static --disable-pie"
     fi
 
     package_download $name $sodium_url $sodium_file $sodium_md5
@@ -416,9 +416,9 @@ zlib_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Zlib"
-    local zlib_ver="1.2.8"
+    local zlib_ver="1.2.11"
     local zlib_url="http://zlib.net/zlib-$zlib_ver.tar.gz"
-    local zlib_md5="44d667c142d7cda120332623eab69f40"
+    local zlib_md5="1c9f62f0778697a09d36121ead88e08e"
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
     local loc_conf_opts=$config_opts
@@ -513,9 +513,9 @@ curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.46.0"
+    local curl_ver="7.49.1"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
-    local curl_md5="230e682d59bf8ab6eca36da1d39ebd75"
+    local curl_md5="2feb3767b958add6a177c6602ff21e8c"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""
@@ -530,12 +530,12 @@ curl_pkg() {
     if [ $use_dynamic -eq 1 ]; then
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual \
+            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
             --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     else
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual \
+            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
             --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
@@ -554,9 +554,9 @@ readline_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Readline"
-    local readline_ver="6.3"
-    local readline_url="ftp://ftp.cwru.edu/pub/bash/readline-$readline_ver.tar.gz"
-    local readline_md5="33c8fb279e981274f485fd91da77e94a"
+    local readline_ver="7.0"
+    local readline_url="https://ftp.gnu.org/gnu/readline/readline-$readline_ver.tar.gz"
+    local readline_md5="205b03a87fc83dab653b628c59b9fc91"
     local readline_file="readline-$readline_ver.tar.gz"
     local readline_dir="readline-$readline_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -623,6 +623,9 @@ freeimage_pkg() {
     
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
+    
+    #patch to fix problem with newest compilers
+    sed -i "s#CXXFLAGS += -D__ANSI__#CXXFLAGS += -D__ANSI__ -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
@@ -777,9 +780,9 @@ build_sdk() {
         echo "Building MEGA SDK"
         make clean
         if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
-        	make -j9 || exit 1
+            make -j9 || exit 1
         else
-        	make
+            make
         fi
         make install
     fi
@@ -983,10 +986,10 @@ main() {
         sodium_pkg $build_dir $install_dir
     fi
 
-	if [ $disable_zlib -eq 0 ]; then
-		zlib_pkg $build_dir $install_dir
-	fi
-	
+    if [ $disable_zlib -eq 0 ]; then
+        zlib_pkg $build_dir $install_dir
+    fi
+    
     sqlite_pkg $build_dir $install_dir
     
     if [ $enable_cares -eq 1 ]; then

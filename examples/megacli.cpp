@@ -139,6 +139,8 @@ const char* errorstring(error e)
             return "Read error";
         case API_EAPPKEY:
             return "Invalid application key";
+        case API_EGOINGOVERQUOTA:
+            return "Not enough quota";
         default:
             return "Unknown error";
     }
@@ -429,13 +431,13 @@ static bool is_syncable(const char* name)
 }
 
 // determines whether remote node should be synced
-bool DemoApp::sync_syncable(Node* n)
+bool DemoApp::sync_syncable(Sync *, const char *, string *, Node *n)
 {
     return is_syncable(n->displayname());
 }
 
 // determines whether local file should be synced
-bool DemoApp::sync_syncable(const char* name, string* localpath, string* localname)
+bool DemoApp::sync_syncable(Sync *, const char *name, string *)
 {
     return is_syncable(name);
 }
@@ -638,19 +640,19 @@ void DemoApp::chatsettitle_result(error e)
     }
 }
 
-void DemoApp::chats_updated(textchat_map *chats)
+void DemoApp::chats_updated(textchat_map *chats, int count)
 {
+    if (count == 1)
+    {
+        cout << "1 chat received or updated" << endl;
+    }
+    else
+    {
+        cout << count << " chats received or updated" << endl;
+    }
+
     if (chats)
     {
-        if (chats->size() == 1)
-        {
-            cout << "1 chat updated or created" << endl;
-        }
-        else
-        {
-            cout << chats->size() << " chats updated or created" << endl;
-        }
-
         textchat_map::iterator it;
         for (it = chats->begin(); it != chats->end(); it++)
         {
@@ -671,8 +673,8 @@ void DemoApp::printChatInformation(TextChat *chat)
 
     cout << "Chat ID: " << hstr << endl;
     cout << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
+    cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
-    cout << "\tURL: " << chat->url << endl;
     if (chat->group)
     {
         cout << "\tGroup chat: yes" << endl;
@@ -696,6 +698,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     else
     {
         cout << " no peers (only you as participant)" << endl;
+    }
+    if (chat->tag)
+    {
+        cout << "\tIs own change: yes" << endl;
+    }
+    else
+    {
+        cout << "\tIs own change: no" << endl;
     }
     if (!chat->title.empty())
     {
@@ -922,9 +932,14 @@ void DemoApp::updatepcr_result(error e, ipcactions_t action)
     }
 }
 
-void DemoApp::fa_complete(Node* n, fatype type, const char* data, uint32_t len)
+void DemoApp::fa_complete(handle h, fatype type, const char* data, uint32_t len)
 {
-    cout << "Got attribute of type " << type << " (" << len << " byte(s)) for " << n->displayname() << endl;
+    cout << "Got attribute of type " << type << " (" << len << " byte(s))";
+    Node *n = client->nodebyhandle(h);
+    if (n)
+    {
+        cout << " for " << n->displayname() << endl;
+    }
 }
 
 int DemoApp::fa_failed(handle, fatype type, int retries, error e)
@@ -2007,12 +2022,13 @@ static void process_line(char* l)
                 cout << "      email [newemail|emaillink]" << endl;
                 cout << "      retry" << endl;
                 cout << "      recon" << endl;
-                cout << "      reload" << endl;
+                cout << "      reload [nocache]" << endl;
                 cout << "      logout" << endl;
                 cout << "      locallogout" << endl;
                 cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
+                cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chatc group [email ro|sta|mod]*" << endl;
                 cout << "      chati chatid email ro|sta|mod" << endl;
@@ -2745,6 +2761,10 @@ static void process_line(char* l)
                         return;
                     }
 #endif
+                    else if (words[0] == "test")
+                    {
+                        return;
+                    }
                     break;
 
                 case 5:
@@ -3095,7 +3115,7 @@ static void process_line(char* l)
                                 {
                                     if (n->hasfileattribute(type))
                                     {
-                                        client->getfa(n, type, cancel);
+                                        client->getfa(n->nodehandle, &n->fileattrstring, &n->nodekey, type, cancel);
                                         c++;
                                     }
                                 }
@@ -3105,7 +3125,7 @@ static void process_line(char* l)
                                     {
                                         if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
                                         {
-                                            client->getfa(*it, type, cancel);
+                                            client->getfa((*it)->nodehandle, &(*it)->fileattrstring, &(*it)->nodekey, type, cancel);
                                             c++;
                                         }
                                     }
@@ -3496,7 +3516,7 @@ static void process_line(char* l)
                                 return;
                             }
 
-                            client->inviteToChat(chatid, u->uid.c_str(), priv);
+                            client->inviteToChat(chatid, u->userhandle, priv);
                             return;
                         }
                         else
@@ -3515,7 +3535,7 @@ static void process_line(char* l)
 
                             if (words.size() == 2)
                             {
-                                client->removeFromChat(chatid);
+                                client->removeFromChat(chatid, client->me);
                             }
                             else if (words.size() == 3)
                             {
@@ -3527,7 +3547,7 @@ static void process_line(char* l)
                                     return;
                                 }
 
-                                client->removeFromChat(chatid, u->uid.c_str());
+                                client->removeFromChat(chatid, u->userhandle);
                                 return;
                             }
                             else
@@ -3835,9 +3855,15 @@ static void process_line(char* l)
                     {
                         cout << "Reloading account..." << endl;
 
+                        bool nocache = false;
+                        if (words.size() == 2 && words[1] == "nocache")
+                        {
+                            nocache = true;
+                        }
+
                         cwd = UNDEF;
                         client->cachedscsn = UNDEF;
-                        client->fetchnodes();
+                        client->fetchnodes(nocache);
 
                         return;
                     }
@@ -4715,6 +4741,26 @@ void DemoApp::nodes_current()
     LOG_debug << "Nodes current.";
 }
 
+void DemoApp::account_updated()
+{
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        LOG_debug << "Account has been confirmed by another client. Proceed to login with credentials.";
+    }
+    else
+    {
+        LOG_debug << "Account has been upgraded/downgraded.";
+    }
+}
+
+void DemoApp::notify_confirmation(const char *email)
+{
+    if (client->loggedin() == EPHEMERALACCOUNT)
+    {
+        LOG_debug << "Account has been confirmed with email " << email << ". Proceed to login with credentials.";
+    }
+}
+
 void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
 {
     // FIXME: implement
@@ -4738,6 +4784,12 @@ void DemoApp::checkout_result(error)
 void DemoApp::checkout_result(const char*)
 {
     // FIXME: implement
+}
+
+void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
+{
+    // FIXME: implement display of values
+    delete details;
 }
 
 // display account details/history

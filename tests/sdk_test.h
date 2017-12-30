@@ -39,11 +39,12 @@ static const string USER_AGENT  = "Unit Tests with GoogleTest framework";
 // Set your login credentials as environment variables: $MEGA_EMAIL and $MEGA_PWD (and $MEGA_EMAIL_AUX / $MEGA_PWD_AUX for shares * contacts)
 
 static const unsigned int pollingT      = 500000;   // (microseconds) to check if response from server is received
-static const unsigned int maxTimeout    = 300;      // Maximum time (seconds) to wait for response from server
+static const unsigned int maxTimeout    = 600;      // Maximum time (seconds) to wait for response from server
 
 static const string PUBLICFILE  = "file.txt";
 static const string UPFILE      = "file1.txt";
 static const string DOWNFILE    = "file2.txt";
+static const string EMPTYFILE   = "empty-file.txt";
 static const string AVATARSRC   = "logo.png";
 static const string AVATARDST   = "deleteme.png";
 
@@ -81,6 +82,7 @@ public:
     string link;
     MegaNode *publicNode;
     string attributeValue;
+    string sid;
 
     MegaContactRequest* cr[2];
 
@@ -88,6 +90,7 @@ public:
     bool nodeUpdated[2];
     bool userUpdated[2];
     bool contactRequestUpdated[2];
+    bool accountUpdated[2];
 
 #ifdef ENABLE_CHAT
     bool chatUpdated[2];        // flags to monitor the updates of chats due to actionpackets
@@ -111,7 +114,7 @@ protected:
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
     void onUsersUpdate(MegaApi* api, MegaUserList *users);
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-    void onAccountUpdate(MegaApi *api) {}
+    void onAccountUpdate(MegaApi *api);
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
     void onReloadNeeded(MegaApi *api) {}
 #ifdef ENABLE_SYNC
@@ -133,7 +136,7 @@ public:
     void resumeSession(char *session, int timeout = maxTimeout);
 
     void purgeTree(MegaNode *p);
-    bool waitForResponse(bool *responseReceived, int timeout = maxTimeout);
+    bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);
@@ -146,7 +149,7 @@ public:
     void replyContact(MegaContactRequest *cr, int action, int timeout = maxTimeout);
     void removeContact(string email, int timeout = maxTimeout);
     void setUserAttribute(int type, string value, int timeout = maxTimeout);
-    void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout);
+    void getUserAttribute(MegaUser *u, int type, int timeout = maxTimeout, int accountIndex = 1);
 
     void shareFolder(MegaNode *n, const char *email, int action, int timeout = maxTimeout);
 

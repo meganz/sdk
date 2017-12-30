@@ -38,6 +38,136 @@
 
 namespace mega {
 
+class MEGA_API FetchNodesStats
+{
+public:
+    enum {
+        MODE_DB = 0,
+        MODE_API = 1,
+        MODE_NONE = 2
+    };
+
+    enum {
+        TYPE_ACCOUNT = 0,
+        TYPE_FOLDER = 1,
+        TYPE_NONE = 2
+    };
+
+    FetchNodesStats();
+    void init();
+    void toJsonArray(string *json);
+
+    //////////////////
+    // General info //
+    //////////////////
+    int mode; // DB = 0, API = 1
+    int type; // Account = 0, Folder = 1
+    dstime startTime; // startup time (ds)
+
+    /**
+     * \brief Number of nodes in the cached filesystem
+     *
+     * From DB: number on nodes in the local database
+     * From API: number of nodes in the response to the fetchnodes command
+     */
+    long long nodesCached;
+
+    /**
+     * @brief Number of nodes in the current filesystem, after the reception of action packets
+     */
+    long long nodesCurrent;
+
+    /**
+     * @brief Number of action packets to complete the cached filesystem
+     *
+     * From DB: Number of action packets to complete the local cache
+     * From API: Number of action packets to complete the server-side cache
+     */
+    int actionPackets;
+
+    ////////////
+    // Errors //
+    ////////////
+
+    /**
+     * @brief Number of error -3 or -4 received during the process (including cs and sc requests)
+     */
+    int eAgainCount;
+
+    /**
+     * @brief Number of HTTP 500 errors received during the process (including cs and sc requests)
+     */
+    int e500Count;
+
+    /**
+     * @brief Number of other errors received during the process (including cs and sc requests)
+     *
+     * The most common source of these errors are connectivity problems (no Internet, timeouts...)
+     */
+    int eOthersCount;
+
+    ////////////////////////////////////////////////////////////////////
+    // Time elapsed until different steps since the startup time (ds) //
+    ////////////////////////////////////////////////////////////////////
+
+    /**
+     * @brief Time until the first byte read
+     *
+     * From DB: time until the first record read from the database
+     * From API: time until the first byte read in response to the fetchnodes command (errors excluded)
+     */
+    dstime timeToFirstByte;
+
+    /**
+     * @brief Time until the last byte read
+     *
+     * From DB: time until the last record is read from the database
+     * From API: time until the whole response to the fetchnodes command has been received
+     */
+    dstime timeToLastByte;
+
+    /**
+     * @brief Time until the cached filesystem is ready
+     *
+     * From DB: time until the database has been read and processed
+     * From API: time until the fetchnodes command is processed
+     */
+    dstime timeToCached;
+
+    /**
+     * @brief Time until the filesystem is ready to be used
+     *
+     * From DB: this time is the same as timeToCached
+     * From API: time until action packets have been processed
+     * It's needed to wait until the reception of action packets due to
+     * server-side caches.
+     */
+    dstime timeToResult;
+
+    /**
+     * @brief Time until synchronizations have been resumed
+     *
+     * This involves the load of the local cache and the scan of known
+     * files. Files that weren't cached are scanned later.
+     */
+    dstime timeToSyncsResumed;
+
+    /**
+     * @brief Time until the filesystem is current
+     *
+     * From DB: time until action packets have been processed
+     * From API: this time is the same as timeToResult
+     */
+    dstime timeToCurrent;
+
+    /**
+     * @brief Time until the resumption of transfers has finished
+     *
+     * The resumption of transfers is done after the filesystem is current
+     */
+    dstime timeToTransfersResumed;
+};
+
 class MEGA_API MegaClient
 {
 public:
@@ -53,6 +183,11 @@ public:
     // all users
     user_map users;
 
+#ifdef ENABLE_CHAT
+    // all chats
+    textchat_map chats;
+#endif
+
     // process API requests and HTTP I/O
     void exec();
 
@@ -62,6 +197,7 @@ public:
     // splitted implementation of wait() for a better thread management
     int preparewait();
     int dowait();
+    int checkevents();
 
     // abort exponential backoff
     bool abortbackoff(bool = true);
@@ -124,11 +260,22 @@ public:
     // open exported file link
     error openfilelink(const char*, int);
 
+    // decrypt password-protected public link
+    // the caller takes the ownership of the returned value in decryptedLink parameter
+    error decryptlink(const char* link, const char* pwd, string *decryptedLink);
+
+    // encrypt public link with password
+    // the caller takes the ownership of the returned value
+    error encryptlink(const char* link, const char* pwd, string *encryptedLink);
+
     // change login password
     error changepw(const byte*, const byte*);
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);
+
+    // fetchnodes stats
+    FetchNodesStats fnstats;
 
 #ifdef ENABLE_CHAT
     // load cryptographic keys: RSA, Ed25519, Cu25519 and their signatures
@@ -138,6 +285,9 @@ public:
 
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
+
+    // check if the available bandwidth quota is enough to transfer an amount of bytes
+    void querytransferquota(m_off_t size);
 
     // update node attributes
     error setattr(Node*, const char* prevattr = NULL);
@@ -170,7 +320,7 @@ public:
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
-    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
+    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false);
     void preadabort(Node*, m_off_t = -1, m_off_t = -1);
     void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
@@ -180,7 +330,6 @@ public:
 #ifdef ENABLE_SYNC
     // active syncs
     sync_list syncs;
-    bool syncadded;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
@@ -207,7 +356,7 @@ public:
     void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
 
     // queue file attribute retrieval
-    error getfa(Node*, fatype, int = 0);
+    error getfa(handle h, string *fileattrstring, string *nodekey, fatype, int = 0);
     
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
@@ -247,7 +396,8 @@ public:
     void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
+    error isnodesyncable(Node*, bool* = NULL);
+    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
@@ -267,6 +417,27 @@ public:
 
     // SDK version
     const char* version();
+
+    // get the last available version of the app
+    void getlastversion(const char *appKey);
+
+    // get a local ssl certificate for communications with the webclient
+    void getlocalsslcertificate();
+
+    // send a DNS request to resolve a hostname
+    void dnsrequest(const char*);
+
+    // send a GeLB request for a service with a timeout (in ms) and a number of retries
+    void gelbrequest(const char*, int, int);
+
+    // send chat stats
+    void sendchatstats(const char*);
+
+    // send chat logs with user's annonymous id
+    void sendchatlogs(const char*, const char*);
+
+    // send a HTTP request
+    void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
 
     // maximum outbound throughput (per target server)
     int putmbpscap;
@@ -325,10 +496,10 @@ public:
     void createChat(bool group, const userpriv_vector *userpriv);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, const char *uid, int priv, const char *title = NULL);
+    void inviteToChat(handle chatid, handle uh, int priv, const char *title = NULL);
 
     // remove a user from a chat
-    void removeFromChat(handle chatid, const char *uid = NULL);
+    void removeFromChat(handle chatid, handle uh);
 
     // get the URL of a chat
     void getUrlChat(handle chatid);
@@ -343,7 +514,7 @@ public:
     void removeAccessInChat(handle chatid, handle h, const char *uid);
 
     // update permissions of a peer in a chat
-    void updateChatPermissions(handle chatid, const char *uid, int priv);
+    void updateChatPermissions(handle chatid, handle uh, int priv);
 
     // truncate chat from message id
     void truncateChat(handle chatid, handle messageid);
@@ -353,7 +524,16 @@ public:
 
     // get the URL of the presence server
     void getChatPresenceUrl();
+
+    // register a token device to route push notifications
+    void registerPushNotification(int deviceType, const char *token = NULL);
 #endif
+
+    // get mega achievements
+    void getaccountachievements(AchievementsDetails *details);
+
+    // get mega achievements list (for advertising for unregistered users)
+    void getmegaachievements(AchievementsDetails *details);
 
     // toggle global debug flag
     bool toggledebug();
@@ -390,6 +570,9 @@ public:
     // select the upload port automatically
     bool autoupport;
 
+    // finish downloaded chunks in order
+    bool orderdownloadedchunks;
+
     // disable public key pinning (for testing purposes)
     static bool disablepkp;
 
@@ -405,6 +588,12 @@ public:
     // root URL for API requests
     static string APIURL;
 
+    // root URL for GeLB requests
+    static string GELBURL;
+
+    // root URL for chat stats
+    static string CHATSTATSURL;
+
     // account auth for public folders
     string accountauth;
 
@@ -413,6 +602,9 @@ public:
 
     // stats id
     static char* statsid;
+
+    // number of ongoing asynchronous fopen
+    int asyncfopens;
 
 private:
     BackoffTimer btcs;
@@ -438,6 +630,9 @@ private:
     // auth URI component for API requests
     string auth;
 
+    // lang URI component for API requests
+    string lang;
+
     // public handle being used
     handle publichandle;
 
@@ -450,19 +645,24 @@ private:
     // next local user record identifier to use
     int userid;
 
+    // backoff for file attributes
     BackoffTimer btpfa;
+    bool faretrying;
 
     // next internal upload handle
     handle nextuh;
 
-    // maximum number of concurrent transfers
-    static const unsigned MAXTRANSFERS = 24;
+    // maximum number of concurrent transfers (uploads + downloads)
+    static const unsigned MAXTOTALTRANSFERS;
+
+    // maximum number of concurrent transfers (uploads or downloads)
+    static const unsigned MAXTRANSFERS;
 
     // maximum number of queued putfa before halting the upload queue
-    static const int MAXQUEUEDFA = 24;
+    static const int MAXQUEUEDFA;
 
     // maximum number of concurrent putfa
-    static const int MAXPUTFA = 6;
+    static const int MAXPUTFA;
 
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
@@ -493,7 +693,9 @@ private:
     void sc_se();
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
+    void sc_chatnode();
 #endif
+    void sc_uac();
 
     void init();
 
@@ -580,8 +782,11 @@ public:
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
 
+    // pending HTTP requests
+    pendinghttp_map pendinghttp;
+
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
 
     // open/create state cache database table
     void opensctable();
@@ -762,6 +967,8 @@ public:
     // scan required flag
     bool syncdownrequired;
 
+    bool syncuprequired;
+
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;
 
@@ -776,6 +983,11 @@ public:
     // sync PUT Nagle timer
     bool syncnagleretry;
     BackoffTimer syncnaglebt;
+
+    // timer for extra notifications
+    // (workaround for buggy network filesystems)
+    bool syncextraretry;
+    BackoffTimer syncextrabt;
 
     // rescan timer if fs notification unavailable or broken
     bool syncscanfailed;
@@ -887,6 +1099,7 @@ public:
     void procsuk(JSON*);
 
     void procmcf(JSON*);
+    void procmcna(JSON*);
 
     void setkey(SymmCipher*, const char*);
     bool decryptkey(const char*, byte*, int, SymmCipher*, int, handle);
@@ -967,11 +1180,13 @@ public:
     void discarduser(handle);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
+    bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
     void queuepubkeyreq(User*, PubKeyAction*);
+    void queuepubkeyreq(const char*, PubKeyAction*);
 
     // rewrite foreign keys of the node (tree)
     void rewriteforeignkeys(Node* n);
@@ -983,6 +1198,8 @@ public:
     // set authentication context, either a session ID or a exported folder node handle
     void setsid(const byte*, unsigned);
     void setrootnode(handle);
+
+    bool setlang(string *code);
 
     // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
     handle getrootpublicfolder();
@@ -1027,6 +1244,11 @@ public:
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
+
+    // achievements enabled for the account
+    bool achievements_enabled;
+
+    bool tsLogin;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

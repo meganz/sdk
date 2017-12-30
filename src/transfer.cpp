@@ -25,6 +25,8 @@
 #include "mega/megaapp.h"
 #include "mega/sync.h"
 #include "mega/logging.h"
+#include "mega/base64.h"
+#include "megawaiter.h"
 
 namespace mega {
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
@@ -40,6 +42,7 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     metamac = 0;
     tag = 0;
     slot = NULL;
+    asyncopencontext = NULL;
     progresscompleted = 0;
     hasprevmetamac = false;
     hascurrentmetamac = false;
@@ -82,6 +85,13 @@ Transfer::~Transfer()
     if (slot)
     {
         delete slot;
+    }
+
+    if (asyncopencontext)
+    {
+        delete asyncopencontext;
+        asyncopencontext = NULL;
+        client->asyncfopens--;
     }
 
     if (ultoken)
@@ -320,11 +330,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     for (chunkmac_map::iterator it = t->chunkmacs.begin(); it != t->chunkmacs.end(); it++)
     {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first);
-        if (chunkceil > t->size)
-        {
-            chunkceil = t->size;
-        }
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, t->size);
 
         if (t->pos == it->first && it->second.finished)
         {
@@ -374,10 +380,10 @@ void Transfer::failed(error e, dstime timeleft)
         if ((*it)->failed(e))
         {
             defer = true;
-            break;
         }
     }
 
+    cachedtempurl.clear();
     if (type == PUT)
     {
         chunkmacs.clear();
@@ -385,6 +391,12 @@ void Transfer::failed(error e, dstime timeleft)
         delete [] ultoken;
         ultoken = NULL;
         pos = 0;
+
+        if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
+        {
+            LOG_warn << "Modification detected during active upload";
+            defer = false;
+        }
     }
 
     if (defer && !(e == API_EOVERQUOTA && !timeleft))
@@ -404,7 +416,13 @@ void Transfer::failed(error e, dstime timeleft)
 
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
-            client->app->file_removed(*it, API_EFAILED);
+#ifdef ENABLE_SYNC
+            if((*it)->syncxfer)
+            {
+                client->syncdownrequired = true;
+            }
+#endif
+            client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
         delete this;
@@ -519,8 +537,8 @@ void Transfer::complete()
                         nodes.insert(n->nodehandle);
 
                         // check for missing imagery
-                        if (!n->hasfileattribute(GfxProc::THUMBNAIL120X120)) missingattr |= 1 << GfxProc::THUMBNAIL120X120;
-                        if (!n->hasfileattribute(GfxProc::PREVIEW1000x1000)) missingattr |= 1 << GfxProc::PREVIEW1000x1000;
+                        if (!n->hasfileattribute(GfxProc::THUMBNAIL)) missingattr |= 1 << GfxProc::THUMBNAIL;
+                        if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
 
                         if (missingattr)
                         {
@@ -567,7 +585,7 @@ void Transfer::complete()
                 if (localname != localfilename)
                 {
                     fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(&localname))
+                    if (fa->fopen(&localname) || fa->type == FOLDERNODE)
                     {
                         // the destination path already exists
         #ifdef ENABLE_SYNC
@@ -649,7 +667,7 @@ void Transfer::complete()
                                 suffix = oss.str();
                                 newname = name + suffix + extension;
                                 client->fsaccess->path2local(&newname, &localnewname);
-                            } while (fa->fopen(&localnewname));
+                            } while (fa->fopen(&localnewname) || fa->type == FOLDERNODE);
 
 
                             (*it)->localname = localnewname;
@@ -729,7 +747,13 @@ void Transfer::complete()
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
                             client->filecachedel(f);
-                            client->app->file_removed(*it, API_EFAILED);
+#ifdef ENABLE_SYNC
+                            if (f->syncxfer)
+                            {
+                                client->syncdownrequired = true;
+                            }
+#endif
+                            client->app->file_removed(f, API_EWRITE);
                             f->transfer = NULL;
                             f->terminated();
                         }
@@ -779,9 +803,76 @@ void Transfer::complete()
     else
     {
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+        delete slot->fa;
+        slot->fa = NULL;
 
         // files must not change during a PUT transfer
-        if (genfingerprint(slot->fa, true))
+        for (file_list::iterator it = files.begin(); it != files.end(); )
+        {
+            File *f = (*it);
+            bool isOpen = true;
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            string *localpath = &f->localname;
+
+#ifdef ENABLE_SYNC
+            string synclocalpath;
+            LocalNode *ll = dynamic_cast<LocalNode *>(f);
+            if (ll)
+            {
+                LOG_debug << "Verifying sync upload";
+                ll->getlocalpath(&synclocalpath, true);
+                localpath = &synclocalpath;
+            }
+            else
+            {
+                LOG_debug << "Verifying regular upload";
+            }
+#endif
+
+            if (!fa->fopen(localpath))
+            {
+                isOpen = false;
+                if (client->fsaccess->transient_error)
+                {
+                    LOG_warn << "Retrying upload completion due to a transient error";
+                    slot->retrying = true;
+                    slot->retrybt.backoff(11);
+                    delete fa;
+                    return;
+                }
+            }
+
+            if (!isOpen || f->genfingerprint(fa))
+            {
+                if (!isOpen)
+                {
+                    LOG_warn << "Deletion detected after upload";
+                }
+                else
+                {
+                    LOG_warn << "Modification detected after upload";
+                }
+
+#ifdef ENABLE_SYNC
+                if (f->syncxfer)
+                {
+                    client->syncdownrequired = true;
+                }
+#endif
+                client->filecachedel(f);
+                files.erase(it++);
+                client->app->file_removed(f, API_EREAD);
+                f->transfer = NULL;
+                f->terminated();
+            }
+            else
+            {
+                it++;
+            }
+            delete fa;
+        }
+
+        if (!files.size())
         {
             return failed(API_EREAD);
         }
@@ -1057,6 +1148,7 @@ bool DirectReadSlot::doio()
 
             speed = speedController.calculateSpeed(t);
             meanSpeed = speedController.getMeanSpeed();
+            dr->drn->client->httpio->updatedownloadspeed(t);
             if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, speed, meanSpeed, dr->appdata))
             {
                 pos += t;
@@ -1554,8 +1646,8 @@ transfer_list::iterator TransferList::iterator(Transfer *transfer)
 {
     if (!transfer)
     {
-        LOG_warn << "Getting iterator of a NULL transfer";
-        return transfers[transfer->type].end();
+        LOG_err << "Getting iterator of a NULL transfer";
+        return transfer_list::iterator();
     }
 
     transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
@@ -1572,7 +1664,9 @@ Transfer *TransferList::nexttransfer(direction_t direction)
     for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
     {
         Transfer *transfer = (*it);
-        if (!transfer->slot && isReady(transfer))
+        if ((!transfer->slot && isReady(transfer))
+                || (transfer->asyncopencontext
+                    && transfer->asyncopencontext->finished))
         {
             return transfer;
         }

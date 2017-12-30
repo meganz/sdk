@@ -1,5 +1,25 @@
-#ifndef COMUNICATIONSMANAGERPOSIX_H
-#define COMUNICATIONSMANAGERPOSIX_H
+/**
+ * @file examples/megacmd/comunicationsmanagerfilesockets.h
+ * @brief MEGAcmd: Communications manager using Network Sockets
+ *
+ * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * @copyright Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
+ */
+#ifndef COMUNICATIONSMANAGERFILESOCKETS_H
+#define COMUNICATIONSMANAGERFILESOCKETS_H
 
 #include "comunicationsmanager.h"
 
@@ -10,9 +30,23 @@ class CmdPetitionPosixSockets: public CmdPetition
 {
 public:
     int outSocket;
+    int acceptedOutSocket;
+
+    CmdPetitionPosixSockets(){
+        acceptedOutSocket = -1;
+    }
+
+    virtual ~CmdPetitionPosixSockets()
+    {
+        close(outSocket);
+        if (acceptedOutSocket != -1)
+        {
+            close(acceptedOutSocket);
+        }
+    }
 };
 
-std::ostream &operator<<(std::ostream &os, CmdPetitionPosixSockets &p);
+OUTSTREAMTYPE &operator<<(OUTSTREAMTYPE &os, CmdPetitionPosixSockets &p);
 
 class ComunicationsManagerFileSockets : public ComunicationsManager
 {
@@ -29,8 +63,6 @@ private:
     int count;
     mega::MegaMutex *mtx;
 
-    int get_next_outSocket_id();
-
     /**
      * @brief create_new_socket
      * The caller is responsible for deleting the newly created socket
@@ -43,18 +75,23 @@ public:
 
     int initialize();
 
-    bool receivedReadlineInput(int readline_fd);
-
     bool receivedPetition();
 
-    int waitForPetitionOrReadlineInput(int readline_fd);
     int waitForPetition();
+
+    int get_next_comm_id();
+
+    virtual void stopWaiting();
+
+    void registerStateListener(CmdPetition *inf);
 
     /**
      * @brief returnAndClosePetition
      * I will clean struct and close the socket within
      */
-    void returnAndClosePetition(CmdPetition *inf, std::ostringstream *s, int);
+    void returnAndClosePetition(CmdPetition *inf, OUTSTRINGSTREAM *s, int);
+
+    int informStateListener(CmdPetition *inf, std::string &s);
 
 
     /**
@@ -63,11 +100,13 @@ public:
      */
     CmdPetition *getPetition();
 
+    virtual bool getConfirmation(CmdPetition *inf, std::string message);
+
     /**
      * @brief get_petition_details
      * @return a string describing details of the petition
      */
-    std::string get_petition_details(CmdPetition *inf); //TODO: move to CMDPetitionPosix
+    std::string get_petition_details(CmdPetition *inf);
 
     ~ComunicationsManagerFileSockets();
 };

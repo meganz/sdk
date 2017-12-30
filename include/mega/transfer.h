@@ -25,6 +25,7 @@
 #include "filefingerprint.h"
 #include "backofftimer.h"
 #include "http.h"
+#include "command.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -116,6 +117,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // cached temp URL for upload/download data
     string cachedtempurl;
+
+    // context of the async fopen operation
+    AsyncIOContext* asyncopencontext;
    
     // timestamp of the start of the transfer
     m_time_t lastaccesstime;

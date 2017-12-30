@@ -36,7 +36,6 @@ struct MEGA_API Share
 
     PendingContactRequest* pcr;
 
-    void removeshare(handle);
     void update(accesslevel_t, m_time_t, PendingContactRequest* = NULL);
 
     void serialize(string*);

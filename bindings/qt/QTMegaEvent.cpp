@@ -1,6 +1,7 @@
 #include "QTMegaEvent.h"
 
 using namespace mega;
+using namespace std;
 
 QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
 {
@@ -10,10 +11,11 @@ QTMegaEvent::QTMegaEvent(MegaApi *megaApi, Type type) : QEvent(type)
     error = NULL;
     nodes = NULL;
     users = NULL;
+    event  = NULL;
 
 #ifdef ENABLE_SYNC
     sync = NULL;
-    filePath = NULL;
+    localPath = NULL;
     newState = 0;
 #endif
 }
@@ -25,10 +27,11 @@ QTMegaEvent::~QTMegaEvent()
     delete error;
     delete nodes;
     delete users;
+    delete event;
 
 #ifdef ENABLE_SYNC
     delete sync;
-    delete [] filePath;
+    delete localPath;
 #endif
 }
 
@@ -87,15 +90,25 @@ void QTMegaEvent::setUsers(MegaUserList *users)
     this->users = users;
 }
 
+MegaEvent *QTMegaEvent::getEvent()
+{
+    return event;
+}
+
+void QTMegaEvent::setEvent(MegaEvent* event)
+{
+    this->event = event;
+}
+
 #ifdef ENABLE_SYNC
 MegaSync *QTMegaEvent::getSync()
 {
     return sync;
 }
 
-const char *QTMegaEvent::getFilePath()
+string *QTMegaEvent::getLocalPath()
 {
-    return filePath;
+    return localPath;
 }
 
 int QTMegaEvent::getNewState()
@@ -108,9 +121,9 @@ void QTMegaEvent::setSync(MegaSync *sync)
     this->sync = sync;
 }
 
-void QTMegaEvent::setFilePath(const char *filePath)
+void QTMegaEvent::setLocalPath(string *localPath)
 {
-    this->filePath = filePath;
+    this->localPath = localPath;
 }
 
 void QTMegaEvent::setNewState(int newState)

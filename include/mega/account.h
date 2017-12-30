@@ -113,6 +113,45 @@ struct MEGA_API AccountDetails
     vector<AccountPurchase> purchases;
     vector<AccountTransaction> transactions;
 };
+
+// award classes with the award values the class is supposed to get
+struct MEGA_API Achievement
+{
+    m_off_t storage;
+    m_off_t transfer;
+    int expire;    // in days
+};
+
+// awarded to the user
+struct MEGA_API Award
+{
+    achievement_class_id achievement_class;
+    int award_id;   // not unique, do not use it as key
+    m_time_t ts;
+    m_time_t expire;    // not compulsory, some awards don't expire
+    // int c;  --> always 0, will be removed (obsolete)
+
+    // for invites only
+    vector<string> emails_invited;    // successfully invited user's emails
+    // int csu;  --> always 0, will be removed (obsolete)
+};
+
+// reward the user has achieved and can see
+struct MEGA_API Reward
+{
+    int award_id;
+    m_off_t storage;
+    m_off_t transfer;
+    int expire;    // in days
+};
+
+struct MEGA_API AchievementsDetails
+{
+    m_off_t permanent_size;   // permanent base storage value
+    achievements_map achievements; // map<class_id, Achievement>
+    vector<Award> awards;
+    vector<Reward> rewards;
+};
 } // namespace
 
 #endif

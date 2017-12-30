@@ -141,6 +141,8 @@ if test "x$enable_debug" = "xyes" ; then
     CXXFLAGS="-Wall -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
+else
+    CXXFLAGS="$CXXFLAGS -DNDEBUG=1"
 fi
 
 # Check if we can use -fPIC flag
@@ -189,8 +191,8 @@ case $host in
     WIN32=yes
     ;;
   *-*-mingw*)
-    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
-    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501"
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
     WIN32=yes
     ;;
   *-apple-darwin*)
@@ -251,13 +253,24 @@ if test x$enable_gcc_hardening != xno; then
 fi
 
 # sync subsystem
+
 AC_ARG_ENABLE(sync,
     AS_HELP_STRING([--enable-sync], [include sync subsystem [default=yes]]),
-    [enable_sync=$enableval],
+    [enable_sync=$enableval
+    if test "x$enable_sync" = "xyes" && (test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes"); then
+        AC_MSG_ERROR([--enable-sync not allowed when building bindings (php/python/java)!])
+    fi
+    ],
     [enable_sync=yes])
+
+if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+    enable_sync=no
+fi
+
 if test x$enable_sync = xyes; then
     AC_DEFINE(ENABLE_SYNC, 1, [Defined if sync subsystem is enabled])
 fi
+
 
 # MEGA API
 AC_ARG_ENABLE(megaapi,
@@ -269,11 +282,66 @@ if test x$enable_megaapi = xyes; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
 
+
+# Java
+AC_MSG_CHECKING([if building Java bindings])
+AC_ARG_ENABLE(java,
+    AS_HELP_STRING([--enable-java], [build Java language bindings]),
+    [AC_MSG_RESULT([yes])],
+    [
+     AC_MSG_RESULT([no])
+     enable_java=no]
+)
+AC_ARG_WITH(java-include-dir,
+    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
+	[JAVA_INCLUDE_DIR=$withval],)
+AC_SUBST(JAVA_INCLUDE_DIR)
+
+if test "x$enable_java" = "xyes" ; then
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+
+    AC_CHECK_PROG(JAVA, java, yes, no)
+    if test "x$JAVA" = "xno"; then
+      AC_MSG_ERROR([no java binary in PATH])
+    fi
+    AC_CHECK_PROG(JAVAC, javac, yes, no)
+    if test "x$JAVAC" = "xno"; then
+      AC_MSG_ERROR([no javac binary in PATH])
+    fi
+    AC_CHECK_PROG(JAR, jar, yes, no)
+    if test "x$JAR" = "xno"; then
+      AC_MSG_ERROR([no jar binary in PATH])
+    fi
+
+    SAVE_CPPFLAGS=$CPPFLAGS
+    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
+
+    # on Fedora / CentOS jni_md.h header is not included
+    if test -d "$JAVA_INCLUDE_DIR/linux"; then
+        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
+        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
+        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
+    fi
+
+    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
+    CPPFLAGS=$SAVE_CPPFLAGS
+fi
+AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
+
 # Chat
 AC_ARG_ENABLE(chat,
     AS_HELP_STRING([--enable-chat], [enable chat support]),
     [], [enable_chat=no])
-if test "x$enable_chat" = "xyes" ; then
+if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+    enable_chat=yes
     AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
 fi
 
@@ -461,6 +529,9 @@ AC_ARG_WITH(pcre,
     AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
             AC_MSG_ERROR([Could not find libpcrecpp])
     ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
+            AC_MSG_ERROR([Could not find libpcre])
+    ])
     pcre=true
      ;;
    *)
@@ -491,6 +562,9 @@ AC_ARG_WITH(pcre,
     fi
 
     AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcrecpp])
+    ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
             AC_MSG_ERROR([Could not find libpcre])
     ])
 
@@ -503,10 +577,7 @@ AC_ARG_WITH(pcre,
     ;;
    esac
   ],
-  [AC_MSG_RESULT([--with-pcre not specified])
-      AC_CHECK_HEADERS([pcrecpp.h], [pcre=true], [])
-    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[])
-  ])
+)
 AC_SUBST(PCRE_CXXFLAGS)
 AC_SUBST(PCRE_CPPFLAGS)
 AC_SUBST(PCRE_LDFLAGS)
@@ -516,6 +587,83 @@ if test "x$pcre" = "xtrue" ; then
     AC_DEFINE(USE_PCRE, [1], [Define to use libpcre])
 fi
 AM_CONDITIONAL([USE_PCRE], [test "x$pcre" = "xtrue"])
+
+
+#
+# LIBUV
+#
+
+#libuv
+LIBUV_LIBS=""
+AC_MSG_CHECKING(for libuv)
+libuv=false
+AC_ARG_WITH(libuv,
+  AS_HELP_STRING(--with-libuv=PATH, base of libuv installation),
+  [
+   case $with_libuv in
+   no)
+    libuv=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([uv.h],, [
+        AC_MSG_ERROR([uv.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(uv, [uv_run], [LIBUV_LIBS="-luv"],[
+            AC_MSG_ERROR([Could not find libuv])
+    ])
+    libuv=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_libuv/lib"; then
+        LDFLAGS="-L$with_libuv/lib $LDFLAGS"
+        CXXFLAGS="-I$with_libuv/include $CXXFLAGS"
+        CPPFLAGS="-I$with_libuv/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(uv.h,
+         LIBUV_CXXFLAGS="-I$with_libuv/include"
+         LIBUV_CPPFLAGS="-I$with_libuv/include"
+         LIBUV_LDFLAGS="-L$with_libuv/lib",
+         AC_MSG_ERROR([uv.h header not found or not usable])
+         )
+    # assume we are using libuv source directory
+    else
+        LDFLAGS="-L$with_libuv/uv $LDFLAGS"
+        CXXFLAGS="-I$with_libuv $CXXFLAGS"
+        CPPFLAGS="-I$with_libuv $CPPFLAGS"
+
+        AC_CHECK_HEADERS(uv.h,
+         LIBUV_CXXFLAGS="-I$with_libuv"
+         LIBUV_CPPFLAGS="-I$with_libuv"
+         LIBUV_LDFLAGS="-L$with_libuv/uv",
+         AC_MSG_ERROR([uv.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(uv, [uv_run], [LIBUV_LIBS="-luv"],[
+            AC_MSG_ERROR([Could not find libuv])
+    ])
+
+    libuv=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-libuv not specified])]
+  )
+AC_SUBST(LIBUV_CXXFLAGS)
+AC_SUBST(LIBUV_CPPFLAGS)
+AC_SUBST(LIBUV_LDFLAGS)
+AC_SUBST(LIBUV_LIBS)
+if test "x$libuv" = "xtrue" ; then
+    AC_DEFINE(HAVE_LIBUV, [1], [Define to use libuv])
+fi
+AM_CONDITIONAL([USE_LIBUV], [test "x$libuv" = "xtrue"])
 
 
 #
@@ -759,6 +907,21 @@ openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
 
+    # librt #TODO: allow --with-rt=...
+    AC_CHECK_LIB([rt], [aio_write], [
+    SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
+    LDFLAGS="-lrt $LDFLAGS"
+    if test "$HAVE_PTHREAD" = "yes"; then
+        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
+        LDFLAGS="-pthread $LDFLAGS"
+    fi    
+#    LIBRT_CXXFLAGS="-lrt "
+#    LIBRT_CPPFLAGS="-lrt "
+#    LIBRT_LDFLAGS="-lrt "
+    AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
+    ],
+    )
+
     # OpenSSL
     AC_MSG_CHECKING(for OpenSSL)
     AC_ARG_WITH([openssl],
@@ -928,7 +1091,8 @@ if test "x$WIN32" = "xno" ; then
        *)
 
         # determine if library is installed
-        LDFLAGS="-L$with_curl/lib $LDFLAGS"
+        LDFLAGS="-L$with_curl/lib $LDFLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS"
+
         CXXFLAGS="-I$with_curl/include $CXXFLAGS"
         SAVE_LIBS=$LIBS
         LIBS="-lcurl $LIBS"
@@ -989,9 +1153,8 @@ fi
 AM_CONDITIONAL(HAVE_OPENSSL, test x$openssl = xtrue)
 if test "x$openssl" = "xtrue" ; then
     AC_DEFINE(USE_OPENSSL, [1], [Define to use OpenSSL])
-else
-    AC_DEFINE(USE_OPENSSL, [0], [Define to use OpenSSL])
 fi
+
 
 # define on all platforms
 AM_CONDITIONAL(HAVE_CARES, test x$cares = xtrue)
@@ -1017,7 +1180,7 @@ AC_ARG_ENABLE(examples,
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
-# MegaCMD
+# MEGAcmd
 AC_MSG_CHECKING([if building megacmd application])
 AC_ARG_ENABLE(megacmd,
     AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=yes]]),
@@ -1449,9 +1612,17 @@ if test "x$enable_php" = "xyes" ; then
     fi
 
     AC_SUBST(PHPINC)
-	AC_SUBST(PHPEXT)
-	AC_SUBST(PHPLIBDIR)
+    AC_SUBST(PHPEXT)
+    AC_SUBST(PHPLIBDIR)
 
+    m4_define([php_version], [$(php-config --version | cut -d '.' -f 1)])
+    if test "x"php_version = "x7" ; then
+        AX_PKG_SWIG(3.0.11, [SWIG_FLAGS_PHP='-php7'], AC_MSG_ERROR([PHP 7 requires SWIG >=3.0.11]))
+    else
+        SWIG_FLAGS_PHP='-php'
+    fi
+
+    #do AX_PKG_SWIG again to have $SWIG correctly defined, no only for >=3.0.11
     AX_PKG_SWIG(2.0.0, [], [
         AC_MSG_ERROR([SWIG executable not found!])
     ])
@@ -1461,62 +1632,11 @@ if test "x$enable_php" = "xyes" ; then
     if test -z "$SWIG"; then
         AC_MSG_ERROR([SWIG executable not found!])
     fi
+    
+    AC_SUBST([SWIG_FLAGS_PHP])
+
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
-
-# Java
-AC_MSG_CHECKING([if building Java bindings])
-AC_ARG_ENABLE(java,
-    AS_HELP_STRING([--enable-java], [build Java language bindings]),
-    [AC_MSG_RESULT([yes])],
-    [
-     AC_MSG_RESULT([no])
-     enable_java=no]
-)
-AC_ARG_WITH(java-include-dir,
-    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
-	[JAVA_INCLUDE_DIR=$withval],)
-AC_SUBST(JAVA_INCLUDE_DIR)
-
-if test "x$enable_java" = "xyes" ; then
-    AX_PKG_SWIG(2.0.0, [], [
-        AC_MSG_ERROR([SWIG executable not found!])
-    ])
-    AX_SWIG_ENABLE_CXX
-    AX_SWIG_MULTI_MODULE_SUPPORT
-
-    if test -z "$SWIG"; then
-        AC_MSG_ERROR([SWIG executable not found!])
-    fi
-
-    AC_CHECK_PROG(JAVA, java, yes, no)
-    if test "x$JAVA" = "xno"; then
-      AC_MSG_ERROR([no java binary in PATH])
-    fi
-    AC_CHECK_PROG(JAVAC, javac, yes, no)
-    if test "x$JAVAC" = "xno"; then
-      AC_MSG_ERROR([no javac binary in PATH])
-    fi
-    AC_CHECK_PROG(JAR, jar, yes, no)
-    if test "x$JAR" = "xno"; then
-      AC_MSG_ERROR([no jar binary in PATH])
-    fi
-
-    SAVE_CPPFLAGS=$CPPFLAGS
-    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
-
-    # on Fedora / CentOS jni_md.h header is not included
-    if test -d "$JAVA_INCLUDE_DIR/linux"; then
-        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
-        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
-        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
-    fi
-
-    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
-    CPPFLAGS=$SAVE_CPPFLAGS
-fi
-AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
-
 
 dnl #########################################################################
 dnl Doxygen settings
@@ -1550,10 +1670,12 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Install prefix:   $prefix
   Compiler:         $CXX
   CXXFLAGS:         $CXXFLAGS
+  LDFLAGS:          $LDFLAGS
   gcc hardening:    $enable_gcc_hardening
   debug:            $enable_debug
   static:           $enable_static
-  sync subsystem    $enable_sync
+  sync subsystem:   $enable_sync
+  chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
   megacmd app:      $enable_megacmd
@@ -1564,6 +1686,8 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Python bindings:  $enable_python
   Python3 bindings: $USE_PYTHON3
   PHP bindings:     $enable_php
+  SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
+  
   Java bindings:    $enable_java
 
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
@@ -1577,4 +1701,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
+  LIBUV:            $LIBUV_CXXFLAGS $LIBUV_LDFLAGS $LIBUV_LIBS
 ])

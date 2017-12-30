@@ -21,11 +21,12 @@
 #import "MEGATransferDelegate.h"
 #import "megaapi.h"
 #import "MEGASdk.h"
+#import "DelegateMEGABaseListener.h"
 
-class DelegateMEGATransferListener : public mega::MegaTransferListener {
+class DelegateMEGATransferListener : public DelegateMEGABaseListener, public mega::MegaTransferListener {
 
 public:
-    
+
     DelegateMEGATransferListener(MEGASdk *megaSDK, id<MEGATransferDelegate>listener, bool singleListener = true);
     id<MEGATransferDelegate>getUserListener();
     
@@ -36,7 +37,6 @@ public:
     bool onTransferData(mega::MegaApi *api, mega::MegaTransfer *transfer, char *buffer, size_t size);
 
 private:
-    MEGASdk *megaSDK;
     id<MEGATransferDelegate>listener;
-    bool singleListener;
+    
 };

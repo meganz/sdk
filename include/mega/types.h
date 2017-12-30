@@ -66,6 +66,7 @@ using namespace std;
 struct AttrMap;
 class BackoffTimer;
 class Command;
+class CommandPubKeyRequest;
 struct DirectRead;
 struct DirectReadNode;
 struct DirectReadSlot;
@@ -75,6 +76,7 @@ struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
 struct HttpReq;
+struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
@@ -91,6 +93,7 @@ struct Waiter;
 struct Proxy;
 struct PendingContactRequest;
 class TransferList;
+struct Achievement;
 
 #define EOO 0
 
@@ -106,9 +109,11 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
+
+typedef enum { METHOD_POST, METHOD_GET, METHOD_NONE} httpmethod_t;
 
 typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 
@@ -158,7 +163,8 @@ typedef enum ErrorCodes
     API_EREAD = -21,                /**< File could not be read from (or changed
                                          unexpectedly during reading). */
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
-    API_ESSL = -23                  ///< SSL verification failed
+    API_ESSL = -23,                 ///< SSL verification failed
+    API_EGOINGOVERQUOTA = -24       ///< Not enough quota
 } error;
 
 // returned by loggedin()
@@ -271,6 +277,9 @@ typedef deque<Transfer*> transfer_list;
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
+// map a request tag with a pending dns request
+typedef map<int, GenericHttpReq*> pendinghttp_map;
+
 // map a request tag with pending paths of temporary files
 typedef map<int, vector<string> > pendingfiles_map;
 
@@ -325,7 +334,7 @@ typedef map<handle, FileAttributeFetch*> faf_map;
 typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
-typedef enum { GET, PUT, API, NONE } direction_t;
+typedef enum { GET = 0, PUT, API, NONE } direction_t;
 
 typedef set<pair<int, handle> > fareq_set;
 
@@ -399,8 +408,8 @@ typedef enum {
     ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
     ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
     ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
-//    USER_ATTR_AUTHRSA = 10,
-//    USER_ATTR_AUTHCU255 = 11
+    ATTR_LANGUAGE = 14,         // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_PWD_REMINDER = 15      // private, non-encrypted - char array in B64 - non-versioned
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 
@@ -422,31 +431,38 @@ typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
-struct TextChat
+typedef map <handle, set <handle> > attachments_map;
+struct TextChat : public Cachable
 {
     handle id;
     privilege_t priv;
-    string url;
     int shard;
     userpriv_vector *userpriv;
     bool group;
     string title;   // byte array
     handle ou;
+    m_time_t ts;     // creation time
+    attachments_map attachedNodes;
 
-    TextChat()
-    {
-        id = UNDEF;
-        priv = PRIV_UNKNOWN;
-        shard = -1;
-        userpriv = NULL;
-        group = false;
-        ou = UNDEF;
-    }
+    int tag;    // source tag, to identify own changes
 
-    ~TextChat()
+    TextChat();
+    ~TextChat();
+
+    bool serialize(string *d);
+    static TextChat* unserialize(class MegaClient *client, string *d);
+
+    void setTag(int tag);
+    int getTag();
+    void resetTag();
+
+    struct
     {
-        delete userpriv;
-    }
+        bool attachments : 1;
+    } changed;
+
+    // return false if failed
+    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;
@@ -455,6 +471,9 @@ typedef map<handle, TextChat*> textchat_map;
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
 typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
+
+typedef unsigned int achievement_class_id;
+typedef map<achievement_class_id, Achievement> achievements_map;
 
 } // namespace
 

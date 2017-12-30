@@ -70,6 +70,9 @@ namespace mega
         bool hasCustomAttrs();
         MStringList^ getCustomAttrNames();
         String^ getCustomAttr(String^ attrName);
+        int getDuration();
+        double getLatitude();
+        double getLongitude();
         String^ getBase64Handle();
         uint64 getSize();
         uint64 getCreationTime();
@@ -78,10 +81,10 @@ namespace mega
         uint64 getParentHandle();
         String^ getBase64Key();
         int getTag();
-        uint64 getExpirationTime();
+        int64 getExpirationTime();
         MegaHandle getPublicHandle();
         MNode^ getPublicNode();
-        String^ getPublicLink();
+        String^ getPublicLink(bool includeKey);
         bool isFile();
         bool isFolder();
         bool isRemoved();

@@ -8,6 +8,8 @@ ver=$(cat /usr/share/doc/megacmd/version)
 if [[ $distro = "Raspbian GNU/Linux 8.0 (jessie)" ]]; then
     str="Raspbian_8.0"
 # Ubuntu
+elif [[ $ver = "17.04" ]]; then
+    str="xUbuntu_17.04"
 elif [[ $ver = "16.10" ]]; then
     str="xUbuntu_16.10"
 elif [[ $ver = "16.04" ]]; then
@@ -59,7 +61,7 @@ fi
 
 if [ -d /etc/apt/sources.list.d ]; then
 cat >/etc/apt/sources.list.d/megasync.list <<EOF
-deb http://mega.nz/linux/MEGAsync/$str/ ./
+deb https://mega.nz/linux/MEGAsync/$str/ ./
 EOF
 fi
 

@@ -265,8 +265,14 @@
     <ClInclude Include="..\..\..\include\mega\wp8\megasys.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\include\mega\wp8\megawaiter.h">
+    <ClInclude Include="..\..\..\include\mega\win32\megawaiter.h">
       <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MTransferData.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MChildrenLists.h">
+      <Filter>Bindings</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -471,9 +477,6 @@
     <ClCompile Include="..\..\..\src\thread\cppthread.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\wp8\waiter.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\src\win32\fs.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
@@ -481,6 +484,18 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\gfx\external.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\win32\waiter.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MTransferData.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MChildrenLists.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
   </ItemGroup>

@@ -1,6 +1,6 @@
 /**
  * @file examples/megacmd/configurationmanager.cpp
- * @brief MegaCMD: configuration manager
+ * @brief MEGAcmd: configuration manager
  *
  * (c) 2013-2016 by Mega Limited, Auckland, New Zealand
  *
@@ -52,24 +52,26 @@ std::string ConfigurationManager::getConfigFolder()
 
 void ConfigurationManager::loadConfigDir()
 {
-    const char *homedir = NULL;
+#ifdef _WIN32
 
-#ifdef _WIN32 //TODO: untested
-    TCHAR szPath[MAX_PATH];
-    if (!SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA , NULL, 0, szPath)))
+   TCHAR szPath[MAX_PATH];
+    if (!SUCCEEDED(GetModuleFileName(NULL, szPath , MAX_PATH)))
     {
-        LOG_fatal << "Couldnt get HOME folder";
+        LOG_fatal << "Couldnt get EXECUTABLE folder";
     }
     else
     {
-        if (PathAppend(szPath,TEXT(".megaCmd")))
+        if (SUCCEEDED(PathRemoveFileSpec(szPath)))
         {
-            MegaApi::utf16ToUtf8(szPath, lstrlen(szPath), &configFolder);
+            if (PathAppend(szPath,TEXT(".megaCmd")))
+            {
+                MegaApi::utf16ToUtf8(szPath, lstrlen(szPath), &configFolder);
+            }
         }
     }
-
-
 #else
+    const char *homedir = NULL;
+
     homedir = getenv("HOME");
     if (!homedir)
     {
@@ -122,7 +124,8 @@ void ConfigurationManager::saveSession(const char*session)
 
         if (fo.is_open())
         {
-            fo << session;
+            if (session)
+                fo << session;
             fo.close();
         }
     }

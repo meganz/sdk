@@ -28,8 +28,14 @@
 #define O_DIRECT 0
 #include <sys/param.h>
 #include <sys/mount.h>
+#elif defined(__FreeBSD__)
+#include <sys/mount.h>
 #else
 #include <sys/vfs.h>
+#endif
+
+#ifdef HAVE_AIO_RT
+#include <aio.h>
 #endif
 
 #include "mega.h"
@@ -114,6 +120,17 @@ public:
     ~PosixFileSystemAccess();
 };
 
+#ifdef HAVE_AIO_RT
+struct MEGA_API PosixAsyncIOContext : public AsyncIOContext
+{
+    PosixAsyncIOContext();
+    virtual ~PosixAsyncIOContext();
+    virtual void finish();
+
+    struct aiocb *aiocb;
+};
+#endif
+
 class MEGA_API PosixFileAccess : public FileAccess
 {
 public:
@@ -132,11 +149,24 @@ public:
 
     bool sysread(byte *, unsigned, m_off_t);
     bool sysstat(m_time_t*, m_off_t*);
-    bool sysopen();
+    bool sysopen(bool async = false);
     void sysclose();
 
-    PosixFileAccess(int defaultfilepermissions = 0600);
+    PosixFileAccess(Waiter *w, int defaultfilepermissions = 0600);
+
+    // async interface
+    virtual bool asyncavailable();
+    virtual void asyncsysopen(AsyncIOContext* context);
+    virtual void asyncsysread(AsyncIOContext* context);
+    virtual void asyncsyswrite(AsyncIOContext* context);
+
     ~PosixFileAccess();
+
+#ifdef HAVE_AIO_RT
+protected:
+    virtual AsyncIOContext* newasynccontext();
+    static void asyncopfinished(union sigval sigev_value);
+#endif
 };
 
 class MEGA_API PosixDirNotify : public DirNotify

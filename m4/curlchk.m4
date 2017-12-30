@@ -19,10 +19,13 @@ AC_RUN_IFELSE([AC_LANG_PROGRAM([
             fprintf(stderr,"Cannot create curl handle\n");
             return 1;
         }
-        rc = curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, sslctxfun);
-        if (rc != CURLE_OK) {
-            fprintf(stderr,"Cannot set SSL context function: %s\nIs curl built with OpenSSL?\n", curl_easy_strerror(rc));
-            return 1;
+        if (data->version_num < 0x072C00) // 7.44.0
+        {
+            rc = curl_easy_setopt(curl, CURLOPT_SSL_CTX_FUNCTION, sslctxfun);
+            if (rc != CURLE_OK) {
+                fprintf(stderr,"Cannot set SSL context function: %s\nIs curl built with OpenSSL?\n", curl_easy_strerror(rc));
+                return 1;
+            }
         }
         curl_easy_cleanup(curl);
         return 0;

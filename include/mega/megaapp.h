@@ -63,6 +63,9 @@ struct MEGA_API MegaApp
     virtual void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool) { }
     virtual void account_details(AccountDetails*, error) { }
 
+    // query bandwidth quota result
+    virtual void querytransferquota_result(int) { }
+
     // sessionid is undef if all sessions except the current were killed
     virtual void sessions_killed(handle /*sessionid*/, error) { }
 
@@ -112,7 +115,7 @@ struct MEGA_API MegaApp
     virtual void updatepcr_result(error, ipcactions_t) { }
 
     // file attribute fetch result
-    virtual void fa_complete(Node*, fatype, const char*, uint32_t) { }
+    virtual void fa_complete(handle, fatype, const char*, uint32_t) { }
     virtual int fa_failed(handle, fatype, int, error)
     {
         return 0;
@@ -195,6 +198,12 @@ struct MEGA_API MegaApp
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
+    // get version info
+    virtual void getversion_result(int, const char*, error) {}
+
+    // get local SSL certificate
+    virtual void getlocalsslcertificate_result(m_time_t, string*, error){ }
+
 #ifdef ENABLE_CHAT
     // chat-related command's result
     virtual void chatcreate_result(TextChat *, error) { }
@@ -207,9 +216,13 @@ struct MEGA_API MegaApp
     virtual void chattruncate_result(error) { }
     virtual void chatsettitle_result(error) { }
     virtual void chatpresenceurl_result(string*, error) { }
+    virtual void registerpushnotification_result(error) { }
 
-    virtual void chats_updated(textchat_map *) { }
+    virtual void chats_updated(textchat_map *, int) { }
 #endif
+
+    // get mega-achievements
+    virtual void getmegaachievements_result(AchievementsDetails*, error) {}
 
     // global transfer queue updates
     virtual void file_added(File*) { }
@@ -246,12 +259,12 @@ struct MEGA_API MegaApp
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(Node*)
+    virtual bool sync_syncable(Sync*, const char*, string*, Node*)
     {
         return true;
     }
 
-    virtual bool sync_syncable(const char*, string*, string*)
+    virtual bool sync_syncable(Sync*, const char*, string*)
     {
         return true;
     }
@@ -264,6 +277,14 @@ struct MEGA_API MegaApp
 
     // failed request retry notification
     virtual void notify_retry(dstime) { }
+
+    virtual void notify_dbcommit() { }
+
+    // account confirmation via signup link
+    virtual void notify_confirmation(const char* email) { }
+
+    // HTTP request finished
+    virtual void http_result(error, int, byte*, int) { }
 
     virtual ~MegaApp() { }
 };

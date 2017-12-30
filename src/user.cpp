@@ -29,7 +29,8 @@ User::User(const char* cemail)
     userhandle = UNDEF;
     show = VISIBILITY_UNKNOWN;
     ctime = 0;
-    pubkrequested = 0;
+    pubkrequested = false;
+    isTemporary = false;
     resetTag();
 
     if (cemail)
@@ -159,7 +160,7 @@ User* User::unserialize(MegaClient* client, string* d)
 
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
-    u->setTag(-1);
+    u->resetTag();
 
     if (attrVersion == '\0')
     {
@@ -225,40 +226,44 @@ User* User::unserialize(MegaClient* client, string* d)
     if (av)
     {
         TLVstore *tlvRecords = TLVstore::containerToTLVrecords(av, &client->key);
-
-        if (tlvRecords->find(EdDSA::TLV_KEY))
+        if (tlvRecords)
         {
-            client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
-            if (!client->signkey->initializationOK)
+            if (tlvRecords->find(EdDSA::TLV_KEY))
             {
-                delete client->signkey;
-                client->signkey = NULL;
-                LOG_warn << "Failed to load chat key from local cache.";
+                client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+                if (!client->signkey->initializationOK)
+                {
+                    delete client->signkey;
+                    client->signkey = NULL;
+                    LOG_warn << "Failed to load chat key from local cache.";
+                }
+                else
+                {
+                    LOG_info << "Signing key loaded from local cache.";
+                }
             }
-            else
-            {
-                LOG_info << "Signing key loaded from local cache.";
-            }
-        }
 
-        if (tlvRecords->find(ECDH::TLV_KEY))
+            if (tlvRecords->find(ECDH::TLV_KEY))
+            {
+                client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
+                if (!client->chatkey->initializationOK)
+                {
+                    delete client->chatkey;
+                    client->chatkey = NULL;
+                    LOG_warn << "Failed to load chat key from local cache.";
+                }
+                else
+                {
+                    LOG_info << "Chat key succesfully loaded from local cache.";
+                }
+            }
+
+            delete tlvRecords;
+        }
+        else
         {
-            client->chatkey = new ECDH((unsigned char *) tlvRecords->get(ECDH::TLV_KEY).data());
-            if (!client->chatkey->initializationOK)
-            {
-                delete client->chatkey;
-                client->chatkey = NULL;
-                LOG_warn << "Failed to load chat key from local cache.";
-            }
-            else
-            {
-                LOG_info << "Chat key succesfully loaded from local cache.";
-            }
+            LOG_warn << "Failed to decrypt keyring from cache";
         }
-
-        delete tlvRecords;
-
-
     }
 #endif
 
@@ -368,6 +373,14 @@ string User::attr2string(attr_t type)
             attrname = "birthyear";
             break;
 
+        case ATTR_LANGUAGE:
+            attrname = "^!lang";
+            break;
+
+        case ATTR_PWD_REMINDER:
+            attrname = "^!prd";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -433,6 +446,14 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_BIRTHYEAR;
     }
+    else if(!strcmp(name, "^!lang"))
+    {
+        return ATTR_LANGUAGE;
+    }
+    else if(!strcmp(name, "^!prd"))
+    {
+        return ATTR_PWD_REMINDER;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -450,6 +471,8 @@ bool User::needversioning(attr_t at)
         case ATTR_BIRTHDAY:
         case ATTR_BIRTHMONTH:
         case ATTR_BIRTHYEAR:
+        case ATTR_LANGUAGE:
+        case ATTR_PWD_REMINDER:
             return 0;
 
         case ATTR_AUTHRING:
@@ -482,9 +505,176 @@ char User::scope(attr_t at)
         case ATTR_SIG_CU255_PUBK:
             return '+';
 
+        case ATTR_LANGUAGE:
+        case ATTR_PWD_REMINDER:
+            return '^';
+
         default:
             return '0';
     }
+}
+
+bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue)
+{
+    if (numDetails == 0)
+    {
+        return false;
+    }
+
+    // format: <lastSuccess>:<lastSkipped>:<mkExported>:<dontShowAgain>:<lastLogin>
+    string oldValue;
+    if (data && size)
+    {
+        oldValue.assign(data, size);
+
+        // ensure the old value has a valid format
+        if (std::count(oldValue.begin(), oldValue.end(), ':') != 4
+                || oldValue.length() < 9)
+        {
+            oldValue = "0:0:0:0:0";
+        }
+    }
+    else    // no existing value, set with default values and update it consequently
+    {
+        oldValue = "0:0:0:0:0";
+    }
+
+    bool lastSuccess = (numDetails & 0x01) != 0;
+    bool lastSkipped = (numDetails & 0x02) != 0;
+    bool mkExported = (numDetails & 0x04) != 0;
+    bool dontShowAgain = (numDetails & 0x08) != 0;
+    bool lastLogin = (numDetails & 0x10) != 0;
+
+    bool changed = false;
+
+    // Timestamp for last successful validation of password in PRD
+    time_t tsLastSuccess;
+    size_t len = oldValue.find(":");
+    string buf = oldValue.substr(0, len) + "#"; // add character control '#' for conversion
+    oldValue = oldValue.substr(len + 1);    // skip ':'
+    if (lastSuccess)
+    {
+        changed = true;
+        tsLastSuccess = time(NULL);
+    }
+    else
+    {
+        char *pEnd = NULL;
+        tsLastSuccess = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSuccess == LONG_MAX || tsLastSuccess == LONG_MIN)
+        {
+            tsLastSuccess = 0;
+            changed = true;
+        }
+    }
+
+    // Timestamp for last time the PRD was skipped
+    time_t tsLastSkipped;
+    len = oldValue.find(":");
+    buf = oldValue.substr(0, len) + "#";
+    oldValue = oldValue.substr(len + 1);
+    if (lastSkipped)
+    {
+        tsLastSkipped = time(NULL);
+        changed = true;
+    }
+    else
+    {
+        char *pEnd = NULL;
+        tsLastSkipped = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSkipped == LONG_MAX || tsLastSkipped == LONG_MIN)
+        {
+            tsLastSkipped = 0;
+            changed = true;
+        }
+    }
+
+    // Flag for Recovery Key exported
+    bool flagMkExported;
+    len = oldValue.find(":");
+    if (len != 1)
+    {
+        return false;
+    }
+    buf = oldValue.substr(0, len) + "#";
+    oldValue = oldValue.substr(len + 1);
+    if (mkExported && !(buf.at(0) == '1'))
+    {
+        flagMkExported = true;
+        changed = true;
+    }
+    else
+    {
+        char *pEnd = NULL;
+        int tmp = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || (tmp != 0 && tmp != 1))
+        {
+            flagMkExported = false;
+            changed = true;
+        }
+        else
+        {
+            flagMkExported = tmp;
+        }
+    }
+
+    // Flag for "Don't show again" the PRD
+    bool flagDontShowAgain;
+    len = oldValue.find(":");
+    if (len != 1 || len + 1 == oldValue.length())
+    {
+        return false;
+    }
+    buf = oldValue.substr(0, len) + "#";
+    oldValue = oldValue.substr(len + 1);
+    if (dontShowAgain && !(buf.at(0) == '1'))
+    {
+        flagDontShowAgain = true;
+        changed = true;
+    }
+    else
+    {
+        char *pEnd = NULL;
+        int tmp = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || (tmp != 0 && tmp != 1))
+        {
+            flagDontShowAgain = false;
+            changed = true;
+        }
+        else
+        {
+            flagDontShowAgain = tmp;
+        }
+    }
+
+    // Timestamp for last time user logged in
+    time_t tsLastLogin = 0;
+    len = oldValue.length();
+    if (lastLogin)
+    {
+        tsLastLogin = time(NULL);
+        changed = true;
+    }
+    else
+    {
+        buf = oldValue.substr(0, len) + "#";
+
+        char *pEnd = NULL;
+        tsLastLogin = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastLogin == LONG_MAX || tsLastLogin == LONG_MIN)
+        {
+            tsLastLogin = 0;
+            changed = true;
+        }
+    }
+
+    std::stringstream value;
+    value << tsLastSuccess << ":" << tsLastSkipped << ":" << flagMkExported
+        << ":" << flagDontShowAgain << ":" << tsLastLogin;
+
+    *newValue = value.str();
+
+    return changed;
 }
 
 const string *User::getattrversion(attr_t at)
@@ -550,6 +740,14 @@ bool User::setChanged(attr_t at)
         case ATTR_BIRTHMONTH:
         case ATTR_BIRTHYEAR:
             changed.birthday = true;
+            break;
+
+        case ATTR_LANGUAGE:
+            changed.language = true;
+            break;
+
+        case ATTR_PWD_REMINDER:
+            changed.pwdReminder = true;
             break;
 
         default:

@@ -1,8 +1,8 @@
 #!/bin/bash -x
 
 ##
- # @file build/create_tarball.sh
- # @brief Generates megacmd and extensions tarballs
+ # @file examples/megacmd/build/create_tarball.sh
+ # @brief Generates megacmd tarballs and compilation scripts
  #
  # (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  #
@@ -43,10 +43,10 @@ cd $cwd
 archives=$cwd/archives
 rm -fr $archives
 mkdir $archives
-$BASEPATH/contrib/build_sdk.sh -q -e -f -g -w -s -v -u -o $archives
+$BASEPATH/contrib/build_sdk.sh -q -e -g -w -s -v -u -o $archives
 
 # get current version
-megacmd_VERSION=0.0.1 #TODO: read from version.h file
+megacmd_VERSION=$(cat $BASEPATH/examples/megacmd/megacmdversion.h  | grep define | grep _VERSION | grep -v CODE | head -n 3 | awk 'BEGIN{ORS=""; first=1}{if(first){first=0;}else{print ".";}print $3}')
 export megacmd_NAME=megacmd-$megacmd_VERSION
 rm -rf $megacmd_NAME.tar.gz
 rm -rf $megacmd_NAME
@@ -60,16 +60,6 @@ rm -fr megacmd/megacmd*.dsc
 sed -e "s/megacmd_VERSION/$megacmd_VERSION/g" templates/megacmd/megacmd.spec > megacmd/megacmd.spec
 sed -e "s/megacmd_VERSION/$megacmd_VERSION/g" templates/megacmd/megacmd.dsc > megacmd/megacmd.dsc
 sed -e "s/megacmd_VERSION/$megacmd_VERSION/g" templates/megacmd/PKGBUILD > megacmd/PKGBUILD
-
-#include license as copyright file
-echo "Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/" > megacmd/debian.copyright
-echo "Upstream-Name: megacmd" >> megacmd/debian.copyright
-echo "Upstream-Contact: <support@mega.nz>" >> megacmd/debian.copyright
-echo "Source: https://github.com/meganz/sdk" >> megacmd/debian.copyright
-echo "Files: *" >> megacmd/debian.copyright
-echo "Copyright: 2013, Mega Limited" >> megacmd/debian.copyright
-echo -n "License:" >> megacmd/debian.copyright # Some software (e.g: gnome-software) would only recognized these licenses: http://spdx.org/licenses/
-#~ cat ../LICENCE.md | sed 's#^\s*$#\.#g' | sed 's#^# #' >> megacmd/debian.copyright #TODO: deal with LICENCE!
 
 # read the last generated ChangeLog version
 version_file="version"
@@ -87,7 +77,7 @@ if [ "$last_version" != "$megacmd_VERSION" ]; then
     if [ -f $changelog ]; then
         mv $changelog $changelogold
     fi
-    #~ ./generate_rpm_changelog_entry.sh ../src/megacmd/control/Preferences.cpp > $changelog #TODO: read this from somewhere
+    ./generate_rpm_changelog_entry.sh $megacmd_VERSION $BASEPATH/examples/megacmd/megacmdversion.h > $changelog #TODO: read this from somewhere
     if [ -f $changelogold ]; then
         cat $changelogold >> $changelog
         rm $changelogold
@@ -99,7 +89,7 @@ if [ "$last_version" != "$megacmd_VERSION" ]; then
     if [ -f $changelog ]; then
         mv $changelog $changelogold
     fi
-    #~ ./generate_deb_changelog_entry.sh $megacmd_VERSION ../src/megacmd/control/Preferences.cpp > $changelog #TODO: read this from somewhere
+    ./generate_deb_changelog_entry.sh $megacmd_VERSION $BASEPATH/examples/megacmd/megacmdversion.h > $changelog #TODO: read this from somewhere
     if [ -f $changelogold ]; then
         cat $changelogold >> $changelog
         rm $changelogold
@@ -124,9 +114,10 @@ mkdir -p $megacmd_NAME/examples/megacmd
 for i in $BASEPATH/examples/{include.am,megacli.*,megasimple*}; do 
     ln -s $i $megacmd_NAME/examples/
 done    
-for i in $BASEPATH/examples/megacmd/{*cpp,*.h,client}; do
+for i in $BASEPATH/examples/megacmd/{*cpp,*.h,client,megacmdshell}; do
 	ln -s $i $megacmd_NAME/examples/megacmd/
 done
+
 
 mkdir -p $megacmd_NAME/contrib/
 ln -s $BASEPATH/contrib/build_sdk.sh $megacmd_NAME/contrib/

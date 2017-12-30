@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -15,6 +15,7 @@
     <RootNamespace>mega</RootNamespace>
     <Keyword>Qt4VSv1.0</Keyword>
     <ProjectName>mega</ProjectName>
+    <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -24,6 +25,7 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <IntermediateDirectory>debug\</IntermediateDirectory>
     <PrimaryOutput>mega</PrimaryOutput>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <OutputDirectory>release\</OutputDirectory>
@@ -32,6 +34,7 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <IntermediateDirectory>release\</IntermediateDirectory>
     <PrimaryOutput>mega</PrimaryOutput>
+    <PlatformToolset>v140</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings" />
@@ -55,7 +58,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>"..\..\include";"..\..\third_party\utf8proc";".";"3rdparty\include\zlib";"3rdparty\include";"..\..\include\mega\win32";"3rdparty\include\cryptopp";"3rdparty\include\libsodium";"debug";%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\third_party\utf8proc;.;3rdparty\include\zlib;3rdparty\include;3rdparty\include\libuv;..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\cares;3rdparty\include\libsodium;debug;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zm200 -w34100 -w34189 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>debug\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
@@ -63,7 +66,7 @@
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>debug\</ObjectFileName>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;_WINSOCKAPI_;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;FREEIMAGE_LIB;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;SODIUM_STATIC;PCRE_STATIC;HAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
       <ProgramDataBaseFileName>.\</ProgramDataBaseFileName>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -95,14 +98,14 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>"..\..\include";"..\..\third_party\utf8proc";".";"3rdparty\include\zlib";"3rdparty\include";"..\..\include\mega\win32";"3rdparty\include\cryptopp";"3rdparty\include\libsodium";"release";%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\include;..\..\third_party\utf8proc;.;3rdparty\include\libuv;3rdparty\include\zlib;3rdparty\include;..\..\include\mega\wincurl;3rdparty\include\cryptopp;3rdparty\include\cares;3rdparty\include\libsodium;release;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>-Zm200 -w34100 -w34189 %(AdditionalOptions)</AdditionalOptions>
       <AssemblerListingLocation>release\</AssemblerListingLocation>
       <BrowseInformation>false</BrowseInformation>
       <ExceptionHandling>Sync</ExceptionHandling>
       <ObjectFileName>release\</ObjectFileName>
       <Optimization>MaxSpeed</Optimization>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;_WINSOCKAPI_;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;FREEIMAGE_LIB;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;ENABLE_SYNC;NDEBUG;SODIUM_STATIC;PCRE_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZLIB_WINAPI;_WINDOWS;UNICODE;WIN32;USE_FREEIMAGE;USE_SQLITE;USE_CRYPTOPP;USE_SODIUM;USE_CURL;USE_OPENSSL;ENABLE_SYNC;NDEBUG;SODIUM_STATIC;PCRE_STATIC;HAVE_LIBUV;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessToFile>false</PreprocessToFile>
       <ProgramDataBaseFileName>.\</ProgramDataBaseFileName>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -156,7 +159,10 @@
     <ClCompile Include="..\..\src\filefingerprint.cpp" />
     <ClCompile Include="..\..\src\filesystem.cpp" />
     <ClCompile Include="..\..\src\gfx\freeimage.cpp" />
+    <ClCompile Include="..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
+    <ClCompile Include="..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\src\gfx.cpp" />
@@ -166,7 +172,6 @@
     <ClCompile Include="..\..\src\megaapi.cpp" />
     <ClCompile Include="..\..\src\megaapi_impl.cpp" />
     <ClCompile Include="..\..\src\megaclient.cpp" />
-    <ClCompile Include="..\..\src\win32\net.cpp" />
     <ClCompile Include="..\..\src\node.cpp" />
     <ClCompile Include="..\..\src\pendingcontactrequest.cpp" />
     <ClCompile Include="..\..\src\proxy.cpp" />
@@ -211,11 +216,11 @@
     <ClInclude Include="..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\include\mega\mega_utf8proc.h" />
+    <ClInclude Include="..\..\include\mega\posix\meganet.h" />
     <ClInclude Include="..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsole.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsolewaiter.h" />
     <ClInclude Include="..\..\include\mega\win32\megafs.h" />
-    <ClInclude Include="..\..\include\mega\win32\meganet.h" />
     <ClInclude Include="..\..\include\mega\win32\megasys.h" />
     <ClInclude Include="..\..\include\mega\win32\megawaiter.h" />
     <ClInclude Include="..\..\include\mega\node.h" />

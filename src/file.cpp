@@ -348,7 +348,7 @@ bool File::failed(error e)
         return transfer->failcount < 16;
     }
 
-    return (e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && transfer->failcount < 16)
+    return (e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
             && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
 }
 
@@ -389,7 +389,10 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, string* clocalname)
 
 SyncFileGet::~SyncFileGet()
 {
-    n->syncget = NULL;
+    if (n)
+    {
+        n->syncget = NULL;
+    }
 }
 
 // create sync-specific temp download directory and set unique filename
@@ -470,6 +473,13 @@ bool SyncFileGet::failed(error e)
 
         if (!retry && (e == API_EBLOCKED || e == API_EKEY))
         {
+            if (e == API_EKEY)
+            {
+                int creqtag = n->parent->client->reqtag;
+                n->parent->client->reqtag = 0;
+                n->parent->client->sendevent(99433, "Undecryptable file");
+                n->parent->client->reqtag = creqtag;
+            }
             n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
         }
     }
@@ -509,7 +519,16 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
-    sync->checkpath(NULL, &localname);
+    LocalNode *ll = sync->checkpath(NULL, &localname);
+    if (ll && ll != (LocalNode*)~0 && n
+            && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
+    {
+        LOG_debug << "LocalNode created, associating with remote Node";
+        ll->setnode(n);
+        ll->treestate(TREESTATE_SYNCED);
+        ll->sync->statecacheadd(ll);
+        ll->sync->cachenodes();
+    }
     delete this;
 }
 

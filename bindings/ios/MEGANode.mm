@@ -103,8 +103,8 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getTag() : 0;
 }
 
-- (NSDate *)expirationTime {
-    return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getExpirationTime()] : nil;
+- (int64_t)expirationTime {
+    return self.megaNode ? self.megaNode->getExpirationTime() : -1;
 }
 
 - (uint64_t)publicHandle {

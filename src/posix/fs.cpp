@@ -26,6 +26,9 @@
 #include "mega.h"
 #include <sys/utsname.h>
 #include <sys/ioctl.h>
+#ifdef TARGET_OS_MAC
+#include "mega/osx/osxutils.h"
+#endif
 
 #ifdef __ANDROID__
 #include <jni.h>
@@ -41,8 +44,36 @@ namespace mega {
 #ifdef USE_IOS
     char* PosixFileSystemAccess::appbasepath = NULL;
 #endif
-    
-PosixFileAccess::PosixFileAccess(int defaultfilepermissions)
+
+#ifdef HAVE_AIO_RT
+PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
+{
+    aiocb = NULL;
+}
+
+PosixAsyncIOContext::~PosixAsyncIOContext()
+{
+    LOG_verbose << "Deleting PosixAsyncIOContext";
+    finish();
+}
+
+void PosixAsyncIOContext::finish()
+{
+    if (aiocb)
+    {
+        if (!finished)
+        {
+            LOG_debug << "Synchronously waiting for async operation";
+            AsyncIOContext::finish();
+        }
+        delete aiocb;
+        aiocb = NULL;
+    }
+    assert(finished);
+}
+#endif
+
+PosixFileAccess::PosixFileAccess(Waiter *w, int defaultfilepermissions) : FileAccess(w)
 {
     fd = -1;
     this->defaultfilepermissions = defaultfilepermissions;
@@ -106,7 +137,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     return false;
 }
 
-bool PosixFileAccess::sysopen()
+bool PosixFileAccess::sysopen(bool)
 {
 #ifdef USE_IOS
     string localname = this->localname;
@@ -126,10 +157,182 @@ void PosixFileAccess::sysclose()
 {
     if (localname.size())
     {
-        // fd will always be valid at this point
-        close(fd);
-        fd = -1;
+        assert (fd >= 0);
+        if (fd >= 0)
+        {
+            close(fd);
+            fd = -1;
+        }
     }
+}
+
+bool PosixFileAccess::asyncavailable()
+{
+#ifdef HAVE_AIO_RT
+    #ifdef __APPLE__
+        return false;
+    #endif
+
+    return true;
+#else
+    return false;
+#endif
+}
+
+#ifdef HAVE_AIO_RT
+AsyncIOContext *PosixFileAccess::newasynccontext()
+{
+    return new PosixAsyncIOContext();
+}
+
+void PosixFileAccess::asyncopfinished(sigval sigev_value)
+{
+    PosixAsyncIOContext *context = (PosixAsyncIOContext *)(sigev_value.sival_ptr);
+    struct aiocb *aiocbp = context->aiocb;
+    int e = aio_error(aiocbp);
+    assert (e != EINPROGRESS);
+    context->retry = (e == EAGAIN);
+    context->failed = (aio_return(aiocbp) < 0);
+    if (!context->failed)
+    {
+        if (context->op == AsyncIOContext::READ && context->pad)
+        {
+            memset((void *)(((char *)(aiocbp->aio_buf)) + aiocbp->aio_nbytes), 0, context->pad);
+            LOG_verbose << "Async read finished OK";
+        }
+        else
+        {
+            LOG_verbose << "Async write finished OK";
+        }
+    }
+    else
+    {
+        LOG_warn << "Async operation finished with error: " << e;
+    }
+
+    asyncfscallback userCallback = context->userCallback;
+    void *userData = context->userData;
+    context->finished = true;
+    if (userCallback)
+    {
+        userCallback(userData);
+    }
+}
+#endif
+
+void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
+{
+#ifdef HAVE_AIO_RT
+    string path;
+    path.assign((char *)context->buffer, context->len);
+    context->failed = !fopen(&path, context->access & AsyncIOContext::ACCESS_READ,
+                             context->access & AsyncIOContext::ACCESS_WRITE);
+    context->retry = retry;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+#endif
+}
+
+void PosixFileAccess::asyncsysread(AsyncIOContext *context)
+{
+#ifdef HAVE_AIO_RT
+    if (!context)
+    {
+        return;
+    }
+
+    PosixAsyncIOContext *posixContext = dynamic_cast<PosixAsyncIOContext*>(context);
+    if (!posixContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    struct aiocb *aiocbp = new struct aiocb;
+    memset(aiocbp, 0, sizeof (struct aiocb));
+
+    aiocbp->aio_fildes = fd;
+    aiocbp->aio_buf = (void *)posixContext->buffer;
+    aiocbp->aio_nbytes = posixContext->len;
+    aiocbp->aio_offset = posixContext->pos;
+    aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
+    aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)posixContext;
+    posixContext->aiocb = aiocbp;
+    if (aio_read(aiocbp))
+    {
+        posixContext->retry = (errno == EAGAIN);
+        posixContext->failed = true;
+        posixContext->finished = true;
+        posixContext->aiocb = NULL;
+        delete aiocbp;
+
+        LOG_warn << "Async read failed at startup:" << errno;
+        if (posixContext->userCallback)
+        {
+            posixContext->userCallback(posixContext->userData);
+        }
+    }
+#endif
+}
+
+void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
+{
+#ifdef HAVE_AIO_RT
+    if (!context)
+    {
+        return;
+    }
+
+    PosixAsyncIOContext *posixContext = dynamic_cast<PosixAsyncIOContext*>(context);
+    if (!posixContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    struct aiocb *aiocbp = new struct aiocb;
+    memset(aiocbp, 0, sizeof (struct aiocb));
+
+    aiocbp->aio_fildes = fd;
+    aiocbp->aio_buf = (void *)posixContext->buffer;
+    aiocbp->aio_nbytes = posixContext->len;
+    aiocbp->aio_offset = posixContext->pos;
+    aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
+    aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
+    aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)posixContext;
+    posixContext->aiocb = aiocbp;
+
+    if (aio_write(aiocbp))
+    {
+        posixContext->retry = (errno == EAGAIN);
+        posixContext->failed = true;
+        posixContext->finished = true;
+        posixContext->aiocb = NULL;
+        delete aiocbp;
+
+        LOG_warn << "Async write failed at startup: " << errno;
+        if (posixContext->userCallback)
+        {
+            posixContext->userCallback(posixContext->userData);
+        }
+    }
+#endif
 }
 
 // update local name
@@ -143,6 +346,7 @@ void PosixFileAccess::updatelocalname(string* name)
 
 bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 {
+    retry = false;
 #ifndef __ANDROID__
     return pread(fd, (char*)dst, len, pos) == len;
 #else
@@ -153,6 +357,7 @@ bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 
 bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 {
+    retry = false;
 #ifndef __ANDROID__
     return pwrite(fd, data, len, pos) == len;
 #else
@@ -427,6 +632,10 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
     int r = 0;
+    if (notifyfd < 0)
+    {
+        return r;
+    }
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
@@ -592,11 +801,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     static char rsrc[] = "/..namedfork/rsrc";
     static unsigned int rsrcsize = sizeof(rsrc) - 1;
 
-    if (notifyfd < 0)
-    {
-        return r;
-    }
-
     for (;;)
     {
         FD_ZERO(&rfds);
@@ -714,9 +918,13 @@ void PosixFileSystemAccess::tmpnamelocal(string* localname) const
     *localname = buf;
 }
 
-void PosixFileSystemAccess::path2local(string* local, string* path) const
+void PosixFileSystemAccess::path2local(string* path, string* local) const
 {
-    *path = *local;
+#ifdef __MACH__
+    path2localMac(path, local);
+#else
+    *local = *path;
+#endif
 }
 
 void PosixFileSystemAccess::local2path(string* local, string* path) const
@@ -1133,6 +1341,11 @@ bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     if (path->at(0) == '/')
     {
         *absolutepath = *path;
+        char canonical[PATH_MAX];
+        if (realpath(absolutepath->c_str(),canonical) != NULL)
+        {
+            absolutepath->assign(canonical);
+        }
         return true;
     }
     else
@@ -1147,6 +1360,13 @@ bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
         *absolutepath = cCurrentPath;
         absolutepath->append("/");
         absolutepath->append(*path);
+
+        char canonical[PATH_MAX];
+        if (realpath(absolutepath->c_str(),canonical) != NULL)
+        {
+            absolutepath->assign(canonical);
+        }
+
         return true;
     }
 }
@@ -1356,6 +1576,10 @@ void PosixDirNotify::addnotify(LocalNode* l, string* path)
         l->dirnotifytag = (handle)wd;
         fsaccess->wdnodes[wd] = l;
     }
+    else
+    {
+        LOG_warn << "Unable to addnotify path: " <<  path->c_str() << ". Error code: " << errno;
+    }
 #endif
 #endif
 }
@@ -1384,7 +1608,7 @@ fsfp_t PosixDirNotify::fsfingerprint()
 
 FileAccess* PosixFileSystemAccess::newfileaccess()
 {
-    return new PosixFileAccess(defaultfilepermissions);
+    return new PosixFileAccess(waiter, defaultfilepermissions);
 }
 
 DirAccess* PosixFileSystemAccess::newdiraccess()

@@ -23,6 +23,7 @@
 #define MEGA_UTILS_H 1
 
 #include "types.h"
+#include "mega/logging.h"
 
 namespace mega {
 // convert 2...8 character ID to int64 integer (endian agnostic)
@@ -34,12 +35,15 @@ namespace mega {
 #define MAKENAMEID7(a, b, c, d, e, f, g) (nameid)((((uint64_t)a) << 48) + (((uint64_t)b) << 40) + (((uint64_t)c) << 32) + ((d) << 24) + ((e) << 16) + ((f) << 8) + (g))
 #define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
 
+std::string toNodeHandle(handle nodeHandle);
+#define LOG_NODEHANDLE(x) toNodeHandle(x)
+
 struct MEGA_API ChunkedHash
 {
     static const int SEGSIZE = 131072;
 
     static m_off_t chunkfloor(m_off_t);
-    static m_off_t chunkceil(m_off_t);
+    static m_off_t chunkceil(m_off_t, m_off_t limit = -1);
 };
 
 /**
@@ -89,7 +93,7 @@ public:
     unsigned get(AsymmCipher*, byte*, unsigned);
 
     // verify signature
-    bool check(AsymmCipher*, const byte*, unsigned);
+    bool checksignature(AsymmCipher*, const byte*, unsigned);
 
     HashSignature(Hash*);
     ~HashSignature();

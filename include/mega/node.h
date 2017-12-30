@@ -130,6 +130,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // check presence of file attribute
     int hasfileattribute(fatype) const;
+    static int hasfileattribute(const string *fileattrstring, fatype);
 
     // decrypt node attribute string
     static byte* decryptattr(SymmCipher*, const char*, int);
@@ -234,7 +235,7 @@ struct MEGA_API LocalNode : public File
     localnode_map children;
 
     // for botched filesystems with legacy secondary ("short") names
-    string slocalname;
+    string *slocalname;
     localnode_map schildren;
 
     // local filesystem node ID (inode...) for rename/move detection

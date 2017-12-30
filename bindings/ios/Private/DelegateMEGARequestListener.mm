@@ -25,10 +25,8 @@
 
 using namespace mega;
 
-DelegateMEGARequestListener::DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener) {
-    this->megaSDK = megaSDK;
+DelegateMEGARequestListener::DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener) : DelegateMEGABaseListener::DelegateMEGABaseListener(megaSDK, singleListener) {
     this->listener = listener;
-    this->singleListener = singleListener;
 }
 
 id<MEGARequestDelegate>DelegateMEGARequestListener::getUserListener() {
@@ -38,8 +36,11 @@ id<MEGARequestDelegate>DelegateMEGARequestListener::getUserListener() {
 void DelegateMEGARequestListener::onRequestStart(MegaApi *api, MegaRequest *request) {
     if (listener != nil && [listener respondsToSelector:@selector(onRequestStart:request:)]) {
         MegaRequest *tempRequest = request->copy();
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestStart:this->megaSDK request:[[MEGARequest alloc]initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            if (this->validListener) {
+                [this->listener onRequestStart:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            }
         });
     }
 }
@@ -48,9 +49,12 @@ void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *req
     if (listener != nil && [listener respondsToSelector:@selector(onRequestFinish:request:error:)]) {
         MegaRequest *tempRequest = request->copy();
         MegaError *tempError = e->copy();
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestFinish:this->megaSDK request:[[MEGARequest alloc]initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
-            if (singleListener) {
+            if (this->validListener) {
+                [this->listener onRequestFinish:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            }
+            if (this->singleListener) {
                 [megaSDK freeRequestListener:this];
             }
         });
@@ -60,8 +64,11 @@ void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *req
 void DelegateMEGARequestListener::onRequestUpdate(MegaApi *api, MegaRequest *request) {
     if (listener != nil && [listener respondsToSelector:@selector(onRequestUpdate:request:)]) {
         MegaRequest *tempRequest = request->copy();
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestUpdate:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            if (this->validListener) {
+                [this->listener onRequestUpdate:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
+            }
         });
     }
 }
@@ -70,8 +77,11 @@ void DelegateMEGARequestListener::onRequestTemporaryError(MegaApi *api, MegaRequ
     if (listener != nil && [listener respondsToSelector:@selector(onRequestTemporaryError:request:error:)]) {
         MegaRequest *tempRequest = request->copy();
         MegaError *tempError = e->copy();
+        
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onRequestTemporaryError:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            if (this->validListener) {
+                [this->listener onRequestTemporaryError:this->megaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            }
         });
     }
 }
