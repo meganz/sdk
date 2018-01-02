@@ -2501,7 +2501,7 @@ void CommandPutUAVer::procresult()
     }
 }
 
-CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl)
+CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -2522,7 +2522,7 @@ CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsign
 
     notself(client);
 
-    tag = client->reqtag;
+    tag = ctag;
 }
 
 void CommandPutUA::procresult()

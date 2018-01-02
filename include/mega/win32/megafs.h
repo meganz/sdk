@@ -104,7 +104,7 @@ struct MEGA_API WinDirNotify : public DirNotify
 
     void addnotify(LocalNode*, string*);
 
-    static VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped);
+    static VOID CALLBACK completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped);
     void process(DWORD wNumberOfBytesTransfered);
     void readchanges();
 
