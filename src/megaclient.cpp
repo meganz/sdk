@@ -9420,7 +9420,6 @@ void MegaClient::fetchnodes(bool nocache)
         // if don't know fileversioning is enabled or disabled...
         // (it can happen after AP invalidates the attribute, but app is closed before current value is retrieved and cached)
         User *ownUser = finduser(me);
-        assert(ownUser);
         const string *av = ownUser->getattr(ATTR_DISABLE_VERSIONS);
         if (av)
         {
