@@ -9646,10 +9646,13 @@ class MegaApi
         /**
          * @brief Enable or disable file versioning
          *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_DISABLE_VERSIONS
+         *
          * Valid data in the MegaRequest object received in onRequestFinish:
          * - MegaRequest::getText - "1" for disable, "0" for enable
-         *
-         * If the option has never been set, the error code will be MegaError::API_ENOENT.
          *
          * @param disable True to disable file versioning. False to enable it
          * @param listener MegaRequestListener to track this request
@@ -9658,6 +9661,13 @@ class MegaApi
 
         /**
          * @brief Check if file versioning is enabled or disabled
+         *
+         * If the option has never been set, the error code will be MegaError::API_ENOENT.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_DISABLE_VERSIONS
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
