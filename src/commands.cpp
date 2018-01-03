@@ -2553,6 +2553,14 @@ void CommandPutUA::procresult()
         if (at == ATTR_DISABLE_VERSIONS)
         {
             client->versions_disabled = (av == "1");
+            if (client->versions_disabled)
+            {
+                LOG_info << "File versioning is disabled";
+            }
+            else
+            {
+                LOG_info << "File versioning is enabled";
+            }
         }
     }
 
