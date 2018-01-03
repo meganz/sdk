@@ -14750,6 +14750,16 @@ void MegaApiImpl::sendPendingRequests()
                     delete [] uh;
                     break;
                 }
+                else if (type == ATTR_DISABLE_VERSIONS)
+                {
+                    if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    client->putua(type, (byte *)value, 1);
+                }
                 else
                 {
                     e = API_EARGS;
