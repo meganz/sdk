@@ -9871,6 +9871,12 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
     else
     {
         it->second->enqueue(offset, count, reqtag, appdata);
+        if (overquotauntil && overquotauntil > Waiter::ds)
+        {
+            dstime timeleft = overquotauntil - Waiter::ds;
+            app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
+            it->second->schedule(timeleft);
+        }
     }
 }
 
