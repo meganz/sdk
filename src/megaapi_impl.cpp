@@ -11013,7 +11013,10 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                 return;
             }
 
-            ovhandle = ovn->nodehandle;
+            if (!client->versions_disabled)
+            {
+                ovhandle = ovn->nodehandle;
+            }
         }
 
         NewNode* newnode = new NewNode[1];
@@ -13471,7 +13474,7 @@ void MegaApiImpl::sendPendingTransfers()
                         attrs.map['n'] = sname;
                         attrs.getjson(&attrstring);
                         client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
-                        if (tc.nn->type == FILENODE)
+                        if (tc.nn->type == FILENODE && !client->versions_disabled)
                         {
                             tc.nn->ovhandle = client->getovhandle(parent, &sname);
                         }
@@ -14027,7 +14030,10 @@ void MegaApiImpl::sendPendingRequests()
                                 break;
                             }
 
-                            ovhandle = ovn->nodehandle;
+                            if (!client->versions_disabled)
+                            {
+                                ovhandle = ovn->nodehandle;
+                            }
                         }
                     }
                 }
@@ -14126,7 +14132,10 @@ void MegaApiImpl::sendPendingRequests()
                             delete fp;
                         }
 
-                        ovhandle = ovn->nodehandle;
+                        if (!client->versions_disabled)
+                        {
+                            ovhandle = ovn->nodehandle;
+                        }
                     }
                 }
 
@@ -14199,7 +14208,10 @@ void MegaApiImpl::sendPendingRequests()
                             break;
                         }
 
-                        ovhandle = ovn->nodehandle;
+                        if (!client->versions_disabled)
+                        {
+                            ovhandle = ovn->nodehandle;
+                        }
                     }
                 }
 
