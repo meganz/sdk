@@ -285,7 +285,7 @@ void User::setattr(attr_t at, string *av, string *v)
         attrs[at] = *av;
     }
 
-    attrsv[at] = v ? *v : "";
+    attrsv[at] = v ? *v : "N";
 }
 
 void User::invalidateattr(attr_t at)
