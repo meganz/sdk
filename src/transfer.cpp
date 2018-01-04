@@ -26,6 +26,7 @@
 #include "mega/sync.h"
 #include "mega/logging.h"
 #include "mega/base64.h"
+#include "mega/mediafileattribute.h"
 #include "megawaiter.h"
 
 namespace mega {
@@ -437,6 +438,54 @@ void Transfer::failed(error e, dstime timeleft)
     }
 }
 
+
+static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
+{
+    // returns the last half, beyond the actual key, ie the nonce+crc
+    return (uint32_t*)(filekey + FILENODEKEYLENGTH / 2);
+}
+
+
+void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath)
+{
+    assert(type == PUT || node && node->type == FILENODE);
+
+#ifdef USE_MEDIAINFO
+    char ext[8];
+    if ((type == PUT || node && node->nodekey.size() == FILENODEKEYLENGTH) &&
+        client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
+        MediaProperties::isMediaFilenameExt(ext) &&
+        !client->mediaFileInfo.mediaCodecsFailed)
+    {
+        // for upload, the key is in the transfer.  for download, the key is in the node.
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey.data());
+
+        if (type == PUT || !node->hasfileattribute(8) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
+        {
+            // if we don't have the codec id mappings yet, send the request
+            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+
+            // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
+            MediaProperties vp;
+            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess);
+
+            if ((type == PUT))
+            {
+                minfa += client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle);
+            }
+            else
+            {
+                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodehandle);
+            }
+        }
+    }
+#else
+    node;
+    localpath;
+#endif
+}
+
+
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files
 void Transfer::complete()
@@ -715,6 +764,16 @@ void Transfer::complete()
                     {
                         tmplocalname = localname;
                         success = true;
+                    }
+
+                    // Add video file attributes for video files that don't have any yet.  Just for the first copy of this downloaded file.
+                    if (success)
+                    {
+                        Node* node = client->nodebyhandle((*it)->h);
+                        if (node)
+                        {
+                            addAnyMissingMediaFileAttributes(node, tmplocalname);
+                        }
                     }
                 }
 
@@ -1201,7 +1260,7 @@ bool DirectReadSlot::doio()
             LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
             if (req->timeleft > 0)
             {
-                backoff = req->timeleft * 10;
+                backoff = dstime(req->timeleft * 10);
             }
             else
             {
