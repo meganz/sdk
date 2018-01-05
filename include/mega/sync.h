@@ -134,6 +134,7 @@ public:
     static const int EXTRA_SCANNING_DELAY_DS;
     static const int FILE_UPDATE_DELAY_DS;
     static const int FILE_UPDATE_MAX_DELAY_SECS;
+    static const dstime RECENT_VERSION_INTERVAL_SECS;
 
 protected :
     bool readstatecache();

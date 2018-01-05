@@ -10940,6 +10940,70 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
             else
             {
+                Node *currentVersion = ll->node;
+                if (currentVersion)
+                {
+                    m_time_t delay = 0;
+                    m_time_t currentTime = time(NULL);
+                    if (currentVersion->ctime > currentTime + 30)
+                    {
+                        // with more than 30 seconds of detecteed clock drift,
+                        // we don't apply any version rate control for now
+                        LOG_err << "Incorrect local time detected";
+                    }
+                    else
+                    {
+                        int recentVersions = 0;
+                        m_time_t startInterval = currentTime - Sync::RECENT_VERSION_INTERVAL_SECS;
+                        Node *version = currentVersion;
+                        while (true)
+                        {
+                            if (version->ctime < startInterval)
+                            {
+                                break;
+                            }
+
+                            recentVersions++;
+                            if (!version->children.size())
+                            {
+                                break;
+                            }
+
+                            version = version->children.back();
+                        }
+
+                        if (recentVersions > 10)
+                        {
+                            // version rate control starts with more than 10 recent versions
+                            delay = 7 * (recentVersions / 10) * (recentVersions - 10);
+                        }
+
+                        LOG_debug << "Number of recent versions: " << recentVersions << " delay: " << delay
+                                  << " prev: " << currentVersion->ctime << " current: " << currentTime;
+                    }
+
+                    if (delay)
+                    {
+                        m_time_t next = currentVersion->ctime + delay;
+                        if (next > currentTime)
+                        {
+                            dstime backoffds = (next - currentTime) * 10;
+                            ll->nagleds = waiter->ds + backoffds;
+                            LOG_debug << "Waiting for the version rate limit delay during " << backoffds << " ds";
+
+                            if (ll->nagleds < *nds)
+                            {
+                                *nds = ll->nagleds;
+                            }
+                            continue;
+                        }
+                        else
+                        {
+                            LOG_debug << "Version rate limit delay already expired";
+                        }
+                    }
+                }
+
                 string localpath;
                 bool t;
                 FileAccess* fa = fsaccess->newfileaccess();
