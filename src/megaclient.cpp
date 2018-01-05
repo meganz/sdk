@@ -2097,7 +2097,11 @@ void MegaClient::exec()
 
                             if (EVER(nds))
                             {
-                                syncnaglebt.backoff(nds - Waiter::ds);
+                                if (!syncnagleretry || (nds - Waiter::ds) < syncnaglebt.backoffdelta())
+                                {
+                                    syncnaglebt.backoff(nds - Waiter::ds);
+                                }
+
                                 syncnagleretry = true;
                                 syncuprequired = true;
                             }
