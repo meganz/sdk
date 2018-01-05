@@ -34,6 +34,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
 #include <libavutil/avutil.h>
+#include <libavutil/mathematics.h>
 }
 #endif
 
@@ -363,6 +364,7 @@ GfxProcQT::GfxProcQT()
     gfxMutex.lock();
     av_register_all();
     avcodec_register_all();
+//    av_log_set_level(AV_LOG_VERBOSE);
     gfxMutex.unlock();
 #endif
     image = NULL;
@@ -607,6 +609,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
+    // Get stream information
     if (avformat_find_stream_info(formatContext, NULL))
     {
         LOG_warn << "Stream info not found: " << imagePath;
@@ -614,12 +617,15 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
+    // Find first video stream type
     AVStream *videoStream = NULL;
+    int videoStreamIdx = 0;
     for (int i = 0; i < formatContext->nb_streams; i++)
     {
         if (formatContext->streams[i]->codec->codec_type == AVMediaType::AVMEDIA_TYPE_VIDEO)
         {
             videoStream = formatContext->streams[i];
+            videoStreamIdx = i;
             break;
         }
     }
@@ -631,6 +637,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
+    // Get codec context to determine video frame dimensions
     AVCodecContext codecContext = *(videoStream->codec);
     int width = codecContext.width;
     int height = codecContext.height;
@@ -653,6 +660,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
+    // Find decoder for video stream
     AVCodecID codecId = codecContext.codec_id;
     AVCodec* decoder = avcodec_find_decoder(codecId);
     if (!decoder)
@@ -663,6 +671,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
+    // Force seeking to key frames
     formatContext->seek2any = false;
     videoStream->skip_to_keyframe = true;
     if (decoder->capabilities & CODEC_CAP_TRUNCATED)
@@ -670,6 +679,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         codecContext.flags |= CODEC_FLAG_TRUNCATED;
     }
 
+    // Open codec
     if (avcodec_open2(&codecContext, decoder, NULL) < 0)
     {
         LOG_warn << "Error opening codec: " << codecId;
@@ -678,6 +688,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
+    //Allocate video frames
     AVFrame* videoFrame = av_frame_alloc();
     AVFrame* targetFrame = av_frame_alloc();
     if (avpicture_alloc((AVPicture *)targetFrame, targetPixelFormat, width, height) < 0)
@@ -690,121 +701,114 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         avformat_free_context(formatContext);
         return NULL;
     }
-    AVPacket *packet = av_packet_alloc();
-    av_init_packet(packet);
 
-    int64_t frametimestamp = formatContext->duration / 2;
-    if (av_seek_frame(formatContext, -1, frametimestamp, AVSEEK_FLAG_BACKWARD) < 0)
+    // Calculation of seeking point. We need to rescale time units (seconds) to AVStream.time_base units to perform the seeking
+    // Timestamp in streams are measured in frames rather than seconds
+
+    int64_t frametimestamp = (int64_t)(5 * AV_TIME_BASE);  // Seek five seconds from the beginning
+    int64_t seek_target= av_rescale_q(frametimestamp, AV_TIME_BASE_Q, videoStream->time_base);  
+    if (av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
-        av_packet_free(&packet);
         av_frame_free(&videoFrame);
-        avcodec_close(&codecContext);
-        avpicture_free((AVPicture *)targetFrame);
         av_frame_free(&targetFrame);
+        avcodec_close(&codecContext);
+        avpicture_free((AVPicture *)targetFrame);      
         sws_freeContext(swsContext);
         avformat_free_context(formatContext);
         return NULL;
     }
 
-    for(;;)
+    AVPacket packet;
+    packet.flags |= AV_PKT_FLAG_KEY;
+
+    int decodedBytes;
+    int scalingResult;
+    int actualNumFrames = 0;
+    int frameExtracted  = 0;
+
+    unsigned int streamFPS = av_q2d(formatContext->streams[videoStreamIdx]->avg_frame_rate);
+    if (!streamFPS) //If no fps or invalid, set 30 to default
     {
-        if (av_read_frame(formatContext, packet) < 0)
-        {
-            LOG_warn << "Error reading frame";
-            av_packet_free(&packet);
-            av_frame_free(&videoFrame);
-            avcodec_close(&codecContext);
-            avpicture_free((AVPicture *)targetFrame);
-            av_frame_free(&targetFrame);
-            sws_freeContext(swsContext);
-            avformat_free_context(formatContext);
-            return NULL;
-        }
-
-        if (packet->stream_index != videoStream->index)
-        {
-            continue;
-        }
-
-        int frameExtracted = 0;
-        if (avcodec_decode_video2(&codecContext, videoFrame, &frameExtracted, packet) < 0)
-        {
-            LOG_warn << "Error extracting frame";
-            av_packet_free(&packet);
-            av_frame_free(&videoFrame);
-            avcodec_close(&codecContext);
-            avpicture_free((AVPicture *)targetFrame);
-            av_frame_free(&targetFrame);
-            sws_freeContext(swsContext);
-            avformat_free_context(formatContext);
-            return NULL;
-        }
-
-        if (!frameExtracted)
-        {
-            continue;
-        }
-
-        if (!sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
-                       0, height, targetFrame->data, targetFrame->linesize))
-        {
-            LOG_warn << "Error converting frame";
-            av_packet_free(&packet);
-            av_frame_free(&videoFrame);
-            avcodec_close(&codecContext);
-            avpicture_free((AVPicture *)targetFrame);
-            av_frame_free(&targetFrame);
-            sws_freeContext(swsContext);
-            avformat_free_context(formatContext);
-            return NULL;
-        }
-
-        QImage image(width, height, QImage::Format_RGB888);
-        if (avpicture_layout((AVPicture *)targetFrame, AV_PIX_FMT_RGB24,
-                             width, height, image.bits(), image.byteCount()) <= 0)
-        {
-            LOG_warn << "Error copying frame";
-            av_packet_free(&packet);
-            av_frame_free(&videoFrame);
-            avcodec_close(&codecContext);
-            avpicture_free((AVPicture *)targetFrame);
-            av_frame_free(&targetFrame);
-            sws_freeContext(swsContext);
-            avformat_free_context(formatContext);
-            return NULL;
-        }
-
-        QBuffer *buffer = new QBuffer();
-        if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
-        {
-            LOG_warn << "Error extracting image";
-            av_packet_free(&packet);
-            av_frame_free(&videoFrame);
-            avcodec_close(&codecContext);
-            avpicture_free((AVPicture *)targetFrame);
-            av_frame_free(&targetFrame);
-            sws_freeContext(swsContext);
-            avformat_free_context(formatContext);
-            return NULL;
-        }
-
-        w = width;
-        h = height;
-        orientation = -1;
-        buffer->seek(0);
-        QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
-        LOG_debug << "Video image ready";
-
-        av_packet_free(&packet);
-        av_frame_free(&videoFrame);
-        avcodec_close(&codecContext);
-        avpicture_free((AVPicture *)targetFrame);
-        av_frame_free(&targetFrame);
-        sws_freeContext(swsContext);
-        avformat_free_context(formatContext);
-        return imageReader;
+        streamFPS = 30;
     }
+
+    // Read frames until succesfull decodification or reach limit of 7 second read
+    while (av_read_frame(formatContext, &packet) >= 0 && actualNumFrames < (streamFPS * 7))
+    {
+       if (packet.stream_index == videoStream->index)
+       {
+           decodedBytes = avcodec_decode_video2(&codecContext, videoFrame, &frameExtracted, &packet);
+           if (frameExtracted && decodedBytes >= 0)
+           {
+                scalingResult = sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
+                                     0, codecContext.height, targetFrame->data,targetFrame->linesize);
+
+                if (scalingResult > 0)
+                {
+                    QImage image(width, height, QImage::Format_RGB888);
+                    if (avpicture_layout((AVPicture *)targetFrame, AV_PIX_FMT_RGB24,
+                                    width, height, image.bits(), image.byteCount()) <= 0)
+                    {
+                        LOG_warn << "Error copying frame";
+                        av_packet_unref(&packet);
+                        av_frame_free(&videoFrame);
+                        avcodec_close(&codecContext);
+                        avpicture_free((AVPicture *)targetFrame);
+                        av_frame_free(&targetFrame);
+                        sws_freeContext(swsContext);
+                        avformat_free_context(formatContext);
+                        return NULL;
+                    }
+
+                    QBuffer *buffer = new QBuffer();
+                    if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
+                    {
+                        LOG_warn << "Error extracting image";
+                        av_packet_unref(&packet);
+                        av_frame_free(&videoFrame);
+                        avcodec_close(&codecContext);
+                        avpicture_free((AVPicture *)targetFrame);
+                        av_frame_free(&targetFrame);
+                        sws_freeContext(swsContext);
+                        avformat_free_context(formatContext);
+                        return NULL;
+                    }
+
+                    w = width;
+                    h = height;
+                    orientation = -1;
+                    buffer->seek(0);
+                    QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
+                    LOG_debug << "Video image ready";
+
+                    av_packet_unref(&packet);
+                    av_frame_free(&videoFrame);
+                    avcodec_close(&codecContext);
+                    avpicture_free((AVPicture *)targetFrame);
+                    av_frame_free(&targetFrame);
+                    sws_freeContext(swsContext);
+                    avformat_free_context(formatContext);
+                    return imageReader;
+
+                }
+           }
+
+           actualNumFrames++;
+       }
+
+       av_packet_unref(&packet);
+    }
+
+    LOG_warn << "Error reading frame";
+    av_packet_unref(&packet);
+    av_frame_free(&videoFrame);
+    avcodec_close(&codecContext);
+    avpicture_free((AVPicture *)targetFrame);
+    av_frame_free(&targetFrame);
+    sws_freeContext(swsContext);
+    avformat_free_context(formatContext);
+    return NULL;
 }
 
 #endif
