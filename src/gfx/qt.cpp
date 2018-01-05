@@ -589,11 +589,16 @@ const char *GfxProcQT::supportedformatsQT()
 #ifdef HAVE_FFMPEG
 const char *GfxProcQT::supportedformatsFfmpeg()
 {
-    return ".3gp.asf.wmv.avi.flv.mov.mp4.ogm.ogg.mkv.mka.ts.mpg.nsv.nut.rm.rv.rmbv.dv.vid.";
+    return  ".264.265.3g2.3gp.3gpa.3gpp.3gpp2"
+            ".avi.dde.divx.evo.f4v.flv.gvi.h261.h263.h264.h265.hevc"
+            ".ismt.ismv.ivf.jpm.k3g.m1v.m2p.m2s.m2t.m2v.m4s.m4t.m4v.mac.mkv.mk3d"
+            ".mks.mov.mp1v.mp2v.mp4.mp4v.mpeg.mpg.mpgv.mpv.mqv.ogm.ogv"
+            ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
 QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QString imagePath)
 {
+    // Open video file
     AVFormatContext* formatContext = avformat_alloc_context();
     if (avformat_open_input(&formatContext, imagePath.toUtf8().constData(), NULL, NULL))
     {
