@@ -105,6 +105,7 @@ struct MEGA_API MediaFileInfo
     bool mediaCodecsFailed;
     uint32_t downloadedCodecMapsVersion;
     MediaCodecs mediaCodecs;
+    unsigned precomputedMediaInfoLibVersion;
 
     // look up IDs from the various maps
     unsigned Lookup(const std::string& name, std::map<std::string, unsigned>& data, unsigned notfoundvalue);
