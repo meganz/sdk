@@ -105,6 +105,7 @@ struct MEGA_API MediaFileInfo
     bool mediaCodecsFailed;
     uint32_t downloadedCodecMapsVersion;
     MediaCodecs mediaCodecs;
+    unsigned precomputedMediaInfoLibVersion;
 
     // look up IDs from the various maps
     unsigned Lookup(const std::string& name, std::map<std::string, unsigned>& data, unsigned notfoundvalue);
@@ -137,8 +138,8 @@ struct MEGA_API MediaFileInfo
 
 struct MediaFileInfo::queuedvp
 {
-    // for a download it is the handle of the node of the file.  For uploads that doesn't exist yet and it is the uploadHandle of the transfer; 
-    ::mega::handle handle;  
+    // for a download it is the handle of the node of the file.  For uploads that doens't exist yet and it is the uploadHandle of the transfer; 
+    ::mega::handle handle;
 
     // The properties to upload.   These still need translation from strings to enums, plus file attribute encoding and encryption with XXTEA
     MediaProperties vp;
