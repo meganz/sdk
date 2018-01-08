@@ -613,7 +613,6 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     if (avformat_open_input(&formatContext, imagePath.toUtf8().constData(), NULL, NULL))
     {
         LOG_warn << "Error opening video: " << imagePath;
-        avformat_close_input(&formatContext);
         return NULL;
     }
 
