@@ -19941,18 +19941,9 @@ PublicLinkProcessor::PublicLinkProcessor()
 
 bool PublicLinkProcessor::processNode(Node *node)
 {
-    if(!node->outshares)
+    if(node->plink)
     {
-        return true;
-    }
-
-    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
-    {
-        Share *share = it->second;
-        if (share->user == NULL)    // public links have no user
-        {
-            nodes.push_back(node);
-        }
+        nodes.push_back(node);
     }
 
     return true;
