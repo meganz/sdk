@@ -37,28 +37,39 @@ namespace mega {
 
 #ifdef USE_MEDIAINFO
 
+
 MediaFileInfo::MediaFileInfo()
     : mediaCodecsRequested(false)
     , mediaCodecsReceived(false)
     , mediaCodecsFailed(false)
     , downloadedCodecMapsVersion(0)
 {
-    precomputedMediaInfoLibVersion = 0;
+}
 
-    std::string s = ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local();   // eg. __T("MediaInfoLib - v17.10")
-    unsigned column = 1;
-    for (unsigned i = s.size(); i--; )
+uint32_t GetMediaInfoVersion()
+{
+    static uint32_t version = 0;
+
+    if (version == 0)
     {
-        if (isdigit(s[i]))
+        std::string s = ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local();   // eg. __T("MediaInfoLib - v17.10")
+        unsigned column = 1;
+        for (unsigned i = s.size(); i--; )
         {
-            precomputedMediaInfoLibVersion += column * (s[i] - '0');
-            column *= 10;
+            if (isdigit(s[i]))
+            {
+                version += column * (s[i] - '0');
+                column *= 10;
+            }
+            else if (s[i] != '.')
+            {
+                break;
+            }
         }
-        else if (s[i] != '.')
-        {
-            break;
-        }
+        assert(version != 0);
     }
+
+    return version;
 }
 
 void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename)
@@ -335,6 +346,10 @@ void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4])
     if (DetectBigEndian())
     {
         EndianConversion32(v, vlen);
+    }
+    else
+    {
+        // match webclient
         EndianConversion32(key, 4);
     }
 
@@ -358,6 +373,9 @@ void xxteaEncrypt(uint32_t* v, uint32_t vlen, uint32_t key[4])
     if (DetectBigEndian())
     {
         EndianConversion32(v, vlen);
+    }
+    else
+    {
         EndianConversion32(key, 4);
     }
 }
@@ -367,6 +385,9 @@ void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4])
     if (DetectBigEndian())
     {
         EndianConversion32(v, vlen);
+    }
+    else
+    {
         EndianConversion32(key, 4);
     }
     uint32_t n = vlen - 1;
@@ -387,6 +408,9 @@ void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4])
     if (DetectBigEndian())
     {
         EndianConversion32(v, vlen);
+    }
+    else
+    {
         EndianConversion32(key, 4);
     }
 }
@@ -562,7 +586,7 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
         {
             return true;
         } 
-        if (vp.width != precomputedMediaInfoLibVersion)
+        if (vp.width != GetMediaInfoVersion())
         {
             return true;
         }
@@ -704,7 +728,7 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
                 width = vw.To_int32u();
                 height = vh.To_int32u();
                 fps = vr.To_int32u();
-                playtime = (coalesce(gd.To_int32u(), coalesce(vd.To_int32u(), ad.To_int32u())) + 500) / 1000;  // converting ms to sec
+                playtime = (coalesce(gd.To_int32u(), coalesce(vd.To_int32u(), ad.To_int32u()))) / 1000;
                 videocodecNames = vci.To_Local();
                 videocodecFormat = vcf.To_Local();
                 audiocodecNames = aci.To_Local();
@@ -773,7 +797,7 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
         LOG_warn << "mediainfo failed to extract media information for this file";
         shortformat = 255;                                  // mediaInfo could not fully identify this file.  Maybe a later version can.
         fps = MEDIA_INFO_BUILD;                             // updated when we change relevant things in this executable
-        width = mediaInfo.precomputedMediaInfoLibVersion;   // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
+        width = GetMediaInfoVersion();                      // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
         height = 0;
         playtime = mediaInfo.downloadedCodecMapsVersion;    // updated when we add more codec names etc
     }
