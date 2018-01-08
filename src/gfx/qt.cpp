@@ -35,6 +35,7 @@ extern "C" {
 #include <libswscale/swscale.h>
 #include <libavutil/avutil.h>
 #include <libavutil/mathematics.h>
+#include <libavutil/display.h>
 }
 #endif
 
@@ -779,9 +780,34 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                         return NULL;
                     }
 
+                    orientation = ROTATION_UP;
+                    uint8_t* displaymatrix = av_stream_get_side_data(videoStream, AV_PKT_DATA_DISPLAYMATRIX, NULL);
+                    if (displaymatrix)
+                    {
+                        double rot = av_display_rotation_get((int32_t*) displaymatrix);
+                        if (!isnan(rot))
+                        {
+                            if (rot < -135 || rot > 135)
+                            {
+                                orientation = ROTATION_DOWN;
+                            }
+                            else if (rot < -45)
+                            {
+                                orientation = ROTATION_LEFT;
+                                width = codecContext.height;
+                                height = codecContext.width;
+                            }
+                            else if (rot > 45)
+                            {
+                                orientation = ROTATION_RIGHT;
+                                width = codecContext.height;
+                                height = codecContext.width;
+                            }
+                        }
+                    }
+
                     w = width;
                     h = height;
-                    orientation = -1;
                     buffer->seek(0);
                     QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
                     LOG_debug << "Video image ready";
