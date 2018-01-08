@@ -599,7 +599,7 @@ const char *GfxProcQT::supportedformatsQT()
 
 const char *GfxProcQT::supportedformatsFfmpeg()
 {
-    return  ".264.265.3g2.3gp.3gpa.3gpp.3gpp2"
+    return  ".264.265.3g2.3gp.3gpa.3gpp.3gpp2.mp3"
             ".avi.dde.divx.evo.f4v.flv.gvi.h261.h263.h264.h265.hevc"
             ".ismt.ismv.ivf.jpm.k3g.m1v.m2p.m2s.m2t.m2v.m4s.m4t.m4v.mac.mkv.mk3d"
             ".mks.mov.mp1v.mp2v.mp4.mp4v.mpeg.mpg.mpgv.mpv.mqv.ogm.ogv"
@@ -716,7 +716,8 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     //int64_t seek_target = av_rescale_q(frametimestamp, av_get_time_base_q(), videoStream->time_base);
 
     int64_t seek_target = videoStream->duration / 5; // 20% of the duration, like the webclient
-    if (av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
+    if (!imagePath.endsWith(QString::fromUtf8(".mp3"), Qt::CaseInsensitive)
+            && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
         av_frame_free(&videoFrame);
