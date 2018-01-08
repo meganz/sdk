@@ -1873,92 +1873,89 @@ void MegaClient::exec()
                     syncextraretry = false;
                 }
 
-                if (!syncnagleretry)
+                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
-                    for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                    if (!syncfsopsfailed)
                     {
-                        if (!syncfsopsfailed)
+                        syncfslockretry = false;
+
+                        // not retrying local operations: process pending notifyqs
+                        for (it = syncs.begin(); it != syncs.end(); )
                         {
-                            syncfslockretry = false;
+                            Sync* sync = *it++;
 
-                            // not retrying local operations: process pending notifyqs
-                            for (it = syncs.begin(); it != syncs.end(); )
+                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
                             {
-                                Sync* sync = *it++;
+                                delete sync;
+                                continue;
+                            }
+                            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                            {
+                                // process items from the notifyq until depleted
+                                if (sync->dirnotify->notifyq[q].size())
+                                {
+                                    dstime dsretry;
 
-                                if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
-                                {
-                                    delete sync;
-                                    continue;
-                                }
-                                else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                                {
-                                    // process items from the notifyq until depleted
-                                    if (sync->dirnotify->notifyq[q].size())
+                                    syncops = true;
+
+                                    if ((dsretry = sync->procscanq(q)))
                                     {
-                                        dstime dsretry;
-
-                                        syncops = true;
-
-                                        if ((dsretry = sync->procscanq(q)))
+                                        // we resume processing after dsretry has elapsed
+                                        // (to avoid open-after-creation races with e.g. MS Office)
+                                        if (EVER(dsretry))
                                         {
-                                            // we resume processing after dsretry has elapsed
-                                            // (to avoid open-after-creation races with e.g. MS Office)
-                                            if (EVER(dsretry))
+                                            if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
                                             {
-                                                if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
-                                                {
-                                                    syncnaglebt.backoff(dsretry + 1);
-                                                }
-
-                                                syncnagleretry = true;
-                                            }
-                                            else
-                                            {
-                                                if (syncnagleretry)
-                                                {
-                                                    syncnaglebt.arm();
-                                                }
-                                                syncactivity = true;
+                                                syncnaglebt.backoff(dsretry + 1);
                                             }
 
-                                            if (syncadding)
-                                            {
-                                                break;
-                                            }
+                                            syncnagleretry = true;
                                         }
                                         else
                                         {
-                                            LOG_debug << "Pending MEGA nodes: " << synccreate.size();
-                                            if (!syncadding)
+                                            if (syncnagleretry)
                                             {
-                                                LOG_debug << "Running syncup to create missing folders";
-                                                syncup(&sync->localroot, &nds);
-                                                sync->cachenodes();
+                                                syncnaglebt.arm();
                                             }
+                                            syncactivity = true;
+                                        }
 
-                                            // we interrupt processing the notifyq if the completion
-                                            // of a node creation is required to continue
+                                        if (syncadding)
+                                        {
                                             break;
                                         }
                                     }
-
-                                    if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                    else
                                     {
-                                        sync->changestate(SYNC_ACTIVE);
+                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
+                                        if (!syncadding)
+                                        {
+                                            LOG_debug << "Running syncup to create missing folders";
+                                            syncup(&sync->localroot, &nds);
+                                            sync->cachenodes();
+                                        }
 
-                                        // scan for items that were deleted while the sync was stopped
-                                        // FIXME: defer this until RETRY queue is processed
-                                        sync->scanseqno++;
-                                        sync->deletemissing(&sync->localroot);
+                                        // we interrupt processing the notifyq if the completion
+                                        // of a node creation is required to continue
+                                        break;
                                     }
                                 }
-                            }
 
-                            if (syncadding)
-                            {
-                                break;
+                                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                {
+                                    sync->changestate(SYNC_ACTIVE);
+
+                                    // scan for items that were deleted while the sync was stopped
+                                    // FIXME: defer this until RETRY queue is processed
+                                    sync->scanseqno++;
+                                    sync->deletemissing(&sync->localroot);
+                                }
                             }
+                        }
+
+                        if (syncadding)
+                        {
+                            break;
                         }
                     }
                 }
@@ -2100,7 +2097,11 @@ void MegaClient::exec()
 
                             if (EVER(nds))
                             {
-                                syncnaglebt.backoff(nds - Waiter::ds);
+                                if (!syncnagleretry || (nds - Waiter::ds) < syncnaglebt.backoffdelta())
+                                {
+                                    syncnaglebt.backoff(nds - Waiter::ds);
+                                }
+
                                 syncnagleretry = true;
                                 syncuprequired = true;
                             }
@@ -10925,6 +10926,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
 
             LOG_verbose << "Unsynced LocalNode (file): " << ll->name << " " << ll << " " << (ll->transfer != 0);
+            ll->treestate(TREESTATE_PENDING);
 
             if (Waiter::ds < ll->nagleds)
             {
@@ -10938,6 +10940,70 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
             else
             {
+                Node *currentVersion = ll->node;
+                if (currentVersion)
+                {
+                    m_time_t delay = 0;
+                    m_time_t currentTime = time(NULL);
+                    if (currentVersion->ctime > currentTime + 30)
+                    {
+                        // with more than 30 seconds of detecteed clock drift,
+                        // we don't apply any version rate control for now
+                        LOG_err << "Incorrect local time detected";
+                    }
+                    else
+                    {
+                        int recentVersions = 0;
+                        m_time_t startInterval = currentTime - Sync::RECENT_VERSION_INTERVAL_SECS;
+                        Node *version = currentVersion;
+                        while (true)
+                        {
+                            if (version->ctime < startInterval)
+                            {
+                                break;
+                            }
+
+                            recentVersions++;
+                            if (!version->children.size())
+                            {
+                                break;
+                            }
+
+                            version = version->children.back();
+                        }
+
+                        if (recentVersions > 10)
+                        {
+                            // version rate control starts with more than 10 recent versions
+                            delay = 7 * (recentVersions / 10) * (recentVersions - 10);
+                        }
+
+                        LOG_debug << "Number of recent versions: " << recentVersions << " delay: " << delay
+                                  << " prev: " << currentVersion->ctime << " current: " << currentTime;
+                    }
+
+                    if (delay)
+                    {
+                        m_time_t next = currentVersion->ctime + delay;
+                        if (next > currentTime)
+                        {
+                            dstime backoffds = (next - currentTime) * 10;
+                            ll->nagleds = waiter->ds + backoffds;
+                            LOG_debug << "Waiting for the version rate limit delay during " << backoffds << " ds";
+
+                            if (ll->nagleds < *nds)
+                            {
+                                *nds = ll->nagleds;
+                            }
+                            continue;
+                        }
+                        else
+                        {
+                            LOG_debug << "Version rate limit delay already expired";
+                        }
+                    }
+                }
+
                 string localpath;
                 bool t;
                 FileAccess* fa = fsaccess->newfileaccess();
