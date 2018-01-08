@@ -574,7 +574,7 @@ QImage GfxProcQT::resizebitmapQT(QImageReader *image, int orientation, int w, in
 
 const char *GfxProcQT::supportedformatsQT()
 {
-    if(!formatstring)
+    if (!formatstring)
     {
         formatstring = new QByteArray(".");
         QList<QByteArray> formats = QImageReader::supportedImageFormats();
@@ -846,6 +846,14 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
 const char *GfxProcQT::supportedformats()
 {
     return supportedformatsQT();
+}
+
+const char *GfxProcQT::supportedvideoformats()
+{
+#ifdef HAVE_FFMPEG
+    return supportedformatsFfmpeg();
+#endif
+    return NULL;
 }
 
 } // namespace

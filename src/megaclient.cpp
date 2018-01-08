@@ -10729,7 +10729,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                         missingattr |= 1 << GfxProc::PREVIEW;
                                     }
 
-                                    if (missingattr && checkaccess(ll->node, OWNER))
+                                    if (missingattr && checkaccess(ll->node, OWNER)
+                                            && !gfx->isvideo(&ll->localname))
                                     {
                                         char me64[12];
                                         Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);

@@ -77,6 +77,7 @@ protected:
 #endif
 
     const char* supportedformats();
+    const char* supportedvideoformats();
 
 public:
     static int getExifOrientation(QString &filePath);

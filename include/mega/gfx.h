@@ -44,9 +44,15 @@ protected:
     // list of supported extensions (NULL if no pre-filtering is needed)
     virtual const char* supportedformats();
 
+    // list of supported video extensions (NULL if no pre-filtering is needed)
+    virtual const char* supportedvideoformats();
+
 public:
-    // check whether the filename looks like a supported image type
+    // check whether the filename looks like a supported media type
     bool isgfx(string*);
+
+    // check whether the filename looks like a video
+    bool isvideo(string*);
 
     // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
     // handle is uploadhandle or nodehandle
