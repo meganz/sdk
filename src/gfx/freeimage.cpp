@@ -80,8 +80,6 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
     if (fif == FIF_JPEG)
     {
         // load JPEG (scale & EXIF-rotate)
-        FITAG *tag;
-
         if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*) localname->data(),
                                     JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
         {

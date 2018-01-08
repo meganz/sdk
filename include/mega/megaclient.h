@@ -311,6 +311,9 @@ public:
     // delete node
     error unlink(Node*, bool = false);
 
+    // delete all versions
+    void unlinkversions();
+
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
@@ -1268,7 +1271,11 @@ public:
     // achievements enabled for the account
     bool achievements_enabled;
 
+    // non-zero if login with user+pwd was done (reset upon fetchnodes completion)
     bool tsLogin;
+
+    // true if user has disabled fileversioning
+    bool versions_disabled;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

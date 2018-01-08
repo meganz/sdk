@@ -2291,7 +2291,7 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
         return CURL_SEEKFUNC_FAIL;
     }
 
-    if (newoffset > totalsize || newoffset < 0)
+    if (newoffset > (int) totalsize || newoffset < 0)
     {
         LOG_err << "Invalid offset " << origin << " " << offset << " " << totalsize
                 << " " << req->outbuf << " " << newoffset;
@@ -2400,7 +2400,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
     return CURLE_OK;
 }
 
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER) || defined (OPENSSL_IS_BORINGSSL)
    #define X509_STORE_CTX_get0_cert(ctx) (ctx->cert)
    #define X509_STORE_CTX_get0_untrusted(ctx) (ctx->untrusted)
    #define EVP_PKEY_get0_DSA(_pkey_) ((_pkey_)->pkey.dsa)
