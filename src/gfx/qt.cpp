@@ -747,7 +747,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     int frameExtracted  = 0;
 
     // Read frames until succesfull decodification or reach limit of 220 frames
-    while (av_read_frame(formatContext, &packet) >= 0 && actualNumFrames < 220)
+    while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
     {
        if (packet.stream_index == videoStream->index)
        {
@@ -755,7 +755,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
            if (frameExtracted && decodedBytes >= 0)
            {
                 scalingResult = sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
-                                     0, codecContext.height, targetFrame->data,targetFrame->linesize);
+                                     0, codecContext.height, targetFrame->data, targetFrame->linesize);
 
                 if (scalingResult > 0)
                 {
