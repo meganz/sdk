@@ -589,6 +589,13 @@ const char *GfxProcQT::supportedformatsQT()
 }
 
 #ifdef HAVE_FFMPEG
+
+#ifdef AV_CODEC_CAP_TRUNCATED
+#define CAP_TRUNCATED AV_CODEC_CAP_TRUNCATED
+#else
+#define CAP_TRUNCATED CODEC_CAP_TRUNCATED
+#endif
+
 const char *GfxProcQT::supportedformatsFfmpeg()
 {
     return  ".264.265.3g2.3gp.3gpa.3gpp.3gpp2"
@@ -674,9 +681,9 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     // Force seeking to key frames
     formatContext->seek2any = false;
     videoStream->skip_to_keyframe = true;
-    if (decoder->capabilities & CODEC_CAP_TRUNCATED)
+    if (decoder->capabilities & CAP_TRUNCATED)
     {
-        codecContext.flags |= CODEC_FLAG_TRUNCATED;
+        codecContext.flags |= CAP_TRUNCATED;
     }
 
     // Open codec
