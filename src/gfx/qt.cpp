@@ -720,9 +720,9 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     {
         LOG_warn << "Error seeking video";
         av_frame_free(&videoFrame);
+        avpicture_free((AVPicture *)targetFrame);
         av_frame_free(&targetFrame);
         avcodec_close(&codecContext);
-        avpicture_free((AVPicture *)targetFrame);      
         sws_freeContext(swsContext);
         avformat_free_context(formatContext);
         return NULL;
