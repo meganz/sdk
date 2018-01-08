@@ -10536,8 +10536,8 @@ void MegaApiImpl::notify_confirmation(const char *email)
 
 void MegaApiImpl::notify_disconnect()
 {
-    //MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DISCONNECT);
-    //fireOnEvent(event);
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DISCONNECT);
+    fireOnEvent(event);
 }
 
 void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
@@ -15017,9 +15017,6 @@ void MegaApiImpl::sendPendingRequests()
                 LOG_debug << "Using MEGA DNS servers " << servers;
                 httpio->setdnsservers(servers.c_str());
 #endif
-
-                MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_DISCONNECT);
-                fireOnEvent(event);
             }
 
 			fireOnRequestFinish(request, MegaError(API_OK));
