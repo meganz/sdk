@@ -713,10 +713,18 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     // Calculation of seeking point. We need to rescale time units (seconds) to AVStream.time_base units to perform the seeking
     // Timestamp in streams are measured in frames rather than seconds
     //int64_t frametimestamp = (int64_t)(5 * AV_TIME_BASE);  // Seek five seconds from the beginning
-    //int64_t seek_target = av_rescale_q(frametimestamp, av_get_time_base_q(), videoStream->time_base);
 
-    int64_t seek_target = videoStream->duration / 5; // 20% of the duration, like the webclient
-    if (!imagePath.endsWith(QString::fromUtf8(".mp3"), Qt::CaseInsensitive)
+    int64_t seek_target = 0;
+    if (videoStream->duration != AV_NOPTS_VALUE)
+    {
+        seek_target = videoStream->duration / 5;
+    }
+    else
+    {
+        seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
+    }
+
+    if (!imagePath.endsWith(QString::fromUtf8(".mp3"), Qt::CaseInsensitive) && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
