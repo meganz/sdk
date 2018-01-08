@@ -613,7 +613,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     if (avformat_open_input(&formatContext, imagePath.toUtf8().constData(), NULL, NULL))
     {
         LOG_warn << "Error opening video: " << imagePath;
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -621,7 +621,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     if (avformat_find_stream_info(formatContext, NULL))
     {
         LOG_warn << "Stream info not found: " << imagePath;
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -641,7 +641,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     if (!videoStream)
     {
         LOG_warn << "Video stream not found: " << imagePath;
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -652,7 +652,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     if (width <= 0 || height <= 0)
     {
         LOG_warn << "Invalid video dimensions: " << width << ", " << height;
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -664,7 +664,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     if (!swsContext)
     {
         LOG_warn << "SWS Context not found: " << sourcePixelFormat;
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -675,7 +675,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     {
         LOG_warn << "Codec not found: " << codecId;
         sws_freeContext(swsContext);
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -692,7 +692,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     {
         LOG_warn << "Error opening codec: " << codecId;
         sws_freeContext(swsContext);
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -706,7 +706,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         av_frame_free(&targetFrame);
         avcodec_close(&codecContext);
         sws_freeContext(swsContext);
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -724,7 +724,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         av_frame_free(&targetFrame);
         avcodec_close(&codecContext);
         sws_freeContext(swsContext);
-        avformat_free_context(formatContext);
+        avformat_close_input(&formatContext);
         return NULL;
     }
 
@@ -762,7 +762,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                         avpicture_free((AVPicture *)targetFrame);
                         av_frame_free(&targetFrame);
                         sws_freeContext(swsContext);
-                        avformat_free_context(formatContext);
+                        avformat_close_input(&formatContext);
                         return NULL;
                     }
 
@@ -776,7 +776,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                         avpicture_free((AVPicture *)targetFrame);
                         av_frame_free(&targetFrame);
                         sws_freeContext(swsContext);
-                        avformat_free_context(formatContext);
+                        avformat_close_input(&formatContext);
                         return NULL;
                     }
 
@@ -818,7 +818,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                     avpicture_free((AVPicture *)targetFrame);
                     av_frame_free(&targetFrame);
                     sws_freeContext(swsContext);
-                    avformat_free_context(formatContext);
+                    avformat_close_input(&formatContext);
                     return imageReader;
                 }
            }
@@ -836,7 +836,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     avpicture_free((AVPicture *)targetFrame);
     av_frame_free(&targetFrame);
     sws_freeContext(swsContext);
-    avformat_free_context(formatContext);
+    avformat_close_input(&formatContext);
     return NULL;
 }
 
