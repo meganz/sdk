@@ -27,7 +27,6 @@
 
 #ifdef USE_MEDIAINFO
 #include "MediaInfo/MediaInfo.h"
-#include "MediaInfo/MediaInfo_Config.h"
 #include "ZenLib/Ztring.h"
 #endif
 
@@ -44,6 +43,22 @@ MediaFileInfo::MediaFileInfo()
     , mediaCodecsFailed(false)
     , downloadedCodecMapsVersion(0)
 {
+    precomputedMediaInfoLibVersion = 0;
+
+    std::string s = ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local();   // eg. __T("MediaInfoLib - v17.10")
+    unsigned column = 1;
+    for (unsigned i = s.size(); i--; )
+    {
+        if (isdigit(s[i]))
+        {
+            precomputedMediaInfoLibVersion += column * (s[i] - '0');
+            column *= 10;
+        }
+        else if (s[i] != '.')
+        {
+            break;
+        }
+    }
 }
 
 void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename)
@@ -536,29 +551,6 @@ static inline uint32_t coalesce(uint32_t a, uint32_t b)
     return a != 0 ? a : b;
 }
 
-static unsigned MediaInfoLibVersion()
-{
-    std::string s = MediaInfoLib::MediaInfo_Config().Info_Version_Get().To_Local();   // eg. __T("MediaInfoLib - v17.10")
-    unsigned version = 0, column = 1;
-    for (unsigned i = s.size(); i--; )
-    {
-        if (isdigit(s[i]))
-        {
-            version = version + column * (s[i] - '0');
-            column *= 10;
-        }
-        else if (s[i] != '.')
-        {
-            break;
-        }
-    }
-    return version;
-}
-
-static unsigned PrecomputedMediaInfoLibVersion = MediaInfoLibVersion();
-
-
-
 bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileattributes, uint32_t fakey[4])
 {
     // Check if we should retry video property extraction, due to previous failure with older library
@@ -570,7 +562,7 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
         {
             return true;
         } 
-        if (vp.width != PrecomputedMediaInfoLibVersion)
+        if (vp.width != precomputedMediaInfoLibVersion)
         {
             return true;
         }
@@ -593,7 +585,6 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
     m_off_t filesize = fa->size; 
 
     size_t totalBytesRead = 0, jumps = 0;
-    auto t = GetTickCount();
 
     size_t opened = mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
@@ -782,7 +773,7 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
         LOG_warn << "mediainfo failed to extract media information for this file";
         shortformat = 255;                                  // mediaInfo could not fully identify this file.  Maybe a later version can.
         fps = MEDIA_INFO_BUILD;                             // updated when we change relevant things in this executable
-        width = PrecomputedMediaInfoLibVersion;             // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
+        width = mediaInfo.precomputedMediaInfoLibVersion;   // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
         height = 0;
         playtime = mediaInfo.downloadedCodecMapsVersion;    // updated when we add more codec names etc
     }
