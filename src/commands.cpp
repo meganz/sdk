@@ -2549,6 +2549,19 @@ void CommandPutUA::procresult()
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
+
+        if (at == ATTR_DISABLE_VERSIONS)
+        {
+            client->versions_disabled = (av == "1");
+            if (client->versions_disabled)
+            {
+                LOG_info << "File versioning is disabled";
+            }
+            else
+            {
+                LOG_info << "File versioning is enabled";
+            }
+        }
     }
 
     client->app->putua_result(e);
@@ -2582,6 +2595,12 @@ void CommandGetUA::procresult()
             client->initializekeys(); // we have now all the required data
         }
 #endif
+        // if the attr does not exist, initialize it
+        if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
+        {
+            LOG_info << "File versioning is enabled";
+            client->versions_disabled = false;
+        }
         return;
     }
     else
@@ -2699,6 +2718,19 @@ void CommandGetUA::procresult()
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
+
+                            if (at == ATTR_DISABLE_VERSIONS)
+                            {
+                                client->versions_disabled = !strcmp(value.data(), "1");
+                                if (client->versions_disabled)
+                                {
+                                    LOG_info << "File versioning is disabled";
+                                }
+                                else
+                                {
+                                    LOG_info << "File versioning is enabled";
+                                }
+                            }
                             break;
 
                         default:    // legacy attributes or unknown attribute
@@ -2762,7 +2794,7 @@ void CommandDelUA::procresult()
         {
             User *u = client->ownuser();
             attr_t at = User::string2attr(an.c_str());
-            u->invalidateattr(at);
+            u->removeattr(at);
 
 #ifdef ENABLE_CHAT
             if (at == ATTR_KEYRING)

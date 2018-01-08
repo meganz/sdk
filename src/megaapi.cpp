@@ -2657,6 +2657,16 @@ void MegaApi::getLanguagePreference(MegaRequestListener *listener)
     pImpl->getLanguagePreference(listener);
 }
 
+void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
+{
+    pImpl->setFileVersionsOption(disable, listener);
+}
+
+void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
+{
+    pImpl->getFileVersionsOption(listener);
+}
+
 void MegaApi::retrySSLerrors(bool enable)
 {
     pImpl->retrySSLerrors(enable);

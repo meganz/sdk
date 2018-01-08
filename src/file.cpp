@@ -303,16 +303,24 @@ void File::completed(Transfer* t, LocalNode* l)
 #ifdef ENABLE_SYNC            
             if (l)
             {
-                // tag the previous version in the synced folder (if any)
+                // tag the previous version in the synced folder (if any) or move to SyncDebris
                 if (l->node && l->node->parent && l->node->parent->localnode)
                 {
-                    newnode->ovhandle = l->node->nodehandle;
+                    if (t->client->versions_disabled)
+                    {
+                        t->client->movetosyncdebris(l->node, l->sync->inshare);
+                        t->client->execsyncdeletions();
+                    }
+                    else
+                    {
+                        newnode->ovhandle = l->node->nodehandle;
+                    }
                 }
 
                 t->client->syncadding++;
             }
 #endif
-            if (ISUNDEF(newnode->ovhandle))
+            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
             {
                 newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
             }

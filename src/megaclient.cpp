@@ -822,6 +822,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     asyncfopens = 0;
     achievements_enabled = false;
     tsLogin = false;
+    versions_disabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3129,6 +3130,7 @@ void MegaClient::locallogout()
     cachedscsn = UNDEF;
     achievements_enabled = false;
     tsLogin = false;
+    versions_disabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -4649,6 +4651,21 @@ void MegaClient::sc_userattr()
                         else
                         {
                             u->setChanged(type);
+
+                            // if this attr was just created, add it to cache with empty value and set it as invalid
+                            // (it will allow to detect if the attr exists upon resumption from cache, in case the value wasn't received yet)
+                            if (type == ATTR_DISABLE_VERSIONS && !u->getattr(type))
+                            {
+                                string emptyStr;
+                                u->setattr(type, &emptyStr, &emptyStr);
+                                u->invalidateattr(type);
+                            }
+                        }
+
+                        // silently fetch-upon-update this critical attribute
+                        if (type == ATTR_DISABLE_VERSIONS)
+                        {
+                            getua(u, type, 0);
                         }
                     }
                     u->setTag(0);
@@ -9400,6 +9417,36 @@ void MegaClient::fetchnodes(bool nocache)
 
         app->fetchnodes_result(API_OK);
 
+        // if don't know fileversioning is enabled or disabled...
+        // (it can happen after AP invalidates the attribute, but app is closed before current value is retrieved and cached)
+        User *ownUser = finduser(me);
+        const string *av = ownUser->getattr(ATTR_DISABLE_VERSIONS);
+        if (av)
+        {
+            if (ownUser->isattrvalid((ATTR_DISABLE_VERSIONS)))
+            {
+                versions_disabled = !strcmp(av->c_str(), "1");
+                if (versions_disabled)
+                {
+                    LOG_info << "File versioning is disabled";
+                }
+                else
+                {
+                    LOG_info << "File versioning is enabled";
+                }
+            }
+            else
+            {
+                getua(ownUser, ATTR_DISABLE_VERSIONS, 0);
+                LOG_info << "File versioning option exist but is unknown. Fetching...";
+            }
+        }
+        else    // attribute does not exists
+        {
+            LOG_info << "File versioning is enabled";
+            versions_disabled = false;
+        }
+
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
     }
@@ -9434,6 +9481,10 @@ void MegaClient::fetchnodes(bool nocache)
         }
 #endif
         reqs.add(new CommandFetchNodes(this, nocache));
+
+        char me64[12];
+        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, 0));
     }
 }
 
@@ -11067,10 +11118,17 @@ void MegaClient::syncupdate()
 
                 if (n)
                 {
-                    // overwriting an existing remote node? tag it as the previous version
+                    // overwriting an existing remote node? tag it as the previous version or move to SyncDebris
                     if (l->node && l->node->parent && l->node->parent->localnode)
                     {
-                        nnp->ovhandle = l->node->nodehandle;
+                        if (versions_disabled)
+                        {
+                            movetosyncdebris(l->node, l->sync->inshare);
+                        }
+                        else
+                        {
+                            nnp->ovhandle = l->node->nodehandle;
+                        }
                     }
 
                     // this is a file - copy, use original key & attributes
