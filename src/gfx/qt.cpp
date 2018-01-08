@@ -727,7 +727,9 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     }
 
     AVPacket packet;
-    packet.flags |= AV_PKT_FLAG_KEY;
+    av_init_packet(&packet);
+    packet.data = NULL;
+    packet.size = 0;
 
     int decodedBytes;
     int scalingResult;
@@ -797,7 +799,6 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                     sws_freeContext(swsContext);
                     avformat_free_context(formatContext);
                     return imageReader;
-
                 }
            }
 
