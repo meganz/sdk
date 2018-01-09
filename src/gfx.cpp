@@ -39,7 +39,7 @@ bool GfxProc::isgfx(string* localfilename)
 
     if (!(supported = supportedformats()))
     {
-        return false;
+        return true;
     }
 
     if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
