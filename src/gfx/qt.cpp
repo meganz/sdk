@@ -629,7 +629,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     int videoStreamIdx = 0;
     for (int i = 0; i < formatContext->nb_streams; i++)
     {
-        if (formatContext->streams[i]->codec->codec_type == AVMediaType::AVMEDIA_TYPE_VIDEO)
+        if (formatContext->streams[i]->codec && formatContext->streams[i]->codec->codec_type == AVMediaType::AVMEDIA_TYPE_VIDEO)
         {
             videoStream = formatContext->streams[i];
             videoStreamIdx = i;
