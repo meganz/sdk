@@ -2510,6 +2510,8 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete megaPricing;
     delete achievementsDetails;
     delete [] text;
+    delete stringMap;
+
 #ifdef ENABLE_SYNC
     delete regExp;
 #endif

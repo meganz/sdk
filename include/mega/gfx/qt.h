@@ -31,6 +31,10 @@
 #include <QSize>
 #include <QFile>
 
+#ifdef HAVE_FFMPEG
+#include <mega.h>
+#endif
+
 namespace mega {
 
 // bitmap graphics processor
@@ -50,7 +54,10 @@ class MEGA_API GfxProcQT : public GfxProc
     QImageReader *image;
     QString imagePath;
     int orientation;
+    bool isVideo;
 
+public:
+    GfxProcQT();
     bool readbitmap(FileAccess*, string*, int);
     bool resizebitmap(int, int, string*);
     void freebitmap();
@@ -58,12 +65,19 @@ class MEGA_API GfxProcQT : public GfxProc
 protected:
     static int processEXIF(QByteArray *barr, int itemlen);
     static int processEXIFDir(const char *dirStart, const char *offsetBase, uint32_t size, uint32_t nesting, int MotorolaOrder);
-    static QImageReader *readbitmapQT(int &w, int &h, int &orientation, QString imagePath);
+    static QImageReader *readbitmapQT(int &w, int &h, int &orientation, bool &isVideo, QString imagePath);
     static QImage resizebitmapQT(QImageReader *image, int orientation, int w, int h, int rw, int rh);
     static QByteArray *formatstring;
     static const char* supportedformatsQT();
 
+#ifdef HAVE_FFMPEG
+    static MUTEX_CLASS gfxMutex;
+    static const char* supportedformatsFfmpeg();
+    static QImageReader *readbitmapFfmpeg(int &w, int &h, int &orientation, QString imagePath);
+#endif
+
     const char* supportedformats();
+    const char* supportedvideoformats();
 
 public:
     static int getExifOrientation(QString &filePath);
