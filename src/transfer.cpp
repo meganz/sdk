@@ -944,6 +944,10 @@ void Transfer::complete()
             return failed(API_EREAD);
         }
 
+
+        // prepare file attributes for video/audio files if the file is suitable
+        addAnyMissingMediaFileAttributes(NULL, localfilename);
+
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this);
         return;
