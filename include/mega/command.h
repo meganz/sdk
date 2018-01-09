@@ -226,7 +226,7 @@ class MEGA_API CommandPutUA : public Command
     string av;  // attribute value
 
 public:
-    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int);
 
     void procresult();
 };

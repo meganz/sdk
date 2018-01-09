@@ -382,7 +382,11 @@ void Transfer::failed(error e, dstime timeleft)
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ((*it)->failed(e))
+        if ( (*it)->failed(e)
+                || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
+                    && type == PUT
+                    && slot && slot->tempurl.empty()
+                    && failcount < 16) )
         {
             defer = true;
         }

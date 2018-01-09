@@ -77,7 +77,18 @@ CONFIG(USE_LIBUV) {
 
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO
-    LIBS += -lMediaInfo -lZenLib -lzlibstat
+    LIBS += -lMediaInfo -lZenLib
+}
+
+CONFIG(USE_FFMPEG) {
+    DEFINES += HAVE_FFMPEG
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+
+    unix:!macx {
+        INCLUDEPATH += /usr/include/ffmpeg
+    }
+
+    LIBS += -lavcodec -lavformat -lavutil -lswscale
 }
 
 win32 {

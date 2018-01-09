@@ -823,6 +823,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     asyncfopens = 0;
     achievements_enabled = false;
     tsLogin = false;
+    versions_disabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1873,92 +1874,89 @@ void MegaClient::exec()
                     syncextraretry = false;
                 }
 
-                if (!syncnagleretry)
+                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
                 {
-                    for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                    if (!syncfsopsfailed)
                     {
-                        if (!syncfsopsfailed)
+                        syncfslockretry = false;
+
+                        // not retrying local operations: process pending notifyqs
+                        for (it = syncs.begin(); it != syncs.end(); )
                         {
-                            syncfslockretry = false;
+                            Sync* sync = *it++;
 
-                            // not retrying local operations: process pending notifyqs
-                            for (it = syncs.begin(); it != syncs.end(); )
+                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
                             {
-                                Sync* sync = *it++;
+                                delete sync;
+                                continue;
+                            }
+                            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                            {
+                                // process items from the notifyq until depleted
+                                if (sync->dirnotify->notifyq[q].size())
+                                {
+                                    dstime dsretry;
 
-                                if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED)
-                                {
-                                    delete sync;
-                                    continue;
-                                }
-                                else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                                {
-                                    // process items from the notifyq until depleted
-                                    if (sync->dirnotify->notifyq[q].size())
+                                    syncops = true;
+
+                                    if ((dsretry = sync->procscanq(q)))
                                     {
-                                        dstime dsretry;
-
-                                        syncops = true;
-
-                                        if ((dsretry = sync->procscanq(q)))
+                                        // we resume processing after dsretry has elapsed
+                                        // (to avoid open-after-creation races with e.g. MS Office)
+                                        if (EVER(dsretry))
                                         {
-                                            // we resume processing after dsretry has elapsed
-                                            // (to avoid open-after-creation races with e.g. MS Office)
-                                            if (EVER(dsretry))
+                                            if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
                                             {
-                                                if (!syncnagleretry || (dsretry + 1) < syncnaglebt.backoffdelta())
-                                                {
-                                                    syncnaglebt.backoff(dsretry + 1);
-                                                }
-
-                                                syncnagleretry = true;
-                                            }
-                                            else
-                                            {
-                                                if (syncnagleretry)
-                                                {
-                                                    syncnaglebt.arm();
-                                                }
-                                                syncactivity = true;
+                                                syncnaglebt.backoff(dsretry + 1);
                                             }
 
-                                            if (syncadding)
-                                            {
-                                                break;
-                                            }
+                                            syncnagleretry = true;
                                         }
                                         else
                                         {
-                                            LOG_debug << "Pending MEGA nodes: " << synccreate.size();
-                                            if (!syncadding)
+                                            if (syncnagleretry)
                                             {
-                                                LOG_debug << "Running syncup to create missing folders";
-                                                syncup(&sync->localroot, &nds);
-                                                sync->cachenodes();
+                                                syncnaglebt.arm();
                                             }
+                                            syncactivity = true;
+                                        }
 
-                                            // we interrupt processing the notifyq if the completion
-                                            // of a node creation is required to continue
+                                        if (syncadding)
+                                        {
                                             break;
                                         }
                                     }
-
-                                    if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                    else
                                     {
-                                        sync->changestate(SYNC_ACTIVE);
+                                        LOG_debug << "Pending MEGA nodes: " << synccreate.size();
+                                        if (!syncadding)
+                                        {
+                                            LOG_debug << "Running syncup to create missing folders";
+                                            syncup(&sync->localroot, &nds);
+                                            sync->cachenodes();
+                                        }
 
-                                        // scan for items that were deleted while the sync was stopped
-                                        // FIXME: defer this until RETRY queue is processed
-                                        sync->scanseqno++;
-                                        sync->deletemissing(&sync->localroot);
+                                        // we interrupt processing the notifyq if the completion
+                                        // of a node creation is required to continue
+                                        break;
                                     }
                                 }
-                            }
 
-                            if (syncadding)
-                            {
-                                break;
+                                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                                {
+                                    sync->changestate(SYNC_ACTIVE);
+
+                                    // scan for items that were deleted while the sync was stopped
+                                    // FIXME: defer this until RETRY queue is processed
+                                    sync->scanseqno++;
+                                    sync->deletemissing(&sync->localroot);
+                                }
                             }
+                        }
+
+                        if (syncadding)
+                        {
+                            break;
                         }
                     }
                 }
@@ -2100,7 +2098,11 @@ void MegaClient::exec()
 
                             if (EVER(nds))
                             {
-                                syncnaglebt.backoff(nds - Waiter::ds);
+                                if (!syncnagleretry || (nds - Waiter::ds) < syncnaglebt.backoffdelta())
+                                {
+                                    syncnaglebt.backoff(nds - Waiter::ds);
+                                }
+
                                 syncnagleretry = true;
                                 syncuprequired = true;
                             }
@@ -3134,6 +3136,7 @@ void MegaClient::locallogout()
     cachedscsn = UNDEF;
     achievements_enabled = false;
     tsLogin = false;
+    versions_disabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -4657,6 +4660,21 @@ void MegaClient::sc_userattr()
                         else
                         {
                             u->setChanged(type);
+
+                            // if this attr was just created, add it to cache with empty value and set it as invalid
+                            // (it will allow to detect if the attr exists upon resumption from cache, in case the value wasn't received yet)
+                            if (type == ATTR_DISABLE_VERSIONS && !u->getattr(type))
+                            {
+                                string emptyStr;
+                                u->setattr(type, &emptyStr, &emptyStr);
+                                u->invalidateattr(type);
+                            }
+                        }
+
+                        // silently fetch-upon-update this critical attribute
+                        if (type == ATTR_DISABLE_VERSIONS)
+                        {
+                            getua(u, type, 0);
                         }
                     }
                     u->setTag(0);
@@ -7741,45 +7759,49 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
         avl = data.size();
     }
 
+    int tag = (ctag != -1) ? ctag : reqtag;
     User *u = ownuser();
     assert(u);
     if (!u)
     {
         LOG_err << "Own user not found when attempting to set user attributes";
+        restag = tag;
         app->putua_result(API_EACCESS);
         return;
     }
     int needversion = u->needversioning(at);
     if (needversion == -1)
     {
-        restag = reqtag;
+        restag = tag;
         app->putua_result(API_EARGS);   // attribute not recognized
         return;
     }
 
     if (!needversion)
     {
-        reqs.add(new CommandPutUA(this, at, av, avl));
+        reqs.add(new CommandPutUA(this, at, av, avl, tag));
     }
     else
     {
         // if the cached value is outdated, first need to fetch the latest version
         if (u->getattr(at) && !u->isattrvalid(at))
         {
-            restag = reqtag;
+            restag = tag;
             app->putua_result(API_EEXPIRED);
             return;
         }
-        reqs.add(new CommandPutUAVer(this, at, av, avl, (ctag != -1) ? ctag : reqtag));
+        reqs.add(new CommandPutUAVer(this, at, av, avl, tag));
     }
 }
 
 void MegaClient::putua(userattr_map *attrs, int ctag)
 {
+    int tag = (ctag != -1) ? ctag : reqtag;
     User *u = ownuser();
 
     if (!u || !attrs || !attrs->size())
     {
+        restag = tag;
         return app->putua_result(API_EARGS);
     }
 
@@ -7789,19 +7811,19 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
 
         if (!User::needversioning(type))
         {
-            restag = reqtag;
+            restag = tag;
             return app->putua_result(API_EARGS);
         }
 
         // if the cached value is outdated, first need to fetch the latest version
         if (u->getattr(type) && !u->isattrvalid(type))
         {
-            restag = reqtag;
+            restag = tag;
             return app->putua_result(API_EEXPIRED);
         }
     }
 
-    reqs.add(new CommandPutMultipleUAVer(this, attrs, (ctag != -1) ? ctag : reqtag));
+    reqs.add(new CommandPutMultipleUAVer(this, attrs, tag));
 }
 
 /**
@@ -7818,6 +7840,7 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
     {
         // if we can solve those requests locally (cached values)...
         const string *cachedav = u->getattr(at);
+        int tag = (ctag != -1) ? ctag : reqtag;
 
 #ifdef ENABLE_CHAT
         if (!fetchingkeys && cachedav && u->isattrvalid(at))
@@ -7828,21 +7851,21 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
             if (User::scope(at) == '*') // private attribute, TLV encoding
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
-                restag = reqtag;
+                restag = tag;
                 app->getua_result(tlv);
                 delete tlv;
                 return;
             }
             else
             {
-                restag = reqtag;
+                restag = tag;
                 app->getua_result((byte*) cachedav->data(), cachedav->size());
                 return;
             }
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, (ctag != -1) ? ctag : reqtag));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, tag));
         }
     }
 }
@@ -9403,6 +9426,36 @@ void MegaClient::fetchnodes(bool nocache)
 
         app->fetchnodes_result(API_OK);
 
+        // if don't know fileversioning is enabled or disabled...
+        // (it can happen after AP invalidates the attribute, but app is closed before current value is retrieved and cached)
+        User *ownUser = finduser(me);
+        const string *av = ownUser->getattr(ATTR_DISABLE_VERSIONS);
+        if (av)
+        {
+            if (ownUser->isattrvalid((ATTR_DISABLE_VERSIONS)))
+            {
+                versions_disabled = !strcmp(av->c_str(), "1");
+                if (versions_disabled)
+                {
+                    LOG_info << "File versioning is disabled";
+                }
+                else
+                {
+                    LOG_info << "File versioning is enabled";
+                }
+            }
+            else
+            {
+                getua(ownUser, ATTR_DISABLE_VERSIONS, 0);
+                LOG_info << "File versioning option exist but is unknown. Fetching...";
+            }
+        }
+        else    // attribute does not exists
+        {
+            LOG_info << "File versioning is enabled";
+            versions_disabled = false;
+        }
+
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
     }
@@ -9437,6 +9490,10 @@ void MegaClient::fetchnodes(bool nocache)
         }
 #endif
         reqs.add(new CommandFetchNodes(this, nocache));
+
+        char me64[12];
+        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, 0));
     }
 }
 
@@ -9874,6 +9931,12 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
     else
     {
         it->second->enqueue(offset, count, reqtag, appdata);
+        if (overquotauntil && overquotauntil > Waiter::ds)
+        {
+            dstime timeleft = overquotauntil - Waiter::ds;
+            app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
+            it->second->schedule(timeleft);
+        }
     }
 }
 
@@ -10742,7 +10805,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                         missingattr |= 1 << GfxProc::PREVIEW;
                                     }
 
-                                    if (missingattr && checkaccess(ll->node, OWNER))
+                                    if (missingattr && checkaccess(ll->node, OWNER)
+                                            && !gfx->isvideo(&ll->localname))
                                     {
                                         char me64[12];
                                         Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
@@ -10871,6 +10935,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
 
             LOG_verbose << "Unsynced LocalNode (file): " << ll->name << " " << ll << " " << (ll->transfer != 0);
+            ll->treestate(TREESTATE_PENDING);
 
             if (Waiter::ds < ll->nagleds)
             {
@@ -10884,6 +10949,70 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
             }
             else
             {
+                Node *currentVersion = ll->node;
+                if (currentVersion)
+                {
+                    m_time_t delay = 0;
+                    m_time_t currentTime = time(NULL);
+                    if (currentVersion->ctime > currentTime + 30)
+                    {
+                        // with more than 30 seconds of detecteed clock drift,
+                        // we don't apply any version rate control for now
+                        LOG_err << "Incorrect local time detected";
+                    }
+                    else
+                    {
+                        int recentVersions = 0;
+                        m_time_t startInterval = currentTime - Sync::RECENT_VERSION_INTERVAL_SECS;
+                        Node *version = currentVersion;
+                        while (true)
+                        {
+                            if (version->ctime < startInterval)
+                            {
+                                break;
+                            }
+
+                            recentVersions++;
+                            if (!version->children.size())
+                            {
+                                break;
+                            }
+
+                            version = version->children.back();
+                        }
+
+                        if (recentVersions > 10)
+                        {
+                            // version rate control starts with more than 10 recent versions
+                            delay = 7 * (recentVersions / 10) * (recentVersions - 10);
+                        }
+
+                        LOG_debug << "Number of recent versions: " << recentVersions << " delay: " << delay
+                                  << " prev: " << currentVersion->ctime << " current: " << currentTime;
+                    }
+
+                    if (delay)
+                    {
+                        m_time_t next = currentVersion->ctime + delay;
+                        if (next > currentTime)
+                        {
+                            dstime backoffds = (next - currentTime) * 10;
+                            ll->nagleds = waiter->ds + backoffds;
+                            LOG_debug << "Waiting for the version rate limit delay during " << backoffds << " ds";
+
+                            if (ll->nagleds < *nds)
+                            {
+                                *nds = ll->nagleds;
+                            }
+                            continue;
+                        }
+                        else
+                        {
+                            LOG_debug << "Version rate limit delay already expired";
+                        }
+                    }
+                }
+
                 string localpath;
                 bool t;
                 FileAccess* fa = fsaccess->newfileaccess();
@@ -11064,10 +11193,17 @@ void MegaClient::syncupdate()
 
                 if (n)
                 {
-                    // overwriting an existing remote node? tag it as the previous version
+                    // overwriting an existing remote node? tag it as the previous version or move to SyncDebris
                     if (l->node && l->node->parent && l->node->parent->localnode)
                     {
-                        nnp->ovhandle = l->node->nodehandle;
+                        if (versions_disabled)
+                        {
+                            movetosyncdebris(l->node, l->sync->inshare);
+                        }
+                        else
+                        {
+                            nnp->ovhandle = l->node->nodehandle;
+                        }
                     }
 
                     // this is a file - copy, use original key & attributes

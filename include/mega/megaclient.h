@@ -1276,7 +1276,11 @@ public:
     // achievements enabled for the account
     bool achievements_enabled;
 
+    // non-zero if login with user+pwd was done (reset upon fetchnodes completion)
     bool tsLogin;
+
+    // true if user has disabled fileversioning
+    bool versions_disabled;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
