@@ -577,6 +577,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
         if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((time(NULL) - startTime) > maxSeconds)))
         {
             LOG_warn << "could not extract mediainfo data within reasonable limits";
+            mi.Open_Buffer_Finalize();
             fa->closef();
             return false;
         }
@@ -584,6 +585,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
         if (!fa->frawread(buf, n, readpos))
         {
             LOG_err << "could not read local file";
+            mi.Open_Buffer_Finalize();
             fa->closef();
             return false;
         }
