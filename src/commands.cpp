@@ -5570,7 +5570,8 @@ CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 {
     cmd("mc");
 
-    tag = c->reqtag;
+    // This command is for internal usage only
+    tag = 0;
 
     client = c;
     callback = cb;
