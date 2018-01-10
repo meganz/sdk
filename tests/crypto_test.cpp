@@ -112,7 +112,6 @@ TEST(Crypto, xxTea)
             ASSERT_TRUE(data2[i] == uint32_t(-(int)i));
         }
     }
-
 }
 
 

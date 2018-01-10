@@ -35,7 +35,6 @@ void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4]);
 struct MEGA_API MediaFileInfo;
 struct MEGA_API FileSystemAccess;
 
-
 struct MEGA_API MediaProperties
 {
     byte shortformat;
@@ -52,7 +51,6 @@ struct MEGA_API MediaProperties
     uint32_t containerid;
     uint32_t videocodecid;
     uint32_t audiocodecid;
-
     bool is_VFR;
     bool no_audio;
 
@@ -110,7 +108,6 @@ struct MEGA_API MediaFileInfo
     unsigned Lookup(const std::string& name, std::map<std::string, unsigned>& data, unsigned notfoundvalue);
     byte LookupShortFormat(unsigned containerid, unsigned videocodecid, unsigned audiocodecid);
 
-    
     // In case we don't have the MediaCodecs yet, remember the media attributes until we can add them to the file.
     struct queuedvp;
     std::vector< queuedvp > queuedForDownloadTranslation;
@@ -137,17 +134,15 @@ struct MEGA_API MediaFileInfo
 
 struct MediaFileInfo::queuedvp
 {
-    // for a download it is the handle of the node of the file.  For uploads that doens't exist yet and it is the uploadHandle of the transfer; 
+    // for a download it is the handle of the node of the file.  For uploads that doesn't exist yet and it is the uploadHandle of the transfer
     ::mega::handle handle;
 
-    // The properties to upload.   These still need translation from strings to enums, plus file attribute encoding and encryption with XXTEA
+    // The properties to upload. These still need translation from strings to enums, plus file attribute encoding and encryption with XXTEA
     MediaProperties vp;
 
     // the key to use for XXTEA encryption (which is not the same as the file data key)
     uint32_t fakey[4];
 };
-
-
 
 } // namespace
 

@@ -891,16 +891,13 @@ public:
 class MEGA_API CommandMediaCodecs : public Command
 {
 public:
-
     typedef void(*Callback)(MegaClient* client, int codecListVersion);
-
     void procresult();
 
     CommandMediaCodecs(MegaClient*, Callback );
 
 private:
     Callback callback;
-
 };
 
 } // namespace

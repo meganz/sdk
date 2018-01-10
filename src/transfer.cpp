@@ -438,13 +438,11 @@ void Transfer::failed(error e, dstime timeleft)
     }
 }
 
-
 static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
 {
     // returns the last half, beyond the actual key, ie the nonce+crc
     return (uint32_t*)(filekey + FILENODEKEYLENGTH / 2);
 }
-
 
 void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath)
 {
@@ -469,7 +467,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
             MediaProperties vp;
             vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess);
 
-            if ((type == PUT))
+            if (type == PUT)
             {
                 minfa += client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle);
             }
@@ -484,7 +482,6 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
     localpath;
 #endif
 }
-
 
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files

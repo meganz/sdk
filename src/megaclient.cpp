@@ -2846,7 +2846,7 @@ bool MegaClient::dispatch(direction_t d)
                         continue;
                     }
 
-                    // create thumbnail/preview imagery or video/audio attributes, if applicable (FIXME: do not re-create upon restart)
+                    // create thumbnail/preview imagery, if applicable (FIXME: do not re-create upon restart)
                     if (nexttransfer->localfilename.size() && !nexttransfer->uploadhandle)
                     {
                         nexttransfer->uploadhandle = getuploadhandle();
