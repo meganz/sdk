@@ -77,7 +77,13 @@ CONFIG(USE_LIBUV) {
 
 CONFIG(USE_MEDIAINFO) {
     DEFINES += USE_MEDIAINFO
-    LIBS += -lMediaInfo -lZenLib
+
+    win32 {
+        LIBS += -lMediaInfo -lZenLib -lzlibstat
+    }
+    else {
+        LIBS += -lmediainfo -lzen -lz
+    }
 }
 
 CONFIG(USE_FFMPEG) {
@@ -331,6 +337,8 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
 
    CONFIG(USE_PCRE) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
