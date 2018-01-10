@@ -458,7 +458,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
         // for upload, the key is in the transfer.  for download, the key is in the node.
         uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey.data());
 
-        if (type == PUT || !node->hasfileattribute(8) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
+        if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
         {
             // if we don't have the codec id mappings yet, send the request
             client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
