@@ -574,7 +574,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
             break;
         }
 
-        if (totalBytesRead > maxBytesToRead || startTime != 0 && (time(NULL)-startTime > maxSeconds))
+        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((time(NULL) - startTime) > maxSeconds)))
         {
             LOG_warn << "could not extract mediainfo data within reasonable limits";
             fa->closef();
