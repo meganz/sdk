@@ -450,7 +450,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
 
 #ifdef USE_MEDIAINFO
     char ext[8];
-    if ((type == PUT || (node && node->nodekey.size() == FILENODEKEYLENGTH)) &&
+    if (((type == PUT && size >= 16) || (node && node->nodekey.size() == FILENODEKEYLENGTH && node->size >= 16)) &&
         client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
         MediaProperties::isMediaFilenameExt(ext) &&
         !client->mediaFileInfo.mediaCodecsFailed)
