@@ -36,14 +36,6 @@ namespace mega {
 
 #ifdef USE_MEDIAINFO
 
-MediaFileInfo::MediaFileInfo()
-    : mediaCodecsRequested(false)
-    , mediaCodecsReceived(false)
-    , mediaCodecsFailed(false)
-    , downloadedCodecMapsVersion(0)
-{
-}
-
 uint32_t GetMediaInfoVersion()
 {
     static uint32_t version = 0;
@@ -70,6 +62,15 @@ uint32_t GetMediaInfoVersion()
     return version;
 }
 
+MediaFileInfo::MediaFileInfo()
+    : mediaCodecsRequested(false)
+    , mediaCodecsReceived(false)
+    , mediaCodecsFailed(false)
+    , downloadedCodecMapsVersion(0)
+{
+    LOG_debug << "MediaInfo version: " << GetMediaInfoVersion();
+}
+
 void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename)
 {
     if (!mediaCodecsRequested)
@@ -84,6 +85,7 @@ void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSu
             }
         }
 
+        LOG_debug << "Requesting code mappings";
         client->reqs.add(new CommandMediaCodecs(client, &MediaFileInfo::onCodecMappingsReceiptStatic));
         mediaCodecsRequested = true;
     }
@@ -181,11 +183,15 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
 {
     if (codecListVersion < 0)
     {
+        LOG_err << "Error getting media codec mappings";
+
         mediaCodecsFailed = true;
         queuedForDownloadTranslation.clear();
     }
     else
     {
+        LOG_debug << "Media codec mappings correctly received";
+
         downloadedCodecMapsVersion = codecListVersion;
         assert(downloadedCodecMapsVersion < 10000);
         client->json.enterarray();
@@ -229,6 +235,7 @@ unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaPropert
     q.vp = vp;
     memcpy(q.fakey, fakey, sizeof(q.fakey));
     uploadFileAttributes[uploadHandle] = q;
+    LOG_debug << "Media attribute enqueued for upload";
 
     if (mediaCodecsReceived)
     {
@@ -252,9 +259,11 @@ void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(Medi
         q.vp = vp;
         memcpy(q.fakey, fakey, sizeof(q.fakey));
         queuedForDownloadTranslation.push_back(q);
+        LOG_debug << "Media attribute enqueued for existing file";
     }
     else
     {
+        LOG_debug << "Sending media attributes";
         std::string mediafileattributes = vp.convertMediaPropertyFileAttributes(fakey, client->mediaFileInfo);
         client->reqs.add(new CommandAttachFA(fileHandle, fa_media, mediafileattributes.c_str(), 0));
     }
@@ -272,6 +281,7 @@ void MediaFileInfo::addUploadMediaFileAttributes(handle& uploadhandle, std::stri
                 *s += "/";
             }
             *s += i->second.vp.convertMediaPropertyFileAttributes(i->second.fakey, *this);
+            LOG_debug << "Media attributes added to putnodes";
         }
         uploadFileAttributes.erase(i);
     }
@@ -452,6 +462,8 @@ std::string MediaProperties::encodeMediaPropertiesAttributes(MediaProperties vp,
 
     if (!vp.shortformat) // exotic combination of container/codecids
     {
+        LOG_debug << "The file requires extended media attributes";
+
         memset(v, 0, sizeof v);
         v[3] = (vp.audiocodecid >> 4) & 255;
         v[2] = ((vp.videocodecid >> 8) & 15) + ((vp.audiocodecid & 15) << 4);
@@ -546,14 +558,20 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
     {
         if (vp.fps < MEDIA_INFO_BUILD)
         {
+            LOG_debug << "Media extraction retry needed with a newer build. Old: "
+                      << vp.fps << "  New: " << MEDIA_INFO_BUILD;
             return true;
         } 
         if (vp.width < GetMediaInfoVersion())
         {
+            LOG_debug << "Media extraction retry needed with a newer MediaInfo version. Old: "
+                      << vp.width << "  New: " << GetMediaInfoVersion();
             return true;
         }
         if (vp.playtime < downloadedCodecMapsVersion)
         {
+            LOG_debug << "Media extraction retry needed with newer code mappings. Old: "
+                      << vp.playtime << "  New: " << downloadedCodecMapsVersion;
             return true;
         }
     }
@@ -646,7 +664,6 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
     return true;
 }
 
-
 void MediaProperties::extractMediaPropertyFileAttributes(const std::string& localFilename, FileSystemAccess* fsa)
 {
     FileAccess* tmpfa = fsa->newfileaccess();
@@ -660,15 +677,15 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
             {
                 if (!minfo.Count_Get(MediaInfoLib::Stream_General, 0))
                 {
-                    LOG_warn << "no general information found in file";
+                    LOG_warn << "mediainfo: no general information found in file";
                 }
                 if (!minfo.Count_Get(MediaInfoLib::Stream_Video, 0))
                 {
-                    LOG_warn << "no video information found in file";
+                    LOG_warn << "mediainfo: no video information found in file";
                 }
                 if (!minfo.Count_Get(MediaInfoLib::Stream_Audio, 0))
                 {
-                    LOG_warn << "no audio information found in file";
+                    LOG_warn << "mediainfo: no audio information found in file";
                     no_audio = true;
                 }
 
@@ -714,11 +731,12 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
                     fps = vro.To_int32u();
                 }
 
-#ifdef _DEBUG
-                string path, local = localFilename;
-                fsa->local2path(&local, &path);
-                LOG_info << "MediaInfo on " << path << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
-#endif
+                if (SimpleLogger::logCurrentLevel >= logDebug)
+                {
+                    string path, local = localFilename;
+                    fsa->local2path(&local, &path);
+                    LOG_debug << "MediaInfo on " << path << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
+                }
             }
         }
         catch (std::exception& e)
@@ -764,14 +782,14 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
     }
     else
     {
+        LOG_debug << "mediainfo processed the file correctly";
+
         // attribute 8 valid, and either shortformat specifies a common combination of (containerid, videocodecid, audiocodecid),
         // or we make an attribute 9 with those values, and set shortformat=0.
         shortformat = mediaInfo.LookupShortFormat(containerid, videocodecid, audiocodecid);
     }
 
-#ifdef _DEBUG
-    LOG_info << "MediaInfo converted: " << (int)shortformat << "," << width << "," << height << "," << fps << "," << playtime << "," << videocodecid << "," << audiocodecid << "," << containerid;
-#endif
+    LOG_debug << "MediaInfo converted: " << (int)shortformat << "," << width << "," << height << "," << fps << "," << playtime << "," << videocodecid << "," << audiocodecid << "," << containerid;
 
     std::string mediafileattributes = MediaProperties::encodeMediaPropertiesAttributes(*this, fakey);
 
