@@ -259,11 +259,14 @@ void MediaFileInfo::addUploadMediaFileAttributes(handle& uploadhandle, std::stri
     std::map<handle, MediaFileInfo::queuedvp>::iterator i = uploadFileAttributes.find(uploadhandle);
     if (i != uploadFileAttributes.end())
     {
-        if (!s->empty())
+        if (!mediaCodecsFailed)
         {
-            *s += "/";
+            if (!s->empty())
+            {
+                *s += "/";
+            }
+            *s += i->second.vp.convertMediaPropertyFileAttributes(i->second.fakey, *this);
         }
-        *s += i->second.vp.convertMediaPropertyFileAttributes(i->second.fakey, *this);
         uploadFileAttributes.erase(i);
     }
 }
