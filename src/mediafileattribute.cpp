@@ -240,6 +240,11 @@ unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaPropert
 
 void MediaFileInfo::sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle fileHandle)
 {
+    if (mediaCodecsFailed)
+    {
+        return;  // we can't do it
+    }
+
     if (!mediaCodecsReceived)
     {
         MediaFileInfo::queuedvp q;
