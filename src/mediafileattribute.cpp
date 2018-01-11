@@ -59,7 +59,7 @@ uint32_t GetMediaInfoVersion()
                 version += column * (s[i] - '0');
                 column *= 10;
             }
-            else if (s[i] != '.')
+            else if (s[i] == 'v')
             {
                 break;
             }
