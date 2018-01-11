@@ -975,7 +975,9 @@ AC_ARG_WITH(libzen,
   ]
   )
 
-if test "x$libzen" = "xtrue" && test "$HAVE_PTHREAD" = "yes"; then
+AC_CHECK_LIB(pthread, pthread_create, [pthread_available=yes], [pthread_available=no])
+
+if test "x$libzen" = "xtrue" && test "$pthread_available" = "yes"; then
     #libmediainfo
     LIBMEDIAINFO_LIBS=""
     AC_MSG_CHECKING(for libmediainfo)

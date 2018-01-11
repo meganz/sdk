@@ -88,18 +88,17 @@ CONFIG(USE_MEDIAINFO) {
 
     unix:!macx {
 
-       exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libzen.a) {
-        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libzen.a
-       }
-       else {
-        LIBS += -lzen
-       }
-
        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a
        }
        else {
         LIBS += -lmediainfo
+       }
+       exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libzen.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libzen.a
+       }
+       else {
+        LIBS += -lzen
        }
     }
 
