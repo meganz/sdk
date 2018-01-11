@@ -39,7 +39,8 @@ SOURCES += src/attrmap.cpp \
     src/gfx/external.cpp \
     src/thread/qtthread.cpp \
     src/mega_utf8proc.cpp \
-    src/mega_zxcvbn.cpp
+    src/mega_zxcvbn.cpp \
+    src/mediafileattribute.cpp
 
 CONFIG(USE_MEGAAPI) {
     SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
@@ -71,6 +72,17 @@ CONFIG(USE_LIBUV) {
 
     macx {
         LIBS += -luv
+    }
+}
+
+CONFIG(USE_MEDIAINFO) {
+    DEFINES += USE_MEDIAINFO
+
+    win32 {
+        LIBS += -lMediaInfo -lZenLib -lzlibstat
+    }
+    else {
+        LIBS += -lmediainfo -lzen -lz
     }
 }
 
@@ -162,7 +174,8 @@ HEADERS  += include/mega.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
             include/mega/thread/posixthread.h \
-            include/mega/mega_zxcvbn.h
+            include/mega/mega_zxcvbn.h \
+            include/mega/mediafileattribute.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
@@ -209,8 +222,7 @@ else {
 }
 
 win32 {
-    INCLUDEPATH += $$[QT_INSTALL_PREFIX]/src/3rdparty/zlib
-    INCLUDEPATH += $$[QT_INSTALL_PREFIX]/../src/qtbase/src/3rdparty/zlib
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
 
     CONFIG(USE_CURL) {
@@ -246,7 +258,7 @@ win32 {
      LIBS += -lpcre
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp
+    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
 }
 
 unix:!macx {
@@ -325,6 +337,8 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
 
    CONFIG(USE_PCRE) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre

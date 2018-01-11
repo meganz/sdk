@@ -22,6 +22,8 @@
 #include "mega.h"
 #include "mega/gfx/freeimage.h"
 
+#ifdef USE_FREEIMAGE
+
 #ifdef _WIN32
 #define FreeImage_GetFileTypeX FreeImage_GetFileTypeU
 #define FreeImage_LoadX FreeImage_LoadU
@@ -188,3 +190,5 @@ void GfxProcFreeImage::freebitmap()
     }
 }
 } // namespace
+
+#endif

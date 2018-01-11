@@ -159,6 +159,7 @@
     <ClCompile Include="..\..\src\filefingerprint.cpp" />
     <ClCompile Include="..\..\src\filesystem.cpp" />
     <ClCompile Include="..\..\src\gfx\freeimage.cpp" />
+    <ClCompile Include="..\..\src\mediafileattribute.cpp" />
     <ClCompile Include="..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\src\mega_utf8proc.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
@@ -213,6 +214,7 @@
     <ClInclude Include="..\..\include\mega.h" />
     <ClInclude Include="..\..\include\megaapi.h" />
     <ClInclude Include="..\..\include\megaapi_impl.h" />
+    <ClInclude Include="..\..\include\mega\mediafileattribute.h" />
     <ClInclude Include="..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\include\mega\mega_utf8proc.h" />
