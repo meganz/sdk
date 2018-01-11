@@ -182,6 +182,7 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
     if (codecListVersion < 0)
     {
         mediaCodecsFailed = true;
+        queuedForDownloadTranslation.clear();
     }
     else
     {
