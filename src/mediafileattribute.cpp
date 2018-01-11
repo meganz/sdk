@@ -218,17 +218,18 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
 
 unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle)
 {
+    if (mediaCodecsFailed)
+    {
+        return 0;  // we can't do it - let the transfer complete anyway
+    }
+
     MediaFileInfo::queuedvp q;
     q.handle = uploadHandle;
     q.vp = vp;
     memcpy(q.fakey, fakey, sizeof(q.fakey));
     uploadFileAttributes[uploadHandle] = q;
 
-    if (mediaCodecsFailed)
-    {
-        return 0;  // we can't do it - let the transfer complete anyway
-    }
-    else if (mediaCodecsReceived)
+    if (mediaCodecsReceived)
     {
         // indicate we have this attribute ready to go. Otherwise the transfer will be put on hold till we can
         client->pendingfa[pair<handle, fatype>(uploadHandle, fa_media)] = pair<handle, int>(0, 0);
