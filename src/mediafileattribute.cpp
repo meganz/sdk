@@ -544,11 +544,11 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
     MediaProperties vp = MediaProperties::decodeMediaPropertiesAttributes(fileattributes, fakey);
     if (vp.shortformat == 255) 
     {
-        if (vp.fps != MEDIA_INFO_BUILD)
+        if (vp.fps < MEDIA_INFO_BUILD)
         {
             return true;
         } 
-        if (vp.width != GetMediaInfoVersion())
+        if (vp.width < GetMediaInfoVersion())
         {
             return true;
         }
