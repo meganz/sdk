@@ -574,35 +574,18 @@ void Transfer::complete()
 
         char me64[12];
         Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
-        set<handle> nodes;
 
         if (!transient_error)
         {
+            set<handle> nodes;
+
             // set FileFingerprint on source node(s) if missing
             for (file_list::iterator it = files.begin(); it != files.end(); it++)
             {
-                if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                        && nodes.find(n->nodehandle) == nodes.end())
                 {
-                    if (client->gfx && client->gfx->isgfx(&(*it)->localname) &&
-                            nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
-                            client->checkaccess(n, OWNER))
-                    {
-                        int missingattr = 0;
-                        nodes.insert(n->nodehandle);
-
-                        // check for missing imagery
-                        if (!n->hasfileattribute(GfxProc::THUMBNAIL)) missingattr |= 1 << GfxProc::THUMBNAIL;
-                        if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
-
-                        if (missingattr)
-                        {
-                            // check if restoration of missing attributes failed in the past (no access)
-                            if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
-                            {
-                                client->gfx->gendimensionsputfa(NULL, &localfilename, n->nodehandle, n->nodecipher(), missingattr);
-                            }
-                        }
-                    }
+                    nodes.insert(n->nodehandle);
 
                     if (fingerprint.isvalid && success && (!n->isvalid || fixfingerprint)
                             && fingerprint.size == n->size)
@@ -766,10 +749,36 @@ void Transfer::complete()
                     // Add video file attributes for video files that don't have any yet.  Just for the first copy of this downloaded file.
                     if (success)
                     {
-                        Node* node = client->nodebyhandle((*it)->h);
-                        if (node)
+                        set<handle> nodes;
+
+                        // set missing node attributes
+                        for (file_list::iterator it = files.begin(); it != files.end(); it++)
                         {
-                            addAnyMissingMediaFileAttributes(node, tmplocalname);
+                            if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                            {
+                                if (client->gfx && client->gfx->isgfx(&tmplocalname) &&
+                                        nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
+                                        client->checkaccess(n, OWNER))
+                                {
+                                    nodes.insert(n->nodehandle);
+
+                                    // check if restoration of missing attributes failed in the past (no access)
+                                    if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
+                                    {
+                                        // check for missing imagery
+                                        int missingattr = 0;
+                                        if (!n->hasfileattribute(GfxProc::THUMBNAIL)) missingattr |= 1 << GfxProc::THUMBNAIL;
+                                        if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
+
+                                        if (missingattr)
+                                        {
+                                            client->gfx->gendimensionsputfa(NULL, &tmplocalname, n->nodehandle, n->nodecipher(), missingattr);
+                                        }
+
+                                        addAnyMissingMediaFileAttributes(n, tmplocalname);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
