@@ -840,7 +840,8 @@ void Transfer::complete()
                     }
                     else
                     {
-                        LOG_debug << "Persistent error completing file";
+                        failcount++;
+                        LOG_debug << "Persistent error completing file. Failcount: " << failcount;
                         it++;
                     }
                 }
