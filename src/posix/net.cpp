@@ -53,7 +53,7 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
     }
 }
 
-#if OPENSSL_VERSION_NUMBER >= 0x10000000
+#if OPENSSL_VERSION_NUMBER >= 0x10000000 || defined (LIBRESSL_VERSION_NUMBER)
 void CurlHttpIO::id_function(CRYPTO_THREADID* id)
 {
     CRYPTO_THREADID_set_pointer(id, (void *)THREAD_CLASS::currentThreadId());
@@ -137,7 +137,7 @@ CurlHttpIO::CurlHttpIO()
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
     if (!CRYPTO_get_locking_callback()
-#if OPENSSL_VERSION_NUMBER >= 0x10000000
+#if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
         && !CRYPTO_THREADID_get_callback())
 #else
         && !CRYPTO_get_id_callback())
@@ -147,7 +147,7 @@ CurlHttpIO::CurlHttpIO()
         int numLocks = CRYPTO_num_locks();
         sslMutexes = new MUTEX_CLASS*[numLocks];
         memset(sslMutexes, 0, numLocks * sizeof(MUTEX_CLASS*));
-#if OPENSSL_VERSION_NUMBER >= 0x10000000
+#if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
         CRYPTO_THREADID_set_callback(CurlHttpIO::id_function);
 #else
         CRYPTO_set_id_callback(CurlHttpIO::id_function);
@@ -2291,7 +2291,7 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
         return CURL_SEEKFUNC_FAIL;
     }
 
-    if (newoffset > totalsize || newoffset < 0)
+    if (newoffset > (int) totalsize || newoffset < 0)
     {
         LOG_err << "Invalid offset " << origin << " " << offset << " " << totalsize
                 << " " << req->outbuf << " " << newoffset;
@@ -2400,7 +2400,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
     return CURLE_OK;
 }
 
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
+#if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER) || defined (OPENSSL_IS_BORINGSSL)
    #define X509_STORE_CTX_get0_cert(ctx) (ctx->cert)
    #define X509_STORE_CTX_get0_untrusted(ctx) (ctx->untrusted)
    #define EVP_PKEY_get0_DSA(_pkey_) ((_pkey_)->pkey.dsa)

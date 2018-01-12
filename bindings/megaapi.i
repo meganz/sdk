@@ -22,10 +22,15 @@ namespace webrtc
 
 #ifdef SWIGJAVA
 JavaVM *MEGAjvm = NULL;
-jstring strEncodeUTF8;
-jclass clsString;
-jmethodID ctorString;
-jmethodID getBytes;
+jstring strEncodeUTF8 = NULL;
+jclass clsString = NULL;
+jmethodID ctorString = NULL;
+jmethodID getBytes = NULL;
+jclass applicationClass = NULL;
+jmethodID startVideoCaptureMID = NULL;
+jmethodID stopVideoCaptureMID = NULL;
+jobject surfaceTextureHelper = NULL;
+
 
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 {
@@ -43,18 +48,82 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     jenv->DeleteLocalRef(strEncodeUTF8Local);
 
 #ifdef ENABLE_WEBRTC
-    // Initialize WebRTC (it doesn't seem to be needed for the example app)
-    MEGAjvm->AttachCurrentThread(&jenv, NULL);
+    // Initialize WebRTC
     jclass appGlobalsClass = jenv->FindClass("android/app/AppGlobals");
-    jmethodID getInitialApplicationMID = jenv->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
-    jobject context = jenv->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
-    webrtc::JVM::Initialize(MEGAjvm, context);
-    // MEGAjvm->DetachCurrentThread();
+    if (appGlobalsClass)
+    {
+        jmethodID getInitialApplicationMID = jenv->GetStaticMethodID(appGlobalsClass, "getInitialApplication", "()Landroid/app/Application;");
+        if (getInitialApplicationMID)
+        {
+            jobject context = jenv->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
+            if (context)
+            {
+                webrtc::JVM::Initialize(MEGAjvm, context);
+                webrtc_jni::InitGlobalJniVariables(jvm);
+                rtc::InitializeSSL();
+                webrtc_jni::LoadGlobalClassReferenceHolder();
+                jenv->DeleteLocalRef(context);
+            }
+        }
+        else
+        {
+            jenv->ExceptionClear();
+        }
+        jenv->DeleteLocalRef(appGlobalsClass);
+    }
+    else
+    {
+        jenv->ExceptionClear();
+    }
 
-    // Initialize the JNI and SSL stuff of WebRTC
-    webrtc_jni::InitGlobalJniVariables(jvm);
-    rtc::InitializeSSL();
-    webrtc_jni::LoadGlobalClassReferenceHolder();
+    jclass megaApplicationClass = jenv->FindClass("mega/privacy/android/app/MegaApplication");
+    if (megaApplicationClass)
+    {
+        applicationClass = (jclass)jenv->NewGlobalRef(megaApplicationClass);
+        jenv->DeleteLocalRef(megaApplicationClass);
+
+        startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "startVideoCapture", "(JLorg/webrtc/SurfaceTextureHelper;)V");
+        if (!startVideoCaptureMID)
+        {
+            jenv->ExceptionClear();
+        }
+
+        stopVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "stopVideoCapture", "()V");
+        if (!stopVideoCaptureMID)
+        {
+            jenv->ExceptionClear();
+        }
+
+        jclass surfaceTextureHelperClass = jenv->FindClass("org/webrtc/SurfaceTextureHelper");
+        if (surfaceTextureHelperClass)
+        {
+            jmethodID createSurfaceMID = jenv->GetStaticMethodID(surfaceTextureHelperClass, "create", "(Ljava/lang/String;Lorg/webrtc/EglBase$Context;)Lorg/webrtc/SurfaceTextureHelper;");
+            if (createSurfaceMID)
+            {
+                jstring threadStr = (jstring) jenv->NewStringUTF("VideoCapturerThread");
+                jobject surface = jenv->CallStaticObjectMethod(surfaceTextureHelperClass, createSurfaceMID, threadStr, NULL);
+                if (surface)
+                {
+                    surfaceTextureHelper = jenv->NewGlobalRef(surface);
+                    jenv->DeleteLocalRef(surface);
+                }
+                jenv->DeleteLocalRef(threadStr);
+            }
+            else
+            {
+                jenv->ExceptionClear();
+            }
+            jenv->DeleteLocalRef(surfaceTextureHelperClass);
+        }
+        else
+        {
+            jenv->ExceptionClear();
+        }
+    }
+    else
+    {
+        jenv->ExceptionClear();
+    }
 #endif
 
     return JNI_VERSION_1_4;
@@ -357,6 +426,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaRequest::getMegaAchievementsDetails;
 %newobject mega::MegaAccountDetails::getSubscriptionMethod;
 %newobject mega::MegaAccountDetails::getSubscriptionCycle;
+
+%newobject mega::MegaApi::getMimeType;
 
 typedef long long time_t;
 typedef long long uint64_t;

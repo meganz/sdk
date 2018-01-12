@@ -531,7 +531,7 @@ byte* HttpReq::reserveput(unsigned* len)
             inpurge = 0;
         }
 
-        if (bufpos + *len > in.size())
+        if (bufpos + *len > (int) in.size())
         {
             in.resize(bufpos + *len);
         }
@@ -600,6 +600,7 @@ void HttpReqDL::finalize(Transfer *transfer)
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     m_off_t chunksize = endpos - startpos;
+    SymmCipher *cipher = transfer->transfercipher();
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
@@ -607,7 +608,7 @@ void HttpReqDL::finalize(Transfer *transfer)
         if (!chunkmac.finished)
         {
             chunkmac = transfer->chunkmacs[chunkid];
-            transfer->key.ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
+            cipher->ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
                                     chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
             if (endpos == ChunkedHash::chunkceil(chunkid, transfer->size))
             {

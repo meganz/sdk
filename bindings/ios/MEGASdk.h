@@ -3745,6 +3745,13 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node;
 
 /**
+ * @brief Get a list with all public links
+ *
+ * @return List of MEGANode objects that are shared with everyone via public link
+ */
+- (MEGANodeList *)publicLinks;
+
+/**
  * @brief Get a list with all incoming contact requests
  *
  * @return List of MEGAContactRequest objects
@@ -4478,6 +4485,34 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @param deviceToken NSString representing the device token to be registered.
  */
 - (void)registeriOSdeviceToken:(NSString *)deviceToken;
+
+/**
+ * @brief Register a device token for iOS VoIP push notifications
+ *
+ * This function attach a device token to the current session, which is intended to get push notifications.
+ *
+ * The associated request type with this request is MEGARequestTypeRegisterPushNotification
+ * Valid data in the MEGARequest object received on delegate:
+ * - [MEGARequest text] - Returns the device token provided.
+ *
+ * @param deviceToken NSString representing the device token to be registered.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate;
+
+
+/**
+ * @brief Register a device token for iOS VoIP push notifications
+ *
+ * This function attach a device token to the current session, which is intended to get push notifications.
+ *
+ * The associated request type with this request is MEGARequestTypeRegisterPushNotification
+ * Valid data in the MEGARequest object received on delegate:
+ * - [MEGARequest text] - Returns the device token provided.
+ *
+ * @param deviceToken NSString representing the device token to be registered.
+ */
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
 
 /**
  * @brief Get the MEGA Achievements of the account logged in

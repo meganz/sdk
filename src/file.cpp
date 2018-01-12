@@ -281,7 +281,7 @@ void File::completed(Transfer* t, LocalNode* l)
         attrs.getjson(&tattrstring);
 
         newnode->attrstring = new string;
-        t->client->makeattr(&t->key, newnode->attrstring, tattrstring.c_str());
+        t->client->makeattr(t->transfercipher(), newnode->attrstring, tattrstring.c_str());
 
         if (targetuser.size())
         {
@@ -303,16 +303,24 @@ void File::completed(Transfer* t, LocalNode* l)
 #ifdef ENABLE_SYNC            
             if (l)
             {
-                // tag the previous version in the synced folder (if any)
+                // tag the previous version in the synced folder (if any) or move to SyncDebris
                 if (l->node && l->node->parent && l->node->parent->localnode)
                 {
-                    newnode->ovhandle = l->node->nodehandle;
+                    if (t->client->versions_disabled)
+                    {
+                        t->client->movetosyncdebris(l->node, l->sync->inshare);
+                        t->client->execsyncdeletions();
+                    }
+                    else
+                    {
+                        newnode->ovhandle = l->node->nodehandle;
+                    }
                 }
 
                 t->client->syncadding++;
             }
 #endif
-            if (ISUNDEF(newnode->ovhandle))
+            if (!t->client->versions_disabled && ISUNDEF(newnode->ovhandle))
             {
                 newnode->ovhandle = t->client->getovhandle(t->client->nodebyhandle(th), &name);
             }
@@ -359,8 +367,9 @@ bool File::failed(error e)
         return transfer->failcount < 16;
     }
 
-    return (e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
-            && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6);
+    return ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
+            && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6))
+            || (syncxfer && e != API_EBLOCKED && e != API_EKEY && transfer->failcount <= 8);
 }
 
 void File::displayname(string* dname)

@@ -226,7 +226,7 @@ class MEGA_API CommandPutUA : public Command
     string av;  // attribute value
 
 public:
-    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int);
 
     void procresult();
 };
@@ -321,6 +321,14 @@ public:
     CommandDelNode(MegaClient*, handle, bool = false);
 };
 
+class MEGA_API CommandDelVersions : public Command
+{
+public:
+    void procresult();
+
+    CommandDelVersions(MegaClient*);
+};
+
 class MEGA_API CommandKillSessions : public Command
 {
     handle h;
@@ -395,7 +403,13 @@ class MEGA_API CommandAttachFA : public Command
 public:
     void procresult();
 
+    // use this one for attribute blobs 
     CommandAttachFA(handle, fatype, handle, int);
+
+    // use this one for numeric 64 bit attributes (which must be pre-encrypted with XXTEA)
+    // multiple attributes can be added at once, encryptedAttributes format "<N>*<attrib>/<M>*<attrib>"
+    // only the fatype specified will be notified back to the app
+    CommandAttachFA(handle, fatype, const std::string& encryptedAttributes, int);
 };
 
 
@@ -871,6 +885,19 @@ public:
     void procresult();
 
     CommandGetWelcomePDF(MegaClient*);
+};
+
+
+class MEGA_API CommandMediaCodecs : public Command
+{
+public:
+    typedef void(*Callback)(MegaClient* client, int codecListVersion);
+    void procresult();
+
+    CommandMediaCodecs(MegaClient*, Callback );
+
+private:
+    Callback callback;
 };
 
 } // namespace

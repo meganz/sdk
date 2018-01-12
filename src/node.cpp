@@ -572,9 +572,9 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, int attrstrlen)
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpcipher.setkey(&nodekey))
+    if (client->tmpnodecipher.setkey(&nodekey))
     {
-        return &client->tmpcipher;
+        return &client->tmpnodecipher;
     }
 
     return NULL;
@@ -1072,7 +1072,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             sync->client->syncup(parent, &nds);
 
             // check if nodes can be immediately created
-            bool immediatecreation = sync->client->synccreate.size() == nc;
+            bool immediatecreation = (int) sync->client->synccreate.size() == nc;
 
             sync->client->syncupdate();
 

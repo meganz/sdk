@@ -285,12 +285,19 @@ void User::setattr(attr_t at, string *av, string *v)
         attrs[at] = *av;
     }
 
-    attrsv[at] = v ? *v : "";
+    attrsv[at] = v ? *v : "N";
 }
 
 void User::invalidateattr(attr_t at)
 {
     setChanged(at);
+    attrsv.erase(at);
+}
+
+void User::removeattr(attr_t at)
+{
+    setChanged(at);
+    attrs.erase(at);
     attrsv.erase(at);
 }
 
@@ -381,6 +388,10 @@ string User::attr2string(attr_t type)
             attrname = "^!prd";
             break;
 
+        case ATTR_DISABLE_VERSIONS:
+            attrname = "^!dv";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -454,6 +465,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_PWD_REMINDER;
     }
+    else if(!strcmp(name, "^!dv"))
+    {
+        return ATTR_DISABLE_VERSIONS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -473,6 +488,7 @@ bool User::needversioning(attr_t at)
         case ATTR_BIRTHYEAR:
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
+        case ATTR_DISABLE_VERSIONS:
             return 0;
 
         case ATTR_AUTHRING:
@@ -507,6 +523,7 @@ char User::scope(attr_t at)
 
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
+        case ATTR_DISABLE_VERSIONS:
             return '^';
 
         default:
@@ -748,6 +765,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_PWD_REMINDER:
             changed.pwdReminder = true;
+            break;
+
+        case ATTR_DISABLE_VERSIONS:
+            changed.disableVersions = true;
             break;
 
         default:

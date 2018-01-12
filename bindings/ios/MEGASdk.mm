@@ -1258,6 +1258,10 @@ using namespace mega;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
+- (MEGANodeList *)publicLinks {
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks() cMemoryOwn:YES];
+}
+
 - (MEGAContactRequestList *)incomingContactRequests {
     return [[MEGAContactRequestList alloc] initWithMegaContactRequestList:self.megaApi->getIncomingContactRequests() cMemoryOwn:YES];
 }
@@ -1578,6 +1582,14 @@ using namespace mega;
 
 - (void)registeriOSdeviceToken:(NSString *)deviceToken {
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL);
+}
+
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSVoIP, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken {
+    self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSVoIP, deviceToken ? [deviceToken UTF8String] : NULL);
 }
 
 - (void)getAccountAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate {

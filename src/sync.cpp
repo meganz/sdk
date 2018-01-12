@@ -34,6 +34,7 @@ const int Sync::SCANNING_DELAY_DS = 5;
 const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
 const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
+const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
@@ -48,6 +49,9 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     errorcode = API_OK;
     tmpfa = NULL;
     initializing = true;
+    updatedfilesize = ~0;
+    updatedfilets = 0;
+    updatedfileinitialts = 0;
 
     localbytes = 0;
     localnodes[FILENODE] = 0;
@@ -822,14 +826,14 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         // to another location as a temporary backup
 
                         m_time_t currentsecs = time(NULL);
-                        if (!client->updatedfileinitialts)
+                        if (!updatedfileinitialts)
                         {
-                            client->updatedfileinitialts = currentsecs;
+                            updatedfileinitialts = currentsecs;
                         }
 
-                        if (currentsecs >= client->updatedfileinitialts)
+                        if (currentsecs >= updatedfileinitialts)
                         {
-                            if (currentsecs - client->updatedfileinitialts <= FILE_UPDATE_MAX_DELAY_SECS)
+                            if (currentsecs - updatedfileinitialts <= FILE_UPDATE_MAX_DELAY_SECS)
                             {
                                 string local;
                                 bool waitforupdate = false;
@@ -840,22 +844,22 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                                 {
                                     LOG_debug << "File detected in the origin of a move";
 
-                                    if (currentsecs >= client->updatedfilets)
+                                    if (currentsecs >= updatedfilets)
                                     {
-                                        if ((currentsecs - client->updatedfilets) < (FILE_UPDATE_DELAY_DS / 10))
+                                        if ((currentsecs - updatedfilets) < (FILE_UPDATE_DELAY_DS / 10))
                                         {
-                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << client->updatedfilets
-                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << client->updatedfilesize;
+                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
+                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
                                             LOG_debug << "The file was checked too recently. Waiting...";
                                             waitforupdate = true;
                                         }
-                                        else if (client->updatedfilesize != prevfa->size)
+                                        else if (updatedfilesize != prevfa->size)
                                         {
-                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << client->updatedfilets
-                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << client->updatedfilesize;
+                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
+                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
                                             LOG_debug << "The file size has changed since the last check. Waiting...";
-                                            client->updatedfilesize = prevfa->size;
-                                            client->updatedfilets = currentsecs;
+                                            updatedfilesize = prevfa->size;
+                                            updatedfilets = currentsecs;
                                             waitforupdate = true;
                                         }
                                         else
@@ -1112,11 +1116,12 @@ dstime Sync::procscanq(int q)
             if (backoffds)
             {
                 LOG_verbose << "Scanning deferred during " << backoffds << " ds";
+                dirnotify->notifyq[q].front().timestamp = Waiter::ds + backoffds - SCANNING_DELAY_DS;
                 return backoffds;
             }
-            client->updatedfilesize = ~0;
-            client->updatedfilets = 0;
-            client->updatedfileinitialts = 0;
+            updatedfilesize = ~0;
+            updatedfilets = 0;
+            updatedfileinitialts = 0;
 
             // defer processing because of a missing parent node?
             if (l == (LocalNode*)~0)

@@ -1637,6 +1637,11 @@ void MegaApi::remove(MegaNode *node, MegaRequestListener *listener)
     pImpl->remove(node, false, listener);
 }
 
+void MegaApi::removeVersions(MegaRequestListener *listener)
+{
+    pImpl->removeVersions(listener);
+}
+
 void MegaApi::removeVersion(MegaNode *node, MegaRequestListener *listener)
 {
     pImpl->remove(node, true, listener);
@@ -2703,6 +2708,16 @@ void MegaApi::setLanguagePreference(const char *languageCode, MegaRequestListene
 void MegaApi::getLanguagePreference(MegaRequestListener *listener)
 {
     pImpl->getLanguagePreference(listener);
+}
+
+void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
+{
+    pImpl->setFileVersionsOption(disable, listener);
+}
+
+void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
+{
+    pImpl->getFileVersionsOption(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)

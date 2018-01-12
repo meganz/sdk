@@ -121,6 +121,11 @@ public:
 
     // true if the local synced folder is a network folder
     bool isnetwork;
+
+    // values related to possible files being updated
+    m_off_t updatedfilesize;
+    m_time_t updatedfilets;
+    m_time_t updatedfileinitialts;
     
     Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
@@ -129,6 +134,7 @@ public:
     static const int EXTRA_SCANNING_DELAY_DS;
     static const int FILE_UPDATE_DELAY_DS;
     static const int FILE_UPDATE_MAX_DELAY_SECS;
+    static const dstime RECENT_VERSION_INTERVAL_SECS;
 
 protected :
     bool readstatecache();

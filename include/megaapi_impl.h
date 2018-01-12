@@ -1657,6 +1657,7 @@ class MegaApiImpl : public MegaApp
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
         void remove(MegaNode* node, bool keepversions = false, MegaRequestListener *listener = NULL);
+        void removeVersions(MegaRequestListener *listener = NULL);
         void restoreVersion(MegaNode *version, MegaRequestListener *listener = NULL);
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
         void sendFileToUser(MegaNode *node, MegaUser *user, MegaRequestListener *listener = NULL);
@@ -1924,10 +1925,15 @@ class MegaApiImpl : public MegaApp
         const char *getBasePath();
 
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
+
         bool setLanguage(const char* languageCode);
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);
         bool getLanguageCode(const char* languageCode, std::string* code);
+
+        void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
+        void getFileVersionsOption(MegaRequestListener *listener = NULL);
+
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
         void pauseActionPackets();
@@ -2166,6 +2172,7 @@ protected:
         virtual void setattr_result(handle, error);
         virtual void rename_result(handle, error);
         virtual void unlink_result(handle, error);
+        virtual void unlinkversions_result(error);
         virtual void nodes_updated(Node**, int);
         virtual void users_updated(User**, int);
         virtual void account_updated();

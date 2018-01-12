@@ -147,6 +147,10 @@
 
 #define ENABLE_CHAT 1
 
+#define USE_MEDIAINFO 1
+
+#define UNICODE 1
+
 /* Define to use Berkeley DB */
 #define USE_DB 0
 

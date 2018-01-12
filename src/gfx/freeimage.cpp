@@ -22,6 +22,8 @@
 #include "mega.h"
 #include "mega/gfx/freeimage.h"
 
+#ifdef USE_FREEIMAGE
+
 #ifdef _WIN32
 #define FreeImage_GetFileTypeX FreeImage_GetFileTypeU
 #define FreeImage_LoadX FreeImage_LoadU
@@ -80,8 +82,6 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
     if (fif == FIF_JPEG)
     {
         // load JPEG (scale & EXIF-rotate)
-        FITAG *tag;
-
         if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*) localname->data(),
                                     JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
         {
@@ -128,6 +128,8 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
     if (!w || !h) return false;
 
+    if (dib == NULL) return false;
+
     transform(w, h, rw, rh, px, py);
 
     if (!w || !h) return false;
@@ -150,6 +152,7 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
             if (bpp != 24) {
                 if ((tdib = FreeImage_ConvertTo24Bits(dib)) == NULL) {
                     FreeImage_Unload(dib);
+                    dib = tdib;
                     return 0;
                 }
                 FreeImage_Unload(dib);
@@ -181,6 +184,11 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
 
 void GfxProcFreeImage::freebitmap()
 {
-    FreeImage_Unload(dib);
+    if (dib != NULL)
+    {
+        FreeImage_Unload(dib);
+    }
 }
 } // namespace
+
+#endif
