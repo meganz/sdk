@@ -52,7 +52,8 @@ nobase_libmegainclude_HEADERS = \
 	mega/mega_zxcvbn.h \
 	mega/mega_dict-src.h \
 	mega/gfx/freeimage.h \
-	mega/gfx/GfxProcCG.h
+	mega/gfx/GfxProcCG.h \
+	mega/mediafileattribute.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
