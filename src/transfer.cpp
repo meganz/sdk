@@ -617,6 +617,7 @@ void Transfer::complete()
                 (*it)->updatelocalname();
             }
 
+            set<string> keys;
             // place file in all target locations - use up to one renames, copy
             // operations for the rest
             // remove and complete successfully completed files
@@ -753,42 +754,6 @@ void Transfer::complete()
                         tmplocalname = localname;
                         success = true;
                     }
-
-                    // Add video file attributes for video files that don't have any yet.  Just for the first copy of this downloaded file.
-                    if (success)
-                    {
-                        set<handle> nodes;
-
-                        // set missing node attributes
-                        for (file_list::iterator it = files.begin(); it != files.end(); it++)
-                        {
-                            if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
-                            {
-                                if (client->gfx && client->gfx->isgfx(&tmplocalname) &&
-                                        nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
-                                        client->checkaccess(n, OWNER))
-                                {
-                                    nodes.insert(n->nodehandle);
-
-                                    // check if restoration of missing attributes failed in the past (no access)
-                                    if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
-                                    {
-                                        // check for missing imagery
-                                        int missingattr = 0;
-                                        if (!n->hasfileattribute(GfxProc::THUMBNAIL)) missingattr |= 1 << GfxProc::THUMBNAIL;
-                                        if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
-
-                                        if (missingattr)
-                                        {
-                                            client->gfx->gendimensionsputfa(NULL, &tmplocalname, n->nodehandle, n->nodecipher(), missingattr);
-                                        }
-
-                                        addAnyMissingMediaFileAttributes(n, tmplocalname);
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
 
                 if (!success)
@@ -806,6 +771,36 @@ void Transfer::complete()
                     else if (client->fsaccess->transient_error)
                     {
                         transient_error = true;
+                    }
+                }
+
+                if (success)
+                {
+                    // set missing node attributes
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                    {
+                        if (client->gfx && client->gfx->isgfx(&localname) &&
+                                keys.find(n->nodekey) == keys.end() &&    // this file hasn't been processed yet
+                                client->checkaccess(n, OWNER))
+                        {
+                            keys.insert(n->nodekey);
+
+                            // check if restoration of missing attributes failed in the past (no access)
+                            if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
+                            {
+                                // check for missing imagery
+                                int missingattr = 0;
+                                if (!n->hasfileattribute(GfxProc::THUMBNAIL)) missingattr |= 1 << GfxProc::THUMBNAIL;
+                                if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
+
+                                if (missingattr)
+                                {
+                                    client->gfx->gendimensionsputfa(NULL, &localname, n->nodehandle, n->nodecipher(), missingattr);
+                                }
+
+                                addAnyMissingMediaFileAttributes(n, localname);
+                            }
+                        }
                     }
                 }
 
