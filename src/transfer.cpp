@@ -733,10 +733,11 @@ void Transfer::complete()
                     }
                 }
 
-                if (!tmplocalname.size())
+                if (files.size() == 1 && !tmplocalname.size())
                 {
                     if (localfilename != localname)
                     {
+                        LOG_debug << "Renaming temporary file to target path";
                         if (client->fsaccess->renamelocal(&localfilename, &localname))
                         {
                             tmplocalname = localname;
