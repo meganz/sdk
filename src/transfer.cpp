@@ -522,28 +522,38 @@ void Transfer::complete()
         FileFingerprint fingerprint;
         Node* n;
         bool fixfingerprint = false;
+        bool fixedfingerprint = false;
         bool syncxfer = false;
 
-#ifdef ENABLE_SYNC
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
             if ((*it)->syncxfer)
             {
                 syncxfer = true;
+            }
+
+            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->h))
+                 && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
+            {
+                LOG_debug << "Wrong fingerprint already fixed";
+                fixedfingerprint = true;
+            }
+
+            if (syncxfer && fixedfingerprint)
+            {
                 break;
             }
         }
-#endif
 
-        // enforce the verification of the fingerprint for sync transfers only
-        if (syncxfer && !transient_error && fa->fopen(&localfilename, true, false))
+        if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
             fingerprint.genfingerprint(fa);
-
-            if (isvalid && !(fingerprint == *(FileFingerprint*)this))
+            if (!(fingerprint == *(FileFingerprint*)this))
             {
                 LOG_err << "Fingerprint mismatch";
-                if (!badfp.isvalid || !(badfp == fingerprint))
+
+                // enforce the verification of the fingerprint for sync transfers only
+                if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                 {
                     badfp = fingerprint;
                     delete fa;
@@ -553,7 +563,7 @@ void Transfer::complete()
                 }
                 else
                 {
-                    if (success && fingerprint.size == this->size)
+                    if (fingerprint.size == this->size)
                     {
                         fixfingerprint = true;
                     }
@@ -563,7 +573,7 @@ void Transfer::complete()
 #ifdef ENABLE_SYNC
         else
         {
-            if (syncxfer && !transient_error)
+            if (syncxfer && !fixedfingerprint && success)
             {
                 transient_error = fa->retry;
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
@@ -577,30 +587,27 @@ void Transfer::complete()
 
         if (!transient_error)
         {
-            set<handle> nodes;
-
-            // set FileFingerprint on source node(s) if missing
-            for (file_list::iterator it = files.begin(); it != files.end(); it++)
+            if (fingerprint.isvalid)
             {
-                if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
-                        && nodes.find(n->nodehandle) == nodes.end())
+                // set FileFingerprint on source node(s) if missing
+                set<handle> nodes;
+                for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    nodes.insert(n->nodehandle);
-
-                    if (fingerprint.isvalid && success && (!n->isvalid || fixfingerprint)
-                            && fingerprint.size == n->size)
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                            && nodes.find(n->nodehandle) == nodes.end())
                     {
-                        *(FileFingerprint*)n = fingerprint;
+                        nodes.insert(n->nodehandle);
 
-                        n->serializefingerprint(&n->attrs.map['c']);
-                        client->setattr(n);
+                        if ((!n->isvalid || fixfingerprint) && !(fingerprint == *(FileFingerprint*)n))
+                        {
+                            LOG_debug << "Fixing fingerprint";
+                            *(FileFingerprint*)n = fingerprint;
+
+                            n->serializefingerprint(&n->attrs.map['c']);
+                            client->setattr(n);
+                        }
                     }
                 }
-            }
-
-            if (fingerprint.isvalid && fixfingerprint)
-            {
-                (*(FileFingerprint*)this) = fingerprint;
             }
 
             // ...and place it in all target locations. first, update the files'
