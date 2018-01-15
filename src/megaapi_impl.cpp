@@ -15116,7 +15116,8 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_REMOVE_CONTACT:
 		{
 			const char *email = request->getEmail();
-			if(!email) { e = API_EARGS; break; }
+            User *u = client->finduser(email);
+            if(!u || u->show == HIDDEN || u->userhandle == client->me) { e = API_EARGS; break; }
             e = client->removecontact(email, HIDDEN);
 			break;
 		}
