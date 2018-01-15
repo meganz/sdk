@@ -548,7 +548,7 @@ void Transfer::complete()
         if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
             fingerprint.genfingerprint(fa);
-            if (!(fingerprint == *(FileFingerprint*)this))
+            if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
                 LOG_err << "Fingerprint mismatch";
 
@@ -563,10 +563,7 @@ void Transfer::complete()
                 }
                 else
                 {
-                    if (fingerprint.size == this->size)
-                    {
-                        fixfingerprint = true;
-                    }
+                    fixfingerprint = true;
                 }
             }
         }
@@ -598,7 +595,9 @@ void Transfer::complete()
                     {
                         nodes.insert(n->nodehandle);
 
-                        if ((!n->isvalid || fixfingerprint) && !(fingerprint == *(FileFingerprint*)n))
+                        if ((!n->isvalid || fixfingerprint)
+                                && !(fingerprint == *(FileFingerprint*)n)
+                                && fingerprint.size == this->size)
                         {
                             LOG_debug << "Fixing fingerprint";
                             *(FileFingerprint*)n = fingerprint;
