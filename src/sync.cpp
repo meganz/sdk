@@ -34,6 +34,7 @@ const int Sync::SCANNING_DELAY_DS = 5;
 const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
 const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
+const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated

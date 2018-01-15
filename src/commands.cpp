@@ -29,6 +29,7 @@
 #include "mega/utils.h"
 #include "mega/user.h"
 #include "mega.h"
+#include "mega/mediafileattribute.h"
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
@@ -256,6 +257,18 @@ CommandAttachFA::CommandAttachFA(handle nh, fatype t, handle ah, int ctag)
     sprintf(buf, "%u*", t);
     Base64::btoa((byte*)&ah, sizeof(ah), strchr(buf + 2, 0));
     arg("fa", buf);
+
+    h = nh;
+    type = t;
+    tag = ctag;
+}
+
+CommandAttachFA::CommandAttachFA(handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
+{
+    cmd("pfa");
+    arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
+
+    arg("fa", encryptedAttributes.c_str());
 
     h = nh;
     type = t;
@@ -870,6 +883,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 
                 client->pendingattrstring(nn[i].uploadhandle, &s);
 
+                #ifdef USE_MEDIAINFO
+                client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
+                #endif              
+
                 if (s.size())
                 {
                     arg("fa", s.c_str(), 1);
@@ -1302,6 +1319,22 @@ void CommandDelNode::procresult()
             }
         }
     }
+}
+
+CommandDelVersions::CommandDelVersions(MegaClient* client)
+{
+    cmd("dv");
+    tag = client->reqtag;
+}
+
+void CommandDelVersions::procresult()
+{
+    error e = API_EINTERNAL;
+    if (client->json.isnumeric())
+    {
+        e = (error)client->json.getint();
+    }
+    client->app->unlinkversions_result(e);
 }
 
 CommandKillSessions::CommandKillSessions(MegaClient* client)
@@ -2485,7 +2518,7 @@ void CommandPutUAVer::procresult()
     }
 }
 
-CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl)
+CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -2506,7 +2539,7 @@ CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsign
 
     notself(client);
 
-    tag = client->reqtag;
+    tag = ctag;
 }
 
 void CommandPutUA::procresult()
@@ -2533,6 +2566,19 @@ void CommandPutUA::procresult()
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
+
+        if (at == ATTR_DISABLE_VERSIONS)
+        {
+            client->versions_disabled = (av == "1");
+            if (client->versions_disabled)
+            {
+                LOG_info << "File versioning is disabled";
+            }
+            else
+            {
+                LOG_info << "File versioning is enabled";
+            }
+        }
     }
 
     client->app->putua_result(e);
@@ -2566,6 +2612,12 @@ void CommandGetUA::procresult()
             client->initializekeys(); // we have now all the required data
         }
 #endif
+        // if the attr does not exist, initialize it
+        if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
+        {
+            LOG_info << "File versioning is enabled";
+            client->versions_disabled = false;
+        }
         return;
     }
     else
@@ -2683,6 +2735,19 @@ void CommandGetUA::procresult()
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
+
+                            if (at == ATTR_DISABLE_VERSIONS)
+                            {
+                                client->versions_disabled = !strcmp(value.data(), "1");
+                                if (client->versions_disabled)
+                                {
+                                    LOG_info << "File versioning is disabled";
+                                }
+                                else
+                                {
+                                    LOG_info << "File versioning is enabled";
+                                }
+                            }
                             break;
 
                         default:    // legacy attributes or unknown attribute
@@ -2746,7 +2811,7 @@ void CommandDelUA::procresult()
         {
             User *u = client->ownuser();
             attr_t at = User::string2attr(an.c_str());
-            u->invalidateattr(at);
+            u->removeattr(at);
 
 #ifdef ENABLE_CHAT
             if (at == ATTR_KEYRING)
@@ -5498,6 +5563,33 @@ void CommandGetWelcomePDF::procresult()
                 break;
         }
     }
+}
+
+
+CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
+{
+    cmd("mc");
+
+    // This command is for internal usage only
+    tag = 0;
+
+    client = c;
+    callback = cb;
+}
+
+void CommandMediaCodecs::procresult()
+{
+    int version = 0;
+    if (client->json.isnumeric())
+    {
+        m_off_t result = client->json.getint();
+        if (result < 0)
+        {
+            LOG_err << "mc result: " << result;
+        }
+        version = int(result);
+    }
+    callback(client, version);
 }
 
 } // namespace

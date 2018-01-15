@@ -180,6 +180,7 @@ int main()
 		Sleep(1000);
 	}
 
+#ifdef HAVE_LIBUV
 	cout << "Do you want to enable the local HTTP server (y/n)?" << endl;
 	char c = getchar();
 	if (c == 'y' || c == 'Y')
@@ -190,6 +191,7 @@ int main()
 		megaApi->httpServerEnableFolderServer(true);
 		cout << "You can browse your account now! http://127.0.0.1:4443/" << endl;
 	}
+#endif
 
 	cout << "Press any key to exit the app..." << endl;
 	getchar();

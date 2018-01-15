@@ -79,6 +79,7 @@
 		A87D979F1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A87D979E1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm */; };
 		A87D97A21F4AD49B00A98C0E /* MEGAStringList.mm in Sources */ = {isa = PBXBuildFile; fileRef = A87D97A11F4AD49B00A98C0E /* MEGAStringList.mm */; };
 		A8827A5C1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */; };
+		A88722DC1FFE6A8B00E3F443 /* mediafileattribute.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */; };
 		A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */; };
 		A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7B631E93B40E0031FC50 /* osxutils.mm */; };
 /* End PBXBuildFile section */
@@ -270,6 +271,8 @@
 		A8827A591F176BCA0097B5DE /* MEGATreeProcessorDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGATreeProcessorDelegate.h; sourceTree = "<group>"; };
 		A8827A5A1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DelegateMEGATreeProcessorListener.h; sourceTree = "<group>"; };
 		A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = DelegateMEGATreeProcessorListener.mm; sourceTree = "<group>"; };
+		A88722DA1FFE6A7100E3F443 /* mediafileattribute.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mediafileattribute.h; sourceTree = "<group>"; };
+		A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mediafileattribute.cpp; path = ../../src/mediafileattribute.cpp; sourceTree = "<group>"; };
 		A8A86BD21F559C0100C214DA /* mega_utf8proc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega_utf8proc.h; sourceTree = "<group>"; };
 		A8A86BD31F559C0100C214DA /* mega_zxcvbn.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega_zxcvbn.h; sourceTree = "<group>"; };
 		A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_zxcvbn.cpp; path = ../../src/mega_zxcvbn.cpp; sourceTree = "<group>"; };
@@ -313,6 +316,7 @@
 				940BEFA319ED92C2007E7FA2 /* http.cpp */,
 				940BEFA419ED92C2007E7FA2 /* json.cpp */,
 				940BEFA519ED92C2007E7FA2 /* logging.cpp */,
+				A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */,
 				414820991C561CB500552E76 /* mega_http_parser.cpp */,
 				41A990721A5D305700B2094A /* mega_utf8proc.cpp */,
 				A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */,
@@ -477,6 +481,7 @@
 				940BF05519EDBCAD007E7FA2 /* http.h */,
 				940BF05619EDBCAD007E7FA2 /* json.h */,
 				940BF05719EDBCAD007E7FA2 /* logging.h */,
+				A88722DA1FFE6A7100E3F443 /* mediafileattribute.h */,
 				940BF05819EDBCAD007E7FA2 /* megaapp.h */,
 				940BF05919EDBCAD007E7FA2 /* megaclient.h */,
 				414820951C523B2D00552E76 /* mega_http_parser.h */,
@@ -745,6 +750,7 @@
 				41B538CC1A0284CB00EABDC9 /* MEGAPricing.mm in Sources */,
 				940BEFD419ED92C2007E7FA2 /* utils.cpp in Sources */,
 				940BEFF319ED9351007E7FA2 /* fs.cpp in Sources */,
+				A88722DC1FFE6A8B00E3F443 /* mediafileattribute.cpp in Sources */,
 				940BEFC719ED92C2007E7FA2 /* megaclient.cpp in Sources */,
 				940BEFEB19ED9351007E7FA2 /* sodium.cpp in Sources */,
 				41B2AEDB1A0A859C006C40FB /* DelegateMEGARequestListener.mm in Sources */,
@@ -813,7 +819,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -857,7 +863,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;

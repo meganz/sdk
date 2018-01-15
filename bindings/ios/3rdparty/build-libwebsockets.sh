@@ -36,7 +36,7 @@ set -e
 
 if [ ! -d "libwebsockets" ]
 then
-git clone -b v2.2-stable https://github.com/warmcat/libwebsockets.git
+git clone -b v2.4-stable https://github.com/warmcat/libwebsockets.git
 fi
 
 for ARCH in ${ARCHS}
