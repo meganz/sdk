@@ -563,7 +563,19 @@ void Transfer::complete()
                 }
                 else
                 {
-                    fixfingerprint = true;
+                    // We consider that mtime is different if the difference is >2
+                    // due to the resolution of mtime in some filesystems (like FAT).
+                    // This check prevents changes in the fingerprint due to silent
+                    // errors in setmtimelocal (returning success but not setting the
+                    // modification time) that seem to happen in some Android devices.
+                    if (abs(mtime - fingerprint.mtime) <= 2)
+                    {
+                        fixfingerprint = true;
+                    }
+                    else
+                    {
+                        LOG_warn << "Silent failure in setmtimelocal";
+                    }
                 }
             }
         }
