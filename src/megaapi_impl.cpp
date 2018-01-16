@@ -19629,6 +19629,7 @@ void MegaBackupController::setPeriod(const int64_t &value)
 void MegaBackupController::setPeriodstring(const string &value)
 {
     periodstring = value;
+    valid = true;
     if (value.size())
     {
         const char* err = NULL;
@@ -19640,7 +19641,6 @@ void MegaBackupController::setPeriodstring(const string &value)
             valid = false;
             return;
         }
-        valid = true;
 
         this->offsetds=std::time(NULL)*10 - Waiter::ds;
 

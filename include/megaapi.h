@@ -3766,7 +3766,7 @@ public:
      * E.g:
      * - daily at 04:00:00 (UTC): "0 0 4 * * *"
      * - every 15th day at 00:00:00 (UTC) "0 0 0 15 * *"
-     * - mondays at 04.30.00 (UTC): "0 30 3 * * 1"
+     * - mondays at 04.30.00 (UTC): "0 30 4 * * 1"
      *
      * @return The period string of the backup
      */
