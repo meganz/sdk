@@ -4371,7 +4371,15 @@ void MegaApiImpl::fillLocalTimeStruct(const time_t *ttime, struct tm *dt)
 #if (__cplusplus >= 201103L) && defined(__STDC_WANT_LIB_EXT1__)
     localtime_s(ttime, dt);
 #elif _MSC_VER >= 1400 // MSVCRT (2005+): std::localtime is threadsafe
-    *dt = *localtime_r(&ttime);
+    struct tm *newtm = localtime(ttime);
+    if (newtm)
+    {
+        memcpy(dt,newtm,sizeof(struct tm));
+    }
+    else
+    {
+        memset(dt,0,sizeof(struct tm));
+    }
 #elif _WIN32
     static MegaMutex * mtx = new MegaMutex();
     static bool initiated = false;
@@ -4382,7 +4390,14 @@ void MegaApiImpl::fillLocalTimeStruct(const time_t *ttime, struct tm *dt)
     }
     mtx->lock();
     struct tm *newtm = localtime(ttime);
-    *dt = *newtm;
+    if (newtm)
+    {
+        memcpy(dt,newtm,sizeof(struct tm));
+    }
+    else
+    {
+        memset(dt,0,sizeof(struct tm));
+    }
     mtx->unlock();
 #else //POSIX
     localtime_r(ttime, dt);
@@ -19201,7 +19216,28 @@ int64_t MegaBackupController::stringTimeTods(string stime) const
 {
     struct tm dt;
     memset(&dt, 0, sizeof(struct tm));
-    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
+#ifdef _WIN32
+    if (stime.size() != 14)
+    {
+        return 0; //better control of this?
+    }
+    for(int i=0;i<14;i++)
+    {
+        if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
+        {
+            return 0; //better control of this?
+        }
+    }
+
+    dt.tm_year = atoi(stime.substr(0,4).c_str()) - 1900;
+    dt.tm_mon = atoi(stime.substr(4,2).c_str()) - 1;
+    dt.tm_mday = atoi(stime.substr(6,2).c_str());
+    dt.tm_hour = atoi(stime.substr(8,2).c_str());
+    dt.tm_min = atoi(stime.substr(10,2).c_str());
+    dt.tm_sec = atoi(stime.substr(12,2).c_str());
+#else
+    return strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
+#endif
     dt.tm_isdst = -1; //let mktime interprete if time has Daylight Saving Time flag correction
                         //TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
     return (mktime(&dt))*10;
