@@ -16282,6 +16282,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
+                    delete mbc;
                     e = API_EARGS;
                     break;
                 }
@@ -18729,7 +18730,13 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     this->basepath = filename;
     size_t found = basepath.find_last_of("/\\");
-    this->backupName = basepath.substr((found == string::npos)?0:found+1);
+    string aux = basepath;
+    while (aux.size() && (found == (aux.size()-1)))
+    {
+        aux = aux.substr(0, found - 1);
+        found = aux.find_last_of("/\\");
+    }
+    this->backupName = aux.substr((found == string::npos)?0:found+1);
 
     this->parenthandle = parenthandle;
 
@@ -18756,6 +18763,10 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
     valid = true;
     this->setPeriod(period);
     this->setPeriodstring(speriod);
+    if (!backupName.size())
+    {
+        valid = false;
+    }
 
     if (valid)
     {
