@@ -16227,18 +16227,20 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ADD_BACKUP:
         {
             Node *parent = client->nodebyhandle(request->getNodeHandle());
-            if(!parent || (parent->type==FILENODE) || !request->getFile())
+            const char *localPath = request->getFile();
+            if(!parent || (parent->type==FILENODE) || !localPath)
             {
                 e = API_EARGS;
                 break;
             }
 
+            string utf8name(localPath);
             MegaBackupController *mbc = NULL;
             int tagexisting;
             bool existing = false;
             for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
             {
-                if (!strcmp(it->second->getLocalFolder(), request->getFile()) && it->second->getMegaHandle() == request->getNodeHandle())
+                if (!strcmp(it->second->getLocalFolder(), utf8name.c_str()) && it->second->getMegaHandle() == request->getNodeHandle())
                 {
                     existing = true;
                     mbc = it->second;
@@ -16247,7 +16249,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (existing){
-                LOG_debug << "Updating existing backup parameters: " <<  request->getFile() << " to " << request->getNodeHandle();
+                LOG_debug << "Updating existing backup parameters: " <<  utf8name.c_str() << " to " << request->getNodeHandle();
                 mbc->setPeriod(request->getNumber());
                 mbc->setPeriodstring(request->getText());
                 mbc->setMaxBackups(request->getNumRetry());
@@ -16267,9 +16269,10 @@ void MegaApiImpl::sendPendingRequests()
                 int tagForFolderTansferTag = client->nextreqtag();
                 string speriod = request->getText();
                 bool attendPastBackups= request->getFlag();
+                //TODO: add existence of local folder check (optional??)
 
                 MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
-                                                                     request->getFile(), attendPastBackups, speriod.c_str(),
+                                                                     utf8name.c_str(), attendPastBackups, speriod.c_str(),
                                                                      request->getNumber(), request->getNumRetry());
                 mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in setBackup?
                 if (mbc->isValid())
@@ -16327,9 +16330,10 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 else
                 {
+                    MegaBackupController * todelete = itr->second;
                     backupsMap.erase(backuptag);
                     fireOnRequestFinish(request, MegaError(API_OK));
-                    delete itr->second;
+                    delete todelete;
                 }
             }
             else
@@ -19694,7 +19698,7 @@ void MegaBackupController::setPeriodstring(const string &value)
             // we determine a max number of executions to skip.
 
             int maxBackupToSkip = maxBackups + 10;
-            int64_t starttimes[maxBackupToSkip];
+            int64_t* starttimes = new int64_t[maxBackupToSkip];
             int64_t next = lastbackuptime-offsetds;
             int64_t previousnext = next;
 
@@ -19721,6 +19725,7 @@ void MegaBackupController::setPeriodstring(const string &value)
             {
                 this->startTime = starttimes[j]; //starttimes[j] should have the oldest time
             }
+            delete starttimes;
         }
         LOG_debug << " Next Backup set in " << startTime - Waiter::ds << " deciseconds. At: " << epochdsToString((this->startTime+this->offsetds));
     }
