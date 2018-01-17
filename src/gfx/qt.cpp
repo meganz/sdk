@@ -655,6 +655,13 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
+    if (codecContext.pix_fmt == AV_PIX_FMT_NONE)
+    {
+        LOG_warn << "Invalid pixel format: " << codecContext.pix_fmt;
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
     AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
     AVPixelFormat targetPixelFormat = AVPixelFormat::AV_PIX_FMT_RGB24;
     SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
