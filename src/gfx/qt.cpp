@@ -36,6 +36,7 @@ extern "C" {
 #include <libavutil/avutil.h>
 #include <libavutil/mathematics.h>
 #include <libavutil/display.h>
+#include <libavutil/imgutils.h>
 }
 #endif
 
@@ -655,6 +656,13 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
+    if (codecContext.pix_fmt == AV_PIX_FMT_NONE)
+    {
+        LOG_warn << "Invalid pixel format: " << codecContext.pix_fmt;
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
     AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
     AVPixelFormat targetPixelFormat = AVPixelFormat::AV_PIX_FMT_RGB24;
     SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
@@ -698,7 +706,26 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     //Allocate video frames
     AVFrame* videoFrame = av_frame_alloc();
     AVFrame* targetFrame = av_frame_alloc();
-    if (avpicture_alloc((AVPicture *)targetFrame, targetPixelFormat, width, height) < 0)
+    if (!videoFrame || !targetFrame)
+    {
+        LOG_warn << "Error allocating video frames";
+        if (videoFrame)
+        {
+            av_frame_free(&videoFrame);
+        }
+        if (targetFrame)
+        {
+            av_frame_free(&targetFrame);
+        }
+        sws_freeContext(swsContext);
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    targetFrame->format = targetPixelFormat;
+    targetFrame->width = width;
+    targetFrame->height = height;
+    if (av_image_alloc(targetFrame->data, targetFrame->linesize, targetFrame->width, targetFrame->height, targetPixelFormat, 32) < 0)
     {
         LOG_warn << "Error allocating frame";
         av_frame_free(&videoFrame);
@@ -728,7 +755,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     {
         LOG_warn << "Error seeking video";
         av_frame_free(&videoFrame);
-        avpicture_free((AVPicture *)targetFrame);
+        av_freep(&targetFrame->data[0]);
         av_frame_free(&targetFrame);
         avcodec_close(&codecContext);
         sws_freeContext(swsContext);
@@ -754,6 +781,19 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
            decodedBytes = avcodec_decode_video2(&codecContext, videoFrame, &frameExtracted, &packet);
            if (frameExtracted && decodedBytes >= 0)
            {
+                if (sourcePixelFormat != codecContext.pix_fmt)
+                {
+                    LOG_warn << "Error: pixel format changed from " << sourcePixelFormat << " to " << codecContext.pix_fmt;
+                    av_packet_unref(&packet);
+                    av_frame_free(&videoFrame);
+                    avcodec_close(&codecContext);
+                    av_freep(&targetFrame->data[0]);
+                    av_frame_free(&targetFrame);
+                    sws_freeContext(swsContext);
+                    avformat_close_input(&formatContext);
+                    return NULL;
+                }
+
                 scalingResult = sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
                                      0, codecContext.height, targetFrame->data, targetFrame->linesize);
 
@@ -767,7 +807,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                         av_packet_unref(&packet);
                         av_frame_free(&videoFrame);
                         avcodec_close(&codecContext);
-                        avpicture_free((AVPicture *)targetFrame);
+                        av_freep(&targetFrame->data[0]);
                         av_frame_free(&targetFrame);
                         sws_freeContext(swsContext);
                         avformat_close_input(&formatContext);
@@ -781,7 +821,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                         av_packet_unref(&packet);
                         av_frame_free(&videoFrame);
                         avcodec_close(&codecContext);
-                        avpicture_free((AVPicture *)targetFrame);
+                        av_freep(&targetFrame->data[0]);
                         av_frame_free(&targetFrame);
                         sws_freeContext(swsContext);
                         avformat_close_input(&formatContext);
@@ -823,7 +863,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                     av_packet_unref(&packet);
                     av_frame_free(&videoFrame);
                     avcodec_close(&codecContext);
-                    avpicture_free((AVPicture *)targetFrame);
+                    av_freep(&targetFrame->data[0]);
                     av_frame_free(&targetFrame);
                     sws_freeContext(swsContext);
                     avformat_close_input(&formatContext);
@@ -841,7 +881,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     av_packet_unref(&packet);
     av_frame_free(&videoFrame);
     avcodec_close(&codecContext);
-    avpicture_free((AVPicture *)targetFrame);
+    av_freep(&targetFrame->data[0]);
     av_frame_free(&targetFrame);
     sws_freeContext(swsContext);
     avformat_close_input(&formatContext);
