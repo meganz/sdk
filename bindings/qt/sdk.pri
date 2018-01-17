@@ -278,7 +278,7 @@ win32 {
      LIBS += -lpcre
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
+    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp
 }
 
 unix:!macx {
