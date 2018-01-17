@@ -761,6 +761,19 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
            decodedBytes = avcodec_decode_video2(&codecContext, videoFrame, &frameExtracted, &packet);
            if (frameExtracted && decodedBytes >= 0)
            {
+                if (sourcePixelFormat != codecContext.pix_fmt)
+                {
+                    LOG_warn << "Error: pixel format changed from " << sourcePixelFormat << " to " << codecContext.pix_fmt;
+                    av_packet_unref(&packet);
+                    av_frame_free(&videoFrame);
+                    avcodec_close(&codecContext);
+                    avpicture_free((AVPicture *)targetFrame);
+                    av_frame_free(&targetFrame);
+                    sws_freeContext(swsContext);
+                    avformat_close_input(&formatContext);
+                    return NULL;
+                }
+
                 scalingResult = sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
                                      0, codecContext.height, targetFrame->data, targetFrame->linesize);
 
