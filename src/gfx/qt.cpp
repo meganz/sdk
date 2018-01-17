@@ -706,6 +706,22 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     //Allocate video frames
     AVFrame* videoFrame = av_frame_alloc();
     AVFrame* targetFrame = av_frame_alloc();
+    if (!videoFrame || !targetFrame)
+    {
+        LOG_warn << "Error allocating video frames";
+        if (videoFrame)
+        {
+            av_frame_free(&videoFrame);
+        }
+        if (targetFrame)
+        {
+            av_frame_free(&targetFrame);
+        }
+        sws_freeContext(swsContext);
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
     targetFrame->format = targetPixelFormat;
     targetFrame->width = width;
     targetFrame->height = height;
