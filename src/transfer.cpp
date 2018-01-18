@@ -522,28 +522,38 @@ void Transfer::complete()
         FileFingerprint fingerprint;
         Node* n;
         bool fixfingerprint = false;
+        bool fixedfingerprint = false;
         bool syncxfer = false;
 
-#ifdef ENABLE_SYNC
         for (file_list::iterator it = files.begin(); it != files.end(); it++)
         {
             if ((*it)->syncxfer)
             {
                 syncxfer = true;
+            }
+
+            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->h))
+                 && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
+            {
+                LOG_debug << "Wrong fingerprint already fixed";
+                fixedfingerprint = true;
+            }
+
+            if (syncxfer && fixedfingerprint)
+            {
                 break;
             }
         }
-#endif
 
-        // enforce the verification of the fingerprint for sync transfers only
-        if (syncxfer && !transient_error && fa->fopen(&localfilename, true, false))
+        if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
             fingerprint.genfingerprint(fa);
-
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
                 LOG_err << "Fingerprint mismatch";
-                if (!badfp.isvalid || !(badfp == fingerprint))
+
+                // enforce the verification of the fingerprint for sync transfers only
+                if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                 {
                     badfp = fingerprint;
                     delete fa;
@@ -553,9 +563,18 @@ void Transfer::complete()
                 }
                 else
                 {
-                    if (success && fingerprint.size == this->size)
+                    // We consider that mtime is different if the difference is >2
+                    // due to the resolution of mtime in some filesystems (like FAT).
+                    // This check prevents changes in the fingerprint due to silent
+                    // errors in setmtimelocal (returning success but not setting the
+                    // modification time) that seem to happen in some Android devices.
+                    if (abs(mtime - fingerprint.mtime) <= 2)
                     {
                         fixfingerprint = true;
+                    }
+                    else
+                    {
+                        LOG_warn << "Silent failure in setmtimelocal";
                     }
                 }
             }
@@ -563,7 +582,7 @@ void Transfer::complete()
 #ifdef ENABLE_SYNC
         else
         {
-            if (syncxfer && !transient_error)
+            if (syncxfer && !fixedfingerprint && success)
             {
                 transient_error = fa->retry;
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
@@ -577,30 +596,29 @@ void Transfer::complete()
 
         if (!transient_error)
         {
-            set<handle> nodes;
-
-            // set FileFingerprint on source node(s) if missing
-            for (file_list::iterator it = files.begin(); it != files.end(); it++)
+            if (fingerprint.isvalid)
             {
-                if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
-                        && nodes.find(n->nodehandle) == nodes.end())
+                // set FileFingerprint on source node(s) if missing
+                set<handle> nodes;
+                for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    nodes.insert(n->nodehandle);
-
-                    if (fingerprint.isvalid && success && (!n->isvalid || fixfingerprint)
-                            && fingerprint.size == n->size)
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                            && nodes.find(n->nodehandle) == nodes.end())
                     {
-                        *(FileFingerprint*)n = fingerprint;
+                        nodes.insert(n->nodehandle);
 
-                        n->serializefingerprint(&n->attrs.map['c']);
-                        client->setattr(n);
+                        if ((!n->isvalid || fixfingerprint)
+                                && !(fingerprint == *(FileFingerprint*)n)
+                                && fingerprint.size == this->size)
+                        {
+                            LOG_debug << "Fixing fingerprint";
+                            *(FileFingerprint*)n = fingerprint;
+
+                            n->serializefingerprint(&n->attrs.map['c']);
+                            client->setattr(n);
+                        }
                     }
                 }
-            }
-
-            if (fingerprint.isvalid && fixfingerprint)
-            {
-                (*(FileFingerprint*)this) = fingerprint;
             }
 
             // ...and place it in all target locations. first, update the files'
@@ -610,6 +628,7 @@ void Transfer::complete()
                 (*it)->updatelocalname();
             }
 
+            set<string> keys;
             // place file in all target locations - use up to one renames, copy
             // operations for the rest
             // remove and complete successfully completed files
@@ -726,10 +745,11 @@ void Transfer::complete()
                     }
                 }
 
-                if (!tmplocalname.size())
+                if (files.size() == 1 && !tmplocalname.size())
                 {
                     if (localfilename != localname)
                     {
+                        LOG_debug << "Renaming temporary file to target path";
                         if (client->fsaccess->renamelocal(&localfilename, &localname))
                         {
                             tmplocalname = localname;
@@ -744,42 +764,6 @@ void Transfer::complete()
                     {
                         tmplocalname = localname;
                         success = true;
-                    }
-
-                    // Add video file attributes for video files that don't have any yet.  Just for the first copy of this downloaded file.
-                    if (success)
-                    {
-                        set<handle> nodes;
-
-                        // set missing node attributes
-                        for (file_list::iterator it = files.begin(); it != files.end(); it++)
-                        {
-                            if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
-                            {
-                                if (client->gfx && client->gfx->isgfx(&tmplocalname) &&
-                                        nodes.find(n->nodehandle) == nodes.end() &&    // this node hasn't been processed yet
-                                        client->checkaccess(n, OWNER))
-                                {
-                                    nodes.insert(n->nodehandle);
-
-                                    // check if restoration of missing attributes failed in the past (no access)
-                                    if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
-                                    {
-                                        // check for missing imagery
-                                        int missingattr = 0;
-                                        if (!n->hasfileattribute(GfxProc::THUMBNAIL)) missingattr |= 1 << GfxProc::THUMBNAIL;
-                                        if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
-
-                                        if (missingattr)
-                                        {
-                                            client->gfx->gendimensionsputfa(NULL, &tmplocalname, n->nodehandle, n->nodecipher(), missingattr);
-                                        }
-
-                                        addAnyMissingMediaFileAttributes(n, tmplocalname);
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
 
@@ -798,6 +782,36 @@ void Transfer::complete()
                     else if (client->fsaccess->transient_error)
                     {
                         transient_error = true;
+                    }
+                }
+
+                if (success)
+                {
+                    // set missing node attributes
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                    {
+                        if (client->gfx && client->gfx->isgfx(&localname) &&
+                                keys.find(n->nodekey) == keys.end() &&    // this file hasn't been processed yet
+                                client->checkaccess(n, OWNER))
+                        {
+                            keys.insert(n->nodekey);
+
+                            // check if restoration of missing attributes failed in the past (no access)
+                            if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
+                            {
+                                // check for missing imagery
+                                int missingattr = 0;
+                                if (!n->hasfileattribute(GfxProc::THUMBNAIL)) missingattr |= 1 << GfxProc::THUMBNAIL;
+                                if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
+
+                                if (missingattr)
+                                {
+                                    client->gfx->gendimensionsputfa(NULL, &localname, n->nodehandle, n->nodecipher(), missingattr);
+                                }
+
+                                addAnyMissingMediaFileAttributes(n, localname);
+                            }
+                        }
                     }
                 }
 
@@ -833,7 +847,8 @@ void Transfer::complete()
                     }
                     else
                     {
-                        LOG_debug << "Persistent error completing file";
+                        failcount++;
+                        LOG_debug << "Persistent error completing file. Failcount: " << failcount;
                         it++;
                     }
                 }
