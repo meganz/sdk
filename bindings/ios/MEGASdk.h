@@ -3745,6 +3745,13 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node;
 
 /**
+ * @brief Get a list with all public links
+ *
+ * @return List of MEGANode objects that are shared with everyone via public link
+ */
+- (MEGANodeList *)publicLinks;
+
+/**
  * @brief Get a list with all incoming contact requests
  *
  * @return List of MEGAContactRequest objects

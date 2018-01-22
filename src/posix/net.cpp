@@ -2291,7 +2291,7 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
         return CURL_SEEKFUNC_FAIL;
     }
 
-    if (newoffset > totalsize || newoffset < 0)
+    if (newoffset > (int) totalsize || newoffset < 0)
     {
         LOG_err << "Invalid offset " << origin << " " << offset << " " << totalsize
                 << " " << req->outbuf << " " << newoffset;

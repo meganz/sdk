@@ -1296,6 +1296,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_PWD_REMINDER;
     }
+    if(user->changed.disableVersions)
+    {
+        changed |= MegaUser::CHANGE_TYPE_DISABLE_VERSIONS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -2506,6 +2510,8 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete megaPricing;
     delete achievementsDetails;
     delete [] text;
+    delete stringMap;
+
 #ifdef ENABLE_SYNC
     delete regExp;
 #endif
@@ -4216,6 +4222,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_PWD_REMINDER:
             attrname = "!pwd";
             break;
+
+        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
+            attrname = "!dv";
+            break;
     }
 
     return attrname;
@@ -4248,6 +4258,7 @@ char MegaApiImpl::userAttributeToScope(int type)
 
         case MegaApi::USER_ATTR_LANGUAGE:
         case MegaApi::USER_ATTR_PWD_REMINDER:
+        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
             scope = '^';
             break;
 
@@ -8131,6 +8142,17 @@ bool MegaApiImpl::getLanguageCode(const char *languageCode, string *code)
     return false;
 }
 
+void MegaApiImpl::setFileVersionsOption(bool disable, MegaRequestListener *listener)
+{
+    string av = disable ? "1" : "0";
+    setUserAttr(MegaApi::USER_ATTR_DISABLE_VERSIONS, av.data(), listener);
+}
+
+void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
+{
+    getUserAttr(NULL, MegaApi::USER_ATTR_DISABLE_VERSIONS, NULL, listener);
+}
+
 void MegaApiImpl::retrySSLerrors(bool enable)
 {
     sdkMutex.lock();
@@ -10993,7 +11015,10 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                 return;
             }
 
-            ovhandle = ovn->nodehandle;
+            if (!client->versions_disabled)
+            {
+                ovhandle = ovn->nodehandle;
+            }
         }
 
         NewNode* newnode = new NewNode[1];
@@ -11229,9 +11254,15 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         case MegaApi::USER_ATTR_LASTNAME:
         case MegaApi::USER_ATTR_LANGUAGE:   // it's a c-string in binary format, want the plain data
         case MegaApi::USER_ATTR_PWD_REMINDER:
+        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
+
+                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS)
+                {
+                    request->setFlag(str == "1");
+                }
             }
             break;
 
@@ -13445,7 +13476,7 @@ void MegaApiImpl::sendPendingTransfers()
                         attrs.map['n'] = sname;
                         attrs.getjson(&attrstring);
                         client->makeattr(&key,tc.nn[0].attrstring, attrstring.c_str());
-                        if (tc.nn->type == FILENODE)
+                        if (tc.nn->type == FILENODE && !client->versions_disabled)
                         {
                             tc.nn->ovhandle = client->getovhandle(parent, &sname);
                         }
@@ -14001,7 +14032,10 @@ void MegaApiImpl::sendPendingRequests()
                                 break;
                             }
 
-                            ovhandle = ovn->nodehandle;
+                            if (!client->versions_disabled)
+                            {
+                                ovhandle = ovn->nodehandle;
+                            }
                         }
                     }
                 }
@@ -14100,7 +14134,10 @@ void MegaApiImpl::sendPendingRequests()
                             delete fp;
                         }
 
-                        ovhandle = ovn->nodehandle;
+                        if (!client->versions_disabled)
+                        {
+                            ovhandle = ovn->nodehandle;
+                        }
                     }
                 }
 
@@ -14173,7 +14210,10 @@ void MegaApiImpl::sendPendingRequests()
                             break;
                         }
 
-                        ovhandle = ovn->nodehandle;
+                        if (!client->versions_disabled)
+                        {
+                            ovhandle = ovn->nodehandle;
+                        }
                     }
                 }
 
@@ -14724,6 +14764,16 @@ void MegaApiImpl::sendPendingRequests()
                     delete [] uh;
                     break;
                 }
+                else if (type == ATTR_DISABLE_VERSIONS)
+                {
+                    if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    client->putua(type, (byte *)value, 1);
+                }
                 else
                 {
                     e = API_EARGS;
@@ -15066,7 +15116,8 @@ void MegaApiImpl::sendPendingRequests()
 		case MegaRequest::TYPE_REMOVE_CONTACT:
 		{
 			const char *email = request->getEmail();
-			if(!email) { e = API_EARGS; break; }
+            User *u = client->finduser(email);
+            if(!u || u->show == HIDDEN || u->userhandle == client->me) { e = API_EARGS; break; }
             e = client->removecontact(email, HIDDEN);
 			break;
 		}
@@ -19893,18 +19944,9 @@ PublicLinkProcessor::PublicLinkProcessor()
 
 bool PublicLinkProcessor::processNode(Node *node)
 {
-    if(!node->outshares)
+    if(node->plink)
     {
-        return true;
-    }
-
-    for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
-    {
-        Share *share = it->second;
-        if (share->user == NULL)    // public links have no user
-        {
-            nodes.push_back(node);
-        }
+        nodes.push_back(node);
     }
 
     return true;

@@ -1072,7 +1072,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             sync->client->syncup(parent, &nds);
 
             // check if nodes can be immediately created
-            bool immediatecreation = sync->client->synccreate.size() == nc;
+            bool immediatecreation = (int) sync->client->synccreate.size() == nc;
 
             sync->client->syncupdate();
 

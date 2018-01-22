@@ -1258,6 +1258,10 @@ using namespace mega;
     return [[MEGAShareList alloc] initWithShareList:self.megaApi->getOutShares((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
+- (MEGANodeList *)publicLinks {
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getPublicLinks() cMemoryOwn:YES];
+}
+
 - (MEGAContactRequestList *)incomingContactRequests {
     return [[MEGAContactRequestList alloc] initWithMegaContactRequestList:self.megaApi->getIncomingContactRequests() cMemoryOwn:YES];
 }
