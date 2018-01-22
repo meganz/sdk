@@ -56,7 +56,36 @@ bool GfxProc::isgfx(string* localfilename)
     return false;
 }
 
+bool GfxProc::isvideo(string *localfilename)
+{
+    char ext[8];
+    const char* supported;
+
+    if (!(supported = supportedvideoformats()))
+    {
+        return false;
+    }
+
+    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    {
+        const char* ptr;
+
+        // FIXME: use hash
+        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 const char* GfxProc::supportedformats()
+{
+    return NULL;
+}
+
+const char* GfxProc::supportedvideoformats()
 {
     return NULL;
 }

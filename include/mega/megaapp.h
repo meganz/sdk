@@ -78,6 +78,9 @@ struct MEGA_API MegaApp
     // node deletion failed (not invoked unless error != API_OK)
     virtual void unlink_result(handle, error) { }
 
+    // remove versions result
+    virtual void unlinkversions_result(error) { }
+
     // nodes have been updated
     virtual void nodes_updated(Node**, int) { }
 
@@ -286,7 +289,7 @@ struct MEGA_API MegaApp
     virtual void notify_change_to_https() { }
 
     // account confirmation via signup link
-    virtual void notify_confirmation(const char* email) { }
+    virtual void notify_confirmation(const char* /*email*/) { }
 
     // network layer disconnected
     virtual void notify_disconnect() { }

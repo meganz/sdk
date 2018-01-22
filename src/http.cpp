@@ -531,7 +531,7 @@ byte* HttpReq::reserveput(unsigned* len)
             inpurge = 0;
         }
 
-        if (bufpos + *len > in.size())
+        if (bufpos + *len > (int) in.size())
         {
             in.resize(bufpos + *len);
         }

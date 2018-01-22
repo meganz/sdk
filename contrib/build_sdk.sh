@@ -27,6 +27,7 @@ if [ -z "$BASH_VERSION" ] ; then
 fi
 
 # global vars
+verbose=1
 use_local=0
 use_dynamic=0
 disable_freeimage=0
@@ -46,6 +47,7 @@ enable_curl=0
 enable_libuv=0
 android_build=0
 enable_cryptopp=0
+disable_mediainfo=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -178,6 +180,15 @@ package_extract() {
     fi
 }
 
+exitwithlog() {
+    local logname=$1
+    local exitcode=$2
+    if [ $verbose -eq 1 ]; then
+        cat $logname
+    fi
+    exit $exitcode
+}
+
 package_configure() {
     local name=$1
     local dir=$2
@@ -198,9 +209,9 @@ package_configure() {
     fi
 
     if [ -f $conf_f1 ]; then
-        $conf_f1 --prefix=$install_dir $params &> ../$name.conf.log || exit 1
+        $conf_f1 --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
     elif [ -f $conf_f2 ]; then
-        $conf_f2 $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exit 1
+        $conf_f2 $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
     else
         local exit_code=$?
         echo "Failed to configure $name, exit status: $exit_code"
@@ -231,7 +242,7 @@ package_build() {
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         echo "Failed to build $name, exit status: $exit_code"
-        exit 1
+        exitwithlog ../$name.build.log 1
     fi
     cd $cwd
 }
@@ -256,7 +267,7 @@ package_install() {
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         echo "Failed to install $name, exit status: $exit_code"
-        exit 1
+        exitwithlog ../$name.install.log 1
     fi
     cd $cwd
 
@@ -681,6 +692,124 @@ readline_win_pkg() {
     cp $readline_dir/lib/libreadline.dll.a $install_dir/lib/libreadline.a || exit 1
 }
 
+mediainfo_pkg() {
+    local build_dir=$1
+    local install_dir=$2
+    local cwd=$3
+    local zenlib_name="ZenLib"
+    local zenlib_ver="6694a744d82d942c4a410f25f916561270381889"
+    local zenlib_url="https://github.com/MediaArea/ZenLib/archive/${zenlib_ver}.tar.gz"
+    local zenlib_md5="02a78d1d18ce163483d8e01961f983f4"
+    local zenlib_file="$zenlib_ver.tar.gz"
+    local zenlib_dir_extract="ZenLib-$zenlib_ver"
+    local zenlib_dir="ZenLib-$zenlib_ver/Project/GNU/Library"
+
+    local mediainfolib_name="MediaInfoLib"
+    local mediainfolib_ver="4ee7f77c087b29055f48d539cd679de8de6f9c48"
+    local mediainfolib_url="https://github.com/meganz/MediaInfoLib/archive/${mediainfolib_ver}.tar.gz"
+    local mediainfolib_md5="5214341153298077b9e711c181742fe3"
+    local mediainfolib_file="$mediainfolib_ver.tar.gz"
+    local mediainfolib_dir_extract="MediaInfoLib-$mediainfolib_ver"
+    local mediainfolib_dir="MediaInfoLib-$mediainfolib_ver/Project/GNU/Library"
+
+    package_download $zenlib_name $zenlib_url $zenlib_file $zenlib_md5
+    package_download $mediainfolib_name $mediainfolib_url $mediainfolib_file $mediainfolib_md5
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
+    package_extract $zenlib_name $zenlib_file $zenlib_dir_extract
+    ln -sfr $zenlib_dir_extract $build_dir/ZenLib || ln -sf $zenlib_dir_extract $build_dir/ZenLib
+    package_extract $mediainfolib_name $mediainfolib_file $mediainfolib_dir_extract
+
+    local zenlib_params="--enable-static --disable-shared"
+
+    local mediainfolib_params="--disable-shared --enable-minimize-size --enable-minimal --disable-archive \
+    --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m --disable-cdxa \
+    --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf --disable-dcp --disable-aaf --disable-bdav \
+    --disable-bdmv --disable-dvdv --disable-gxf --disable-mixml --disable-skm --disable-nut --disable-tsp \
+    --disable-hls --disable-dxw --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus \
+    --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m --disable-adpcm --disable-amr \
+    --disable-amv --disable-ape --disable-au --disable-la --disable-celt --disable-midi --disable-mpc --disable-openmg \
+    --disable-pcm --disable-ps2a --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq \
+    --disable-references --enable-staticlibs"
+
+    if [ $disable_zlib -eq 0 ]; then
+        mediainfolib_params="$mediainfolib_params --with-libz-static"
+        mkdir -p $build_dir/Shared/Source/zlib
+        #~ ln -sfr $(find $install_dir -name zlib.a) $build_dir/Shared/Source/zlib/libz.a
+        ln -sfr $install_dir/lib/libz.a $build_dir/Shared/Source/zlib/libz.a || ln -sf $install_dir/lib/libz.a $build_dir/Shared/Source/zlib/libz.a
+    fi
+
+    package_configure $zenlib_name $zenlib_dir $install_dir "$zenlib_params" #TODO: tal vez install dir ha de ser ./ZenLib!!! casi 100% seguro
+    #~ package_configure $zenlib_name $zenlib_dir "$build_dir/ZenLib" "$zenlib_params" #TODO: tal vez install dir ha de ser ./ZenLib!!! casi 100% seguro
+
+    package_build $zenlib_name $zenlib_dir
+    #package_install $zenlib_name $zenlib_dir $install_dir
+    package_install $zenlib_name $zenlib_dir "$build_dir/ZenLib"
+
+    package_configure $mediainfolib_name $mediainfolib_dir $install_dir "$mediainfolib_params" #TODO: tal vez install dir ha de ser ./ZenLib!!! casi 100% seguro
+    CR=$(printf '\r')
+    cat << EOF > $build_dir/mediainfopatch
+--- MediaInfo_Config.cpp
++++ MediaInfo_Config_new.cpp
+@@ -1083,7 +1083,7 @@
+     }$CR
+     if (Option_Lower==__T("maxml_fields"))$CR
+     {$CR
+-        #if MEDIAINFO_ADVANCED$CR
++        #if MEDIAINFO_ADVANCED && defined(MEDIAINFO_XML_YES)$CR
+             return MAXML_Fields_Get(Value);$CR
+         #else // MEDIAINFO_ADVANCED$CR
+             return __T("advanced features are disabled due to compilation options");$CR
+@@ -2652,6 +2652,7 @@
+ #endif // MEDIAINFO_ADVANCED$CR
+ $CR
+ #if MEDIAINFO_ADVANCED$CR
++#ifdef MEDIAINFO_XML_YES$CR
+ extern Ztring Xml_Name_Escape_0_7_78 (const Ztring &Name);$CR
+ Ztring MediaInfo_Config::MAXML_Fields_Get (const Ztring &StreamKind_String)$CR
+ {$CR
+@@ -2691,6 +2692,7 @@
+     List.Separator_Set(0, __T(","));$CR
+     return List.Read();$CR
+ }$CR
++#endif$CR
+ #endif // MEDIAINFO_ADVANCED$CR
+ $CR
+ //***************************************************************************$CR
+EOF
+    (cd $mediainfolib_dir/../../../Source/MediaInfo; patch MediaInfo_Config.cpp < $build_dir/mediainfopatch)
+
+    package_build $mediainfolib_name $mediainfolib_dir
+    package_install $mediainfolib_name $mediainfolib_dir $install_dir
+
+}
+
+# we can't build vanilla ReadLine under MinGW
+readline_win_pkg() {
+    local build_dir=$1
+    local install_dir=$2
+    local name="Readline"
+    local readline_ver="5.0.1"
+    local readline_url="http://downloads.sourceforge.net/project/gnuwin32/readline/5.0-1/readline-5.0-1-bin.zip?r=&ts=1468492036&use_mirror=freefr"
+    local readline_md5="91beae8726edd7ad529f67d82153e61a"
+    local readline_file="readline-bin.zip"
+    local readline_dir="readline-bin"
+
+    package_download $name $readline_url $readline_file $readline_md5
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
+    package_extract $name $readline_file $readline_dir
+
+    # manually copy binary files
+    cp -R $readline_dir/include/* $install_dir/include/ || exit 1
+    # fix library name
+    cp $readline_dir/lib/libreadline.dll.a $install_dir/lib/libreadline.a || exit 1
+}
+
 build_sdk() {
     local install_dir=$1
     local debug=$2
@@ -708,6 +837,12 @@ build_sdk() {
         freeimage_flags="--with-freeimage=$install_dir"
     else
         freeimage_flags="--without-freeimage"
+    fi
+
+    # use local or system MediaInfo
+    local mediainfo_flags=""
+    if [ $disable_mediainfo -eq 0 ]; then
+        mediainfo_flags="--with-libzen=$install_dir --with-libmediainfo=$install_dir"
     fi
 
     # enable megaapi
@@ -749,6 +884,7 @@ build_sdk() {
             $disable_posix_threads \
             $no_examples \
             $config_opts \
+            $mediainfo_flags \
             --prefix=$install_dir \
             $debug || exit 1
     # Windows (MinGW) build, uses WinHTTP instead of cURL + c-ares, without OpenSSL
@@ -770,6 +906,7 @@ build_sdk() {
             $disable_posix_threads \
             $no_examples \
             $config_opts \
+            $mediainfo_flags \
             --prefix=$install_dir \
             $debug || exit 1
     fi
@@ -804,6 +941,7 @@ display_help() {
     echo " -e : Enable cares"
     echo " -f : Disable FreeImage"
     echo " -g : Enable curl"
+    echo " -i : Disable external media info"
     echo " -l : Use local software archive files instead of downloading"
     echo " -n : Disable example applications"
     echo " -s : Disable OpenSSL"
@@ -831,7 +969,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":habcdefglm:no:p:rstuvyx:wqz" opt; do
+    while getopts ":habcdefgilm:no:p:rstuvyx:wqz" opt; do
         case $opt in
             h)
                 display_help $0
@@ -864,6 +1002,10 @@ main() {
             g)
                 echo "* Enabling external Curl"
                 enable_curl=1
+                ;;
+            i)
+                echo "* Disabling external MediaInfo"
+                disable_mediainfo=1
                 ;;
             l)
                 echo "* Using local files"
@@ -1006,6 +1148,10 @@ main() {
 
     if [ $disable_freeimage -eq 0 ]; then
         freeimage_pkg $build_dir $install_dir $cwd
+    fi
+
+    if [ $disable_mediainfo -eq 0 ]; then
+        mediainfo_pkg $build_dir $install_dir $cwd
     fi
 
     # Build readline and termcap if no_examples isn't set
