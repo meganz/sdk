@@ -511,7 +511,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
                                                  (char*)excluded.data(),
                                                  excluded.size() + 1,
                                                  NULL, NULL));
-                LOG_debug << "Excluded: " << excluded << "   Attributes: " << ffd.dwFileAttributes;
+                LOG_debug << "Excluded: " << excluded << "   Attributes: " << fad.dwFileAttributes;
             }
             retry = false;
             return false;
