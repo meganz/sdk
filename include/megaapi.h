@@ -1101,7 +1101,8 @@ class MegaUser
             CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
             CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
             CHANGE_TYPE_LANGUAGE        = 0x2000,
-            CHANGE_TYPE_PWD_REMINDER    = 0x4000
+            CHANGE_TYPE_PWD_REMINDER    = 0x4000,
+            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000
         };
 
         /**
@@ -1159,6 +1160,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_PWD_REMINDER     = 0x4000
          * Check if the data related to the password reminder dialog has changed
          *
+         * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
+         * Check if option for file versioning has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1215,6 +1219,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_PWD_REMINDER     = 0x4000
          * Check if the data related to the password reminder dialog has changed
+         *
+         * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
+         * Check if option for file versioning has changed
          */
         virtual int getChanges();
 
@@ -2014,7 +2021,7 @@ class MegaRequest
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
-            TYPE_RESTORE,
+            TYPE_RESTORE, TYPE_REMOVE_VERSIONS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -4636,7 +4643,8 @@ class MegaApi
             USER_ATTR_SIG_RSA_PUBLIC_KEY = 8,   // public - byte array
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
             USER_ATTR_LANGUAGE = 14,            // private - char array
-            USER_ATTR_PWD_REMINDER = 15         // private - char array
+            USER_ATTR_PWD_REMINDER = 15,        // private - char array
+            USER_ATTR_DISABLE_VERSIONS = 16     // private - byte array
         };
 
         enum {
@@ -5945,6 +5953,18 @@ class MegaApi
         void remove(MegaNode* node, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Remove all versions from the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_VERSIONS
+         *
+         * When the request finishes, file versions might not be deleted yet.
+         * Deletions are notified using onNodesUpdate callbacks.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeVersions(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Remove a version of a file from the MEGA account
          *
          * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
@@ -6324,6 +6344,8 @@ class MegaApi
          * Get the preferred language of the user (private, non-encrypted)
          * MegaApi::USER_ATTR_PWD_REMINDER = 15
          * Get the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Get whether user has versions disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6373,6 +6395,8 @@ class MegaApi
          * Get the preferred language of the user (private, non-encrypted)
          * MegaApi::USER_ATTR_PWD_REMINDER = 15
          * Get the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Get whether user has versions disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6419,6 +6443,8 @@ class MegaApi
          * Get the preferred language of the user (private, non-encrypted)
          * MegaApi::USER_ATTR_PWD_REMINDER = 15
          * Get the password-reminder-dialog information (private, non-encrypted)
+         * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+         * Get whether user has versions disabled or enabled (private, non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -9616,6 +9642,41 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getLanguagePreference(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable or disable file versioning
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_DISABLE_VERSIONS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish:
+         * - MegaRequest::getText - "1" for disable, "0" for enable
+         *
+         * @param disable True to disable file versioning. False to enable it
+         * @param listener MegaRequestListener to track this request
+         */
+        void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if file versioning is enabled or disabled
+         *
+         * If the option has never been set, the error code will be MegaError::API_ENOENT.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_DISABLE_VERSIONS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - "1" for disable, "0" for enable
+         * - MegaRequest::getFlag - True if disabled, false if enabled
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getFileVersionsOption(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Keep retrying when public key pinning fails

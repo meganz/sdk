@@ -35,6 +35,7 @@
 #include "http.h"
 #include "pubkeyaction.h"
 #include "pendingcontactrequest.h"
+#include "mediafileattribute.h"
 
 namespace mega {
 
@@ -310,6 +311,9 @@ public:
 
     // delete node
     error unlink(Node*, bool = false);
+
+    // delete all versions
+    void unlinkversions();
 
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
@@ -776,6 +780,9 @@ public:
     // state cache table for logged in user
     DbTable* sctable;
 
+    // there is data to commit to the database when possible
+    bool pendingsccommit;
+
     // transfer cache table
     DbTable* tctable;
     // scsn as read from sctable
@@ -947,6 +954,10 @@ public:
     void notifychat(TextChat *);
 #endif
 
+#ifdef USE_MEDIAINFO
+    MediaFileInfo mediaFileInfo;
+#endif
+
     // write changed/added/deleted users to the DB cache and notify the
     // application
     void notifypurge();
@@ -967,6 +978,9 @@ public:
 
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
+
+    // minute of the last created folder in SyncDebris
+    m_time_t syncdebrisminute;
 
     // activity flag
     bool syncactivity;
@@ -1262,7 +1276,11 @@ public:
     // achievements enabled for the account
     bool achievements_enabled;
 
+    // non-zero if login with user+pwd was done (reset upon fetchnodes completion)
     bool tsLogin;
+
+    // true if user has disabled fileversioning
+    bool versions_disabled;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
