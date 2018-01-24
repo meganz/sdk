@@ -62,6 +62,9 @@ static handle hlink = UNDEF;
 static int del = 0;
 static int ets = 0;
 
+// import welcome pdf at account creation
+static bool pdf_to_import = false;
+
 // local console
 Console* console;
 
@@ -139,6 +142,8 @@ const char* errorstring(error e)
             return "Read error";
         case API_EAPPKEY:
             return "Invalid application key";
+        case API_EGOINGOVERQUOTA:
+            return "Not enough quota";
         default:
             return "Unknown error";
     }
@@ -429,13 +434,13 @@ static bool is_syncable(const char* name)
 }
 
 // determines whether remote node should be synced
-bool DemoApp::sync_syncable(Node* n)
+bool DemoApp::sync_syncable(Sync *, const char *, string *, Node *n)
 {
     return is_syncable(n->displayname());
 }
 
 // determines whether local file should be synced
-bool DemoApp::sync_syncable(const char* name, string* localpath, string* localname)
+bool DemoApp::sync_syncable(Sync *, const char *name, string *)
 {
     return is_syncable(name);
 }
@@ -576,7 +581,6 @@ void DemoApp::chaturl_result(string *url, error e)
     {
         cout << "Chat URL: " << *url << endl;
     }
-
 }
 
 void DemoApp::chatgrantaccess_result(error e)
@@ -626,6 +630,7 @@ void DemoApp::chattruncate_result(error e)
         cout << "Message/s truncated successfully" << endl;
     }
 }
+
 void DemoApp::chatsettitle_result(error e)
 {
     if (e)
@@ -635,6 +640,18 @@ void DemoApp::chatsettitle_result(error e)
     else
     {
         cout << "Title updated successfully" << endl;
+    }
+}
+
+void DemoApp::chatpresenceurl_result(string *url, error e)
+{
+    if (e)
+    {
+        cout << "Presence URL retrieval failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Presence URL: " << *url << endl;
     }
 }
 
@@ -670,7 +687,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     Base64::btoa((const byte *)&chat->id, sizeof(handle), hstr);
 
     cout << "Chat ID: " << hstr << endl;
-    cout << "\tOwn privilege level: " << getPrivilegeString(chat->priv) << endl;
+    cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
     cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
     if (chat->group)
@@ -690,7 +707,7 @@ void DemoApp::printChatInformation(TextChat *chat)
         {
             Base64::btoa((const byte *)&chat->userpriv->at(i).first, sizeof(handle), hstr);
             cout << "\t\t\t" << hstr;
-            cout << "\t" << getPrivilegeString(chat->userpriv->at(i).second) << endl;
+            cout << "\t" << DemoApp::getPrivilegeString(chat->userpriv->at(i).second) << endl;
         }
     }
     else
@@ -809,6 +826,7 @@ void DemoApp::fetchnodes_result(error e)
     if (e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        pdf_to_import = false;
     }
     else
     {
@@ -826,6 +844,11 @@ void DemoApp::fetchnodes_result(error e)
                 cout << "Folder link loaded correctly." << endl;
             }
         }
+
+        if (pdf_to_import)
+        {
+            client->getwelcomepdf();
+        }
     }
 }
 
@@ -839,6 +862,21 @@ void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
         {
             cout << "Success." << endl;
         }
+    }
+
+    if (pdf_to_import)   // putnodes from openfilelink_result()
+    {
+        if (!e)
+        {
+            cout << "Welcome PDF file has been imported successfully." << endl;
+        }
+        else
+        {
+            cout << "Failed to import Welcome PDF file" << endl;
+        }
+
+        pdf_to_import = false;
+        return;
     }
 
     if (e)
@@ -1791,10 +1829,6 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    // decrypt and set master key, then proceed with the confirmation
-                    pwcipher.ecb_decrypt(signupencryptedmasterkey);
-                    client->key.setkey(signupencryptedmasterkey);
-
                     client->confirmsignuplink((const byte*) signupcode.data(), signupcode.size(),
                                               MegaClient::stringhash64(&signupemail, &pwcipher));
                 }
@@ -2026,11 +2060,15 @@ static void process_line(char* l)
                 cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
+                cout << "      test" << endl;
 #ifdef ENABLE_CHAT
+                cout << "      chats [chatid]" << endl;
                 cout << "      chatc group [email ro|sta|mod]*" << endl;
                 cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
+                cout << "      chatup chatid userhandle ro|sta|mod" << endl;
+                cout << "      chatpu" << endl;
                 cout << "      chatga chatid nodehandle uid" << endl;
                 cout << "      chatra chatid nodehandle uid" << endl;
                 cout << "      chatst chatid title64" << endl;
@@ -2308,15 +2346,63 @@ static void process_line(char* l)
 
                                 TreeProcCopy tc;
                                 unsigned nc;
+                                handle ovhandle = UNDEF;
+
+                                if (!n->nodekey.size())
+                                {
+                                    cout << "Cannot copy a node without key" << endl;
+                                    return;
+                                }
+
+                                if (n->attrstring)
+                                {
+                                    n->applykey();
+                                    n->setattr();
+                                    if (n->attrstring)
+                                    {
+                                        cout << "Cannot copy undecryptable node" << endl;
+                                        return;
+                                    }
+                                }
+
+                                string sname;
+                                if (newname.size())
+                                {
+                                    sname = newname;
+                                    client->fsaccess->normalize(&sname);
+                                }
+                                else
+                                {
+                                    attr_map::iterator it = n->attrs.map.find('n');
+                                    if (it != n->attrs.map.end())
+                                    {
+                                        sname = it->second;
+                                    }
+                                }
+
+                                if (!client->versions_disabled && tn && n->type == FILENODE)
+                                {
+                                    Node *ovn = client->childnodebyname(tn, sname.c_str(), true);
+                                    if (ovn)
+                                    {
+                                        if (n->isvalid && ovn->isvalid && *(FileFingerprint*)n == *(FileFingerprint*)ovn)
+                                        {
+                                            cout << "Skipping identical node" << endl;
+                                            return;
+                                        }
+
+                                        ovhandle = ovn->nodehandle;
+                                    }
+                                }
 
                                 // determine number of nodes to be copied
-                                client->proctree(n, &tc);
+                                client->proctree(n, &tc, false, ovhandle != UNDEF);
 
                                 tc.allocnodes();
                                 nc = tc.nc;
 
                                 // build new nodes array
-                                client->proctree(n, &tc);
+                                client->proctree(n, &tc, false, ovhandle != UNDEF);
 
                                 // if specified target is a filename, use it
                                 if (newname.size())
@@ -2328,9 +2414,7 @@ static void process_line(char* l)
                                     AttrMap attrs;
 
                                     attrs.map = n->attrs.map;
-
-                                    client->fsaccess->normalize(&newname);
-                                    attrs.map['n'] = newname;
+                                    attrs.map['n'] = sname;
 
                                     key.setkey((const byte*) tc.nn->nodekey.data(), tc.nn->type);
 
@@ -2342,6 +2426,7 @@ static void process_line(char* l)
 
                                 // tree root: no parent
                                 tc.nn->parenthandle = UNDEF;
+                                tc.nn->ovhandle = ovhandle;
 
                                 if (tn)
                                 {
@@ -2495,15 +2580,18 @@ static void process_line(char* l)
                             string localname;
                             string name;
                             nodetype_t type;
+                            Node* n = NULL;
 
                             if (words.size() > 2)
                             {
-                                Node* n;
-
                                 if ((n = nodebypath(words[2].c_str(), &targetuser, &newname)))
                                 {
                                     target = n->nodehandle;
                                 }
+                            }
+                            else    // target is current path
+                            {
+                                n = client->nodebyhandle(target);
                             }
 
                             if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
@@ -2526,6 +2614,25 @@ static void process_line(char* l)
 
                                     if (type == FILENODE)
                                     {
+                                        FileAccess *fa = client->fsaccess->newfileaccess();
+                                        if (fa->fopen(&name, true, false))
+                                        {
+                                            FileFingerprint fp;
+                                            fp.genfingerprint(fa);
+
+                                            Node *previousNode = client->childnodebyname(n, name.c_str(), true);
+                                            if (previousNode && previousNode->type == type)
+                                            {
+                                                if (fp.isvalid && previousNode->isvalid && fp == *((FileFingerprint *)previousNode))
+                                                {
+                                                    cout << "Identical file already exist. Skipping transfer of " << name << endl;
+                                                    delete fa;
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                        delete fa;
+
                                         f = new AppFilePut(&localname, target, targetuser.c_str());
                                         f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
                                         client->startxfer(PUT, f);
@@ -2758,6 +2865,10 @@ static void process_line(char* l)
                         return;
                     }
 #endif
+                    else if (words[0] == "test")
+                    {
+                        return;
+                    }
                     break;
 
                 case 5:
@@ -2828,6 +2939,7 @@ static void process_line(char* l)
                         if (words.size() == 1)
                         {
                             cout << "Creating ephemeral session..." << endl;
+                            pdf_to_import = true;
                             client->createephemeral();
                         }
                         else if (words.size() == 2)
@@ -3470,7 +3582,8 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chatc group [email ro|sta|mod]*" << endl;
+                            cout << "Invalid syntax to create chatroom" << endl;
+                            cout << "       chatc group [email ro|sta|mod]*" << endl;
                             return;
                         }
                     }
@@ -3514,14 +3627,15 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      chati chatid email ro|sta|mod" << endl;
+                            cout << "Invalid syntax to invite new peer" << endl;
+                            cout << "       chati chatid email ro|sta|mod" << endl;
                             return;
 
                         }
                     }
                     else if (words[0] == "chatr")
                     {
-                        if (words.size() > 1)
+                        if (words.size() > 1 && words.size() < 4)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
@@ -3529,6 +3643,7 @@ static void process_line(char* l)
                             if (words.size() == 2)
                             {
                                 client->removeFromChat(chatid, client->me);
+                                return;
                             }
                             else if (words.size() == 3)
                             {
@@ -3543,15 +3658,11 @@ static void process_line(char* l)
                                 client->removeFromChat(chatid, u->userhandle);
                                 return;
                             }
-                            else
-                            {
-                                cout << "      chatr chatid [email]" << endl;
-                                return;
-                            }
                         }
                         else
                         {
-                            cout << "      chatr chatid [email]" << endl;
+                            cout << "Invalid syntax to leave chat / remove peer" << endl;
+                            cout << "       chatr chatid [email]" << endl;
                             return;
                         }
 
@@ -3568,7 +3679,41 @@ static void process_line(char* l)
                         }
                         else
                         {
+                            cout << "Invalid syntax to get chatd URL" << endl;
                             cout << "      chatu chatid" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chats")
+                    {
+                        if (words.size() == 1)
+                        {
+                            textchat_map::iterator it;
+                            for (it = client->chats.begin(); it != client->chats.end(); it++)
+                            {
+                                DemoApp::printChatInformation(it->second);
+                            }
+                            return;
+                        }
+                        if (words.size() == 2)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            textchat_map::iterator it = client->chats.find(chatid);
+                            if (it == client->chats.end())
+                            {
+                                cout << "Chatid " << words[1].c_str() << " not found" << endl;
+                                return;
+                            }
+
+                            DemoApp::printChatInformation(it->second);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to list chatrooms" << endl;
+                            cout << "      chats" << endl;
                             return;
                         }
                     }
@@ -3894,6 +4039,7 @@ static void process_line(char* l)
                         }
                         else
                         {
+                            cout << "Invalid syntax to grant access to a user/node" << endl;
                             cout << "       chatga chatid nodehandle uid" << endl;
                             return;
                         }
@@ -3916,6 +4062,7 @@ static void process_line(char* l)
                         }
                         else
                         {
+                            cout << "Invalid syntax to revoke access to a user/node" << endl;
                             cout << "       chatra chatid nodehandle uid" << endl;
                             return;
                         }
@@ -3939,8 +4086,64 @@ static void process_line(char* l)
                         }
                         else
                         {
+                            cout << "Invalid syntax to set chat title" << endl;
                             cout << "       chatst chatid title64" << endl;
                             return;
+                        }
+                    }
+                    else if (words[0] == "chatpu")
+                    {
+                        if (words.size() == 1)
+                        {
+                            client->getChatPresenceUrl();
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to get presence URL" << endl;
+                            cout << "       chatpu" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatup")
+                    {
+                        if (words.size() == 4)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+
+                            handle uh;
+                            Base64::atob(words[2].c_str(), (byte*) &uh, sizeof uh);
+
+                            string privstr = words[3];
+                            privilege_t priv;
+                            if (privstr ==  "ro")
+                            {
+                                priv = PRIV_RO;
+                            }
+                            else if (privstr == "sta")
+                            {
+                                priv = PRIV_STANDARD;
+                            }
+                            else if (privstr == "mod")
+                            {
+                                priv = PRIV_MODERATOR;
+                            }
+                            else
+                            {
+                                cout << "Unknown privilege for " << words[2] << endl;
+                                return;
+                            }
+
+                            client->updateChatPermissions(chatid, uh, priv);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to update privileges" << endl;
+                            cout << "       chatpu chatid userhandle ro|sta|mod" << endl;
+                            return;
+
                         }
                     }
 #endif
@@ -4254,6 +4457,7 @@ void DemoApp::ephemeral_result(error e)
     {
         cout << "Ephemeral session error (" << errorstring(e) << ")" << endl;
     }
+    pdf_to_import = false;
 }
 
 // signup link send request result
@@ -4563,8 +4767,16 @@ void DemoApp::openfilelink_result(error e)
 {
     if (e)
     {
-        cout << "Failed to open link: " << errorstring(e) << endl;
+        if (pdf_to_import) // import welcome pdf has failed
+        {
+            cout << "Failed to import Welcome PDF file" << endl;
+        }
+        else
+        {
+            cout << "Failed to open link: " << errorstring(e) << endl;
+        }
     }
+    pdf_to_import = false;
 }
 
 // the requested link was opened successfully - import to cwd
@@ -4576,6 +4788,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     if (!key)
     {
         cout << "File is valid, but no key was provided." << endl;
+        pdf_to_import = false;
         return;
     }
 
@@ -4591,12 +4804,35 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     nodeKey.setkey(key, FILENODE);
 
     byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
-    if(!buf)
+    if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
+        pdf_to_import = false;
     }
-    else if (client->loggedin() != NOTLOGGEDIN && (n = client->nodebyhandle(cwd)))
+    else if (client->loggedin() != NOTLOGGEDIN)
     {
+        if (pdf_to_import)
+        {
+            n = client->nodebyhandle(client->rootnodes[0]);
+        }
+        else
+        {
+            n = client->nodebyhandle(cwd);
+        }
+
+        if (!n)
+        {
+            cout << "Target folder not found." << endl;
+            pdf_to_import = false;
+            delete [] buf;
+            return;
+        }
+
+        AttrMap attrs;
+        JSON json;
+        nameid name;
+        string* t;
+        json.begin((char*)buf + 5);
         NewNode* newnode = new NewNode[1];
 
         // set up new node as folder node
@@ -4604,16 +4840,52 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         newnode->type = FILENODE;
         newnode->nodehandle = ph;
         newnode->parenthandle = UNDEF;
-
         newnode->nodekey.assign((char*)key, FILENODEKEYLENGTH);
-
         newnode->attrstring = new string(*a);
+
+        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+        {
+            JSON::unescape(t);
+
+            if (name == 'n')
+            {
+                client->fsaccess->normalize(t);
+            }
+        }
+
+        attr_map::iterator it = attrs.map.find('n');
+        if (it != attrs.map.end())
+        {
+            Node *ovn = client->childnodebyname(n, it->second.c_str(), true);
+            if (ovn)
+            {
+                attr_map::iterator it2 = attrs.map.find('c');
+                if (it2 != attrs.map.end())
+                {
+                    FileFingerprint ffp;
+                    if (ffp.unserializefingerprint(&it2->second))
+                    {
+                        ffp.size = size;
+                        if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn)
+                        {
+                            cout << "Success. (identical node skipped)" << endl;
+                            pdf_to_import = false;
+                            delete [] buf;
+                            return;
+                        }
+                    }
+                }
+
+                newnode->ovhandle = !client->versions_disabled ? ovn->nodehandle : UNDEF;
+            }
+        }
 
         client->putnodes(n->nodehandle, newnode, 1);
     }
     else
     {
         cout << "Need to be logged in to import file links." << endl;
+        pdf_to_import = false;
     }
 
     delete [] buf;
@@ -4779,6 +5051,26 @@ void DemoApp::checkout_result(const char*)
     // FIXME: implement
 }
 
+void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
+{
+    // FIXME: implement display of values
+    delete details;
+}
+
+void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
+{
+    if (e)
+    {
+        cout << "Failed to get Welcome PDF. Error: " << e << endl;
+        pdf_to_import = false;
+    }
+    else
+    {
+        cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
+        client->reqs.add(new CommandGetPH(client, ph, (const byte *)k->data(), 1));
+    }
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)
@@ -4793,7 +5085,8 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;            
+            cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
         }
     }
 
@@ -5127,6 +5420,7 @@ void DemoAppFolder::fetchnodes_result(error e)
     if (e)
     {
         cout << "File/folder retrieval failed (" << errorstring(e) << ")" << endl;
+        pdf_to_import = false;
     }
     else
     {
@@ -5146,6 +5440,11 @@ void DemoAppFolder::fetchnodes_result(error e)
 
             delete clientFolder;
             clientFolder = NULL;
+        }
+
+        if (pdf_to_import)
+        {
+            client->getwelcomepdf();
         }
     }
 }

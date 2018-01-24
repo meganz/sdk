@@ -38,7 +38,9 @@ SOURCES += src/attrmap.cpp \
     src/gfx/qt.cpp \
     src/gfx/external.cpp \
     src/thread/qtthread.cpp \
-    src/mega_utf8proc.cpp
+    src/mega_utf8proc.cpp \
+    src/mega_zxcvbn.cpp \
+    src/mediafileattribute.cpp
 
 CONFIG(USE_MEGAAPI) {
     SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
@@ -73,6 +75,46 @@ CONFIG(USE_LIBUV) {
     }
 }
 
+CONFIG(USE_MEDIAINFO) {
+    DEFINES += USE_MEDIAINFO UNICODE
+
+    win32 {
+        LIBS += -lMediaInfo -lZenLib -lzlibstat
+    }
+
+    mac {
+        LIBS += -lmediainfo -lzen -lz
+    }
+
+    unix:!macx {
+
+       exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a
+       }
+       else {
+        LIBS += -lmediainfo
+       }
+       exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libzen.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libzen.a
+       }
+       else {
+        LIBS += -lzen
+       }
+    }
+
+}
+
+CONFIG(USE_FFMPEG) {
+    DEFINES += HAVE_FFMPEG
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+
+    unix:!macx {
+        INCLUDEPATH += /usr/include/ffmpeg
+    }
+
+    LIBS += -lavcodec -lavformat -lavutil -lswscale
+}
+
 win32 {
     # comment this line to use WinHTTP on Windows
     CONFIG += USE_CURL
@@ -93,7 +135,7 @@ win32 {
     }
 
     # link winhttp anyway (required for automatic proxy detection)
-    LIBS += -lwinhttp
+    LIBS += -lwinhttp -ladvapi32
     DEFINES += _CRT_SECURE_NO_WARNINGS
 }
 
@@ -149,7 +191,9 @@ HEADERS  += include/mega.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
-            include/mega/thread/posixthread.h
+            include/mega/thread/posixthread.h \
+            include/mega/mega_zxcvbn.h \
+            include/mega/mediafileattribute.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
@@ -179,6 +223,10 @@ unix {
             include/mega/config.h
 }
 
+CONFIG(USE_PCRE) {
+ DEFINES += USE_PCRE
+}
+
 DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
@@ -192,8 +240,7 @@ else {
 }
 
 win32 {
-    INCLUDEPATH += $$[QT_INSTALL_PREFIX]/src/3rdparty/zlib
-    INCLUDEPATH += $$[QT_INSTALL_PREFIX]/../src/qtbase/src/3rdparty/zlib
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
 
     CONFIG(USE_CURL) {
@@ -204,8 +251,6 @@ win32 {
     else {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     }
-
-    DEFINES += PCRE_STATIC
 
     contains(CONFIG, BUILDX64) {
        release {
@@ -225,12 +270,17 @@ win32 {
         }
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp
+    CONFIG(USE_PCRE) {
+     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+     DEFINES += PCRE_STATIC
+     LIBS += -lpcre
+    }
+
+    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
 }
 
 unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
@@ -282,6 +332,15 @@ unix:!macx {
     LIBS += -lsodium
    }
 
+   CONFIG(USE_PCRE) {
+    DEFINES += PCRE_STATIC
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libpcre.a) {
+     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libpcre.a
+    }
+    else {
+     LIBS += -lpcre
+    }
+   }
 }
 
 macx {
@@ -295,8 +354,17 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
 
-   DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL
+   CONFIG(USE_PCRE) {
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+    DEFINES += PCRE_STATIC
+    LIBS += -lpcre
+   }
+
+   DEFINES += _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL CRYPTOPP_DISABLE_ASM
 
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
             -lz -lssl -lcrypto -lcryptopp

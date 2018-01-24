@@ -35,6 +35,7 @@
 #include "http.h"
 #include "pubkeyaction.h"
 #include "pendingcontactrequest.h"
+#include "mediafileattribute.h"
 
 namespace mega {
 
@@ -53,6 +54,12 @@ public:
         TYPE_NONE = 2
     };
 
+    enum {
+        API_CACHE = 0,
+        API_NO_CACHE = 1,    // use this for DB mode
+        API_NONE = 2
+    };
+
     FetchNodesStats();
     void init();
     void toJsonArray(string *json);
@@ -61,6 +68,7 @@ public:
     // General info //
     //////////////////
     int mode; // DB = 0, API = 1
+    int cache; // no-cache = 0, no-cache = 1
     int type; // Account = 0, Folder = 1
     dstime startTime; // startup time (ds)
 
@@ -197,6 +205,7 @@ public:
     // splitted implementation of wait() for a better thread management
     int preparewait();
     int dowait();
+    int checkevents();
 
     // abort exponential backoff
     bool abortbackoff(bool = true);
@@ -259,6 +268,14 @@ public:
     // open exported file link
     error openfilelink(const char*, int);
 
+    // decrypt password-protected public link
+    // the caller takes the ownership of the returned value in decryptedLink parameter
+    error decryptlink(const char* link, const char* pwd, string *decryptedLink);
+
+    // encrypt public link with password
+    // the caller takes the ownership of the returned value
+    error encryptlink(const char* link, const char* pwd, string *encryptedLink);
+
     // change login password
     error changepw(const byte*, const byte*);
 
@@ -277,6 +294,9 @@ public:
     // retrieve user details
     void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
 
+    // check if the available bandwidth quota is enough to transfer an amount of bytes
+    void querytransferquota(m_off_t size);
+
     // update node attributes
     error setattr(Node*, const char* prevattr = NULL);
 
@@ -290,7 +310,10 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*);
+    error unlink(Node*, bool = false);
+
+    // delete all versions
+    void unlinkversions();
 
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
@@ -308,7 +331,7 @@ public:
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
-    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*);
+    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false);
     void preadabort(Node*, m_off_t = -1, m_off_t = -1);
     void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
@@ -384,7 +407,8 @@ public:
     void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
     // add/delete sync
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0);
+    error isnodesyncable(Node*, bool* = NULL);
+    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
@@ -410,6 +434,21 @@ public:
 
     // get a local ssl certificate for communications with the webclient
     void getlocalsslcertificate();
+
+    // send a DNS request to resolve a hostname
+    void dnsrequest(const char*);
+
+    // send a GeLB request for a service with a timeout (in ms) and a number of retries
+    void gelbrequest(const char*, int, int);
+
+    // send chat stats
+    void sendchatstats(const char*);
+
+    // send chat logs with user's annonymous id
+    void sendchatlogs(const char*, const char*);
+
+    // send a HTTP request
+    void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
 
     // maximum outbound throughput (per target server)
     int putmbpscap;
@@ -503,6 +542,15 @@ public:
     void archiveChat(handle chatid, bool archived);
 #endif
 
+    // get mega achievements
+    void getaccountachievements(AchievementsDetails *details);
+
+    // get mega achievements list (for advertising for unregistered users)
+    void getmegaachievements(AchievementsDetails *details);
+
+    // get welcome pdf
+    void getwelcomepdf();
+
     // toggle global debug flag
     bool toggledebug();
 
@@ -522,6 +570,9 @@ public:
 
     // get max upload speed
     m_off_t getmaxuploadspeed();
+
+    // get the handle of the older version for a NewNode
+    handle getovhandle(Node *parent, string *name);
 
     // use HTTPS for all communications
     bool usehttps;
@@ -555,6 +606,12 @@ public:
 
     // root URL for API requests
     static string APIURL;
+
+    // root URL for GeLB requests
+    static string GELBURL;
+
+    // root URL for chat stats
+    static string CHATSTATSURL;
 
     // account auth for public folders
     string accountauth;
@@ -725,6 +782,9 @@ public:
     // state cache table for logged in user
     DbTable* sctable;
 
+    // there is data to commit to the database when possible
+    bool pendingsccommit;
+
     // transfer cache table
     DbTable* tctable;
     // scsn as read from sctable
@@ -743,6 +803,9 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+
+    // pending HTTP requests
+    pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
@@ -893,6 +956,10 @@ public:
     void notifychat(TextChat *);
 #endif
 
+#ifdef USE_MEDIAINFO
+    MediaFileInfo mediaFileInfo;
+#endif
+
     // write changed/added/deleted users to the DB cache and notify the
     // application
     void notifypurge();
@@ -913,6 +980,9 @@ public:
 
     // we are adding the //bin/SyncDebris/yyyy-mm-dd subfolder(s)
     bool syncdebrisadding;
+
+    // minute of the last created folder in SyncDebris
+    m_time_t syncdebrisminute;
 
     // activity flag
     bool syncactivity;
@@ -942,6 +1012,11 @@ public:
     // sync PUT Nagle timer
     bool syncnagleretry;
     BackoffTimer syncnaglebt;
+
+    // timer for extra notifications
+    // (workaround for buggy network filesystems)
+    bool syncextraretry;
+    BackoffTimer syncextrabt;
 
     // rescan timer if fs notification unavailable or broken
     bool syncscanfailed;
@@ -1066,7 +1141,7 @@ public:
     void warn(const char*);
     bool warnlevel();
 
-    Node* childnodebyname(Node*, const char*);
+    Node* childnodebyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
@@ -1134,6 +1209,7 @@ public:
     void discarduser(handle);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
+    bool discardnotifieduser(User *);
 
     PendingContactRequest* findpcr(handle);
 
@@ -1161,7 +1237,7 @@ public:
     handle getpublicfolderhandle();
 
     // process node subtree
-    void proctree(Node*, TreeProc*, bool skipinshares = false);
+    void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
 
     // hash password
     error pw_key(const char*, byte*) const;
@@ -1169,7 +1245,8 @@ public:
     // convert hex digit to number
     static int hexval(char);
 
-    SymmCipher tmpcipher;
+    SymmCipher tmpnodecipher;
+    SymmCipher tmptransfercipher;
 
     void exportDatabase(string filename);
     bool compareDatabases(string filename1, string filename2);
@@ -1197,6 +1274,15 @@ public:
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
+
+    // achievements enabled for the account
+    bool achievements_enabled;
+
+    // non-zero if login with user+pwd was done (reset upon fetchnodes completion)
+    bool tsLogin;
+
+    // true if user has disabled fileversioning
+    bool versions_disabled;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

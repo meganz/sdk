@@ -36,11 +36,14 @@
 #import "MEGAUserList.h"
 #import "MEGAShareList.h"
 #import "MEGAContactRequestList.h"
+#import "MEGAChildrenLists.h"
+#import "MEGAAchievementsDetails.h"
 #import "MEGARequestDelegate.h"
 #import "MEGADelegate.h"
 #import "MEGATransferDelegate.h"
 #import "MEGAGlobalDelegate.h"
 #import "MEGALoggerDelegate.h"
+#import "MEGATreeProcessorDelegate.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -77,8 +80,18 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 };
 
 typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
-    MEGAUserAttributeFirstname = 1,
-    MEGAUserAttributeLastname  = 2
+    MEGAUserAttributeAvatar            = 0, // public - char array
+    MEGAUserAttributeFirstname         = 1, // public - char array
+    MEGAUserAttributeLastname          = 2, // public - char array
+    MEGAUserAttributeAuthRing          = 3, // private - byte array
+    MEGAUserAttributeLastInteraction   = 4, // private - byte array
+    MEGAUserAttributeED25519PublicKey  = 5, // public - byte array
+    MEGAUserAttributeCU25519PublicKey  = 6, // public - byte array
+    MEGAUserAttributeKeyring           = 7, // private - byte array
+    MEGAUserAttributeSigRsaPublicKey   = 8, // public - byte array
+    MEGAUserAttributeSigCU255PublicKey = 9, // public - byte array
+    MEGAUserAttributeLanguage          = 14, // private - char array
+    MEGAUserAttributePwdReminder       = 15  // private- char array
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -104,6 +117,14 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
     PushNotificationTokenTypeAndroid = 1,
     PushNotificationTokenTypeiOSVoIP = 2,
     PushNotificationTokenTypeiOSStandard = 3
+};
+
+typedef NS_ENUM(NSUInteger, PasswordStrength) {
+    PasswordStrengthVeryWeak = 0,
+    PasswordStrengthWeak = 1,
+    PasswordStrengthMedium = 2,
+    PasswordStrengthGood = 3,
+    PasswordStrengthStrong = 4
 };
 
 /**
@@ -188,7 +209,7 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @deprecated Property related to statistics will be reviewed in future updates to
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
-@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes;
+@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));;
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
@@ -197,7 +218,12 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  *
  */
-@property (readonly, nonatomic) NSNumber *totalsUploadedBytes;
+@property (readonly, nonatomic) NSNumber *totalsUploadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));;
+
+/**
+ * @brief The total number of nodes in the account
+ */
+@property (readonly, nonatomic) NSUInteger totalNodes;
 
 /**
  * @brief The master key of the account.
@@ -224,6 +250,12 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * If the MEGASdk object isn't logged in, this property is nil.
  */
 @property (readonly, nonatomic) MEGAUser *myUser;
+
+/**
+ * @brief Returns whether MEGA Achievements are enabled for the open account
+ * YES if enabled, NO otherwise.
+ */
+@property (readonly, nonatomic, getter=isAchievementsEnabled) BOOL achievementsEnabled;
 
 #ifdef ENABLE_CHAT
 
@@ -638,6 +670,21 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  */
 - (void)invalidateCache;
 
+/**
+ * @brief Estimate the strength of a password
+ *
+ * Possible return values are:
+ * - PasswordStrengthVeryWeak = 0
+ * - PasswordStrengthWeak = 1
+ * - PasswordStrengthMedium = 2
+ * - PasswordStrengthGood = 3
+ * - PasswordStrengthStrong = 4
+ *
+ * @param password Password to check
+ * @return Estimated strength of the password
+ */
+- (PasswordStrength)passwordStrength:(NSString *)password;
+
 #pragma mark - Create account and confirm account Requests
 
 /**
@@ -757,7 +804,7 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * In case the account is already confirmed, the associated request will fail with
  * error MEGAErrorTypeApiEArgs.
  *
- * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ * @param sessionId Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId delegate:(id<MEGARequestDelegate>)delegate;
@@ -782,7 +829,7 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * In case the account is already confirmed, the associated request will fail with
  * error MEGAErrorTypeApiEArgs.
  *
- * @param sid Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
+ * @param sessionId Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
  */
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
 
@@ -1667,6 +1714,78 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (void)importMegaFileLink:(NSString *)megaFileLink parent:(MEGANode *)parent;
 
 /**
+ * @brief Decrypt password-protected public link
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the encrypted public link to the file/folder
+ * - [MEGARequest password] - Returns the password to decrypt the link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Decrypted public link
+ *
+ * @param link Password/protected public link to a file/folder in MEGA
+ * @param password Password to decrypt the link
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Decrypt password-protected public link
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the encrypted public link to the file/folder
+ * - [MEGARequest password] - Returns the password to decrypt the link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Decrypted public link
+ *
+ * @param link Password/protected public link to a file/folder in MEGA
+ * @param password Password to decrypt the link
+ */
+- (void)decryptPasswordProtectedLink:(NSString *)link password:(NSString *)password;
+
+/**
+ * @brief Encrypt public link with password
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to be encrypted
+ * - [MEGARequest password] - Returns the password to encrypt the link
+ * - [MEGARequest flag] - Returns true
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Encrypted public link
+ *
+ * @param link Public link to be encrypted, including encryption key for the link
+ * @param password Password to encrypt the link
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Encrypt public link with password
+ *
+ * The associated request type with this request is MEGARequestTypePasswordLink
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest link] - Returns the public link to be encrypted
+ * - [MEGARequest password] - Returns the password to encrypt the link
+ * - [MEGARequest flag] - Returns true
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Encrypted public link
+ *
+ * @param link Public link to be encrypted, including encryption key for the link
+ * @param password Password to encrypt the link
+ */
+- (void)encryptLinkWithPassword:(NSString *)link password:(NSString *)password;
+
+/**
  * @brief Get a MEGANode from a public link to a file.
  *
  * A public node can be imported using [MEGASdk copyNode:newParent:] or downloaded using [MEGASdk startDownloadNode:localPath:]
@@ -1733,6 +1852,41 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @param node MEGANode to get the public link.
  */
 - (void)exportNode:(MEGANode *)node;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA.
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest access] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link.
+ * @param expireTime NSDate until the public link will be valid
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Generate a public link of a file/folder in MEGA.
+ *
+ * The associated request type with this request is MEGARequestTypeExport.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node
+ * - [MEGARequest access] - Returns true
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest link] - Public link
+ *
+ * @param node MEGANode to get the public link.
+ * @param expireTime NSDate until the public link will be valid
+ */
+- (void)exportNode:(MEGANode *)node expireTime:(NSDate *)expireTime;
 
 /**
  * @brief Stop sharing a file/folder.
@@ -2099,9 +2253,13 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
@@ -2125,9 +2283,13 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2149,9 +2311,13 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
 
@@ -2171,9 +2337,13 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2193,9 +2363,9 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Set the lastname of the user
  *
  * @param value New attribute value
  */
@@ -2214,9 +2384,9 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * Valid values are:
  *
  * MEGAUserAttributeFirstname = 1
- * Get the firstname of the user
+ * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
- * Get the lastname of the user
+ * Set the lastname of the user
  *
  * @param value New attribute value
  * @param delegate MEGARequestDelegate to track this request
@@ -2249,6 +2419,39 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  *
  */
 - (void)getAccountDetails;
+
+/**
+ * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
+ *
+ * The associated request type with this request is MEGARequestTypeQueryTransferQuota
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest number] - Returns the amount of bytes to be transferred
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - YES if it is expected to get an overquota error, otherwise NO
+ *
+ * @param size Amount of bytes to be transferred
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
+ *
+ * The associated request type with this request is MEGARequestTypeQueryTransferQuota
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest number] - Returns the amount of bytes to be transferred
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - YES if it is expected to get an overquota error, otherwise NO
+ *
+ * @param size Amount of bytes to be transferred
+ */
+- (void)queryTransferQuotaWithSize:(long long)size;
 
 /**
  * @brief Get the available pricing plans to upgrade a MEGA account.
@@ -2371,6 +2574,93 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @param newPassword New password.
  */
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
+
+/**
+ * @brief Notify the user has exported the master key
+ *
+ * This function should be called when the user exports the master key by
+ * clicking on "Copy" or "Save file" options.
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember the user has a backup of his/her master key. In consequence,
+ * MEGA will not ask the user to remind the password for the account.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest: text] - Returns the new value for the attribute
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)masterKeyExportedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify the user has exported the master key
+ *
+ * This function should be called when the user exports the master key by
+ * clicking on "Copy" or "Save file" options.
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember the user has a backup of his/her master key. In consequence,
+ * MEGA will not ask the user to remind the password for the account.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest: text] - Returns the new value for the attribute
+ */
+- (void)masterKeyExported;
+
+/**
+ * @brief Use HTTPS communications only
+ *
+ * The default behavior is to use HTTP for transfers and the persistent connection
+ * to wait for external events. Those communications don't require HTTPS because
+ * all transfer data is already end-to-end encrypted and no data is transmitted
+ * over the connection to wait for events (it's just closed when there are new events).
+ *
+ * This feature should only be enabled if there are problems to contact MEGA servers
+ * through HTTP because otherwise it doesn't have any benefit and will cause a
+ * higher CPU usage.
+ *
+ * See [MEGASdk usingHttpsOnly]
+ *
+ * @param httpsOnly True to use HTTPS communications only
+ * @param delegate MEGARequestDelegate to track this request.
+ */
+- (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Use HTTPS communications only
+ *
+ * The default behavior is to use HTTP for transfers and the persistent connection
+ * to wait for external events. Those communications don't require HTTPS because
+ * all transfer data is already end-to-end encrypted and no data is transmitted
+ * over the connection to wait for events (it's just closed when there are new events).
+ *
+ * This feature should only be enabled if there are problems to contact MEGA servers
+ * through HTTP because otherwise it doesn't have any benefit and will cause a
+ * higher CPU usage.
+ *
+ * See [MEGASdk usingHttpsOnly]
+ *
+ * @param httpsOnly True to use HTTPS communications only
+ */
+- (void)useHttpsOnly:(BOOL)httpsOnly;
+
+/**
+ * @brief Check if the SDK is using HTTPS communications only
+ *
+ * The default behavior is to use HTTP for transfers and the persistent connection
+ * to wait for external events. Those communications don't require HTTPS because
+ * all transfer data is already end-to-end encrypted and no data is transmitted
+ * over the connection to wait for events (it's just closed when there are new events).
+ *
+ * See [MEGASdk useHttpsOnly:]
+ *
+ * @return YES if the SDK is using HTTPS communications only. Otherwise NO.
+ */
+- (BOOL)usingHttpsOnly;
 
 /**
  * @brief Invite another person to be your MEGA contact
@@ -3242,6 +3532,64 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
 
 /**
+ * @brief Get file and folder children of a MEGANode separatedly
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil.
+ *
+ * @param parent Parent node.
+ * @param order Order for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ * Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Sort in alphabetical order, ascending
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Sort in alphabetical order, descending
+ *
+ * @return Lists with files and folders child MegaNode objects
+ */
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order;
+
+/**
+ * @brief Get file and folder children of a MEGANode separatedly
+ *
+ * If the parent node doesn't exist or it isn't a folder, this function
+ * returns nil.
+ *
+ * @param parent Parent node.
+ *
+ * @return Lists with files and folders child MegaNode objects
+ */
+- (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent;
+
+/**
  * @brief Get the parent node of a MEGANode.
  *
  * If the node doesn't exist in the account or
@@ -3395,6 +3743,13 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @return List of MEGAShare objects.
  */
 - (MEGAShareList *)outSharesForNode:(MEGANode *)node;
+
+/**
+ * @brief Get a list with all public links
+ *
+ * @return List of MEGANode objects that are shared with everyone via public link
+ */
+- (MEGANodeList *)publicLinks;
 
 /**
  * @brief Get a list with all incoming contact requests
@@ -3608,6 +3963,18 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
 
 /**
+ * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
+ * @param node The parent node of the tree to explore
+ * @param recursive YES if you want to recursively process the whole node tree.
+ * @param delegate MEGATreeProcessorDelegate that will receive callbacks for every node in the tree
+ * NO if you want to process the children of the node only
+ *
+ * @return YES if all nodes were processed. NO otherwise (the operation can be
+ * cancelled by [MEGATreeProcessorDelegate processMEGANode:])
+ */
+- (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate;
+
+/**
  * @brief Returns a MEGANode that can be downloaded with any instance of MEGASdk
  *
  * This function only allows to authorize file nodes.
@@ -3690,6 +4057,58 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
 -(BOOL)setLanguageCode:(NSString *)languageCode;
 
 /**
+ * @brief Set the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - Return the language code
+ *
+ * If the language code is unknown for the SDK, the error code will be MEGAErrorTypeApiENoent
+ *
+ * This attribute is automatically created by the server. Apps only need
+ * to set the new value when the user changes the language.
+ *
+ * @param languageCode code to be set
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setLanguangePreferenceCode:(NSString *)languageCode delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - Return the language code
+ *
+ * If the language code is unknown for the SDK, the error code will be MEGAErrorTypeApiENoent
+ *
+ * This attribute is automatically created by the server. Apps only need
+ * to set the new value when the user changes the language.
+ *
+ * @param languageCode code to be set
+ */
+- (void)setLanguangePreferenceCode:(NSString *)languageCode;
+
+/**
+ * @brief Get the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Return the language code
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getLanguagePreferenceWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the preferred language of the user
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Return the language code
+ *
+ */
+- (void)getLanguagePreference;
+
+/**
  * @brief Create a thumbnail for an image
  * @param imagePath Image path
  * @param destinationPath Destination path for the thumbnail (including the file name)
@@ -3704,6 +4123,14 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  * @return YES if the preview was successfully created, otherwise NO.
  */
 - (BOOL)createPreview:(NSString *)imagePath destinatioPath:(NSString *)destinationPath;
+
+/**
+ * @brief Create an avatar for an image
+ * @param imagePath Image path
+ * @param destinationPath Destination path for the avatar (including the file name)
+ * @return YES if the avatar was successfully created, otherwise NO.
+ */
+- (BOOL)createAvatar:(NSString *)imagePath destinationPath:(NSString *)destinationPath;
 
 #ifdef HAVE_LIBUV
 
@@ -4029,6 +4456,8 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  */
 - (NSInteger)httpServerGetMaxOutputSize;
 
+#endif
+
 /**
  * @brief Register a device token for iOS push notifications
  *
@@ -4057,7 +4486,112 @@ typedef NS_ENUM(NSUInteger, PushNotificationTokenType) {
  */
 - (void)registeriOSdeviceToken:(NSString *)deviceToken;
 
-#endif
+/**
+ * @brief Register a device token for iOS VoIP push notifications
+ *
+ * This function attach a device token to the current session, which is intended to get push notifications.
+ *
+ * The associated request type with this request is MEGARequestTypeRegisterPushNotification
+ * Valid data in the MEGARequest object received on delegate:
+ * - [MEGARequest text] - Returns the device token provided.
+ *
+ * @param deviceToken NSString representing the device token to be registered.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate;
+
+
+/**
+ * @brief Register a device token for iOS VoIP push notifications
+ *
+ * This function attach a device token to the current session, which is intended to get push notifications.
+ *
+ * The associated request type with this request is MEGARequestTypeRegisterPushNotification
+ * Valid data in the MEGARequest object received on delegate:
+ * - [MEGARequest text] - Returns the device token provided.
+ *
+ * @param deviceToken NSString representing the device token to be registered.
+ */
+- (void)registeriOSVoIPdeviceToken:(NSString *)deviceToken;
+
+/**
+ * @brief Get the MEGA Achievements of the account logged in
+ *
+ * The associated request type with this request is MEGARequestTypeGetAchievements
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Always NO
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaAchievementsDetails] - Details of the MEGA Achievements of this account
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getAccountAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+
+/**
+ * @brief Get the MEGA Achievements of the account logged in
+ *
+ * The associated request type with this request is MEGARequestTypeGetAchievements
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Always NO
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaAchievementsDetails] - Details of the MEGA Achievements of this account
+ *
+ */
+- (void)getAccountAchievements;
+
+/**
+ * @brief Get the list of existing MEGA Achievements
+ *
+ * Similar to [MEGASdk getAccountAchievements], this method returns only the base storage and
+ * the details for the different achievement classes, related to the
+ * account that is logged in.
+ * This function can be used to give an indication of what is available for advertising
+ * for unregistered users, despite it can be used with a logged in account with no difference.
+ *
+ * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+ * Achievements are not enabled), the request will fail with MEGAErrorTypeApiEAccess.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAchievements
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Always YES
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequestm megaAchievementsDetails] - Details of the list of existing MEGA Achievements
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMegaAchievementsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the list of existing MEGA Achievements
+ *
+ * Similar to [MEGASdk getAccountAchievements], this method returns only the base storage and
+ * the details for the different achievement classes, related to the
+ * account that is logged in.
+ * This function can be used to give an indication of what is available for advertising
+ * for unregistered users, despite it can be used with a logged in account with no difference.
+ *
+ * @note: if the IP address is not achievement enabled (it belongs to a country where MEGA
+ * Achievements are not enabled), the request will fail with MEGAErrorTypeApiEAccess.
+ *
+ * If the IP address is not achievement enabled, the request will fail with MEGAErrorTypeApiEAccess.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAchievements
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Always YES
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequestm megaAchievementsDetails] - Details of the list of existing MEGA Achievements
+ *
+ */
+- (void)getMegaAchievements;
 
 #pragma mark - Debug log messages
 

@@ -350,7 +350,7 @@ bool PosixFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 #ifndef __ANDROID__
     return pread(fd, (char*)dst, len, pos) == len;
 #else
-    lseek(fd, pos, SEEK_SET);
+    lseek64(fd, pos, SEEK_SET);
     return read(fd, (char*)dst, len) == len;
 #endif
 }
@@ -361,7 +361,7 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 #ifndef __ANDROID__
     return pwrite(fd, data, len, pos) == len;
 #else
-    lseek(fd, pos, SEEK_SET);
+    lseek64(fd, pos, SEEK_SET);
     return write(fd, data, len) == len;
 #endif
 }
@@ -632,6 +632,10 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
     int r = 0;
+    if (notifyfd < 0)
+    {
+        return r;
+    }
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
@@ -797,11 +801,6 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     static char rsrc[] = "/..namedfork/rsrc";
     static unsigned int rsrcsize = sizeof(rsrc) - 1;
 
-    if (notifyfd < 0)
-    {
-        return r;
-    }
-
     for (;;)
     {
         FD_ZERO(&rfds);
@@ -940,7 +939,7 @@ bool PosixFileSystemAccess::getsname(string*, string*) const
     return false;
 }
 
-bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
+bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool override)
 {
 #ifdef USE_IOS
     string absoluteoldname;
@@ -963,13 +962,15 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool)
     }
 #endif
 
-    if (!rename(oldname->c_str(), newname->c_str()))
+    bool existingandcare = !override && (0 == access(newname->c_str(), F_OK));
+    if (!existingandcare && !rename(oldname->c_str(), newname->c_str()))
     {
+        LOG_verbose << "Succesfully moved file: " << oldname->c_str() << " to " << newname->c_str();
         return true;
     }
 
-    target_exists = errno == EEXIST;
-    transient_error = errno == ETXTBSY || errno == EBUSY;
+    target_exists = existingandcare  || errno == EEXIST || errno == EISDIR || errno == ENOTEMPTY || errno == ENOTDIR;
+    transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
     LOG_warn << "Unable to move file: " << oldname->c_str() << " to " << newname->c_str() << ". Error code: " << e;
@@ -1306,7 +1307,7 @@ bool PosixFileSystemAccess::getextension(string* filename, char* extension, int 
 
     size--;
 
-    if (size > filename->size())
+    if (size > (int) filename->size())
     {
         size = filename->size();
     }
@@ -1342,6 +1343,11 @@ bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     if (path->at(0) == '/')
     {
         *absolutepath = *path;
+        char canonical[PATH_MAX];
+        if (realpath(absolutepath->c_str(),canonical) != NULL)
+        {
+            absolutepath->assign(canonical);
+        }
         return true;
     }
     else
@@ -1356,12 +1362,145 @@ bool PosixFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
         *absolutepath = cCurrentPath;
         absolutepath->append("/");
         absolutepath->append(*path);
+
+        char canonical[PATH_MAX];
+        if (realpath(absolutepath->c_str(),canonical) != NULL)
+        {
+            absolutepath->assign(canonical);
+        }
+
         return true;
     }
 }
 
+#ifdef __linux__
+string &ltrimEtcProperty(string &s, const char &c)
+{
+    size_t pos = s.find_first_not_of(c);
+    s = s.substr(pos == string::npos ? s.length() : pos, s.length());
+    return s;
+}
+
+string &rtrimEtcProperty(string &s, const char &c)
+{
+    size_t pos = s.find_last_not_of(c);
+    if (pos != string::npos)
+    {
+        pos++;
+    }
+    s = s.substr(0, pos);
+    return s;
+}
+
+string &trimEtcproperty(string &what)
+{
+    rtrimEtcProperty(what,' ');
+    ltrimEtcProperty(what,' ');
+    if (what.size() > 1)
+    {
+        if (what[0] == '\'' || what[0] == '"')
+        {
+            rtrimEtcProperty(what, what[0]);
+            ltrimEtcProperty(what, what[0]);
+        }
+    }
+    return what;
+}
+
+string getPropertyFromEtcFile(const char *configFile, const char *propertyName)
+{
+    ifstream infile(configFile);
+    string line;
+
+    while (getline(infile, line))
+    {
+        if (line.length() > 0 && line[0] != '#')
+        {
+            if (!strlen(propertyName)) //if empty return first line
+            {
+                return trimEtcproperty(line);
+            }
+            string key, value;
+            size_t pos = line.find("=");
+            if (pos != string::npos && ((pos + 1) < line.size()))
+            {
+                key = line.substr(0, pos);
+                rtrimEtcProperty(key, ' ');
+
+                if (!strcmp(key.c_str(), propertyName))
+                {
+                    value = line.substr(pos + 1);
+                    return trimEtcproperty(value);
+                }
+            }
+        }
+    }
+
+    return string();
+}
+
+string getDistro()
+{
+    string distro;
+    distro = getPropertyFromEtcFile("/etc/lsb-release", "DISTRIB_ID");
+    if (!distro.size())
+    {
+        distro = getPropertyFromEtcFile("/etc/os-release", "ID");
+    }
+    if (!distro.size())
+    {
+        distro = getPropertyFromEtcFile("/etc/redhat-release", "");
+    }
+    if (!distro.size())
+    {
+        distro = getPropertyFromEtcFile("/etc/debian-release", "");
+    }
+    if (distro.size() > 20)
+    {
+        distro = distro.substr(0, 20);
+    }
+    transform(distro.begin(), distro.end(), distro.begin(), ::tolower);
+    return distro;
+}
+
+string getDistroVersion()
+{
+    string version;
+    version = getPropertyFromEtcFile("/etc/lsb-release", "DISTRIB_RELEASE");
+    if (!version.size())
+    {
+        version = getPropertyFromEtcFile("/etc/os-release", "VERSION_ID");
+    }
+    if (version.size() > 10)
+    {
+        version = version.substr(0, 10);
+    }
+    transform(version.begin(), version.end(), version.begin(), ::tolower);
+    return version;
+}
+#endif
+
 void PosixFileSystemAccess::osversion(string* u) const
 {
+#ifdef __linux__
+    string distro = getDistro();
+    if (distro.size())
+    {
+        u->append(distro);
+        string distroversion = getDistroVersion();
+        if (distroversion.size())
+        {
+            u->append(" ");
+            u->append(distroversion);
+            u->append("/");
+        }
+        else
+        {
+            u->append("/");
+        }
+    }
+#endif
+
     utsname uts;
 
     if (!uname(&uts))
@@ -1390,6 +1529,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jclass appGlobalsClass = env->FindClass("android/app/AppGlobals");
         if (!appGlobalsClass)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get android/app/AppGlobals";
             MEGAjvm->DetachCurrentThread();
             return;
@@ -1398,6 +1538,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jmethodID getInitialApplicationMID = env->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
         if (!getInitialApplicationMID)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get getInitialApplication()";
             MEGAjvm->DetachCurrentThread();
             return;
@@ -1422,6 +1563,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jmethodID getContentResolverMID = env->GetMethodID(contextClass, "getContentResolver", "()Landroid/content/ContentResolver;");
         if (!getContentResolverMID)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get getContentResolver()";
             MEGAjvm->DetachCurrentThread();
             return;
@@ -1438,6 +1580,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jclass settingsSecureClass = env->FindClass("android/provider/Settings$Secure");
         if (!settingsSecureClass)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get Settings.Secure class";
             MEGAjvm->DetachCurrentThread();
             return;
@@ -1446,6 +1589,7 @@ void PosixFileSystemAccess::statsid(string *id) const
         jmethodID getStringMID = env->GetStaticMethodID(settingsSecureClass, "getString", "(Landroid/content/ContentResolver;Ljava/lang/String;)Ljava/lang/String;");
         if (!getStringMID)
         {
+            env->ExceptionClear();
             LOG_err << "Failed to get getString()";
             MEGAjvm->DetachCurrentThread();
             return;

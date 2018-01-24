@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 
 using namespace mega;
+using namespace std;
 
 QTMegaSyncListener::QTMegaSyncListener(MegaApi *megaApi, MegaSyncListener *listener) : QObject()
 {
@@ -26,11 +27,11 @@ void QTMegaSyncListener::onSyncStateChanged(MegaApi *api, MegaSync *sync)
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
-void QTMegaSyncListener::onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState)
+void QTMegaSyncListener::onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string *localPath, int newState)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnFileSyncStateChanged);
     event->setSync(sync->copy());
-    event->setFilePath(MegaApi::strdup(filePath));
+    event->setLocalPath(new string(*localPath));
     event->setNewState(newState);
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
@@ -44,7 +45,7 @@ void QTMegaSyncListener::customEvent(QEvent *e)
             if(listener) listener->onSyncStateChanged(event->getMegaApi(), event->getSync());
             break;
         case QTMegaEvent::OnFileSyncStateChanged:
-            if(listener) listener->onSyncFileStateChanged(event->getMegaApi(), event->getSync(), event->getFilePath(), event->getNewState());
+            if(listener) listener->onSyncFileStateChanged(event->getMegaApi(), event->getSync(), event->getLocalPath(), event->getNewState());
             break;
         default:
             break;

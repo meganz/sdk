@@ -22,6 +22,8 @@
 #include "mega/http.h"
 #include "mega/megaclient.h"
 #include "mega/logging.h"
+#include "mega/proxy.h"
+#include "mega/base64.h"
 
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include "mega/osx/osxutils.h"
@@ -343,10 +345,53 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     outpos = 0;
     notifiedbufpos = 0;
     inpurge = 0;
+    method = METHOD_POST;
     contentlength = -1;
     lastdata = Waiter::ds;
 
     httpio->post(this, data, len);
+}
+
+void HttpReq::get(MegaClient *client)
+{
+    if (httpio)
+    {
+        LOG_warn << "Ensuring that the request is finished before sending it again";
+        httpio->cancel(this);
+        init();
+    }
+
+    httpio = client->httpio;
+    bufpos = 0;
+    outpos = 0;
+    notifiedbufpos = 0;
+    inpurge = 0;
+    method = METHOD_GET;
+    contentlength = -1;
+    lastdata = Waiter::ds;
+
+    httpio->post(this);
+}
+
+void HttpReq::dns(MegaClient *client)
+{
+    if (httpio)
+    {
+        LOG_warn << "Ensuring that the request is finished before sending it again";
+        httpio->cancel(this);
+        init();
+    }
+    
+    httpio = client->httpio;
+    bufpos = 0;
+    outpos = 0;
+    notifiedbufpos = 0;
+    inpurge = 0;
+    method = METHOD_NONE;
+    contentlength = -1;
+    lastdata = Waiter::ds;
+    
+    httpio->post(this);
 }
 
 void HttpReq::disconnect()
@@ -367,6 +412,8 @@ HttpReq::HttpReq(bool b)
     httpio = NULL;
     httpiohandle = NULL;
     out = &outbuf;
+    method = METHOD_NONE;
+    timeoutms = 0;
     type = REQ_JSON;
     buflen = 0;
     protect = false;
@@ -395,6 +442,8 @@ void HttpReq::init()
     timeleft = -1;
     lastdata = NEVER;
     outpos = 0;
+    in.clear();
+    contenttype.clear();
 }
 
 void HttpReq::setreq(const char* u, contenttype_t t)
@@ -482,7 +531,7 @@ byte* HttpReq::reserveput(unsigned* len)
             inpurge = 0;
         }
 
-        if (bufpos + *len > in.size())
+        if (bufpos + *len > (int) in.size())
         {
             in.resize(bufpos + *len);
         }
@@ -551,6 +600,7 @@ void HttpReqDL::finalize(Transfer *transfer)
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     m_off_t chunksize = endpos - startpos;
+    SymmCipher *cipher = transfer->transfercipher();
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
@@ -558,7 +608,7 @@ void HttpReqDL::finalize(Transfer *transfer)
         if (!chunkmac.finished)
         {
             chunkmac = transfer->chunkmacs[chunkid];
-            transfer->key.ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
+            cipher->ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
                                     chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
             if (endpos == ChunkedHash::chunkceil(chunkid, transfer->size))
             {
@@ -696,6 +746,14 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
 m_off_t SpeedController::getMeanSpeed()
 {
     return meanSpeed;
+}
+
+GenericHttpReq::GenericHttpReq(bool binary) : HttpReq(binary)
+{
+    tag = 0;
+    maxretries = 0;
+    numretry = 0;
+    isbtactive = false;
 }
 
 } // namespace

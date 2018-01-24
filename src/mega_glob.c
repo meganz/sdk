@@ -180,12 +180,9 @@ glob(const char *pattern, int flags, int (*errfunc)(const char *, int), glob_t *
 		if (!(flags & GLOB_DOOFFS))
 			pglob->gl_offs = 0;
 	}
-	if (flags & GLOB_LIMIT) {
-		limit = pglob->gl_matchc;
-		if (limit == 0)
-			limit = ARG_MAX;
-	} else
-		limit = 0;
+
+	limit = 0;
+
 	pglob->gl_flags = flags & ~GLOB_MAGCHAR;
 	pglob->gl_errfunc = errfunc;
 	pglob->gl_matchc = 0;

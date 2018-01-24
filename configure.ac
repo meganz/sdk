@@ -29,9 +29,6 @@ m4_include([m4/ax_check_link_flag.m4])
 
 AC_PREREQ([2.61])
 
-#override default /usr/local prefix
-AC_PREFIX_DEFAULT([/])
-
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
 m4_define([mega_major_version], [$(cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3)])
@@ -48,6 +45,8 @@ m4_define([mega_lt_age], [0])
 
 AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | awk '{print $3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf $1"."$2"."$3}']), [https://github.com/meganz/sdk])
 
+#override default /usr/local prefix
+AC_PREFIX_DEFAULT([/])
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE
@@ -141,6 +140,8 @@ if test "x$enable_debug" = "xyes" ; then
     CXXFLAGS="-Wall -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
+else
+    CXXFLAGS="$CXXFLAGS -DNDEBUG=1"
 fi
 
 # Check if we can use -fPIC flag
@@ -189,7 +190,7 @@ case $host in
     WIN32=yes
     ;;
   *-*-mingw*)
-    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
     CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
     WIN32=yes
     ;;
@@ -251,13 +252,24 @@ if test x$enable_gcc_hardening != xno; then
 fi
 
 # sync subsystem
+
 AC_ARG_ENABLE(sync,
     AS_HELP_STRING([--enable-sync], [include sync subsystem [default=yes]]),
-    [enable_sync=$enableval],
+    [enable_sync=$enableval
+    if test "x$enable_sync" = "xyes" && (test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes"); then
+        AC_MSG_ERROR([--enable-sync not allowed when building bindings (php/python/java)!])
+    fi
+    ],
     [enable_sync=yes])
+
+if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+    enable_sync=no
+fi
+
 if test x$enable_sync = xyes; then
     AC_DEFINE(ENABLE_SYNC, 1, [Defined if sync subsystem is enabled])
 fi
+
 
 # MEGA API
 AC_ARG_ENABLE(megaapi,
@@ -327,7 +339,7 @@ AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
 AC_ARG_ENABLE(chat,
     AS_HELP_STRING([--enable-chat], [enable chat support]),
     [], [enable_chat=no])
-if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" ; then
+if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
     enable_chat=yes
     AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
 fi
@@ -516,6 +528,9 @@ AC_ARG_WITH(pcre,
     AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
             AC_MSG_ERROR([Could not find libpcrecpp])
     ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
+            AC_MSG_ERROR([Could not find libpcre])
+    ])
     pcre=true
      ;;
    *)
@@ -546,6 +561,9 @@ AC_ARG_WITH(pcre,
     fi
 
     AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcrecpp])
+    ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
             AC_MSG_ERROR([Could not find libpcre])
     ])
 
@@ -558,10 +576,7 @@ AC_ARG_WITH(pcre,
     ;;
    esac
   ],
-  [AC_MSG_RESULT([--with-pcre not specified])
-      AC_CHECK_HEADERS([pcrecpp.h], [pcre=true], [])
-    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[])
-  ])
+)
 AC_SUBST(PCRE_CXXFLAGS)
 AC_SUBST(PCRE_CPPFLAGS)
 AC_SUBST(PCRE_LDFLAGS)
@@ -884,6 +899,226 @@ else
     AC_DEFINE(USE_SQLITE, [0], [Define to use SQLite])
     AC_DEFINE(USE_DB, [1], [Define to use Berkeley DB])
 fi
+
+#
+# LIBMediaInfo
+#
+#libzen
+LIBZEN_LIBS=""
+AC_MSG_CHECKING(for libzen)
+libzen=false
+AC_ARG_WITH(libzen,
+  AS_HELP_STRING(--with-libzen=PATH, base of libzen installation),
+  [
+   case $with_libzen in
+   no)
+    libzen=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([ZenLib/Ztring.h],, [
+        AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(zen, [_init], [LIBZEN_LIBS="-lzen"],[
+            AC_MSG_ERROR([Could not find libzen])
+    ])
+    libzen=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_libzen/lib"; then
+        LDFLAGS="-L$with_libzen/lib $LDFLAGS"
+        CXXFLAGS="-I$with_libzen/include $CXXFLAGS"
+        CPPFLAGS="-I$with_libzen/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(ZenLib/Ztring.h,
+         LIBZEN_CXXFLAGS="-I$with_libzen/include"
+         LIBZEN_CPPFLAGS="-I$with_libzen/include"
+         LIBZEN_LDFLAGS="-L$with_libzen/lib",
+         AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
+         )
+    # assume we are using libzen source directory
+    else
+        LDFLAGS="-L$with_libzen/zen $LDFLAGS"
+        CXXFLAGS="-I$with_libzen $CXXFLAGS"
+        CPPFLAGS="-I$with_libzen $CPPFLAGS"
+
+        AC_CHECK_HEADERS(ZenLib/Ztring.h,
+         LIBZEN_CXXFLAGS="-I$with_libzen"
+         LIBZEN_CPPFLAGS="-I$with_libzen"
+         LIBZEN_LDFLAGS="-L$with_libzen/zen",
+         AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(zen, [_init], [LIBZEN_LIBS="-lzen"],[
+            AC_MSG_ERROR([Could not find libzen])
+    ])
+
+    libzen=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-libzen not specified])
+    AC_CHECK_HEADERS([ZenLib/Ztring.h],
+        AC_CHECK_LIB(zen, [_init], [
+        LIBZEN_LIBS="-lzen"
+        libzen=true
+        ],)
+    ,)
+    
+  ]
+  )
+
+AC_CHECK_LIB(pthread, pthread_create, [pthread_available=yes], [pthread_available=no])
+
+if test "x$libzen" = "xtrue" && test "$pthread_available" = "yes"; then
+    #libmediainfo
+    LIBMEDIAINFO_LIBS=""
+    AC_MSG_CHECKING(for libmediainfo)
+    libmediainfo=false
+    AC_ARG_WITH(libmediainfo,
+      AS_HELP_STRING(--with-libmediainfo=PATH, base of libmediainfo installation),
+      [
+       case $with_libmediainfo in
+       no)
+        libmediainfo=false
+         ;;
+       yes)
+        AC_CHECK_HEADERS([MediaInfo/MediaInfo.h],, [
+            AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+        ])
+
+        LIBS="$LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
+        AC_MSG_RESULT(["AQUIITO LDFLAGS=$LDFLAGS CXXFLAGS=$CXXFLAGS CPPFLAGS=$CPPFLAGS LIBS=$LIBS" ]) #TODO: delete
+
+        AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo $LIBZEN_LIBS"],[
+                AC_MSG_ERROR([Could not find libmediainfo])
+        ])
+        LIBS="$SAVE_LIBS"
+        libmediainfo=true
+         ;;
+       *)
+
+        # determine if library is installed
+        if test -d "$with_libmediainfo/lib"; then
+            LDFLAGS="$LIBZEN_LDFLAGS $ZLIB_LDFLAGS -L$with_libmediainfo/lib $LDFLAGS"
+            CXXFLAGS="$LIBZEN_CXXFLAGS $ZLIB_CXXFLAGS -I$with_libmediainfo/include $CXXFLAGS"
+            CPPFLAGS="$LIBZEN_CPPFLAGS $ZLIB_CPPFLAGS  -I$with_libmediainfo/include $CPPFLAGS"
+
+            AC_CHECK_HEADERS(MediaInfo/MediaInfo.h,
+             LIBMEDIAINFO_CXXFLAGS="$LIBZEN_CXXFLAGS -I$with_libmediainfo/include"
+             LIBMEDIAINFO_CPPFLAGS="$LIBZEN_CPPFLAGS -I$with_libmediainfo/include"
+             LIBMEDIAINFO_LDFLAGS="$LIBZEN_LDFLAGS -L$with_libmediainfo/lib",
+             AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+             )
+        # assume we are using libmediainfo source directory
+        else
+            LDFLAGS="$LIBZEN_LDFLAGS $ZLIB_LDFLAGS -L$with_libmediainfo/mediainfo $LDFLAGS"
+            CXXFLAGS="$LIBZEN_CXXFLAGS $ZLIB_CXXFLAGS -I$with_libmediainfo $CXXFLAGS"
+            CPPFLAGS="$LIBZEN_CPPFLAGS $ZLIB_CPPFLAGS -I$with_libmediainfo $CPPFLAGS"
+
+            AC_CHECK_HEADERS(MediaInfo/MediaInfo.h,
+             LIBMEDIAINFO_CXXFLAGS="$LIBZEN_CXXFLAGS -I$with_libmediainfo"
+             LIBMEDIAINFO_CPPFLAGS="$LIBZEN_CPPFLAGS -I$with_libmediainfo"
+             LIBMEDIAINFO_LDFLAGS="$LIBZEN_LDFLAGS -L$with_libmediainfo/mediainfo",
+             AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+             )
+        fi
+
+        SAVE_LIBS="$LIBS"
+        LIBS="$LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
+
+        AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo $LIBZEN_LIBS"],[
+                AC_MSG_ERROR([Could not find libmediainfo])
+        ])
+        LIBS="$SAVE_LIBS"
+
+        libmediainfo=true
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
+        ;;
+       esac
+      ],
+      [AC_MSG_RESULT([--with-libmediainfo not specified])
+        AC_CHECK_HEADERS([MediaInfo/MediaInfo.h],
+
+            SAVE_LIBS="$LIBS"
+            LIBS="$LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
+
+            AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [
+            LIBMEDIAINFO_LIBS="-lmediainfo $LIBZEN_LIBS"
+            libmediainfo=true
+            ],)
+
+            LIBS="$SAVE_LIBS"
+            
+        ,)
+        
+      ]
+      )
+
+    if test "x$libmediainfo" = "xtrue" ; then
+     SAVE_LIBS="$LIBS"
+     LIBS="$LIBS $LIBMEDIAINFO_LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
+     LDFLAGS="$LIBMEDIAINFO_LDFLAGS"
+     CXXFLAGS="$LIBMEDIAINFO_CXXFLAGS"
+     CPPFLAGS="$LIBMEDIAINFO_CPPFLAGS"
+     lmediainfo_prog='#include <iostream> 
+    #include "ZenLib/Ztring.h"
+    #include "MediaInfo/MediaInfo.h"
+    int main () { std::cout << ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local().c_str() << std::endl; }
+    '
+
+      AC_LINK_IFELSE(
+        [AC_LANG_SOURCE($lmediainfo_prog)],
+         AC_MSG_RESULT([libmediainfo worked]),
+         #Try again with -DUNICODE
+         LIBMEDIAINFO_LDFLAGS="$LIBMEDIAINFO_LDFLAGS -DUNICODE"
+         LDFLAGS="$LIBMEDIAINFO_LDFLAGS"
+         AC_LINK_IFELSE(
+        [AC_LANG_SOURCE($lmediainfo_prog)],
+         AC_MSG_RESULT([libmediainfo worked worked with -DUNICODE])
+         AC_DEFINE(UNICODE, [1], [Define to use UNICODE (for MediaInfo)])
+         ,
+         AC_MSG_RESULT([libmediainfo failed to compile. Discarded])
+         libmediainfo=false
+         unset LIBMEDIAINFO_CXXFLAGS
+         unset LIBMEDIAINFO_CPPFLAGS
+         unset LIBMEDIAINFO_LDFLAGS
+         unset LIBMEDIAINFO_LIBS
+         )
+       )
+
+      #restore
+      LDFLAGS=$SAVE_LDFLAGS
+      CXXFLAGS=$SAVE_CXXFLAGS
+      CPPFLAGS=$SAVE_CPPFLAGS
+      LIBS="$SAVE_LIBS"
+
+    fi 
+    if test "x$libmediainfo" = "xtrue" ; then
+        AC_SUBST(LIBMEDIAINFO_CXXFLAGS)
+        AC_SUBST(LIBMEDIAINFO_CPPFLAGS)
+        AC_SUBST(LIBMEDIAINFO_LDFLAGS)
+        AC_SUBST(LIBMEDIAINFO_LIBS)
+        AC_DEFINE(USE_MEDIAINFO, [1], [Define to use libmediainfo])    
+    fi
+
+else
+    AC_MSG_RESULT([libmediainfo requires libzen])
+fi
+
+AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
+
 #
 # ** Posix dependent libraries **
 #
@@ -1164,15 +1399,6 @@ AC_ARG_ENABLE(examples,
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
 
-# MEGAcmd
-AC_MSG_CHECKING([if building megacmd application])
-AC_ARG_ENABLE(megacmd,
-    AS_HELP_STRING([--enable-megacmd], [build megacmd application [default=yes]]),
-    [], [enable_megacmd=yes])
-AM_CONDITIONAL([BUILD_MEGACMD], [test "$enable_megacmd" = "yes"])
-AC_MSG_RESULT([$enable_megacmd])
-
-
 # FreeImage
 freeimage=false
 AC_MSG_CHECKING(for FreeImage)
@@ -1258,7 +1484,7 @@ AM_CONDITIONAL([USE_FREEIMAGE], [test "x$freeimage" = "xtrue"])
 
 USE_FUSE=0
 # if Examples are enables, check for specific libraries
-if test "x$enable_examples" = "xyes" || test "x$enable_megacmd" = "xyes" ; then
+if test "x$enable_examples" = "xyes" ; then
     #termcap
     AC_MSG_CHECKING(for termcap)
     AC_ARG_WITH(termcap,
@@ -1596,9 +1822,17 @@ if test "x$enable_php" = "xyes" ; then
     fi
 
     AC_SUBST(PHPINC)
-	AC_SUBST(PHPEXT)
-	AC_SUBST(PHPLIBDIR)
+    AC_SUBST(PHPEXT)
+    AC_SUBST(PHPLIBDIR)
 
+    m4_define([php_version], [$(php-config --version | cut -d '.' -f 1)])
+    if test "x"php_version = "x7" ; then
+        AX_PKG_SWIG(3.0.11, [SWIG_FLAGS_PHP='-php7'], AC_MSG_ERROR([PHP 7 requires SWIG >=3.0.11]))
+    else
+        SWIG_FLAGS_PHP='-php'
+    fi
+
+    #do AX_PKG_SWIG again to have $SWIG correctly defined, no only for >=3.0.11
     AX_PKG_SWIG(2.0.0, [], [
         AC_MSG_ERROR([SWIG executable not found!])
     ])
@@ -1608,6 +1842,9 @@ if test "x$enable_php" = "xyes" ; then
     if test -z "$SWIG"; then
         AC_MSG_ERROR([SWIG executable not found!])
     fi
+    
+    AC_SUBST([SWIG_FLAGS_PHP])
+
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 
@@ -1651,7 +1888,6 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
-  megacmd app:      $enable_megacmd
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
@@ -1659,6 +1895,8 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Python bindings:  $enable_python
   Python3 bindings: $USE_PYTHON3
   PHP bindings:     $enable_php
+  SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
+  
   Java bindings:    $enable_java
 
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
@@ -1673,4 +1911,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
   LIBUV:            $LIBUV_CXXFLAGS $LIBUV_LDFLAGS $LIBUV_LIBS
+  LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
 ])

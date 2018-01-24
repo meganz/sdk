@@ -29,6 +29,8 @@ namespace mega {
 class MEGA_API Sync
 {
 public:
+    void *appData;
+
     MegaClient* client;
 
     // sync-wide directory notification provider
@@ -74,7 +76,7 @@ public:
     void deletemissing(LocalNode*);
 
     // scan specific path
-    LocalNode* checkpath(LocalNode*, string*, string* = NULL);
+    LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL);
 
     m_off_t localbytes;
     unsigned localnodes[2];
@@ -116,11 +118,23 @@ public:
 
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing;
+
+    // true if the local synced folder is a network folder
+    bool isnetwork;
+
+    // values related to possible files being updated
+    m_off_t updatedfilesize;
+    m_time_t updatedfilets;
+    m_time_t updatedfileinitialts;
     
-    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int);
+    Sync(MegaClient*, string*, const char*, string*, Node*, fsfp_t, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
+    static const int EXTRA_SCANNING_DELAY_DS;
+    static const int FILE_UPDATE_DELAY_DS;
+    static const int FILE_UPDATE_MAX_DELAY_SECS;
+    static const dstime RECENT_VERSION_INTERVAL_SECS;
 
 protected :
     bool readstatecache();

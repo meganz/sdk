@@ -40,16 +40,15 @@ public:
     virtual ~WinDirAccess();
 };
 
+struct MEGA_API WinDirNotify;
 class MEGA_API WinFileSystemAccess : public FileSystemAccess
 {
 public:
-    unsigned pendingevents;
-
     FileAccess* newfileaccess();
     DirAccess* newdiraccess();
     DirNotify* newdirnotify(string*, string*);
 
-    bool issyncsupported(string*);
+    bool issyncsupported(string*, bool* = NULL);
 
     void tmpnamelocal(string*) const;
 
@@ -82,6 +81,9 @@ public:
     static void emptydirlocal(string*, dev_t = 0);
 
     WinFileSystemAccess();
+    ~WinFileSystemAccess();
+
+    std::set<WinDirNotify*> dirnotifys;
 };
 
 struct MEGA_API WinDirNotify : public DirNotify
@@ -100,10 +102,9 @@ struct MEGA_API WinDirNotify : public DirNotify
     DWORD dwBytes;
     OVERLAPPED overlapped;
 
-    static VOID CALLBACK completion(DWORD, DWORD, LPOVERLAPPED);
-
     void addnotify(LocalNode*, string*);
 
+    static VOID CALLBACK completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped);
     void process(DWORD wNumberOfBytesTransfered);
     void readchanges();
 

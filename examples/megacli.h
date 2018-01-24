@@ -128,11 +128,12 @@ struct DemoApp : public MegaApp
     virtual void chatupdatepermissions_result(error);
     virtual void chattruncate_result(error);
     virtual void chatsettitle_result(error);
+    virtual void chatpresenceurl_result(string *, error);
 
     void chats_updated(textchat_map*, int);
 
-    void printChatInformation(TextChat *);
-    string getPrivilegeString(privilege_t priv);
+    static void printChatInformation(TextChat *);
+    static string getPrivilegeString(privilege_t priv);
 #endif
 
     int prepare_download(Node*);
@@ -212,8 +213,8 @@ struct DemoApp : public MegaApp
     void syncupdate_remote_rename(Sync*, Node*, const char*);
     void syncupdate_treestate(LocalNode*);
 
-    bool sync_syncable(Node*);
-    bool sync_syncable(const char*, string*, string*);
+    bool sync_syncable(Sync*, const char*, string*, Node*);
+    bool sync_syncable(Sync*, const char*, string*);
 #endif
 
     void changepw_result(error);
@@ -225,6 +226,9 @@ struct DemoApp : public MegaApp
     void additem_result(error);
     void checkout_result(error);
     void checkout_result(const char*);
+
+    void getmegaachievements_result(AchievementsDetails*, error);
+    void getwelcomepdf_result(handle, string*, error);
 
     void reload(const char*);
     void clearing();

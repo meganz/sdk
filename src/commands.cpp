@@ -29,6 +29,7 @@
 #include "mega/utils.h"
 #include "mega/user.h"
 #include "mega.h"
+#include "mega/mediafileattribute.h"
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, string* cdata, bool checkAccess)
@@ -256,6 +257,18 @@ CommandAttachFA::CommandAttachFA(handle nh, fatype t, handle ah, int ctag)
     sprintf(buf, "%u*", t);
     Base64::btoa((byte*)&ah, sizeof(ah), strchr(buf + 2, 0));
     arg("fa", buf);
+
+    h = nh;
+    type = t;
+    tag = ctag;
+}
+
+CommandAttachFA::CommandAttachFA(handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
+{
+    cmd("pfa");
+    arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
+
+    arg("fa", encryptedAttributes.c_str());
 
     h = nh;
     type = t;
@@ -618,7 +631,7 @@ void CommandGetFile::procresult()
 
                     key.setkey(filekey, FILENODE);
 
-                    if ((buf = Node::decryptattr(tslot ? &tslot->transfer->key : &key,
+                    if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
                                                  at, eos ? eos - at : strlen(at))))
                     {
                         JSON json;
@@ -870,6 +883,10 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 
                 client->pendingattrstring(nn[i].uploadhandle, &s);
 
+                #ifdef USE_MEDIAINFO
+                client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
+                #endif              
+
                 if (s.size())
                 {
                     arg("fa", s.c_str(), 1);
@@ -879,6 +896,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
         if (!ISUNDEF(nn[i].parenthandle))
         {
             arg("p", (byte*)&nn[i].parenthandle, MegaClient::NODEHANDLE);
+        }
+
+        if (nn[i].type == FILENODE && !ISUNDEF(nn[i].ovhandle))
+        {
+            arg("ov", (byte*)&nn[i].ovhandle, MegaClient::NODEHANDLE);
         }
 
         arg("t", nn[i].type);
@@ -993,22 +1015,25 @@ void CommandPutNodes::procresult()
             return client->putnodes_sync_result(e, nn, nnsize);
         }
         else
+        {
 #endif
-        if (source == PUTNODES_APP)
-        {
-            return client->app->putnodes_result(e, type, nn);
-        }
+            if (source == PUTNODES_APP)
+            {
+                return client->app->putnodes_result(e, type, nn);
+            }
 #ifdef ENABLE_SYNC
-        else
-        {
-            return client->putnodes_syncdebris_result(e, nn);
+            else
+            {
+                return client->putnodes_syncdebris_result(e, nn);
+            }
         }
 #endif
     }
 
     e = API_EINTERNAL;
 
-    for (;;)
+    bool noexit = true;
+    while (noexit)
     {
         switch (client->json.getnameid())
         {
@@ -1020,6 +1045,17 @@ void CommandPutNodes::procresult()
                 else
                 {
                     LOG_err << "Parse error (readnodes)";
+                    e = API_EINTERNAL;
+                    noexit = false;
+                }
+                break;
+
+            case MAKENAMEID2('f', '2'):
+                if (!client->readnodes(&client->json, 1))
+                {
+                    LOG_err << "Parse error (readversions)";
+                    e = API_EINTERNAL;
+                    noexit = false;
                 }
                 break;
 
@@ -1034,29 +1070,31 @@ void CommandPutNodes::procresult()
 
                 // fall through
             case EOO:
-                client->applykeys();
-
-#ifdef ENABLE_SYNC
-                if (source == PUTNODES_SYNC)
-                {
-                    client->app->putnodes_result(e, type, NULL);
-                    client->putnodes_sync_result(e, nn, nnsize);
-                }
-                else
-#endif
-                if (source == PUTNODES_APP)
-                {
-                    client->app->putnodes_result(e, type, nn);
-                }
-#ifdef ENABLE_SYNC
-                else
-                {
-                    client->putnodes_syncdebris_result(e, nn);
-                }
-#endif
-                return;
+                noexit = false;
+                break;
         }
     }
+
+    client->applykeys();
+
+#ifdef ENABLE_SYNC
+    if (source == PUTNODES_SYNC)
+    {
+        client->app->putnodes_result(e, type, NULL);
+        client->putnodes_sync_result(e, nn, nnsize);
+    }
+    else
+#endif
+    if (source == PUTNODES_APP)
+    {
+        client->app->putnodes_result(e, type, nn);
+    }
+#ifdef ENABLE_SYNC
+    else
+    {
+        client->putnodes_syncdebris_result(e, nn);
+    }
+#endif
 }
 
 CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
@@ -1136,7 +1174,23 @@ void CommandMoveNode::procresult()
                 }
                 else
                 {
-                    syncn->syncdeleted = SYNCDEL_NONE;
+                    Node *tn = NULL;
+                    if (syncdel == SYNCDEL_BIN || syncdel == SYNCDEL_FAILED
+                            || !(tn = client->nodebyhandle(client->rootnodes[RUBBISHNODE - ROOTNODE])))
+                    {
+                        LOG_err << "Error moving node to the Rubbish Bin";
+                        syncn->syncdeleted = SYNCDEL_NONE;
+                        client->todebris.erase(syncn->todebris_it);
+                        syncn->todebris_it = client->todebris.end();
+                    }
+                    else
+                    {
+                        int creqtag = client->reqtag;
+                        client->reqtag = syncn->tag;
+                        LOG_warn << "Move to Syncdebris failed. Moving to the Rubbish Bin instead.";
+                        client->rename(syncn, tn, SYNCDEL_FAILED, pp);
+                        client->reqtag = creqtag;
+                    }
                 }
             }
         }
@@ -1211,12 +1265,17 @@ void CommandMoveNode::procresult()
     }
 }
 
-CommandDelNode::CommandDelNode(MegaClient* client, handle th)
+CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions)
 {
     cmd("d");
     notself(client);
 
     arg("n", (byte*)&th, MegaClient::NODEHANDLE);
+
+    if (keepversions)
+    {
+        arg("v", 1);
+    }
 
     h = th;
     tag = client->reqtag;
@@ -1260,6 +1319,22 @@ void CommandDelNode::procresult()
             }
         }
     }
+}
+
+CommandDelVersions::CommandDelVersions(MegaClient* client)
+{
+    cmd("dv");
+    tag = client->reqtag;
+}
+
+void CommandDelVersions::procresult()
+{
+    error e = API_EINTERNAL;
+    if (client->json.isnumeric())
+    {
+        e = (error)client->json.getint();
+    }
+    client->app->unlinkversions_result(e);
 }
 
 CommandKillSessions::CommandKillSessions(MegaClient* client)
@@ -1393,6 +1468,7 @@ void CommandLogin::procresult()
     int len_k = 0, len_privk = 0, len_csid = 0, len_tsid = 0, len_sek = 0;
     handle me = UNDEF;
     bool fa = false;
+    bool ach = false;
 
     for (;;)
     {
@@ -1426,6 +1502,10 @@ void CommandLogin::procresult()
                 fa = client->json.getint();
                 break;
 
+            case MAKENAMEID3('a', 'c', 'h'):
+                ach = client->json.getint();
+                break;
+
             case MAKENAMEID2('s', 'n'):
                 if (!client->json.getint())
                 {
@@ -1454,6 +1534,7 @@ void CommandLogin::procresult()
                         client->sctable->remove();
                         delete client->sctable;
                         client->sctable = NULL;
+                        client->pendingsccommit = false;
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
 
@@ -1490,7 +1571,8 @@ void CommandLogin::procresult()
                     // password using symmetric challenge
                     if (!client->checktsid(sidbuf, len_tsid))
                     {
-                        return client->app->login_result(API_EKEY);
+                        LOG_warn << "Error checking tsid";
+                        return client->app->login_result(API_ENOENT);
                     }
 
                     // add missing RSA keypair
@@ -1510,7 +1592,8 @@ void CommandLogin::procresult()
 
                     if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
                     {
-                        return client->app->login_result(API_EKEY);
+                        LOG_warn << "Error checking private key";
+                        return client->app->login_result(API_ENOENT);
                     }
 
                     if (!checksession)
@@ -1531,6 +1614,7 @@ void CommandLogin::procresult()
                 }
 
                 client->me = me;
+                client->achievements_enabled = ach;
 
                 if (len_sek)
                 {
@@ -2434,7 +2518,7 @@ void CommandPutUAVer::procresult()
     }
 }
 
-CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl)
+CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -2455,7 +2539,7 @@ CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsign
 
     notself(client);
 
-    tag = client->reqtag;
+    tag = ctag;
 }
 
 void CommandPutUA::procresult()
@@ -2472,9 +2556,29 @@ void CommandPutUA::procresult()
         e = API_OK;
 
         User *u = client->ownuser();
+        assert(u);
+        if (!u)
+        {
+            LOG_err << "Own user not found when attempting to set user attributes";
+            client->app->putua_result(API_EACCESS);
+            return;
+        }
         u->setattr(at, &av, NULL);
         u->setTag(tag ? tag : -1);
         client->notifyuser(u);
+
+        if (at == ATTR_DISABLE_VERSIONS)
+        {
+            client->versions_disabled = (av == "1");
+            if (client->versions_disabled)
+            {
+                LOG_info << "File versioning is disabled";
+            }
+            else
+            {
+                LOG_info << "File versioning is enabled";
+            }
+        }
     }
 
     client->app->putua_result(e);
@@ -2508,6 +2612,12 @@ void CommandGetUA::procresult()
             client->initializekeys(); // we have now all the required data
         }
 #endif
+        // if the attr does not exist, initialize it
+        if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
+        {
+            LOG_info << "File versioning is enabled";
+            client->versions_disabled = false;
+        }
         return;
     }
     else
@@ -2582,7 +2692,7 @@ void CommandGetUA::procresult()
 
                     switch (scope)
                     {
-                        case '*':   // private
+                        case '*':   // private, encrypted
                         {
                             // decrypt the data and build the TLV records
                             TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&value, &client->key);
@@ -2618,6 +2728,26 @@ void CommandGetUA::procresult()
 
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
+                            break;
+
+                        case '^': // private, non-encrypted
+
+                            // store the value in cache in binary format
+                            u->setattr(at, &value, &version);
+                            client->app->getua_result((byte*) value.data(), value.size());
+
+                            if (at == ATTR_DISABLE_VERSIONS)
+                            {
+                                client->versions_disabled = !strcmp(value.data(), "1");
+                                if (client->versions_disabled)
+                                {
+                                    LOG_info << "File versioning is disabled";
+                                }
+                                else
+                                {
+                                    LOG_info << "File versioning is enabled";
+                                }
+                            }
                             break;
 
                         default:    // legacy attributes or unknown attribute
@@ -2681,7 +2811,7 @@ void CommandDelUA::procresult()
         {
             User *u = client->ownuser();
             attr_t at = User::string2attr(an.c_str());
-            u->invalidateattr(at);
+            u->removeattr(at);
 
 #ifdef ENABLE_CHAT
             if (at == ATTR_KEYRING)
@@ -2988,6 +3118,8 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
         arg("pro", "1", 0);
     }
 
+    arg("v", 1);
+
     tag = client->reqtag;
 }
 
@@ -3101,7 +3233,10 @@ void CommandGetUserQuota::procresult()
                         ns->bytes = client->json.getint();
                         ns->files = client->json.getint();
                         ns->folders = client->json.getint();
+                        ns->version_bytes = client->json.getint();
+                        ns->version_files = client->json.getint();
 
+                        while(client->json.storeobject());
                         client->json.leavearray();
                     }
 
@@ -3227,6 +3362,30 @@ void CommandGetUserQuota::procresult()
                 }
         }
     }
+}
+
+CommandQueryTransferQuota::CommandQueryTransferQuota(MegaClient* client, m_off_t size)
+{
+    cmd("qbq");
+    arg("s", size);
+
+    tag = client->reqtag;
+}
+
+void CommandQueryTransferQuota::procresult()
+{
+    if (!client->json.isnumeric())
+    {
+        LOG_err << "Unexpected response: " << client->json.pos;
+        client->json.storeobject();
+
+        // Returns 0 to not alarm apps and don't show overquota pre-warnings
+        // if something unexpected is received, following the same approach as
+        // in the webclient
+        return client->app->querytransferquota_result(0);
+    }
+
+    return client->app->querytransferquota_result(client->json.getint());
 }
 
 CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, AccountDetails* ad)
@@ -3735,6 +3894,15 @@ void CommandFetchNodes::procresult()
                 }
                 break;
 
+            case MAKENAMEID2('f', '2'):
+                // old versions
+                if (!client->readnodes(&client->json, 0))
+                {
+                    client->fetchingnodes = false;
+                    return client->app->fetchnodes_result(API_EINTERNAL);
+                }
+                break;
+
             case MAKENAMEID2('o', 'k'):
                 // outgoing sharekeys
                 client->readok(&client->json);
@@ -3812,6 +3980,7 @@ void CommandFetchNodes::procresult()
                 client->mergenewshares(0);
                 client->applykeys();
                 client->initsc();
+                client->pendingsccommit = false;
                 client->fetchnodestag = tag;
 
                 WAIT_CLASS::bumpds();
@@ -5176,5 +5345,296 @@ void CommandArchiveChat::procresult()
 
 #endif
 
+CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)
+{
+    this->details = details;
+
+    if (registered_user)
+    {
+        cmd("maf");
+    }
+    else
+    {
+        cmd("mafu");
+    }
+
+    arg("v", (m_off_t)0);
+
+    tag = client->reqtag;
+}
+
+void CommandGetMegaAchievements::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->getmegaachievements_result(details, (error)client->json.getint());
+        return;
+    }
+
+    details->permanent_size = 0;
+    details->achievements.clear();
+    details->awards.clear();
+    details->rewards.clear();
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 's':
+                details->permanent_size = client->json.getint();
+                break;
+
+            case 'u':
+                if (client->json.enterobject())
+                {
+                    for (;;)
+                    {
+                        achievement_class_id id = client->json.getnameid();
+                        if (id == EOO)
+                        {
+                            break;
+                        }
+                        id -= '0';   // convert to number
+
+                        if (client->json.enterarray())
+                        {
+                            Achievement achievement;
+                            achievement.storage = client->json.getint();
+                            achievement.transfer = client->json.getint();
+                            const char *exp_ts = client->json.getvalue();
+                            char *pEnd = NULL;
+                            achievement.expire = strtol(exp_ts, &pEnd, 10);
+                            if (*pEnd == 'm')
+                            {
+                                achievement.expire *= 30;
+                            }
+                            else if (*pEnd == 'y')
+                            {
+                                achievement.expire *= 365;
+                            }
+
+                            details->achievements[id] = achievement;
+
+                            while(client->json.storeobject());
+                            client->json.leavearray();
+                        }
+                    }
+
+                    client->json.leaveobject();
+                }
+                else
+                {
+                    LOG_err << "Failed to parse Achievements of MEGA achievements";
+                    client->json.storeobject();
+                    client->app->getmegaachievements_result(details, API_EINTERNAL);
+                    return;
+                }
+                break;
+
+            case 'a':
+                if (client->json.enterarray())
+                {
+                    while (client->json.enterobject())
+                    {
+                        Award award;
+                        award.achievement_class = 0;
+                        award.award_id = 0;
+                        award.ts = 0;
+                        award.expire = 0;
+
+                        bool finished = false;
+                        while (!finished)
+                        {
+                            switch (client->json.getnameid())
+                            {
+                            case 'a':
+                                award.achievement_class = client->json.getint();
+                                break;
+                            case 'r':
+                                award.award_id = client->json.getint();
+                                break;
+                            case MAKENAMEID2('t', 's'):
+                                award.ts = client->json.getint();
+                                break;
+                            case 'e':
+                                award.expire = client->json.getint();
+                                break;
+                            case 'm':
+                                if (client->json.enterarray())
+                                {
+                                    string email;
+                                    while(client->json.storeobject(&email))
+                                    {
+                                        award.emails_invited.push_back(email);
+                                    }
+
+                                    client->json.leavearray();
+                                }
+                                break;
+                            case EOO:
+                                finished = true;
+                                break;
+                            default:
+                                client->json.storeobject();
+                                break;
+                            }
+                        }
+
+                        details->awards.push_back(award);
+
+                        client->json.leaveobject();
+                    }
+
+                    client->json.leavearray();
+                }
+                else
+                {
+                    LOG_err << "Failed to parse Awards of MEGA achievements";
+                    client->json.storeobject();
+                    client->app->getmegaachievements_result(details, API_EINTERNAL);
+                    return;
+                }
+                break;
+
+            case 'r':
+                if (client->json.enterobject())
+                {
+                    for (;;)
+                    {
+                        nameid id = client->json.getnameid();
+                        if (id == EOO)
+                        {
+                            break;
+                        }
+
+                        Reward reward;
+                        reward.award_id = id - '0';   // convert to number
+
+                        client->json.enterarray();
+
+                        reward.storage = client->json.getint();
+                        reward.transfer = client->json.getint();
+                        const char *exp_ts = client->json.getvalue();
+                        char *pEnd = NULL;
+                        reward.expire = strtol(exp_ts, &pEnd, 10);
+                        if (*pEnd == 'm')
+                        {
+                            reward.expire *= 30;
+                        }
+                        else if (*pEnd == 'y')
+                        {
+                            reward.expire *= 365;
+                        }
+
+                        while(client->json.storeobject());
+                        client->json.leavearray();
+
+                        details->rewards.push_back(reward);
+                    }
+
+                    client->json.leaveobject();
+                }
+                else
+                {
+                    LOG_err << "Failed to parse Rewards of MEGA achievements";
+                    client->json.storeobject();
+                    client->app->getmegaachievements_result(details, API_EINTERNAL);
+                    return;
+                }
+                break;
+
+            case EOO:
+                client->app->getmegaachievements_result(details, API_OK);
+                return;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse MEGA achievements";
+                    client->app->getmegaachievements_result(details, API_EINTERNAL);
+                    return;
+                }
+                break;
+        }
+    }
+}
+
+CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
+{
+    cmd("wpdf");
+
+    tag = client->reqtag;
+}
+
+void CommandGetWelcomePDF::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->getwelcomepdf_result(UNDEF, NULL, (error)client->json.getint());
+        return;
+    }
+
+    handle ph = UNDEF;
+    byte keybuf[FILENODEKEYLENGTH];
+    int len_key = 0;
+    string key;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID2('p', 'h'):
+                ph = client->json.gethandle(MegaClient::NODEHANDLE);
+                break;
+
+            case 'k':
+                len_key = client->json.storebinary(keybuf, sizeof keybuf);
+                break;
+
+            case EOO:
+                if (ISUNDEF(ph) || len_key != FILENODEKEYLENGTH)
+                {
+                    return client->app->getwelcomepdf_result(UNDEF, NULL, API_EINTERNAL);
+                }
+                key.assign((const char *) keybuf, len_key);
+                return client->app->getwelcomepdf_result(ph, &key, API_OK);
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse welcome PDF response";
+                    return client->app->getwelcomepdf_result(UNDEF, NULL, API_EINTERNAL);
+                }
+                break;
+        }
+    }
+}
+
+
+CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
+{
+    cmd("mc");
+
+    // This command is for internal usage only
+    tag = 0;
+
+    client = c;
+    callback = cb;
+}
+
+void CommandMediaCodecs::procresult()
+{
+    int version = 0;
+    if (client->json.isnumeric())
+    {
+        m_off_t result = client->json.getint();
+        if (result < 0)
+        {
+            LOG_err << "mc result: " << result;
+        }
+        version = int(result);
+    }
+    callback(client, version);
+}
 
 } // namespace

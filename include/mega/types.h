@@ -76,6 +76,7 @@ struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
 struct HttpReq;
+struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
@@ -92,6 +93,7 @@ struct Waiter;
 struct Proxy;
 struct PendingContactRequest;
 class TransferList;
+struct Achievement;
 
 #define EOO 0
 
@@ -110,6 +112,8 @@ typedef uint32_t dstime;
 typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
+
+typedef enum { METHOD_POST, METHOD_GET, METHOD_NONE} httpmethod_t;
 
 typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 
@@ -159,7 +163,8 @@ typedef enum ErrorCodes
     API_EREAD = -21,                /**< File could not be read from (or changed
                                          unexpectedly during reading). */
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
-    API_ESSL = -23                  ///< SSL verification failed
+    API_ESSL = -23,                 ///< SSL verification failed
+    API_EGOINGOVERQUOTA = -24       ///< Not enough quota
 } error;
 
 // returned by loggedin()
@@ -236,7 +241,7 @@ typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
 typedef enum { SYNC_FAILED = -2, SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE } syncstate_t;
 
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
-               SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY } syncdel_t;
+               SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
 
 typedef vector<LocalNode*> localnode_vector;
 
@@ -271,6 +276,9 @@ typedef deque<Transfer*> transfer_list;
 
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
+
+// map a request tag with a pending dns request
+typedef map<int, GenericHttpReq*> pendinghttp_map;
 
 // map a request tag with pending paths of temporary files
 typedef map<int, vector<string> > pendingfiles_map;
@@ -400,8 +408,9 @@ typedef enum {
     ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
     ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
     ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
-//    USER_ATTR_AUTHRSA = 10,
-//    USER_ATTR_AUTHCU255 = 11
+    ATTR_LANGUAGE = 14,         // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_PWD_REMINDER = 15,     // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_DISABLE_VERSIONS = 16  // private, non-encrypted - char array in B64 - non-versioned
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 
@@ -464,6 +473,9 @@ typedef map<handle, TextChat*> textchat_map;
 typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
 
 typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
+
+typedef unsigned int achievement_class_id;
+typedef map<achievement_class_id, Achievement> achievements_map;
 
 } // namespace
 

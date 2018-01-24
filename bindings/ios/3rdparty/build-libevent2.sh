@@ -34,9 +34,9 @@ esac
 
 set -e
 
-if [ ! -d "karere-native" ]
+if [ ! -d "libevent" ]
 then
-git clone --recursive -b develop https://code.developers.mega.co.nz/messenger/karere-native
+git clone --recursive -b master https://github.com/meganz/libevent
 fi
 
 for ARCH in ${ARCHS}
@@ -48,7 +48,7 @@ else
 PLATFORM="iPhoneOS"
 fi
 
-pushd karere-native/third-party/libevent
+pushd libevent
 git reset --hard && git clean -dfx
 
 export BUILD_TOOLS="${DEVELOPER}"
@@ -98,10 +98,8 @@ lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libevent_p
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libevent_openssl.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libevent_openssl.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libevent_openssl.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libevent_openssl.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libevent_openssl.a -output ${CURRENTPATH}/lib/libevent_openssl.a
 
 mkdir -p include/libevent || true
-cp -f -R karere-native/third-party/libevent/include/* include/libevent/
+cp -f -R libevent/include/* include/libevent/
 
 #rm -rf bin
-#rm -rf expat-${EXPAT_VERSION}
-#rm -rf expat-${EXPAT_VERSION}.tar.bz2
 
 echo "Done."

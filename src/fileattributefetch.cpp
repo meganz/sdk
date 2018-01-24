@@ -136,9 +136,9 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int /*fac*/, bool fina
 
             if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
             {
-                if (client->tmpcipher.setkey(&it->second->nodekey))
+                if (client->tmpnodecipher.setkey(&it->second->nodekey))
                 {
-                    client->tmpcipher.cbc_decrypt((byte*)ptr, falen);
+                    client->tmpnodecipher.cbc_decrypt((byte*)ptr, falen);
                     client->app->fa_complete(it->second->nodehandle, it->second->type, ptr, falen);
                 }
 

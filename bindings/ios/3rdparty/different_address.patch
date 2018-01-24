@@ -1,0 +1,181 @@
+diff -Naur a/ares_process.c b/ares_process.c
+--- a/ares_process.c	2017-06-19 14:15:32.000000000 +0200
++++ b/ares_process.c	2017-11-20 19:40:02.541642035 +0100
+@@ -85,7 +85,6 @@
+ static int open_udp_socket(ares_channel channel, struct server_state *server);
+ static int same_questions(const unsigned char *qbuf, int qlen,
+                           const unsigned char *abuf, int alen);
+-static int same_address(struct sockaddr *sa, struct ares_addr *aa);
+ static void end_query(ares_channel channel, struct query *query, int status,
+                       unsigned char *abuf, int alen);
+ 
+@@ -520,13 +519,6 @@
+           continue;
+         else if (count <= 0)
+           handle_error(channel, i, now);
+-#ifdef HAVE_RECVFROM
+-        else if (!same_address(&from.sa, &server->addr))
+-          /* The address the response comes from does not match the address we
+-           * sent the request to. Someone may be attempting to perform a cache
+-           * poisoning attack. */
+-          break;
+-#endif
+         else
+           process_answer(channel, buf, (int)count, i, 0, now);
+        } while (count > 0);
+@@ -807,6 +799,12 @@
+   struct send_request *sendreq;
+   struct server_state *server;
+   int timeplus;
++  ares_socklen_t salen;
++  union {
++    struct sockaddr_in  sa4;
++    struct sockaddr_in6 sa6;
++  } saddr;
++  struct sockaddr *sa;
+ 
+   server = &channel->servers[query->server];
+   if (query->using_tcp)
+@@ -863,7 +861,42 @@
+               return;
+             }
+         }
+-      if (socket_write(channel, server->udp_socket, query->qbuf, query->qlen) == -1)
++
++      switch (server->addr.family)
++        {
++          case AF_INET:
++            sa = (void *)&saddr.sa4;
++            salen = sizeof(saddr.sa4);
++            memset(sa, 0, salen);
++            saddr.sa4.sin_family = AF_INET;
++            if (server->addr.udp_port) {
++              saddr.sa4.sin_port = aresx_sitous(server->addr.udp_port);
++            } else {
++              saddr.sa4.sin_port = aresx_sitous(channel->udp_port);
++            }
++            memcpy(&saddr.sa4.sin_addr, &server->addr.addrV4,
++                   sizeof(server->addr.addrV4));
++            break;
++          case AF_INET6:
++            sa = (void *)&saddr.sa6;
++            salen = sizeof(saddr.sa6);
++            memset(sa, 0, salen);
++            saddr.sa6.sin6_family = AF_INET6;
++            if (server->addr.udp_port) {
++              saddr.sa6.sin6_port = aresx_sitous(server->addr.udp_port);
++            } else {
++              saddr.sa6.sin6_port = aresx_sitous(channel->udp_port);
++            }
++            memcpy(&saddr.sa6.sin6_addr, &server->addr.addrV6,
++                   sizeof(server->addr.addrV6));
++            break;
++          default:
++            skip_server(channel, query, query->server);
++            next_server(channel, query, now);
++            return;
++        }
++
++      if (sendto(server->udp_socket, query->qbuf, query->qlen, 0, sa, salen) == -1)
+         {
+           /* FIXME: Handle EAGAIN here since it likely can happen. */
+           skip_server(channel, query, query->server);
+@@ -1155,44 +1188,6 @@
+ static int open_udp_socket(ares_channel channel, struct server_state *server)
+ {
+   ares_socket_t s;
+-  ares_socklen_t salen;
+-  union {
+-    struct sockaddr_in  sa4;
+-    struct sockaddr_in6 sa6;
+-  } saddr;
+-  struct sockaddr *sa;
+-
+-  switch (server->addr.family)
+-    {
+-      case AF_INET:
+-        sa = (void *)&saddr.sa4;
+-        salen = sizeof(saddr.sa4);
+-        memset(sa, 0, salen);
+-        saddr.sa4.sin_family = AF_INET;
+-        if (server->addr.udp_port) {
+-          saddr.sa4.sin_port = aresx_sitous(server->addr.udp_port);
+-        } else {
+-          saddr.sa4.sin_port = aresx_sitous(channel->udp_port);
+-        }
+-        memcpy(&saddr.sa4.sin_addr, &server->addr.addrV4,
+-               sizeof(server->addr.addrV4));
+-        break;
+-      case AF_INET6:
+-        sa = (void *)&saddr.sa6;
+-        salen = sizeof(saddr.sa6);
+-        memset(sa, 0, salen);
+-        saddr.sa6.sin6_family = AF_INET6;
+-        if (server->addr.udp_port) {
+-          saddr.sa6.sin6_port = aresx_sitous(server->addr.udp_port);
+-        } else {
+-          saddr.sa6.sin6_port = aresx_sitous(channel->udp_port);
+-        }
+-        memcpy(&saddr.sa6.sin6_addr, &server->addr.addrV6,
+-               sizeof(server->addr.addrV6));
+-        break;
+-      default:
+-        return -1;  /* LCOV_EXCL_LINE */
+-    }
+ 
+   /* Acquire a socket. */
+   s = open_socket(channel, server->addr.family, SOCK_DGRAM, 0);
+@@ -1217,18 +1212,6 @@
+         }
+     }
+ 
+-  /* Connect to the server. */
+-  if (connect_socket(channel, s, sa, salen) == -1)
+-    {
+-      int err = SOCKERRNO;
+-
+-      if (err != EINPROGRESS && err != EWOULDBLOCK)
+-        {
+-          ares__socket_close(channel, s);
+-          return -1;
+-        }
+-    }
+-
+   if (channel->sock_create_cb)
+     {
+       int err = channel->sock_create_cb(s, SOCK_DGRAM,
+@@ -1325,34 +1308,6 @@
+   return 1;
+ }
+ 
+-static int same_address(struct sockaddr *sa, struct ares_addr *aa)
+-{
+-  void *addr1;
+-  void *addr2;
+-
+-  if (sa->sa_family == aa->family)
+-    {
+-      switch (aa->family)
+-        {
+-          case AF_INET:
+-            addr1 = &aa->addrV4;
+-            addr2 = &((struct sockaddr_in *)sa)->sin_addr;
+-            if (memcmp(addr1, addr2, sizeof(aa->addrV4)) == 0)
+-              return 1; /* match */
+-            break;
+-          case AF_INET6:
+-            addr1 = &aa->addrV6;
+-            addr2 = &((struct sockaddr_in6 *)sa)->sin6_addr;
+-            if (memcmp(addr1, addr2, sizeof(aa->addrV6)) == 0)
+-              return 1; /* match */
+-            break;
+-          default:
+-            break;  /* LCOV_EXCL_LINE */
+-        }
+-    }
+-  return 0; /* different */
+-}
+-
+ static void end_query (ares_channel channel, struct query *query, int status,
+                        unsigned char *abuf, int alen)
+ {

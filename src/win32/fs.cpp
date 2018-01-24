@@ -148,6 +148,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         return false;
     }
 
+    retry = false;
     type = FILENODE;
     *mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
     *size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
@@ -510,7 +511,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
                                                  (char*)excluded.data(),
                                                  excluded.size() + 1,
                                                  NULL, NULL));
-                LOG_debug << "Excluded: " << excluded << "   Attributes: " << ffd.dwFileAttributes;
+                LOG_debug << "Excluded: " << excluded << "   Attributes: " << fad.dwFileAttributes;
             }
             retry = false;
             return false;
@@ -621,9 +622,12 @@ WinFileSystemAccess::WinFileSystemAccess()
     notifyerr = false;
     notifyfailed = false;
 
-    pendingevents = 0;
-
     localseparator.assign((char*)L"\\", sizeof(wchar_t));
+}
+
+WinFileSystemAccess::~WinFileSystemAccess()
+{
+    assert(!dirnotifys.size());
 }
 
 // append \ to bare Windows drive letter paths
@@ -656,13 +660,8 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
     return istransient(e);
 }
 
-// wake up from filesystem updates
 void WinFileSystemAccess::addevents(Waiter* w, int)
 {
-#ifndef WINDOWS_PHONE
-    // overlapped completion wakes up WaitForMultipleObjectsEx()
-    ((WinWaiter*)w)->pendingfsevents = pendingevents;
-#endif
 }
 
 // generate unique local filename in the same fs as relatedpath
@@ -750,7 +749,7 @@ bool WinFileSystemAccess::getsname(string* name, string* sname) const
         sname->erase(0, (char*)ptr - sname->data() + sizeof(wchar_t));
     }
 
-    return true;
+    return sname->size();
 #endif
 }
 
@@ -1111,15 +1110,6 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
     *absolutepath = *path;
     return false;
 #else
-    if (!PathIsRelativeW((LPCWSTR)localpath.data()))
-    {
-        *absolutepath = *path;
-        if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
-        {
-            absolutepath->insert(0, (const char *)L"\\\\?\\", 8);
-        }
-        return true;
-    }
 
     int len = GetFullPathNameW((LPCWSTR)localpath.data(), 0, NULL, NULL);
     if (len <= 0)
@@ -1173,7 +1163,7 @@ void WinFileSystemAccess::osversion(string* u) const
             RtlGetVersion(&version);
         }
     }
-    snprintf(buf, sizeof(buf), "Windows %d.%d", version.dwMajorVersion, version.dwMinorVersion);
+    snprintf(buf, sizeof(buf), "Windows %d.%d.%d", version.dwMajorVersion, version.dwMinorVersion, version.dwBuildNumber);
 #endif
 
     u->append(buf);
@@ -1262,7 +1252,7 @@ void WinDirNotify::process(DWORD dwBytes)
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
-        // empty notification: re-read all trees
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL");
         readchanges();
         error = true;
     }
@@ -1302,7 +1292,7 @@ void WinDirNotify::process(DWORD dwBytes)
                                                      (char*)path.data(),
                                                      path.size() + 1,
                                                      NULL, NULL));
-                    LOG_debug << "Filesystem notification. Root: " << localrootnode->name << "   Path: " << path;
+                    LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
                 }
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
             }
@@ -1316,7 +1306,7 @@ void WinDirNotify::process(DWORD dwBytes)
                                                  (char*)path.data(),
                                                  path.size() + 1,
                                                  NULL, NULL));
-                LOG_debug << "Skipped filesystem notification. Root: " << localrootnode->name << "   Path: " << path;
+                LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
             }
 
 
@@ -1370,9 +1360,7 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 {
 #ifndef WINDOWS_PHONE
     ZeroMemory(&overlapped, sizeof(overlapped));
-
     overlapped.hEvent = this;
-
     enabled = false;
     exit = false;
     active = 0;
@@ -1381,7 +1369,6 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
     notifybuf[1].resize(65534);
 
     int added = WinFileSystemAccess::sanitizedriveletter(localbasepath);
-
     localbasepath->append("", 1);
 
     if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),
@@ -1393,7 +1380,6 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
                                   NULL)) != INVALID_HANDLE_VALUE)
     {
         failed = false;
-
         readchanges();
     }
     else
@@ -1407,7 +1393,7 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 
 WinDirNotify::~WinDirNotify()
 {
-   exit = true;
+     exit = true;
 
 #ifndef WINDOWS_PHONE
     if (hDirectory != INVALID_HANDLE_VALUE)
@@ -1423,6 +1409,7 @@ WinDirNotify::~WinDirNotify()
 
         CloseHandle(hDirectory);
     }
+    fsaccess->dirnotifys.erase(this);
 #endif
 }
 
@@ -1438,10 +1425,13 @@ DirAccess* WinFileSystemAccess::newdiraccess()
 
 DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
 {
-    return new WinDirNotify(localpath, ignore);
+    WinDirNotify *dirnotify = new WinDirNotify(localpath, ignore);
+    dirnotify->fsaccess = this;
+    dirnotifys.insert(dirnotify);
+    return dirnotify;
 }
 
-bool WinFileSystemAccess::issyncsupported(string *localpath)
+bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
 {
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     string path, fsname;
@@ -1458,6 +1448,15 @@ bool WinFileSystemAccess::issyncsupported(string *localpath)
     {
         LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
         result = false;
+    }
+
+    if (GetDriveTypeW((LPCWSTR)path.data()) == DRIVE_REMOTE)
+    {
+        LOG_debug << "Network folder detected";
+        if (isnetwork)
+        {
+            *isnetwork = true;
+        }
     }
 
     string utf8fsname;

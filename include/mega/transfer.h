@@ -25,6 +25,7 @@
 #include "filefingerprint.h"
 #include "backofftimer.h"
 #include "http.h"
+#include "command.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -60,8 +61,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // meta MAC
     int64_t metamac;
 
-    // file crypto key
-    SymmCipher key;
+    // file crypto key and shared cipher
+    byte transferkey[SymmCipher::KEYLENGTH];
+    SymmCipher *transfercipher();
 
     chunkmac_map chunkmacs;
 
@@ -137,6 +139,9 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // unserialize a Transfer and add it to the transfer map
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
+
+    // examine a file on disk for video/audio attributes to attach to the file, on upload/download
+    void addAnyMissingMediaFileAttributes(Node* node, std::string& localpath);
 };
 
 class MEGA_API TransferList

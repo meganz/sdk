@@ -44,9 +44,15 @@ protected:
     // list of supported extensions (NULL if no pre-filtering is needed)
     virtual const char* supportedformats();
 
+    // list of supported video extensions (NULL if no pre-filtering is needed)
+    virtual const char* supportedvideoformats();
+
 public:
-    // check whether the filename looks like a supported image type
+    // check whether the filename looks like a supported media type
     bool isgfx(string*);
+
+    // check whether the filename looks like a video
+    bool isvideo(string*);
 
     // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
     // handle is uploadhandle or nodehandle
@@ -55,15 +61,17 @@ public:
     int gendimensionsputfa(FileAccess*, string*, handle, SymmCipher*, int = -1, bool checkAccess = true);
 
     // FIXME: read dynamically from API server
-    typedef enum { THUMBNAIL120X120, PREVIEW1000x1000 } meta_t;
+    typedef enum { THUMBNAIL, PREVIEW } meta_t;
+    typedef enum { AVATAR250X250 } avatar_t;
 
     // generate and save a fa to a file
-    bool savefa(string*, meta_t, string*);
+    bool savefa(string*, int, int, string*);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box
     static const int dimensions[][2];
-    
+    static const int dimensionsavatar[][2];
+
     MegaClient* client;
     int w, h;
 
