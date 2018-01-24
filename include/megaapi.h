@@ -1602,6 +1602,12 @@ public:
      * @return Creation date of the chat
      */
     virtual int64_t getCreationTime() const;
+
+    /**
+     * @brief Returns whether this chat has been archived by the user or not
+     * @return True if this chat is archived.
+     */
+    virtual bool isArchived() const;
 };
 
 /**

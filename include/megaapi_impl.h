@@ -1080,6 +1080,7 @@ public:
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
     virtual int64_t getCreationTime() const;
+    virtual bool isArchived() const;
 
     virtual bool hasChanged(int changeType) const;
     virtual int getChanges() const;
@@ -1096,6 +1097,7 @@ private:
     string title;
     int changed;
     int tag;
+    bool archived;
     int64_t ts;
 };
 

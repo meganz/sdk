@@ -4532,6 +4532,11 @@ int64_t MegaTextChat::getCreationTime() const
     return 0;
 }
 
+bool MegaTextChat::isArchived() const
+{
+    return false;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 

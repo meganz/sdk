@@ -472,7 +472,7 @@ struct TextChat : public Cachable
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
     bool setFlag(bool value, uint8_t offset = 0xFF);
     void setFlags(byte newFlags);
-    bool isFlagSet(uint8_t offset);
+    bool isFlagSet(uint8_t offset) const;
 
 };
 typedef vector<TextChat*> textchat_vector;

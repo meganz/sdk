@@ -19815,6 +19815,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->ou = chat->getOriginatingUser();
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
+    this->archived = chat->isArchived();
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
 }
@@ -19830,6 +19831,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->title = chat->title;
     this->tag = chat->tag;
     this->ts = chat->ts;
+    this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
     this->changed = 0;
     if (chat->changed.attachments)
     {
@@ -19899,6 +19901,11 @@ int MegaTextChatPrivate::isOwnChange() const
 int64_t MegaTextChatPrivate::getCreationTime() const
 {
     return ts;
+}
+
+bool MegaTextChatPrivate::isArchived() const
+{
+    return archived;
 }
 
 bool MegaTextChatPrivate::hasChanged(int changeType) const
