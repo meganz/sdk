@@ -280,6 +280,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %}
 #endif
 
+#endif
+
 %feature("director") mega::MegaGlobalListener;
 %feature("director") mega::MegaListener;
 %feature("director") mega::MegaTreeProcessor;
