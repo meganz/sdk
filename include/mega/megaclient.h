@@ -713,6 +713,7 @@ private:
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
     void sc_chatnode();
+    void sc_chatflags();
 #endif
     void sc_uac();
 

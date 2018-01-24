@@ -50,6 +50,7 @@ TextChat::TextChat()
     ou = UNDEF;
     resetTag();
     ts = 0;
+    flags = 0;
 
     memset(&changed, 0, sizeof(changed));
 }
@@ -97,8 +98,7 @@ bool TextChat::serialize(string *d)
     char hasAttachments = attachedNodes.size() != 0;
     d->append((char*)&hasAttachments, 1);
 
-    char isArchive = archive ? 1 : 0;
-    d->append((char*)&isArchive, 1);
+    d->append((char*)&flags, 1);
     d->append("\0\0\0\0\0\0\0\0", 8); // additional bytes for backwards compatibility
 
     if (hasAttachments)
@@ -132,7 +132,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     string title;   // byte array
     handle ou;
     m_time_t ts;
-    char archive;
+    byte flags;
     char hasAttachments;
     attachments_map attachedNodes;
 
@@ -214,7 +214,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     hasAttachments = MemAccess::get<char>(ptr);
     ptr += sizeof hasAttachments;
 
-    archive = MemAccess::get<char>(ptr);
+    flags = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
     for (int i = 8; i--;)
@@ -294,7 +294,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ou = ou;
     chat->resetTag();
     chat->ts = ts;
-    chat->archive = archive;
+    chat->flags = flags;
     chat->attachedNodes = attachedNodes;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
@@ -344,6 +344,28 @@ bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
     }
 
     return false;
+}
+
+void TextChat::setFlags(byte newFlags)
+{
+    flags = newFlags;
+    changed.flags = true;
+}
+
+bool TextChat::isFlagSet(uint8_t offset)
+{
+    return (flags >> offset) & 1;
+}
+
+bool TextChat::setFlag(bool value, uint8_t offset)
+{
+    if ((flags >> offset) != value)
+    {
+        flags ^= (value ^ flags) & (1 << offset);
+        changed.flags = true;
+    }
+
+    return true;
 }
 #endif
 

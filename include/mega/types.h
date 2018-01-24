@@ -435,6 +435,10 @@ typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
 struct TextChat : public Cachable
 {
+    enum {
+        FLAG_OFFSET_ARCHIVE = 0
+    };
+
     handle id;
     privilege_t priv;
     int shard;
@@ -444,7 +448,7 @@ struct TextChat : public Cachable
     handle ou;
     m_time_t ts;     // creation time
     attachments_map attachedNodes;
-    bool archive;
+    byte flags; // currently only used for "archive" flag at first bit
 
     int tag;    // source tag, to identify own changes
 
@@ -461,10 +465,15 @@ struct TextChat : public Cachable
     struct
     {
         bool attachments : 1;
+        bool flags : 1;
     } changed;
 
     // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
+    bool setFlag(bool value, uint8_t offset = 0xFF);
+    void setFlags(byte newFlags);
+    bool isFlagSet(uint8_t offset);
+
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;

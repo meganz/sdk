@@ -5304,10 +5304,12 @@ CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool a
     this->mChatid = chatid;
     this->mArchive = archive;
 
-    cmd("mcac");
+    cmd("mcsf");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("a", archive);
+    arg("m", 1);
+    arg("f", archive);
+
     notself(client);
 
     tag = client->reqtag;
@@ -5328,7 +5330,7 @@ void CommandArchiveChat::procresult()
             }
 
             TextChat *chat = client->chats[mChatid];
-            chat->archive = mArchive;
+            chat->setFlag(mArchive, TextChat::FLAG_OFFSET_ARCHIVE);
 
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);
