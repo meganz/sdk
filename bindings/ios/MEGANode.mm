@@ -67,6 +67,10 @@ using namespace mega;
     return self.megaNode->getName() ? [[NSString alloc] initWithUTF8String:self.megaNode->getName()] : nil;
 }
 
+- (NSInteger)duration {
+    return self.megaNode ? self.megaNode->getDuration() : -1;
+}
+
 - (NSString *)base64Handle {
     if (!self.megaNode) return nil;
     
