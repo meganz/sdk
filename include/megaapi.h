@@ -6627,6 +6627,10 @@ class MegaApi
          * @param node Node that will receive the information.
          * @param duration Length of the audio/video in seconds.
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated Since the SDK started processing media information internally,
+         * it is no longer needed nor recommended to use this function, so it will
+         * be removed in a short time.
          */
         void setNodeDuration(MegaNode *node, int duration,  MegaRequestListener *listener = NULL);
 
