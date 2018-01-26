@@ -91,6 +91,11 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) NSString *name;
 
 /**
+ * @brief Duration of the node for audio/video files, in seconds. -1 if not set.
+ */
+@property (readonly, nonatomic) NSInteger duration;
+
+/**
  * @brief Handle of this MEGANode in a Base64-encoded string.
  */
 @property (readonly, nonatomic) NSString *base64Handle;
