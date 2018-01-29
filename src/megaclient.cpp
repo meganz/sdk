@@ -1668,7 +1668,8 @@ void MegaClient::exec()
                 delete badhostcs;
                 badhostcs = NULL;
             }
-            else if(badhostcs->status == REQ_FAILURE)
+            else if(badhostcs->status == REQ_FAILURE
+                    || (badhostcs->status == REQ_INFLIGHT && Waiter::ds >= (badhostcs->lastdata + HttpIO::REQUESTTIMEOUT)))
             {
                 LOG_debug << "Failed badhost report. Retrying...";
                 btbadhost.backoff();
@@ -1709,7 +1710,7 @@ void MegaClient::exec()
                 requestLock = false;
             }
             else if (workinglockcs->status == REQ_FAILURE
-                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT))
+                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= (workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT)))
             {
                 LOG_warn << "Failed lock request. Retrying...";
                 btworkinglock.backoff();
@@ -2507,6 +2508,21 @@ int MegaClient::preparewait()
                 {
                     nds = 0;
                 }
+            }
+        }
+
+
+        if (badhostcs && EVER(badhostcs->lastdata)
+                && badhostcs->status == REQ_INFLIGHT)
+        {
+            dstime timeout = badhostcs->lastdata + HttpIO::REQUESTTIMEOUT;
+            if (timeout > Waiter::ds && timeout < nds)
+            {
+                nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
             }
         }
     }
