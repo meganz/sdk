@@ -52,7 +52,18 @@ CONFIG(USE_MEGAAPI) {
         bindings/qt/QTMegaEvent.cpp
 }
 
-# CONFIG += USE_LIBUV
+CONFIG(USE_LIBWEBSOCKETS) {
+    CONFIG += USE_LIBUV
+    DEFINES += USE_LIBWEBSOCKETS=1
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
+    }
+    else {
+        LIBS += -lwebsockets -lcap
+    }
+}
+
 CONFIG(USE_LIBUV) {
     SOURCES += src/mega_http_parser.cpp
     DEFINES += HAVE_LIBUV
@@ -101,7 +112,6 @@ CONFIG(USE_MEDIAINFO) {
         LIBS += -lzen
        }
     }
-
 }
 
 CONFIG(USE_FFMPEG) {
@@ -113,6 +123,30 @@ CONFIG(USE_FFMPEG) {
     }
 
     LIBS += -lavcodec -lavformat -lavutil -lswscale
+}
+
+CONFIG(USE_WEBRTC) {
+
+    DEFINES += ENABLE_WEBRTC V8_DEPRECATION_WARNINGS USE_OPENSSL_CERTS=1 NO_TCMALLOC DISABLE_NACL SAFE_BROWSING_DB_REMOTE \
+               CHROMIUM_BUILD FIELDTRIAL_TESTING_ENABLED _FILE_OFFSET_BITS=64 __STDC_CONSTANT_MACROS __STDC_FORMAT_MACROS \
+               _FORTIFY_SOURCE=2 __GNU_SOURCE=1 __compiler_offsetof=__builtin_offsetof NDEBUG NVALGRIND DYNAMIC_ANNOTATIONS_ENABLED=0 \
+               WEBRTC_ENABLE_PROTOBUF=1 WEBRTC_INCLUDE_INTERNAL_AUDIO_DEVICE EXPAT_RELATIVE_PATH HAVE_SCTP
+
+    unix {
+        DEFINES += WEBRTC_POSIX WEBRTC_LINUX WEBRTC_BUILD_LIBEVENT
+    }
+
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/webrtc \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/boringssl/src/include \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl -lX11
+    }
+    else {
+        LIBS += -lwebrtc -ldl -lX11
+    }
 }
 
 win32 {
