@@ -3657,8 +3657,8 @@ bool MegaClient::procsc()
                                 sc_chatupdate();
                                 break;
 
-                            case MAKENAMEID3('m', 'c', 'f'):
-                                // chat creation / peer's invitation / peer's removal
+                            case MAKENAMEID4('m', 'c', 'f', 'c'):
+                                // chat flags update
                                 sc_chatflags();
                                 break;
 
@@ -5404,7 +5404,7 @@ void MegaClient::sc_chatflags()
                 chat->setTag(0);    // external change
                 notifychat(chat);
                 break;
-        }
+            }
 
             default:
                 if (!jsonsc.storeobject())
@@ -8405,40 +8405,70 @@ void MegaClient::procmcf(JSON *j)
 
                 case MAKENAMEID2('c', 'f'):
                 {
-//                    j->enterarray();
+                    j->enterarray();
 
                     while(j->enterobject()) // while there are more chatid/flag tuples to read...
                     {
                         handle chatid = UNDEF;
-                        byte flags = 0;
+                        int flags = 0xFF;
 
-                        chatid = j->gethandle(MegaClient::CHATHANDLE);
-                        flags = j->getint();
+                        bool readingFlags = true;
+                        while (readingFlags)
+                        {
+                            switch (j->getnameid())
+                            {
 
-                        textchat_map::iterator it = chats.find(chatid);
-                        if (it == chats.end())
-                        {
-                            string chatidB64;
-                            string tmp((const char*)&chatid, sizeof(chatid));
-                            Base64::btoa(chatidB64, tmp);
-                            LOG_err << "Received flags for unknown chatid: " << chatidB64.c_str();
-                        }
-                        else
-                        {
-                            it->second->setFlags(flags);
+                            case MAKENAMEID2('i','d'):
+                                chatid = j->gethandle(MegaClient::CHATHANDLE);
+                                break;
+
+                            case 'f':
+                                flags = j->getint();
+                                break;
+
+                            case EOO:
+                                if (chatid != UNDEF && flags != 0xFF)
+                                {
+                                    textchat_map::iterator it = chats.find(chatid);
+                                    if (it == chats.end())
+                                    {
+                                        string chatidB64;
+                                        string tmp((const char*)&chatid, sizeof(chatid));
+                                        Base64::btoa(chatidB64, tmp);
+                                        LOG_err << "Received flags for unknown chatid: " << chatidB64.c_str();
+                                    }
+                                    else
+                                    {
+                                        it->second->setFlags(flags);
+                                    }
+                                }
+                                else
+                                {
+                                    LOG_err << "Failed to parse chat flags";
+                                }
+                                readingFlags = false;
+                                break;
+
+                            default:
+                                if (!j->storeobject())
+                                {
+                                    LOG_err << "Failed to parse chat flags";
+                                    readingFlags = false;
+                                }
+                                break;
+                            }
                         }
 
                         j->leaveobject();
                     }
 
-//                    j->leavearray();
-                    done = true;
+                    j->leavearray();
                     break;
                 }
 
                 case EOO:
                     done = true;
-//                    j->leaveobject();
+                    j->leaveobject();
                     break;
 
                 default:

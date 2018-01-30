@@ -5322,14 +5322,15 @@ void CommandArchiveChat::procresult()
         error e = (error) client->json.getint();
         if (e == API_OK)
         {
-            if (client->chats.find(mChatid) == client->chats.end())
+            textchat_map::iterator it = client->chats.find(mChatid);
+            if (it == client->chats.end())
             {
                 // the archive succeed for a non-existing chatroom
                 client->app->archivechat_result(API_EINTERNAL);
                 return;
             }
 
-            TextChat *chat = client->chats[mChatid];
+            TextChat *chat = it->second;
             chat->setFlag(mArchive, TextChat::FLAG_OFFSET_ARCHIVE);
 
             chat->setTag(tag ? tag : -1);
