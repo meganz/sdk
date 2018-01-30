@@ -42,6 +42,24 @@ if [ "$1" == "clean" ]; then
     exit 0
 fi
 
+pushd "${WEBRTC_SRC}" > /dev/null
+if [ "c1a58bae4196651d2f7af183be1878bb00d45a57" != "`git rev-parse HEAD`" ]; then
+  echo ""
+  echo "* WARNING!!"
+  echo "* You are not using our recommended commit of WebRTC: c1a58bae4196651d2f7af183be1878bb00d45a57"
+  echo "* Please consider to switch to that commit this way (in the src folder of WebRTC):"
+  echo ""
+  echo "  git checkout c1a58bae4196651d2f7af183be1878bb00d45a57"
+  echo "  gclient sync"
+  echo ""
+  read -p "* Do you want to continue anyway? (y|N) " -n 1 c
+  echo ""
+  if [ "$c" != "y" ]; then
+    exit 0
+  fi
+fi
+popd > /dev/null
+
 mkdir -p ${CURRENTPATH}
 
 echo "* Setting up WebRTC"
