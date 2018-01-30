@@ -11,7 +11,7 @@ LIBWEBSOCKETS_BRANCH="v2.4-stable"
 OPENSSL_PREFIX="${CURRENTPATH}"
 
 if [ ! -d "${WEBRTC_SRC}" ]; then
-    echo "* WEBRTC_SRC not correctly set. Please edit this file to configure it or put WebRTC in the default path: ${WEBRTC_SRC}"
+    echo "* WEBRTC_SRC not correctly set. Please edit this file to configure it or put WebRTC in the default path: ${HOME}/webrtc"
     exit 1
 fi
 
