@@ -5201,6 +5201,11 @@ void MegaClient::sc_chatupdate()
             case MAKENAMEID2('c','t'):
                 jsonsc.storeobject(&title);
                 break;
+
+            case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                ts = jsonsc.getint();
+                break;
+
             case EOO:
                 done = true;
 
