@@ -5401,6 +5401,7 @@ void MegaClient::sc_chatflags()
                     string tmp((const char*)&chatid, sizeof(chatid));
                     Base64::btoa(chatidB64, tmp);
                     LOG_err << "Received flags for unknown chatid: " << chatidB64.c_str();
+                    break;
                 }
 
                 TextChat *chat = chats[chatid];
