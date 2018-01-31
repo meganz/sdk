@@ -35,24 +35,36 @@ SOURCES += src/attrmap.cpp \
     src/crypto/cryptopp.cpp  \
     src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
-    src/gfx/qt.cpp \
     src/gfx/external.cpp \
-    src/thread/qtthread.cpp \
     src/mega_utf8proc.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp
 
 CONFIG(USE_MEGAAPI) {
-    SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
-        bindings/qt/QTMegaRequestListener.cpp \
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
+
+  CONFIG(qt) {
+    SOURCES += bindings/qt/QTMegaRequestListener.cpp \
         bindings/qt/QTMegaTransferListener.cpp \
         bindings/qt/QTMegaGlobalListener.cpp \
         bindings/qt/QTMegaSyncListener.cpp \
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
+  }
 }
 
-# CONFIG += USE_LIBUV
+CONFIG(USE_LIBWEBSOCKETS) {
+    CONFIG += USE_LIBUV
+    DEFINES += USE_LIBWEBSOCKETS=1
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
+    }
+    else {
+        LIBS += -lwebsockets -lcap
+    }
+}
+
 CONFIG(USE_LIBUV) {
     SOURCES += src/mega_http_parser.cpp
     DEFINES += HAVE_LIBUV
@@ -101,7 +113,6 @@ CONFIG(USE_MEDIAINFO) {
         LIBS += -lzen
        }
     }
-
 }
 
 CONFIG(USE_FFMPEG) {
@@ -113,6 +124,30 @@ CONFIG(USE_FFMPEG) {
     }
 
     LIBS += -lavcodec -lavformat -lavutil -lswscale
+}
+
+CONFIG(USE_WEBRTC) {
+
+    DEFINES += ENABLE_WEBRTC V8_DEPRECATION_WARNINGS USE_OPENSSL_CERTS=1 NO_TCMALLOC DISABLE_NACL SAFE_BROWSING_DB_REMOTE \
+               CHROMIUM_BUILD FIELDTRIAL_TESTING_ENABLED _FILE_OFFSET_BITS=64 __STDC_CONSTANT_MACROS __STDC_FORMAT_MACROS \
+               _FORTIFY_SOURCE=2 __GNU_SOURCE=1 __compiler_offsetof=__builtin_offsetof NDEBUG NVALGRIND DYNAMIC_ANNOTATIONS_ENABLED=0 \
+               WEBRTC_ENABLE_PROTOBUF=1 WEBRTC_INCLUDE_INTERNAL_AUDIO_DEVICE EXPAT_RELATIVE_PATH HAVE_SCTP
+
+    unix {
+        DEFINES += WEBRTC_POSIX WEBRTC_LINUX WEBRTC_BUILD_LIBEVENT
+    }
+
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/webrtc \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/boringssl/src/include \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl -lX11
+    }
+    else {
+        LIBS += -lwebrtc -ldl -lX11
+    }
 }
 
 win32 {
@@ -184,6 +219,7 @@ HEADERS  += include/mega.h \
             include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \
             include/mega/gfx/qt.h \
+            include/mega/gfx/freeimage.h \
             include/mega/gfx/external.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
@@ -224,10 +260,20 @@ unix {
 }
 
 CONFIG(USE_PCRE) {
- DEFINES += USE_PCRE
+  DEFINES += USE_PCRE
 }
 
-DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT
+CONFIG(qt) {
+  DEFINES += USE_QT MEGA_QT_LOGGING
+  SOURCES += src/gfx/qt.cpp src/thread/qtthread.cpp
+}
+else {
+  DEFINES += USE_FREEIMAGE USE_PTHREAD
+  SOURCES += src/gfx/freeimage.cpp src/thread/posixthread.cpp
+  LIBS += -lfreeimage -lpthread
+}
+
+DEFINES += USE_SQLITE USE_CRYPTOPP ENABLE_SYNC ENABLE_CHAT
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
