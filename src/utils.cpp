@@ -354,14 +354,14 @@ void TextChat::setFlags(byte newFlags)
 
 bool TextChat::isFlagSet(uint8_t offset) const
 {
-    return (flags >> offset) & 1;
+    return (flags >> offset) & 1U;
 }
 
 bool TextChat::setFlag(bool value, uint8_t offset)
 {
-    if ((flags >> offset) != value)
+    if (((flags >> offset) & 1U) != value)
     {
-        flags ^= (value ^ flags) & (1 << offset);
+        flags ^= (1U << offset);
         changed.flags = true;
     }
 
