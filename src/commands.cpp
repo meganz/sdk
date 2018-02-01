@@ -5325,8 +5325,8 @@ void CommandArchiveChat::procresult()
             textchat_map::iterator it = client->chats.find(mChatid);
             if (it == client->chats.end())
             {
-                // the archive succeed for a non-existing chatroom
-                client->app->archivechat_result(API_EINTERNAL);
+                LOG_err << "Archive chat succeeded for a non-existing chatroom";
+                client->app->archivechat_result(API_ENOENT);
                 return;
             }
 

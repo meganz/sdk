@@ -5389,11 +5389,6 @@ void MegaClient::sc_chatflags()
             case EOO:
             {
                 done = true;
-                if (ISUNDEF(chatid))
-                {
-                    LOG_err << "Cannot read handle of the chat";
-                }
-
                 textchat_map::iterator it = chats.find(chatid);
                 if (it == chats.end())
                 {
