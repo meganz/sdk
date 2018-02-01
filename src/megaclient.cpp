@@ -5394,7 +5394,7 @@ void MegaClient::sc_chatflags()
                 {
                     string chatidB64;
                     string tmp((const char*)&chatid, sizeof(chatid));
-                    Base64::btoa(chatidB64, tmp);
+                    Base64::btoa(tmp, chatidB64);
                     LOG_err << "Received flags for unknown chatid: " << chatidB64.c_str();
                     break;
                 }
@@ -8435,7 +8435,7 @@ void MegaClient::procmcf(JSON *j)
                                     {
                                         string chatidB64;
                                         string tmp((const char*)&chatid, sizeof(chatid));
-                                        Base64::btoa(chatidB64, tmp);
+                                        Base64::btoa(tmp, chatidB64);
                                         LOG_err << "Received flags for unknown chatid: " << chatidB64.c_str();
                                     }
                                     else
