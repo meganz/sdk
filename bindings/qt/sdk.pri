@@ -76,7 +76,7 @@ CONFIG(USE_LIBUV) {
 }
 
 CONFIG(USE_MEDIAINFO) {
-    DEFINES += USE_MEDIAINFO
+    DEFINES += USE_MEDIAINFO UNICODE
 
     win32 {
         LIBS += -lMediaInfo -lZenLib -lzlibstat
