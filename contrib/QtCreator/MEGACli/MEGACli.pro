@@ -12,7 +12,7 @@ TEMPLATE = app
 CONFIG += console
 
 win32 {
-DEFINES += USE_READLINE_STATIC
+    DEFINES += USE_READLINE_STATIC
 }
 
 LIBS += -lreadline

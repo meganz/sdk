@@ -73,7 +73,7 @@ public:
 
 struct MEGA_API DbAccess
 {
-    static const int LEGACY_DB_VERSION = 8;
+    static const int LEGACY_DB_VERSION = 10;
     static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();

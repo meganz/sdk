@@ -17,9 +17,12 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#ifdef WINDOWS_PHONE
+#if defined WINDOWS_PHONE || defined USE_CPPTHREAD
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS CppThread
@@ -27,6 +30,10 @@
 #define SEMAPHORE_CLASS CppSemaphore
 
 #include "mega/thread.h"
+
+#if defined(WINDOWS_PHONE) && !defined(__STDC_LIMIT_MACROS)
+#define __STDC_LIMIT_MACROS
+#endif
 
 #include <thread>
 #include <mutex>
@@ -42,6 +49,8 @@ public:
     virtual void join();
     virtual ~CppThread();
 
+    static unsigned long long currentThreadId();
+
 protected:
     std::thread *thread;
 };
@@ -51,6 +60,7 @@ class CppMutex : public Mutex
 {
 public:
     CppMutex();
+    CppMutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();

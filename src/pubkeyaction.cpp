@@ -24,6 +24,11 @@
 #include "mega/command.h"
 
 namespace mega {
+PubKeyAction::PubKeyAction()
+{ 
+    cmd = NULL; 
+}
+
 PubKeyActionPutNodes::PubKeyActionPutNodes(NewNode* newnodes, int numnodes, int ctag)
 {
     nn = newnodes;

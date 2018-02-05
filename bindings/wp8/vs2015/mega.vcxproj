@@ -72,7 +72,7 @@
     <ClInclude Include="..\..\..\include\mega\wp8\megafs.h" />
     <ClInclude Include="..\..\..\include\mega\wp8\meganet.h" />
     <ClInclude Include="..\..\..\include\mega\wp8\megasys.h" />
-    <ClInclude Include="..\..\..\include\mega\wp8\megawaiter.h" />
+    <ClInclude Include="..\..\..\include\mega\win32\megawaiter.h" />
     <ClInclude Include="..\DelegateMGfxProcessor.h" />
     <ClInclude Include="..\DelegateMGlobalListener.h" />
     <ClInclude Include="..\DelegateMListener.h" />
@@ -85,6 +85,8 @@
     <ClInclude Include="..\MAccountPurchase.h" />
     <ClInclude Include="..\MAccountSession.h" />
     <ClInclude Include="..\MAccountTransaction.h" />
+    <ClInclude Include="..\MAchievementsDetails.h" />
+    <ClInclude Include="..\MChildrenLists.h" />
     <ClInclude Include="..\MContactRequest.h" />
     <ClInclude Include="..\MContactRequestList.h" />
     <ClInclude Include="..\MegaSDK.h" />
@@ -105,6 +107,7 @@
     <ClInclude Include="..\MShareList.h" />
     <ClInclude Include="..\MStringList.h" />
     <ClInclude Include="..\MTransfer.h" />
+    <ClInclude Include="..\MTransferData.h" />
     <ClInclude Include="..\MTransferList.h" />
     <ClInclude Include="..\MTransferListenerInterface.h" />
     <ClInclude Include="..\MTreeProcessorInterface.h" />
@@ -136,6 +139,7 @@
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp" />
     <ClCompile Include="..\..\..\src\posix\net.cpp" />
@@ -154,7 +158,7 @@
     <ClCompile Include="..\..\..\src\utils.cpp" />
     <ClCompile Include="..\..\..\src\waiterbase.cpp" />
     <ClCompile Include="..\..\..\src\win32\fs.cpp" />
-    <ClCompile Include="..\..\..\src\wp8\waiter.cpp" />
+    <ClCompile Include="..\..\..\src\win32\waiter.cpp" />
     <ClCompile Include="..\DelegateMGfxProcessor.cpp" />
     <ClCompile Include="..\DelegateMGlobalListener.cpp" />
     <ClCompile Include="..\DelegateMListener.cpp" />
@@ -167,6 +171,8 @@
     <ClCompile Include="..\MAccountPurchase.cpp" />
     <ClCompile Include="..\MAccountSession.cpp" />
     <ClCompile Include="..\MAccountTransaction.cpp" />
+    <ClCompile Include="..\MAchievementsDetails.cpp" />
+    <ClCompile Include="..\MChildrenLists.cpp" />
     <ClCompile Include="..\MContactRequest.cpp" />
     <ClCompile Include="..\MContactRequestList.cpp" />
     <ClCompile Include="..\MegaSDK.cpp" />
@@ -180,6 +186,7 @@
     <ClCompile Include="..\MShareList.cpp" />
     <ClCompile Include="..\MStringList.cpp" />
     <ClCompile Include="..\MTransfer.cpp" />
+    <ClCompile Include="..\MTransferData.cpp" />
     <ClCompile Include="..\MTransferList.cpp" />
     <ClCompile Include="..\MUser.cpp" />
     <ClCompile Include="..\MUserList.cpp" />
@@ -282,7 +289,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;USE_OPENSSL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
@@ -300,7 +307,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;USE_OPENSSL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
@@ -318,7 +325,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;USE_OPENSSL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
@@ -336,7 +343,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;USE_OPENSSL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
@@ -354,7 +361,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>_WINRT_DLL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;USE_OPENSSL;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>
@@ -372,7 +379,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>_WINRT_DLL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_WINRT_DLL;USE_OPENSSL;NDEBUG;WINDOWS_PHONE;USE_CRYPTOPP;USE_SQLITE;CURL_STATICLIB;CARES_STATICLIB;USE_FREEIMAGE;FREEIMAGE_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
       <AdditionalUsingDirectories>$(WindowsSDK_WindowsMetadata);$(AdditionalUsingDirectories)</AdditionalUsingDirectories>

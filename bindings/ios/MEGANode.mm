@@ -67,6 +67,10 @@ using namespace mega;
     return self.megaNode->getName() ? [[NSString alloc] initWithUTF8String:self.megaNode->getName()] : nil;
 }
 
+- (NSInteger)duration {
+    return self.megaNode ? self.megaNode->getDuration() : -1;
+}
+
 - (NSString *)base64Handle {
     if (!self.megaNode) return nil;
     
@@ -75,7 +79,7 @@ using namespace mega;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
-    delete val;
+    delete [] val;
     return ret;
 }
 
@@ -103,8 +107,8 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getTag() : 0;
 }
 
-- (NSDate *)expirationTime {
-    return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getExpirationTime()] : nil;
+- (int64_t)expirationTime {
+    return self.megaNode ? self.megaNode->getExpirationTime() : -1;
 }
 
 - (uint64_t)publicHandle {

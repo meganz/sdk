@@ -3,16 +3,16 @@ lib_LTLIBRARIES = src/libmega.la
 
 # CXX flags
 if WIN32
-src_libmega_la_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(LIBS_EXTRA) $(ZLIB_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(SODIUM_CXXFLAGS) $(DB_CXXFLAGS) $(CXXFLAGS) $(WINHTTP_CXXFLAGS) $(FI_CXXFLAGS)
+src_libmega_la_CXXFLAGS = -D_WIN32=1 -Iinclude/ -Iinclude/mega/win32 $(LIBS_EXTRA) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBMEDIAINFO_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(SODIUM_CXXFLAGS) $(DB_CXXFLAGS) $(CXXFLAGS) $(WINHTTP_CXXFLAGS) $(FI_CXXFLAGS) $(PCRE_CXXFLAGS)
 else
-src_libmega_la_CXXFLAGS = $(CARES_FLAGS) $(LIBCURL_FLAGS) $(ZLIB_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(SODIUM_CXXFLAGS) $(DB_CXXFLAGS) $(FI_CXXFLAGS) $(LIBSSL_FLAGS)
+src_libmega_la_CXXFLAGS = $(CARES_FLAGS) $(LIBCURL_FLAGS) $(ZLIB_CXXFLAGS) $(LIBUV_CXXFLAGS) $(LIBMEDIAINFO_CXXFLAGS) $(CRYPTO_CXXFLAGS) $(SODIUM_CXXFLAGS) $(DB_CXXFLAGS) $(FI_CXXFLAGS) $(LIBSSL_FLAGS) $(PCRE_CXXFLAGS)
 endif
 
 # Libs
 if WIN32
-src_libmega_la_LIBADD = $(LIBS_EXTRA) $(ZLIB_LDFLAGS) $(ZLIB_LIBS)  $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(FI_LDFLAGS) $(FI_LIBS)
+src_libmega_la_LIBADD = $(LIBS_EXTRA) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(LIBMEDIAINFO_LDFLAGS) $(LIBMEDIAINFO_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(WINHTTP_LDFLAGS) $(WINHTTP_LIBS) $(FI_LDFLAGS) $(FI_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS)
 else
-src_libmega_la_LIBADD = $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(FI_LDFLAGS) $(FI_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS)
+src_libmega_la_LIBADD = $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(ZLIB_LDFLAGS) $(ZLIB_LIBS) $(LIBUV_LDFLAGS) $(LIBUV_LIBS) $(LIBMEDIAINFO_LDFLAGS) $(LIBMEDIAINFO_LIBS) $(CRYPTO_LDFLAGS) $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(DB_LDFLAGS) $(DB_LIBS) $(FI_LDFLAGS) $(FI_LIBS) $(LIBSSL_LDFLAGS) $(LIBSSL_LIBS) $(PCRE_LDFLAGS) $(PCRE_LIBS)
 endif
 
 # add library version
@@ -37,6 +37,7 @@ src_libmega_la_SOURCES += src/filesystem.cpp
 src_libmega_la_SOURCES += src/gfx.cpp
 src_libmega_la_SOURCES += src/http.cpp
 src_libmega_la_SOURCES += src/json.cpp
+src_libmega_la_SOURCES += src/mediafileattribute.cpp
 src_libmega_la_SOURCES += src/node.cpp
 src_libmega_la_SOURCES += src/pubkeyaction.cpp
 src_libmega_la_SOURCES += src/request.cpp
@@ -57,6 +58,7 @@ src_libmega_la_SOURCES += src/db/sqlite.cpp
 src_libmega_la_SOURCES += src/mega_utf8proc.cpp
 src_libmega_la_SOURCES += src/gfx/external.cpp
 src_libmega_la_SOURCES += src/pendingcontactrequest.cpp
+src_libmega_la_SOURCES += src/mega_zxcvbn.cpp
 
 EXTRA_DIST = src/mega_utf8proc_data.c
 
@@ -73,10 +75,23 @@ if USE_SODIUM
 src_libmega_la_SOURCES += src/crypto/sodium.cpp
 endif
 
+if USE_LIBUV
+src_libmega_la_SOURCES += src/mega_http_parser.cpp
+endif
+
 # IOS specific
 if USE_IOS
 src_libmega_la_SOURCES += src/gfx/GfxProcCG.mm
+else 
+if DARWIN
+# MacOS specific
+src_libmega_la_OBJCXXFLAGS = $(src_libmega_la_CXXFLAGS)
+src_libmega_la_SOURCES += src/osx/osxutils.mm
+src_libmega_la_LDFLAGS += -framework SystemConfiguration -framework Foundation
 endif
+endif
+
+
 
 # win32 sources
 if WIN32
@@ -85,6 +100,13 @@ src_libmega_la_SOURCES+= src/win32/console.cpp
 src_libmega_la_SOURCES+= src/win32/net.cpp
 src_libmega_la_SOURCES+= src/win32/waiter.cpp
 src_libmega_la_SOURCES+= src/win32/consolewaiter.cpp
+
+if HAVE_PTHREAD
+src_libmega_la_SOURCES += src/thread/posixthread.cpp
+else
+src_libmega_la_SOURCES+= src/thread/win32thread.cpp
+endif
+
 
 # posix sources
 else
@@ -98,3 +120,7 @@ src_libmega_la_SOURCES += src/thread/posixthread.cpp
 
 endif
 
+
+if ANDROID
+src_libmega_la_SOURCES += src/mega_glob.c
+endif

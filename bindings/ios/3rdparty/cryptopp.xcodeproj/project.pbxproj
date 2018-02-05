@@ -38,7 +38,6 @@
 		9426684F19DAC5A300B63EB5 /* cmac.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942667CA19DAC5A300B63EB5 /* cmac.cpp */; };
 		9426685019DAC5A300B63EB5 /* cpu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942667CB19DAC5A300B63EB5 /* cpu.cpp */; };
 		9426685119DAC5A300B63EB5 /* crc.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942667CC19DAC5A300B63EB5 /* crc.cpp */; };
-		9426685219DAC5A300B63EB5 /* cryptlib_bds.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942667CD19DAC5A300B63EB5 /* cryptlib_bds.cpp */; };
 		9426685319DAC5A300B63EB5 /* cryptlib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942667CE19DAC5A300B63EB5 /* cryptlib.cpp */; };
 		9426685419DAC5A300B63EB5 /* default.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942667CF19DAC5A300B63EB5 /* default.cpp */; };
 		9426685519DAC5A300B63EB5 /* des.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 942667D019DAC5A300B63EB5 /* des.cpp */; };
@@ -866,7 +865,6 @@
 				9426685E19DAC5A300B63EB5 /* elgamal.cpp in Sources */,
 				9426687919DAC5A300B63EB5 /* md5.cpp in Sources */,
 				9426685019DAC5A300B63EB5 /* cpu.cpp in Sources */,
-				9426685219DAC5A300B63EB5 /* cryptlib_bds.cpp in Sources */,
 				9426689E19DAC5A300B63EB5 /* squaretb.cpp in Sources */,
 				9426688519DAC5A300B63EB5 /* pubkey.cpp in Sources */,
 				9426689719DAC5A300B63EB5 /* shark.cpp in Sources */,

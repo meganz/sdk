@@ -40,6 +40,8 @@ public:
     virtual void join();
     virtual ~QtThread();
 
+    static unsigned long long currentThreadId();
+
 protected:
     virtual void run();
 
@@ -51,6 +53,7 @@ class QtMutex : public Mutex
 {
 public:
     QtMutex();
+    QtMutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();

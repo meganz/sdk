@@ -1,3 +1,4 @@
+/SDK.log
 # Compiled Object files
 *.slo
 *.lo
@@ -80,6 +81,11 @@ doc/example/lsmega
 Debug
 Release
 /contrib/QtCreator/megacli.creator.user
+megaclient_statecache*
 
 # Mega SDK runtime
 *.db-journal
+
+/third_party/Makefile
+
+/contrib/QtCreator/build-*

@@ -17,7 +17,7 @@ public:
     virtual ~QTMegaSyncListener();
 
     virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
 
 protected:
     virtual void customEvent(QEvent * event);

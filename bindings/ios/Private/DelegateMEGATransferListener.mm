@@ -38,8 +38,10 @@ id<MEGATransferDelegate>DelegateMEGATransferListener::getUserListener() {
 void DelegateMEGATransferListener::onTransferStart(MegaApi *api, MegaTransfer *transfer) {
     if (listener != nil && [listener respondsToSelector:@selector(onTransferStart:transfer:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGATransferDelegate> tempListener = this->listener;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onTransferStart:this->megaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
+            [tempListener onTransferStart:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
         });
     }
 }
@@ -48,10 +50,13 @@ void DelegateMEGATransferListener::onTransferFinish(MegaApi *api, MegaTransfer *
     if (listener != nil && [listener respondsToSelector:@selector(onTransferFinish:transfer:error:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
         MegaError *tempError = e->copy();
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGATransferDelegate> tempListener = this->listener;
+        bool tempSingleListener = singleListener;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onTransferFinish:this->megaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
-            if (singleListener) {
-                [megaSDK freeTransferListener:this];
+            [tempListener onTransferFinish:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            if (tempSingleListener) {
+                [tempMegaSDK freeTransferListener:this];
             }
         });
     }
@@ -60,8 +65,10 @@ void DelegateMEGATransferListener::onTransferFinish(MegaApi *api, MegaTransfer *
 void DelegateMEGATransferListener::onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {
     if (listener != nil && [listener respondsToSelector:@selector(onTransferUpdate:transfer:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGATransferDelegate> tempListener = this->listener;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onTransferUpdate:this->megaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
+            [tempListener onTransferUpdate:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES]];
         });
     }
 }
@@ -70,14 +77,15 @@ void DelegateMEGATransferListener::onTransferTemporaryError(MegaApi *api, MegaTr
     if (listener != nil && [listener respondsToSelector:@selector(onTransferTemporaryError:transfer:error:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
         MegaError *tempError = e->copy();
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGATransferDelegate> tempListener = this->listener;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [listener onTransferTemporaryError:this->megaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
+            [tempListener onTransferTemporaryError:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
         });
     }
 }
 
-bool DelegateMEGATransferListener::onTransferData(mega::MegaApi *api, mega::MegaTransfer *transfer, char *buffer, size_t size)
-{
+bool DelegateMEGATransferListener::onTransferData(mega::MegaApi *api, mega::MegaTransfer *transfer, char *buffer, size_t size) {
     if (listener != nil && [listener respondsToSelector:@selector(onTransferData:transfer:buffer:)]) {
         MegaTransfer *tempTransfer = transfer->copy();
         return [listener onTransferData:this->megaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] buffer:[[NSData alloc] initWithBytes:transfer->getLastBytes() length:(long)transfer->getDeltaSize()]];

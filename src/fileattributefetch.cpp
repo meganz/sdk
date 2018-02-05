@@ -35,9 +35,10 @@ FileAttributeFetchChannel::FileAttributeFetchChannel()
     e = API_EINTERNAL;
 }
 
-FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int ctag)
+FileAttributeFetch::FileAttributeFetch(handle h, string key, fatype t, int ctag)
 {
     nodehandle = h;
+    nodekey = key;
     type = t;
     retries = 0;
     tag = ctag;
@@ -101,8 +102,6 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int /*fac*/, bool fina
 
     const char* ptr = req.data();
     const char* endptr = ptr + req.size();
-    Node* n;
-    SymmCipher* cipher;
     faf_map::iterator it;
     uint32_t falen = 0;
 
@@ -133,22 +132,18 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int /*fac*/, bool fina
         // locate fetch request (could have been deleted by the application in the meantime)
         if (it != fafs[1].end())
         {
-            // locate related node (could have been deleted)
-            if ((n = client->nodebyhandle(it->second->nodehandle)))
+            client->restag = it->second->tag;
+
+            if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
             {
-                client->restag = it->second->tag;
-
-                if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
+                if (client->tmpnodecipher.setkey(&it->second->nodekey))
                 {
-                    if ((cipher = n->nodecipher()))
-                    {
-                        cipher->cbc_decrypt((byte*)ptr, falen);
-                        client->app->fa_complete(n, it->second->type, ptr, falen);
-                    }
-
-                    delete it->second;
-                    fafs[1].erase(it);
+                    client->tmpnodecipher.cbc_decrypt((byte*)ptr, falen);
+                    client->app->fa_complete(it->second->nodehandle, it->second->type, ptr, falen);
                 }
+
+                delete it->second;
+                fafs[1].erase(it);
             }
         }
 

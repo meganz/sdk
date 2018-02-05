@@ -35,9 +35,7 @@ WinHttpIO::WinHttpIO()
 
     hWakeupEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
-    waiter = NULL;
-    
-    chunkedok = false;
+    waiter = NULL;    
 }
 
 WinHttpIO::~WinHttpIO()
@@ -149,11 +147,6 @@ void WinHttpIO::unlock()
 void WinHttpIO::addevents(Waiter* cwaiter, int flags)
 {
     waiter = (WinWaiter*)cwaiter;
-
-    // enabled chunked transfer encoding if GetTickCount64() exists
-    // (we are on Vista or greater)
-    if (pGTC) chunkedok = true;
-
     waiter->addhandle(hWakeupEvent, flags);
     waiter->pcsHTTP = &csHTTP;
 }
@@ -226,6 +219,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 if (req->status == REQ_SUCCESS)
                 {
                     httpio->lastdata = Waiter::ds;
+                    req->lastdata = Waiter::ds;
                 }
                 httpio->success = true;
             }
@@ -267,6 +261,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 if (req->httpio)
                 {
                     req->httpio->lastdata = Waiter::ds;
+                    req->lastdata = Waiter::ds;
                 }
             
                 if (httpctx->gzip)
@@ -325,6 +320,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 if (req->httpio)
                 {
                     req->httpio->lastdata = Waiter::ds;
+                    req->lastdata = Waiter::ds;
                 }
 
                 if (!req->buf)
@@ -512,7 +508,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 // POST request to URL
 void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 {
-    LOG_debug << "POST target URL: " << req->posturl << " chunked: " << req->chunked;
+    LOG_debug << "POST target URL: " << req->posturl;
 
     if (req->binary)
     {
@@ -585,16 +581,6 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                                     ? L"Content-Type: application/json\r\nAccept-Encoding: gzip"
                                     : L"Content-Type: application/octet-stream";
 
-                // data is sent in HTTP_POST_CHUNK_SIZE instalments to ensure
-                // semi-smooth UI progress info
-                if (req->chunkedout.size())
-                {
-                    req->outbuf.append(req->chunkedout);
-                    req->chunkedout.clear();
-                }
-
-                req->chunked = 0;
-
                 httpctx->postlen = data ? len : req->out->size();
                 httpctx->postdata = data ? data : req->out->data();
 
@@ -655,11 +641,6 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     LOG_err << "Request failed";
     req->status = REQ_FAILURE;
-}
-
-// unfortunately, WinHTTP does not allow alternating reads/writes :(
-void WinHttpIO::sendchunked(HttpReq*)
-{
 }
 
 // cancel pending HTTP request

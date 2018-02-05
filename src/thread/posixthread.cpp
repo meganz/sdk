@@ -17,12 +17,25 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#include "mega.h"
 #include "mega/thread/posixthread.h"
+#include "mega/logging.h"
+#include <sys/time.h>
+#include <errno.h>
 
 #ifdef USE_PTHREAD
+#if defined (__MINGW32__) && !defined(__struct_timespec_defined)
+struct timespec
+{
+  long long	tv_sec; 	/* seconds */
+  long  	tv_nsec;	/* nanoseconds */
+};
+# define __struct_timespec_defined  1
+#endif
 
 namespace mega {
 
@@ -41,6 +54,15 @@ void PosixThread::join()
     pthread_join(*thread, NULL);
 }
 
+unsigned long long PosixThread::currentThreadId()
+{
+#if defined(_WIN32) && !defined(__WINPTHREADS_VERSION)
+    return (unsigned long long) pthread_self().x;
+#else
+    return (unsigned long long) pthread_self();
+#endif
+}
+
 PosixThread::~PosixThread()
 {
     delete thread;
@@ -51,6 +73,14 @@ PosixMutex::PosixMutex()
 {
     mutex = NULL;
     attr = NULL;
+}
+
+PosixMutex::PosixMutex(bool recursive)
+{
+    mutex = NULL;
+    attr = NULL;
+
+    init(recursive);
 }
 
 void PosixMutex::init(bool recursive)

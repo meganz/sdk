@@ -26,12 +26,11 @@ using namespace Platform;
 
 #define REQUIRED_ENTROPY 64
 
-DelegateMLogger* MegaSDK::externalLogger = new DelegateMLogger(nullptr);
-
 MegaSDK::~MegaSDK()
 {
 	delete megaApi;
 	DeleteCriticalSection(&listenerMutex);
+    DeleteCriticalSection(&loggerMutex);
 }
 
 MegaApi *MegaSDK::getCPtr()
@@ -61,7 +60,9 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, MRandomNumberProvider ^rando
 
 	megaApi = new MegaApi((appKey != nullptr) ? utf8appKey.c_str() : NULL, 
 		(const char *)NULL, (userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
-	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+	
+    InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+    InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
 
 MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider ^randomProvider)
@@ -91,7 +92,9 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 	megaApi = new MegaApi((appKey != nullptr) ? utf8appKey.c_str() : NULL,
 		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
 		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
-	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+	
+    InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+    InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
 
 MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNumberProvider^ randomProvider, MGfxProcessorInterface^ gfxProcessor)
@@ -126,7 +129,9 @@ MegaSDK::MegaSDK(String^ appKey, String^ userAgent, String^ basePath, MRandomNum
 		externalGfxProcessor,
 		(basePath != nullptr) ? utf8basePath.c_str() : NULL,
 		(userAgent != nullptr) ? utf8userAgent.c_str() : NULL);
-	InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+	
+    InitializeCriticalSectionEx(&listenerMutex, 0, 0);
+    InitializeCriticalSectionEx(&loggerMutex, 0, 0);
 }
 
 void MegaSDK::addListener(MListenerInterface^ listener)
@@ -422,6 +427,21 @@ void MegaSDK::login(String^ email, String^ password, MRequestListenerInterface^ 
 		createDelegateMRequestListener(listener));
 }
 
+String^ MegaSDK::getSequenceNumber()
+{
+    const char *utf8sequenceNumber = megaApi->getSequenceNumber();
+    if (!utf8sequenceNumber)
+    {
+        return nullptr;
+    }
+
+    std::string utf16sequenceNumber;
+    MegaApi::utf8ToUtf16(utf8sequenceNumber, &utf16sequenceNumber);
+    delete[] utf8sequenceNumber;
+
+    return ref new String((wchar_t *)utf16sequenceNumber.c_str());
+}
+
 String^ MegaSDK::dumpSession()
 {
 	const char *utf8session = megaApi->dumpSession();
@@ -550,6 +570,30 @@ void MegaSDK::getUserData(MUser^ user)
 	megaApi->getUserData((user != nullptr) ? user->getCPtr() : NULL);
 }
 
+String^ MegaSDK::getAccountAuth()
+{
+    const char *utf8accountAuth = megaApi->getAccountAuth();
+    if (!utf8accountAuth)
+    {
+        return nullptr;
+    }
+
+    std::string utf16accountAuth;
+    MegaApi::utf8ToUtf16(utf8accountAuth, &utf16accountAuth);
+    delete[] utf8accountAuth;
+
+    return ref new String((wchar_t *)utf16accountAuth.c_str());
+}
+
+void MegaSDK::setAccountAuth(String^ auth)
+{
+    std::string utf8auth;
+    if (auth != nullptr)
+        MegaApi::utf16ToUtf8(auth->Data(), auth->Length(), &utf8auth);
+
+    megaApi->setAccountAuth((auth != nullptr) ? utf8auth.c_str() : NULL);
+}
+
 void MegaSDK::getUserDataById(String^ user, MRequestListenerInterface^ listener)
 {
 	std::string utf8user;
@@ -652,9 +696,106 @@ void MegaSDK::fastCreateAccount(String^ email, String^ base64pwkey, String^ name
 		MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
 
 	megaApi->fastCreateAccount((email != nullptr) ? utf8email.c_str() : NULL,
-		(email != nullptr) ? utf8base64pwkey.c_str() : NULL,
-		(base64pwkey != nullptr) ? utf8name.c_str() : NULL,
+		(base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+		(name != nullptr) ? utf8name.c_str() : NULL,
 		createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener)
+{
+    std::string utf8sid;
+    if (sid != nullptr)
+        MegaApi::utf16ToUtf8(sid->Data(), sid->Length(), &utf8sid);
+
+    megaApi->resumeCreateAccount((sid != nullptr) ? utf8sid.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::resumeCreateAccount(String^ sid)
+{
+    std::string utf8sid;
+    if (sid != nullptr)
+        MegaApi::utf16ToUtf8(sid->Data(), sid->Length(), &utf8sid);
+
+    megaApi->resumeCreateAccount((sid != nullptr) ? utf8sid.c_str() : NULL);
+}
+
+void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->sendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::sendSignupLink(String^ email, String^ name, String^ password)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->sendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
+}
+
+void MegaSDK::fastSendSignupLink(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8base64pwkey;
+    if (base64pwkey != nullptr)
+        MegaApi::utf16ToUtf8(base64pwkey->Data(), base64pwkey->Length(), &utf8base64pwkey);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    megaApi->fastSendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::fastSendSignupLink(String^ email, String^ base64pwkey, String^ name)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8base64pwkey;
+    if (base64pwkey != nullptr)
+        MegaApi::utf16ToUtf8(base64pwkey->Data(), base64pwkey->Length(), &utf8base64pwkey);
+
+    std::string utf8name;
+    if (name != nullptr)
+        MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
+
+    megaApi->fastSendSignupLink((email != nullptr) ? utf8email.c_str() : NULL,
+        (base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
+        (name != nullptr) ? utf8name.c_str() : NULL);
 }
 
 void MegaSDK::querySignupLink(String^ link)
@@ -850,6 +991,25 @@ void MegaSDK::cancelAccount()
     megaApi->cancelAccount();
 }
 
+void MegaSDK::queryCancelLink(String^ link, MRequestListenerInterface^ listener)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    megaApi->queryCancelLink((link != nullptr) ? utf8link.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::queryCancelLink(String^ link)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    megaApi->queryCancelLink((link != nullptr) ? utf8link.c_str() : NULL);
+}
+
 void MegaSDK::confirmCancelAccount(String^ link, String^ pwd, MRequestListenerInterface^ listener)
 {
     std::string utf8link;
@@ -983,9 +1143,19 @@ String^ MegaSDK::getMyUserHandle()
     return ref new String((wchar_t *)utf16userHandle.c_str());
 }
 
+MegaHandle MegaSDK::getMyUserHandleBinary()
+{
+    return megaApi->getMyUserHandleBinary();
+}
+
 MUser^ MegaSDK::getMyUser()
 {
     return ref new MUser(megaApi->getMyUser(), true);
+}
+
+bool MegaSDK::isAchievementsEnabled()
+{
+    return megaApi->isAchievementsEnabled();
 }
 
 void MegaSDK::setLogLevel(MLogLevel logLevel)
@@ -993,11 +1163,37 @@ void MegaSDK::setLogLevel(MLogLevel logLevel)
     MegaApi::setLogLevel((int)logLevel);
 }
 
-void MegaSDK::setLoggerObject(MLoggerInterface^ megaLogger)
+void MegaSDK::addLoggerObject(MLoggerInterface^ logger)
 {
-    DelegateMLogger *newLogger = new DelegateMLogger(megaLogger);
-    delete externalLogger;
-    externalLogger = newLogger;
+    MegaApi::addLoggerObject(createDelegateMLogger(logger));
+}
+
+void MegaSDK::removeLoggerObject(MLoggerInterface^ logger)
+{
+    std::vector<DelegateMLogger *> loggersToRemove;
+
+    EnterCriticalSection(&loggerMutex);
+    std::set<DelegateMLogger *>::iterator it = activeLoggers.begin();
+    while (it != activeLoggers.end())
+    {
+        DelegateMLogger *delegate = *it;
+        if (delegate->getUserLogger() == logger)
+        {
+            loggersToRemove.push_back(delegate);
+            activeLoggers.erase(it++);
+        }
+        else
+        {
+            it++;
+        }
+    }
+    LeaveCriticalSection(&loggerMutex);
+
+    for (unsigned int i = 0; i < loggersToRemove.size(); i++)
+    {
+        MegaApi::removeLoggerObject(loggersToRemove[i]);
+        freeLogger(loggersToRemove[i]);
+    }
 }
 
 void MegaSDK::log(MLogLevel logLevel, String^ message, String^ filename, int line)
@@ -1054,6 +1250,15 @@ void MegaSDK::createFolder(String^ name, MNode^ parent)
 
 	megaApi->createFolder((name != nullptr) ? utf8name.c_str() : NULL,
 		(parent != nullptr) ? parent->getCPtr() : NULL);
+}
+
+bool MegaSDK::createLocalFolder(String^ localPath)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    return megaApi->createLocalFolder((localPath != nullptr) ? utf8localPath.c_str() : NULL);
 }
 
 void MegaSDK::moveNode(MNode^ node, MNode^ newParent, MRequestListenerInterface^ listener)
@@ -1253,6 +1458,64 @@ void MegaSDK::importFileLink(String^ megaFileLink, MNode^ parent)
 
 	megaApi->importFileLink((megaFileLink != nullptr) ? utf8megaFileLink.c_str() : NULL,
 		(parent != nullptr) ? parent->getCPtr() : NULL);
+}
+
+void MegaSDK::decryptPasswordProtectedLink(String^ link, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->decryptPasswordProtectedLink((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::decryptPasswordProtectedLink(String^ link, String^ password)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->decryptPasswordProtectedLink((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
+}
+
+void MegaSDK::encryptLinkWithPassword(String^ link, String^ password, MRequestListenerInterface^ listener)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->encryptLinkWithPassword((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::encryptLinkWithPassword(String^ link, String^ password)
+{
+    std::string utf8link;
+    if (link != nullptr)
+        MegaApi::utf16ToUtf8(link->Data(), link->Length(), &utf8link);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    megaApi->encryptLinkWithPassword((link != nullptr) ? utf8link.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL);
 }
 
 void MegaSDK::getPublicNode(String^ megaFileLink, MRequestListenerInterface^ listener)
@@ -1484,6 +1747,20 @@ void MegaSDK::getUserAttribute(MUser^ user, int type)
     megaApi->getUserAttribute((user != nullptr) ? user->getCPtr() : NULL, type);
 }
 
+void MegaSDK::getUserEmail(MegaHandle handle, MRequestListenerInterface^ listener)
+{
+    if (handle == ::mega::INVALID_HANDLE) return;
+
+    megaApi->getUserEmail(handle, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getUserEmail(MegaHandle handle)
+{
+    if (handle == ::mega::INVALID_HANDLE) return;
+
+    megaApi->getUserEmail(handle);
+}
+
 void MegaSDK::getOwnUserAttribute(int type, MRequestListenerInterface^ listener)
 {
     megaApi->getUserAttribute(type, createDelegateMRequestListener(listener));
@@ -1511,6 +1788,59 @@ void MegaSDK::setUserAttribute(int type, String^ value)
         MegaApi::utf16ToUtf8(value->Data(), value->Length(), &utf8value);
 
     megaApi->setUserAttribute(type, (value != nullptr) ? utf8value.c_str() : NULL);
+}
+
+void MegaSDK::setCustomNodeAttribute(MNode^ node, String^ attrName, String^ value, MRequestListenerInterface^ listener)
+{
+    std::string utf8attrName;
+    if (attrName != nullptr)
+        MegaApi::utf16ToUtf8(attrName->Data(), attrName->Length(), &utf8attrName);
+
+    std::string utf8value;
+    if (value != nullptr)
+        MegaApi::utf16ToUtf8(value->Data(), value->Length(), &utf8value);
+
+    megaApi->setCustomNodeAttribute((node != nullptr) ? node->getCPtr() : NULL,
+        (attrName != nullptr) ? utf8attrName.c_str() : NULL,
+        (value != nullptr) ? utf8value.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setCustomNodeAttribute(MNode^ node, String^ attrName, String^ value)
+{
+    std::string utf8attrName;
+    if (attrName != nullptr)
+        MegaApi::utf16ToUtf8(attrName->Data(), attrName->Length(), &utf8attrName);
+
+    std::string utf8value;
+    if (value != nullptr)
+        MegaApi::utf16ToUtf8(value->Data(), value->Length(), &utf8value);
+
+    megaApi->setCustomNodeAttribute((node != nullptr) ? node->getCPtr() : NULL,
+        (attrName != nullptr) ? utf8attrName.c_str() : NULL,
+        (value != nullptr) ? utf8value.c_str() : NULL);
+}
+
+void MegaSDK::setNodeDuration(MNode^ node, int duration, MRequestListenerInterface^ listener)
+{
+    megaApi->setNodeDuration((node != nullptr) ? node->getCPtr() : NULL,
+        duration, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setNodeDuration(MNode^ node, int duration)
+{
+    megaApi->setNodeDuration((node != nullptr) ? node->getCPtr() : NULL, duration);
+}
+
+void MegaSDK::setNodeCoordinates(MNode^ node, double latitude, double longitude, MRequestListenerInterface^ listener)
+{
+    megaApi->setNodeCoordinates((node != nullptr) ? node->getCPtr() : NULL,
+        latitude, longitude, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setNodeCoordinates(MNode^ node, double latitude, double longitude)
+{
+    megaApi->setNodeCoordinates((node != nullptr) ? node->getCPtr() : NULL, latitude, longitude);
 }
 
 void MegaSDK::exportNode(MNode^ node, MRequestListenerInterface^ listener)
@@ -1574,6 +1904,16 @@ void MegaSDK::getExtendedAccountDetails(bool sessions, bool purchases, bool tran
 void MegaSDK::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions)
 {
     megaApi->getExtendedAccountDetails(sessions, purchases, transactions);
+}
+
+void MegaSDK::queryTransferQuota(int64 size, MRequestListenerInterface^ listener)
+{
+    megaApi->queryTransferQuota(size, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::queryTransferQuota(int64 size)
+{
+    megaApi->queryTransferQuota(size);
 }
 
 void MegaSDK::getPricing(MRequestListenerInterface^ listener)
@@ -1815,6 +2155,16 @@ String^ MegaSDK::exportMasterKey()
 	return ref new String((wchar_t *)utf16key.data());
 }
 
+void MegaSDK::masterKeyExported(MRequestListenerInterface^ listener)
+{
+    megaApi->masterKeyExported(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::masterKeyExported()
+{
+    megaApi->masterKeyExported();
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
@@ -1913,6 +2263,15 @@ void MegaSDK::localLogout(MRequestListenerInterface^ listener)
 void MegaSDK::localLogout()
 {
     megaApi->localLogout();
+}
+
+int MegaSDK::getPasswordStrength(String^ password)
+{
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    return megaApi->getPasswordStrength((password != nullptr) ? utf8password.c_str() : NULL);
 }
 
 void MegaSDK::submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener)
@@ -2027,6 +2386,27 @@ void MegaSDK::startUploadWithMtime(String^ localPath, MNode^ parent, uint64 mtim
         (parent != nullptr) ? parent->getCPtr() : NULL, mtime);
 }
 
+void MegaSDK::startUploadWithMtimeTempSource(String^ localPath, MNode^ parent, uint64 mtime, bool isSourceTemporary, MTransferListenerInterface^ listener)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    megaApi->startUpload((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL, mtime, isSourceTemporary,
+        createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::startUploadWithMtimeTempSource(String^ localPath, MNode^ parent, uint64 mtime, bool isSourceTemporary)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    megaApi->startUpload((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL, mtime, isSourceTemporary);
+}
+
 void MegaSDK::startUploadToFileWithMtime(String^ localPath, MNode^ parent, String^ fileName, uint64 mtime, MTransferListenerInterface^ listener)
 {
     std::string utf8localPath;
@@ -2056,6 +2436,68 @@ void MegaSDK::startUploadToFileWithMtime(String^ localPath, MNode^ parent, Strin
     megaApi->startUpload((localPath != nullptr) ? utf8localPath.c_str() : NULL,
         (parent != nullptr) ? parent->getCPtr() : NULL,
         (fileName != nullptr) ? utf8fileName.c_str() : NULL, mtime);
+}
+
+void MegaSDK::startUploadWithData(String^ localPath, MNode^ parent, String^ appData, MTransferListenerInterface^ listener)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    std::string utf8appData;
+    if (appData != nullptr)
+        MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
+
+    megaApi->startUploadWithData((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL,
+        (appData != nullptr) ? utf8appData.c_str() : NULL,
+        createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::startUploadWithData(String^ localPath, MNode^ parent, String^ appData)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    std::string utf8appData;
+    if (appData != nullptr)
+        MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
+
+    megaApi->startUploadWithData((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL,
+        (appData != nullptr) ? utf8appData.c_str() : NULL);
+}
+
+void MegaSDK::startUploadWithDataTempSource(String^ localPath, MNode^ parent, String^ appData, bool isSourceTemporary, MTransferListenerInterface^ listener)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    std::string utf8appData;
+    if (appData != nullptr)
+        MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
+
+    megaApi->startUploadWithData((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL,
+        (appData != nullptr) ? utf8appData.c_str() : NULL, isSourceTemporary,
+        createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::startUploadWithDataTempSource(String^ localPath, MNode^ parent, String^ appData, bool isSourceTemporary)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    std::string utf8appData;
+    if (appData != nullptr)
+        MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
+
+    megaApi->startUploadWithData((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL,
+        (appData != nullptr) ? utf8appData.c_str() : NULL, isSourceTemporary);
 }
 
 void MegaSDK::startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener)
@@ -2089,7 +2531,7 @@ void MegaSDK::startDownloadWithAppData(MNode^ node, String^ localPath, String^ a
     if (appData != nullptr)
         MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
 
-    megaApi->startDownload((node != nullptr) ? node->getCPtr() : NULL,
+    megaApi->startDownloadWithData((node != nullptr) ? node->getCPtr() : NULL,
         (localPath != nullptr) ? utf8localPath.c_str() : NULL,
         (appData != nullptr) ? utf8appData.c_str() : NULL,
         createDelegateMTransferListener(listener));
@@ -2105,25 +2547,37 @@ void MegaSDK::startDownloadWithAppData(MNode^ node, String^ localPath, String^ a
     if (appData != nullptr)
         MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
 
-    megaApi->startDownload((node != nullptr) ? node->getCPtr() : NULL,
+    megaApi->startDownloadWithData((node != nullptr) ? node->getCPtr() : NULL,
         (localPath != nullptr) ? utf8localPath.c_str() : NULL,
         (appData != nullptr) ? utf8appData.c_str() : NULL);
 }
 
 void MegaSDK::startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener)
 {
-	megaApi->startStreaming((node != nullptr) ? node->getCPtr() : NULL, startPos, size, createDelegateMTransferListener(listener));
+    megaApi->startStreaming((node != nullptr) ? node->getCPtr() : NULL,
+        startPos, size, createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::retryTransfer(MTransfer^ transfer, MTransferListenerInterface^ listener)
+{
+    megaApi->retryTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::retryTransfer(MTransfer^ transfer)
+{
+    megaApi->retryTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::cancelTransfer(MTransfer^ transfer, MRequestListenerInterface^ listener)
 {
-	megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, 
-		createDelegateMRequestListener(listener));
+    megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::cancelTransfer(MTransfer^ transfer)
 {
-	megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
+    megaApi->cancelTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
 }
 
 void MegaSDK::cancelTransferByTag(int transferTag, MRequestListenerInterface^ listener)
@@ -2138,22 +2592,160 @@ void MegaSDK::cancelTransferByTag(int transferTag)
 
 void MegaSDK::cancelTransfers(int direction, MRequestListenerInterface^ listener)
 {
-	megaApi->cancelTransfers(direction, createDelegateMRequestListener(listener));
+    megaApi->cancelTransfers(direction, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::cancelTransfers(int direction)
 {
-	megaApi->cancelTransfers(direction);
+    megaApi->cancelTransfers(direction);
 }
 
 void MegaSDK::pauseTransfers(bool pause, MRequestListenerInterface^ listener)
 {
-	megaApi->pauseTransfers(pause, createDelegateMRequestListener(listener));
+    megaApi->pauseTransfers(pause, createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::pauseTransfers(bool pause)
 {
-	megaApi->pauseTransfers(pause);
+    megaApi->pauseTransfers(pause);
+}
+
+void MegaSDK::pauseTransfersDirection(bool pause, int direction, MRequestListenerInterface^ listener)
+{
+    megaApi->pauseTransfers(pause, direction, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::pauseTransfersDirection(bool pause, int direction)
+{
+    megaApi->pauseTransfers(pause, direction);
+}
+
+void MegaSDK::pauseTransfer(MTransfer^ transfer, bool pause, MRequestListenerInterface^ listener)
+{
+    megaApi->pauseTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        pause, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::pauseTransfer(MTransfer^ transfer, bool pause)
+{
+    megaApi->pauseTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, pause);
+}
+
+void MegaSDK::pauseTransferByTag(int transferTag, bool pause, MRequestListenerInterface^ listener)
+{
+    megaApi->pauseTransferByTag(transferTag, pause, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::pauseTransferByTag(int transferTag, bool pause)
+{
+    megaApi->pauseTransferByTag(transferTag, pause);
+}
+
+void MegaSDK::moveTransferUp(MTransfer^ transfer, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferUp((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferUp(MTransfer^ transfer)
+{
+    megaApi->moveTransferUp((transfer != nullptr) ? transfer->getCPtr() : NULL);
+}
+
+void MegaSDK::moveTransferUpByTag(int transferTag, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferUpByTag(transferTag, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferUpByTag(int transferTag)
+{
+    megaApi->moveTransferUpByTag(transferTag);
+}
+
+void MegaSDK::moveTransferDown(MTransfer^ transfer, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferDown((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferDown(MTransfer^ transfer)
+{
+    megaApi->moveTransferDown((transfer != nullptr) ? transfer->getCPtr() : NULL);
+}
+
+void MegaSDK::moveTransferDownByTag(int transferTag, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferDownByTag(transferTag, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferDownByTag(int transferTag)
+{
+    megaApi->moveTransferDownByTag(transferTag);
+}
+
+void MegaSDK::moveTransferToFirst(MTransfer^ transfer, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferToFirst((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferToFirst(MTransfer^ transfer)
+{
+    megaApi->moveTransferToFirst((transfer != nullptr) ? transfer->getCPtr() : NULL);
+}
+
+void MegaSDK::moveTransferToFirstByTag(int transferTag, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferToFirstByTag(transferTag, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferToFirstByTag(int transferTag)
+{
+    megaApi->moveTransferToFirstByTag(transferTag);
+}
+
+void MegaSDK::moveTransferToLast(MTransfer^ transfer, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferToLast((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferToLast(MTransfer^ transfer)
+{
+    megaApi->moveTransferToLast((transfer != nullptr) ? transfer->getCPtr() : NULL);
+}
+
+void MegaSDK::moveTransferToLastByTag(int transferTag, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferToLastByTag(transferTag, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferToLastByTag(int transferTag)
+{
+    megaApi->moveTransferToLastByTag(transferTag);
+}
+
+void MegaSDK::moveTransferBefore(MTransfer^ transfer, MTransfer^ prevTransfer, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferBefore((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        (prevTransfer != nullptr) ? prevTransfer->getCPtr() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferBefore(MTransfer^ transfer, MTransfer^ prevTransfer)
+{
+    megaApi->moveTransferBefore((transfer != nullptr) ? transfer->getCPtr() : NULL,
+        (prevTransfer != nullptr) ? prevTransfer->getCPtr() : NULL);
+}
+
+void MegaSDK::moveTransferBeforeByTag(int transferTag, int prevTransferTag, MRequestListenerInterface^ listener)
+{
+    megaApi->moveTransferBeforeByTag(transferTag, prevTransferTag, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::moveTransferBeforeByTag(int transferTag, int prevTransferTag)
+{
+    megaApi->moveTransferBeforeByTag(transferTag, prevTransferTag);
 }
 
 void MegaSDK::enableTransferResumption(String^ loggedOutId)
@@ -2204,6 +2796,41 @@ void MegaSDK::setUploadMethod(int method)
     megaApi->setUploadMethod(method);
 }
 
+bool MegaSDK::setMaxDownloadSpeed(int64 bpslimit)
+{
+    return megaApi->setMaxDownloadSpeed(bpslimit);
+}
+
+bool MegaSDK::setMaxUploadSpeed(int64 bpslimit)
+{
+    return megaApi->setMaxUploadSpeed(bpslimit);
+}
+
+int MegaSDK::getMaxDownloadSpeed()
+{
+    return megaApi->getMaxDownloadSpeed();
+}
+
+int MegaSDK::getMaxUploadSpeed()
+{
+    return megaApi->getMaxUploadSpeed();
+}
+
+int MegaSDK::getCurrentDownloadSpeed()
+{
+    return megaApi->getCurrentDownloadSpeed();
+}
+
+int MegaSDK::getCurrentUploadSpeed()
+{
+    return megaApi->getCurrentUploadSpeed();
+}
+
+int MegaSDK::getCurrentSpeed(int type)
+{
+    return megaApi->getCurrentSpeed(type);
+}
+
 int MegaSDK::getDownloadMethod()
 {
     return megaApi->getDownloadMethod();
@@ -2214,9 +2841,50 @@ int MegaSDK::getUploadMethod()
     return megaApi->getUploadMethod();
 }
 
+MTransferData^ MegaSDK::getTransferData(MTransferListenerInterface^ listener)
+{
+    return ref new MTransferData(megaApi->getTransferData(createDelegateMTransferListener(listener)), true);
+}
+
+MTransferData^ MegaSDK::getTransferData()
+{
+    return ref new MTransferData(megaApi->getTransferData(), true);
+}
+
+MTransfer^ MegaSDK::getFirstTransfer(int type)
+{
+    return ref new MTransfer(megaApi->getFirstTransfer(type), true);
+}
+
+void MegaSDK::notifyTransfer(MTransfer^ transfer, MTransferListenerInterface^ listener)
+{
+    megaApi->notifyTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL, 
+        createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::notifyTransfer(MTransfer^ transfer)
+{
+    megaApi->notifyTransfer((transfer != nullptr) ? transfer->getCPtr() : NULL);
+}
+
+void MegaSDK::notifyTransferByTag(int transferTag, MTransferListenerInterface^ listener)
+{
+    megaApi->notifyTransferByTag(transferTag, createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::notifyTransferByTag(int transferTag)
+{
+    megaApi->notifyTransferByTag(transferTag);
+}
+
 MTransferList^ MegaSDK::getTransfers()
 {
-	return ref new MTransferList(megaApi->getTransfers(), true);
+    return ref new MTransferList(megaApi->getTransfers(), true);
+}
+
+MTransferList^ MegaSDK::getStreamingTransfers()
+{
+    return ref new MTransferList(megaApi->getStreamingTransfers(), true);
 }
 
 MTransfer^ MegaSDK::getTransferByTag(int transferTag)
@@ -2226,12 +2894,22 @@ MTransfer^ MegaSDK::getTransferByTag(int transferTag)
 
 MTransferList^ MegaSDK::getTransfers(MTransferType type)
 {
-	return ref new MTransferList(megaApi->getTransfers((int)type), true);
+    return ref new MTransferList(megaApi->getTransfers((int)type), true);
+}
+
+MTransferList^ MegaSDK::getChildTransfers(int transferTag)
+{
+    return ref new MTransferList(megaApi->getChildTransfers(transferTag), true);
 }
 
 bool MegaSDK::isWaiting()
 {
     return megaApi->isWaiting();
+}
+
+bool MegaSDK::areServersBusy()
+{
+    return megaApi->areServersBusy();
 }
 
 int MegaSDK::getNumPendingUploads()
@@ -2269,6 +2947,11 @@ void MegaSDK::updateStats()
     megaApi->updateStats();
 }
 
+uint64 MegaSDK::getNumNodes()
+{
+    return megaApi->getNumNodes();
+}
+
 uint64 MegaSDK::getTotalDownloadedBytes()
 {
     return megaApi->getTotalDownloadedBytes();
@@ -2277,6 +2960,16 @@ uint64 MegaSDK::getTotalDownloadedBytes()
 uint64 MegaSDK::getTotalUploadedBytes()
 {
     return megaApi->getTotalUploadedBytes();
+}
+
+uint64 MegaSDK::getTotalDownloadBytes()
+{
+    return megaApi->getTotalDownloadBytes();
+}
+
+uint64 MegaSDK::getTotalUploadBytes()
+{
+    return megaApi->getTotalUploadBytes();
 }
 
 int MegaSDK::getNumChildren(MNode^ parent)
@@ -2302,6 +2995,21 @@ MNodeList^ MegaSDK::getChildren(MNode^ parent, int order)
 MNodeList^ MegaSDK::getChildren(MNode^ parent)
 {
 	return ref new MNodeList(megaApi->getChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
+}
+
+MChildrenLists^ MegaSDK::getFileFolderChildren(MNode^ parent, int order)
+{
+    return ref new MChildrenLists(megaApi->getFileFolderChildren((parent != nullptr) ? parent->getCPtr() : NULL, order), true);
+}
+
+MChildrenLists^ MegaSDK::getFileFolderChildren(MNode^ parent)
+{
+    return ref new MChildrenLists(megaApi->getFileFolderChildren((parent != nullptr) ? parent->getCPtr() : NULL), true);
+}
+
+bool MegaSDK::hasChildren(MNode^ parent)
+{
+    return megaApi->hasChildren((parent != nullptr) ? parent->getCPtr() : NULL);
 }
 
 int MegaSDK::getIndex(MNode^ node, int order)
@@ -2430,24 +3138,30 @@ MShareList^ MegaSDK::getInSharesList()
     return ref new MShareList(megaApi->getInSharesList(), true);
 }
 
+MUser^ MegaSDK::getUserFromInShare(MNode^ node)
+{
+    MegaUser *user = megaApi->getUserFromInShare((node != nullptr) ? node->getCPtr() : NULL);
+    return user ? ref new MUser(user, true) : nullptr;
+}
+
 bool MegaSDK::isShared(MNode^ node)
 {
-    return megaApi->isShared(node->getCPtr());
+    return megaApi->isShared((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isOutShare(MNode^ node)
 {
-    return megaApi->isOutShare(node->getCPtr());
+    return megaApi->isOutShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isInShare(MNode^ node)
 {
-    return megaApi->isInShare(node->getCPtr());
+    return megaApi->isInShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 bool MegaSDK::isPendingShare(MNode^ node)
 {
-    return megaApi->isPendingShare(node->getCPtr());
+    return megaApi->isPendingShare((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 MShareList^ MegaSDK::getOutShares()
@@ -2684,6 +3398,12 @@ MNode^ MegaSDK::getRootNode()
 	return node ? ref new MNode(node, true) : nullptr;
 }
 
+MNode^ MegaSDK::getRootNode(MNode^ node)
+{
+    MegaNode *rootNode = megaApi->getRootNode((node != nullptr) ? node->getCPtr() : NULL);
+    return rootNode ? ref new MNode(rootNode, true) : nullptr;
+}
+
 MNode^ MegaSDK::getInboxNode()
 {
     MegaNode *node = megaApi->getInboxNode();
@@ -2694,6 +3414,21 @@ MNode^ MegaSDK::getRubbishNode()
 {
 	MegaNode *node = megaApi->getRubbishNode();
 	return node ? ref new MNode(node, true) : nullptr;
+}
+
+bool MegaSDK::isInCloud(MNode^ node)
+{
+    return megaApi->isInCloud((node != nullptr) ? node->getCPtr() : NULL);
+}
+
+bool MegaSDK::isInRubbish(MNode^ node)
+{
+    return megaApi->isInRubbish((node != nullptr) ? node->getCPtr() : NULL);
+}
+
+bool MegaSDK::isInInbox(MNode^ node)
+{
+    return megaApi->isInInbox((node != nullptr) ? node->getCPtr() : NULL);
 }
 
 uint64 MegaSDK::getBandwidthOverquotaDelay()
@@ -2749,6 +3484,33 @@ MNode^ MegaSDK::authorizeNode(MNode^ node)
     return ref new MNode(megaApi->authorizeNode((node != nullptr) ? node->getCPtr() : NULL), true);
 }
 
+void MegaSDK::changeApiUrl(String^ apiURL, bool disablepkp)
+{
+    std::string utf8apiURL;
+    if (apiURL != nullptr)
+        MegaApi::utf16ToUtf8(apiURL->Data(), apiURL->Length(), &utf8apiURL);
+
+    megaApi->changeApiUrl((apiURL != nullptr) ? utf8apiURL.c_str() : NULL, disablepkp);
+}
+
+void MegaSDK::changeApiUrl(String^ apiURL)
+{
+    std::string utf8apiURL;
+    if (apiURL != nullptr)
+        MegaApi::utf16ToUtf8(apiURL->Data(), apiURL->Length(), &utf8apiURL);
+
+    megaApi->changeApiUrl((apiURL != nullptr) ? utf8apiURL.c_str() : NULL, false);
+}
+
+bool MegaSDK::setLanguage(String^ languageCode)
+{
+    std::string utf8languageCode;
+    if (languageCode != nullptr)
+        MegaApi::utf16ToUtf8(languageCode->Data(), languageCode->Length(), &utf8languageCode);
+
+    return megaApi->setLanguage((languageCode != nullptr) ? utf8languageCode.c_str() : NULL);
+}
+
 bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)
 {
     std::string utf8imagePath;
@@ -2780,6 +3542,26 @@ bool MegaSDK::createPreview(String^ imagePath, String^ dstPath)
 bool MegaSDK::isOnline()
 {
     return megaApi->isOnline();
+}
+
+void MegaSDK::getAccountAchievements(MRequestListenerInterface^ listener)
+{
+    megaApi->getAccountAchievements(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getAccountAchievements()
+{
+    megaApi->getAccountAchievements();
+}
+
+void MegaSDK::getMegaAchievements(MRequestListenerInterface^ listener)
+{
+    megaApi->getMegaAchievements(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getMegaAchievements()
+{
+    megaApi->getMegaAchievements();
 }
 
 MegaRequestListener *MegaSDK::createDelegateMRequestListener(MRequestListenerInterface^ listener, bool singleListener)
@@ -2852,4 +3634,21 @@ void MegaSDK::freeTransferListener(DelegateMTransferListener *listener)
 	activeTransferListeners.erase(listener);
 	LeaveCriticalSection(&listenerMutex);
 	delete listener;
+}
+
+MegaLogger *MegaSDK::createDelegateMLogger(MLoggerInterface^ logger)
+{
+    if (logger == nullptr) return NULL;
+
+    DelegateMLogger *delegateLogger = new DelegateMLogger(logger);
+    EnterCriticalSection(&loggerMutex);
+    activeLoggers.insert(delegateLogger);
+    LeaveCriticalSection(&loggerMutex);
+    return delegateLogger;
+}
+
+void MegaSDK::freeLogger(DelegateMLogger *logger)
+{
+    if (logger == nullptr) return;
+    delete logger;
 }

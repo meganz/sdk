@@ -1,6 +1,6 @@
 #!/bin/sh
 
-UV_VERSION="1.9.0"
+UV_VERSION="1.11.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -36,7 +36,7 @@ set -e
 
 if [ ! -e "libuv-v${UV_VERSION}.tar.gz" ]
 then
-curl -O "http://dist.libuv.org/dist/v${UV_VERSION}/libuv-v${UV_VERSION}.tar.gz"
+wget "http://dist.libuv.org/dist/v${UV_VERSION}/libuv-v${UV_VERSION}.tar.gz"
 fi
 
 for ARCH in ${ARCHS}
@@ -73,7 +73,7 @@ else
 ./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared
 fi
 
-make
+make -j8
 cp -f .libs/libuv.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
 #make clean
 
@@ -85,8 +85,8 @@ done
 mkdir lib || true
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libuv.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libuv.a -output ${CURRENTPATH}/lib/libuv.a
 
-mkdir -p include/uv || true
-cp -f libuv-v${UV_VERSION}/include/*.h include/uv/
+mkdir -p include || true
+cp -f libuv-v${UV_VERSION}/include/*.h include/
 
 rm -rf bin
 rm -rf libuv-v${UV_VERSION}

@@ -35,22 +35,36 @@ SOURCES += src/attrmap.cpp \
     src/crypto/cryptopp.cpp  \
     src/crypto/sodium.cpp  \
     src/db/sqlite.cpp  \
-    src/gfx/qt.cpp \
     src/gfx/external.cpp \
-    src/thread/qtthread.cpp \
-    src/mega_utf8proc.cpp
+    src/mega_utf8proc.cpp \
+    src/mega_zxcvbn.cpp \
+    src/mediafileattribute.cpp
 
 CONFIG(USE_MEGAAPI) {
-    SOURCES += src/megaapi.cpp src/megaapi_impl.cpp \
-        bindings/qt/QTMegaRequestListener.cpp \
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
+
+  CONFIG(qt) {
+    SOURCES += bindings/qt/QTMegaRequestListener.cpp \
         bindings/qt/QTMegaTransferListener.cpp \
-        bindings/qt//QTMegaGlobalListener.cpp \
+        bindings/qt/QTMegaGlobalListener.cpp \
         bindings/qt/QTMegaSyncListener.cpp \
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
+  }
 }
 
-# CONFIG += USE_LIBUV
+CONFIG(USE_LIBWEBSOCKETS) {
+    CONFIG += USE_LIBUV
+    DEFINES += USE_LIBWEBSOCKETS=1
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
+    }
+    else {
+        LIBS += -lwebsockets -lcap
+    }
+}
+
 CONFIG(USE_LIBUV) {
     SOURCES += src/mega_http_parser.cpp
     DEFINES += HAVE_LIBUV
@@ -58,8 +72,122 @@ CONFIG(USE_LIBUV) {
     win32 {
         LIBS += -llibuv -lIphlpapi -lUserenv
     }
-    else {
+
+    unix:!macx {
+       exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libuv.a
+       }
+       else {
         LIBS += -luv
+       }
+    }
+
+    macx {
+        LIBS += -luv
+    }
+}
+
+CONFIG(USE_MEDIAINFO) {
+    DEFINES += USE_MEDIAINFO UNICODE
+
+    win32 {
+        LIBS += -lMediaInfo -lZenLib -lzlibstat
+    }
+
+    mac {
+        LIBS += -lmediainfo -lzen -lz
+    }
+
+    unix:!macx {
+
+       exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libmediainfo.a
+       }
+       else {
+        LIBS += -lmediainfo
+       }
+       exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libzen.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libzen.a
+       }
+       else {
+        LIBS += -lzen
+       }
+    }
+}
+
+CONFIG(USE_FFMPEG) {
+    DEFINES += HAVE_FFMPEG
+
+    unix:!macx {
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
+            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+            FFMPEGLIBPATH = $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib
+        }
+        else:exists(/usr/include/ffmpeg-mega) {
+
+            INCLUDEPATH += /usr/include/ffmpeg-mega
+            exists(/usr/lib64/libavcodec.a) {
+                FFMPEGLIBPATH = /usr/lib64
+            }
+            else:exists(/usr/lib32/libavcodec.a) {
+                FFMPEGLIBPATH = /usr/lib32
+            }
+            else {
+               FFMPEGLIBPATH = /usr/lib
+            }
+        }
+        else:packagesExist(ffmpeg) {
+            LIBS += -lavcodec -lavformat -lavutil -lswscale
+        }
+        else {
+            DEFINES -= HAVE_FFMPEG
+        }
+
+        FFMPEGSTATICLIBS = libavformat.a libavcodec.a libavutil.a libswscale.a
+
+        for(ffmpeglib, FFMPEGSTATICLIBS) {
+            exists($$FFMPEGLIBPATH/$$ffmpeglib) {
+                LIBS += $$FFMPEGLIBPATH/$$ffmpeglib
+            }
+        }
+
+        #particular distros requirements
+        exists(/usr/lib64/libbz2.so*)|exists(/usr/lib/libbz2.so*) {
+            LIBS += -lbz2 #required in fedora ffmpeg/arch compilation
+        }
+
+        exists(/usr/lib/liblzma.so*):exists(/etc/arch-release) {
+            LIBS += -llzma #required in arch ffmpeg compilation
+        }
+
+    }
+    else { #win/mac
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+        LIBS += -lavcodec -lavformat -lavutil -lswscale
+    }
+}
+
+CONFIG(USE_WEBRTC) {
+
+    DEFINES += ENABLE_WEBRTC V8_DEPRECATION_WARNINGS USE_OPENSSL_CERTS=1 NO_TCMALLOC DISABLE_NACL SAFE_BROWSING_DB_REMOTE \
+               CHROMIUM_BUILD FIELDTRIAL_TESTING_ENABLED _FILE_OFFSET_BITS=64 __STDC_CONSTANT_MACROS __STDC_FORMAT_MACROS \
+               _FORTIFY_SOURCE=2 __GNU_SOURCE=1 __compiler_offsetof=__builtin_offsetof NDEBUG NVALGRIND DYNAMIC_ANNOTATIONS_ENABLED=0 \
+               WEBRTC_ENABLE_PROTOBUF=1 WEBRTC_INCLUDE_INTERNAL_AUDIO_DEVICE EXPAT_RELATIVE_PATH HAVE_SCTP
+
+    unix {
+        DEFINES += WEBRTC_POSIX WEBRTC_LINUX WEBRTC_BUILD_LIBEVENT
+    }
+
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/webrtc \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/boringssl/src/include \
+                   $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include
+
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl -lX11
+    }
+    else {
+        LIBS += -lwebrtc -ldl -lX11
     }
 }
 
@@ -72,7 +200,7 @@ win32 {
             src/wincurl/fs.cpp  \
             src/wincurl/waiter.cpp
         HEADERS += include/mega/wincurl/meganet.h
-        DEFINES += USE_CURL
+        DEFINES += USE_CURL USE_OPENSSL
         LIBS +=  -llibcurl -lcares -llibeay32 -lssleay32
     }
     else {
@@ -83,7 +211,7 @@ win32 {
     }
 
     # link winhttp anyway (required for automatic proxy detection)
-    LIBS += -lwinhttp
+    LIBS += -lwinhttp -ladvapi32
     DEFINES += _CRT_SECURE_NO_WARNINGS
 }
 
@@ -132,6 +260,7 @@ HEADERS  += include/mega.h \
             include/mega/crypto/sodium.h  \
             include/mega/db/sqlite.h  \
             include/mega/gfx/qt.h \
+            include/mega/gfx/freeimage.h \
             include/mega/gfx/external.h \
             include/mega/thread.h \
             include/mega/thread/cppthread.h \
@@ -140,6 +269,8 @@ HEADERS  += include/mega.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
             include/mega/thread/posixthread.h \
+            include/mega/mega_zxcvbn.h \
+            include/mega/mediafileattribute.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
@@ -169,8 +300,21 @@ unix {
             include/mega/config.h
 }
 
-DEFINES += USE_SQLITE USE_CRYPTOPP USE_QT MEGA_QT_LOGGING ENABLE_SYNC ENABLE_CHAT
-LIBS += -lcryptopp
+CONFIG(USE_PCRE) {
+  DEFINES += USE_PCRE
+}
+
+CONFIG(qt) {
+  DEFINES += USE_QT MEGA_QT_LOGGING
+  SOURCES += src/gfx/qt.cpp src/thread/qtthread.cpp
+}
+else {
+  DEFINES += USE_FREEIMAGE USE_PTHREAD
+  SOURCES += src/gfx/freeimage.cpp src/thread/posixthread.cpp
+  LIBS += -lfreeimage -lpthread
+}
+
+DEFINES += USE_SQLITE USE_CRYPTOPP ENABLE_SYNC ENABLE_CHAT
 INCLUDEPATH += $$MEGASDK_BASE_PATH/include
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt
 INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include
@@ -183,8 +327,7 @@ else {
 }
 
 win32 {
-    INCLUDEPATH += $$[QT_INSTALL_PREFIX]/src/3rdparty/zlib
-    INCLUDEPATH += $$[QT_INSTALL_PREFIX]/../src/qtbase/src/3rdparty/zlib
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zlib
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
 
     CONFIG(USE_CURL) {
@@ -195,8 +338,6 @@ win32 {
     else {
         INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/win32
     }
-
-    DEFINES += PCRE_STATIC
 
     contains(CONFIG, BUILDX64) {
        release {
@@ -216,19 +357,59 @@ win32 {
         }
     }
 
-    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium
+    CONFIG(USE_PCRE) {
+     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+     DEFINES += PCRE_STATIC
+     LIBS += -lpcre
+    }
+
+    LIBS += -lshlwapi -lws2_32 -luser32 -lsodium -lcryptopp -lzlibstat
 }
 
 unix:!macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
-
    LIBS += -lsqlite3 -lrt
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a) {
-    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a -lz -lssl -lcrypto -lcares
+    LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a
    }
    else {
-    LIBS += -lcurl -lz -lssl -lcrypto -lcares
+    LIBS += -lcurl
+   }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libz.a) {
+    LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libz.a
+   }
+   else {
+    LIBS += -lz
+   }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libssl.a
+   }
+   else {
+    LIBS += -lssl
+   }
+   
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcrypto.a
+   }
+   else {
+    LIBS += -lcrypto 
+   }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcryptopp.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcryptopp.a
+   }
+   else {
+    LIBS += -lcryptopp
+   }
+
+   exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a) {
+    LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a
+   }
+   else {
+    LIBS += -lcares
    }
 
    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a) {
@@ -237,13 +418,42 @@ unix:!macx {
    else {
     LIBS += -lsodium
    }
+
+   CONFIG(USE_PCRE) {
+    DEFINES += PCRE_STATIC
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libpcre.a) {
+     LIBS +=  $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libpcre.a
+    }
+    else {
+     LIBS += -lpcre
+    }
+   }
 }
 
 macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/posix
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/include/mega/osx
+
+   OBJECTIVE_SOURCES += $$MEGASDK_BASE_PATH/src/osx/osxutils.mm
+
    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/sqlite3.c
+
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
-   DEFINES += PCRE_STATIC _DARWIN_FEATURE_64_BIT_INODE
-   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a -lz -lssl -lcrypto
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
+
+   CONFIG(USE_PCRE) {
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre
+    DEFINES += PCRE_STATIC
+    LIBS += -lpcre
+   }
+
+   DEFINES += _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL CRYPTOPP_DISABLE_ASM
+
+   LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
+            -lz -lssl -lcrypto -lcryptopp
+   LIBS += -framework SystemConfiguration
 }

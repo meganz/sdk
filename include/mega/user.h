@@ -62,11 +62,18 @@ struct MEGA_API User : public Cachable
         bool country : 1;
         bool birthday : 1;  // wraps status of birthday, birthmonth, birthyear
         bool email : 1;
+        bool language : 1;  // preferred language code
+        bool pwdReminder : 1;   // password-reminder-dialog information
+        bool disableVersions : 1;   // disable fileversioning
     } changed;
 
     // user's public key
     AsymmCipher pubk;
-    int pubkrequested;
+    struct
+    {
+        bool pubkrequested : 1;
+        bool isTemporary : 1;
+    };
 
     // actions to take after arrival of the public key
     deque<class PubKeyAction*> pkrs;
@@ -93,11 +100,13 @@ public:
     const string *getattrversion(attr_t at);
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
+    void removeattr(attr_t at);
 
     static string attr2string(attr_t at);
     static attr_t string2attr(const char *name);
     static bool needversioning(attr_t at);
     static char scope(attr_t at);
+    static bool mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue);
 
     bool setChanged(attr_t at);
 

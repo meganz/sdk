@@ -38,6 +38,10 @@ AM_CPPFLAGS+=-I$(top_srcdir)/include/mega/gfx
 AM_LIBTOOLFLAGS="--tag=CXX"
 endif
 
+if ANDROID
+AM_LIBTOOLFLAGS="--tag=CXX"
+endif
+
 VERSION_INFO=$(LT_CURRENT):$(LT_REVISION):$(LT_AGE)
 
 CLEANFILES=

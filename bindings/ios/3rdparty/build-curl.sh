@@ -1,6 +1,6 @@
 #!/bin/sh
 
-CURL_VERSION="7.48.0"
+CURL_VERSION="7.51.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -36,7 +36,7 @@ set -e
 
 if [ ! -e "curl-${CURL_VERSION}.tar.gz" ]
 then
-curl -O "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
+curl -LO "https://curl.haxx.se/download/curl-${CURL_VERSION}.tar.gz"
 fi
 
 for ARCH in ${ARCHS}
@@ -51,6 +51,9 @@ fi
 rm -rf curl-${CURL_VERSION}
 tar zxf curl-${CURL_VERSION}.tar.gz
 pushd "curl-${CURL_VERSION}"
+
+# Do not resolve IPs!!
+sed -i '' $'s/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h
 
 export BUILD_TOOLS="${DEVELOPER}"
 export BUILD_DEVROOT="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
@@ -71,7 +74,7 @@ else
 ./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 fi
 
-make
+make -j8
 cp -f lib/.libs/libcurl.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
 #make clean
 

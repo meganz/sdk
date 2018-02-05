@@ -17,11 +17,18 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#include "mega.h"
 #include "mega/thread/win32thread.h"
+#include "mega/logging.h"
+#include <limits.h>
 
+#ifdef _WIN32
+#include "windows.h"
+#endif
 
 namespace mega {
 //Thread
@@ -49,6 +56,11 @@ void Win32Thread::join()
     WaitForSingleObject(hThread, INFINITE);
 }
 
+unsigned long long Win32Thread::currentThreadId()
+{
+    return (unsigned long long) GetCurrentThreadId();
+}
+
 Win32Thread::~Win32Thread()
 {
     CloseHandle(hThread);
@@ -58,6 +70,13 @@ Win32Thread::~Win32Thread()
 Win32Mutex::Win32Mutex()
 {
     InitializeCriticalSection(&mutex);
+}
+
+Win32Mutex::Win32Mutex(bool recursive)
+{
+    InitializeCriticalSection(&mutex);
+
+    init(recursive);        // just for correctness
 }
 
 void Win32Mutex::init(bool recursive)

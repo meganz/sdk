@@ -36,6 +36,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/waiter.h \
 	mega/proxy.h \
 	mega/pendingcontactrequest.h \
+	mega/version.h \
 	mega/crypto/cryptopp.h \
 	mega/crypto/sodium.h \
 	mega/db/sqlite.h \
@@ -48,11 +49,20 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/external.h \
 	mega/gfx/qt.h \
 	mega/mega_utf8proc.h \
+	mega/mega_zxcvbn.h \
+	mega/mega_dict-src.h \
 	mega/gfx/freeimage.h \
-	mega/gfx/GfxProcCG.h
+	mega/gfx/GfxProcCG.h \
+	mega/mediafileattribute.h
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
+endif
+
+if ANDROID
+nobase_libmegainclude_HEADERS += \
+	mega/config-android.h \
+	mega/mega_glob.h
 endif
 
 if WIN32
@@ -71,6 +81,12 @@ nobase_libmegainclude_HEADERS += \
 	mega/posix/megawaiter.h \
 	mega/posix/megaconsole.h \
 	mega/posix/megaconsolewaiter.h
+endif
+
+if DARWIN
+if !USE_IOS
+nobase_libmegainclude_HEADERS += mega/osx/osxutils.h
+endif
 endif
 
 #noinst_HEADERS = config.h

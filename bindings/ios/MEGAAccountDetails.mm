@@ -90,7 +90,13 @@ using namespace mega;
 }
 
 - (NSString *)subscriptionMethod {
-    return self.accountDetails ? [[NSString alloc] initWithUTF8String:self.accountDetails->getSubscriptionMethod()] : nil;
+    const char *val = self.accountDetails->getSubscriptionMethod();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;    
 }
 
 - (NSString *)subscriptionCycle {

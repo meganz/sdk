@@ -36,6 +36,7 @@
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/algparam.h>
 #include <cryptopp/hmac.h>
+#include <cryptopp/pwdbased.h>
 
 namespace mega {
 using namespace std;
@@ -273,6 +274,7 @@ public:
     static const int PUBKEY = 2;
 
     CryptoPP::Integer key[PRIVKEY];
+    unsigned int padding;
 
     static const int MAXKEYLENGTH = 1026;   // in bytes, allows for RSA keys up
                                             // to 8192 bits
@@ -359,14 +361,15 @@ public:
     void serializekey(string* d, int keytype);
 
     /**
-     * @brief Serialize key for compatibility with the webclient.
+     * @brief Serialize public key for compatibility with the webclient.
+     *
+     * It also add padding (PUB_E size is forced to 4 bytes) in case the
+     * of the key, at reception from server, indicates it has zero-padding.
      *
      * @param d String to take the serialized key without size-headers
-     * @param keytype Key type indication by number of integers for key type
-     *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return Void.
      */
-    void serializekeyforjs(string* d, int keytype);
+    void serializekeyforjs(string& d);
 
     /**
      * @brief Generates an RSA key pair of a given key size.
@@ -421,7 +424,6 @@ public:
      */
     HMACSHA256(const byte *key, size_t length);
 
-
     /**
      * @brief Add data to the HMAC
      * @param data Data to add
@@ -434,6 +436,20 @@ public:
      * @param out The HMAC-SHA256 will be returned in the first 32 bytes of this buffer
      */
     void get(byte *out);
+};
+
+/**
+ * @brief HMAC-SHA512 generator
+ */
+class MEGA_API PBKDF2_HMAC_SHA512
+{
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+
+public:
+    PBKDF2_HMAC_SHA512();
+    void deriveKey(byte* derivedkey, size_t derivedkeyLen,
+                   byte* pwd, size_t pwdLen,
+                   byte* salt, size_t saltLen, unsigned int iterations);
 };
 
 } // namespace

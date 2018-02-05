@@ -111,15 +111,6 @@
    */
 #define LT_OBJDIR ".libs/"
 
-/* MEGA SDK major version. */
-#define MEGA_MAJOR_VERSION 2
-
-/* MEGA SDK micro version. */
-#define MEGA_MICRO_VERSION 0
-
-/* MEGA SDK minor version. */
-#define MEGA_MINOR_VERSION 6
-
 /* Name of package */
 #define PACKAGE "libmega"
 
@@ -129,17 +120,11 @@
 /* Define to the full name of this package. */
 #define PACKAGE_NAME "libmega"
 
-/* Define to the full name and version of this package. */
-#define PACKAGE_STRING "libmega 0.2.3"
-
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "libmega"
 
 /* Define to the home page for this package. */
 #define PACKAGE_URL ""
-
-/* Define to the version of this package. */
-#define PACKAGE_VERSION "0.2.3"
 
 /* The size of `uint64_t', as computed by sizeof. */
 #define SIZEOF_UINT64_T 8
@@ -158,6 +143,9 @@
 
 /* Use inotify API */
 //#define USE_INOTIFY 1
+
+/* Define to use OpenSSL */
+#define USE_OPENSSL 1
 
 /* Define to use SQLite */
 #define USE_SQLITE 1
@@ -196,13 +184,19 @@
 /* #undef _UINT8_T */
 
 /* Force definition of constant macros for C++ */
+#ifndef __STDC_CONSTANT_MACROS
 #define __STDC_CONSTANT_MACROS /**/
+#endif
 
 /* Force definition of format macros for C++ */
+#ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS /**/
+#endif
 
 /* Force definition of limit macros for C++ */
+#ifndef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS /**/
+#endif
 
 /* Define to rpl_malloc if the replacement function should be used. */
 /* #undef malloc */

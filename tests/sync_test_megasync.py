@@ -30,6 +30,7 @@ import xmlrunner
 import logging
 import argparse
 import platform
+import math
 
 
 class SyncTestMegaSyncApp(SyncTestApp):
@@ -116,7 +117,12 @@ class SyncTestMegaSyncApp(SyncTestApp):
         """
         TODO: wait for full synchronization
         """
-        time.sleep(5)
+        if not hasattr(self,'attempt'):
+            self.attempt=self.nr_retries
+        if (self.attempt==self.nr_retries):
+            time.sleep(5)
+        else:
+            time.sleep(math.pow(1.0181780986123312,self.attempt+1)*0.5) #~200*5 secs
 
     def start(self):
         """
@@ -198,6 +204,8 @@ if __name__ == "__main__":
     parser.add_argument("--test6", help="test_local_operations", action="store_true")
     parser.add_argument("--test7", help="test_update_mtime", action="store_true")
     parser.add_argument("--test8", help="test_create_rename_delete_unicode_files_dirs", action="store_true")
+    parser.add_argument("--test9", help="test_create_move_delete_files", action="store_true")
+    parser.add_argument("--test10", help="test_mimic_update_with_backup_files", action="store_true")
     parser.add_argument("-a", "--all", help="run all tests", action="store_true")
     parser.add_argument("-b", "--basic", help="run basic, stable tests", action="store_true")
     parser.add_argument("-d", "--debug", help="use debug output", action="store_true")
@@ -205,8 +213,11 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--nodelete", help="Do not delete work files", action="store_false")
     parser.add_argument("-f", "--files", type=int,help="Number of files")
     parser.add_argument("-c", "--folders", type=int,help="Number of folders")
+    parser.add_argument("-g", "--changes", type=int,help="Number of changes")
+    parser.add_argument("-r", "--retries", type=int,help="Number of retries")
     parser.add_argument("work_dir", help="local work directory")
     parser.add_argument("sync_dir", help="remote directory for synchronization")
+    parser.add_argument("--only-empty-files", help="use only empty files", action="store_true")    
     args = parser.parse_args()
 
     if args.debug:
@@ -217,7 +228,7 @@ if __name__ == "__main__":
         lvl = logging.INFO
 
     if args.all:
-        args.test1 = args.test2 = args.test3 = args.test4 = args.test5 = args.test6 = args.test7 = args.test8 = True
+        args.test1 = args.test2 = args.test3 = args.test4 = args.test5 = args.test6 = args.test7 = args.test8 = args.test9 = args.test10 = True
     if args.basic:
         args.test1 = args.test2 = args.test3 = args.test4 = True
 
@@ -228,35 +239,55 @@ if __name__ == "__main__":
 
     with SyncTestMegaSyncApp(args.work_dir, args.sync_dir, args.nodelete, args.large) as app:
         suite = unittest.TestSuite()
+        
+        app.only_empty_files=args.only_empty_files
+        app.only_empty_folders=False
+        if args.retries is not None: 
+            app.nr_retries=args.retries
 
+        synctests=[]
         if args.test1:
-            suite.addTest(SyncTest("test_create_delete_files", app))
+            synctests.append(SyncTest("test_create_delete_files", app))
 
         if args.test2:
-            suite.addTest(SyncTest("test_create_rename_delete_files", app))
+            synctests.append(SyncTest("test_create_rename_delete_files", app))
 
         if args.test3:
-            suite.addTest(SyncTest("test_create_delete_dirs", app, ))
+            synctests.append(SyncTest("test_create_delete_dirs", app))
 
         if args.test4:
-            suite.addTest(SyncTest("test_create_rename_delete_dirs", app))
+            synctests.append(SyncTest("test_create_rename_delete_dirs", app))
 
         if args.test5:
-            suite.addTest(SyncTest("test_sync_files_write", app))
+            synctests.append(SyncTest("test_sync_files_write", app))
 
         if args.test6:
-            suite.addTest(SyncTest("test_local_operations", app))
+            synctests.append(SyncTest("test_local_operations", app))
 
         if args.test7:
-            suite.addTest(SyncTest("test_update_mtime", app))
+            synctests.append(SyncTest("test_update_mtime", app))
 
         if args.test8:
-            app.only_empty_files=False
-            app.only_empty_folders=False
-            st=SyncTest("test_create_rename_delete_unicode_files_dirs", app)
-            if args.files is not None: st.nr_files=args.files
+            synctests.append(SyncTest("test_create_rename_delete_unicode_files_dirs", app))
+
+        if args.test9:
+            synctests.append(SyncTest("test_create_move_delete_files", app))
+          
+        if args.test10:
+            synctests.append(SyncTest("test_mimic_update_with_backup_files", app))
+
+
+        for st in synctests:
+            if args.files is not None: 
+                st.nr_files=args.files
+                st.local_obj_nr=args.files
             if args.folders is not None: st.nr_dirs=args.folders
-            
+            if args.changes is not None: 
+                st.nr_changes=args.changes
+                st.nr_time_changes=args.changes
+            if args.retries is not None: 
+                st.nr_retries=args.retries
+
             suite.addTest(st)
             
             

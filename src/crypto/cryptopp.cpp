@@ -106,16 +106,16 @@ void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, st
 {
     aescbc_e.Resynchronize(iv ? iv : zeroiv);
     StringSource(*data, true,
-           new CryptoPP::StreamTransformationFilter( aescbc_e, new StringSink( *result ),
-                                                     CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+           new StreamTransformationFilter( aescbc_e, new StringSink( *result ),
+                                                     StreamTransformationFilter::PKCS_PADDING));
 }
 
 void SymmCipher::cbc_decrypt_pkcs_padding(const std::string *data, const byte *iv, string *result)
 {
     aescbc_d.Resynchronize(iv ? iv : zeroiv);
     StringSource(*data, true,
-           new CryptoPP::StreamTransformationFilter( aescbc_d, new StringSink( *result ),
-                                                     CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+           new StreamTransformationFilter( aescbc_d, new StringSink( *result ),
+                                                     StreamTransformationFilter::PKCS_PADDING));
 }
 
 void SymmCipher::ecb_encrypt(byte* data, byte* dst, unsigned len)
@@ -146,31 +146,42 @@ void SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen,
 
 void SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    if (taglen == 16)
+    try {
+        if (taglen == 16)
+        {
+            aesccm16_d.Resynchronize(iv, ivlen);
+            aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
+            StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
+        }
+        else if (taglen == 8)
+        {
+            aesccm8_d.Resynchronize(iv, ivlen);
+            aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
+            StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+        }
+    } catch (HashVerificationFilter::HashVerificationFailed e)
     {
-        aesccm16_d.Resynchronize(iv, ivlen);
-        aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
-        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
-    }
-    else if (taglen == 8)
-    {
-        aesccm8_d.Resynchronize(iv, ivlen);
-        aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
-        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+        result->clear();
+        LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
     }
 }
 
 void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_e.Resynchronize(iv, ivlen);
-    StringSource(*data, true, new CryptoPP::AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
+    StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
 }
 
 void SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_d.Resynchronize(iv, ivlen);
-    StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result),
-        AuthenticatedDecryptionFilter::DEFAULT_FLAGS, taglen));
+    try {
+        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
+    } catch (HashVerificationFilter::HashVerificationFailed e)
+    {
+        result->clear();
+        LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();
+    }
 }
 
 void SymmCipher::serializekeyforjs(string *d)
@@ -442,7 +453,9 @@ int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numby
 
 int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
-    return decodeintarray(key, numints, data, len);
+    int ret = decodeintarray(key, numints, data, len);
+    padding = (numints == PUBKEY && ret) ? (len - key[PUB_PQ].ByteCount() - key[PUB_E].ByteCount() - 4) : 0;
+    return ret;
 }
 
 void AsymmCipher::resetkey()
@@ -450,12 +463,38 @@ void AsymmCipher::resetkey()
     for (int i = 0; i < PRIVKEY; i++)
     {
         key[i] = Integer::Zero();
+        padding = 0;
     }
 }
 
-void AsymmCipher::serializekeyforjs(string* d, int keytype)
+void AsymmCipher::serializekeyforjs(string& d)
 {
-    serializeintarray(key, keytype, d, false);
+    unsigned sizePQ = key[PUB_PQ].ByteCount();
+    unsigned sizeE = key[PUB_E].ByteCount();
+    char c;
+
+    d.clear();
+    d.reserve(sizePQ + sizeE + padding);
+
+    for (int j = key[PUB_PQ].ByteCount(); j--;)
+    {
+        c = key[PUB_PQ].GetByte(j);
+        d.append(&c, sizeof c);
+    }
+
+    // accounts created by webclient use 4 bytes for serialization of exponent
+    // --> add left-padding up to 4 bytes for compatibility reasons
+    c = 0;
+    for (unsigned j = 0; j < padding; j++)
+    {
+        d.append(&c, sizeof c);
+    }
+
+    for (int j = sizeE; j--;)
+    {
+        c = key[PUB_E].GetByte(j);  // returns 0 if out-of-range
+        d.append(&c, sizeof c);
+    }
 }
 
 void AsymmCipher::serializekey(string* d, int keytype)
@@ -613,7 +652,6 @@ void HashCRC32::get(byte* out)
 HMACSHA256::HMACSHA256(const byte *key, size_t length)
     : hmac(key, length)
 {
-
 }
 
 void HMACSHA256::add(const byte *data, unsigned len)
@@ -624,6 +662,29 @@ void HMACSHA256::add(const byte *data, unsigned len)
 void HMACSHA256::get(byte *out)
 {
     hmac.Final(out);
+}
+
+PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
+{
+}
+
+void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey, size_t derivedkeyLen,
+                                   byte* pwd, size_t pwdLen,
+                                   byte* salt, size_t saltLen, unsigned int iterations)
+{
+    pbkdf2.DeriveKey(
+            // buffer that holds the derived key
+            derivedkey, derivedkeyLen,
+            // purpose byte. unused by this PBKDF implementation.
+            0x00,
+            // password bytes. careful to be consistent with encoding...
+            pwd, pwdLen,
+            // salt bytes
+            salt, saltLen,
+            // iteration count. See SP 800-132 for details. You want this as large as you can tolerate.
+            // make sure to use the same iteration count on both sides...
+            iterations
+            );
 }
 
 } // namespace

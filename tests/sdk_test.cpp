@@ -41,10 +41,10 @@ void SdkTest::SetUp()
     if (megaApi[0] == NULL)
     {
         logger = new MegaLoggerSDK("SDK.log");
-        MegaApi::setLoggerObject(logger);
+        MegaApi::addLoggerObject(logger);
 
         char path[1024];
-        getcwd(path, sizeof path);
+        assert(getcwd(path, sizeof path));
         megaApi[0] = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
         megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
@@ -96,7 +96,7 @@ void SdkTest::TearDown()
 
         releaseMegaApi(0);
 
-        MegaApi::setLoggerObject(NULL);
+        MegaApi::removeLoggerObject(logger);
         delete logger;
     }
 }
@@ -174,17 +174,82 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
 #ifdef ENABLE_CHAT
-    case MegaRequest::TYPE_CHAT_FETCH:
-        if (lastError[apiIndex] == API_OK)
-        {
-            chats = request->getMegaTextChatList()->copy();
-        }
-        break;
 
     case MegaRequest::TYPE_CHAT_CREATE:
         if (lastError[apiIndex] == API_OK)
         {
-            chats = request->getMegaTextChatList()->copy();
+            MegaTextChat *chat = request->getMegaTextChatList()->get(0)->copy();
+
+            chatid = chat->getHandle();
+            if (chats.find(chatid) != chats.end())
+            {
+                delete chats[chatid];
+            }
+            chats[chatid] = chat;
+        }
+        break;
+
+    case MegaRequest::TYPE_CHAT_INVITE:
+        if (lastError[apiIndex] == API_OK)
+        {
+            chatid = request->getNodeHandle();
+            if (chats.find(chatid) != chats.end())
+            {
+                MegaTextChat *chat = chats[chatid];
+                MegaHandle uh = request->getParentHandle();
+                int priv = request->getAccess();
+                userpriv_vector *privsbuf = new userpriv_vector;
+
+                const MegaTextChatPeerList *privs = chat->getPeerList();
+                if (privs)
+                {
+                    for (int i = 0; i < privs->size(); i++)
+                    {
+                        if (privs->getPeerHandle(i) != uh)
+                        {
+                            privsbuf->push_back(userpriv_pair(privs->getPeerHandle(i), (privilege_t) privs->getPeerPrivilege(i)));
+                        }
+                    }
+                }
+                privsbuf->push_back(userpriv_pair(uh, (privilege_t) priv));
+                privs = new MegaTextChatPeerListPrivate(privsbuf);
+                chat->setPeerList(privs);
+            }
+            else
+            {
+                LOG_err << "Trying to remove a peer from unknown chat";
+            }
+        }
+        break;
+
+    case MegaRequest::TYPE_CHAT_REMOVE:
+        if (lastError[apiIndex] == API_OK)
+        {
+            chatid = request->getNodeHandle();
+            if (chats.find(chatid) != chats.end())
+            {
+                MegaTextChat *chat = chats[chatid];
+                MegaHandle uh = request->getParentHandle();
+                userpriv_vector *privsbuf = new userpriv_vector;
+
+                const MegaTextChatPeerList *privs = chat->getPeerList();
+                if (privs)
+                {
+                    for (int i = 0; i < privs->size(); i++)
+                    {
+                        if (privs->getPeerHandle(i) != uh)
+                        {
+                            privsbuf->push_back(userpriv_pair(privs->getPeerHandle(i), (privilege_t) privs->getPeerPrivilege(i)));
+                        }
+                    }
+                }
+                privs = new MegaTextChatPeerListPrivate(privsbuf);
+                chat->setPeerList(privs);
+            }
+            else
+            {
+                LOG_err << "Trying to remove a peer from unknown chat";
+            }
         }
         break;
 
@@ -195,6 +260,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 #endif
+
+    case MegaRequest::TYPE_CREATE_ACCOUNT:
+        if (lastError[apiIndex] == API_OK)
+        {
+            sid = request->getSessionKey();
+        }
+        break;
 
     }
 }
@@ -221,6 +293,27 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
 
     if (lastError[apiIndex] == MegaError::API_OK)
         h = transfer->getNodeHandle();
+}
+
+
+void SdkTest::onAccountUpdate(MegaApi* api)
+{
+    unsigned int apiIndex;
+    if (api == megaApi[0])
+    {
+        apiIndex = 0;
+    }
+    else if (api == megaApi[1])
+    {
+        apiIndex = 1;
+    }
+    else
+    {
+        LOG_err << "Instance of MegaApi not recognized";
+        return;
+    }
+
+    accountUpdated[apiIndex] = true;
 }
 
 void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
@@ -309,6 +402,30 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     if (api == megaApi[0])
     {
         apiIndex = 0;
+
+        MegaTextChatList *list = NULL;
+        if (chats)
+        {
+            list = chats->copy();
+        }
+        else
+        {
+            list = megaApi[0]->getChatList();
+        }
+        for (int i = 0; i < list->size(); i++)
+        {
+            handle chatid = list->get(i)->getHandle();
+            if (this->chats.find(chatid) != this->chats.end())
+            {
+                delete this->chats[chatid];
+                this->chats[chatid] = list->get(i)->copy();
+            }
+            else
+            {
+                this->chats[chatid] = list->get(i)->copy();
+            }
+        }
+        delete list;
     }
     else if (api == megaApi[1])
     {
@@ -323,28 +440,14 @@ void SdkTest::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
     chatUpdated[apiIndex] = true;
 }
 
-void SdkTest::fetchChats(int timeout)
-{
-    requestFlags[0][MegaRequest::TYPE_CHAT_FETCH] = false;
-    megaApi[0]->fetchChats();
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_FETCH], timeout);
-
-    if (timeout)
-    {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_FETCH]) << "Fetching chats not finished after " << timeout  << " seconds";
-    }
-
-    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Fetching list of chats failed (error: " << lastError[0] << ")";
-}
-
 void SdkTest::createChat(bool group, MegaTextChatPeerList *peers, int timeout)
 {
     requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;
     megaApi[0]->createChat(group, peers);
-    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_FETCH], timeout);
+    waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_CREATE], timeout);
     if (timeout)
     {
-        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_FETCH]) << "Chat creation not finished after " << timeout  << " seconds";
+        ASSERT_TRUE(requestFlags[0][MegaRequest::TYPE_CHAT_CREATE]) << "Chat creation not finished after " << timeout  << " seconds";
     }
 
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Chat creation failed (error: " << lastError[0] << ")";
@@ -434,10 +537,11 @@ void SdkTest::purgeTree(MegaNode *p)
     }
 }
 
-bool SdkTest::waitForResponse(bool *responseReceived, int timeout)
+bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
 {
     timeout *= 1000000; // convert to micro-seconds
-    int tWaited = 0;    // microseconds
+    unsigned int tWaited = 0;    // microseconds
+    bool connRetried = false;
     while(!(*responseReceived))
     {
         usleep(pollingT);
@@ -448,6 +552,16 @@ bool SdkTest::waitForResponse(bool *responseReceived, int timeout)
             if (tWaited >= timeout)
             {
                 return false;   // timeout is expired
+            }
+            // if no response after 2 minutes...
+            else if (!connRetried && tWaited > (pollingT * 240))
+            {
+                megaApi[0]->retryPendingConnections(true);
+                if (megaApi[1] && megaApi[1]->isLoggedIn())
+                {
+                    megaApi[1]->retryPendingConnections(true);
+                }
+                connRetried = true;
             }
         }
     }
@@ -507,7 +621,7 @@ void SdkTest::getMegaApiAux()
         ASSERT_LT((size_t) 0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
 
         char path[1024];
-        getcwd(path, sizeof path);
+        assert(getcwd(path, sizeof path));
         megaApi[1] = new MegaApi(APP_KEY.c_str(), path, USER_AGENT.c_str());
 
         megaApi[1]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
@@ -681,7 +795,7 @@ void MegaLoggerSDK::log(const char *time, int loglevel, const char *source, cons
     sdklog << message << " (" << source << ")" << endl;
 
     bool errorLevel = ((loglevel == logError) && !testingInvalidArgs);
-    ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error.";
+    ASSERT_FALSE(errorLevel) << "Test aborted due to an SDK error: " << message << " (" << source << ")";
 }
 
 void SdkTest::setUserAttribute(int type, string value, int timeout)
@@ -702,24 +816,24 @@ void SdkTest::setUserAttribute(int type, string value, int timeout)
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "User attribute setup failed (error: " << lastError[0] << ")";
 }
 
-void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
+void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int accountIndex)
 {
-    requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER] = false;
+    requestFlags[accountIndex][MegaRequest::TYPE_GET_ATTR_USER] = false;
 
     if (type == MegaApi::USER_ATTR_AVATAR)
     {
-        megaApi[1]->getUserAvatar(u, AVATARDST.data());
+        megaApi[accountIndex]->getUserAvatar(u, AVATARDST.data());
     }
     else
     {
-        megaApi[1]->getUserAttribute(u, type);
+        megaApi[accountIndex]->getUserAttribute(u, type);
     }
 
-    ASSERT_TRUE( waitForResponse(&requestFlags[1][MegaRequest::TYPE_GET_ATTR_USER], timeout) )
+    ASSERT_TRUE( waitForResponse(&requestFlags[accountIndex][MegaRequest::TYPE_GET_ATTR_USER], timeout) )
             << "User attribute retrieval not finished after " << timeout  << " seconds";
 
-    bool result = (lastError[1] == MegaError::API_OK) || (lastError[1] == MegaError::API_ENOENT);
-    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError[1] << ")";
+    bool result = (lastError[accountIndex] == MegaError::API_OK) || (lastError[accountIndex] == MegaError::API_ENOENT);
+    ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << lastError[accountIndex] << ")";
 }
 
 ///////////////////////////__ Tests using SdkTest __//////////////////////////////////
@@ -728,17 +842,47 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout)
  * @brief TEST_F SdkTestCreateAccount
  *
  * It tests the creation of a new account for a random user.
+ *  - Create account and send confirmation link
+ *  - Logout and resume the create-account process
+ *  - Send the confirmation link to a different email address
+ *  - Wait for confirmation of account by a different client
  */
 TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
+    string email1 = "user@domain.com";
+    string pwd = "pwd";
+    string email2 = "other-user@domain.com";
+
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Create account___");
 
+    // Create an ephemeral session internally and send a confirmation link to email
     requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
-    megaApi[0]->createAccount("user@domain.com", "pwd", "MyFirstname", "MyLastname");
+    megaApi[0]->createAccount(email1.c_str(), pwd.c_str(), "MyFirstname", "MyLastname");
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
             << "Account creation has failed after " << maxTimeout << " seconds";
-
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    // Logout from ephemeral session and resume session
+    ASSERT_NO_FATAL_FAILURE( locallogout() );
+    requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT] = false;
+    megaApi[0]->resumeCreateAccount(sid.c_str());
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CREATE_ACCOUNT]) )
+            << "Account creation has failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Account creation failed (error: " << lastError[0] << ")";
+
+    // Send the confirmation link to a different email address
+    requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK] = false;
+    megaApi[0]->sendSignupLink(email2.c_str(), "MyFirstname", pwd.c_str());
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SEND_SIGNUP_LINK]) )
+            << "Send confirmation link to another email failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Send confirmation link to another email address failed (error: " << lastError[0] << ")";
+
+    // Now, confirm the account by using a different client...
+
+    // ...and wait for the AP notifying the confirmation
+    bool *flag = &accountUpdated[0]; *flag = false;
+    ASSERT_TRUE( waitForResponse(flag) )
+            << "Account confirmation not received after " << maxTimeout << " seconds";
 }
 
 /**
@@ -938,6 +1082,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session) );
+    ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
 
     delete session;
 }
@@ -1187,10 +1332,49 @@ TEST_F(SdkTest, SdkTestTransfers)
     ASSERT_FALSE(null_pointer) << "Cannot download node";
     ASSERT_EQ(n2->getHandle(), n3->getHandle()) << "Cannot download node (error: " << lastError[0] << ")";
 
+
+    // --- Upload a 0-bytes file ---
+
+    string filename3 = EMPTYFILE;
+    FILE *fp = fopen(filename3.c_str(), "w");
+    fclose(fp);
+
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename3.c_str(), rootnode);
+
+    ASSERT_TRUE( waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD], 600) )
+            << "Upload 0-byte file failed after " << 600 << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload file (error: " << lastError[0] << ")";
+
+    MegaNode *n4 = megaApi[0]->getNodeByHandle(h);
+    null_pointer = (n4 == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot upload file (error: " << lastError[0] << ")";
+    ASSERT_STREQ(filename3.data(), n4->getName()) << "Uploaded file with wrong name (error: " << lastError[0] << ")";
+
+
+    // --- Download a 0-byte file ---
+
+    filename3 = "./" + EMPTYFILE;
+    transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApi[0]->startDownload(n4, filename3.c_str());
+    ASSERT_TRUE( waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 600) )
+            << "Download 0-byte file failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the file (error: " << lastError[0] << ")";
+
+    MegaNode *n5 = megaApi[0]->getNodeByHandle(h);
+    null_pointer = (n5 == NULL);
+
+    ASSERT_FALSE(null_pointer) << "Cannot download node";
+    ASSERT_EQ(n4->getHandle(), n5->getHandle()) << "Cannot download node (error: " << lastError[0] << ")";
+
+
     delete rootnode;
     delete n1;
     delete n2;
     delete n3;
+    delete n4;
+    delete n5;
 }
 
 /**
@@ -1210,6 +1394,8 @@ TEST_F(SdkTest, SdkTestTransfers)
  *
  * - Modify firstname
  * = Check firstname of a contact
+ * = Set master key as exported
+ * = Get preferred language
  * - Load avatar
  * = Check avatar of a contact
  * - Delete avatar
@@ -1240,6 +1426,8 @@ TEST_F(SdkTest, SdkTestContacts)
 
     contactRequestUpdated[0] = contactRequestUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( inviteContact(email[1], message, MegaContactRequest::INVITE_ACTION_ADD) );
+    // if there were too many invitations within a short period of time, the invitation can be rejected by
+    // the API with `API_EOVERQUOTA = -17` as counter spamming meassure (+500 invites in the last 50 days)
 
 
     // --- Check the sent contact request ---
@@ -1265,7 +1453,11 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getContactRequest(1, false) );
 
-    ASSERT_STREQ(message.data(), cr[1]->getSourceMessage()) << "Message received is corrupted";
+    // There isn't message when a user invites the same user too many times, to avoid spamming
+    if (cr[1]->getSourceMessage())
+    {
+        ASSERT_STREQ(message.data(), cr[1]->getSourceMessage()) << "Message received is corrupted";
+    }
     ASSERT_STREQ(email[0].data(), cr[1]->getSourceEmail()) << "Wrong source email";
     ASSERT_STREQ(NULL, cr[1]->getTargetEmail()) << "Wrong target email";    // NULL according to MegaApi documentation
     ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, cr[1]->getStatus()) << "Wrong contact request status";
@@ -1390,6 +1582,37 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_EQ( firstname, attributeValue) << "Firstname is wrong";
 
     delete u;
+
+
+    // --- Set master key already as exported
+
+    u = megaApi[0]->getMyUser();
+
+    requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER] = false;
+    megaApi[0]->masterKeyExported();
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_SET_ATTR_USER]) );
+
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_PWD_REMINDER, maxTimeout, 0));
+    string pwdReminder = attributeValue;
+    int offset = pwdReminder.find(':');
+    offset += pwdReminder.find(':', offset+1);
+    ASSERT_EQ( pwdReminder.at(offset), '1' ) << "Password reminder attribute not updated";
+
+    delete u;
+
+
+    // --- Get language preference
+
+    u = megaApi[0]->getMyUser();
+
+    string langCode = "es";
+    ASSERT_NO_FATAL_FAILURE( setUserAttribute(MegaApi::USER_ATTR_LANGUAGE, langCode));
+    ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_LANGUAGE, maxTimeout, 0));
+    string language = attributeValue;
+    ASSERT_TRUE(!strcmp(langCode.c_str(), language.c_str())) << "Language code is wrong";
+
+    delete u;
+
 
     // --- Load avatar ---
 
@@ -1784,6 +2007,7 @@ TEST_F(SdkTest, SdkTestShares)
  * - Remove a peer from the chat
  * - Invite a contact to a chat
  * - Get the user-specific URL for the chat
+ * - Update permissions of an existing peer in a chat
  */
 TEST_F(SdkTest, SdkTestChat)
 {
@@ -1814,10 +2038,9 @@ TEST_F(SdkTest, SdkTestChat)
     delete cr[1];   cr[1] = NULL;
 
 
-    // --- Fetch list of available chats ---
+    // --- Check list of available chats --- (fetch is done at SetUp())
 
-    ASSERT_NO_FATAL_FAILURE( fetchChats() );
-    uint numChats = chats->size();      // permanent chats cannot be deleted, so they're kept forever
+    uint numChats = chats.size();      // permanent chats cannot be deleted, so they're kept forever
 
 
     // --- Create a group chat ---
@@ -1828,34 +2051,38 @@ TEST_F(SdkTest, SdkTestChat)
 
     h = megaApi[1]->getMyUser()->getHandle();
     peers = MegaTextChatPeerList::createInstance();//new MegaTextChatPeerListPrivate();
-    peers->addPeer(h, PRIV_RW);
+    peers->addPeer(h, PRIV_STANDARD);
     group = true;
 
     chatUpdated[1] = false;
+    requestFlags[0][MegaRequest::TYPE_CHAT_CREATE] = false;
     ASSERT_NO_FATAL_FAILURE( createChat(group, peers) );    
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_CREATE]) )
+            << "Cannot create a new chat";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Chat creation failed (error: " << lastError[0] << ")";
     ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "Chat update not received after " << maxTimeout << " seconds";
+
+    MegaHandle chatid = this->chatid;   // set at onRequestFinish() of chat creation request
 
     delete peers;
 
     // check the new chat information
-    ASSERT_NO_FATAL_FAILURE( fetchChats() );
-    ASSERT_EQ(chats->size(), ++numChats) << "Unexpected received number of chats";
+    ASSERT_EQ(chats.size(), ++numChats) << "Unexpected received number of chats";
     ASSERT_TRUE(chatUpdated[1]) << "The peer didn't receive notification of the chat creation";
 
 
     // --- Remove a peer from the chat ---
 
-    handle chatid = chats->get(numChats - 1)->getHandle();
-
-    chatUpdated[0] = false;
+    chatUpdated[1] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE] = false;
     megaApi[0]->removeFromChat(chatid, h);
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_REMOVE]) )
             << "Chat remove failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Removal of chat peer failed (error: " << lastError[0] << ")";
-
-    ASSERT_TRUE( waitForResponse(&chatUpdated[0]) )   // at the target side (auxiliar account)
+    int numpeers = chats[chatid]->getPeerList() ? chats[chatid]->getPeerList()->size() : 0;
+    ASSERT_EQ(numpeers, 0) << "Wrong number of peers in the list of peers";
+    ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "Didn't receive notification of the peer removal after " << maxTimeout << " seconds";
 
 
@@ -1863,10 +2090,12 @@ TEST_F(SdkTest, SdkTestChat)
 
     chatUpdated[1] = false;
     requestFlags[0][MegaRequest::TYPE_CHAT_INVITE] = false;
-    megaApi[0]->inviteToChat(chatid, h, PRIV_FULL);
+    megaApi[0]->inviteToChat(chatid, h, PRIV_STANDARD);
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_INVITE]) )
             << "Chat invitation failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Invitation of chat peer failed (error: " << lastError[0] << ")";
+    numpeers = chats[chatid]->getPeerList() ? chats[chatid]->getPeerList()->size() : 0;
+    ASSERT_EQ(numpeers, 1) << "Wrong number of peers in the list of peers";
     ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
             << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
 
@@ -1878,6 +2107,19 @@ TEST_F(SdkTest, SdkTestChat)
     ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_URL]) )
             << "Retrieval of chat URL failed after " << maxTimeout << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Retrieval of chat URL failed (error: " << lastError[0] << ")";
+
+
+    // --- Update Permissions of an existing peer in the chat
+
+    chatUpdated[1] = false;
+    requestFlags[0][MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS] = false;
+    megaApi[0]->updateChatPermissions(chatid, h, PRIV_RO);
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS]) )
+            << "Update chat permissions failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Update of chat permissions failed (error: " << lastError[0] << ")";
+    ASSERT_TRUE( waitForResponse(&chatUpdated[1]) )   // at the target side (auxiliar account)
+            << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
+
 }
 
 #endif

@@ -27,6 +27,7 @@ import unittest
 import logging
 import platform
 import unicodedata
+import time
 
 def get_unicode_str(size=10, max_char=0xFFFF, onlyNormalized=False, includeUnexisting=False):
     '''
@@ -53,7 +54,21 @@ def get_unicode_str(size=10, max_char=0xFFFF, onlyNormalized=False, includeUnexi
                     name = name + unicodedata.normalize('NFC',c) #only normalized chars
                 else:
                     name = name + c
+ #           except UnicodeDecodeError:
+ #               print "UnicodeDecodeError con",c,repr(c),c.encode('utf-8')
+ #               c.decode('utf-8')
+ #               try:
+ #                   unicodedata.name(c)
+ #               except:
+ #                   pass
+ #               pass
             except ValueError:
+ #               try:
+ #                   unicodedata.name(c)
+#                    print "that one was valid!",c,repr(c)
+ #                   pass
+ #               except:
+ #                   pass
                 pass
     return name
 
@@ -118,6 +133,8 @@ def generate_unicode_name(first_symbol, i):
 def normalizeandescape(name):
     name=escapefsincompatible(name)
     name=unicodedata.normalize('NFC',unicode(name))
+    #name=unicodedata.normalize('NFC',name)
+    #name=escapefsincompatible(name)
     return name
 
 def escapefsincompatible(name):
@@ -147,6 +164,7 @@ class SyncTestBase(unittest.TestCase):
         self.nr_files = 10
         self.nr_dirs = 10
         self.nr_time_changes = 10
+        self.nr_changes = 10
         self.local_obj_nr = 5
         self.force_syncing = False
 
@@ -161,6 +179,7 @@ class SyncTestBase(unittest.TestCase):
             return True
 
         for r in range(0, self.nr_retries):
+            self.app.attempt=r
             try:
                 res = not os.listdir(folder_name)
             except OSError, e:
@@ -171,12 +190,12 @@ class SyncTestBase(unittest.TestCase):
                 return True
 
             logging.debug("Directory %s is not empty! Retrying [%d/%d] .." % (folder_name, r + 1, self.nr_retries))
-
-            try:
-                shutil.rmtree(folder_name)
-            except OSError, e:
-                logging.error("Failed to delete folder: %s (%s)" % (folder_name, e))
-                return False
+            self.app.sync()
+            #~ try:
+                #~ shutil.rmtree(folder_name)
+            #~ except OSError, e:
+                #~ logging.error("Failed to delete folder: %s (%s)" % (folder_name, e))
+                #~ return False
 
     @staticmethod
     def md5_for_file(fname, block_size=2**20):
@@ -228,6 +247,11 @@ class SyncTestBase(unittest.TestCase):
             except IOError, e:
                 logging.error("Failed to create file: %s (%s)" % (ffname, e))
                 return False
+            except UnicodeEncodeError, e:
+                logging.debug("Discarded filename due to UnicodeEncodeError: %s" % (ffname))
+                i=i-1
+                continue
+                
             md5_str = self.md5_for_file(ffname)
             l_files.append({"name":fname, "size":fsize, "md5":md5_str, "name_orig":fname})
             logging.debug("File created: %s [%s, %db]" % (ffname, md5_str, fsize))
@@ -238,7 +262,7 @@ class SyncTestBase(unittest.TestCase):
         create files in "in" instance and check files presence in "out" instance
         Return list of files
         """
-        logging.debug("Creating files..")
+        logging.debug("Creating files.. (nrfiles="+str(self.nr_files)+")")
 
         l_files = []
 
@@ -293,6 +317,7 @@ class SyncTestBase(unittest.TestCase):
             logging.debug("Comparing %s and %s" % (ffname_in, ffname))
             # try to access the file
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     with open(ffname):
                         pass
@@ -300,7 +325,6 @@ class SyncTestBase(unittest.TestCase):
                     break
                 except IOError as ex:
                     # wait for a file
-                    logging.debug(" exception opening file: "+str(ex))
                     logging.debug("File %s not found! Retrying [%d/%d] .." % (ffname, r + 1, self.nr_retries))
                     logging.debug("%s" % (ffname.encode("unicode-escape")))
                     self.app.sync()
@@ -390,6 +414,7 @@ class SyncTestBase(unittest.TestCase):
 
             # try to access the dir
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     if os.path.isdir(dname):
                         success = True
@@ -419,8 +444,8 @@ class SyncTestBase(unittest.TestCase):
         renaming file
         return True if renamed
         """
-
         for r in range(0, self.nr_retries):
+            self.app.attempt=r
             if os.path.exists(ffname_src):
                 try:
                     shutil.move(ffname_src, ffname_dst)
@@ -468,6 +493,82 @@ class SyncTestBase(unittest.TestCase):
                 return False
 
         return True
+        
+    def files_moveanddelete(self, l_files, where=".", timeout=0, file_generate_name_func=generate_ascii_name):
+        """
+        moves and deletes objects in "in" instance and check new files in "out" instance
+        """
+        logging.debug("Move&Rename files..")
+        try:
+            os.makedirs(os.path.join(self.app.local_folder_in,where))
+        except Exception, e:
+            logging.debug("Unable to create subfolder: %s (%s)" % (where, e))
+
+        i = 0
+        for f in l_files:
+            ffname_src = os.path.join(self.app.local_folder_in, f["name"])
+            f["name"] = file_generate_name_func("renamed_", i)
+            i = i + 1
+            ffname_dst = os.path.join(self.app.local_folder_in, where, f["name"])
+
+            logging.debug("move&delete file: %s => %s" % (ffname_src, ffname_dst))
+
+            if os.path.exists(ffname_src):
+                try:
+                    shutil.move(ffname_src, ffname_dst)
+                except OSError, e:
+                    logging.error("Failed to rename file: %s (%s)" % (ffname_src, e))
+                    return False
+            try:
+                time.sleep(timeout)
+                os.remove(ffname_dst)
+            except OSError, e:
+                logging.error("Failed to delete file: %s (%s)" % (ffname_dst, e))
+                return False
+
+        if (where != "."):
+            shutil.rmtree(os.path.join(self.app.local_folder_in,where))
+        return True
+        
+    def files_mimic_update_with_backup(self, l_files, timeout=0, file_generate_name_func=generate_ascii_name):
+        """
+        moves and deletes objects in "in" instance and check new files in "out" instance
+        """
+        logging.debug("Mimic update with backup files..")
+
+        i = 0
+        for f in l_files:
+            ffname_src = os.path.join(self.app.local_folder_in, f["name"])
+            #f["name"] = file_generate_name_func("renamed_", i)
+            i = i + 1
+            ffname_dst = os.path.join(self.app.local_folder_in, "renamed_"+f["name"])
+            ffname_dst_out = os.path.join(self.app.local_folder_out, "renamed_"+f["name"])
+
+            logging.debug("Mimic update with backup file: %s => %s" % (ffname_src, ffname_dst))
+
+            if os.path.exists(ffname_src):
+                try:
+                    shutil.move(ffname_src, ffname_dst)
+                except OSError, e:
+                    logging.error("Failed to rename file: %s (%s)" % (ffname_src, e))
+                    return False
+            try:
+                time.sleep(timeout)
+                with open(ffname_dst, 'r') as f:
+                    with open(ffname_src, 'w') as f2:
+                        for r in range(100):
+                            f2.write("whatever")
+                            time.sleep(0.03)
+                            if os.path.exists(ffname_dst_out): #existing temporary file
+                                logging.error("ERROR in sync: Temporary file being created in syncout: : %s!" % (ffname_dst))
+                                os.remove(ffname_dst)
+                                return False;
+                os.remove(ffname_dst)
+            except OSError, e:
+                logging.error("Failed to delete file: %s (%s)" % (ffname_dst, e))
+                return False
+
+        return True
 
     def files_remove(self, l_files):
         """
@@ -481,6 +582,7 @@ class SyncTestBase(unittest.TestCase):
             logging.debug("Deleting: %s" % ffname)
 
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     os.remove(ffname)
                 except OSError, e:
@@ -501,7 +603,9 @@ class SyncTestBase(unittest.TestCase):
         success = False
         for f in l_files:
             ffname = os.path.join(self.app.local_folder_out, f["name"])
+            
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     # file must be deleted
                     with open(ffname):
@@ -575,6 +679,7 @@ class SyncTestBase(unittest.TestCase):
         for d in l_dirs:
             dname = os.path.join(self.app.local_folder_out, d["name"])
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     # dir must be deleted
                     if not os.path.isdir(dname):
@@ -713,6 +818,7 @@ class SyncTestBase(unittest.TestCase):
 
             # logging.debug("Trying to access dir: %s" % dname)
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     if os.path.isdir(dname):
                         success = True
@@ -737,6 +843,7 @@ class SyncTestBase(unittest.TestCase):
 
             # logging.debug("Trying to access file: %s" % fname)
             for r in range(0, self.nr_retries):
+                self.app.attempt=r
                 try:
                     with open(fname):
                         pass
@@ -762,7 +869,7 @@ class SyncTestBase(unittest.TestCase):
         return True if success
         """
 
-        for _ in range(0, 10):
+        for _ in range(0, self.nr_dirs):
             # Create a dir
             l_dir = []
             dname, ddname, l_files, l_dirs = self.local_tree_create_dir("")
@@ -774,8 +881,6 @@ class SyncTestBase(unittest.TestCase):
             # wait for a sync and compare
             if not self.local_tree_compare(l_dir):
                 return False
-
-            self.app.sync()
 
             # select random existing folder
             dir_dicts_l = [d for d in self.local_tree_get_dirs(l_tree)]
@@ -818,8 +923,6 @@ class SyncTestBase(unittest.TestCase):
             for d in l_dir[0]["dirs"]:
                 d["ffname"] = os.path.join(new_ffname, d["name"])
 
-            self.app.sync()
-
             # wait for a sync and compare
             if not self.local_tree_compare(l_tree):
                 return False
@@ -834,7 +937,7 @@ class SyncTestBase(unittest.TestCase):
         """
 
         # rename dirs
-        for _ in range(0, 10):
+        for _ in range(0, self.nr_changes):
             # select random existing folder
             dir_dicts_l = [d for d in self.local_tree_get_dirs(l_tree)]
             dd = random.choice(dir_dicts_l)
@@ -847,7 +950,7 @@ class SyncTestBase(unittest.TestCase):
             prev_name = orig_name
 
             # rename 10 times
-            for _ in range(0, 10):
+            for _ in range(0, self.nr_changes):
                 strlen = random.randint(10, 20)
                 dname = get_random_str(size=strlen)
                 ddname = os.path.join(dd["fname"], dname)
@@ -873,7 +976,7 @@ class SyncTestBase(unittest.TestCase):
                 return False
 
         # rename files
-        for _ in range(0, 10):
+        for _ in range(0, self.nr_changes):
             # select random existing folder
             dir_dicts_l = [d for d in self.local_tree_get_dirs(l_tree)]
             dd = random.choice(dir_dicts_l)
@@ -886,7 +989,7 @@ class SyncTestBase(unittest.TestCase):
             prev_name = orig_name
 
             # rename 10 times
-            for _ in range(0, 10):
+            for _ in range(0, self.nr_changes):
                 strlen = random.randint(10, 20)
                 dname = get_random_str(size=strlen)
                 ddname = os.path.join(dd["fname"], dname)
