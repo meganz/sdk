@@ -117,13 +117,54 @@ CONFIG(USE_MEDIAINFO) {
 
 CONFIG(USE_FFMPEG) {
     DEFINES += HAVE_FFMPEG
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
 
     unix:!macx {
-        INCLUDEPATH += /usr/include/ffmpeg
-    }
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
+            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+            FFMPEGLIBPATH = $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib
+        }
+        else:exists(/usr/include/ffmpeg-mega) {
 
-    LIBS += -lavcodec -lavformat -lavutil -lswscale
+            INCLUDEPATH += /usr/include/ffmpeg-mega
+            exists(/usr/lib64/libavcodec.a) {
+                FFMPEGLIBPATH = /usr/lib64
+            }
+            else:exists(/usr/lib32/libavcodec.a) {
+                FFMPEGLIBPATH = /usr/lib32
+            }
+            else {
+               FFMPEGLIBPATH = /usr/lib
+            }
+        }
+        else:packagesExist(ffmpeg) {
+            LIBS += -lavcodec -lavformat -lavutil -lswscale
+        }
+        else {
+            DEFINES -= HAVE_FFMPEG
+        }
+
+        FFMPEGSTATICLIBS = libavformat.a libavcodec.a libavutil.a libswscale.a
+
+        for(ffmpeglib, FFMPEGSTATICLIBS) {
+            exists($$FFMPEGLIBPATH/$$ffmpeglib) {
+                LIBS += $$FFMPEGLIBPATH/$$ffmpeglib
+            }
+        }
+
+        #particular distros requirements
+        exists(/usr/lib64/libbz2.so*)|exists(/usr/lib/libbz2.so*) {
+            LIBS += -lbz2 #required in fedora ffmpeg/arch compilation
+        }
+
+        exists(/usr/lib/liblzma.so*):exists(/etc/arch-release) {
+            LIBS += -llzma #required in arch ffmpeg compilation
+        }
+
+    }
+    else { #win/mac
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
+        LIBS += -lavcodec -lavformat -lavutil -lswscale
+    }
 }
 
 CONFIG(USE_WEBRTC) {
