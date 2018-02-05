@@ -660,6 +660,18 @@ const char *MegaNodePrivate::getCustomAttr(const char *attrName)
 
 int MegaNodePrivate::getDuration()
 {
+    if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+    {
+        uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+        MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+        if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                && mediaProperties.shortformat != 254 // 254 = No information available
+                && mediaProperties.playtime > 0)
+        {
+            return mediaProperties.playtime;
+        }
+    }
+
     return duration;
 }
 
