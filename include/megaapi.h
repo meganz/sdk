@@ -8454,7 +8454,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          */
-        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, std::string periodstring, int numBackups, MegaRequestListener *listener=NULL);
 
         /**
          * @brief Remove a backup
