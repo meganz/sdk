@@ -4716,18 +4716,20 @@ void DemoApp::whyamiblocked_result(int code)
     {
         cout << "You're not blocked" << endl;
     }
-    else
+    else    // code > 0
     {
-        string reason = "You have been suspended due to repeated copyright infringement.";
+        string reason = "Your account was terminated due to breach of Mega's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
 
-        if (code == 100)
+        if (code == 100)    // deprecated
         {
             reason = "You have been suspended due to excess data usage.";
         }
-        else if (code == 300)
+        else if (code == 200)
         {
-            reason = "You have been suspended due to Terms of Service violations.";
+            reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        //else if (code == 300) --> default reason
+
 
         cout << "Reason: " << reason << endl;
         cout << "Logging out..." << endl;
