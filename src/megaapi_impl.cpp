@@ -10649,8 +10649,6 @@ void MegaApiImpl::request_error(error e)
     if (e == API_EBLOCKED && client->sid.size())
     {
         whyAmIBlocked();
-        // logout on the corresponding callback
-        return;
     }
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
@@ -11427,12 +11425,10 @@ void MegaApiImpl::whyamiblocked_result(int code)
 
         request->setNumber(code);
         request->setText(reason.c_str());
-        fireOnRequestFinish(request, API_EBLOCKED);
+        fireOnRequestFinish(request, API_OK);
 
-        MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
-        request->setFlag(false);
-        requestQueue.push(request);
-        waiter->notify();
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_BLOCKED);
+        fireOnEvent(event);
     }
 }
 
@@ -20147,6 +20143,7 @@ MegaEventPrivate::MegaEventPrivate(int type)
 {
     this->type = type;
     this->text = NULL;
+    this->number = 0;
 }
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
@@ -20155,6 +20152,7 @@ MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
 
     this->type = event->getType();
     this->setText(event->getText());
+    this->setNumber(event->getNumber());
 }
 
 MegaEventPrivate::~MegaEventPrivate()
@@ -20177,6 +20175,11 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
+const int MegaEventPrivate::getNumber() const
+{
+    return number;
+}
+
 void MegaEventPrivate::setText(const char *text)
 {
     if(this->text)
@@ -20184,6 +20187,11 @@ void MegaEventPrivate::setText(const char *text)
         delete [] this->text;
     }
     this->text = MegaApi::strdup(text);
+}
+
+void MegaEventPrivate::setNumber(int number)
+{
+    this->number = number;
 }
 
 MegaHandleListPrivate::MegaHandleListPrivate()

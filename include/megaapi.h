@@ -2625,10 +2625,11 @@ class MegaEvent
 public:
 
     enum {
-        EVENT_COMMIT_DB = 0,
-        EVENT_ACCOUNT_CONFIRMATION = 1,
-        EVENT_CHANGE_TO_HTTPS = 2,
-        EVENT_DISCONNECT = 3
+        EVENT_COMMIT_DB                 = 0,
+        EVENT_ACCOUNT_CONFIRMATION      = 1,
+        EVENT_CHANGE_TO_HTTPS           = 2,
+        EVENT_DISCONNECT                = 3,
+        EVENT_ACCOUNT_BLOCKED           = 4
     };
 
     virtual ~MegaEvent();
@@ -2661,6 +2662,13 @@ public:
      * @return Text relative to this event
      */
     virtual const char *getText() const;
+
+    /**
+     * @brief Returns a number relative to this event
+     *
+     * @return Number relative to this event
+     */
+    virtual const int getNumber() const;
 };
 
 /**
@@ -4231,6 +4239,16 @@ class MegaGlobalListener
          * existing open-connections, since they have become unusable. It's recommended that the app
          * receiving this event reset its connections with other servers, since the disconnect
          * performed by the SDK is due to a network change or IP addresses becoming invalid.
+         *
+         *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
+         * infringiment of the Mega's terms of service repeatedly. This event is followed by an automatic
+         * logout.
+         *
+         *  Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: message to show to the user.
+         *      - MegaEvent::getNumber: code representing the reason for being blocked.
+         *          200: suspension message for any type of suspension, but copyright suspension.
+         *          300: suspension only for multiple copyright violations.
          *
          * You can check the type of event by calling MegaEvent::getType
          *

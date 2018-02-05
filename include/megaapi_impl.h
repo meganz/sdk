@@ -842,13 +842,15 @@ public:
 
     virtual int getType() const;
     virtual const char *getText() const;
+    virtual const int getNumber() const;
 
     void setText(const char* text);
+    void setNumber(int number);
 
 protected:
     int type;
     const char* text;
-
+    int number;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
