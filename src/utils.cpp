@@ -346,10 +346,17 @@ bool TextChat::setNodeUserAccess(handle h, handle uh, bool revoke)
     return false;
 }
 
-void TextChat::setFlags(byte newFlags)
+bool TextChat::setFlags(byte newFlags)
 {
+    if (flags == newFlags)
+    {
+        return false;
+    }
+
     flags = newFlags;
     changed.flags = true;
+
+    return true;
 }
 
 bool TextChat::isFlagSet(uint8_t offset) const
@@ -359,11 +366,13 @@ bool TextChat::isFlagSet(uint8_t offset) const
 
 bool TextChat::setFlag(bool value, uint8_t offset)
 {
-    if (((flags >> offset) & 1U) != value)
+    if (((flags >> offset) & 1U) == value)
     {
-        flags ^= (1U << offset);
-        changed.flags = true;
+        return false;
     }
+
+    flags ^= (1U << offset);
+    changed.flags = true;
 
     return true;
 }
