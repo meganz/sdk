@@ -267,10 +267,20 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 #endif
 
 %apply (char *STRING, size_t LENGTH) {(char *buffer, size_t size)};
+
+#if SWIG_VERSION < 0x030012
 %typemap(directorargout) (char *buffer, size_t size)
-%{ jenv->DeleteLocalRef($input); %}
+%{
+    jenv->DeleteLocalRef($input);
+%}
+#else
+%typemap(directorargout) (char *buffer, size_t size)
+%{
+   // not copying the buffer back to improve performance
+%}
 #endif
 
+#endif
 
 %feature("director") mega::MegaGlobalListener;
 %feature("director") mega::MegaListener;
