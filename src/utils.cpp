@@ -50,6 +50,7 @@ TextChat::TextChat()
     ou = UNDEF;
     resetTag();
     ts = 0;
+    dts = 0;
 
     memset(&changed, 0, sizeof(changed));
 }
@@ -96,7 +97,10 @@ bool TextChat::serialize(string *d)
 
     char hasAttachments = attachedNodes.size() != 0;
     d->append((char*)&hasAttachments, 1);
-    d->append("\0\0\0\0\0\0\0\0", 9); // additional bytes for backwards compatibility
+
+    char version = '1';
+    d->append((char*)&version, 1);
+    d->append("\0\0\0\0\0\0\0", 8); // additional bytes for backwards compatibility
 
     if (hasAttachments)
     {
@@ -116,6 +120,11 @@ bool TextChat::serialize(string *d)
         }
     }
 
+    if (version >= '1')
+    {
+        d->append((char*)&dts, sizeof(dts));
+    }
+
     return true;
 }
 
@@ -129,6 +138,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     string title;   // byte array
     handle ou;
     m_time_t ts;
+    m_time_t dts;
     char hasAttachments;
     attachments_map attachedNodes;
 
@@ -210,7 +220,10 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     hasAttachments = MemAccess::get<char>(ptr);
     ptr += sizeof hasAttachments;
 
-    for (int i = 9; i--;)
+    char version = MemAccess::get<char>(ptr);
+    ptr += sizeof version;
+
+    for (int i = 8; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -263,10 +276,22 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         }
     }
 
+    if (version >= '1')
+    {
+        if (ptr + sizeof dts > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        dts = MemAccess::get<m_time_t>(ptr);
+        ptr += sizeof(m_time_t);
+    }
+
     if (ptr < end)
     {
         delete userpriv;
-        return NULL;
+            return NULL;
     }
 
     if (client->chats.find(id) == client->chats.end())
@@ -287,6 +312,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ou = ou;
     chat->resetTag();
     chat->ts = ts;
+    chat->dts = dts;
     chat->attachedNodes = attachedNodes;
 
     memset(&chat->changed, 0, sizeof(chat->changed));

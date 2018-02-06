@@ -4527,6 +4527,11 @@ int64_t MegaTextChat::getCreationTime() const
     return 0;
 }
 
+int64_t MegaTextChat::getDeletionTime() const
+{
+    return 0;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 

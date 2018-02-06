@@ -448,7 +448,8 @@ struct TextChat : public Cachable
     bool group;
     string title;   // byte array
     handle ou;
-    m_time_t ts;     // creation time
+    m_time_t ts;    // creation time
+    m_time_t dts;   // deletion time
     attachments_map attachedNodes;
 
     int tag;    // source tag, to identify own changes

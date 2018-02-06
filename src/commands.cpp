@@ -4768,6 +4768,7 @@ void CommandChatCreate::procresult()
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
+                        chat->dts = 0;
 
                         chat->setTag(tag ? tag : -1);
                         client->notifychat(chat);
@@ -4930,6 +4931,12 @@ void CommandChatRemove::procresult()
             if (uh == client->me)
             {
                 chat->priv = PRIV_RM;
+            }
+
+            // if no more peers in chatroom, it gets "deleted" by API
+            if (chat->priv == PRIV_RM && !chat->userpriv)
+            {
+                chat->dts = time(NULL); // not the actual deletion ts from server, but roughly
             }
 
             chat->setTag(tag ? tag : -1);
