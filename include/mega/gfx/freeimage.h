@@ -39,7 +39,15 @@ public:
 	GfxProcFreeImage();
 
 protected:
+    string sformats;
     const char* supportedformats();
+
+#ifdef HAVE_FFMPEG
+    static MUTEX_CLASS gfxMutex;
+    const char* supportedformatsFfmpeg();
+    bool readbitmapFfmpeg(FileAccess*, string*, int);
+#endif
+
 };
 } // namespace
 
