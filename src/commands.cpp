@@ -3743,8 +3743,6 @@ CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
 
 void CommandWhyAmIblocked::procresult()
 {
-    client->restag = tag;
-
     if (client->json.isnumeric())
     {
         return client->app->whyamiblocked_result(client->json.getint());
@@ -3753,7 +3751,6 @@ void CommandWhyAmIblocked::procresult()
     client->json.storeobject();
 
     client->app->whyamiblocked_result(API_EINTERNAL);
-
 }
 
 CommandSendSignupLink::CommandSendSignupLink(MegaClient* client, const char* email, const char* name, byte* c)

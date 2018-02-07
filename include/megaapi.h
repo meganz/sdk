@@ -4241,7 +4241,7 @@ class MegaGlobalListener
          * performed by the SDK is due to a network change or IP addresses becoming invalid.
          *
          *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
-         * infringiment of the Mega's terms of service repeatedly. This event is followed by an automatic
+         * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
          * logout.
          *
          *  Valid data in the MegaEvent object received in the callback:
