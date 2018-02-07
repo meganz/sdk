@@ -11433,6 +11433,9 @@ void MegaApiImpl::whyamiblocked_result(int code)
         event->setText(reason.c_str());
         fireOnEvent(event);
 
+        client->removecaches();
+        client->locallogout();
+
         MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
         request->setFlag(false);
         requestQueue.push(request);
