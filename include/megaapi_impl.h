@@ -1484,7 +1484,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
-        void whyAmIBlocked(MegaRequestListener *listener = NULL);
+        void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
         char* getMyUserHandle();
         MegaHandle getMyUserHandleBinary();

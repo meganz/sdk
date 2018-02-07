@@ -3937,9 +3937,10 @@ int MegaApiImpl::isLoggedIn()
     return result;
 }
 
-void MegaApiImpl::whyAmIBlocked(MegaRequestListener *listener)
+void MegaApiImpl::whyAmIBlocked(bool logout, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);
+    request->setFlag(logout);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10648,7 +10649,7 @@ void MegaApiImpl::request_error(error e)
 {
     if (e == API_EBLOCKED && client->sid.size())
     {
-        whyAmIBlocked();
+        whyAmIBlocked(true);
         return;
     }
 
@@ -11405,6 +11406,17 @@ void MegaApiImpl::whyamiblocked_result(int code)
         return;
     }
 
+    if (request->getFlag())
+    {
+        client->removecaches();
+        client->locallogout();
+
+        MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+        logoutRequest->setFlag(false);
+        requestQueue.push(logoutRequest);
+        waiter->notify();
+    }
+
     if (code <= 0)
     {
         MegaError megaError(code);
@@ -11432,14 +11444,6 @@ void MegaApiImpl::whyamiblocked_result(int code)
         event->setNumber(code);
         event->setText(reason.c_str());
         fireOnEvent(event);
-
-        client->removecaches();
-        client->locallogout();
-
-        MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
-        request->setFlag(false);
-        requestQueue.push(request);
-        waiter->notify();
     }
 }
 

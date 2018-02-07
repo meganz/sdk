@@ -1310,7 +1310,7 @@ int MegaApi::isLoggedIn()
 
 void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
 {
-    return pImpl->whyAmIBlocked(listener);
+    return pImpl->whyAmIBlocked(false, listener);
 }
 
 char *MegaApi::getMyEmail()

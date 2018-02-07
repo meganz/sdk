@@ -5720,9 +5720,12 @@ class MegaApi
          * a MegaGlobalListener should process the result, show the reason and logout.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_EBLOCKED:
+         * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the reason string (in English)
-         * - MegaRequest::getNumber - Returns the reason code
+         * - MegaRequest::getNumber - Returns the reason code. Possible values:
+         *     0: The account is not blocked
+         *     200: suspension message for any type of suspension, but copyright suspension.
+         *     300: suspension only for multiple copyright violations.
          *
          * If the error code in the MegaRequest object received in onRequestFinish
          * is MegaError::API_OK, the user is not blocked.
