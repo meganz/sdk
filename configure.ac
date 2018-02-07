@@ -922,7 +922,11 @@ AC_ARG_WITH(ffmpeg,
         FFMPEG_CXXFLAGS="-I/usr/include/ffmpeg-mega"
         FFMPEG_CPPFLAGS="-I/usr/include/ffmpeg-mega"
 
-        AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS="-lavcodec -lavformat -lavutil -lswscale"],[
+        AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [LIBBZ2FFMPEG="-lbz2"],)
+        AC_CHECK_LIB(lzma, lzma_code, [LIBLZMAFFMPEG="-llzma"],)
+
+        AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS=["-lavformat -lavcodec -lavutil -lswscale $LIBBZ2FFMPEG $LIBLZMAFFMPEG"]]
+        ,[
                 AC_MSG_ERROR([Could not find ffmpeg])
         ])
     ,
@@ -954,7 +958,10 @@ AC_ARG_WITH(ffmpeg,
         FFMPEG_CXXFLAGS="-I/usr/include/ffmpeg-mega"
         FFMPEG_CPPFLAGS="-I/usr/include/ffmpeg-mega"
 
-        AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS="-lavcodec -lavformat -lavutil -lswscale"]
+        AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [LIBBZ2FFMPEG="-lbz2"],)
+        AC_CHECK_LIB(lzma, lzma_code, [LIBLZMAFFMPEG="-llzma"],)
+
+        AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS=["-lavformat -lavcodec -lavutil -lswscale $LIBBZ2FFMPEG $LIBLZMAFFMPEG"]]
         ffmpeg=true
         ,)
     ,
