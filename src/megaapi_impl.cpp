@@ -10649,6 +10649,7 @@ void MegaApiImpl::request_error(error e)
     if (e == API_EBLOCKED && client->sid.size())
     {
         whyAmIBlocked();
+        return;
     }
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
@@ -11428,7 +11429,14 @@ void MegaApiImpl::whyamiblocked_result(int code)
         fireOnRequestFinish(request, API_OK);
 
         MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_BLOCKED);
+        event->setNumber(code);
+        event->setText(reason.c_str());
         fireOnEvent(event);
+
+        MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+        request->setFlag(false);
+        requestQueue.push(request);
+        waiter->notify();
     }
 }
 
