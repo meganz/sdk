@@ -3807,6 +3807,11 @@ const char* MegaApi::getFileAttribute(MegaHandle h)
     return pImpl->getFileAttribute(h);
 }
 
+void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
+{
+    pImpl->archiveChat(chatid, archive, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)
@@ -4525,6 +4530,11 @@ int MegaTextChat::isOwnChange() const
 int64_t MegaTextChat::getCreationTime() const
 {
     return 0;
+}
+
+bool MegaTextChat::isArchived() const
+{
+    return false;
 }
 
 MegaTextChatList::~MegaTextChatList()

@@ -868,6 +868,18 @@ public:
     CommandRegisterPushNotification(MegaClient*, int, const char*);
 };
 
+class MEGA_API CommandArchiveChat : public Command
+{
+public:
+    void procresult();
+
+    CommandArchiveChat(MegaClient*, handle chatid, bool archive);
+
+protected:
+    handle mChatid;
+    bool mArchive;
+};
+
 #endif
 
 class MEGA_API CommandGetMegaAchievements : public Command
