@@ -94,7 +94,6 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
-//QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QString imagePath)
 bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int size)
 {
     // Open video file
@@ -238,10 +237,10 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
     }
 
-    char ext[7];
-    client->fsaccess->getextension(imagePath,ext,7);
+    char ext[8];
 
-    if (imagePath->compare(".mp3") && seek_target > 0
+    if (client->fsaccess->getextension(imagePath,ext,8)
+            && strcmp(ext,".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
@@ -393,18 +392,20 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
 
 #ifdef HAVE_FFMPEG
-    char ext[7];
-    client->fsaccess->getextension(localname,ext,7);
-
-    if (strstr(supportedformatsFfmpeg(), ext))
+    char ext[8];
+    if (client->fsaccess->getextension(localname, ext, sizeof ext))
     {
-        //isVideo = true; //TODO: store this?
-        if (!readbitmapFfmpeg(fa, localname, size) )
+        const char* ptr;
+        if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
         {
+
+            if (!readbitmapFfmpeg(fa, localname, size) )
+            {
 #ifdef _WIN32
-            localname->resize(localname->size()-1);
+                localname->resize(localname->size()-1);
 #endif
-            return false;
+                return false;
+            }
         }
     }
     else
