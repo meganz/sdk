@@ -142,3 +142,5 @@
 ../../src/thread/libuvthread.cpp
 ../../include/mega/thread/libuvthread.h
 ../../include/mega/version.h
+../../src/mediafileattribute.cpp
+../../include/mega/mediafileattribute.h

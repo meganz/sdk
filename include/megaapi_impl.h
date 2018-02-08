@@ -1080,6 +1080,7 @@ public:
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
     virtual int64_t getCreationTime() const;
+    virtual bool isArchived() const;
 
     virtual bool hasChanged(int changeType) const;
     virtual int getChanges() const;
@@ -1096,6 +1097,7 @@ private:
     string title;
     int changed;
     int tag;
+    bool archived;
     int64_t ts;
 };
 
@@ -1842,6 +1844,7 @@ class MegaApiImpl : public MegaApp
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
         const char* getFileAttribute(MegaHandle h);
+        void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
@@ -2111,6 +2114,7 @@ protected:
         virtual void chatsettitle_result(error);
         virtual void chatpresenceurl_result(string*, error);
         virtual void registerpushnotification_result(error);
+        virtual void archivechat_result(error);
 
         virtual void chats_updated(textchat_map *, int);
 #endif

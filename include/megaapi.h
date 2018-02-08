@@ -1602,6 +1602,12 @@ public:
      * @return Creation date of the chat
      */
     virtual int64_t getCreationTime() const;
+
+    /**
+     * @brief Returns whether this chat has been archived by the user or not
+     * @return True if this chat is archived.
+     */
+    virtual bool isArchived() const;
 };
 
 /**
@@ -2021,7 +2027,7 @@ class MegaRequest
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
-            TYPE_RESTORE, TYPE_REMOVE_VERSIONS,
+            TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -10527,6 +10533,21 @@ class MegaApi
          * @return char array with files attributes from the node.
          */
         const char* getFileAttribute(MegaHandle h);
+
+        /**
+         * @brief Archive a chat
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_ARCHIVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getFlag - Returns chat desired state
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param archive Desired chat state
+         * @param listener MegaRequestListener to track this request
+         */
+        void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+
 #endif
 
         /**

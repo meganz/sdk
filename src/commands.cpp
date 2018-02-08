@@ -5298,6 +5298,54 @@ void CommandRegisterPushNotification::procresult()
         client->app->registerpushnotification_result(API_EINTERNAL);
     }
 }
+
+CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
+{
+    this->mChatid = chatid;
+    this->mArchive = archive;
+
+    cmd("mcsf");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("m", 1);
+    arg("f", archive);
+
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandArchiveChat::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            textchat_map::iterator it = client->chats.find(mChatid);
+            if (it == client->chats.end())
+            {
+                LOG_err << "Archive chat succeeded for a non-existing chatroom";
+                client->app->archivechat_result(API_ENOENT);
+                return;
+            }
+
+            TextChat *chat = it->second;
+            chat->setFlag(mArchive, TextChat::FLAG_OFFSET_ARCHIVE);
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->archivechat_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->archivechat_result(API_EINTERNAL);
+    }
+}
+
 #endif
 
 CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)
