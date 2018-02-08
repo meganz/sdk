@@ -541,6 +541,8 @@ public:
 
     // register a token device to route push notifications
     void registerPushNotification(int deviceType, const char *token = NULL);
+
+    void archiveChat(handle chatid, bool archived);
 #endif
 
     // get mega achievements
@@ -714,6 +716,7 @@ private:
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
     void sc_chatnode();
+    void sc_chatflags();
 #endif
     void sc_uac();
 

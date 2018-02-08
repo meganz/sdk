@@ -698,6 +698,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << "\tGroup chat: no" << endl;
     }
+    if (chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE))
+    {
+        cout << "\tArchived chat: yes" << endl;
+    }
+    else
+    {
+        cout << "\tArchived chat: no" << endl;
+    }
     cout << "\tPeers:";
 
     if (chat->userpriv)
@@ -2063,7 +2071,7 @@ static void process_line(char* l)
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
-                cout << "      chatc group [email ro|sta|mod]*" << endl;
+                cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
                 cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
@@ -2072,6 +2080,7 @@ static void process_line(char* l)
                 cout << "      chatga chatid nodehandle uid" << endl;
                 cout << "      chatra chatid nodehandle uid" << endl;
                 cout << "      chatst chatid title64" << endl;
+                cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
 #endif
                 cout << "      quit" << endl;
 
@@ -3681,6 +3690,29 @@ static void process_line(char* l)
                         {
                             cout << "Invalid syntax to get chatd URL" << endl;
                             cout << "      chatu chatid" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chata")
+                    {
+                        if (words.size() == 3)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            bool archive = (words[2] == "1");
+                            if (!archive && (words[2] != "0"))
+                            {
+                                cout << "Use 1 or 0 to archive/unarchive chats" << endl;
+                                return;
+                            }
+
+                            client->archiveChat(chatid, archive);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to archive chat" << endl;
+                            cout << "      chata chatid archive" << endl;
                             return;
                         }
                     }

@@ -2918,6 +2918,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
         case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
+        case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
         case TYPE_WHY_AM_I_BLOCKED: return "WHY_AM_I_BLOCKED";
     }
     return "UNKNOWN";
@@ -7356,6 +7357,16 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
 
     return fileAttributes;
 }
+
+void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_ARCHIVE, listener);
+    request->setNodeHandle(chatid);
+    request->setFlag(archive);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 #endif
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
@@ -9487,6 +9498,21 @@ void MegaApiImpl::registerpushnotification_result(error e)
     if(it == requestMap.end()       ||
             !(request = it->second) ||
             request->getType() != MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::archivechat_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)
     {
         return;
     }
@@ -16381,6 +16407,19 @@ void MegaApiImpl::sendPendingRequests()
             client->registerPushNotification(deviceType, token);
             break;
         }
+        case MegaRequest::TYPE_CHAT_ARCHIVE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            bool archive = request->getFlag();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->archiveChat(chatid, archive);
+            break;
+        }
         case MegaRequest::TYPE_CHAT_STATS:
         {
             const char *json = request->getName();
@@ -19860,6 +19899,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->ou = chat->getOriginatingUser();
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
+    this->archived = chat->isArchived();
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
 }
@@ -19875,6 +19915,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->title = chat->title;
     this->tag = chat->tag;
     this->ts = chat->ts;
+    this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
     this->changed = 0;
     if (chat->changed.attachments)
     {
@@ -19944,6 +19985,11 @@ int MegaTextChatPrivate::isOwnChange() const
 int64_t MegaTextChatPrivate::getCreationTime() const
 {
     return ts;
+}
+
+bool MegaTextChatPrivate::isArchived() const
+{
+    return archived;
 }
 
 bool MegaTextChatPrivate::hasChanged(int changeType) const
