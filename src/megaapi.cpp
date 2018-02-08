@@ -3807,7 +3807,7 @@ const char* MegaApi::getFileAttribute(MegaHandle h)
     return pImpl->getFileAttribute(h);
 }
 
-void MegaApi::archiveChat(mega::MegaHandle chatid, int archive, mega::MegaRequestListener *listener)
+void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
 {
     pImpl->archiveChat(chatid, archive, listener);
 }
