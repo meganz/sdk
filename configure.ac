@@ -930,10 +930,7 @@ AC_ARG_WITH(ffmpeg,
                 AC_MSG_ERROR([Could not find ffmpeg])
         ])
     ,
-        AC_CHECK_HEADERS([libavutil/macros.h],, [
-            AC_MSG_ERROR([libavutil/macros.h (ffmpeg) header not found or not usable])
-        ])
-
+        AC_CHECK_HEADERS([libavutil/macros.h],, [AC_MSG_ERROR([libavutil/macros.h (ffmpeg) header not found or not usable])]) #CONFLICTIVEOLDAUTOTOOLS
         AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS="-lavcodec -lavformat -lavutil -lswscale"],[
                 AC_MSG_ERROR([Could not find ffmpeg])
         ])
@@ -965,11 +962,8 @@ AC_ARG_WITH(ffmpeg,
         ffmpeg=true
         ,)
     ,
-        AC_CHECK_HEADERS([libavutil/macros.h],
-            AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS="-lavcodec -lavformat -lavutil -lswscale"]
-            ffmpeg=true
-            ,)
-        ,)
+        AC_CHECK_HEADERS([libavutil/macros.h],AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS="-lavcodec -lavformat -lavutil -lswscale"]  #CONFLICTIVEOLDAUTOTOOLS
+        ffmpeg=true,),)  #CONFLICTIVEOLDAUTOTOOLS
     )
 
   ]
