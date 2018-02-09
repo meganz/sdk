@@ -3267,7 +3267,7 @@ void MegaClient::dnsrequest(const char *hostname)
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = string("http://") + hostname;
+    req->posturl = (usehttps ? string("https://") : string("http://")) + hostname;
     req->dns(this);
 }
 
