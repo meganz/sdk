@@ -1678,19 +1678,20 @@ public class MegaApiJava {
     }
 
     /**
-     * Remove a node from the MEGA account.
-     * <p>
-     * This function does not move the node to the Rubbish Bin, it fully removes the node. To move
-     * the node to the Rubbish Bin use MegaApiJava.moveNode().
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_REMOVE
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getNodeHandle() - Returns the handle of the node to remove.
-     * 
-     * @param node
-     *            Node to remove.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Remove a node from the MEGA account
+     *
+     * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+     * the node to the Rubbish Bin use MegaApi::moveNode
+     *
+     * If the node has previous versions, they will be deleted too
+     *
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
+     * - MegaRequest::getFlag - Returns false because previous versions won't be preserved
+     *
+     * @param node Node to remove
+     * @param listener MegaRequestListener to track this request
      */
     public void remove(MegaNode node, MegaRequestListenerInterface listener) {
         megaApi.remove(node, createDelegateRequestListener(listener));
@@ -1705,7 +1706,60 @@ public class MegaApiJava {
     public void remove(MegaNode node) {
         megaApi.remove(node);
     }
-    
+
+    /**
+     * Remove all versions from the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE_VERSIONS
+     *
+     * When the request finishes, file versions might not be deleted yet.
+     * Deletions are notified using onNodesUpdate callbacks.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void removeVersions(MegaRequestListenerInterface listener){
+        megaApi.removeVersions(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Remove a version of a file from the MEGA account
+     *
+     * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+     * the node to the Rubbish Bin use MegaApi::moveNode.
+     *
+     * If the node has previous versions, they won't be deleted.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_REMOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
+     * - MegaRequest::getFlag - Returns true because previous versions will be preserved
+     *
+     * @param node Node to remove
+     * @param listener MegaRequestListener to track this request
+     */
+    public void removeVersion(MegaNode node, MegaRequestListenerInterface listener){
+        megaApi.removeVersion(node, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Restore a previous version of a file
+     *
+     * Only versions of a file can be restored, not the current version (because it's already current).
+     * The node will be copied and set as current. All the version history will be preserved without changes,
+     * being the old current node the previous version of the new current node, and keeping the restored
+     * node also in its previous place in the version history.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RESTORE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node to restore
+     *
+     * @param version Node with the version to restore
+     * @param listener MegaRequestListener to track this request
+     */
+    public void restoreVersion(MegaNode version, MegaRequestListenerInterface listener){
+        megaApi.restoreVersion(version, createDelegateRequestListener(listener));
+    }
+
     /**
      * Clean the Rubbish Bin in the MEGA account
      *
@@ -4518,6 +4572,33 @@ public class MegaApiJava {
     }
 
     /**
+     * Get all versions of a file
+     * @param node Node to check
+     * @return List with all versions of the node, including the current version
+     */
+    public ArrayList<MegaNode> getVersions(MegaNode node){
+        return nodeListToArray(megaApi.getVersions(node));
+    }
+
+    /**
+     * Get the number of versions of a file
+     * @param node Node to check
+     * @return Number of versions of the node, including the current version
+     */
+    public int getNumVersions(MegaNode node){
+        return megaApi.getNumVersions(node);
+    }
+
+    /**
+     * Check if a file has previous versions
+     * @param node Node to check
+     * @return true if the node has any previous version
+     */
+    public boolean hasVersions(MegaNode node){
+        return megaApi.hasVersions(node);
+    }
+
+    /**
      * Get file and folder children of a MegaNode separatedly
      *
      * If the parent node doesn't exist or it isn't a folder, this function
@@ -5394,6 +5475,76 @@ public class MegaApiJava {
      */
     public boolean setLanguage(String languageCode){
         return megaApi.setLanguage(languageCode);
+    }
+
+    /**
+     * Set the preferred language of the user
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish:
+     * - MegaRequest::getText - Return the language code
+     *
+     * If the language code is unknown for the SDK, the error code will be MegaError::API_ENOENT
+     *
+     * This attribute is automatically created by the server. Apps only need
+     * to set the new value when the user changes the language.
+     *
+     * @param Language code to be set
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setLanguagePreference(String languageCode, MegaRequestListenerInterface listener){
+        megaApi.setLanguagePreference(languageCode, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the preferred language of the user
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Return the language code
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getLanguagePreference(MegaRequestListenerInterface listener){
+        megaApi.getLanguagePreference(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Enable or disable file versioning
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_DISABLE_VERSIONS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish:
+     * - MegaRequest::getText - "1" for disable, "0" for enable
+     *
+     * @param disable True to disable file versioning. False to enable it
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setFileVersionsOption(boolean disable, MegaRequestListenerInterface listener){
+        megaApi.setFileVersionsOption(disable, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if file versioning is enabled or disabled
+     *
+     * If the option has never been set, the error code will be MegaError::API_ENOENT.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_DISABLE_VERSIONS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - "1" for disable, "0" for enable
+     * - MegaRequest::getFlag - True if disabled, false if enabled
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getFileVersionsOption(MegaRequestListenerInterface listener){
+        megaApi.getFileVersionsOption(createDelegateRequestListener(listener));
     }
     
     /**
