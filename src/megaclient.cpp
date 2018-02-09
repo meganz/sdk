@@ -3271,14 +3271,14 @@ void MegaClient::dnsrequest(const char *hostname)
     req->dns(this);
 }
 
-void MegaClient::gelbrequest(const char *service, int timeoutms, int retries)
+void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
 {
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;
     req->maxretries = retries;
-    if (timeoutms > 0)
+    if (timeoutds > 0)
     {
-        req->maxbt.backoff(timeoutms);
+        req->maxbt.backoff(timeoutds);
     }
     pendinghttp[reqtag] = req;
     req->posturl = GELBURL;
