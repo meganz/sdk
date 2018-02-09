@@ -9562,6 +9562,7 @@ class MegaApi
          *
          * @param service Service to check
          * @param timeoutms Timeout for the request, including all possible retries
+         * A value <= 0 means no (or infinite) timeout.
          * @param maxretries Maximum number of retries for the request
          * @param listener MegaRequestListener to track this request
          */

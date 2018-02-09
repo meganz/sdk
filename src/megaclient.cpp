@@ -3276,7 +3276,10 @@ void MegaClient::gelbrequest(const char *service, int timeoutms, int retries)
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;
     req->maxretries = retries;
-    req->maxbt.backoff(timeoutms);
+    if (timeoutms > 0)
+    {
+        req->maxbt.backoff(timeoutms);
+    }
     pendinghttp[reqtag] = req;
     req->posturl = GELBURL;
     req->posturl.append("?service=");
