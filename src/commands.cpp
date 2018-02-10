@@ -4622,6 +4622,7 @@ CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
 {
     this->client = client;
     cmd("lc");
+    arg("v", 1);
 
     tag = client->reqtag;
 }
