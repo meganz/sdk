@@ -1515,11 +1515,17 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)renameNode:(MEGANode *)node newName:(NSString *)newName;
 
 /**
- * @brief Remove a node in the MEGA account.
+ * @brief Remove a node from the MEGA account.
+ *
+ * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+ * the node to the Rubbish Bin use [MEGASdk moveNode:newParent:delegate:].
+ *
+ * If the node has previous versions, they will be deleted too.
  *
  * The associated request type with this request is MEGARequestTypeRemove.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
+ * - [MEGARequest flag] - Returns NO because previous versions won't be preserved
  *
  * @param node Node to remove.
  * @param delegate Delegate to track this request.
@@ -1527,15 +1533,112 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)removeNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Remove a node in the MEGA account.
+ * @brief Remove a node from the MEGA account.
+ *
+ * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+ * the node to the Rubbish Bin use [MEGASdk moveNode:newParent:delegate:].
+ *
+ * If the node has previous versions, they will be deleted too.
  *
  * The associated request type with this request is MEGARequestTypeRemove.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
+ * - [MEGARequest flag] - Returns NO because previous versions won't be preserved
  *
  * @param node Node to remove.
  */
 - (void)removeNode:(MEGANode *)node;
+
+/**
+ * @brief Remove all versions from the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRemoveVersions
+ *
+ * When the request finishes, file versions might not be deleted yet.
+ * Deletions are notified using onNodesUpdate callbacks.
+ *
+ * @param MEGARequestDelegate Delegate to track this request
+ */
+- (void)removeVersionsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove all versions from the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRemoveVersions
+ *
+ * When the request finishes, file versions might not be deleted yet.
+ * Deletions are notified using onNodesUpdate callbacks.
+ *
+ */
+- (void)removeVersions;
+
+/**
+ * @brief Remove a version of a file from the MEGA account
+ *
+ * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+ * the node to the Rubbish Bin use [MEGASdk moveNode:newParent:delegate:].
+ *
+ * If the node has previous versions, they won't be deleted.
+ *
+ * The associated request type with this request is MEGARequestTypeRemove
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to remove
+ * - [MEGARequest flag] - Returns YES because previous versions will be preserved
+ *
+ * @param node Node to remove
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)removeVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove a version of a file from the MEGA account
+ *
+ * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+ * the node to the Rubbish Bin use [MEGASdk moveNode:newParent:delegate:].
+ *
+ * If the node has previous versions, they won't be deleted.
+ *
+ * The associated request type with this request is MEGARequestTypeRemove
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to remove
+ * - [MEGARequest flag] - Returns YES because previous versions will be preserved
+ *
+ * @param node Node to remove
+ */
+- (void)removeVersionNode:(MEGANode *)node;
+
+/**
+ * @brief Restore a previous version of a file
+ *
+ * Only versions of a file can be restored, not the current version (because it's already current).
+ * The node will be copied and set as current. All the version history will be preserved without changes,
+ * being the old current node the previous version of the new current node, and keeping the restored
+ * node also in its previous place in the version history.
+ *
+ * The associated request type with this request is MEGARequestTypeRestore
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to restore
+ *
+ * @param node Node with the version to restore
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)restoreVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Restore a previous version of a file
+ *
+ * Only versions of a file can be restored, not the current version (because it's already current).
+ * The node will be copied and set as current. All the version history will be preserved without changes,
+ * being the old current node the previous version of the new current node, and keeping the restored
+ * node also in its previous place in the version history.
+ *
+ * The associated request type with this request is MEGARequestTypeRestore
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to restore
+ *
+ * @param node Node with the version to restore
+ */
+- (void)restoreVersionNode:(MEGANode *)node;
 
 /**
  * @brief Clean the Rubbish Bin in the MEGA account
@@ -3530,6 +3633,27 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @return The MEGANode that has the selected parent and name.
  */
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
+
+/**
+ * @brief Get all versions of a file
+ * @param node Node to check
+ * @return List with all versions of the node, including the current version
+ */
+- (MEGANodeList *)versionsForNode:(MEGANode *)node;
+
+/**
+ * @brief Get the number of versions of a file
+ * @param node Node to check
+ * @return Number of versions of the node, including the current version
+ */
+- (NSInteger)numberOfVersionsForNode:(MEGANode *)node;
+
+/**
+ * @brief Check if a file has previous versions
+ * @param node Node to check
+ * @return YES if the node has any previous version
+ */
+- (BOOL)hasVersionsForNode:(MEGANode *)node;
 
 /**
  * @brief Get file and folder children of a MEGANode separatedly

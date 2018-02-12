@@ -664,6 +664,30 @@ using namespace mega;
     self.megaApi->remove((node != nil) ? [node getCPtr] : NULL);
 }
 
+- (void)removeVersionsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->removeVersions([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)removeVersions {
+    self.megaApi->removeVersions();
+}
+
+- (void)removeVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->removeVersion(node ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)removeVersionNode:(MEGANode *)node {
+    self.megaApi->removeVersion(node ? [node getCPtr] : NULL);
+}
+
+- (void)restoreVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->restoreVersion(node ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)restoreVersionNode:(MEGANode *)node {
+    self.megaApi->restoreVersion(node ? [node getCPtr] : NULL);
+}
+
 - (void)cleanRubbishBinWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->cleanRubbishBin([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1155,6 +1179,18 @@ using namespace mega;
 
 - (MEGANodeList *)childrenForParent:(MEGANode *)parent {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getChildren((parent != nil) ? [parent getCPtr] : NULL) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)versionsForNode:(MEGANode *)node {
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getVersions(node ? [node getCPtr] : NULL) cMemoryOwn:YES];
+}
+
+- (NSInteger)numberOfVersionsForNode:(MEGANode *)node {
+    return self.megaApi->getNumVersions(node ? [node getCPtr] : NULL);
+}
+
+- (BOOL)hasVersionsForNode:(MEGANode *)node {
+    return self.megaApi->hasVersions(node ? [node getCPtr] : NULL);
 }
 
 - (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
