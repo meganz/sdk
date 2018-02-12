@@ -5332,12 +5332,14 @@ void MegaClient::sc_chatnode()
             case EOO:
                 if (chatid != UNDEF && h != UNDEF && uh != UNDEF && (r || g))
                 {
-                    if (chats.find(chatid) == chats.end())
+                    textchat_map::iterator it = chats.find(chatid);
+                    if (it == chats.end())
                     {
-                        chats[chatid] = new TextChat();
+                        LOG_err << "Unknown chat for user/node access to attachment";
+                        return;
                     }
 
-                    TextChat *chat = chats[chatid];
+                    TextChat *chat = it->second;
                     if (r)  // access revoked
                     {
                         if(!chat->setNodeUserAccess(h, uh, true))
@@ -5370,12 +5372,12 @@ void MegaClient::sc_chatnode()
 
 void MegaClient::sc_chatflags()
 {
-    handle chatid = UNDEF;
-    byte flags = 0;
-
     bool done = false;
     while(!done)
     {
+        handle chatid = UNDEF;
+        byte flags = 0;
+
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i','d'):
@@ -8512,12 +8514,15 @@ void MegaClient::procmcna(JSON *j)
                 case EOO:
                     if (chatid != UNDEF && h != UNDEF && uh != UNDEF)
                     {
-                        if (chats.find(chatid) == chats.end())
+                        textchat_map::iterator it = chats.find(chatid);
+                        if (it == chats.end())
                         {
-                            chats[chatid] = new TextChat();
+                            LOG_err << "Unknown chat for user/node access to attachment";
                         }
-
-                        chats[chatid]->setNodeUserAccess(h, uh);
+                        else
+                        {
+                            it->second->setNodeUserAccess(h, uh);
+                        }
                     }
                     else
                     {
