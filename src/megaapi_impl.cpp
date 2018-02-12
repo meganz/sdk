@@ -7967,11 +7967,11 @@ void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+void MegaApiImpl::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GELB, listener);
     request->setName(service);
-    request->setNumber(timeoutms);
+    request->setNumber(timeoutds);
     request->setNumRetry(maxretries);
     requestQueue.push(request);
     waiter->notify();
@@ -16145,7 +16145,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_QUERY_GELB:
         {
             const char *service = request->getName();
-            int timeoutms = request->getNumber();
+            int timeoutds = request->getNumber();
             int maxretries = request->getNumRetry();
             if (!service)
             {
@@ -16153,7 +16153,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->gelbrequest(service, timeoutms, maxretries);
+            client->gelbrequest(service, timeoutds, maxretries);
             break;
         }
         case MegaRequest::TYPE_DOWNLOAD_FILE:

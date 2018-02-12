@@ -9561,11 +9561,12 @@ class MegaApi
          * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
          *
          * @param service Service to check
-         * @param timeoutms Timeout for the request, including all possible retries
+         * @param timeoutds Timeout for the request, including all possible retries (in deciseconds)
+         * A value <= 0 means no (or infinite) timeout.
          * @param maxretries Maximum number of retries for the request
          * @param listener MegaRequestListener to track this request
          */
-        void queryGeLB(const char *service, int timeoutms = 4000, int maxretries = 4, MegaRequestListener *listener = NULL);
+        void queryGeLB(const char *service, int timeoutds = 40, int maxretries = 4, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Download a file using a HTTP GET request
