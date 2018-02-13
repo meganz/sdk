@@ -9123,6 +9123,11 @@ sessiontype_t MegaClient::loggedin()
     return FULLACCOUNT;
 }
 
+void MegaClient::whyamiblocked()
+{
+    reqs.add(new CommandWhyAmIblocked(this));
+}
+
 error MegaClient::changepw(const byte* oldpwkey, const byte* newpwkey)
 {
     User* u;

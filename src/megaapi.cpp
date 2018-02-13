@@ -1308,6 +1308,11 @@ int MegaApi::isLoggedIn()
     return pImpl->isLoggedIn();
 }
 
+void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
+{
+    return pImpl->whyAmIBlocked(false, listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
@@ -4649,6 +4654,11 @@ int MegaEvent::getType() const
 const char *MegaEvent::getText() const
 {
     return NULL;
+}
+
+const int MegaEvent::getNumber() const
+{
+    return 0;
 }
 
 MegaHandleList *MegaHandleList::createInstance()
