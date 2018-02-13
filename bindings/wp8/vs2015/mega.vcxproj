@@ -92,6 +92,7 @@
     <ClInclude Include="..\MContactRequestList.h" />
     <ClInclude Include="..\MegaSDK.h" />
     <ClInclude Include="..\MError.h" />
+    <ClInclude Include="..\MEvent.h" />
     <ClInclude Include="..\MGfxProcessorInterface.h" />
     <ClInclude Include="..\MGlobalListenerInterface.h" />
     <ClInclude Include="..\MInputStream.h" />
@@ -179,6 +180,7 @@
     <ClCompile Include="..\MContactRequestList.cpp" />
     <ClCompile Include="..\MegaSDK.cpp" />
     <ClCompile Include="..\MError.cpp" />
+    <ClCompile Include="..\MEvent.cpp" />
     <ClCompile Include="..\MInputStreamAdapter.cpp" />
     <ClCompile Include="..\MNode.cpp" />
     <ClCompile Include="..\MNodeList.cpp" />
