@@ -47,6 +47,7 @@
     <ClInclude Include="..\..\..\include\mega\http.h" />
     <ClInclude Include="..\..\..\include\mega\json.h" />
     <ClInclude Include="..\..\..\include\mega\logging.h" />
+    <ClInclude Include="..\..\..\include\mega\mediafileattribute.h" />
     <ClInclude Include="..\..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\..\include\mega\mega_http_parser.h" />
@@ -134,6 +135,7 @@
     <ClCompile Include="..\..\..\src\http.cpp" />
     <ClCompile Include="..\..\..\src\json.cpp" />
     <ClCompile Include="..\..\..\src\logging.cpp" />
+    <ClCompile Include="..\..\..\src\mediafileattribute.cpp" />
     <ClCompile Include="..\..\..\src\megaapi.cpp" />
     <ClCompile Include="..\..\..\src\megaapi_impl.cpp" />
     <ClCompile Include="..\..\..\src\megaclient.cpp" />

@@ -277,6 +277,9 @@
     <ClInclude Include="..\MAchievementsDetails.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\mediafileattribute.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\DelegateMGfxProcessor.cpp">
@@ -503,6 +506,9 @@
     </ClCompile>
     <ClCompile Include="..\MAchievementsDetails.cpp">
       <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\mediafileattribute.cpp">
+      <Filter>SDK\Source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
