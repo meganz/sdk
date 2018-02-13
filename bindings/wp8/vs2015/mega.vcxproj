@@ -51,6 +51,7 @@
     <ClInclude Include="..\..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\..\include\mega\mega_http_parser.h" />
     <ClInclude Include="..\..\..\include\mega\mega_utf8proc.h" />
+    <ClInclude Include="..\..\..\include\mega\mega_evt_tls.h" />
     <ClInclude Include="..\..\..\include\mega\node.h" />
     <ClInclude Include="..\..\..\include\mega\pendingcontactrequest.h" />
     <ClInclude Include="..\..\..\include\mega\proxy.h" />
@@ -139,6 +140,7 @@
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\..\src\mega_evt_tls.cpp" />
     <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp" />

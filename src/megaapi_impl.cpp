@@ -6857,7 +6857,7 @@ bool MegaApiImpl::isOnline()
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApiImpl::httpServerStart(bool localOnly, int port)
+bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, std::string certificatepath, std::string keypath)
 {
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
@@ -6868,7 +6868,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port)
     }
 
     httpServerStop();
-    httpServer = new MegaHTTPServer(this);
+    httpServer = new MegaHTTPServer(this, useTLS, certificatepath, keypath);
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
@@ -18513,7 +18513,7 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 // http_parser settings
 http_parser_settings MegaHTTPServer::parsercfg;
 
-MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi)
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS, string certificatepath, string keypath)
 {
     this->megaApi = megaApi;
     this->localOnly = true;
@@ -18526,6 +18526,9 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi)
     this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     this->lastHandle = INVALID_HANDLE;
     this->subtitlesSupportEnabled = false;
+    this->useTLS = useTLS;
+    this->certificatepath = certificatepath;
+    this->keypath = keypath;
 }
 
 MegaHTTPServer::~MegaHTTPServer()
@@ -18550,6 +18553,26 @@ bool MegaHTTPServer::start(int port, bool localOnly)
     return started;
 }
 
+int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz) {
+    int rv = 0;
+    uv_buf_t b;
+    b.base = (char*)bfr;
+    b.len = sz;
+
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
+    assert(httpctx != NULL);
+
+    if(uv_is_writable((uv_stream_t*)(&httpctx->tcphandle)) ) {
+        rv = uv_try_write((uv_stream_t*)(&httpctx->tcphandle), &b, 1);
+    }
+    else
+    {
+        LOG_debug << " uv_is_writable returned false";
+    }
+
+    return rv;
+}
+
 void MegaHTTPServer::run()
 {
     // parser callbacks
@@ -18560,6 +18583,17 @@ void MegaHTTPServer::run()
     parsercfg.on_header_field = onHeaderField;
     parsercfg.on_header_value = onHeaderValue;
     parsercfg.on_body = onBody;
+
+    if (useTLS)
+    {
+        // TODO: review paths in windows
+        if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
+        {
+            LOG_err << "Unable to init evt ctx";
+            return;
+        }
+        evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
+    }
 
     uv_loop_t *uv_loop = uv_default_loop();
 
@@ -18580,19 +18614,32 @@ void MegaHTTPServer::run()
     {
         uv_ip4_addr("0.0.0.0", port, &address);
     }
+    uv_connection_cb onNewClientCB;
+    if (useTLS)
+    {
+         onNewClientCB = onNewClient_tls;
+    }
+    else
+    {
+        onNewClientCB = onNewClient;
+    }
 
     if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
-        || uv_listen((uv_stream_t*)&server, 32, onNewClient))
+        || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
     {
         port = 0;
         uv_sem_post(&semaphore);
         return;
     }
 
-    LOG_info << "HTTP server started on port " << port;
+    LOG_info << "HTTP" << (useTLS?"S":"") << " server started on port " << port;
     started = true;
     uv_sem_post(&semaphore);
     uv_run(uv_loop, UV_RUN_DEFAULT);
+    if (useTLS)
+    {
+//        evt_ctx_free(&evtctx); // TODO: here? destructor? this caused segfault (uv_close had already been called)
+    }
 
     uv_loop_close(uv_loop);
     started = false;
@@ -18757,6 +18804,89 @@ void *MegaHTTPServer::threadEntryPoint(void *param)
     return NULL;
 }
 
+void MegaHTTPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
+{
+    uv_buf_t data;
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
+    assert(httpctx != NULL);
+
+    data.base = bfr;
+    data.len = sz;
+
+    onDataReceived_tls(httpctx,sz,&data);
+}
+
+void MegaHTTPServer::on_close(evt_tls_t *evt_tls, int status)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
+    assert(httpctx != NULL);
+
+    if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+    {
+        uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+    }
+}
+
+void MegaHTTPServer::on_hd_complete( evt_tls_t *evt_tls, int status)
+{
+    if ( 0 == (status-1) )
+    {
+          evt_tls_read(evt_tls, evt_on_rd);
+    }
+    else
+    {
+        evt_tls_close(evt_tls, on_close);
+    }
+}
+
+void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
+{
+    if (status < 0)
+    {
+        return;
+    }
+
+    // Create an object to save context information
+    MegaHTTPContext* httpctx = new MegaHTTPContext();
+
+    // Initialize the parser
+    http_parser_init(&httpctx->parser, HTTP_REQUEST);
+
+    // Set connection data
+    httpctx->server = (MegaHTTPServer *)(server_handle->data);
+    httpctx->megaApi = httpctx->server->megaApi;
+    httpctx->parser.data = httpctx;
+    httpctx->tcphandle.data = httpctx;
+    httpctx->asynchandle.data = httpctx;
+    httpctx->server->connections.push_back(httpctx);
+    LOG_debug << "Connection received! " << httpctx->server->connections.size();
+
+    // Async handle to perform writes
+    uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
+
+    // Accept the connection
+    uv_tcp_init(uv_default_loop(), &httpctx->tcphandle);
+    if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle))
+    {
+        return;
+    }
+
+    httpctx->evt_tls = evt_ctx_get_tls(&httpctx->server->evtctx);
+
+    assert( httpctx->evt_tls != NULL );
+
+    httpctx->evt_tls->data = httpctx;
+
+    if (evt_tls_accept(httpctx->evt_tls, on_hd_complete))
+    {
+        LOG_err << "evt_tls_accept failed";
+        return;
+    }
+
+    // Start reading
+    uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
+}
+
 void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
 {
     if (status < 0)
@@ -18805,6 +18935,56 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
         parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
     }
     delete [] buf->base;
+
+    if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
+    {
+        httpctx->finished = true;
+        LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
+        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        {
+            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+        }
+    }
+}
+
+void MegaHTTPServer::on_tcp_eof(uv_handle_t *handle)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*) handle->data;
+    assert( httpctx != NULL);
+    evt_tls_free(httpctx->evt_tls);
+}
+
+void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *data)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
+    assert( httpctx != NULL);
+
+    if ( nrd <= 0 ) {
+        if( nrd == UV_EOF) {
+            if ( evt_tls_is_handshake_over(httpctx->evt_tls) ) {
+                evt_tls_close(httpctx->evt_tls, on_close);
+            }
+            else {
+                //if handshake is not over, simply tear down without close_notify
+                uv_close((uv_handle_t*)tcp, on_tcp_eof);
+            }
+        }
+        free(data->base);
+        return;
+    }
+
+    evt_tls_feed_data(httpctx->evt_tls, data->base, nrd);
+    free(data->base);
+}
+
+void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf)
+{
+    ssize_t parsed = -1;
+    if (nread >= 0)
+    {
+        parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+    }
+    //delete [] buf->base; //TODO: figure out when(if) this should be cleaned
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
@@ -19484,15 +19664,22 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     httpctx->transfer->setTotalBytes(httpctx->size);
     httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
 
-    uv_write_t *req = new uv_write_t;
-    req->data = httpctx;
-    if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
+    if (httpctx->server->useTLS)
     {
-        LOG_warn << "Finishing due to an error sending the response: " << err;
-        httpctx->finished = true;
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+    }
+    else
+    {
+        uv_write_t *req = new uv_write_t;
+        req->data = httpctx;
+        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
         }
     }
 }
@@ -19556,13 +19743,13 @@ void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
     uv_close((uv_handle_t *)&httpServer->exit_handle, NULL);
 }
 
-void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
+void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylocked)
 {
-    uv_mutex_lock(&httpctx->mutex);
+    if (!mutexalreadylocked) uv_mutex_lock(&httpctx->mutex);
     if (httpctx->lastBuffer)
     {
         LOG_verbose << "Skipping write due to another ongoing write";
-        uv_mutex_unlock(&httpctx->mutex);
+        if (!mutexalreadylocked) uv_mutex_unlock(&httpctx->mutex);
         return;
     }
 
@@ -19575,7 +19762,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
     if (httpctx->tcphandle.write_queue_size > httpctx->streamingBuffer.availableCapacity() / 8)
     {
         LOG_warn << "Skipping write. Too much queued data";
-        uv_mutex_unlock(&httpctx->mutex);
+        if (!mutexalreadylocked) uv_mutex_unlock(&httpctx->mutex);
         return;
     }
 
@@ -19583,27 +19770,84 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
     if (!resbuf.len)
     {
         LOG_verbose << "Skipping write. No data available";
-        uv_mutex_unlock(&httpctx->mutex);
+        if (!mutexalreadylocked) uv_mutex_unlock(&httpctx->mutex);
         return;
     }
-
-    uv_write_t *req = new uv_write_t;
-    req->data = httpctx;
 
     LOG_verbose << "Writting " << resbuf.len << " bytes";
     httpctx->rangeWritten += resbuf.len;
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
-    if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, MegaHTTPServer::onWriteFinished))
+
+    if (httpctx->server->useTLS)
     {
-        LOG_warn << "Finishing due to an error in uv_write: " << err;
-        httpctx->finished = true;
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls); //notice this, contrary to !useTLS is synchronous
+    }
+    else
+    {
+        uv_write_t *req = new uv_write_t;
+        req->data = httpctx;
+
+        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            LOG_warn << "Finishing due to an error in uv_write: " << err;
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
         }
     }
-    uv_mutex_unlock(&httpctx->mutex);
+    if (!mutexalreadylocked) uv_mutex_unlock(&httpctx->mutex);
+}
+
+void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
+    assert(httpctx != NULL);
+
+    httpctx->bytesWritten += httpctx->lastBufferLen;
+    LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
+    httpctx->lastBuffer = NULL;
+
+    if (status < 0 || httpctx->size == httpctx->bytesWritten)
+    {
+        if (status < 0)
+        {
+            LOG_warn << "Finishing request. Write failed: " << status;
+        }
+        else
+        {
+            LOG_debug << "Finishing request. All data sent";
+            if (httpctx->resultCode == API_EINTERNAL)
+            {
+                httpctx->resultCode = API_OK;
+            }
+        }
+
+        httpctx->finished = true;
+        evt_tls_close(evt_tls, on_close);
+
+        return;
+    }
+
+    if (httpctx->pause)
+    {
+        if (!httpctx->server->useTLS) uv_mutex_lock(&httpctx->mutex);
+        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
+        {
+            httpctx->pause = false;
+            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
+            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
+
+            LOG_debug << "Resuming streaming from " << start << " len: " << len
+                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
+                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
+            httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
+        }
+        if (!httpctx->server->useTLS) uv_mutex_unlock(&httpctx->mutex);
+    }
+    if (!httpctx->server->useTLS) sendNextBytes(httpctx);
 }
 
 void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)

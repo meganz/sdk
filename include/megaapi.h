@@ -9922,9 +9922,12 @@ class MegaApi
          *
          * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
          * @param port Port in which the server must accept connections
+         * @param useTLS Use TLS (default false)
+         * @param certificatepath path to certificate (PEM format)
+         * @param keypath path to certificate key
          * @return True is the server is ready, false if the initialization failed
          */
-        bool httpServerStart(bool localOnly = true, int port = 4443);
+        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
 
         /**
          * @brief Stop the HTTP proxy server
