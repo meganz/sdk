@@ -26,42 +26,42 @@ using namespace Platform;
 
 MEvent::MEvent(MegaEvent *megaEvent, bool cMemoryOwn)
 {
-	this->megaEvent = megaEvent;
-	this->cMemoryOwn = cMemoryOwn;
+    this->megaEvent = megaEvent;
+    this->cMemoryOwn = cMemoryOwn;
 }
 
 MEvent::~MEvent()
 {
-	if (cMemoryOwn)
-		delete megaEvent;
+    if (cMemoryOwn)
+        delete megaEvent;
 }
 
 MegaEvent* MEvent::getCPtr()
 {
-	return megaEvent;
+    return megaEvent;
 }
 
 MEvent^ MEvent::copy()
 {
-	return megaEvent ? ref new MEvent(megaEvent->copy(), true) : nullptr;
+    return megaEvent ? ref new MEvent(megaEvent->copy(), true) : nullptr;
 }
 
 MEventType MEvent::getType()
 {
-	return (MEventType) (megaEvent ? megaEvent->getType() : 0);
+    return (MEventType) (megaEvent ? megaEvent->getType() : 0);
 }
 
 String^ MEvent::getText()
 {
-	std::string utf16text;
-	const char *utf8text = megaEvent->getText();
+    std::string utf16text;
+    const char *utf8text = megaEvent->getText();
 
-	MegaApi::utf8ToUtf16(utf8text, &utf16text);
+    MegaApi::utf8ToUtf16(utf8text, &utf16text);
 
-	return ref new String((wchar_t *)utf16text.data());
+    return ref new String((wchar_t *)utf16text.data());
 }
 
 int MEvent::getNumber()
 {
-	return megaEvent ? megaEvent->getNumber() : 0;
+    return megaEvent ? megaEvent->getNumber() : 0;
 }

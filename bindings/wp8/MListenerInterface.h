@@ -29,14 +29,14 @@
 
 namespace mega
 {
-	ref class MegaSDK;
+    ref class MegaSDK;
 
-	using namespace Windows::Foundation;
-	using Platform::String;
+    using namespace Windows::Foundation;
+    using Platform::String;
 
-	public interface class MListenerInterface
-	{
-	public:
+    public interface class MListenerInterface
+    {
+    public:
         void onRequestStart(MegaSDK^ api, MRequest^ request);
         void onRequestFinish(MegaSDK^ api, MRequest^ request, MError^ e);
         void onRequestUpdate(MegaSDK^ api, MRequest^ request);
@@ -51,5 +51,5 @@ namespace mega
         void onContactRequestsUpdate(MegaSDK^ api, MContactRequestList^ requests);
         void onReloadNeeded(MegaSDK^ api);
         void onEvent(MegaSDK^ api, MEvent^ ev);
-	};
+    };
 }

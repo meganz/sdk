@@ -25,35 +25,35 @@
 
 namespace mega
 {
-	using namespace Windows::Foundation;
-	using Platform::String;
+    using namespace Windows::Foundation;
+    using Platform::String;
 
-	public enum class MEventType
-	{
+    public enum class MEventType
+    {
         EVENT_COMMIT_DB             = 0,
         EVENT_ACCOUNT_CONFIRMATION  = 1,
         EVENT_CHANGE_TO_HTTPS       = 2,
         EVENT_DISCONNECT            = 3,
         EVENT_ACCOUNT_BLOCKED       = 4
-	};
+    };
 
-	public ref class MEvent sealed
-	{
-		friend ref class MegaSDK;
-		friend class DelegateMListener;
-		friend class DelegateMGlobalListener;
+    public ref class MEvent sealed
+    {
+        friend ref class MegaSDK;
+        friend class DelegateMListener;
+        friend class DelegateMGlobalListener;
 
-	public:
-		virtual ~MEvent();
-		MEvent^ copy();
-		MEventType getType();
-		String^ getText();
-		int getNumber();
+    public:
+        virtual ~MEvent();
+        MEvent^ copy();
+        MEventType getType();
+        String^ getText();
+        int getNumber();
 
-	private:
-		MEvent(MegaEvent *megaEvent, bool cMemoryOwn);
-		MegaEvent *megaEvent;
-		MegaEvent *getCPtr();
-		bool cMemoryOwn;
-	};
+    private:
+        MEvent(MegaEvent *megaEvent, bool cMemoryOwn);
+        MegaEvent *megaEvent;
+        MegaEvent *getCPtr();
+        bool cMemoryOwn;
+    };
 }
