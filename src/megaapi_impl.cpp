@@ -19833,7 +19833,6 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 
     if (httpctx->pause)
     {
-        if (!httpctx->server->useTLS) uv_mutex_lock(&httpctx->mutex);
         if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
         {
             httpctx->pause = false;
@@ -19845,9 +19844,8 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
                      << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
             httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
-        if (!httpctx->server->useTLS) uv_mutex_unlock(&httpctx->mutex);
     }
-    if (!httpctx->server->useTLS) sendNextBytes(httpctx);
+    sendNextBytes(httpctx, true);
 }
 
 void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
