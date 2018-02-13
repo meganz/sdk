@@ -30,7 +30,7 @@ namespace mega
 
 	public enum class MEventType
 	{
-		EVENT_COMMIT_DB             = 0,
+        EVENT_COMMIT_DB             = 0,
         EVENT_ACCOUNT_CONFIRMATION  = 1,
         EVENT_CHANGE_TO_HTTPS       = 2,
         EVENT_DISCONNECT            = 3,

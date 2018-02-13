@@ -31,11 +31,11 @@ namespace mega
 	public interface class MGlobalListenerInterface
 	{
 	public:
-		void onUsersUpdate(MegaSDK^ api, MUserList ^users);
-		void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
-		void onAccountUpdate(MegaSDK^ api);
+        void onUsersUpdate(MegaSDK^ api, MUserList ^users);
+        void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
+        void onAccountUpdate(MegaSDK^ api);
         void onContactRequestsUpdate(MegaSDK^ api, MContactRequestList^ requests);
-		void onReloadNeeded(MegaSDK^ api);
-		void onEvent(MegaSDK^ api, MEvent^ ev);
-	};
+        void onReloadNeeded(MegaSDK^ api);
+        void onEvent(MegaSDK^ api, MEvent^ ev);
+    };
 }

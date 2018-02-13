@@ -37,19 +37,19 @@ namespace mega
 	public interface class MListenerInterface
 	{
 	public:
-		void onRequestStart(MegaSDK^ api, MRequest^ request);
-		void onRequestFinish(MegaSDK^ api, MRequest^ request, MError^ e);
-		void onRequestUpdate(MegaSDK^ api, MRequest^ request);
-		void onRequestTemporaryError(MegaSDK^ api, MRequest^ request, MError^ e);
-		void onTransferStart(MegaSDK^ api, MTransfer^ transfer);
-		void onTransferFinish(MegaSDK^ api, MTransfer^ transfer, MError^ e);
-		void onTransferUpdate(MegaSDK^ api, MTransfer^ transfer);
-		void onTransferTemporaryError(MegaSDK^ api, MTransfer^ transfer, MError^ e);
-		void onUsersUpdate(MegaSDK^ api, MUserList^ users);
-		void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
-		void onAccountUpdate(MegaSDK^ api);
+        void onRequestStart(MegaSDK^ api, MRequest^ request);
+        void onRequestFinish(MegaSDK^ api, MRequest^ request, MError^ e);
+        void onRequestUpdate(MegaSDK^ api, MRequest^ request);
+        void onRequestTemporaryError(MegaSDK^ api, MRequest^ request, MError^ e);
+        void onTransferStart(MegaSDK^ api, MTransfer^ transfer);
+        void onTransferFinish(MegaSDK^ api, MTransfer^ transfer, MError^ e);
+        void onTransferUpdate(MegaSDK^ api, MTransfer^ transfer);
+        void onTransferTemporaryError(MegaSDK^ api, MTransfer^ transfer, MError^ e);
+        void onUsersUpdate(MegaSDK^ api, MUserList^ users);
+        void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
+        void onAccountUpdate(MegaSDK^ api);
         void onContactRequestsUpdate(MegaSDK^ api, MContactRequestList^ requests);
-		void onReloadNeeded(MegaSDK^ api);
-		void onEvent(MegaSDK^ api, MEvent^ ev);
+        void onReloadNeeded(MegaSDK^ api);
+        void onEvent(MegaSDK^ api, MEvent^ ev);
 	};
 }
