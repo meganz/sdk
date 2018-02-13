@@ -2260,6 +2260,7 @@ class MegaHTTPContext : public MegaTransferListener, public MegaRequestListener
 {
 public:
     MegaHTTPContext();
+    ~MegaHTTPContext();
 
     // Connection management
     MegaHTTPServer *server;

@@ -18638,7 +18638,7 @@ void MegaHTTPServer::run()
     uv_run(uv_loop, UV_RUN_DEFAULT);
     if (useTLS)
     {
-//        evt_ctx_free(&evtctx); // TODO: here? destructor? this caused segfault (uv_close had already been called)
+        evt_ctx_free(&evtctx);
     }
 
     uv_loop_close(uv_loop);
@@ -18969,12 +18969,12 @@ void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *
                 uv_close((uv_handle_t*)tcp, on_tcp_eof);
             }
         }
-        free(data->base);
+        delete[] data->base;
         return;
     }
 
     evt_tls_feed_data(httpctx->evt_tls, data->base, nrd);
-    free(data->base);
+    delete[] data->base;
 }
 
 void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf)
@@ -19913,6 +19913,12 @@ MegaHTTPContext::MegaHTTPContext()
     node = NULL;
     transfer = NULL;
     nodesize = -1;
+    evt_tls = NULL;
+}
+
+MegaHTTPContext::~MegaHTTPContext()
+{
+    evt_tls_free(evt_tls);
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
