@@ -18559,11 +18559,31 @@ int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz) {
     b.base = (char*)bfr;
     b.len = sz;
 
+
     MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
     assert(httpctx != NULL);
 
-    if(uv_is_writable((uv_stream_t*)(&httpctx->tcphandle)) ) {
-        rv = uv_try_write((uv_stream_t*)(&httpctx->tcphandle), &b, 1);
+    if(uv_is_writable((uv_stream_t*)(&httpctx->tcphandle)) )
+    {
+        // SYNC write:
+//        rv = uv_try_write((uv_stream_t*)(&httpctx->tcphandle), &b, 1);
+
+        // ASYNC write:
+        uv_write_cb onWriteFinishedCB = NULL;
+        onWriteFinishedCB = onWriteFinished_tls_async;
+
+        uv_write_t *req = new uv_write_t;
+        req->data = httpctx;
+        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &b, 1, onWriteFinishedCB))
+        {
+            LOG_warn << "At uv_tls_writer: Finishing due to an error sending the response: " << err;
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
+        }
+        rv = sz; //writer should return the written size
     }
     else
     {
@@ -19846,6 +19866,11 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
         }
     }
     sendNextBytes(httpctx, true);
+}
+
+void MegaHTTPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
+{
+    delete req;
 }
 
 void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
