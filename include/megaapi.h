@@ -10254,6 +10254,8 @@ class MegaApi
          */
         int httpServerGetMaxOutputSize();
 
+#endif
+    
         /**
          * @brief Get the MIME type associated with the extension
          *
@@ -10263,7 +10265,6 @@ class MegaApi
          * @return MIME type associated with the extension
          */
         static char *getMimeType(const char* extension);
-#endif
 
 #ifdef ENABLE_CHAT
         /**

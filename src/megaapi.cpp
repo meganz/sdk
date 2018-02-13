@@ -3135,6 +3135,7 @@ int MegaApi::httpServerGetMaxOutputSize()
 {
     return pImpl->httpServerGetMaxOutputSize();
 }
+#endif
 
 char *MegaApi::getMimeType(const char *extension)
 {
@@ -3724,7 +3725,6 @@ char *MegaApi::getMimeType(const char *extension)
 
     return MegaApi::strdup(it->second.c_str());
 }
-#endif
 
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
