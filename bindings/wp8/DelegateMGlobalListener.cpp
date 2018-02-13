@@ -64,3 +64,9 @@ void DelegateMGlobalListener::onReloadNeeded(MegaApi* api)
 	if (listener != nullptr)
 		listener->onReloadNeeded(megaSDK);
 }
+
+void DelegateMGlobalListener::onEvent(MegaApi* api, MegaEvent* ev)
+{
+	if (listener != nullptr)
+		listener->onEvent(megaSDK, ev ? ref new MEvent(ev->copy(), true) : nullptr);
+}

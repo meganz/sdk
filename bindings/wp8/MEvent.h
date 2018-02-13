@@ -1,6 +1,6 @@
 /**
-* @file MGlobalListenerInterface.h
-* @brief Interface to provide a global listener.
+* @file MError.h
+* @brief Provides information about an event.
 *
 * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
 *
@@ -21,21 +21,39 @@
 
 #pragma once
 
+#include "megaapi.h"
+
 namespace mega
 {
-	ref class MegaSDK;
-
 	using namespace Windows::Foundation;
 	using Platform::String;
 
-	public interface class MGlobalListenerInterface
+	public enum class MEventType
 	{
+		EVENT_COMMIT_DB             = 0,
+        EVENT_ACCOUNT_CONFIRMATION  = 1,
+        EVENT_CHANGE_TO_HTTPS       = 2,
+        EVENT_DISCONNECT            = 3,
+        EVENT_ACCOUNT_BLOCKED       = 4
+	};
+
+	public ref class MEvent sealed
+	{
+		friend ref class MegaSDK;
+		friend class DelegateMListener;
+		friend class DelegateMGlobalListener;
+
 	public:
-		void onUsersUpdate(MegaSDK^ api, MUserList ^users);
-		void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
-		void onAccountUpdate(MegaSDK^ api);
-        void onContactRequestsUpdate(MegaSDK^ api, MContactRequestList^ requests);
-		void onReloadNeeded(MegaSDK^ api);
-		void onEvent(MegaSDK^ api, MEvent^ ev);
+		virtual ~MEvent();
+		MEvent^ copy();
+		MEventType getType();
+		String^ getText();
+		int getNumber();
+
+	private:
+		MEvent(MegaEvent *megaEvent, bool cMemoryOwn);
+		MegaEvent *megaEvent;
+		MegaEvent *getCPtr();
+		bool cMemoryOwn;
 	};
 }

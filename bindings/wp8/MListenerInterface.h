@@ -25,6 +25,7 @@
 #include "MRequest.h"
 #include "MError.h"
 #include "MContactRequest.h"
+#include "MEvent.h"
 
 namespace mega
 {
@@ -49,5 +50,6 @@ namespace mega
 		void onAccountUpdate(MegaSDK^ api);
         void onContactRequestsUpdate(MegaSDK^ api, MContactRequestList^ requests);
 		void onReloadNeeded(MegaSDK^ api);
+		void onEvent(MegaSDK^ api, MEvent^ ev);
 	};
 }

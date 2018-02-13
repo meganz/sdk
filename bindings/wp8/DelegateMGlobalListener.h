@@ -44,6 +44,7 @@ namespace mega
 		void onAccountUpdate(MegaApi* api);
         void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
 		void onReloadNeeded(MegaApi* api);
+		void onEvent(MegaApi* api, MegaEvent* ev);
 
 	private:
 		MegaSDK^ megaSDK;
