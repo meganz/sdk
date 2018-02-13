@@ -18753,7 +18753,7 @@ char *MegaHTTPServer::getLink(MegaNode *node)
     allowedHandles.insert(lastHandle);
 
     ostringstream oss;
-    oss << "http://127.0.0.1:" << port << "/";
+    oss << "http" << (useTLS?"s":"") << "://127.0.0.1:" << port << "/";
     char *base64handle = node->getBase64Handle();
     oss << base64handle;
     delete [] base64handle;
