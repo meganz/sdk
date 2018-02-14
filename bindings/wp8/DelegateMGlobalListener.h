@@ -28,25 +28,26 @@
 
 namespace mega
 {
-	ref class MegaSDK;
+    ref class MegaSDK;
 
-	using namespace Windows::Foundation;
-	using Platform::String;
+    using namespace Windows::Foundation;
+    using Platform::String;
 
-	private class DelegateMGlobalListener : public MegaGlobalListener
-	{
-	public:
-		DelegateMGlobalListener(MegaSDK^ megaSDK, MGlobalListenerInterface^ listener);
-		MGlobalListenerInterface^ getUserListener();
+    private class DelegateMGlobalListener : public MegaGlobalListener
+    {
+    public:
+        DelegateMGlobalListener(MegaSDK^ megaSDK, MGlobalListenerInterface^ listener);
+        MGlobalListenerInterface^ getUserListener();
 
-		void onUsersUpdate(MegaApi* api, MegaUserList *users);
-		void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-		void onAccountUpdate(MegaApi* api);
+        void onUsersUpdate(MegaApi* api, MegaUserList *users);
+        void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
+        void onAccountUpdate(MegaApi* api);
         void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
-		void onReloadNeeded(MegaApi* api);
+        void onReloadNeeded(MegaApi* api);
+        void onEvent(MegaApi* api, MegaEvent* ev);
 
-	private:
-		MegaSDK^ megaSDK;
-		MGlobalListenerInterface^ listener;
-	};
+    private:
+        MegaSDK^ megaSDK;
+        MGlobalListenerInterface^ listener;
+    };
 }

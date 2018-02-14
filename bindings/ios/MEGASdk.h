@@ -4583,6 +4583,14 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 #endif
 
 /**
+ * @brief Get the MIME type associated with the extension
+ *
+ * @param extension File extension (with or without a leading dot)
+ * @return MIME type associated with the extension
+ */
++ (NSString *)mimeTypeByExtension:(NSString *)extension;
+
+/**
  * @brief Register a device token for iOS push notifications
  *
  * This function attach a device token to the current session, which is intended to get push notifications.
