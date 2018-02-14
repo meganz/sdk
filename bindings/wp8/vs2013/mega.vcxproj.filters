@@ -285,6 +285,9 @@
     <ClInclude Include="..\..\..\include\mega\mediafileattribute.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\MEvent.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -508,6 +511,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\src\mediafileattribute.cpp">
       <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MEvent.cpp">
+      <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

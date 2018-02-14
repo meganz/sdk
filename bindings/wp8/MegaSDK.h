@@ -70,12 +70,6 @@ namespace mega
         ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC
     };
 
-    public enum class MEventType {
-        EVENT_FEEDBACK = 0,
-        EVENT_DEBUG,
-        EVENT_INVALID
-    };
-
     public enum class MLogLevel {
         LOG_LEVEL_FATAL = 0, 
         LOG_LEVEL_ERROR,   // Error information but will continue application to keep running.
