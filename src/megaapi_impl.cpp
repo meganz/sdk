@@ -19941,7 +19941,10 @@ MegaHTTPContext::MegaHTTPContext()
 
 MegaHTTPContext::~MegaHTTPContext()
 {
-    evt_tls_free(evt_tls);
+    if (this->server->useTLS)
+    {
+        evt_tls_free(evt_tls);
+    }
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)

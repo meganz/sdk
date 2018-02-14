@@ -2328,7 +2328,6 @@ protected:
 
     // TLS
     evt_ctx_t evtctx;
-    bool useTLS;
     std::string certificatepath;
     std::string keypath;
 
@@ -2372,6 +2371,8 @@ protected:
     static int streamNode(MegaHTTPContext *httpctx);
 
 public:
+    bool useTLS;
+
     MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
     bool start(int port, bool localOnly = true);
