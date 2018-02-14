@@ -48,7 +48,7 @@ MEvent^ MEvent::copy()
 
 MEventType MEvent::getType()
 {
-    return (MEventType) (megaEvent ? megaEvent->getType() : 0);
+    return (MEventType) (megaEvent ? megaEvent->getType() : -1);
 }
 
 String^ MEvent::getText()
