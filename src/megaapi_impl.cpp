@@ -13267,7 +13267,7 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 	do {
 		if (!l)
 		{
-			if (*path >= 0)
+            if (*(const signed char*)path >= 0)
 			{
 				if (*path == '\\')
 				{
