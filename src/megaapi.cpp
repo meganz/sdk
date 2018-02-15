@@ -1292,6 +1292,11 @@ bool MegaTreeProcessor::processMegaNode(MegaNode*)
 MegaTreeProcessor::~MegaTreeProcessor()
 { }
 
+MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, MegaLogger *megaLogger, int fseventsfd)
+{
+    pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent, megaLogger, fseventsfd);
+}
+
 MegaApi::MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
 {
     pImpl = new MegaApiImpl(this, appKey, processor, basePath, userAgent);

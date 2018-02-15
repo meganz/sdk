@@ -48,6 +48,7 @@ enable_libuv=0
 android_build=0
 enable_cryptopp=0
 disable_mediainfo=0
+incremental=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -268,6 +269,8 @@ package_install() {
     if [ $exit_code -ne 0 ]; then
         echo "Failed to install $name, exit status: $exit_code"
         exitwithlog ../$name.install.log 1
+    else
+        echo $exit_code > ../$name.success
     fi
     cd $cwd
 
@@ -291,6 +294,13 @@ openssl_pkg() {
     local openssl_dir="openssl-$openssl_ver"
     local openssl_params="--openssldir=$install_dir no-shared shared"
     local loc_make_opts=$make_opts
+
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
 
     package_download $name $openssl_url $openssl_file $openssl_md5
     if [ $download_only -eq 1 ]; then
@@ -321,7 +331,7 @@ openssl_pkg() {
                 package_configure $name $openssl_dir $install_dir "$openssl_params"
             fi
         else
-            package_configure $name $openssl_dir $install_dir "$openssl_params"
+            package_configure $name $openssl_dir $install_dir "$openssl_params" || exit 1
         fi
     fi
 
@@ -342,6 +352,13 @@ cryptopp_pkg() {
     local cryptopp_md5="df5ef4647b4e978bba0cac79a83aaed5"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
+
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
 
     package_download $name $cryptopp_url $cryptopp_file $cryptopp_md5
     if [ $download_only -eq 1 ]; then
@@ -377,6 +394,13 @@ sodium_pkg() {
         local sodium_params="--disable-shared --enable-static --disable-pie"
     fi
 
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
+
     package_download $name $sodium_url $sodium_file $sodium_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -401,6 +425,13 @@ libuv_pkg() {
         local libuv_params="--enable-shared"
     else
         local libuv_params="--disable-shared --enable-static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
     fi
 
     package_download $name $libuv_url $libuv_file $libuv_md5
@@ -437,6 +468,13 @@ zlib_pkg() {
         local zlib_params=""
     else
         local zlib_params="--static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
     fi
 
     package_download $name $zlib_url $zlib_file $zlib_md5
@@ -483,6 +521,13 @@ sqlite_pkg() {
         local sqlite_params="--disable-shared --enable-static"
     fi
 
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
+
     package_download $name $sqlite_url $sqlite_file $sqlite_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -507,6 +552,13 @@ cares_pkg() {
         local cares_params="--enable-shared"
     else
         local cares_params="--disable-shared --enable-static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
     fi
 
     package_download $name $cares_url $cares_file $cares_md5
@@ -550,6 +602,13 @@ curl_pkg() {
             --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
+
     package_download $name $curl_url $curl_file $curl_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -574,6 +633,13 @@ readline_pkg() {
         local readline_params="--enable-shared"
     else
         local readline_params="--disable-shared --enable-static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
     fi
 
     package_download $name $readline_url $readline_file $readline_md5
@@ -602,6 +668,13 @@ termcap_pkg() {
         local termcap_params="--disable-shared --enable-static"
     fi
 
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
+
     package_download $name $termcap_url $termcap_file $termcap_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -624,6 +697,13 @@ freeimage_pkg() {
     local freeimage_file="freeimage-$freeimage_ver.zip"
     local freeimage_dir_extract="freeimage-$freeimage_ver"
     local freeimage_dir="freeimage-$freeimage_ver/FreeImage"
+
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
 
     package_download $name $freeimage_url $freeimage_file $freeimage_md5
     if [ $download_only -eq 1 ]; then
@@ -679,6 +759,13 @@ readline_win_pkg() {
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
 
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
+
     package_download $name $readline_url $readline_file $readline_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -711,6 +798,13 @@ mediainfo_pkg() {
     local mediainfolib_file="$mediainfolib_ver.tar.gz"
     local mediainfolib_dir_extract="MediaInfoLib-$mediainfolib_ver"
     local mediainfolib_dir="MediaInfoLib-$mediainfolib_ver/Project/GNU/Library"
+
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
 
     package_download $zenlib_name $zenlib_url $zenlib_file $zenlib_md5
     package_download $mediainfolib_name $mediainfolib_url $mediainfolib_file $mediainfolib_md5
@@ -797,6 +891,13 @@ readline_win_pkg() {
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
 
+    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm $name.success
+    fi
+
     package_download $name $readline_url $readline_file $readline_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -820,6 +921,13 @@ build_sdk() {
     local openssl_flags=""
     local sodium_flags="--without-sodium"
     local cwd=$(pwd)
+
+    if [ $incremental -eq 1 ] && [ -e ./MegaSDK.success ]; then
+        echo "MegaSDK already built"
+        return
+    else
+        rm ./MegaSDK.success
+    fi
 
     echo "Configuring MEGA SDK"
 
@@ -922,6 +1030,10 @@ build_sdk() {
             make
         fi
         make install
+        local exit_code=$?
+        if [ $exit_code -eq 0 ]; then
+            echo $exit_code > ./MegaSDK.success
+        fi
     fi
 }
 
@@ -969,7 +1081,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":habcdefgilm:no:p:rstuvyx:wqz" opt; do
+    while getopts ":habcdefgiIlm:no:p:rstuvyx:wqz" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1006,6 +1118,10 @@ main() {
             i)
                 echo "* Disabling external MediaInfo"
                 disable_mediainfo=1
+                ;;
+            I)
+                echo "* Incremental build - skipping already built/downloaded dependencies"
+                incremental=1
                 ;;
             l)
                 echo "* Using local files"
