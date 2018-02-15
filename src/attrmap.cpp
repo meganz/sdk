@@ -176,7 +176,7 @@ void AttrMap::getjson(string* s) const
 
             for (int i = it->second.size(); i-- >= 0; ptr++)
             {
-                if ((i < 0) || ((*ptr >= 0) && (*ptr < ' ')) || (*ptr == '"') || (*ptr == '\\'))
+                if ((i < 0) || ((*(const signed char*)ptr >= 0) && (*ptr < ' ')) || (*ptr == '"') || (*ptr == '\\'))
                 {
                     if (ptr > pptr)
                     {
