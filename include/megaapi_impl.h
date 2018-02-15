@@ -2280,6 +2280,14 @@ public:
     bool failed;
     bool pause;
 
+    // WEBDAV related
+    int depth;
+    string lastheader;
+    std::string subpathrelative;
+    const char * messageBody;
+    int messageBodySize;
+    std::string host;
+
     //tls stuff:
     evt_tls_t *evt_tls;
 
@@ -2364,6 +2372,13 @@ protected:
     static int onHeaderValue(http_parser* parser, const char* at, size_t length);
     static int onBody(http_parser* parser, const char* at, size_t length);
     static int onMessageComplete(http_parser* parser);
+
+    static std::string getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx);
+
+    // WEBDAV related
+    static std::string getWebDavPropFindResponseForNode(std::string baseURL, std::string subnodepath, MegaNode *node, MegaHTTPContext* httpctx);
+    static std::string getWebDavProfFindNodeContents(MegaNode *node, std::string baseURL);
+
 
     void run();
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);

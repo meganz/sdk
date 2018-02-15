@@ -18934,7 +18934,10 @@ void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
 
     // Accept the connection
     uv_tcp_init(uv_default_loop(), &httpctx->tcphandle);
-    uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle);
+    if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle) < 0)
+    {
+        LOG_err << "Failed to uv_accept on new client";
+    }
 
     // Start reading
     uv_read_start((uv_stream_t*)&httpctx->tcphandle, allocBuffer, onDataReceived);
@@ -18954,7 +18957,6 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
     {
         parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
     }
-    delete [] buf->base;
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
@@ -18965,6 +18967,8 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
             uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
         }
     }
+    delete [] buf->base;
+
 }
 
 void MegaHTTPServer::on_tcp_eof(uv_handle_t *handle)
@@ -19111,6 +19115,17 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
     if (length > index)
     {
         string nodename(url + index, length - index);
+
+        //get subpath (used in webdav)
+        size_t psep = nodename.find("/");
+        if (psep != string::npos)
+        {
+            string subpathrelative = nodename.substr(psep+1);
+            nodename = nodename.substr(0, psep);
+            URLCodec::unescape(&subpathrelative, &httpctx->subpathrelative);
+            LOG_debug << "subpathrelative: " << httpctx->subpathrelative;
+        }
+
         URLCodec::unescape(&nodename, &httpctx->nodename);
         LOG_debug << "Node name: " << httpctx->nodename;
     }
@@ -19127,6 +19142,9 @@ int MegaHTTPServer::onHeaderField(http_parser *parser, const char *at, size_t le
         httpctx->range = true;
         LOG_debug << "Range header detected";
     }
+    httpctx->lastheader = string(at,length);
+    //To lower case:
+    transform(httpctx->lastheader.begin(), httpctx->lastheader.end(), httpctx->lastheader.begin(), ::tolower);
     return 0;
 }
 
@@ -19137,6 +19155,15 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     size_t index;
     char *endptr;
 
+    LOG_verbose << " onHeaderValue: " << httpctx->lastheader << " = " << value;
+    if (httpctx->lastheader == "depth")
+    {
+        httpctx->depth = atoi(value.c_str());
+    }
+    if (httpctx->lastheader == "host")
+    {
+        httpctx->host = value;
+    }
     if (httpctx->range)
     {
         LOG_debug << "Range header value: " << value;
@@ -19167,9 +19194,246 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     return 0;
 }
 
-int MegaHTTPServer::onBody(http_parser *, const char *, size_t)
+int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
 {
+    LOG_verbose << "Message onBody: " << string(b).substr(0,n);
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
+
+    httpctx->messageBody = b;
+    httpctx->messageBodySize = n;
+
     return 0;
+}
+
+
+string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string baseURL)
+{
+    std::ostringstream web;
+
+//    char *base64Handle = node->getBase64Handle();
+
+    web << "<d:response>\r\n"
+           "<d:href>" << baseURL << "</d:href>\r\n"
+           "<d:propstat>\r\n"
+           "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
+           "<d:prop>\r\n"
+           "<d:displayname>"<<node->getName()<< "</d:displayname>/>\r\n";
+    if (node->isFolder())
+    {
+        web << "<d:resourcetype>\r\n"
+               "<d:collection />\r\n"
+               "</d:resourcetype>\r\n";
+
+    }else
+    {
+        web << "<d:resourcetype />\r\n";
+        web << "<d:getcontentlength>" << node->getSize() << "</d:getcontentlength>\r\n";
+    }
+    web << "</d:prop>\r\n"
+           "</d:propstat>\r\n";
+    web << "</d:response>\r\n";
+
+    return web.str();
+}
+
+
+string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string subnodepath, MegaNode *node, MegaHTTPContext* httpctx)
+{
+    MegaNodeList *children = httpctx->megaApi->getChildren(node);
+
+    std::ostringstream response;
+    std::ostringstream web;
+
+    web << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+           "<d:multistatus xmlns:d=\"DAV:\">\r\n";
+
+    string subbaseURL = baseURL + subnodepath;
+
+    web << getWebDavProfFindNodeContents(node, subbaseURL);
+    if (node->isFolder() && (httpctx->depth != 0) )
+        for (int i = 0; i < children->size(); i++)
+        {
+            MegaNode *child = children->get(i);
+            string childURL = subbaseURL + child->getName();
+            web << getWebDavProfFindNodeContents(child, childURL);
+        }
+    delete children;
+
+    web << "</d:multistatus>"
+           "\r\n";
+
+    string sweb = web.str();
+    response << "HTTP/1.1 207 Multi-Status\r\n"
+                "content-length: " << sweb.size() << "\r\n"
+                                                     "content-type: application/xml; charset=utf-8\r\n"
+                                                     "server: MEGAsdk\r\n"
+                                                     "\r\n";
+
+    if (httpctx->parser.method != HTTP_HEAD)
+    {
+        response << sweb;
+    }
+    httpctx->resultCode = API_OK;
+
+    return response.str();
+}
+
+string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx)
+{
+    MegaNode *parent = httpctx->megaApi->getParentNode(node);
+    MegaNodeList *children = httpctx->megaApi->getChildren(node);
+
+
+    std::ostringstream response;
+    std::ostringstream web;
+
+    // Title
+    web << "<title>MEGA</title>";
+
+    //Styles
+    web << "<head><meta charset=\"utf-8\" /><style>"
+           ".folder {"
+           "padding: 0;"
+           "width: 24px;"
+           "height: 24px;"
+           "margin: 0 0 0 -2px;"
+           "display: block;"
+           "position: absolute;"
+           "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+           "background-position: -14px -7465px;"
+           "background-repeat: no-repeat;}"
+
+           ".file {"
+           "padding: 0;"
+           "width: 24px;"
+           "height: 24px;"
+           "margin: 0 0 0 -6px;"
+           "display: block;"
+           "position: absolute;"
+           "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+           "background-position: -7px -1494px;"
+           "background-repeat: no-repeat;} "
+
+           ".headerimage {"
+           "padding: 0 8px 0 46px;"
+           "width: 100%;"
+           "height: 24px;"
+           "margin: 0 0 0 -12px;"
+           "display: block;"
+           "position: absolute;"
+           "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+           "background-position: 5px -1000px;"
+           "line-height: 23px;"
+           "background-repeat: no-repeat;} "
+
+           ".headertext {"
+           "line-height: 23px;"
+           "color: #777777;"
+           "font-size: 18px;"
+           "font-weight: bold;"
+           "display: block;"
+           "position: absolute;"
+           "line-height: 23px;}"
+
+           "a {"
+           "text-decoration: none; }"
+
+           ".text {"
+           "height: 24px;"
+           "padding: 0 10px 0 26px;"
+           "word-break: break-all;"
+           "white-space: pre-wrap;"
+           "overflow: hidden;"
+           "max-width: 100%;"
+           "text-decoration: none;"
+           "-moz-box-sizing: border-box;"
+           "-webkit-box-sizing: border-box;"
+           "box-sizing: border-box;"
+           "font-size: 13px;"
+           "line-height: 23px;"
+           "color: #666666;}"
+           "</style></head>";
+
+    // Folder path
+    web << "<span class=\"headerimage\"><span class=\"headertext\">";
+    char *path = httpctx->megaApi->getNodePath(node);
+    if (path)
+    {
+        web << path;
+        delete [] path;
+    }
+    else
+    {
+        web << node->getName();
+    }
+    web << "</span></span><br /><br />";
+
+    // Child nodes
+    web << "<table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"width: auto;\">";
+    if (parent)
+    {
+        web << "<tr><td>";
+        char *base64Handle = parent->getBase64Handle();
+        web << "<a href=\"/" << base64Handle << "/" << parent->getName()
+            << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
+        delete [] base64Handle;
+        delete parent;
+        web << "</td></tr>";
+    }
+
+    for (int i = 0; i < children->size(); i++)
+    {
+        web << "<tr><td>";
+        MegaNode *child = children->get(i);
+        char *base64Handle = child->getBase64Handle();
+        web << "<a href=\"/" << base64Handle << "/" << child->getName()
+            << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
+            << child->getName() << "</span></a>";
+        delete [] base64Handle;
+
+        if (!child->isFile())
+        {
+            web << "</td><td>";
+        }
+        else
+        {
+            unsigned const long long KB = 1024;
+            unsigned const long long MB = 1024 * KB;
+            unsigned const long long GB = 1024 * MB;
+            unsigned const long long TB = 1024 * GB;
+
+            web << "</td><td><span class=\"text\">";
+            unsigned long long bytes = child->getSize();
+            if (bytes > TB)
+                web << ((unsigned long long)((100 * bytes) / TB))/100.0 << " TB";
+            else if (bytes > GB)
+                web << ((unsigned long long)((100 * bytes) / GB))/100.0 << " GB";
+            else if (bytes > MB)
+                web << ((unsigned long long)((100 * bytes) / MB))/100.0 << " MB";
+            else if (bytes > KB)
+                web << ((unsigned long long)((100 * bytes) / KB))/100.0 << " KB";
+            web << "</span>";
+        }
+        web << "</td></tr>";
+    }
+    web << "</table>";
+    delete children;
+
+    string sweb = web.str();
+    response << "HTTP/1.1 200 OK\r\n"
+        << "Content-Type: text/html; charset=utf-8\r\n"
+        << "Connection: close\r\n"
+        << "Content-Length: " << sweb.size() << "\r\n"
+        << "Access-Control-Allow-Origin: *\r\n"
+        << "\r\n";
+
+    if (httpctx->parser.method != HTTP_HEAD)
+    {
+        response << sweb;
+    }
+    httpctx->resultCode = API_OK;
+
+    return response.str();
 }
 
 int MegaHTTPServer::onMessageComplete(http_parser *parser)
@@ -19199,7 +19463,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Request method: OPTIONS";
         response << "HTTP/1.1 200 OK\r\n"
-                    "Allow: GET,POST,HEAD,OPTIONS\r\n"
+                    "Allow: GET,POST,HEAD,OPTIONS,PROPFIND\r\n"
+                    //"Allow: PUT,DELETE,TRACE,COPY,MOVE,MKCOL,PROPPATCH,LOCK,UNLOCK,ORDERPATCH\r\n"
+                    "DAV: 1\r\n" //Class 2 requires LOCK
                     "Connection: close\r\n"
                     "\r\n";
 
@@ -19209,8 +19475,25 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         return 0;
     }
 
-    if (parser->method != HTTP_GET && parser->method != HTTP_POST && parser->method != HTTP_HEAD)
+
+    switch (parser->method)
     {
+    case HTTP_GET:
+        LOG_debug << "Request method: GET";
+        break;
+    case HTTP_POST:
+        LOG_debug << "Request method: POST";
+        break;
+    case HTTP_HEAD:
+        LOG_debug << "Request method: HEAD";
+        break;
+    case HTTP_OPTIONS:
+        LOG_debug << "Request method: HTTP_OPTIONS";
+        break;
+    case HTTP_PROPFIND:
+        LOG_debug << "Request method: HTTP_PROPFIND";
+        break;
+    default:
         LOG_debug << "Method not allowed: " << parser->method;
         response << "HTTP/1.1 405 Method not allowed\r\n"
                     "Connection: close\r\n"
@@ -19220,23 +19503,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
         return 0;
-    }
-    else
-    {
-        switch (parser->method)
-        {
-        case HTTP_GET:
-            LOG_debug << "Request method: GET";
-            break;
-        case HTTP_POST:
-            LOG_debug << "Request method: POST";
-            break;
-        case HTTP_HEAD:
-            LOG_debug << "Request method: HEAD";
-            break;
-        default:
-            LOG_warn << "Request method: " << parser->method;
-        }
     }
 
     if (httpctx->path == "/favicon.ico")
@@ -19332,44 +19598,11 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     if (node && httpctx->nodename != node->getName())
     {
-        //Subtitles support
-        bool subtitles = false;
-
-        if (httpctx->server->isSubtitlesSupportEnabled())
+        if (parser->method == HTTP_PROPFIND)
         {
-            string originalname = node->getName();
-            string::size_type dotpos = originalname.find_last_of('.');
-            if (dotpos != string::npos)
-            {
-                originalname.resize(dotpos);
-            }
-
-            if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
-            {
-                LOG_debug << "Possible subtitles file";
-                MegaNode *parent = httpctx->megaApi->getParentNode(node);
-                if (parent)
-                {
-                    MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
-                    if (child)
-                    {
-                        LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
-                        subtitles = true;
-                        delete node;
-                        node = child;
-                    }
-                    delete parent;
-                }
-            }
-        }
-
-        if (!subtitles)
-        {
-            LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
-
             response << "HTTP/1.1 404 Not Found\r\n"
                         "Connection: close\r\n"
-                      << "\r\n";
+                     << "\r\n";
 
             httpctx->resultCode = 404;
             string resstr = response.str();
@@ -19377,11 +19610,112 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             delete node;
             return 0;
         }
+        else
+        {
+            //Subtitles support
+            bool subtitles = false;
+
+            if (httpctx->server->isSubtitlesSupportEnabled())
+            {
+                string originalname = node->getName();
+                string::size_type dotpos = originalname.find_last_of('.');
+                if (dotpos != string::npos)
+                {
+                    originalname.resize(dotpos);
+                }
+
+                if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
+                {
+                    LOG_debug << "Possible subtitles file";
+                    MegaNode *parent = httpctx->megaApi->getParentNode(node);
+                    if (parent)
+                    {
+                        MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
+                        if (child)
+                        {
+                            LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
+                            subtitles = true;
+                            delete node;
+                            node = child;
+                        }
+                        delete parent;
+                    }
+                }
+            }
+
+            if (!subtitles)
+            {
+                LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
+
+                response << "HTTP/1.1 404 Not Found\r\n"
+                            "Connection: close\r\n"
+                         << "\r\n";
+
+                httpctx->resultCode = 404;
+                string resstr = response.str();
+                sendHeaders(httpctx, &resstr);
+                delete node;
+                return 0;
+            }
+        }
     }
 
-    if (node->isFolder())
+
+    if (httpctx->subpathrelative.size())
     {
-        if (!httpctx->server->isFolderServerEnabled())
+        MegaNode *subnode = httpctx->megaApi->getNodeByPath(httpctx->subpathrelative.c_str(), node);
+        delete node;
+        if (!subnode)
+        {
+            response << "HTTP/1.1 404 Not Found\r\n"
+                        "Connection: close\r\n"
+                      << "\r\n";
+
+            httpctx->resultCode = 404;
+            string resstr = response.str();
+            sendHeaders(httpctx, &resstr);
+            return 0;
+        }
+        else
+        {
+            node = subnode;
+        }
+    }
+
+    if (parser->method == HTTP_PROPFIND)
+    {
+        string baseURL = string("http")+(httpctx->server->useTLS?"s":"")+"://"+httpctx->host+"/"+httpctx->nodehandle+"/"+httpctx->nodename+"/";
+        string resstr = getWebDavPropFindResponseForNode(baseURL, httpctx->subpathrelative, node, httpctx);
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
+    }
+    else
+    {
+        if (node->isFolder())
+        {
+            if (!httpctx->server->isFolderServerEnabled())
+            {
+                response << "HTTP/1.1 403 Forbidden\r\n"
+                            "Connection: close\r\n"
+                          << "\r\n";
+
+                httpctx->resultCode = 403;
+                string resstr = response.str();
+                sendHeaders(httpctx, &resstr);
+                delete node;
+                return 0;
+            }
+
+            string resstr;
+            resstr = getResponseForNode(node, httpctx);
+            sendHeaders(httpctx, &resstr);
+            delete node;
+            return 0;
+        }
+
+        //File node
+        if (!httpctx->server->isFileServerEnabled())
         {
             response << "HTTP/1.1 403 Forbidden\r\n"
                         "Connection: close\r\n"
@@ -19394,178 +19728,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             return 0;
         }
 
-        MegaNode *parent = httpctx->megaApi->getParentNode(node);
-        MegaNodeList *children = httpctx->megaApi->getChildren(node);
-
-        std::ostringstream web;
-
-        // Title
-        web << "<title>MEGA</title>";
-
-        //Styles
-        web << "<head><meta charset=\"utf-8\" /><style>"
-               ".folder {"
-               "padding: 0;"
-               "width: 24px;"
-               "height: 24px;"
-               "margin: 0 0 0 -2px;"
-               "display: block;"
-               "position: absolute;"
-               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
-               "background-position: -14px -7465px;"
-               "background-repeat: no-repeat;}"
-
-               ".file {"
-               "padding: 0;"
-               "width: 24px;"
-               "height: 24px;"
-               "margin: 0 0 0 -6px;"
-               "display: block;"
-               "position: absolute;"
-               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
-               "background-position: -7px -1494px;"
-               "background-repeat: no-repeat;} "
-
-               ".headerimage {"
-               "padding: 0 8px 0 46px;"
-               "width: 100%;"
-               "height: 24px;"
-               "margin: 0 0 0 -12px;"
-               "display: block;"
-               "position: absolute;"
-               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
-               "background-position: 5px -1000px;"
-               "line-height: 23px;"
-               "background-repeat: no-repeat;} "
-
-               ".headertext {"
-               "line-height: 23px;"
-               "color: #777777;"
-               "font-size: 18px;"
-               "font-weight: bold;"
-               "display: block;"
-               "position: absolute;"
-               "line-height: 23px;}"
-
-               "a {"
-               "text-decoration: none; }"
-
-               ".text {"
-               "height: 24px;"
-               "padding: 0 10px 0 26px;"
-               "word-break: break-all;"
-               "white-space: pre-wrap;"
-               "overflow: hidden;"
-               "max-width: 100%;"
-               "text-decoration: none;"
-               "-moz-box-sizing: border-box;"
-               "-webkit-box-sizing: border-box;"
-               "box-sizing: border-box;"
-               "font-size: 13px;"
-               "line-height: 23px;"
-               "color: #666666;}"
-               "</style></head>";
-
-        // Folder path
-        web << "<span class=\"headerimage\"><span class=\"headertext\">";
-        char *path = httpctx->megaApi->getNodePath(node);
-        if (path)
-        {
-            web << path;
-            delete [] path;
-        }
-        else
-        {
-            web << node->getName();
-        }
-        web << "</span></span><br /><br />";
-
-        // Child nodes
-        web << "<table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"width: auto;\">";
-        if (parent)
-        {
-            web << "<tr><td>";
-            char *base64Handle = parent->getBase64Handle();
-            web << "<a href=\"/" << base64Handle << "/" << parent->getName()
-                << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
-            delete [] base64Handle;
-            delete parent;
-            web << "</td></tr>";
-        }
-
-        for (int i = 0; i < children->size(); i++)
-        {
-            web << "<tr><td>";
-            MegaNode *child = children->get(i);
-            char *base64Handle = child->getBase64Handle();
-            web << "<a href=\"/" << base64Handle << "/" << child->getName()
-                << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
-                << child->getName() << "</span></a>";
-            delete [] base64Handle;
-
-            if (!child->isFile())
-            {
-                web << "</td><td>";
-            }
-            else
-            {
-                unsigned const long long KB = 1024;
-                unsigned const long long MB = 1024 * KB;
-                unsigned const long long GB = 1024 * MB;
-                unsigned const long long TB = 1024 * GB;
-
-                web << "</td><td><span class=\"text\">";
-                unsigned long long bytes = child->getSize();
-                if (bytes > TB)
-                    web << ((unsigned long long)((100 * bytes) / TB))/100.0 << " TB";
-                else if (bytes > GB)
-                    web << ((unsigned long long)((100 * bytes) / GB))/100.0 << " GB";
-                else if (bytes > MB)
-                    web << ((unsigned long long)((100 * bytes) / MB))/100.0 << " MB";
-                else if (bytes > KB)
-                    web << ((unsigned long long)((100 * bytes) / KB))/100.0 << " KB";
-                web << "</span>";
-            }
-            web << "</td></tr>";
-        }
-        web << "</table>";
-        delete children;
-
-        string sweb = web.str();
-        response << "HTTP/1.1 200 OK\r\n"
-            << "Content-Type: text/html; charset=utf-8\r\n"
-            << "Connection: close\r\n"
-            << "Content-Length: " << sweb.size() << "\r\n"
-            << "Access-Control-Allow-Origin: *\r\n"
-            << "\r\n";
-
-        if (httpctx->parser.method != HTTP_HEAD)
-        {
-            response << sweb;
-        }
-        httpctx->resultCode = API_OK;
-        string resstr = response.str();
-        sendHeaders(httpctx, &resstr);
-        delete node;
-        return 0;
+        httpctx->node = node;
+        streamNode(httpctx);
     }
-
-    //File node
-    if (!httpctx->server->isFileServerEnabled())
-    {
-        response << "HTTP/1.1 403 Forbidden\r\n"
-                    "Connection: close\r\n"
-                  << "\r\n";
-
-        httpctx->resultCode = 403;
-        string resstr = response.str();
-        sendHeaders(httpctx, &resstr);
-        delete node;
-        return 0;
-    }
-
-    httpctx->node = node;
-    streamNode(httpctx);
     return 0;
 }
 
@@ -19666,7 +19831,6 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     }
 
     LOG_debug << "Requesting range. From " << start << "  size " << len;
-    uv_mutex_init(&httpctx->mutex);
     httpctx->rangeWritten = 0;
     httpctx->megaApi->startStreaming(node, start, len, httpctx);
     return 0;
@@ -19937,6 +20101,12 @@ MegaHTTPContext::MegaHTTPContext()
     transfer = NULL;
     nodesize = -1;
     evt_tls = NULL;
+    messageBody = NULL;
+    messageBodySize = 0;
+
+    depth = -1;
+
+    uv_mutex_init(&mutex);
 }
 
 MegaHTTPContext::~MegaHTTPContext()
