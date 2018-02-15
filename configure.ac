@@ -137,7 +137,7 @@ AC_ARG_ENABLE(debug,
 # Enable debug flags / build
 if test "x$enable_debug" = "xyes" ; then
     AM_CXXFLAGS="-Wall -g -ggdb3 -O0"
-    CXXFLAGS="-Wall -g -ggdb3 -O0"
+    CXXFLAGS="$CXXFLAGS -Wall -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
 else
