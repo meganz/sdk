@@ -2920,6 +2920,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
         case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
         case TYPE_WHY_AM_I_BLOCKED: return "WHY_AM_I_BLOCKED";
+        case TYPE_CONTACT_LINK_CREATE: return "CONTACT_LINK_CREATE";
+        case TYPE_CONTACT_LINK_QUERY: return "CONTACT_LINK_QUERY";
+        case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
     }
     return "UNKNOWN";
 }
@@ -7995,6 +7998,29 @@ void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequest
     waiter->notify();
 }
 
+void MegaApiImpl::contactLinkCreate(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_CREATE, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_QUERY, listener);
+    request->setNodeHandle(handle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_DELETE, listener);
+    request->setNodeHandle(handle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
@@ -11472,6 +11498,60 @@ void MegaApiImpl::whyamiblocked_result(int code)
         event->setText(reason.c_str());
         fireOnEvent(event);
     }
+}
+
+void MegaApiImpl::contactlinkcreate_result(error e, handle h)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_CREATE)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setNodeHandle(h);
+    }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_QUERY)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setEmail(email->c_str());
+        request->setName(firstname->c_str());
+        request->setText(lastname->c_str());
+    }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::contactlinkdelete_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_DELETE)))
+    {
+        return;
+    }
+    fireOnRequestFinish(request, e);
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
@@ -16456,6 +16536,33 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_WHY_AM_I_BLOCKED:
         {
             client->whyamiblocked();
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_CREATE:
+        {
+            client->contactlinkcreate();
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_QUERY:
+        {
+            handle h = request->getNodeHandle();
+            if (h == UNDEF)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->contactlinkquery(h);
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_DELETE:
+        {
+            handle h = request->getNodeHandle();
+            if (h == UNDEF)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->contactlinkdelete(h);
             break;
         }
         case MegaRequest::TYPE_GET_ACHIEVEMENTS:

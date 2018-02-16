@@ -1761,6 +1761,10 @@ class MegaApiImpl : public MegaApp
         const char *getUserAgent();
         const char *getBasePath();
 
+        void contactLinkCreate(MegaRequestListener *listener = NULL);
+        void contactLinkQuery(MegaHandle handle, MegaRequestListener *listener = NULL);
+        void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
+
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
@@ -1987,6 +1991,11 @@ protected:
 
         // check the reason of being blocked
         virtual void whyamiblocked_result(int);
+
+        // contact link management
+        virtual void contactlinkcreate_result(error, handle);
+        virtual void contactlinkquery_result(error, handle, string*, string*, string*);
+        virtual void contactlinkdelete_result(error);
 
         // account creation
         virtual void sendsignuplink_result(error);

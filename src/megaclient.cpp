@@ -708,6 +708,21 @@ void MegaClient::confirmemaillink(const char *code, const char *email, const byt
     reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
 }
 
+void MegaClient::contactlinkcreate()
+{
+    reqs.add(new CommandContactLinkCreate(this));
+}
+
+void MegaClient::contactlinkquery(handle h)
+{
+    reqs.add(new CommandContactLinkQuery(this, h));
+}
+
+void MegaClient::contactlinkdelete(handle h)
+{
+    reqs.add(new CommandContactLinkDelete(this, h));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

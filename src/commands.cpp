@@ -5659,4 +5659,94 @@ void CommandMediaCodecs::procresult()
     callback(client, version);
 }
 
+CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client)
+{
+    cmd("clc");
+    
+    tag = client->reqtag;
+}
+
+void CommandContactLinkCreate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->contactlinkcreate_result((error)client->json.getint(), UNDEF);
+    }
+    else
+    {
+        handle h = client->json.gethandle(MegaClient::CONTACTLINKHANDLE);
+        client->app->contactlinkcreate_result(API_OK, h);                
+    }
+}
+
+CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
+{
+    cmd("clg");
+    arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+    
+    tag = client->reqtag;
+}
+
+void CommandContactLinkQuery::procresult()
+{    
+    handle h = UNDEF;
+    string email;
+    string firstname;
+    string lastname;
+
+    if (client->json.isnumeric())
+    {
+        client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname);
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'h':
+                h = client->json.gethandle(MegaClient::USERHANDLE);
+                break;
+            case 'e':
+                client->json.storeobject(&email);
+                break;
+            case MAKENAMEID2('f', 'n'):
+                client->json.storeobject(&firstname);
+                break;
+            case MAKENAMEID2('l', 'n'):
+                client->json.storeobject(&lastname);
+                break;
+            case EOO:
+                return client->app->contactlinkquery_result(API_OK, h, &email, &firstname, &lastname);
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse query link response";
+                    return client->app->contactlinkquery_result(API_EINTERNAL, h, &email, &firstname, &lastname);
+                }
+                break;
+        }
+    }
+}
+
+CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
+{
+    cmd("cld");
+    arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+    
+    tag = client->reqtag;    
+}
+
+void CommandContactLinkDelete::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->contactlinkdelete_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->contactlinkdelete_result(API_EINTERNAL);
+    }
+}
+
 } // namespace

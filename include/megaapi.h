@@ -2028,6 +2028,7 @@ class MegaRequest
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
+            TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -5737,6 +5738,51 @@ class MegaApi
          * is MegaError::API_OK, the user is not blocked.
          */
         void whyAmIBlocked(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Create a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_CREATE.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Return the handle of the new contact link
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkCreate(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_QUERY.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getEmail - Returns the email of the contact
+         * - MegaRequest::getName - Returns the first name of the contact
+         * - MegaRequest::getText - Returns the last name of the contact
+         *
+         * @param handle Handle of the contact link to check
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkQuery(MegaHandle handle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Delete a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_DELETE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * @param handle Handle of the contact link to delete
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account

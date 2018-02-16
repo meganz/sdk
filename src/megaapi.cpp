@@ -1313,6 +1313,21 @@ void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
     return pImpl->whyAmIBlocked(false, listener);
 }
 
+void MegaApi::contactLinkCreate(MegaRequestListener *listener)
+{
+    pImpl->contactLinkCreate(listener);
+}
+
+void MegaApi::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkQuery(handle, listener);
+}
+
+void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkDelete(handle, listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();

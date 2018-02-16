@@ -920,6 +920,30 @@ private:
     Callback callback;
 };
 
+class MEGA_API CommandContactLinkCreate : public Command
+{
+public:
+    void procresult();
+
+    CommandContactLinkCreate(MegaClient*);
+};
+
+class MEGA_API CommandContactLinkQuery : public Command
+{
+public:
+    void procresult();
+
+    CommandContactLinkQuery(MegaClient*, handle);
+};
+
+class MEGA_API CommandContactLinkDelete : public Command
+{
+public:
+    void procresult();
+
+    CommandContactLinkDelete(MegaClient*, handle);
+};
+
 } // namespace
 
 #endif

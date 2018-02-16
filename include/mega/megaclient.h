@@ -1156,6 +1156,7 @@ public:
     static const int CHATHANDLE = 8;
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
+    static const int CONTACTLINKHANDLE = 6;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -1278,6 +1279,15 @@ public:
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
+
+    // create contact link
+    void contactlinkcreate();
+
+    // query contact link
+    void contactlinkquery(handle);
+
+    // delete contact link
+    void contactlinkdelete(handle);
 
     // achievements enabled for the account
     bool achievements_enabled;
