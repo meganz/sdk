@@ -4669,7 +4669,8 @@ class MegaApi
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
             USER_ATTR_LANGUAGE = 14,            // private - char array
             USER_ATTR_PWD_REMINDER = 15,        // private - char array
-            USER_ATTR_DISABLE_VERSIONS = 16     // private - byte array
+            USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
+            USER_ATTR_CONTACT_LINK_VERIFICATION = 17     // private - byte array
         };
 
         enum {
@@ -9783,6 +9784,22 @@ class MegaApi
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish:
+         * - MegaRequest::getText - "0" for disable, "1" for enable
+         *
+         * @param disable True to disable the automatic approval of incoming contact requests using a contact link
+         * @param listener MegaRequestListener to track this request
+         */
+        void setContactLinksOption(bool disable, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Check if file versioning is enabled or disabled
          *
          * If the option has never been set, the error code will be MegaError::API_ENOENT.
@@ -9800,6 +9817,25 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getFileVersionsOption(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+         *
+         * If the option has never been set, the error code will be MegaError::API_ENOENT.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - "0" for disable, "1" for enable
+         * - MegaRequest::getFlag - false if disabled, true if enabled
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getContactLinksOption(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Keep retrying when public key pinning fails

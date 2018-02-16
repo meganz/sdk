@@ -2687,9 +2687,19 @@ void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
     pImpl->setFileVersionsOption(disable, listener);
 }
 
+void MegaApi::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    pImpl->setContactLinksOption(disable, listener);
+}
+
 void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
 {
     pImpl->getFileVersionsOption(listener);
+}
+
+void MegaApi::getContactLinksOption(MegaRequestListener *listener)
+{
+    pImpl->getContactLinksOption(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)

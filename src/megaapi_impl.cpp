@@ -4251,6 +4251,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
             attrname = "!dv";
             break;
+
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+            attrname = "!clv";
+            break;
     }
 
     return attrname;
@@ -4284,6 +4288,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LANGUAGE:
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
             scope = '^';
             break;
 
@@ -8212,6 +8217,17 @@ void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
     getUserAttr(NULL, MegaApi::USER_ATTR_DISABLE_VERSIONS, NULL, listener);
 }
 
+void MegaApiImpl::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    string av = disable ? "0" : "1";
+    setUserAttr(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, av.data(), listener);
+}
+
+void MegaApiImpl::getContactLinksOption(MegaRequestListener *listener)
+{
+    getUserAttr(NULL, MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, NULL, listener);
+}
+
 void MegaApiImpl::retrySSLerrors(bool enable)
 {
     sdkMutex.lock();
@@ -11334,11 +11350,13 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         case MegaApi::USER_ATTR_LANGUAGE:   // it's a c-string in binary format, want the plain data
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
 
-                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS)
+                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS
+                        || attrType == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
                 {
                     request->setFlag(str == "1");
                 }
@@ -14952,6 +14970,16 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
                 else if (type == ATTR_DISABLE_VERSIONS)
+                {
+                    if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    client->putua(type, (byte *)value, 1);
+                }
+                else if (type == ATTR_CONTACT_LINK_VERIFICATION)
                 {
                     if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
                     {
