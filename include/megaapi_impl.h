@@ -2282,11 +2282,13 @@ public:
 
     // WEBDAV related
     int depth;
-    string lastheader;
+    std::string lastheader;
     std::string subpathrelative;
     const char * messageBody;
     int messageBodySize;
     std::string host;
+    std::string destination;
+    bool override;
 
     //tls stuff:
     evt_tls_t *evt_tls;
@@ -2384,6 +2386,12 @@ protected:
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
     static void sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylocked = false);
     static int streamNode(MegaHTTPContext *httpctx);
+
+    //Utility funcitons
+    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode);
+    static std::string getHTTPMethodName(int httpmethod);
+    static std::string getHTTPErrorString(int errorcode);
+
 
 public:
     bool useTLS;
