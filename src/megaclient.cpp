@@ -7620,9 +7620,9 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
 }
 
 // Add/delete/remind outgoing pending contact request
-void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail)
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink));
 }
 
 void MegaClient::updatepcr(handle p, ipcactions_t action)

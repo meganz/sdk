@@ -1963,7 +1963,12 @@ bool MegaApi::usingHttpsOnly()
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
 {
-    pImpl->inviteContact(email, message, action, listener);
+    pImpl->inviteContact(email, message, action, UNDEF, listener);
+}
+
+void MegaApi::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
+{
+    pImpl->inviteContact(email, message, action, contactLink, listener);
 }
 
 void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)

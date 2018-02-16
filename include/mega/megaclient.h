@@ -402,7 +402,7 @@ public:
     void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
 
     // Add/delete/remind outgoing pending contact request
-    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL);
+    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node

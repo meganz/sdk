@@ -478,7 +478,7 @@ class MEGA_API CommandSetPendingContact : public Command
 public:
     void procresult();
 
-    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL);
+    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
 };
 
 class MEGA_API CommandUpdatePendingContact : public Command

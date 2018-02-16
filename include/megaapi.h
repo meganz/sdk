@@ -7091,6 +7091,33 @@ class MegaApi
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
 
         /**
+         * @brief Invite another person to be your MEGA contact using a contact link handle
+         *
+         * The user doesn't need to be registered on MEGA. If the email isn't associated with
+         * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_INVITE_CONTACT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email of the contact
+         * - MegaRequest::getText - Returns the text of the invitation
+         * - MegaRequest::getNumber - Returns the action
+         *
+         * Sending a reminder within a two week period since you started or your last reminder will
+         * fail the API returning the error code MegaError::API_EACCESS.
+         *
+         * @param email Email of the new contact
+         * @param message Message for the user (can be NULL)
+         * @param action Action for this contact request. Valid values are:
+         * - MegaContactRequest::INVITE_ACTION_ADD = 0
+         * - MegaContactRequest::INVITE_ACTION_DELETE = 1
+         * - MegaContactRequest::INVITE_ACTION_REMIND = 2
+         * @param contactLink Contact link handle of the other account
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void inviteContact(const char* email, const char* message, int action, MegaHandle contactLink, MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Reply to a contact request
          * @param request Contact request. You can get your pending contact requests using MegaApi::getIncomingContactRequests
          * @param action Action for this contact request. Valid values are:

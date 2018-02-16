@@ -5589,12 +5589,13 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
     return MegaApi::strdup(colors[index].c_str());
 }
 
-void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)
+void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
     request->setNumber(action);
     request->setEmail(email);
     request->setText(message);
+    request->setNodeHandle(contactLink);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -15263,6 +15264,7 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             const char *message = request->getText();
             int action = request->getNumber();
+            MegaHandle contactLink = request->getNodeHandle();
 
             if(client->loggedin() != FULLACCOUNT)
             {
@@ -15282,7 +15284,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->setpcr(email, (opcactions_t)action, message);
+            client->setpcr(email, (opcactions_t)action, message, NULL, contactLink);
             break;
         }
         case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:

@@ -1873,7 +1873,7 @@ void CommandSetShare::procresult()
 }
 
 
-CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail)
+CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
 {
     cmd("upc");
 
@@ -1893,6 +1893,10 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
             break;
         case OPCA_ADD:
             arg("aa", "a");
+            if (!ISUNDEF(contactLink))
+            {
+                arg("cl", (byte*)&contactLink, MegaClient::CONTACTLINKHANDLE);
+            }
             break;
     }
 
