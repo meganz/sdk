@@ -46,6 +46,7 @@ enable_cares=0
 enable_curl=0
 enable_libuv=0
 android_build=0
+readline_build=0
 enable_cryptopp=0
 disable_mediainfo=0
 incremental=0
@@ -195,6 +196,7 @@ package_configure() {
     local dir=$2
     local install_dir="$3"
     local params="$4"
+    local extralibs="$5"
 
     local conf_f1="./config"
     local conf_f2="./configure"
@@ -210,9 +212,9 @@ package_configure() {
     fi
 
     if [ -f $conf_f1 ]; then
-        $conf_f1 --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        $conf_f1 --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
     elif [ -f $conf_f2 ]; then
-        $conf_f2 $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        $conf_f2 $config_opts --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
     else
         local exit_code=$?
         echo "Failed to configure $name, exit status: $exit_code"
@@ -292,14 +294,14 @@ openssl_pkg() {
 
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
-    local openssl_params="--openssldir=$install_dir no-shared shared"
+    local openssl_params="--openssldir=$install_dir no-shared"
     local loc_make_opts=$make_opts
 
     if [ $incremental -eq 1 ] && [ -e $name.success ]; then
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $openssl_url $openssl_file $openssl_md5
@@ -357,7 +359,7 @@ cryptopp_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $cryptopp_url $cryptopp_file $cryptopp_md5
@@ -398,7 +400,7 @@ sodium_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $sodium_url $sodium_file $sodium_md5
@@ -431,7 +433,7 @@ libuv_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $libuv_url $libuv_file $libuv_md5
@@ -474,7 +476,7 @@ zlib_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $zlib_url $zlib_file $zlib_md5
@@ -525,7 +527,7 @@ sqlite_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $sqlite_url $sqlite_file $sqlite_md5
@@ -558,7 +560,7 @@ cares_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $cares_url $cares_file $cares_md5
@@ -582,6 +584,7 @@ curl_pkg() {
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""
+    local curl_params=""
 
     # use local or system OpenSSL
     if [ $disable_ssl -eq 0 ]; then
@@ -591,22 +594,22 @@ curl_pkg() {
     fi
 
     if [ $use_dynamic -eq 1 ]; then
-        local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
+        curl_params="--with-ssl=$install_dir --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
             --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
-            --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
+            --with-zlib=$install_dir --enable-ares=$install_dir"
     else
-        local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
+        curl_params="--with-ssl=$install_dir --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
             --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
-            --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
+            --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir"
     fi
 
     if [ $incremental -eq 1 ] && [ -e $name.success ]; then
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $curl_url $curl_file $curl_md5
@@ -615,7 +618,7 @@ curl_pkg() {
     fi
 
     package_extract $name $curl_file $curl_dir
-    package_configure $name $curl_dir $install_dir "$curl_params"
+    package_configure $name $curl_dir $install_dir "$curl_params" "-ldl -lpthread"
     package_build $name $curl_dir
     package_install $name $curl_dir $install_dir
 }
@@ -639,7 +642,7 @@ readline_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $readline_url $readline_file $readline_md5
@@ -672,7 +675,7 @@ termcap_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $termcap_url $termcap_file $termcap_md5
@@ -702,7 +705,7 @@ freeimage_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $freeimage_url $freeimage_file $freeimage_md5
@@ -763,7 +766,7 @@ readline_win_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $readline_url $readline_file $readline_md5
@@ -803,7 +806,7 @@ mediainfo_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $zenlib_name $zenlib_url $zenlib_file $zenlib_md5
@@ -895,7 +898,7 @@ readline_win_pkg() {
         echo "$name already built"
         return
     else
-        rm $name.success
+        rm -f $name.success
     fi
 
     package_download $name $readline_url $readline_file $readline_md5
@@ -926,7 +929,7 @@ build_sdk() {
         echo "MegaSDK already built"
         return
     else
-        rm ./MegaSDK.success
+        rm -f ./MegaSDK.success
     fi
 
     echo "Configuring MEGA SDK"
@@ -1081,7 +1084,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:no:p:rstuvyx:wqz" opt; do
+    while getopts ":habcdefgiIlm:no:p:rRstuvyx:wqz" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1151,6 +1154,10 @@ main() {
             r)
                 echo "* Building for Android"
                 android_build=1
+                ;;
+            R)
+                echo "* Building readline for clients"
+                readline_build=1
                 ;;
             s)
                 echo "* Disabling OpenSSL"
@@ -1271,7 +1278,7 @@ main() {
     fi
 
     # Build readline and termcap if no_examples isn't set
-    if [ -z "$no_examples" ]; then
+    if [ $readline_build -eq 1 ] || [ -z "$no_examples" ]; then
         if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
             readline_pkg $build_dir $install_dir
             termcap_pkg $build_dir $install_dir
