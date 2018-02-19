@@ -2285,10 +2285,12 @@ public:
     std::string lastheader;
     std::string subpathrelative;
     const char * messageBody;
-    int messageBodySize;
+    size_t messageBodySize;
     std::string host;
     std::string destination;
     bool override;
+    FileAccess *tmpFileAccess;
+    std:: string tmpFileName;
 
     //tls stuff:
     evt_tls_t *evt_tls;
@@ -2388,7 +2390,6 @@ protected:
     static int streamNode(MegaHTTPContext *httpctx);
 
     //Utility funcitons
-    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode);
     static std::string getHTTPMethodName(int httpmethod);
     static std::string getHTTPErrorString(int errorcode);
 
@@ -2417,6 +2418,9 @@ public:
     char* getLink(MegaNode *node);
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
+
+    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode);
+
 };
 #endif
 

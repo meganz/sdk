@@ -18955,8 +18955,18 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
     if (nread >= 0)
     {
-        parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+        if (nread == 0 && httpctx->parser.method == HTTP_PUT) //otherwise it will fail for files >65k in GVFS-DAV
+        {
+            LOG_debug << " Skipping parsing 0 length data for HTTP_PUT";
+            parsed = 0;
+        }
+        else
+        {
+            parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+        }
     }
+
+    LOG_verbose << " at onDataReceived, received " << nread << " parsed=" << parsed;
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
@@ -19204,12 +19214,49 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
 
 int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
 {
-    LOG_verbose << "Message onBody: " << string(b).substr(0,n);
     MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
 
-    httpctx->messageBody = b;
-    httpctx->messageBodySize = n;
+    if (parser->method == HTTP_PUT)
+    {
+        //create tmp file with contents in messageBody
+        if (!httpctx->tmpFileAccess)
+        {
+            httpctx->tmpFileName="httputfile";
+            string suffix;
+            MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
+            fsAccess->tmpnamelocal(&suffix);
+            httpctx->tmpFileName.append(suffix);
+            fsAccess->newfileaccess();
 
+
+            httpctx->tmpFileAccess = fsAccess->newfileaccess();
+            string localPath;
+            fsAccess->path2local(&httpctx->tmpFileName, &localPath);
+            fsAccess->unlinklocal(&localPath);
+            if(!httpctx->tmpFileAccess->fopen(&localPath, false, true))
+            {
+                returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
+                return 0;
+            }
+            delete fsAccess; //TODO: save this object too?
+        }
+
+        if(!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize+1))
+        {
+            returnHttpCode(httpctx, 500);
+            return 0;
+        }
+        httpctx->messageBodySize += n;
+    }
+    else
+    {
+        char * newbody = new char[n+httpctx->messageBodySize];
+        memcpy(newbody, httpctx->messageBody,httpctx->messageBodySize);
+        memcpy(newbody + httpctx->messageBodySize + 1, b, n);
+        httpctx->messageBodySize += n;
+        delete httpctx->messageBody;
+        httpctx->messageBody = newbody;
+    }
     return 0;
 }
 
@@ -19554,7 +19601,7 @@ string MegaHTTPServer::getHTTPMethodName(int httpmethod)
 }
 
 
-string MegaHTTPServer::getHTTPErrorString(int errorcode) //TODO: make static? utility? somwhere else?
+string MegaHTTPServer::getHTTPErrorString(int errorcode)
 {
     switch (errorcode)
     {
@@ -19578,6 +19625,9 @@ string MegaHTTPServer::getHTTPErrorString(int errorcode) //TODO: make static? ut
         break;
     case 423:
         return "Locked";
+        break;
+    case 500:
+        return "Internal Server Error";
         break;
     case 502:
         return "Bad Gateway";
@@ -19652,7 +19702,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         LOG_debug << "Request method: " << getHTTPMethodName(parser->method);
         break;
     default:
-        LOG_debug << "Method not allowed: " << parser->method;
+        LOG_debug << "Method not allowed: " << getHTTPMethodName(parser->method);
         response << "HTTP/1.1 405 Method not allowed\r\n"
                     "Connection: close\r\n"
                     "\r\n";
@@ -19822,7 +19872,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     if (httpctx->subpathrelative.size())
     {
         MegaNode *subnode = httpctx->megaApi->getNodeByPath(httpctx->subpathrelative.c_str(), node);
-        if (!subnode)
+        if (parser->method != HTTP_PUT && !subnode)
         {
             returnHttpCode(httpctx, 404);
             delete node;
@@ -19843,6 +19893,52 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         delete node;
         delete baseNode;
         return 0;
+    }
+    else if (parser->method == HTTP_PUT)
+    {
+        if (node)
+        {
+            returnHttpCode(httpctx, 500); //TODO: override? implement
+        }
+        else
+        {
+            string dest = httpctx->subpathrelative;
+
+            size_t seppos = dest.find_last_of("/");
+            string newname;
+            MegaNode *newParentNode = NULL;
+            if (seppos == string::npos)
+            {
+                newParentNode = baseNode?baseNode->copy():node->copy();
+                newname = dest;
+            }
+            else
+            {
+                if ((seppos+1)< newname.size())
+                {
+                    newname = newname.substr(seppos+1);
+                }
+                string newparentpath = dest.substr(0,seppos);
+                newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
+            }
+            if (!newParentNode)
+            {
+                returnHttpCode(httpctx, 404); //TODO: review this error code
+                delete node;
+                delete baseNode;
+                return 0;
+            }
+
+            httpctx->megaApi->startUpload(httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), httpctx);
+
+            //sleep(2);
+            //returnHttpCode(httpctx, 201); //TODO: review this error code
+
+            delete node;
+            delete baseNode;
+            delete newParentNode;
+            return 0;
+        }
     }
     else if (parser->method == HTTP_MOVE)
     {
@@ -19914,10 +20010,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             {
                 size_t seppos = dest.find_last_of("/");
                 string newname;
-                MegaNode *newParentNode;
+                MegaNode *newParentNode = NULL; //TODO: delete this
                 if (seppos == string::npos)
                 {
-                    newParentNode = baseNode?baseNode:node;
+                    newParentNode = baseNode?baseNode->copy():node->copy();
                     newname = dest;
                 }
                 else
@@ -20167,6 +20263,8 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 
 void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
 {
+
+    LOG_verbose << "at onAsyncEvent "; //TODO: delete
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
     if (httpctx->failed)
     {
@@ -20193,7 +20291,7 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
             }
 
             httpctx->resultCode = 404;
-            string resstr = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
+            string resstr = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n"; //TODO: ? close
             sendHeaders(httpctx, &resstr);
             return;
         }
@@ -20357,10 +20455,26 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
             }
         }
 
-        httpctx->finished = true;
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        if (false && http_should_keep_alive(&httpctx->parser))
         {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            // Keeop on reading
+            if (httpctx->lastBufferLen)
+            {
+                httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
+                httpctx->lastBufferLen = 0;
+            }
+            //TODO: there should be more stuff to clean. maybe we should restart the whole httpctx
+            uv_read_start((uv_stream_t*)&httpctx->tcphandle, allocBuffer, onDataReceived);
+            // TODO: tls version of this!?
+            //uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
+        }
+        else
+        {
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
         }
         return;
     }
@@ -20400,8 +20514,10 @@ MegaHTTPContext::MegaHTTPContext()
     evt_tls = NULL;
     messageBody = NULL;
     messageBodySize = 0;
+    tmpFileAccess = NULL;
 
     depth = -1;
+
 
     uv_mutex_init(&mutex);
 }
@@ -20412,6 +20528,14 @@ MegaHTTPContext::~MegaHTTPContext()
     {
         evt_tls_free(evt_tls);
     }
+
+    if (tmpFileAccess)
+    {
+        MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
+        fsAccess->unlinklocal(&tmpFileName);
+        delete tmpFileAccess;
+    }
+    delete messageBody;
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
@@ -20439,7 +20563,7 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
     {
         LOG_debug << "Buffer full: " << streamingBuffer.availableSpace() << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
-        pause = true;
+        //pause = true;
     }
     streamingBuffer.append(buffer, size);
     uv_mutex_unlock(&mutex);
@@ -20452,6 +20576,25 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
 void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 {
     int ecode = e->getErrorCode();
+
+    if (parser.method == HTTP_PUT)
+    {
+        //TODO: review: do the former uv_async_send also in this case?
+        //TODO: delete tmpfile
+        if (ecode == API_OK)
+        {
+            //sleep(4);
+            server->returnHttpCode(this, 201); //TODO: review this error code *************
+            //sleep(4);
+            uv_async_send(&asynchandle);
+        }
+        else
+        {
+            server->returnHttpCode(this, 500); //TODO: review this error code. Perhaps we can include the ecode in the message
+
+        }
+    }
+
     if (ecode != API_OK && ecode != API_EINCOMPLETE)
     {
         LOG_warn << "Transfer failed with error code: " << ecode;
@@ -20459,6 +20602,7 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
         finished = true;
         uv_async_send(&asynchandle);
     }
+
 }
 
 void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
