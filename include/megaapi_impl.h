@@ -2291,6 +2291,7 @@ public:
     bool override;
     FileAccess *tmpFileAccess;
     std:: string tmpFileName;
+    std::string newname; //newname for moved node
 
     //tls stuff:
     evt_tls_t *evt_tls;

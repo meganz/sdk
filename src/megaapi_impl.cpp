@@ -20009,18 +20009,17 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             else
             {
                 size_t seppos = dest.find_last_of("/");
-                string newname;
                 MegaNode *newParentNode = NULL; //TODO: delete this
+                httpctx->newname = dest;
                 if (seppos == string::npos)
                 {
                     newParentNode = baseNode?baseNode->copy():node->copy();
-                    newname = dest;
                 }
                 else
                 {
-                    if ((seppos+1)< newname.size())
+                    if ((seppos+1)< httpctx->newname.size())
                     {
-                        newname = newname.substr(seppos+1);
+                        httpctx->newname = httpctx->newname.substr(seppos+1);
                     }
                     string newparentpath = dest.substr(0,seppos);
                     newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
@@ -20035,43 +20034,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 //TODO: what if newParentNode == oldParentNode?
                 if (newParentNode->getHandle() != node->getHandle())
                 {
-                    httpctx->megaApi->moveNode(node, newParentNode);
-                    sleep(4);
+                    httpctx->megaApi->moveNode(node, newParentNode, httpctx);
                 }
-
-                //TODO: node is valid, do we need to get it from command response? how do we do this in the listener? think about it.
-                //TODO: error handling?
-                if (newname.size())
-                {
-                    httpctx->megaApi->renameNode(node,newname.c_str());
-                    sleep(4);
-                }
-                //TODO: alternative: use callback via listener instead of blocking this thread
-                //MegaSyncListener *msl = new MegaSyncListener(NULL);
-                //httpctx->megaApi->moveNode(node, newParentNode, msl);
-
-                //msl->wait();
-                //TODO: check errors
-//                    if (!checkNoErrors(megaCmdListener->getError(), "change password"))
-//                    {
-//                        LOG_err << "Please, ensure you enter the old password correctly";
-//                    }
-//                    else
-//                    {
-//                        OUTSTREAM << "Password changed succesfully" << endl;
-//                    }
-//                    delete msl;
-                returnHttpCode(httpctx,204);
-
-
-                //look for parent and if exists & collection move there and change name if newname!=oldName
             }
 
-
-            string resstr = getWebDavPropFindResponseForNode(baseURL, httpctx->subpathrelative, node, httpctx);
-            sendHeaders(httpctx, &resstr);
-            delete node;
-            delete baseNode;
             return 0;
         }
         else
@@ -20263,7 +20229,6 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 
 void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
 {
-
     LOG_verbose << "at onAsyncEvent "; //TODO: delete
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
     if (httpctx->failed)
@@ -20273,6 +20238,11 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
         {
             uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
         }
+        return;
+    }
+
+    if (httpctx->parser.method != HTTP_GET && httpctx->parser.method != HTTP_POST)
+    {
         return;
     }
 
@@ -20579,14 +20549,10 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 
     if (parser.method == HTTP_PUT)
     {
-        //TODO: review: do the former uv_async_send also in this case?
-        //TODO: delete tmpfile
         if (ecode == API_OK)
         {
-            //sleep(4);
             server->returnHttpCode(this, 201); //TODO: review this error code *************
-            //sleep(4);
-            uv_async_send(&asynchandle);
+            uv_async_send(&asynchandle); //TODO: review this? (required?? after/before?)
         }
         else
         {
@@ -20605,10 +20571,52 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 
 }
 
-void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
+void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
     node = request->getPublicMegaNode();
     nodereceived = true;
+
+    if (request->getType() == MegaRequest::TYPE_MOVE )
+    {
+        if (e->getErrorCode() == MegaError::API_OK )
+        {
+            if (this->newname.size())
+            {
+                MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
+                if (!nodetoRename || !strcmp(nodetoRename->getName(),newname.c_str()))
+                {
+                    server->returnHttpCode(this,204);
+                }
+                else
+                {
+                    this->megaApi->renameNode(nodetoRename,newname.c_str(), this);
+                }
+                delete nodetoRename;
+            }
+            else
+            {
+                server->returnHttpCode(this,204);
+            }
+        }
+        else
+        {
+            server->returnHttpCode(this, 500);// TODO: better error handling?
+        }
+
+        //TODO: wtf?? look for parent and if exists & collection move there and change name if newname!=oldName ????
+    }
+    else if (request->getType() == MegaRequest::TYPE_RENAME )
+    {
+        if (e->getErrorCode() == MegaError::API_OK )
+        {
+            server->returnHttpCode(this,204);
+        }
+        else
+        {
+            server->returnHttpCode(this, 500);// TODO: better error handling?
+        }
+    }
+
     uv_async_send(&asynchandle);
 }
 #endif
