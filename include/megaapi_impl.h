@@ -2288,7 +2288,7 @@ public:
     size_t messageBodySize;
     std::string host;
     std::string destination;
-    bool override;
+    bool overwrite;
     FileAccess *tmpFileAccess;
     std:: string tmpFileName;
     std::string newname; //newname for moved node

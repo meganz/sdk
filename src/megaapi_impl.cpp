@@ -19178,9 +19178,9 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     {
         httpctx->destination = value;
     }
-    else if (httpctx->lastheader == "override")
+    else if (httpctx->lastheader == "overwrite ")
     {
-        httpctx->override = (value == "T");
+        httpctx->overwrite = (value == "T");
     }
     else if (httpctx->range)
     {
@@ -19896,9 +19896,12 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     }
     else if (parser->method == HTTP_PUT)
     {
-        if (node)
+        if (!httpctx->overwrite)
         {
-            returnHttpCode(httpctx, 500); //TODO: override? implement
+            returnHttpCode(httpctx, 412);
+            delete node;
+            delete baseNode;
+            return 0;
         }
         else
         {
@@ -19989,7 +19992,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 else
                 {
                     //overwrite?
-                    if (httpctx->override)
+                    if (httpctx->overwrite)
                     {
                         //TODO: override: delete & move
                         //return 204
