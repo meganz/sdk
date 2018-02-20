@@ -112,7 +112,12 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypePasswordLink,
     MEGARequestTypeGetAchievements,
     MEGARequestTypeRestore,
-    MEGARequestTypeRemoveVersions
+    MEGARequestTypeRemoveVersions,
+    MEGARequestTypeChatArchive,
+    MEGARequestTypeWhyAmIBlocked,
+    MEGARequestTypeContactLinkCreate,
+    MEGARequestTypeContactLinkQuery,
+    MEGARequestTypeContactLinkDelete
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
