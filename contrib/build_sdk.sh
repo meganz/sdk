@@ -309,7 +309,7 @@ openssl_pkg() {
 
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
-    local openssl_params="-g --openssldir=$install_dir no-shared"
+    local openssl_params="--openssldir=$install_dir no-shared"
     local loc_make_opts=$make_opts
 
     if [ $incremental -eq 1 ] && [ -e $name.success ]; then
@@ -599,7 +599,6 @@ curl_pkg() {
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""
-    local curl_params=""
 
     # use local or system OpenSSL
     if [ $disable_ssl -eq 0 ]; then
@@ -609,12 +608,12 @@ curl_pkg() {
     fi
 
     if [ $use_dynamic -eq 1 ]; then
-        curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
+        local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
             --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
             --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     else
-        curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
+        local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
             --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
             --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
