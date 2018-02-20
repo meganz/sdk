@@ -2292,6 +2292,8 @@ public:
     FileAccess *tmpFileAccess;
     std:: string tmpFileName;
     std::string newname; //newname for moved node
+    MegaNode *nodeToMove; //node to be moved after delete //TODO: use handles instead
+    MegaNode *newParentNode; //parent node for moved after delete
 
     //tls stuff:
     evt_tls_t *evt_tls;

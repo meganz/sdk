@@ -19178,7 +19178,7 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     {
         httpctx->destination = value;
     }
-    else if (httpctx->lastheader == "overwrite ")
+    else if (httpctx->lastheader == "overwrite")
     {
         httpctx->overwrite = (value == "T");
     }
@@ -19677,8 +19677,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Request method: OPTIONS";
         response << "HTTP/1.1 200 OK\r\n"
-                    "Allow: GET,POST,HEAD,OPTIONS,PROPFIND, MOVE, PUT, DELETE, MKCOL\r\n"
-                    //"Allow: TRACE,COPY,MKCOL,PROPPATCH,LOCK,UNLOCK,ORDERPATCH\r\n"
+                    "Allow: GET,POST,HEAD,OPTIONS,PROPFIND,MOVE,PUT,DELETE,MKCOL,COPY\r\n"
+                    //"Allow: TRACE,PROPPATCH,LOCK,UNLOCK,ORDERPATCH\r\n"
                     "DAV: 1\r\n" //Class 2 requires LOCK
                     "Connection: close\r\n"
                     "\r\n";
@@ -19701,6 +19701,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     case HTTP_PUT:
     case HTTP_DELETE:
     case HTTP_MKCOL:
+    case HTTP_COPY:
         LOG_debug << "Request method: " << getHTTPMethodName(parser->method);
         break;
     default:
@@ -19975,6 +19976,115 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         delete baseNode;
         return 0;
     }
+    else if (parser->method == HTTP_COPY)
+    {
+//        201 (Created)	The resource was successfully copied.
+//        204 (No Content)	The source resource was successfully copied to a pre-existing destination resource.
+//        403 (Forbidden)	The source URI and the destination URI are the same.
+//        409 (Conflict)	A resource cannot be created at the destination URI until one or more intermediate collections are created.
+//        412 (Precondition Failed)	Either the Overwrite header is "F" and the state of the destination resource is not null, or the method was used in a Depth: 0 transaction.
+//        423 (Locked)	The destination resource is locked.
+//        502 (Bad Gateway)	The COPY destination is located on a different server, which refuses to accept the resource.
+//        507 (Insufficient Storage)	The destination resource does not have sufficient storage space.
+
+        if (!node)
+        {
+            returnHttpCode(httpctx, 404); //TODO: i believe this is already checked before
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        MegaNode *newParentNode = NULL;
+        string newname;
+
+        //TODO: add host control?
+        string baseURL = string("http")+(httpctx->server->useTLS?"s":"")+"://"+httpctx->host+"/"+httpctx->nodehandle+"/"+httpctx->nodename+"/";
+
+        string dest;
+        URLCodec::unescape(&httpctx->destination, &dest);
+        size_t posBase = dest.find(baseURL);
+        if (posBase != 0) // Notice that if 2 WEBDAV locations are enabled we won't be able to copy between the 2
+        {
+            returnHttpCode(httpctx, 502); // The destination URI is located elsewhere
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+        dest = dest.substr(baseURL.size());
+        MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(),baseNode?baseNode:node);
+        if (destNode)
+        {
+            if (node->getHandle() == destNode->getHandle())
+            {
+                returnHttpCode(httpctx, 403);
+                delete node;
+                delete baseNode;
+                delete destNode;
+                return 0;
+            }
+            else
+            {
+                //overwrite?
+                if (httpctx->overwrite)
+                {
+                    newParentNode = httpctx->megaApi->getNodeByHandle(destNode->getParentHandle());
+                }
+                else
+                {
+                    returnHttpCode(httpctx, 412);
+                    delete node;
+                    delete baseNode;
+                    delete destNode;
+                    return 0;
+                }
+            }
+        }
+
+        if (!newParentNode)
+        {
+            size_t seppos = dest.find_last_of("/");
+            while ((seppos + 1) == dest.size())
+            {
+                dest = dest.substr(0,seppos);
+                seppos = dest.find_last_of("/");
+            }
+            if (seppos == string::npos)
+            {
+                newParentNode = baseNode?baseNode->copy():node->copy();
+                newname = dest;
+            }
+            else
+            {
+                if ((seppos+1)< dest.size())
+                {
+                    newname = dest.substr(seppos+1);
+                }
+                string newparentpath = dest.substr(0,seppos);
+                newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
+            }
+        }
+        if (!newParentNode)
+        {
+            returnHttpCode(httpctx, 404); //TODO: review this error code
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+        if (newname.size())
+        {
+            httpctx->megaApi->copyNode(node, newParentNode, newname.c_str(), httpctx);
+        }
+        else
+        {
+            httpctx->megaApi->copyNode(node, newParentNode, httpctx);
+        }
+
+        delete node;
+        delete baseNode;
+        delete newParentNode;
+        return 0;
+    }
     else if (parser->method == HTTP_PUT)
     {
         if (node && !httpctx->overwrite)
@@ -20010,6 +20120,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 string newparentpath = dest.substr(0,seppos);
                 newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
             }
+
             if (!newParentNode)
             {
                 returnHttpCode(httpctx, 404); //TODO: review this error code
@@ -20047,58 +20158,62 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 //        423 (Locked)	The destination resource is locked.
 //        502 (Bad Gateway)	The destination URI is located on a different server, which refuses to accept the resource.
 
-        if (!node->isFolder())
+        //TODO: add host control?
+        string baseURL = string("http")+(httpctx->server->useTLS?"s":"")+"://"+httpctx->host+"/"+httpctx->nodehandle+"/"+httpctx->nodename+"/";
+
+        string dest;
+        URLCodec::unescape(&httpctx->destination, &dest);
+        size_t posBase = dest.find(baseURL);
+        if (posBase != 0) // Notice that if 2 WEBDAV locations are enabled we won't be able to copy between the 2
         {
-
-            //TODO: add host control?
-            string baseURL = string("http")+(httpctx->server->useTLS?"s":"")+"://"+httpctx->host+"/"+httpctx->nodehandle+"/"+httpctx->nodename+"/";
-
-            string dest;
-            URLCodec::unescape(&httpctx->destination, &dest);
-            size_t posBase = dest.find(baseURL);
-            if (posBase != 0) // Notice that if 2 WEBDAV locations are enabled we won't be able to copy between the 2
+            returnHttpCode(httpctx, 502); // The destination URI is located elsewhere
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+        dest = dest.substr(baseURL.size());
+        MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(),baseNode?baseNode:node);
+        if (destNode)
+        {
+            if (node->getHandle() == destNode->getHandle())
             {
-                returnHttpCode(httpctx, 502); // The destination URI is located elsewhere
+                returnHttpCode(httpctx, 403);
                 delete node;
                 delete baseNode;
+                delete destNode;
                 return 0;
             }
-            dest = dest.substr(baseURL.size());
-            MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(),baseNode?baseNode:node);
-            if (destNode)
+            else
             {
-                if (node->getHandle() == destNode->getHandle())
+                //overwrite?
+                if (httpctx->overwrite)
                 {
-                    returnHttpCode(httpctx, 403);
-                    delete node;
+                    httpctx->newParentNode = httpctx->megaApi->getNodeByHandle(destNode->getParentHandle());
+                    httpctx->newname = destNode->getName();
+                    httpctx->nodeToMove = node;
+                    httpctx->megaApi->remove(destNode, false, httpctx);
+
                     delete baseNode;
                     delete destNode;
                     return 0;
                 }
                 else
                 {
-                    //overwrite?
-                    if (httpctx->overwrite)
-                    {
-                        //TODO: override: delete & move
-                        //return 204
-
-                    }
-                    else
-                    {
-                        returnHttpCode(httpctx, 403); //TODO: review this error code
-                        delete node;
-                        delete baseNode;
-                        delete destNode;
-                        return 0;
-                    }
+                    returnHttpCode(httpctx, 412); //TODO: review this error code
+                    delete node;
+                    delete baseNode;
+                    delete destNode;
+                    return 0;
                 }
-
             }
-            else
+        }
+        else
+        {
+            MegaNode *newParentNode = NULL;
+
+            if (!newParentNode)
             {
                 size_t seppos = dest.find_last_of("/");
-                MegaNode *newParentNode = NULL; //TODO: delete this
                 httpctx->newname = dest;
                 if (seppos == string::npos)
                 {
@@ -20113,27 +20228,36 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                     string newparentpath = dest.substr(0,seppos);
                     newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
                 }
-                if (!newParentNode)
-                {
-                    returnHttpCode(httpctx, 404); //TODO: review this error code
-                    delete node;
-                    delete baseNode;
-                    return 0;
-                }
-                //TODO: what if newParentNode == oldParentNode?
-                if (newParentNode->getHandle() != node->getHandle())
-                {
-                    httpctx->megaApi->moveNode(node, newParentNode, httpctx);
-                }
+            }
+            if (!newParentNode)
+            {
+                returnHttpCode(httpctx, 404); //TODO: review this error code
+                delete node;
+                delete baseNode;
+                return 0;
             }
 
-            return 0;
-        }
-        else
-        {
-            //TODO: implement MOVE on collection: ref: https://restpatterns.mindtouch.us/HTTP_Methods/MOVE
+            if (newParentNode->getHandle() == node->getHandle())
+            {
+                returnHttpCode(httpctx, 500); //TODO: review this error code
+                delete node;
+                delete baseNode;
+                delete newParentNode;
+                return 0;
+            }
+
+            if (newParentNode->getHandle() != node->getParentHandle())
+            {
+                httpctx->megaApi->moveNode(node, newParentNode, httpctx);
+            }
+            else
+            {
+                httpctx->megaApi->renameNode(node, httpctx->newname.c_str(), httpctx);
+            }
+            delete newParentNode;
         }
 
+        return 0;
     }
     else
     {
@@ -20574,9 +20698,11 @@ MegaHTTPContext::MegaHTTPContext()
     messageBody = NULL;
     messageBodySize = 0;
     tmpFileAccess = NULL;
+    newParentNode = NULL;
+    nodeToMove = NULL;
 
     depth = -1;
-
+    overwrite = true; //GVFS-DAV via command line does not include this header (assumed true)
 
     uv_mutex_init(&mutex);
 }
@@ -20705,19 +20831,31 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
             server->returnHttpCode(this, 500);// TODO: better error handling?
         }
     }
-    if (request->getType() == MegaRequest::TYPE_REMOVE )
+    else if (request->getType() == MegaRequest::TYPE_REMOVE )
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            server->returnHttpCode(this, 204); // Standard success response
+            if (nodeToMove) //delete+move
+            {
+                this->megaApi->moveNode(nodeToMove,newParentNode, this);
+                delete nodeToMove;
+                nodeToMove = NULL;
+                delete newParentNode;
+                newParentNode = NULL;
+            }
+            else
+            {
+                server->returnHttpCode(this, 204); // Standard success response
+            }
         }
         else
         {
             server->returnHttpCode(this, 500);// TODO: better error handling?
+            delete nodeToMove;
+            delete newParentNode;
         }
     }
-
-    if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER )
+    else if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER )
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
@@ -20726,6 +20864,18 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         else
         {
             server->returnHttpCode(this, 500);// TODO: better error handling?
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_COPY )
+    {
+        if (e->getErrorCode() == MegaError::API_OK )
+        {
+            server->returnHttpCode(this, 201);
+        }
+        else
+        {
+            server->returnHttpCode(this, 500);// TODO: better error handling?
+            // TODO: at least give 507 (Insufficient Storage)	The destination resource does not have sufficient storage space.
         }
     }
     uv_async_send(&asynchandle);
