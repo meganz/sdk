@@ -50,6 +50,7 @@ readline_build=0
 enable_cryptopp=0
 disable_mediainfo=0
 incremental=0
+no_optimisation=0
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -212,13 +213,26 @@ package_configure() {
     fi
 
     if [ -f $conf_f1 ]; then
-        $conf_f1 --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        if [ -z "$extralibs" ]; then
+            $conf_f1 --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        else
+            $conf_f1 --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        fi
     elif [ -f $conf_f2 ]; then
-        $conf_f2 $config_opts --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        if [ -z "$extralibs" ]; then
+            $conf_f2 $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        else
+            $conf_f2 $config_opts --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        fi
     else
         local exit_code=$?
         echo "Failed to configure $name, exit status: $exit_code"
         exit 1
+    fi
+
+    if [ $no_optimisation -eq 1 ]; then
+        # this one works for OpenSSL, other files may need to be adjusted differently
+        sed -i -e "s/\(CFLAG *=.*\)-O[1-3]/\1-O0/" ./Makefile
     fi
 
     cd $cwd
@@ -271,10 +285,11 @@ package_install() {
     if [ $exit_code -ne 0 ]; then
         echo "Failed to install $name, exit status: $exit_code"
         exitwithlog ../$name.install.log 1
+        cd $cwd
     else
+        cd $cwd
         echo $exit_code > ../$name.success
     fi
-    cd $cwd
 
     # some packages install libraries to "lib64" folder
     local lib64=$install_dir/lib64
@@ -294,7 +309,7 @@ openssl_pkg() {
 
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
-    local openssl_params="--openssldir=$install_dir no-shared"
+    local openssl_params="-g --openssldir=$install_dir no-shared"
     local loc_make_opts=$make_opts
 
     if [ $incremental -eq 1 ] && [ -e $name.success ]; then
@@ -594,15 +609,15 @@ curl_pkg() {
     fi
 
     if [ $use_dynamic -eq 1 ]; then
-        curl_params="--with-ssl=$install_dir --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
+        curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
             --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
-            --with-zlib=$install_dir --enable-ares=$install_dir"
+            --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     else
-        curl_params="--with-ssl=$install_dir --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
+        curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
             --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
-            --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir"
+            --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
     if [ $incremental -eq 1 ] && [ -e $name.success ]; then
@@ -721,6 +736,15 @@ freeimage_pkg() {
     #patch to fix problem with newest compilers
     sed -i "s#CXXFLAGS += -D__ANSI__#CXXFLAGS += -D__ANSI__ -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
 
+    #freeimage uses some macros with a dollarsign in the name, and also has some constants that don't fit in a long
+    #as gcc building for 32 bit linux has long as 32 bit.  Also some files have the utf-8 BOM which old gcc doesn't like
+    export CFLAGS="$CFLAGS -fdollars-in-identifiers"
+    export CXXFLAGS="$CXXFLAGS -fdollars-in-identifiers"
+    find $freeimage_dir/Source/OpenEXR/IlmImf/ -name "*.cpp" | xargs sed -i -e "s/0xffffffffffffffffL/0xffffffffffffffffull/" 
+    find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs sed -i -e "s/\(0x[0-9A-Fa-f]\{9,16\}\)/\1ull/g" 
+    find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs dos2unix
+    find $freeimage_dir/Source/LibRawLite/internal/ -name "*.h" | xargs dos2unix
+
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
         cp $cwd/contrib/FreeImage.Makefile.osx $freeimage_dir/Makefile.osx
@@ -739,6 +763,7 @@ freeimage_pkg() {
         # manually copy header and library
         cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
         cp $freeimage_dir/Dist/libfreeimage* $install_dir/lib || exit 1
+        echo $? > $name.success
     # MinGW
     else
         package_build $name $freeimage_dir "-f Makefile.mingw"
@@ -748,6 +773,7 @@ freeimage_pkg() {
         cp $freeimage_dir/Dist/FreeImage.dll $install_dir/lib || 1
         cp $freeimage_dir/Dist/FreeImage.lib $install_dir/lib || 1
         cp $freeimage_dir/Dist/libFreeImage.a $install_dir/lib || 1
+        echo $? > $name.success
     fi
 }
 
@@ -802,11 +828,12 @@ mediainfo_pkg() {
     local mediainfolib_dir_extract="MediaInfoLib-$mediainfolib_ver"
     local mediainfolib_dir="MediaInfoLib-$mediainfolib_ver/Project/GNU/Library"
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
-        echo "$name already built"
+
+    if [ $incremental -eq 1 ] && [ -e $build_dir/$mediainfolib_name.success ]; then
+        echo "$mediainfolib_name already built"
         return
     else
-        rm -f $name.success
+        rm -f $mediainfolib_name.success
     fi
 
     package_download $zenlib_name $zenlib_url $zenlib_file $zenlib_md5
@@ -836,6 +863,8 @@ mediainfo_pkg() {
         mkdir -p $build_dir/Shared/Source/zlib
         #~ ln -sfr $(find $install_dir -name zlib.a) $build_dir/Shared/Source/zlib/libz.a
         ln -sfr $install_dir/lib/libz.a $build_dir/Shared/Source/zlib/libz.a || ln -sf $install_dir/lib/libz.a $build_dir/Shared/Source/zlib/libz.a
+        ln -sfr $install_dir/include/zlib.h $build_dir/Shared/Source/zlib/zlib.h || ln -sf $install_dir/include/zlib.h $build_dir/Shared/Source/zlib/zlib.h
+        ln -sfr $install_dir/include/zconf.h $build_dir/Shared/Source/zlib/zconf.h || ln -sf $install_dir/include/zconf.h $build_dir/Shared/Source/zlib/zconf.h
     fi
 
     package_configure $zenlib_name $zenlib_dir $install_dir "$zenlib_params" #TODO: tal vez install dir ha de ser ./ZenLib!!! casi 100% seguro
@@ -879,7 +908,11 @@ EOF
     (cd $mediainfolib_dir/../../../Source/MediaInfo; patch MediaInfo_Config.cpp < $build_dir/mediainfopatch)
 
     package_build $mediainfolib_name $mediainfolib_dir
-    package_install $mediainfolib_name $mediainfolib_dir $install_dir
+
+    local restore_dir=$(pwd)
+    cd $build_dir/ZenLib
+    package_install $mediainfolib_name $build_dir/$mediainfolib_dir $install_dir
+    cd $restore_dir
 
 }
 
@@ -1084,7 +1117,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:no:p:rRstuvyx:wqz" opt; do
+    while getopts ":habcdefgiIlm:no:p:rRstuvyx:wqz0" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1190,6 +1223,10 @@ main() {
                 disable_zlib=1
                 echo "* Disabling external libz."
                 ;;
+            0)
+                no_optimisation=1
+                echo "* Disabling compiler optimisations."  # some older versions of gcc have optimisations problems with eg. OpenSSL - rsa_test suite can fail
+                ;;
             \?)
                 display_help $0
                 exit 1
@@ -1225,7 +1262,9 @@ main() {
         cd $build_dir
     fi
 
-    rm -fr *.log
+    if [ $incremental -eq 0 ]; then
+        rm -fr *.log
+    fi
 
     export PREFIX=$install_dir
     local old_pkg_conf=$PKG_CONFIG_PATH
