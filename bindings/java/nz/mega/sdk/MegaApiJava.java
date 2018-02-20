@@ -1309,6 +1309,106 @@ public class MegaApiJava {
     }
 
     /**
+     * Create a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_CREATE.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Return the handle of the new contact link
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void contactLinkCreate(MegaRequestListenerInterface listener){
+        megaApi.contactLinkCreate(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Create a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_CREATE.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Return the handle of the new contact link
+     *
+     */
+    public void contactLinkCreate(){
+        megaApi.contactLinkCreate();
+    }
+
+    /**
+     * Get information about a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_QUERY.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Returns the email of the contact
+     * - MegaRequest::getName - Returns the first name of the contact
+     * - MegaRequest::getText - Returns the last name of the contact
+     *
+     * @param handle Handle of the contact link to check
+     * @param listener MegaRequestListener to track this request
+     */
+    public void contactLinkQuery(long handle, MegaRequestListenerInterface listener){
+        megaApi.contactLinkQuery(handle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get information about a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_QUERY.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Returns the email of the contact
+     * - MegaRequest::getName - Returns the first name of the contact
+     * - MegaRequest::getText - Returns the last name of the contact
+     *
+     * @param handle Handle of the contact link to check
+     */
+    public void contactLinkQuery(long handle){
+        megaApi.contactLinkQuery(handle);
+    }
+
+    /**
+     * Delete a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_DELETE.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+     *
+     * @param handle Handle of the contact link to delete
+     * @param listener MegaRequestListener to track this request
+     */
+    public void contactLinkDelete(long handle, MegaRequestListenerInterface listener){
+        megaApi.contactLinkDelete(handle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Delete a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_DELETE.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+     *
+     * @param handle Handle of the contact link to delete
+     */
+    public void contactLinkDelete(long handle){
+        megaApi.contactLinkDelete(handle);
+    }
+
+
+    /**
      * Returns the email of the currently open account.
      * 
      * If the MegaApi object is not logged in or the email is not available,
