@@ -19241,7 +19241,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             delete fsAccess; //TODO: save this object too?
         }
 
-        if(!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize+1))
+        if(!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize?(httpctx->messageBodySize+1):0) )
         {
             returnHttpCode(httpctx, 500);
             return 0;
@@ -19260,6 +19260,16 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
     return 0;
 }
 
+std::string rfc1123_datetime( time_t time )
+{
+    struct tm * timeinfo;
+    char buffer [80];
+
+    timeinfo = gmtime ( &time );
+    strftime (buffer,80,"%a, %d %b %Y %H:%M:%S GMT",timeinfo);
+
+    return buffer;
+}
 
 string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string baseURL)
 {
@@ -19272,7 +19282,12 @@ string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string base
            "<d:propstat>\r\n"
            "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
            "<d:prop>\r\n"
-           "<d:displayname>"<<node->getName()<< "</d:displayname>/>\r\n";
+           "<d:displayname>"<<node->getName()<< "</d:displayname>/>\r\n"
+           "<d:creationdate>" << rfc1123_datetime(node->getCreationTime()) << "</d:creationdate>"
+           "<d:getlastmodified>" << rfc1123_datetime(node->getModificationTime()) << "</d:getlastmodified>"
+           ;
+
+
     if (node->isFolder())
     {
         web << "<d:resourcetype>\r\n"
