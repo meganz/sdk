@@ -19677,8 +19677,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Request method: OPTIONS";
         response << "HTTP/1.1 200 OK\r\n"
-                    "Allow: GET,POST,HEAD,OPTIONS,PROPFIND, MOVE, PUT\r\n"
-                    //"Allow: DELETE,TRACE,COPY,MKCOL,PROPPATCH,LOCK,UNLOCK,ORDERPATCH\r\n"
+                    "Allow: GET,POST,HEAD,OPTIONS,PROPFIND, MOVE, PUT, DELETE\r\n"
+                    //"Allow: TRACE,COPY,MKCOL,PROPPATCH,LOCK,UNLOCK,ORDERPATCH\r\n"
                     "DAV: 1\r\n" //Class 2 requires LOCK
                     "Connection: close\r\n"
                     "\r\n";
@@ -19699,6 +19699,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     case HTTP_PROPFIND:
     case HTTP_MOVE:
     case HTTP_PUT:
+    case HTTP_DELETE:
         LOG_debug << "Request method: " << getHTTPMethodName(parser->method);
         break;
     default:
@@ -19894,9 +19895,24 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         delete baseNode;
         return 0;
     }
+    else if (parser->method == HTTP_DELETE)
+    {
+        if (!node)
+        {
+            returnHttpCode(httpctx, 404);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        httpctx->megaApi->remove(node, false, httpctx);
+        delete node;
+        delete baseNode;
+        return 0;
+    }
     else if (parser->method == HTTP_PUT)
     {
-        if (!httpctx->overwrite)
+        if (node && !httpctx->overwrite)
         {
             returnHttpCode(httpctx, 412);
             delete node;
@@ -20619,7 +20635,17 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
             server->returnHttpCode(this, 500);// TODO: better error handling?
         }
     }
-
+    if (request->getType() == MegaRequest::TYPE_REMOVE )
+    {
+        if (e->getErrorCode() == MegaError::API_OK )
+        {
+            server->returnHttpCode(this,204); // Standard success response
+        }
+        else
+        {
+            server->returnHttpCode(this, 500);// TODO: better error handling?
+        }
+    }
     uv_async_send(&asynchandle);
 }
 #endif
