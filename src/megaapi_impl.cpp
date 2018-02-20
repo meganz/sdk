@@ -19677,7 +19677,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Request method: OPTIONS";
         response << "HTTP/1.1 200 OK\r\n"
-                    "Allow: GET,POST,HEAD,OPTIONS,PROPFIND, MOVE, PUT, DELETE\r\n"
+                    "Allow: GET,POST,HEAD,OPTIONS,PROPFIND, MOVE, PUT, DELETE, MKCOL\r\n"
                     //"Allow: TRACE,COPY,MKCOL,PROPPATCH,LOCK,UNLOCK,ORDERPATCH\r\n"
                     "DAV: 1\r\n" //Class 2 requires LOCK
                     "Connection: close\r\n"
@@ -19700,6 +19700,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     case HTTP_MOVE:
     case HTTP_PUT:
     case HTTP_DELETE:
+    case HTTP_MKCOL:
         LOG_debug << "Request method: " << getHTTPMethodName(parser->method);
         break;
     default:
@@ -19872,8 +19873,17 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     MegaNode *baseNode = NULL;
     if (httpctx->subpathrelative.size())
     {
-        MegaNode *subnode = httpctx->megaApi->getNodeByPath(httpctx->subpathrelative.c_str(), node);
-        if (parser->method != HTTP_PUT && !subnode)
+        string subnodepath = httpctx->subpathrelative;
+        //remove trailing "/"
+        size_t seppos = subnodepath.find_last_of("/");
+        while ((seppos + 1) == subnodepath.size())
+        {
+            subnodepath = subnodepath.substr(0,seppos);
+            seppos = subnodepath.find_last_of("/");
+        }
+
+        MegaNode *subnode = httpctx->megaApi->getNodeByPath(subnodepath.c_str(), node);
+        if (parser->method != HTTP_PUT && parser->method != HTTP_MKCOL && !subnode)
         {
             returnHttpCode(httpctx, 404);
             delete node;
@@ -19910,6 +19920,61 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         delete baseNode;
         return 0;
     }
+    else if (parser->method == HTTP_MKCOL)
+    {
+//        201 (Created)	The collection was created.
+//        401 (Access Denied)	Resource requires authorization or authorization was denied.
+//        403 (Forbidden)	The server does not allow collections to be created at the specified location, or the parent collection of the specified request URI exists but cannot accept members.
+//        405 (Method Not Allowed)	The MKCOL method can only be performed on a deleted or non-existent resource.
+//        409 (Conflict)	A resource cannot be created at the destination URI until one or more intermediate collections are created.
+//        415 (Unsupported Media Type)	The request type of the body is not supported by the server.
+//        507 (Insufficient Storage)	The destination resource does not have sufficient storage space.
+        if (node)
+        {
+            returnHttpCode(httpctx, 405);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        MegaNode *newParentNode = NULL;
+        string newname;
+
+        string dest = httpctx->subpathrelative;
+        size_t seppos = dest.find_last_of("/");
+
+        while ((seppos + 1) == dest.size())
+        {
+            dest = dest.substr(0,seppos);
+            seppos = dest.find_last_of("/");
+        }
+        if (seppos == string::npos)
+        {
+            newParentNode = baseNode?baseNode->copy():node->copy();
+            newname = dest;
+        }
+        else
+        {
+            if ((seppos+1)< dest.size())
+            {
+                newname = dest.substr(seppos+1);
+            }
+            string newparentpath = dest.substr(0,seppos);
+            newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
+        }
+        if (!newParentNode)
+        {
+            returnHttpCode(httpctx, 404); //TODO: review this error code
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        httpctx->megaApi->createFolder(newname.c_str(), newParentNode, httpctx);
+        delete node;
+        delete baseNode;
+        return 0;
+    }
     else if (parser->method == HTTP_PUT)
     {
         if (node && !httpctx->overwrite)
@@ -19921,11 +19986,16 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
         else
         {
-            string dest = httpctx->subpathrelative;
-
-            size_t seppos = dest.find_last_of("/");
-            string newname;
             MegaNode *newParentNode = NULL;
+            string newname;
+
+            string dest = httpctx->subpathrelative;
+            size_t seppos = dest.find_last_of("/");
+            while ((seppos + 1) == dest.size())
+            {
+                dest = dest.substr(0,seppos);
+                seppos = dest.find_last_of("/");
+            }
             if (seppos == string::npos)
             {
                 newParentNode = baseNode?baseNode->copy():node->copy();
@@ -19933,9 +20003,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             }
             else
             {
-                if ((seppos+1)< newname.size())
+                if ((seppos+1)< dest.size())
                 {
-                    newname = newname.substr(seppos+1);
+                    newname = dest.substr(seppos+1);
                 }
                 string newparentpath = dest.substr(0,seppos);
                 newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
@@ -20604,7 +20674,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
                 MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
                 if (!nodetoRename || !strcmp(nodetoRename->getName(),newname.c_str()))
                 {
-                    server->returnHttpCode(this,204);
+                    server->returnHttpCode(this, 204);
                 }
                 else
                 {
@@ -20614,7 +20684,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
             }
             else
             {
-                server->returnHttpCode(this,204);
+                server->returnHttpCode(this, 204);
             }
         }
         else
@@ -20628,7 +20698,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            server->returnHttpCode(this,204);
+            server->returnHttpCode(this, 204);
         }
         else
         {
@@ -20639,7 +20709,19 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            server->returnHttpCode(this,204); // Standard success response
+            server->returnHttpCode(this, 204); // Standard success response
+        }
+        else
+        {
+            server->returnHttpCode(this, 500);// TODO: better error handling?
+        }
+    }
+
+    if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER )
+    {
+        if (e->getErrorCode() == MegaError::API_OK )
+        {
+            server->returnHttpCode(this, 201);
         }
         else
         {
