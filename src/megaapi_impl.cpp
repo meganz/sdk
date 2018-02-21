@@ -19684,18 +19684,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
     httpctx->streamingBuffer.setMaxOutputSize(httpctx->server->getMaxOutputSize());
 
-    httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
-    httpctx->transfer->setPath(httpctx->path.c_str());
-    if (httpctx->nodename.size())
-    {
-        httpctx->transfer->setFileName(httpctx->nodename.c_str());
-    }
-    if (httpctx->nodehandle.size())
-    {
-        httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
-    }
-    httpctx->transfer->setStartTime(Waiter::ds);
-
     if (parser->method == HTTP_OPTIONS)
     {
         LOG_debug << "Request method: OPTIONS";
@@ -19765,7 +19753,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         httpctx->nodehandle = base64Handle;
         delete [] base64Handle;
         httpctx->nodename = node->getName();
-        httpctx->transfer->setFileName(httpctx->nodename.c_str());
     }
     else if (httpctx->nodehandle.size())
     {
@@ -20409,6 +20396,18 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     }
     else //GET/POST/HEAD
     {
+        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+        httpctx->transfer->setPath(httpctx->path.c_str());
+        if (httpctx->nodename.size())
+        {
+            httpctx->transfer->setFileName(httpctx->nodename.c_str());
+        }
+        if (httpctx->nodehandle.size())
+        {
+            httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+        }
+        httpctx->transfer->setStartTime(Waiter::ds);
+
         if (node->isFolder())
         {
             if (!httpctx->server->isFolderServerEnabled())
@@ -20565,8 +20564,11 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
 
-    httpctx->transfer->setTotalBytes(httpctx->size);
-    httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
+    if (httpctx->transfer)
+    {
+        httpctx->transfer->setTotalBytes(httpctx->size);
+        httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
+    }
 
     if (httpctx->server->useTLS)
     {
@@ -20873,7 +20875,10 @@ MegaHTTPContext::~MegaHTTPContext()
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
 {
-    this->transfer->setTag(transfer->getTag());
+    if (this->transfer)
+    {
+        this->transfer->setTag(transfer->getTag());
+    }
 }
 
 bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
