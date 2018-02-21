@@ -19236,6 +19236,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             if(!httpctx->tmpFileAccess->fopen(&localPath, false, true))
             {
                 returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
+                delete fsAccess;
                 return 0;
             }
             delete fsAccess; //TODO: save this object too?
@@ -19318,6 +19319,10 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
            "<d:multistatus xmlns:d=\"DAV:\">\r\n";
 
     string subbaseURL = baseURL + subnodepath;
+    if (node->isFolder() && subbaseURL.size() && subbaseURL.at(subbaseURL.size()-1) != '/')
+    {
+        subbaseURL.append("/");
+    }
 
     web << getWebDavProfFindNodeContents(node, subbaseURL);
     if (node->isFolder() && (httpctx->depth != 0) )
@@ -19620,6 +19625,9 @@ string MegaHTTPServer::getHTTPErrorString(int errorcode)
 {
     switch (errorcode)
     {
+    case 200:
+        return "OK";
+        break;
     case 201:
         return "Created";
         break;
@@ -19692,9 +19700,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         LOG_debug << "Request method: OPTIONS";
         response << "HTTP/1.1 200 OK\r\n"
-                    "Allow: GET,POST,HEAD,OPTIONS,PROPFIND,MOVE,PUT,DELETE,MKCOL,COPY\r\n"
-                    //"Allow: TRACE,PROPPATCH,LOCK,UNLOCK,ORDERPATCH\r\n"
-                    "DAV: 1\r\n" //Class 2 requires LOCK
+                    "Allow: GET, POST, HEAD, OPTIONS, PROPFIND, MOVE, PUT, DELETE, MKCOL, COPY, LOCK, UNLOCK, PROPPATCH\r\n"
+                    //"Allow: TRACE,LOCK,UNLOCK,ORDERPATCH\r\n"
+                    "dav: 1, 2 \r\n" //Class 2 requires LOCK
+                    "content-length: 0\r\n"
                     "Connection: close\r\n"
                     "\r\n";
 
@@ -19704,19 +19713,23 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         return 0;
     }
 
-
     switch (parser->method)
     {
     case HTTP_GET:
     case HTTP_POST:
     case HTTP_HEAD:
     case HTTP_OPTIONS:
-    case HTTP_PROPFIND:
     case HTTP_MOVE:
     case HTTP_PUT:
     case HTTP_DELETE:
     case HTTP_MKCOL:
     case HTTP_COPY:
+    case HTTP_LOCK:
+    case HTTP_UNLOCK:
+    case HTTP_PROPPATCH:
+        LOG_debug << "Request method: " << getHTTPMethodName(parser->method);
+        break;
+    case HTTP_PROPFIND:
         LOG_debug << "Request method: " << getHTTPMethodName(parser->method);
         break;
     default:
@@ -19770,6 +19783,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         delete node;
         return 0;
     }
+
 
     handle h = MegaApi::base64ToHandle(httpctx->nodehandle.c_str());
     if (!httpctx->server->isHandleAllowed(h))
@@ -19919,6 +19933,100 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         sendHeaders(httpctx, &resstr);
         delete node;
         delete baseNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_UNLOCK)
+    {
+        // let's create a minimum unlock compliant response
+        returnHttpCode(httpctx, 204); //TODO: review this error code
+        delete node;
+        delete baseNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_PROPPATCH)
+    {
+        std::ostringstream web;
+
+//        Typicall Body received: //TODO: actualy update creation and mod times? does not seem to be required (it seems PUT updates them ... with what time: file or PUT time?)
+//        <?xml version="1.0" encoding="utf-8" ?>
+//        <D:propertyupdate xmlns:D="DAV:" xmlns:Z="urn:schemas-microsoft-com:">
+//        <D:set>
+//        <D:prop>
+//        <Z:Win32CreationTime>Tue, 20 Feb 2018 18:00:20 GMT</Z:Win32CreationTime>
+//        <Z:Win32LastAccessTime>Tue, 20 Feb 2018 18:00:21 GMT</Z:Win32LastAccessTime>
+//        <Z:Win32LastModifiedTime>Tue, 20 Feb 2018 18:00:21 GMT</Z:Win32LastModifiedTime>
+//        <Z:Win32FileAttributes>00000020</Z:Win32FileAttributes>
+//        </D:prop>
+//        </D:set>
+//        </D:propertyupdate>
+
+        web << "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\r\n"
+               "<d:multistatus xmlns:d=\"DAV:\">\r\n"
+                  "<d:response>\r\n"
+                  //"<d:href>" << urlelement << "</d:href>\r\n" //this should come from the input but seems to be not required!
+                    "<d:propstat>\r\n"
+                      "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
+                        "<d:prop>\r\n"
+                        // Here we might want to include the updated properties.
+                        //we might want to to do so with original namespace?(not sure if that makes sense). e.g:
+//                                 "<Z:Win32CreationTime/>\r\n"
+                        "</d:prop>\r\n"
+                    "</d:propstat>\r\n"
+                  "</d:response>\r\n"
+                "</d:multistatus>\r\n\r\n";
+
+        string sweb = web.str();
+
+        response << "HTTP/1.1 207 Multi-Status\r\n"
+                    "Content-Type: application/xml; charset=\"utf-8\" \r\n"
+                    "Content-Length: " << sweb.size() << "\r\n\r\n";
+
+        response << sweb;
+        httpctx->resultCode = 207;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        return 0;
+
+    }
+    else if (parser->method == HTTP_LOCK)
+    {
+        std::ostringstream web;
+
+        // let's create a minimum lock compliant response
+        web << "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\r\n"
+          "<D:prop xmlns:D=\"DAV:\">\r\n"
+            "<D:lockdiscovery>\r\n"
+              "<D:activelock>\r\n"
+                "<D:locktype><D:write/></D:locktype>\r\n"
+                "<D:lockscope><D:exclusive/></D:lockscope>\r\n"
+//                "<D:depth>infinity</D:depth>\r\n" // read from req?
+                "<D:owner>\r\n"
+//                  "<D:href>" << owner << "</D:href>\r\n" //TODO: should be read from req body
+                "</D:owner>\r\n"
+//                "<D:timeout>Second-604800</D:timeout>\r\n"
+                "<D:locktoken>\r\n"
+                  //"<D:href>urn:uuid:e71d4fae-5dec-22d6-fea5-00a0c91e6be4</D:href>\r\n" //An unique identifier is required
+               "<D:href>urn:uuid:this-is-a-fake-lock</D:href>\r\n" //An unique identifier is required
+                "</D:locktoken>\r\n"
+                "<D:lockroot>\r\n"
+//                  "<D:href>" << urlelement << "</D:href>\r\n"  //TODO: should be read from req body
+                "</D:lockroot>\r\n"
+              "</D:activelock>\r\n"
+            "</D:lockdiscovery>\r\n"
+          "</D:prop>\r\n\r\n";
+
+        string sweb = web.str();
+
+        response << "HTTP/1.1 200 OK\r\n"
+          "Lock-Token: <urn:uuid:e71d4fae-5dec-22d6-fea5-00a0c91e6be4> \r\n"
+          "Content-Type: application/xml; charset=\"utf-8\" \r\n"
+          "Content-Length: " << sweb.size() << "\r\n\r\n";
+
+        response << sweb;
+
+        httpctx->resultCode = 200;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
         return 0;
     }
     else if (parser->method == HTTP_DELETE)
@@ -20144,6 +20252,31 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 return 0;
             }
 
+            if (!httpctx->tmpFileAccess) //put with no body contents
+            {
+                httpctx->tmpFileName="httputfile";
+                string suffix;
+                MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
+                fsAccess->tmpnamelocal(&suffix);
+                httpctx->tmpFileName.append(suffix);
+                fsAccess->newfileaccess();
+
+                httpctx->tmpFileAccess = fsAccess->newfileaccess();
+                string localPath;
+                fsAccess->path2local(&httpctx->tmpFileName, &localPath);
+                fsAccess->unlinklocal(&localPath);
+                if(!httpctx->tmpFileAccess->fopen(&localPath, false, true))
+                {
+                    returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
+                    delete node;
+                    delete baseNode;
+                    delete newParentNode;
+                    delete fsAccess;
+                    return 0;
+                }
+                delete fsAccess;
+            }
+
             httpctx->megaApi->startUpload(httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), httpctx);
 
             //sleep(2);
@@ -20274,7 +20407,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
         return 0;
     }
-    else
+    else //GET/POST/HEAD
     {
         if (node->isFolder())
         {
@@ -20364,7 +20497,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     bool rangeRequested = (httpctx->rangeEnd - httpctx->rangeStart) != totalSize;
 
     m_off_t len = end - start + 1;
-    if (start < 0 || start >= totalSize || end < 0 || end >= totalSize || len <= 0 || len > totalSize)
+    if (totalSize && (start < 0 || start >= totalSize || end < 0 || end >= totalSize || len <= 0 || len > totalSize) )
     {
         response << "HTTP/1.1 416 Requested Range Not Satisfiable\r\n"
             << "Content-Type: " << mimeType << "\r\n"
