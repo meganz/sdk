@@ -19226,9 +19226,6 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
             fsAccess->tmpnamelocal(&suffix);
             httpctx->tmpFileName.append(suffix);
-            fsAccess->newfileaccess();
-
-
             httpctx->tmpFileAccess = fsAccess->newfileaccess();
             string localPath;
             fsAccess->path2local(&httpctx->tmpFileName, &localPath);
@@ -19253,7 +19250,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
     {
         char * newbody = new char[n+httpctx->messageBodySize];
         memcpy(newbody, httpctx->messageBody,httpctx->messageBodySize);
-        memcpy(newbody + httpctx->messageBodySize + 1, b, n);
+        memcpy(newbody + (httpctx->messageBodySize?(httpctx->messageBodySize + 1):0), b, n);
         httpctx->messageBodySize += n;
         delete httpctx->messageBody;
         httpctx->messageBody = newbody;
@@ -19972,6 +19969,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         httpctx->resultCode = 207;
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
+        delete node;
+        delete baseNode;
         return 0;
 
     }
@@ -20014,6 +20013,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         httpctx->resultCode = 200;
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
+        delete node;
+        delete baseNode;
         return 0;
     }
     else if (parser->method == HTTP_DELETE)
@@ -20082,6 +20083,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
 
         httpctx->megaApi->createFolder(newname.c_str(), newParentNode, httpctx);
+        delete newParentNode;
         delete node;
         delete baseNode;
         return 0;
@@ -20246,8 +20248,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
                 fsAccess->tmpnamelocal(&suffix);
                 httpctx->tmpFileName.append(suffix);
-                fsAccess->newfileaccess();
-
                 httpctx->tmpFileAccess = fsAccess->newfileaccess();
                 string localPath;
                 fsAccess->path2local(&httpctx->tmpFileName, &localPath);
@@ -20392,6 +20392,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             delete newParentNode;
         }
 
+        delete node;
+        delete baseNode;
         return 0;
     }
     else //GET/POST/HEAD
@@ -20450,6 +20452,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         httpctx->node = node;
         streamNode(httpctx);
     }
+    delete baseNode;
     return 0;
 }
 
@@ -20703,6 +20706,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylo
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
             LOG_warn << "Finishing due to an error in uv_write: " << err;
+            delete req;
             httpctx->finished = true;
             if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
             {
@@ -20850,7 +20854,7 @@ MegaHTTPContext::MegaHTTPContext()
     tmpFileAccess = NULL;
     newParentNode = NULL;
     nodeToMove = NULL;
-
+    pause = false;
     depth = -1;
     overwrite = true; //GVFS-DAV via command line does not include this header (assumed true)
 
@@ -20869,8 +20873,9 @@ MegaHTTPContext::~MegaHTTPContext()
         MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
         fsAccess->unlinklocal(&tmpFileName);
         delete tmpFileAccess;
+        delete fsAccess;
     }
-    delete messageBody;
+    delete []messageBody;
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
