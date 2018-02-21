@@ -19280,7 +19280,7 @@ string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string base
            "<d:propstat>\r\n"
            "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
            "<d:prop>\r\n"
-           "<d:displayname>"<<node->getName()<< "</d:displayname>/>\r\n"
+           "<d:displayname>"<<node->getName()<< "</d:displayname>\r\n"
            "<d:creationdate>" << rfc1123_datetime(node->getCreationTime()) << "</d:creationdate>"
            "<d:getlastmodified>" << rfc1123_datetime(node->getModificationTime()) << "</d:getlastmodified>"
            ;
