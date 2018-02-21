@@ -21,6 +21,13 @@ extern "C" {
 #include <openssl/engine.h>
 #include "mega_evt_queue.h"
 
+#ifdef _WIN32
+#if !defined(_SSIZE_T_) && !defined(_SSIZE_T_DEFINED)
+typedef intptr_t ssize_t;
+# define _SSIZE_T_
+# define _SSIZE_T_DEFINED
+#endif
+#endif
 
 typedef struct evt_tls_s evt_tls_t;
 

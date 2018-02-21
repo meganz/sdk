@@ -168,13 +168,16 @@ int evt_ctx_init(evt_ctx_t *tls)
     long options = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
     SSL_CTX_set_options(tls->ctx, options);
 
+#if defined(SSL_MODE_RELEASE_BUFFERS)
     SSL_CTX_set_mode(tls->ctx, SSL_MODE_AUTO_RETRY
         | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
         | SSL_MODE_ENABLE_PARTIAL_WRITE
-#if defined(SSL_MODE_RELEASE_BUFFERS)
-        | SSL_MODE_RELEASE_BUFFERS
+        | SSL_MODE_RELEASE_BUFFERS );
+#else
+    SSL_CTX_set_mode(tls->ctx, SSL_MODE_AUTO_RETRY
+        | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
+        | SSL_MODE_ENABLE_PARTIAL_WRITE );
 #endif
-    );
 
     tls->cert_set = 0;
     tls->key_set = 0;
@@ -316,7 +319,9 @@ int evt_tls_feed_data(evt_tls_t *c, void *data, int sz)
     assert( sz > 0 && "Size of data should be positive");
     for( offset = 0; offset < sz; offset += i ) {
         //handle error condition
-        i =  BIO_write(c->app_bio, data + offset, sz - offset);
+        i =  BIO_write(c->app_bio,
+                       (char *)data + offset,
+                       sz - offset);
 
         //if handshake is not complete, do it again
         if ( evt_tls_is_handshake_over(c) ) {
