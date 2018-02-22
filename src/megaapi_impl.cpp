@@ -4253,7 +4253,7 @@ string MegaApiImpl::userAttributeToString(int type)
             break;
 
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "!clv";
+            attrname = "clv";
             break;
     }
 

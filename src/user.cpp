@@ -393,7 +393,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "^!clv";
+            attrname = "^clv";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -473,7 +473,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_DISABLE_VERSIONS;
     }
-    else if(!strcmp(name, "^!clv"))
+    else if(!strcmp(name, "^clv"))
     {
         return ATTR_CONTACT_LINK_VERIFICATION;
     }
