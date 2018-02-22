@@ -19272,8 +19272,6 @@ string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string base
 {
     std::ostringstream web;
 
-//    char *base64Handle = node->getBase64Handle();
-
     web << "<d:response>\r\n"
            "<d:href>" << baseURL << "</d:href>\r\n"
            "<d:propstat>\r\n"
@@ -19284,6 +19282,9 @@ string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string base
            "<d:getlastmodified>" << rfc1123_datetime(node->getModificationTime()) << "</d:getlastmodified>"
            ;
 
+    //TODO: do this optional
+    web << "<Z:Win32FileAttributes>00001000</Z:Win32FileAttributes> \r\n"; //FILE_ATTRIBUTE_OFFLINE
+    //    web << "<Z:Win32FileAttributes>00400000</Z:Win32FileAttributes> \r\n"; // FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
 
     if (node->isFolder())
     {
@@ -19312,7 +19313,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
     std::ostringstream web;
 
     web << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
-           "<d:multistatus xmlns:d=\"DAV:\">\r\n";
+           "<d:multistatus xmlns:d=\"DAV:\" xmlns:Z=\"urn:schemas-microsoft-com::\">\r\n";
 
     string subbaseURL = baseURL + subnodepath;
     if (node->isFolder() && subbaseURL.size() && subbaseURL.at(subbaseURL.size()-1) != '/')
