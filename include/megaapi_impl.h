@@ -2422,7 +2422,8 @@ public:
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
 
-    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode);
+    static void returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
+    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
 
 };
 #endif

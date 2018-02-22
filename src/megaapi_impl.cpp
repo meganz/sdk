@@ -19018,7 +19018,6 @@ void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread,
     {
         parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
     }
-    //delete [] buf->base; //TODO: figure out when(if) this should be cleaned
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
@@ -19236,7 +19235,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
                 delete fsAccess;
                 return 0;
             }
-            delete fsAccess; //TODO: save this object too?
+            delete fsAccess;
         }
 
         if(!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize?(httpctx->messageBodySize+1):0) )
@@ -19652,16 +19651,62 @@ string MegaHTTPServer::getHTTPErrorString(int errorcode)
     case 502:
         return "Bad Gateway";
         break;
+    case 503:
+        return "Service Unavailable";
+        break;
+    case 507:
+        return "Insufficient Storage";
+        break;
+    case 508:
+        return "Loop Detected";
+        break;
     default:
         return "Unknown Error";
         break;
     }
 }
 
-void MegaHTTPServer::returnHttpCode(MegaHTTPContext* httpctx, int errorCode)
+
+void MegaHTTPServer::returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e)
+{
+    int reqError = e->getErrorCode();
+    int httpreturncode = 500;
+
+    switch(reqError)
+    {
+    case API_EACCESS:
+        httpreturncode = 403;
+        break;
+    case API_EOVERQUOTA:
+    case API_EGOINGOVERQUOTA:
+        httpreturncode = 507;
+        break;
+    case API_EAGAIN:
+    case API_ERATELIMIT:
+    case API_ETEMPUNAVAIL:
+        httpreturncode = 503;
+        break;
+    case API_ECIRCULAR:
+        httpreturncode = 508;
+        break;
+    default:
+        httpreturncode = 500;
+        break;
+    }
+
+    LOG_debug << "HTTP petition failed. request error=" << reqError << " HTTP status to return = " << httpreturncode;
+    //string errorMessage = getHTTPErrorString(httpreturncode) + " "+ getErrorString(reqError);
+    string errorMessage = e->getErrorString(reqError);
+    return returnHttpCode(httpctx, httpreturncode, errorMessage);
+}
+
+
+void MegaHTTPServer::returnHttpCode(MegaHTTPContext* httpctx, int errorCode, string errorMessage)
 {
     std::ostringstream response;
-    response << "HTTP/1.1 " << errorCode << " " << getHTTPErrorString(errorCode) << "\r\n"
+    response << "HTTP/1.1 " << errorCode << " "
+             << (errorMessage.size()?errorMessage:getHTTPErrorString(errorCode))
+             << "\r\n"
                 "Connection: close\r\n"
               << "\r\n";
 
@@ -19922,7 +19967,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     else if (parser->method == HTTP_UNLOCK)
     {
         // let's create a minimum unlock compliant response
-        returnHttpCode(httpctx, 204); //TODO: review this error code
+        returnHttpCode(httpctx, 204);
         delete node;
         delete baseNode;
         return 0;
@@ -19978,7 +20023,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         std::ostringstream web;
 
-        // let's create a minimum lock compliant response
+        // let's create a minimum lock compliant response //TODO: do actually provide locking functionality based on URL
         web << "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\r\n"
           "<D:prop xmlns:D=\"DAV:\">\r\n"
             "<D:lockdiscovery>\r\n"
@@ -20076,7 +20121,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
         if (!newParentNode)
         {
-            returnHttpCode(httpctx, 404); //TODO: review this error code
+            returnHttpCode(httpctx, 409);
             delete node;
             delete baseNode;
             return 0;
@@ -20101,7 +20146,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
         if (!node)
         {
-            returnHttpCode(httpctx, 404); //TODO: i believe this is already checked before
+            returnHttpCode(httpctx, 404);
             delete node;
             delete baseNode;
             return 0;
@@ -20110,7 +20155,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         MegaNode *newParentNode = NULL;
         string newname;
 
-        //TODO: add host control?
         string baseURL = string("http")+(httpctx->server->useTLS?"s":"")+"://"+httpctx->host+"/"+httpctx->nodehandle+"/"+httpctx->nodename+"/";
 
         string dest;
@@ -20178,7 +20222,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
         if (!newParentNode)
         {
-            returnHttpCode(httpctx, 404); //TODO: review this error code
+            returnHttpCode(httpctx, 409);
             delete node;
             delete baseNode;
             return 0;
@@ -20235,7 +20279,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
             if (!newParentNode)
             {
-                returnHttpCode(httpctx, 404); //TODO: review this error code
+                returnHttpCode(httpctx, 409);
                 delete node;
                 delete baseNode;
                 return 0;
@@ -20254,7 +20298,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 fsAccess->unlinklocal(&localPath);
                 if(!httpctx->tmpFileAccess->fopen(&localPath, false, true))
                 {
-                    returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
+                    returnHttpCode(httpctx, 500);
                     delete node;
                     delete baseNode;
                     delete newParentNode;
@@ -20266,9 +20310,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
             httpctx->megaApi->startUpload(httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), httpctx);
 
-            //sleep(2);
-            //returnHttpCode(httpctx, 201); //TODO: review this error code
-
             delete node;
             delete baseNode;
             delete newParentNode;
@@ -20277,6 +20318,14 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     }
     else if (parser->method == HTTP_MOVE)
     {
+        //        201 (Created)	The resource was moved successfully and a new resource was created at the specified destination URI.
+        //        204 (No Content)	The resource was moved successfully to a pre-existing destination URI.
+        //        403 (Forbidden)	The source URI and the destination URI are the same.
+        //        409 (Conflict)	A resource cannot be created at the destination URI until one or more intermediate collections are created.
+        //        412 (Precondition Failed)	Either the Overwrite header is "F" and the state of the destination resource is not null, or the method was used in a Depth: 0 transaction.
+        //        423 (Locked)	The destination resource is locked.
+        //        502 (Bad Gateway)	The destination URI is located on a different server, which refuses to accept the resource.
+
         if (!node)
         {
             returnHttpCode(httpctx, 404);
@@ -20285,15 +20334,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             return 0;
         }
 
-//        201 (Created)	The resource was moved successfully and a new resource was created at the specified destination URI.
-//        204 (No Content)	The resource was moved successfully to a pre-existing destination URI.
-//        403 (Forbidden)	The source URI and the destination URI are the same.
-//        409 (Conflict)	A resource cannot be created at the destination URI until one or more intermediate collections are created.
-//        412 (Precondition Failed)	Either the Overwrite header is "F" and the state of the destination resource is not null, or the method was used in a Depth: 0 transaction.
-//        423 (Locked)	The destination resource is locked.
-//        502 (Bad Gateway)	The destination URI is located on a different server, which refuses to accept the resource.
-
-        //TODO: add host control?
         string baseURL = string("http")+(httpctx->server->useTLS?"s":"")+"://"+httpctx->host+"/"+httpctx->nodehandle+"/"+httpctx->nodename+"/";
 
         string dest;
@@ -20334,7 +20374,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 }
                 else
                 {
-                    returnHttpCode(httpctx, 412); //TODO: review this error code
+                    returnHttpCode(httpctx, 412);
                     delete node;
                     delete baseNode;
                     delete destNode;
@@ -20366,7 +20406,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             }
             if (!newParentNode)
             {
-                returnHttpCode(httpctx, 404); //TODO: review this error code
+                returnHttpCode(httpctx, 409);
                 delete node;
                 delete baseNode;
                 return 0;
@@ -20374,7 +20414,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
             if (newParentNode->getHandle() == node->getHandle())
             {
-                returnHttpCode(httpctx, 500); //TODO: review this error code
+                LOG_warn << "HTTP_MOVE trying to mov a node into itself";
+                returnHttpCode(httpctx, 500);
                 delete node;
                 delete baseNode;
                 delete newParentNode;
@@ -20595,7 +20636,6 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 
 void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
 {
-    LOG_verbose << "at onAsyncEvent "; //TODO: delete
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
     if (httpctx->failed)
     {
@@ -20627,7 +20667,7 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
             }
 
             httpctx->resultCode = 404;
-            string resstr = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n"; //TODO: ? close
+            string resstr = "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n";
             sendHeaders(httpctx, &resstr);
             return;
         }
@@ -20792,7 +20832,7 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
             }
         }
 
-        if (false && http_should_keep_alive(&httpctx->parser))
+        if (false && http_should_keep_alive(&httpctx->parser)) //If we ever want to support Keep-Alive server, this is the place to start
         {
             // Keeop on reading
             if (httpctx->lastBufferLen)
@@ -20800,9 +20840,9 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
                 httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
                 httpctx->lastBufferLen = 0;
             }
-            //TODO: there should be more stuff to clean. maybe we should restart the whole httpctx
+            // there should be more stuff to clean. maybe we should restart the whole httpctx
             uv_read_start((uv_stream_t*)&httpctx->tcphandle, allocBuffer, onDataReceived);
-            // TODO: tls version of this!?
+            // tls version of this!?
             //uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
         }
         else
@@ -20924,13 +20964,11 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     {
         if (ecode == API_OK)
         {
-            server->returnHttpCode(this, 201); //TODO: review this error code *************
-            uv_async_send(&asynchandle); //TODO: review this? (required?? after/before?)
+            server->returnHttpCode(this, 201); //TODO actually if resource already existed this should be 200
         }
         else
         {
-            server->returnHttpCode(this, 500); //TODO: review this error code. Perhaps we can include the ecode in the message
-
+            server->returnHttpCodeBasedOnRequestError(this, e);
         }
     }
 
@@ -20973,10 +21011,8 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         }
         else
         {
-            server->returnHttpCode(this, 500);// TODO: better error handling?
+            server->returnHttpCodeBasedOnRequestError(this, e);
         }
-
-        //TODO: wtf?? look for parent and if exists & collection move there and change name if newname!=oldName ????
     }
     else if (request->getType() == MegaRequest::TYPE_RENAME )
     {
@@ -20986,7 +21022,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         }
         else
         {
-            server->returnHttpCode(this, 500);// TODO: better error handling?
+            server->returnHttpCodeBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_REMOVE )
@@ -21008,7 +21044,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         }
         else
         {
-            server->returnHttpCode(this, 500);// TODO: better error handling?
+            server->returnHttpCodeBasedOnRequestError(this, e);
             delete nodeToMove;
             delete newParentNode;
         }
@@ -21021,7 +21057,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         }
         else
         {
-            server->returnHttpCode(this, 500);// TODO: better error handling?
+            server->returnHttpCodeBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_COPY )
@@ -21032,8 +21068,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         }
         else
         {
-            server->returnHttpCode(this, 500);// TODO: better error handling?
-            // TODO: at least give 507 (Insufficient Storage)	The destination resource does not have sufficient storage space.
+            server->returnHttpCodeBasedOnRequestError(this, e);
         }
     }
     uv_async_send(&asynchandle);
