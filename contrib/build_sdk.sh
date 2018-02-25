@@ -51,6 +51,10 @@ enable_cryptopp=0
 disable_mediainfo=0
 incremental=0
 no_optimisation=0
+extra_openssl_params=""
+cross_compiling=0
+configure_cross_options=""
+openssl_cross_option=""
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -118,7 +122,6 @@ package_download() {
         return
     fi
 
-    echo "Downloading $name"
 
     if [ -f $file ]; then
         rm -f $file || true
@@ -126,14 +129,19 @@ package_download() {
 
     # use packages previously downloaded in /tmp/megasdkbuild folder
     # if not present download from URL specified
-    # if wget fail, try curl
+    # if wget fails, try curl
     mkdir -p /tmp/megasdkbuild/
-    
+
 #    cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
 
-    cp /tmp/megasdkbuild/$3 $file || \
-    wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
-    curl -k $url > $file || exit 1
+    if [ -e /tmp/megasdkbuild/$3 ] ; then
+        echo "Using cached file /tmp/megasdkbuild/$3"
+        cp /tmp/megasdkbuild/$3 $file 
+    else
+        echo "Downloading $name to get $3"
+        wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        curl -k $url > $file || exit 1
+    fi
     
     echo "Checking MD5SUM for $file"
     if ! echo $md5sum \*$file | md5sum -c - ; then
@@ -153,6 +161,7 @@ package_download() {
     
     #copy to tmp download folder for next constructions
     cp $file /tmp/megasdkbuild/$3
+    echo "Cached package file at /tmp/megasdkbuild/$3"
 }
 
 package_extract() {
@@ -199,8 +208,10 @@ package_configure() {
     local params="$4"
     local extralibs="$5"
 
+    local conf_f0="./Configure"  #OpenSSL has ./config which first guesses a cross-compiling then calls Configure.  To support reliable cross-compiling, we can call Configure directly with $CC $CXX set appropriately already
     local conf_f1="./config"
     local conf_f2="./configure"
+    local conf=""
     local autogen="./autogen.sh"
 
     echo "Configuring $name"
@@ -212,22 +223,23 @@ package_configure() {
         $autogen
     fi
 
-    if [ -f $conf_f1 ]; then
-        if [ -z "$extralibs" ]; then
-            $conf_f1 --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
-        else
-            $conf_f1 --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
-        fi
+    if [ $cross_compiling -eq 1 ] && [ -f $conf_f0 ]; then
+        conf="$conf_f0 os/compiler:$openssl_cross_option"
+    elif [ $cross_compiling -eq 0 ] && [ -f $conf_f1 ]; then  # ./config is used to figure out which compiler; if we are cross compiling then skip that and use configure directly, $CC $CXX etc specify the tools
+        conf="$conf_f1"
     elif [ -f $conf_f2 ]; then
-        if [ -z "$extralibs" ]; then
-            $conf_f2 $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
-        else
-            $conf_f2 $config_opts --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
-        fi
+        conf="$conf_f2 $configure_cross_options"
     else
         local exit_code=$?
         echo "Failed to configure $name, exit status: $exit_code"
         exit 1
+    fi
+
+    echo "configuring $name with : $conf $config_opts --prefix=$install_dir $params [ and LIBS=$extralibs if specified ]"
+    if [ -z "$extralibs" ]; then
+        $conf $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+    else
+        $conf $config_opts --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
     fi
 
     if [ $no_optimisation -eq 1 ]; then
@@ -309,7 +321,7 @@ openssl_pkg() {
 
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
-    local openssl_params="--openssldir=$install_dir no-shared"
+    local openssl_params="--openssldir=$install_dir no-shared $extra_openssl_params"
     local loc_make_opts=$make_opts
 
     if [ $incremental -eq 1 ] && [ -e $name.success ]; then
@@ -481,6 +493,8 @@ zlib_pkg() {
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
     local loc_conf_opts=$config_opts
+    local loc_configure_cross_options=$configure_cross_options
+
     if [ $use_dynamic -eq 1 ]; then
         local zlib_params=""
     else
@@ -503,6 +517,7 @@ zlib_pkg() {
 
     # doesn't recognize --host=xxx
     config_opts=""
+    configure_cross_options=""
 
     # Windows must use Makefile.gcc
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
@@ -520,6 +535,7 @@ zlib_pkg() {
         unset LIBRARY_PATH
     fi
     config_opts=$loc_conf_opts
+    configure_cross_options=$loc_configure_cross_options
 
 }
 
@@ -994,7 +1010,7 @@ build_sdk() {
     fi
 
     # add readline and termcap flags if building examples
-    if [ -z "$no_examples" ]; then
+    if [ $readline_build -eq 1 ] || [ -z "$no_examples" ]; then
         readline_flags=" \
             --with-readline=$install_dir \
             --with-termcap=$install_dir \
@@ -1010,7 +1026,8 @@ build_sdk() {
     fi
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
-        ./configure \
+        local configure_flags="\
+            $configure_cross_options \
             $static_flags \
             --disable-silent-rules \
             --disable-curl-checks \
@@ -1029,7 +1046,9 @@ build_sdk() {
             $config_opts \
             $mediainfo_flags \
             --prefix=$install_dir \
-            $debug || exit 1
+            $debug"
+        echo "running: ./configure $configure_flags"
+        ./configure $configure_flags || exit 1
     # Windows (MinGW) build, uses WinHTTP instead of cURL + c-ares, without OpenSSL
     else
         ./configure \
@@ -1116,7 +1135,7 @@ main() {
     # by the default store archives in work_dir
     local_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:no:p:rRstuvyx:wqz0" opt; do
+    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyXC:O:wqz0" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1126,7 +1145,7 @@ main() {
                 echo "* Enabling MegaApi"
                 enable_megaapi=1
                 ;;
-             b)
+            b)
                 only_build_dependencies=1
                 echo "* Building dependencies only."
                 ;;
@@ -1195,6 +1214,10 @@ main() {
                 echo "* Disabling OpenSSL"
                 disable_ssl=1
                 ;;
+            S)
+                echo "* extra OpenSSL config params: $OPTARG"
+                extra_openssl_params="$OPTARG"
+                ;;
             t)
                 disable_posix_threads="--disable-posix-threads"
                 ;;
@@ -1210,9 +1233,17 @@ main() {
                 download_only=1
                 echo "* Downloading software archives only."
                 ;;
-            x)
-                config_opts="$OPTARG"
-                echo "* Using configuration options: $config_opts"
+            X)
+                cross_compiling=1
+                echo "* cross-compiling"
+                ;;
+            C)
+               configure_cross_options="$OPTARG"
+               echo "* configure cross compile options: $configure_cross_options"
+                ;;
+            O)
+                openssl_cross_option="$OPTARG"
+                echo "* OpenSSL Configure option: $openssl_cross_option"
                 ;;
             y)
                 use_dynamic=1
