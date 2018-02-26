@@ -9999,6 +9999,25 @@ class MegaApi
         bool httpServerIsFolderServerEnabled();
 
         /**
+         * @brief Stablish FILE_ATTRIBUTE_OFFLINE attribute
+         *
+         * By default, it is not enabled
+         *
+         * This is using when serving files in WEBDAV, it will cause windows clients to not load a file
+         * when it is selected. It is intended to reduce unnecessary traffic.
+         *
+         * @param enable true to allow to server folders, false to forbid it
+         */
+        void httpServerEnableOfflineAttribute(bool enable);
+
+        /**
+         * @brief Check if FILE_ATTRIBUTE_OFFLINE it's enabled
+         *
+         * @return true if it's allowed to serve folders, otherwise false
+         */
+        bool httpServerIsOfflineAttributeEnabled();
+
+        /**
          * @brief Enable/disable the restricted mode of the HTTP server
          *
          * This function allows to restrict the nodes that are allowed to be served.

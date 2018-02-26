@@ -3071,6 +3071,16 @@ void MegaApi::httpServerEnableFolderServer(bool enable)
     pImpl->httpServerEnableFolderServer(enable);
 }
 
+void MegaApi::httpServerEnableOfflineAttribute(bool enable)
+{
+    pImpl->httpServerEnableOfflineAttribute(enable);
+}
+
+bool MegaApi::httpServerIsOfflineAttributeEnabled()
+{
+    return pImpl->httpServerIsOfflineAttributeEnabled();
+}
+
 bool MegaApi::httpServerIsFolderServerEnabled()
 {
     return pImpl->httpServerIsFolderServerEnabled();

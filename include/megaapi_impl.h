@@ -1815,11 +1815,13 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsFileServerEnabled();
         void httpServerEnableFolderServer(bool enable);
         bool httpServerIsFolderServerEnabled();
+        bool httpServerIsOfflineAttributeEnabled();
         void httpServerSetRestrictedMode(int mode);
         int httpServerGetRestrictedMode();
         void httpServerEnableSubtitlesSupport(bool enable);
         bool httpServerIsSubtitlesSupportEnabled();
         bool httpServerIsLocalOnly();
+        void httpServerEnableOfflineAttribute(bool enable);
 
         void httpServerAddListener(MegaTransferListener *listener);
         void httpServerRemoveListener(MegaTransferListener *listener);
@@ -1919,6 +1921,7 @@ protected:
         int httpServerMaxOutputSize;
         bool httpServerEnableFiles;
         bool httpServerEnableFolders;
+        bool httpServerOfflineAttributeEnabled;
         int httpServerRestrictedMode;
         bool httpServerSubtitlesSupportEnabled;
         set<MegaTransferListener *> httpServerListeners;
@@ -2293,8 +2296,8 @@ public:
     FileAccess *tmpFileAccess;
     std:: string tmpFileName;
     std::string newname; //newname for moved node
-    MegaNode *nodeToMove; //node to be moved after delete //TODO: use handles instead
-    MegaNode *newParentNode; //parent node for moved after delete
+    MegaHandle nodeToMove; //node to be moved after delete
+    MegaHandle newParentNode; //parent node for moved after delete
 
     //tls stuff:
     evt_tls_t *evt_tls;
@@ -2337,6 +2340,7 @@ protected:
     int maxOutputSize;
     bool fileServerEnabled;
     bool folderServerEnabled;
+    bool offlineAttribute;
     bool subtitlesSupportEnabled;
     int restrictedMode;
     bool localOnly;
@@ -2386,7 +2390,7 @@ protected:
 
     // WEBDAV related
     static std::string getWebDavPropFindResponseForNode(std::string baseURL, std::string subnodepath, MegaNode *node, MegaHTTPContext* httpctx);
-    static std::string getWebDavProfFindNodeContents(MegaNode *node, std::string baseURL);
+    static std::string getWebDavProfFindNodeContents(MegaNode *node, std::string baseURL, bool offlineAttribute);
 
 
     void run();
@@ -2420,6 +2424,8 @@ public:
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
     bool isHandleWebDavAllowed(handle h);
+    void enableOfflineAttribute(bool enable);
+    bool isOfflineAttributeEnabled();
     void clearAllowedHandles();
     char* getLink(MegaNode *node, bool enablewebdav = false);
     bool isSubtitlesSupportEnabled();

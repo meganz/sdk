@@ -3837,6 +3837,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpServerMaxOutputSize = 0;
     httpServerEnableFiles = true;
     httpServerEnableFolders = false;
+    httpServerOfflineAttributeEnabled = false;
     httpServerRestrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     httpServerSubtitlesSupportEnabled = false;
 #endif
@@ -6872,6 +6873,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, std::st
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
+    httpServer->enableOfflineAttribute(httpServerOfflineAttributeEnabled);
     httpServer->enableFolderServer(httpServerEnableFolders);
     httpServer->setRestrictedMode(httpServerRestrictedMode);
     httpServer->enableSubtitlesSupport(httpServerRestrictedMode);
@@ -7038,9 +7040,25 @@ void MegaApiImpl::httpServerEnableFolderServer(bool enable)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::httpServerEnableOfflineAttribute(bool enable)
+{
+    sdkMutex.lock();
+    this->httpServerOfflineAttributeEnabled = enable;
+    if (httpServer)
+    {
+        httpServer->enableOfflineAttribute(enable);
+    }
+    sdkMutex.unlock();
+}
+
 bool MegaApiImpl::httpServerIsFolderServerEnabled()
 {
     return httpServerEnableFolders;
+}
+
+bool MegaApiImpl::httpServerIsOfflineAttributeEnabled()
+{
+    return httpServerOfflineAttributeEnabled;
 }
 
 void MegaApiImpl::httpServerSetRestrictedMode(int mode)
@@ -18542,6 +18560,7 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS, string certifi
     this->maxOutputSize = 0;
     this->fileServerEnabled = true;
     this->folderServerEnabled = true;
+    this->offlineAttribute = false;
     this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     this->lastHandle = INVALID_HANDLE;
     this->subtitlesSupportEnabled = false;
@@ -18748,6 +18767,11 @@ void MegaHTTPServer::enableFolderServer(bool enable)
     this->folderServerEnabled = enable;
 }
 
+void MegaHTTPServer::enableOfflineAttribute(bool enable)
+{
+    this->offlineAttribute = enable;
+}
+
 void MegaHTTPServer::setRestrictedMode(int mode)
 {
     this->restrictedMode = mode;
@@ -18761,6 +18785,11 @@ bool MegaHTTPServer::isFileServerEnabled()
 bool MegaHTTPServer::isFolderServerEnabled()
 {
     return folderServerEnabled;
+}
+
+bool MegaHTTPServer::isOfflineAttributeEnabled()
+{
+    return offlineAttribute;
 }
 
 int MegaHTTPServer::getRestrictedMode()
@@ -19298,7 +19327,7 @@ std::string rfc1123_datetime( time_t time )
     return buffer;
 }
 
-string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string baseURL)
+string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string baseURL, bool offlineAttribute)
 {
     std::ostringstream web;
 
@@ -19312,9 +19341,12 @@ string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string base
            "<d:getlastmodified>" << rfc1123_datetime(node->getModificationTime()) << "</d:getlastmodified>"
            ;
 
-    //TODO: do this optional
-    web << "<Z:Win32FileAttributes>00001000</Z:Win32FileAttributes> \r\n"; //FILE_ATTRIBUTE_OFFLINE
-    //    web << "<Z:Win32FileAttributes>00400000</Z:Win32FileAttributes> \r\n"; // FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+    if (offlineAttribute)
+    {
+        //(perhaps this could be based on number of files / or even better: size)
+          web << "<Z:Win32FileAttributes>00001000</Z:Win32FileAttributes> \r\n"; //FILE_ATTRIBUTE_OFFLINE
+//        web << "<Z:Win32FileAttributes>00040000</Z:Win32FileAttributes> \r\n"; // FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS (no actual difference)
+    }
 
     if (node->isFolder())
     {
@@ -19351,13 +19383,13 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
         subbaseURL.append("/");
     }
 
-    web << getWebDavProfFindNodeContents(node, subbaseURL);
+    web << getWebDavProfFindNodeContents(node, subbaseURL, httpctx->server->isOfflineAttributeEnabled());
     if (node->isFolder() && (httpctx->depth != 0) )
         for (int i = 0; i < children->size(); i++)
         {
             MegaNode *child = children->get(i);
             string childURL = subbaseURL + child->getName();
-            web << getWebDavProfFindNodeContents(child, childURL);
+            web << getWebDavProfFindNodeContents(child, childURL, httpctx->server->isOfflineAttributeEnabled());
         }
     delete children;
 
@@ -20414,9 +20446,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 //overwrite?
                 if (httpctx->overwrite)
                 {
-                    httpctx->newParentNode = httpctx->megaApi->getNodeByHandle(destNode->getParentHandle());
+                    httpctx->newParentNode = destNode->getParentHandle();
                     httpctx->newname = destNode->getName();
-                    httpctx->nodeToMove = node;
+                    httpctx->nodeToMove = node->getHandle();
                     httpctx->megaApi->remove(destNode, false, httpctx);
 
                     delete baseNode;
@@ -20943,8 +20975,8 @@ MegaHTTPContext::MegaHTTPContext()
     messageBody = NULL;
     messageBodySize = 0;
     tmpFileAccess = NULL;
-    newParentNode = NULL;
-    nodeToMove = NULL;
+    newParentNode = UNDEF;
+    nodeToMove = UNDEF;
     pause = false;
     depth = -1;
     overwrite = true; //GVFS-DAV via command line does not include this header (assumed true)
@@ -21079,24 +21111,25 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            if (nodeToMove) //delete+move
+            MegaNode *n = this->megaApi->getNodeByHandle(nodeToMove);
+            MegaNode *p = this->megaApi->getNodeByHandle(newParentNode);
+            if (n && p) //delete+move
             {
-                this->megaApi->moveNode(nodeToMove,newParentNode, this);
-                delete nodeToMove;
-                nodeToMove = NULL;
-                delete newParentNode;
-                newParentNode = NULL;
+                this->megaApi->moveNode(n, p, this);
             }
             else
             {
                 server->returnHttpCode(this, 204); // Standard success response
             }
+
+            nodeToMove = UNDEF;
+            newParentNode = UNDEF;
+            delete n;
+            delete p;
         }
         else
         {
             server->returnHttpCodeBasedOnRequestError(this, e);
-            delete nodeToMove;
-            delete newParentNode;
         }
     }
     else if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER )
