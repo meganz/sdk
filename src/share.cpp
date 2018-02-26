@@ -88,7 +88,7 @@ void Share::update(accesslevel_t a, m_time_t t, PendingContactRequest* pending)
 
 // coutgoing: < 0 - don't authenticate, > 0 - authenticate using handle auth
 NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess,
-                   m_time_t cts, const byte* ckey, const byte* cauth, handle cpending,bool cupgrade_pending_to_full)
+                   m_time_t cts, const byte* ckey, const byte* cauth, handle cpending,bool cupgrade_pending_to_full, bool okremoved)
 {
     h = ch;
     outgoing = coutgoing;
@@ -97,6 +97,7 @@ NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess
     ts = cts;
     pending = cpending;
     upgrade_pending_to_full = cupgrade_pending_to_full;
+    remove_key = okremoved;
 
     if (ckey)
     {

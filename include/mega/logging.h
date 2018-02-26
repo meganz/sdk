@@ -17,6 +17,9 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
 /* Usage example:
@@ -79,7 +82,12 @@
 #ifndef MEGA_LOGGING_H
 #define MEGA_LOGGING_H 1
 
-#include "mega.h"
+#include <iostream>
+#include <ostream>
+#include <sstream>
+#include <vector>
+#include <string>
+#include <map>
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
@@ -98,23 +106,15 @@ enum LogLevel {
     logMax
 };
 
-// settings for each log level
-struct OutputSettings {
-    bool enableTime;    // display time component for each log line
-    bool enableLevel;   // display log level component for each log line
-    bool enableSource;  // display file name and line number component for each log line
-};
-
 // Output Log Interface
-class MEGA_API Logger {
+class Logger {
 public:
     virtual void log(const char *time, int loglevel, const char *source, const char *message) = 0;
 };
 
-typedef std::map<enum LogLevel, struct OutputSettings> OutputSettingsMap;
-typedef vector<std::ostream *> OutputStreams;
+typedef std::vector<std::ostream *> OutputStreams;
 
-class MEGA_API OutputMap : public std::map<enum LogLevel, OutputStreams>
+class OutputMap : public std::map<enum LogLevel, OutputStreams>
 {
 public:
     OutputMap() : std::map<enum LogLevel, OutputStreams>()
@@ -126,9 +126,8 @@ public:
     }
 };
 
-class MEGA_API SimpleLogger {
+class SimpleLogger {
     enum LogLevel level;
-    bool lineBreak;
     std::ostringstream ostr;
     std::string t;
     std::string fname;
@@ -138,17 +137,15 @@ class MEGA_API SimpleLogger {
         return outputs[ll];
     }
 
-    string getTime();
+    std::string getTime();
 
 public:
     static OutputMap outputs;
     static Logger *logger;
-    static char base64Handle[14];
-    static OutputSettingsMap outputSettings;
 
     static enum LogLevel logCurrentLevel;
 
-    SimpleLogger(enum LogLevel ll, char const* filename, int line, bool lBreak = true);
+    SimpleLogger(enum LogLevel ll, char const* filename, int line);
     ~SimpleLogger();
 
     static const char *toStr(enum LogLevel ll)
@@ -163,12 +160,6 @@ public:
             default: return "";
         }
         return "";
-    }
-
-    static const char *toNodeHandle(handle nodeHandle)
-    {
-        Base64::btoa((byte*)&(nodeHandle), MegaClient::NODEHANDLE, base64Handle);
-        return base64Handle;
     }
 
     template <typename T>
@@ -224,15 +215,6 @@ public:
 
     // Synchronizes all registered stream buffers with their controlled output sequence
     static void flush();
-
-    // set output settings for log level
-    static void setOutputSettings(enum LogLevel ll, bool enableTime, bool enableLevel, bool enableSource)
-    {
-        outputSettings[ll].enableTime = enableTime;
-        outputSettings[ll].enableLevel = enableLevel;
-        outputSettings[ll].enableSource = enableSource;
-    }
-
 };
 
 // output VERBOSE log with line break
@@ -290,8 +272,6 @@ public:
     SimpleLogger(logFatal, __FILE__, __LINE__)
 #define LOGn_fatal \
     SimpleLogger(logFatal, __FILE__, __LINE__, false)
-
-#define LOG_NODEHANDLE(x) SimpleLogger::toNodeHandle(x)
 
 } // namespace
 

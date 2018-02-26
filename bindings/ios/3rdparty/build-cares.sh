@@ -1,6 +1,6 @@
 #!/bin/sh
 		
-CARES_VERSION="1.10.0"													      
+CARES_VERSION="1.13.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`														  
 
 
@@ -36,11 +36,12 @@ set -e
 
 if [ ! -e "c-ares-${CARES_VERSION}.tar.gz" ]
 then
-    curl -O "http://c-ares.haxx.se/download/c-ares-${CARES_VERSION}.tar.gz"
+    curl -LO "http://c-ares.haxx.se/download/c-ares-${CARES_VERSION}.tar.gz"
 fi
 
 tar zxf c-ares-${CARES_VERSION}.tar.gz
 pushd "c-ares-${CARES_VERSION}"
+patch -p1 < ../different_address.patch
 
 for ARCH in ${ARCHS}
 do
@@ -70,7 +71,9 @@ else
 ./configure --host=${ARCH}-apple-darwin --enable-static --disable-shared
 fi
 
-make
+sed -i '' $'s/\#define HAVE_CLOCK_GETTIME_MONOTONIC 1/\/* \#undef HAVE_CLOCK_GETTIME_MONOTONIC 1 *\//' ares_config.h
+
+make -j8
 cp -f .libs/libcares.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
 make clean
 
@@ -79,9 +82,8 @@ done
 popd
 mkdir lib || true
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libcares.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libcares.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libcares.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libcares.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libcares.a -output ${CURRENTPATH}/lib/libcares.a
-mkdir -p include/cares || true
-cp -f c-ares-${CARES_VERSION}/ares.h c-ares-${CARES_VERSION}/ares_build.h c-ares-${CARES_VERSION}/ares_dns.h c-ares-${CARES_VERSION}/ares_rules.h c-ares-${CARES_VERSION}/ares_version.h include/cares/
-sed -i '' $'s/\#define CARES_SIZEOF_LONG 8/\#ifdef __LP64__\\\n\#define CARES_SIZEOF_LONG 8\\\n#else\\\n\#define CARES_SIZEOF_LONG 4\\\n\#endif/' include/cares/ares_build.h
+mkdir -p include || true
+cp -f c-ares-${CARES_VERSION}/ares.h c-ares-${CARES_VERSION}/ares_build.h c-ares-${CARES_VERSION}/ares_dns.h c-ares-${CARES_VERSION}/ares_rules.h c-ares-${CARES_VERSION}/ares_version.h include/
 
 
 rm -rf c-ares-${CARES_VERSION}

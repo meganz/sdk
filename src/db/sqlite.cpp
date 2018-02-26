@@ -83,7 +83,6 @@ DbTable* SqliteDbAccess::openlegacy(FileSystemAccess* fsaccess, string* name)
 
     int rc;
     rc = sqlite3_open(dbfile.c_str(), &db);
-
     if (rc)
     {
         return NULL;
@@ -93,10 +92,9 @@ DbTable* SqliteDbAccess::openlegacy(FileSystemAccess* fsaccess, string* name)
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
 #endif
 
-    const char *sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
+    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
 
-    rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
-
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
         return NULL;
@@ -125,9 +123,7 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
 
     string dbfile = oss.str();
 
-    int rc;
-    rc = sqlite3_open(dbfile.c_str(), &db);
-
+    int rc = sqlite3_open(dbfile.c_str(), &db);
     if (rc)
     {
         return NULL;
@@ -137,7 +133,201 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
 #endif
 
-    string sql;
+    // 0. Check if DB is already initialized
+    bool tableExists = true;
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare(db, "SELECT name FROM sqlite_master WHERE type='table' AND name='init'", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_step(stmt) == SQLITE_DONE)
+        {
+            tableExists = false;
+        }
+    }
+    sqlite3_finalize(stmt); // no-op if stmt=NULL
+
+    // 1. Create table 'scsn'
+    string sql = "CREATE TABLE IF NOT EXISTS init (id INTEGER PRIMARY KEY NOT NULL, content BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
+
+    // 2. Create table for 'nodes'
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle INTEGER PRIMARY KEY NOT NULL, parenthandle INTEGER NOT NULL, fingerprint BLOB, attrstring TEXT, shared INTEGER NOT NULL, node BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
+
+    // 3. Create table for 'users'
+    sql = "CREATE TABLE IF NOT EXISTS users (userhandle INTEGER PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
+
+    // 4. Create table for 'pcrs'
+    sql = "CREATE TABLE IF NOT EXISTS pcrs (id INTEGER PRIMARY KEY NOT NULL, pcr BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
+
+    // 5. If no previous records, generate and save the keys to encrypt handles
+    if (!tableExists)
+    {
+        // one key for nodehandles
+        byte *hkey = NULL;
+        hkey = (byte*) malloc(HANDLEKEYLENGTH);
+        PrnGen::genblock(hkey, HANDLEKEYLENGTH);
+
+        string buf;
+        buf.resize(HANDLEKEYLENGTH * 4/3 + 3);
+        buf.resize(Base64::btoa((const byte *)hkey, HANDLEKEYLENGTH, (char *) buf.data()));
+
+        PaddedCBC::encrypt(&buf, key);
+
+        bool result = false;
+        sqlite3_stmt *stmt = NULL;
+        if (sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+        {
+            // `id` for the `hkey` is always the same (4), only one row
+            if (sqlite3_bind_int(stmt, 1, 4) == SQLITE_OK)
+            {
+                if (sqlite3_bind_blob(stmt, 2, buf.data(), buf.size(), SQLITE_STATIC) == SQLITE_OK)
+                {
+                    if (sqlite3_step(stmt) == SQLITE_DONE)
+                    {
+                        // one key for parenthandles (to avoid figure out the folder structure by analyzing relationship between nodehandles and parenthandles)
+                        sqlite3_reset(stmt);
+
+                        PrnGen::genblock(hkey, HANDLEKEYLENGTH);
+
+                        buf.resize(HANDLEKEYLENGTH * 4/3 + 3);
+                        buf.resize(Base64::btoa((const byte *)hkey, HANDLEKEYLENGTH, (char *) buf.data()));
+
+                        PaddedCBC::encrypt(&buf, key);
+                        if (sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+                        {
+                            // `id` for the `hkey` is always the same (5), only one row
+                            if (sqlite3_bind_int(stmt, 1, 5) == SQLITE_OK)
+                            {
+                                if (sqlite3_bind_blob(stmt, 2, buf.data(), buf.size(), SQLITE_STATIC) == SQLITE_OK)
+                                {
+                                    if (sqlite3_step(stmt) == SQLITE_DONE)
+                                    {
+                                        result = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        sqlite3_finalize(stmt);
+        free(hkey);
+
+        if (!result)
+            return NULL;
+    }
+
+    return new SqliteDbTable(db, fsaccess, &dbfile, key);
+}
+
+DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
+{
+    sqlite3* db;
+
+    ostringstream legacyoss;
+    legacyoss << dbpath;
+    legacyoss << "megaclient_statecache";
+    legacyoss << LEGACY_DB_VERSION;
+    legacyoss << "_" << *name << ".db";
+
+    ostringstream newoss;
+    newoss << dbpath;
+    newoss << "megaclient_statecache";
+    newoss << DB_VERSION;
+    newoss << "_" << *name << ".db";
+    string currentdbpath = newoss.str();
+
+    string locallegacydbpath;
+    FileAccess *fa = fsaccess->newfileaccess();
+    fsaccess->path2local(&legacydbpath, &locallegacydbpath);
+    bool legacydbavailable = fa->fopen(&locallegacydbpath);
+    delete fa;
+
+    int rc = sqlite3_open(dbfile.c_str(), &db);
+    if (rc)
+    {
+        if (currentDbVersion == LEGACY_DB_VERSION)
+        {
+            LOG_debug << "Using a legacy DB";
+            dbfile = legacydbpath;
+        }
+        else
+        {
+            LOG_debug << "Trying to recycle a legacy DB";
+            string localcurrentdbpath;
+            fsaccess->path2local(&currentdbpath, &localcurrentdbpath);
+            if (fsaccess->renamelocal(&locallegacydbpath, &localcurrentdbpath, false))
+            {
+                string suffix = "-shm";
+                string localsuffix;
+                fsaccess->path2local(&suffix, &localsuffix);
+
+                string oldfile = locallegacydbpath + localsuffix;
+                string newfile = localcurrentdbpath + localsuffix;
+                fsaccess->renamelocal(&oldfile, &newfile, true);
+
+                suffix = "-wal";
+                fsaccess->path2local(&suffix, &localsuffix);
+                oldfile = locallegacydbpath + localsuffix;
+                newfile = localcurrentdbpath + localsuffix;
+                fsaccess->renamelocal(&oldfile, &newfile, true);
+                LOG_debug << "Legacy DB recycled";
+            }
+        }
+    }
+
+#if !(TARGET_OS_IPHONE)
+    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
+#endif
+
+    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
+
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+
+    if (rc)
+    {
+        LOG_debug << "Using an upgraded DB";
+        dbfile = currentdbpath;
+        currentDbVersion = DB_VERSION;
+    }
+
+    ostringstream oss;
+    oss << dbpath;
+    oss << "megaclient_statecache";
+    oss << DB_VERSION;
+    oss << "_" << *name << ".db";
+
+    string dbfile = oss.str();
+
+    rc = sqlite3_open(dbfile.c_str(), &db);
+    if (rc)
+    {
+        return NULL;
+    }
+
+#if !(TARGET_OS_IPHONE)
+    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
+#endif
 
     // 0. Check if DB is already initialized
     bool tableExists = true;
@@ -432,6 +622,32 @@ bool SqliteDbTable::getnodebyfingerprint(string *fp, string *data)
     return result;
 }
 
+bool SqliteDbTable::getnumtotalnodes(long long *count)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    bool result = false;
+
+    *count = 0;
+
+    if (sqlite3_prepare(db, "SELECT COUNT(*) FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            *count = sqlite3_column_int64(stmt,0);
+
+            result = true;
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
 bool SqliteDbTable::getnumchildrenquery(handle ph, int *count)
 {
     if (!db)
@@ -672,6 +888,26 @@ void SqliteDbTable::rewindhandlespendingshares()
     }
 
     sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE shared = 3 OR shared = 4", -1, &pStmt, NULL);
+}
+
+void SqliteDbTable::rewindhandlesfingerprint(string *fp)
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    sqlite3_prepare(db, "SELECT nodehandle FROM nodes WHERE fingerprint = ?", -1, &pStmt, NULL);
+
+    if (pStmt)
+    {
+        sqlite3_bind_blob(pStmt, 1, fp->data(), fp->size(), SQLITE_STATIC);
+    }
 }
 
 bool SqliteDbTable::next(string *data)
@@ -917,6 +1153,31 @@ bool SqliteDbTable::delpcr(handle id)
     bool result = false;
 
     if (sqlite3_prepare(db, "DELETE FROM pcrs WHERE id = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, id) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_DONE)
+            {
+                result = true;
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+bool SqliteDbTable::deluser(handle id)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    bool result = false;
+
+    if (sqlite3_prepare(db, "DELETE FROM users WHERE id = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, id) == SQLITE_OK)
         {

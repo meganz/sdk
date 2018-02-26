@@ -1,7 +1,7 @@
 #!/bin/sh
 
 PROJECT_NAME="cryptopp"
-CRYPTOPP_VERSION="562"
+CRYPTOPP_VERSION="565"
 
 UNIVERSAL_OUTPUTFOLDER="lib"
 BUILD_DIR="cryptopp"
@@ -14,14 +14,14 @@ set -e
 
 if [ ! -e "cryptopp${CRYPTOPP_VERSION}.zip" ]
 then
-curl -O "http://www.cryptopp.com/cryptopp${CRYPTOPP_VERSION}.zip"
+curl -LO "http://www.cryptopp.com/cryptopp${CRYPTOPP_VERSION}.zip"
 fi
 
 unzip cryptopp${CRYPTOPP_VERSION}.zip -d cryptopp
  
 # Step 1. Build versions for devices and simulator
-xcodebuild -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphoneos  BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
-xcodebuild -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphonesimulator BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
+xcodebuild -jobs 8 -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphoneos  BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
+xcodebuild -jobs 8 -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphonesimulator BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
  
 # Make sure the output directory exists
 mkdir -p "${UNIVERSAL_OUTPUTFOLDER}"

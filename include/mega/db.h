@@ -72,11 +72,13 @@ public:
     bool getnumchildren(handle, int*);
     bool getnumchildfiles(handle, int*);
     bool getnumchildfolders(handle, int*);
+    bool gettotalnodes(long long *);
 
     handle_vector *gethandleschildren(handle);
     handle_vector *gethandlesencryptednodes();
     handle_vector *gethandlesoutshares(handle);
     handle_vector *gethandlespendingshares(handle);
+    handle_vector *gethandlesfingerprint(string*);
 
 protected:
     // get sequential records for Users, child nodes...
@@ -90,10 +92,12 @@ protected:
     virtual void rewindhandlesoutshares() = 0;
     virtual void rewindhandlespendingshares(handle) = 0;
     virtual void rewindhandlespendingshares() = 0;
+    virtual void rewindhandlesfingerprint(string*) = 0;
 
     virtual bool getnumchildrenquery(handle, int*) = 0;
     virtual bool getnumchildfilesquery(handle, int*) = 0;
     virtual bool getnumchildfoldersquery(handle, int*) = 0;
+    virtual bool getnumtotalnodes(long long*) = 0;
 
 public:
     // update or add specific record
@@ -114,10 +118,12 @@ public:
     // delete specific record
     bool delnode(pnode_t);
     bool delpcr(PendingContactRequest *);
+    bool deluser(User *u);
 
 //protected:
     virtual bool delnode(handle) = 0;
     virtual bool delpcr(handle) = 0;
+    virtual bool deluser(handle) = 0;
 
 public:
     // delete all records
@@ -177,13 +183,14 @@ public:
 
 struct MEGA_API DbAccess
 {
-    static const int BROKEN_DB_VERSION = 7;
-    static const int LEGACY_DB_VERSION = 8;
-    static const int DB_VERSION = 9;
+    static const int BROKEN_DB_VERSION = 9;
+    static const int LEGACY_DB_VERSION = 10;
+    static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();
+    virtual DbTable* open(FileSystemAccess*, string*) = 0;  // for transfers only
     virtual DbTable* openlegacy(FileSystemAccess*, string*) = 0;
-    virtual DbTable* open(FileSystemAccess*, string*, SymmCipher *key) = 0;
+    virtual DbTable* open(FileSystemAccess*, string*, SymmCipher *key) = 0; // main cache
     virtual bool legacydb(FileSystemAccess *fsaccess, string*) = 0;
 
     virtual ~DbAccess() { }

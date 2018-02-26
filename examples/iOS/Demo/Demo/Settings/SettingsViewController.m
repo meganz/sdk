@@ -43,7 +43,7 @@
 
 - (void)setUserAvatar {
     
-    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] contactForEmail:self.emailLabel.text];
+    MEGAUser *user = [[MEGASdkManager sharedMEGASdk] myUser];
     NSString *avatarFilePath = [Helper pathForUser:user searchPath:NSCachesDirectory directory:@"thumbs"];
     BOOL fileExists = [[NSFileManager defaultManager] fileExistsAtPath:avatarFilePath];
     

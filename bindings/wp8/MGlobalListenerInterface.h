@@ -23,18 +23,19 @@
 
 namespace mega
 {
-	ref class MegaSDK;
+    ref class MegaSDK;
 
-	using namespace Windows::Foundation;
-	using Platform::String;
+    using namespace Windows::Foundation;
+    using Platform::String;
 
-	public interface class MGlobalListenerInterface
-	{
-	public:
-		void onUsersUpdate(MegaSDK^ api, MUserList ^users);
-		void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
-		void onAccountUpdate(MegaSDK^ api);
+    public interface class MGlobalListenerInterface
+    {
+    public:
+        void onUsersUpdate(MegaSDK^ api, MUserList ^users);
+        void onNodesUpdate(MegaSDK^ api, MNodeList^ nodes);
+        void onAccountUpdate(MegaSDK^ api);
         void onContactRequestsUpdate(MegaSDK^ api, MContactRequestList^ requests);
-		void onReloadNeeded(MegaSDK^ api);
-	};
+        void onReloadNeeded(MegaSDK^ api);
+        void onEvent(MegaSDK^ api, MEvent^ ev);
+    };
 }

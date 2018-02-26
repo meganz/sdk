@@ -105,12 +105,12 @@ public class SwingExample extends JFrame implements MegaRequestListenerInterface
      */
     private void initializeMegaApi() {
 
-        MegaApiSwing.setLoggerObject(this);
+        MegaApiSwing.addLoggerObject(this);
         MegaApiSwing.setLogLevel(MegaApiSwing.LOG_LEVEL_MAX);
 
         if (megaApi == null) {
             String path = System.getProperty("user.dir");
-            megaApi = new MegaApiSwing(MainWindow.APP_KEY, MainWindow.USER_AGENT, path);
+            megaApi = new MegaApiSwing(SwingExample.APP_KEY, SwingExample.USER_AGENT, path);
         }
     }
 

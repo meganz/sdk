@@ -1,1 +1,3 @@
 *.user
+/Release_x32
+/Release_x64

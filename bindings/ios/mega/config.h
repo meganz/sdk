@@ -7,9 +7,6 @@
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #define HAVE_ARPA_INET_H 1
 
-/* Define to 1 if you have the `clock_gettime' function. */
-#define HAVE_CLOCK_GETTIME 1
-
 /* Define to 1 if you have the <cryptopp/cryptlib.h> header file. */
 #define HAVE_CRYPTOPP_CRYPTLIB_H 1
 
@@ -111,15 +108,6 @@
    */
 #define LT_OBJDIR ".libs/"
 
-/* MEGA SDK major version. */
-#define MEGA_MAJOR_VERSION 2
-
-/* MEGA SDK micro version. */
-#define MEGA_MICRO_VERSION 0
-
-/* MEGA SDK minor version. */
-#define MEGA_MINOR_VERSION 6
-
 /* Name of package */
 #define PACKAGE "libmega"
 
@@ -129,17 +117,11 @@
 /* Define to the full name of this package. */
 #define PACKAGE_NAME "libmega"
 
-/* Define to the full name and version of this package. */
-#define PACKAGE_STRING "libmega 0.2.3"
-
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "libmega"
 
 /* Define to the home page for this package. */
 #define PACKAGE_URL ""
-
-/* Define to the version of this package. */
-#define PACKAGE_VERSION "0.2.3"
 
 /* The size of `uint64_t', as computed by sizeof. */
 #define SIZEOF_UINT64_T 8
@@ -159,13 +141,24 @@
 
 #define USE_ARES 1
 
+#define USE_IOS 1
+
 #define HAVE_LIBUV 1
+
+#define ENABLE_CHAT 1
+
+#define USE_MEDIAINFO 1
+
+#define UNICODE 1
 
 /* Define to use Berkeley DB */
 #define USE_DB 0
 
 /* Use inotify API
 #define USE_INOTIFY 1*/
+
+/* Define to use OpenSSL */
+#define USE_OPENSSL 1
 
 /* Define to use SQLite */
 #define USE_SQLITE 1
@@ -182,7 +175,9 @@
 #define _FILE_OFFSET_BITS 64
 
 /* use GNU extensions */
-#define _GNU_SOURCE 1
+#if !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
 
 /* Define for large files, on AIX-style hosts. */
 /* #undef _LARGE_FILES */
@@ -238,5 +233,3 @@
 /* Define to the type of an unsigned integer type of width exactly 8 bits if
    such a type exists and the standard includes do not define it. */
 /* #undef uint8_t */
-
-#define NO_DIRECT_WORD_ACCESS 1

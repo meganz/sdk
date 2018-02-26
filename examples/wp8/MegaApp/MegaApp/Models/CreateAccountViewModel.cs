@@ -52,7 +52,7 @@ namespace MegaApp.Models
                 {
                     if (TermOfUse)
                     {
-                        this._megaSdk.createAccount(Email, Password, Name, this);
+                        this._megaSdk.createAccount(Email, Password, Name, null, this);
                     }
                     else
                         MessageBox.Show(AppMessages.AgreeTermsOfUse, AppMessages.AgreeTermsOfUse_Title,

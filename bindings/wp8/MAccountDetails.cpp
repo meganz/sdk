@@ -128,6 +128,11 @@ uint64 MAccountDetails::getNumFolders(uint64 handle)
 	return accountDetails ? accountDetails->getNumFolders(handle) : 0;
 }
 
+MAccountDetails^ MAccountDetails::copy()
+{
+    return accountDetails ? ref new MAccountDetails(accountDetails->copy(), true) : nullptr;
+}
+
 int MAccountDetails::getNumBalances()
 {
     return accountDetails ? accountDetails->getNumBalances() : 0;
@@ -166,4 +171,19 @@ int MAccountDetails::getNumTransactions()
 MAccountTransaction^ MAccountDetails::getTransaction(int i)
 {
     return accountDetails ? ref new MAccountTransaction(accountDetails->getTransaction(i), true) : nullptr;
+}
+
+int MAccountDetails::getTemporalBandwidthInterval()
+{
+    return accountDetails ? accountDetails->getTemporalBandwidthInterval() : 0;
+}
+
+uint64 MAccountDetails::getTemporalBandwidth()
+{
+    return accountDetails ? accountDetails->getTemporalBandwidth() : 0;
+}
+
+bool MAccountDetails::isTemporalBandwidthValid()
+{
+    return accountDetails ? accountDetails->isTemporalBandwidthValid() : false;
 }

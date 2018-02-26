@@ -38,15 +38,6 @@ struct MEGA_API User : public Cachable
     // e-mail address
     string email;
 
-    // first name (initialized on first request, invalidated if updated)
-    string *firstname;
-
-    // last name (initialized on first request, invalidated if updated)
-    string *lastname;
-
-    // persistent attributes (n = name, a = avatar)
-    AttrMap attrs;
-
     // visibility status
     visibility_t show;
 
@@ -58,24 +49,70 @@ struct MEGA_API User : public Cachable
 
     struct
     {
-        bool auth : 1;      // authentication information of the contact
+        bool keyring : 1;   // private keys
+        bool authring : 1;  // authentication information of the contact
         bool lstint : 1;    // last interaction with the contact
+        bool puEd255 : 1;   // public key for Ed25519
+        bool puCu255 : 1;   // public key for Cu25519
+        bool sigPubk : 1;   // signature for RSA public key
+        bool sigCu255 : 1;  // signature for Cu255199 public key
         bool avatar : 1;    // avatar image
         bool firstname : 1;
         bool lastname : 1;
+        bool country : 1;
+        bool birthday : 1;  // wraps status of birthday, birthmonth, birthyear
+        bool email : 1;
+        bool language : 1;  // preferred language code
+        bool pwdReminder : 1;   // password-reminder-dialog information
+        bool disableVersions : 1;   // disable fileversioning
     } changed;
 
     // user's public key
     AsymmCipher pubk;
-    int pubkrequested;
+    struct
+    {
+        bool pubkrequested : 1;
+        bool isTemporary : 1;
+    };
 
     // actions to take after arrival of the public key
     deque<class PubKeyAction*> pkrs;
 
+private:
+    // persistent attributes (keyring, firstname...)
+    userattr_map attrs;
+
+    // version of each attribute
+    userattr_map attrsv;
+
+    // source tag
+    int tag;
+
+public:
     void set(visibility_t, m_time_t);
 
     bool serialize(string*);
     static User* unserialize(class MegaClient *, string*);
+
+    // attribute methods: set/get/invalidate...
+    void setattr(attr_t at, string *av, string *v);
+    const string *getattr(attr_t at);
+    const string *getattrversion(attr_t at);
+    void invalidateattr(attr_t at);
+    bool isattrvalid(attr_t at);
+    void removeattr(attr_t at);
+
+    static string attr2string(attr_t at);
+    static attr_t string2attr(const char *name);
+    static bool needversioning(attr_t at);
+    static char scope(attr_t at);
+    static bool mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue);
+
+    bool setChanged(attr_t at);
+
+    void setTag(int tag);
+    int getTag();
+    void resetTag();
 
     User(const char* = NULL);
 };

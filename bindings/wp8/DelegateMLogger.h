@@ -30,6 +30,8 @@ namespace mega
 	{
 	public:
 		DelegateMLogger(MLoggerInterface^ logger);
+        MLoggerInterface^ getUserLogger();
+
 		void log(const char *time, int loglevel, const char *source, const char *message);
 
 	private:

@@ -22,138 +22,205 @@
 
 #include "mega.h"
 
-#ifdef USE_SODIUM
-namespace mega {
+#ifdef ENABLE_CHAT
 
-CryptoPP::AutoSeededRandomPool EdDSA::rng;
+namespace mega
+{
 
-// Initialise libsodium crypto system.
-void EdDSA::init() {
-    sodium_init();
+const std::string EdDSA::TLV_KEY = "prEd255";
+
+EdDSA::EdDSA(unsigned char *keySeed)
+{
+    initializationOK = false;
+
+    if (sodium_init() == -1)
+    {
+        LOG_err << "Cannot initialize sodium library.";
+        return;
+    }
+
+    if (keySeed)    // then use the value
+    {
+        memcpy(this->keySeed, keySeed, EdDSA::SEED_KEY_LENGTH);
+    }
+    else    // make the new key seed.
+    {
+        PrnGen::genblock(this->keySeed, EdDSA::SEED_KEY_LENGTH);
+    }
+
+    // derive public and private keys from the seed
+    if (crypto_sign_seed_keypair(this->pubKey, this->privKey, this->keySeed) != 0)
+    {
+        LOG_err << "Error generating an Ed25519 key pair.";
+    }
+
+    initializationOK = true;
 }
 
-
-// Sets a private key seed from a buffer.
-void EdDSA::setKeySeed(const char* data) {
-    memcpy(this->keySeed, data, crypto_sign_SEEDBYTES);
+EdDSA::~EdDSA()
+{
 }
-
 
 // Computes the signature of a message.
-int EdDSA::sign(unsigned char* msg, unsigned long long msglen, char* sig) {
-    unsigned char* pubKey = (unsigned char*)malloc(crypto_sign_PUBLICKEYBYTES);
-    if (pubKey == NULL) {
-        // Something went wrong allocating the memory.
-        return(0);
+int EdDSA::sign(const unsigned char* msg, const unsigned long long msglen,
+                unsigned char* sig)
+{
+    if (!sig || !msg)
+    {
+        return 0;
     }
-    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-    if (privKey == NULL) {
-        // Something went wrong allocating the memory.
-        free(pubKey);
-        return(0);
-    }
-    int check = 0;
-    check = crypto_sign_seed_keypair(pubKey, privKey,
-                                     (const unsigned char*)this->keySeed);
-    if (check != 0) {
-        // Something went wrong deriving keys.
-        return(0);
-    }
-    unsigned long long bufferlen = 0;
-    unsigned char* sigbuffer = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (sigbuffer == NULL) {
-        // Something went wrong allocating the memory.
-        free(pubKey);
-        free(privKey);
-        return(0);
-    }
-    check = crypto_sign(sigbuffer, &bufferlen, (const unsigned char*)msg, msglen,
-                        (const unsigned char*)privKey);
-    if (check != 0) {
-        // Something went wrong signing the message.
-        free(sigbuffer);
-        free(pubKey);
-        free(privKey);
-        return(0);
-    }
-    free(sigbuffer);
-    free(pubKey);
-    free(privKey);
-    return(bufferlen);
+
+    int result = crypto_sign_detached(sig, NULL, msg, msglen, (const unsigned char*)privKey);
+
+    return (result == 0) ? (crypto_sign_BYTES + msglen) : 0;
 }
 
 
 // Verifies the signature of a message.
 int EdDSA::verify(const unsigned char* msg, unsigned long long msglen,
-                  const unsigned char* sig, const unsigned char* pubKey) {
-    unsigned char* msgbuffer = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (msgbuffer == NULL) {
-        // Something went wrong allocating the memory.
-        return(0);
-    }
-    unsigned char* signedmsg = (unsigned char*)malloc(msglen + crypto_sign_BYTES);
-    if (signedmsg == NULL) {
-        // Something went wrong allocating the memory.
-        free(msgbuffer);
-        return(0);
-    }
-
-    // Assemble signed message in one array.
-    memcpy(signedmsg, msg, msglen);
-    memcpy(signedmsg + msglen, sig, crypto_sign_BYTES);
-
-    unsigned long long bufferlen = 0;
-    int result = crypto_sign_open(msgbuffer, &bufferlen,
-                                  signedmsg, msglen + crypto_sign_BYTES, pubKey);
-    free(msgbuffer);
-    free(signedmsg);
-    if (result) {
-        return(1);
-    } else {
-        // crypto_sign_open() returns -1 on failure.
-        return(0);
-    }
-}
-
-
-// Generates a new Ed25519 private key seed. The key seed is stored in the object.
-int EdDSA::genKeySeed(unsigned char* privKey) {
-    // Make space for a new key seed (if not present).
-    if (!this->keySeed) {
-        this->keySeed = (unsigned char*)malloc(crypto_sign_SEEDBYTES);
-        if (this->keySeed == NULL) {
-            // Something went wrong allocating the memory.
-            return(0);
-        }
-    }
-    // Now make the new key seed.
-    this->rng.GenerateBlock(this->keySeed, crypto_sign_SEEDBYTES);
-    // Copy it to privKey before returning.
-    if (privKey)
+                  const unsigned char* sig, const unsigned char* pubKey)
+{
+    if (!sig || !msg)
     {
-        memcpy(privKey, this->keySeed, crypto_sign_SEEDBYTES);
+        return 0;
     }
-    return(1);
+
+    return !crypto_sign_verify_detached(sig, msg, msglen, pubKey);
 }
 
+byte *EdDSA::genFingerprint(bool hexFormat)
+{
+    HashSHA256 hash;
+    string binaryhash;
+    hash.add((byte*)&pubKey, PUBLIC_KEY_LENGTH);
+    hash.get(&binaryhash);
 
-// Derives the Ed25519 public key from the stored private key seed.
-int EdDSA::publicKey(unsigned char* pubKey) {
-    unsigned char* privKey = (unsigned char*)malloc(crypto_sign_SECRETKEYBYTES);
-    if (privKey == NULL) {
-        // Something went wrong allocating the memory.
-        return(0);
+    size_t size = hexFormat ? 40 : 20;
+
+    byte *result = new byte[size];
+    memcpy(result, binaryhash.substr(0, size).data(), size);
+
+    return result;
+}
+
+char *EdDSA::genFingerprintHex()
+{
+    byte *fp = genFingerprint(true);
+
+    static const char hexchars[] = "0123456789ABCDEF";
+    ostringstream oss;
+    string fpHex;
+    for (size_t i = 0; i < 40; ++i)
+    {
+        oss.put(hexchars[(fp[i] >> 4) & 0x0F]);
+        oss.put(hexchars[fp[i] & 0x0F]);
     }
-    int check = crypto_sign_seed_keypair(pubKey, privKey,
-                                         (const unsigned char*)this->keySeed);
-    if (check != 0) {
-        // Something went wrong deriving keys.
-        free(privKey);
-        return(0);
+    fpHex = oss.str();
+
+    delete fp;
+
+    char *result = new char[40 + 1];
+    strncpy(result, fpHex.c_str(), 40);
+    result[40] = '\0';
+
+    return result;
+}
+
+void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength, string *result, uint64_t ts)
+{
+    if (!ts)
+    {
+        ts = (uint64_t) time(NULL);
     }
-    free(privKey);
-    return(1);
+
+    string tsstr;
+    unsigned char digit;
+    for (int i = 0; i < 8; i++)
+    {
+        digit = ts & 0xFF;
+        tsstr.insert(0, 1, digit);
+        ts >>= 8;
+    }
+
+    string keyString = "keyauth";
+    keyString.append(tsstr);
+    keyString.append((char*)key, keyLength);
+
+    byte sigBuf[crypto_sign_BYTES];
+    sign((unsigned char *)keyString.data(), keyString.size(), sigBuf);
+
+    result->resize(crypto_sign_BYTES + sizeof(ts));  // 8 --> timestamp prefix
+    result->assign(tsstr.data(), sizeof(ts));
+    result->append((const char*)sigBuf, crypto_sign_BYTES);
+}
+
+bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLen, string *sig, const unsigned char* signingPubKey)
+{
+    if (sig->size() < 72)
+    {
+        return false;
+    }
+
+    uint64_t ts;
+    memcpy(&ts, sig->substr(0, 8).data(), sizeof(ts));
+
+    string message = "keyauth";
+    message.append(sig->data(), 8);
+    message.append((char*)pubk, pubkLen);
+
+    string signature = sig->substr(8);
+
+    return verify((unsigned char*) message.data(), message.length(),
+                  (unsigned char*) signature.data(),
+                  signingPubKey ? signingPubKey : pubKey);
+}
+
+const std::string ECDH::TLV_KEY= "prCu255";
+
+ECDH::ECDH(unsigned char *privKey)
+{
+    initializationOK = false;
+
+    if (sodium_init() == -1)
+    {
+        LOG_err << "Cannot initialize sodium library.";
+        return;
+    }
+
+    if (privKey)    // then use the value
+    {
+        memcpy(this->privKey, privKey, PRIVATE_KEY_LENGTH);
+
+        // derive public key from privKey
+        crypto_scalarmult_base(this->pubKey, this->privKey);
+    }
+    else
+    {
+        // no private key specified: create a new key pair
+        crypto_box_keypair(this->pubKey, this->privKey);
+    }
+
+    initializationOK = true;
+}
+
+ECDH::~ECDH()
+{
+}
+
+int ECDH::encrypt(unsigned char *encmsg, const unsigned char *msg,
+                  const unsigned long long msglen, const unsigned char *nonce,
+                  const unsigned char *pubKey, const unsigned char *privKey)
+{
+   return !crypto_box(encmsg, msg, msglen, nonce, pubKey, privKey);
+}
+
+int ECDH::decrypt(unsigned char *msg, const unsigned char *encmsg,
+                  const unsigned long long encmsglen, const unsigned char *nonce,
+                  const unsigned char *pubKey, const unsigned char *privKey)
+{
+    return !crypto_box_open(msg, encmsg, encmsglen, nonce, pubKey, privKey);
 }
 
 } // namespace
-#endif
+
+#endif  // ENABLE_CHAT

@@ -25,23 +25,23 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     
     var offlineDocuments = [MEGANode]()
     
-    let megaapi : MEGASdk! = (UIApplication.sharedApplication().delegate as! AppDelegate).megaapi
+    let megaapi : MEGASdk! = (UIApplication.shared.delegate as! AppDelegate).megaapi
     
     override func viewDidLoad() {
         super.viewDidLoad()
     }
     
-    override func viewWillAppear(animated: Bool) {
+    override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         
         reloadUI()
-        megaapi.addMEGATransferDelegate(self)
+        megaapi.add(self)
         megaapi.retryPendingConnections()
     }
     
-    override func viewWillDisappear(animated: Bool) {
+    override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        megaapi.removeMEGATransferDelegate(self)
+        megaapi.remove(self)
     }
     
     override func didReceiveMemoryWarning() {
@@ -52,17 +52,15 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     func reloadUI() {
         offlineDocuments = [MEGANode]()
         
-        let documentDirectory = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.DocumentDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] 
+        let documentDirectory = NSSearchPathForDirectoriesInDomains(FileManager.SearchPathDirectory.documentDirectory, FileManager.SearchPathDomainMask.userDomainMask, true)[0] 
         
-        if let directoryContent : Array = try? NSFileManager.defaultManager().contentsOfDirectoryAtPath(documentDirectory) {
-            var i = 0
+        if let directoryContent : Array = try? FileManager.default.contentsOfDirectory(atPath: documentDirectory) {
             
-            for i = 0; i < directoryContent.count; i++ {
+            for i in 0  ..< directoryContent.count {
                 let filename: String = String(directoryContent[i] as NSString)
-                let filePath = (documentDirectory as NSString).stringByAppendingPathComponent(filename)
                 
-                if !((filename.lowercaseString as NSString).pathExtension == "mega") {
-                    if let node = megaapi.nodeForHandle(MEGASdk.handleForBase64Handle(filename)) {
+                if !((filename.lowercased() as NSString).pathExtension == "mega") {
+                    if let node = megaapi.node(forHandle: MEGASdk.handle(forBase64Handle: filename)) {
                         offlineDocuments.append(node)
                     }
                 }
@@ -74,23 +72,23 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     
     // MARK: - Table view data source
     
-    override func numberOfSectionsInTableView(tableView: UITableView) -> Int {
+    override func numberOfSections(in tableView: UITableView) -> Int {
         return 1
     }
     
-    override func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         return offlineDocuments.count
     }
     
     
-    override func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCellWithIdentifier("nodeCell", forIndexPath: indexPath) as! NodeTableViewCell
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "nodeCell", for: indexPath) as! NodeTableViewCell
         let node = offlineDocuments[indexPath.row]
         
         cell.nameLabel.text = node.name
         
-        let thumbnailFilePath = Helper.pathForNode(node, path:NSSearchPathDirectory.CachesDirectory, directory: "thumbs")
-        let fileExists = NSFileManager.defaultManager().fileExistsAtPath(thumbnailFilePath)
+        let thumbnailFilePath = Helper.pathForNode(node, path:FileManager.SearchPathDirectory.cachesDirectory, directory: "thumbs")
+        let fileExists = FileManager.default.fileExists(atPath: thumbnailFilePath)
         
         if !fileExists {
             cell.thumbnailImageView.image = Helper.imageForNode(node)
@@ -100,10 +98,10 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
         
         
         if node.isFile() {
-            cell.subtitleLabel.text = NSByteCountFormatter().stringFromByteCount(node.size.longLongValue)
+            cell.subtitleLabel.text = ByteCountFormatter().string(fromByteCount: node.size.int64Value)
         } else {
-            let files = megaapi.numberChildFilesForParent(node)
-            let folders = megaapi.numberChildFoldersForParent(node)
+            let files = megaapi.numberChildFiles(forParent: node)
+            let folders = megaapi.numberChildFolders(forParent: node)
             
             cell.subtitleLabel.text = "\(folders) folders, \(files) files"
             cell.thumbnailImageView.image = UIImage(named: "folder")
@@ -114,7 +112,7 @@ class OfflineTableViewController: UITableViewController, MEGATransferDelegate {
     
     // MARK: - MEGA Transfer delegate
     
-    func onTransferFinish(api: MEGASdk!, transfer: MEGATransfer!, error: MEGAError!) {
+    func onTransferFinish(_ api: MEGASdk!, transfer: MEGATransfer!, error: MEGAError!) {
         reloadUI()
     }
     

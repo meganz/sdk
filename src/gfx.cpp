@@ -24,8 +24,12 @@
 
 namespace mega {
 const int GfxProc::dimensions[][2] = {
-    { 120, 0 },     // THUMBNAIL120X120: square thumbnail, cropped from near center
-    { 1000, 1000 }  // PREVIEW1000x1000: scaled version inside 1000x1000 bounding square
+    { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
+    { 1000, 1000 }  // PREVIEW: scaled version inside 1000x1000 bounding square
+};
+
+const int GfxProc::dimensionsavatar[][2] = {
+    { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
 bool GfxProc::isgfx(string* localfilename)
@@ -52,7 +56,36 @@ bool GfxProc::isgfx(string* localfilename)
     return false;
 }
 
+bool GfxProc::isvideo(string *localfilename)
+{
+    char ext[8];
+    const char* supported;
+
+    if (!(supported = supportedvideoformats()))
+    {
+        return false;
+    }
+
+    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    {
+        const char* ptr;
+
+        // FIXME: use hash
+        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 const char* GfxProc::supportedformats()
+{
+    return NULL;
+}
+
+const char* GfxProc::supportedvideoformats()
 {
     return NULL;
 }
@@ -102,7 +135,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 // FIXME: move to a worker thread to keep the engine nonblocking
-int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing)
+int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
 {
     int numputs = 0;
 
@@ -126,14 +159,24 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
                 jpeg = new string;
             }
 
-            if (missing & (1 << i) && resizebitmap(dimensions[i][0], dimensions[i][1], jpeg))
+            int w = dimensions[i][0];
+            int h = dimensions[i][1];
+            if (i == (sizeof dimensions/sizeof dimensions[0] - 1)
+                    && this->w < w && this->h < h )
+            {
+                LOG_debug << "Skipping upsizing of preview";
+                w = this->w;
+                h = this->h;
+            }
+
+            if (missing & (1 << i) && resizebitmap(w, h, jpeg))
             {
                 // store the file attribute data - it will be attached to the file
                 // immediately if the upload has already completed; otherwise, once
                 // the upload completes
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
-                client->putfa(th, (meta_t)i, key, jpeg);
+                client->putfa(th, (meta_t)i, key, jpeg, checkAccess);
                 client->reqtag = creqtag;
                 numputs++;
 
@@ -152,17 +195,26 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
     return numputs;
 }
 
-bool GfxProc::savefa(string *localfilepath, GfxProc::meta_t type, string *localdstpath)
+bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)
 {
     if (!isgfx(localfilepath)
             // (this assumes that the width of the largest dimension is max)
-            || !readbitmap(NULL, localfilepath, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+        || !readbitmap(NULL, localfilepath, width > height ? width : height))
     {
         return false;
     }
 
+    int w = width;
+    int h = height;
+    if (this->w < w && this->h < h)
+    {
+        LOG_debug << "Skipping upsizing of local preview";
+        w = this->w;
+        h = this->h;
+    }
+
     string jpeg;
-    bool success = resizebitmap(dimensions[type][0], dimensions[type][1], &jpeg);
+    bool success = resizebitmap(w, h, &jpeg);
     freebitmap();
 
     if (!success)

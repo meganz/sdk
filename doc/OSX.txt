@@ -26,3 +26,17 @@ brew install --with-openssl curl
 *) Build project:
 make
 
+*) If you experience an error similar to:
+
+/usr/local/opt/freeimage/include/FreeImage.h:153:17: error: typedef redefinition with different types ('int32_t' (aka 'int') vs 'signed char') typedef int32_t BOOL; ^ 
+
+you can fix it by editing `/usr/local/opt/freeimage/include/FreeImage.h`
+and surrounding 
+
+typedef int32_t BOOL;
+
+with:
+
+#ifndef __MACTYPES__
+typedef int32_t BOOL;
+#endif

@@ -22,6 +22,7 @@
 #import "MEGANode.h"
 #import "MEGAAccountDetails.h"
 #import "MEGAPricing.h"
+#import "MEGAAchievementsDetails.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -44,7 +45,6 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeGetAttrUser,
     MEGARequestTypeSetAttrUser,
     MEGARequestTypeRetryPendingConnections,
-    MEGARequestTypeAddContact,
     MEGARequestTypeRemoveContact,
     MEGARequestTypeCreateAccount,
     MEGARequestTypeConfirmAccount,
@@ -74,7 +74,45 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeReplyContactRequest,
     MEGARequestTypeSubmitFeedback,
     MEGARequestTypeSendEvent,
-    MEGARequestTypeCleanRubbishBin
+    MEGARequestTypeCleanRubbishBin,
+    MEGARequestTypeSetAttrNode,
+    MEGARequestTypeChatCreate,
+    MEGARequestTypeChatFetch,
+    MEGARequestTypeChatInvite,
+    MEGARequestTypeChatRemove,
+    MEGARequestTypeChatUrl,
+    MEGARequestTypeChatGrantAccess,
+    MEGARequestTypeChatRemoveAccess,
+    MEGARequestTypeUseHttpsOnly,
+    MEGARequestTypeSetProxy,
+    MEGARequestTypeGetRecoveryLink,
+    MEGARequestTypeQueryRecoveryLink,
+    MEGARequestTypeConfirmRecoveryLink,
+    MEGARequestTypeGetCancelLink,
+    MEGARequestTypeConfirmCancelLink,
+    MEGARequestTypeGetChangeEmailLink,
+    MEGARequestTypeConfirmChangeEmailLink,
+    MEGARequestTypeChatUpdatePermissions,
+    MEGARequestTypeChatTruncate,
+    MEGARequestTypeChatSetTitle,
+    MEGARequestTypeSetMaxConnections,
+    MEGARequestTypePauseTransfer,
+    MEGARequestTypeMoveTransfer,
+    MEGARequestTypeChatPresenceUrl,
+    MEGARequestTypeRegisterPushNotification,
+    MEGARequestTypeGetUserEmail,
+    MEGARequestTypeAppVersion,
+    MEGARequestTypeGetLocalSSLCertificate,
+    MEGARequestTypeSendSignupLink,
+    MEGARequestTypeQueryDns,
+    MEGARequestTypeQueryGelb,
+    MEGARequestTypeChatStats,
+    MEGARequestTypeDownloadFile,
+    MEGARequestTypeQueryTransferQuota,
+    MEGARequestTypePasswordLink,
+    MEGARequestTypeGetAchievements,
+    MEGARequestTypeRestore,
+    MEGARequestTypeRemoveVersions
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
@@ -215,7 +253,6 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * - [MEGASdk fastCreateAccountWithEmail:password:name] - Returns the name of the user
  * - [MEGASdk shareNode:withUser:level:] - Returns the handle of the folder to share
  * - [MEGASdk getAvatarUser:destinationFilePath:] - Returns the email of the user to get the avatar
- * - [MEGASdk addContactWithEmail:] - Returns the email of the contact
  * - [MEGASdk removeContactWithEmail:] - Returns the email of the contact
  * - [MEGASdk getUserData] - Returns the name of the user
  *
@@ -337,9 +374,9 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 /**
  * @brief A flag related to the request.
  *
- * This value is valid for these requests:
- * - [MEGASdk retryPendingConnections] - Returns if request are disconnected
- * - [MEGASdk pauseTransfers:] - Returns the direction of the transfers to pause/resume
+ * This value is valid for these request in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk queryTransferQuota] - YES if it is expected to get an overquota error, otherwise NO
  *
  */
 @property (readonly, nonatomic) BOOL flag;
@@ -373,6 +410,16 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGAPricing *pricing;
+
+/**
+ * @brief Details related to the MEGA Achievements of this account
+ *
+ * This value is valid for these request in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk getMegaAchievements] - Details of the MEGA Achievements of this account
+ *
+ */
+@property (readonly, nonatomic) MEGAAchievementsDetails *megaAchievementsDetails;
 
 /**
  * @brief Tag of a transfer related to the request.

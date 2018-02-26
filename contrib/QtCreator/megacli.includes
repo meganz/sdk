@@ -9,3 +9,4 @@
 ../../include/mega/win32
 ../../include/mega/wp8
 ../../third_party/glob
+../../src

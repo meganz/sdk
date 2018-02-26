@@ -22,7 +22,7 @@
 #include "mega.h"
 
 namespace mega {
-WinFileAccess::WinFileAccess()
+WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {
     hFile = INVALID_HANDLE_VALUE;
     hFind = INVALID_HANDLE_VALUE;
@@ -35,6 +35,7 @@ WinFileAccess::~WinFileAccess()
     if (hFile != INVALID_HANDLE_VALUE)
     {
         CloseHandle(hFile);
+        assert(hFind == INVALID_HANDLE_VALUE);
     }
     else if (hFind != INVALID_HANDLE_VALUE)
     {
@@ -48,10 +49,27 @@ bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "SetFilePointerEx failed for reading. Error: " << e;
         return false;
     }
 
-    return ReadFile(hFile, (LPVOID)dst, (DWORD)len, &dwRead, NULL) && dwRead == len;
+    if (!ReadFile(hFile, (LPVOID)dst, (DWORD)len, &dwRead, NULL))
+    {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "ReadFile failed. Error: " << e;
+        return false;
+    }
+
+    if (dwRead != len)
+    {
+        retry = false;
+        LOG_err << "ReadFile failed (dwRead) " << dwRead << " - " << len;
+        return false;
+    }
+    return true;
 }
 
 bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
@@ -60,10 +78,35 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "SetFilePointerEx failed for writting. Error: " << e;
         return false;
     }
 
-    return WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL) && dwWritten == len;
+    if (!WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL))
+    {
+        DWORD e = GetLastError();
+        retry = WinFileSystemAccess::istransient(e);
+        LOG_err << "WriteFile failed. Error: " << e;
+        return false;
+    }
+
+     if (dwWritten != len)
+     {
+         retry = false;
+         LOG_err << "WriteFile failed (dwWritten) " << dwWritten << " - " << len;
+         return false;
+     }
+
+     if (!FlushFileBuffers(hFile))
+     {
+         DWORD e = GetLastError();
+         retry = WinFileSystemAccess::istransient(e);
+         LOG_err << "FlushFileBuffers failed. Error: " << e;
+         return false;
+     }
+     return true;
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
@@ -90,6 +133,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
     WIN32_FILE_ATTRIBUTE_DATA fad;
 
+    type = TYPE_UNKNOWN;
     if (!GetFileAttributesExW((LPCWSTR)localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
@@ -99,17 +143,20 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
     {
+        type = FOLDERNODE;
         retry = false;
         return false;
     }
 
+    retry = false;
+    type = FILENODE;
     *mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
     *size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
 
     return true;
 }
 
-bool WinFileAccess::sysopen()
+bool WinFileAccess::sysopen(bool async)
 {
 #ifdef WINDOWS_PHONE
     hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
@@ -118,7 +165,7 @@ bool WinFileAccess::sysopen()
 #else
     hFile = CreateFileW((LPCWSTR)localname.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        NULL, OPEN_EXISTING, 0, NULL);
+                        NULL, OPEN_EXISTING, async ? FILE_FLAG_OVERLAPPED : 0, NULL);
 #endif
 
     if (hFile == INVALID_HANDLE_VALUE)
@@ -136,10 +183,199 @@ void WinFileAccess::sysclose()
 {
     if (localname.size())
     {
-        // hFile will always be valid at this point
-        CloseHandle(hFile);
-        hFile = INVALID_HANDLE_VALUE;
+        assert (hFile != INVALID_HANDLE_VALUE);
+        if (hFile != INVALID_HANDLE_VALUE)
+        {
+            CloseHandle(hFile);
+            hFile = INVALID_HANDLE_VALUE;
+        }
     }
+}
+
+#ifndef WINDOWS_PHONE
+
+WinAsyncIOContext::WinAsyncIOContext() : AsyncIOContext()
+{
+    overlapped = NULL;
+}
+
+WinAsyncIOContext::~WinAsyncIOContext()
+{
+    LOG_verbose << "Deleting WinAsyncIOContext";
+    finish();
+}
+
+void WinAsyncIOContext::finish()
+{
+    if (overlapped)
+    {
+        if (!finished)
+        {
+            LOG_debug << "Synchronously waiting for async operation";
+            AsyncIOContext::finish();
+        }
+
+        delete overlapped;
+        overlapped = NULL;
+    }
+    assert(finished);
+}
+
+AsyncIOContext *WinFileAccess::newasynccontext()
+{
+    return new WinAsyncIOContext();
+}
+
+VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped)
+{
+    WinAsyncIOContext *context = (WinAsyncIOContext *)(lpOverlapped->hEvent);
+    context->failed = dwErrorCode || dwNumberOfBytesTransfered != context->len;
+    if (!context->failed)
+    {
+        if (context->op == AsyncIOContext::READ)
+        {
+            memset((void *)(((char *)(context->buffer)) + context->len), 0, context->pad);
+            LOG_verbose << "Async read finished OK";
+        }
+        else
+        {
+            LOG_verbose << "Async write finished OK";
+        }
+    }
+    else
+    {
+        LOG_warn << "Async operation finished with error: " << dwErrorCode;
+    }
+
+    context->retry = WinFileSystemAccess::istransient(dwErrorCode);
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+}
+
+#endif
+
+bool WinFileAccess::asyncavailable()
+{
+#ifdef WINDOWS_PHONE
+	return false;
+#endif
+    return true;
+}
+
+void WinFileAccess::asyncsysopen(AsyncIOContext *context)
+{
+#ifndef WINDOWS_PHONE
+    string path;
+    path.assign((char *)context->buffer, context->len);
+    bool read = context->access & AsyncIOContext::ACCESS_READ;
+    bool write = context->access & AsyncIOContext::ACCESS_WRITE;
+
+    context->failed = !fopen(&path, read, write, true);
+    context->retry = retry;
+    context->finished = true;
+    if (context->userCallback)
+    {
+        context->userCallback(context->userData);
+    }
+#endif
+}
+
+void WinFileAccess::asyncsysread(AsyncIOContext *context)
+{
+#ifndef WINDOWS_PHONE
+    if (!context)
+    {
+        return;
+    }
+
+    WinAsyncIOContext *winContext = dynamic_cast<WinAsyncIOContext*>(context);
+    if (!winContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    OVERLAPPED *overlapped = new OVERLAPPED;
+    memset(overlapped, 0, sizeof (OVERLAPPED));
+
+    overlapped->Offset = winContext->pos & 0xFFFFFFFF;
+    overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+    overlapped->hEvent = winContext;
+    winContext->overlapped = overlapped;
+
+    if (!ReadFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+                   overlapped, asyncopfinished))
+    {
+        DWORD e = GetLastError();
+        winContext->retry = WinFileSystemAccess::istransient(e);
+        winContext->failed = true;
+        winContext->finished = true;
+        winContext->overlapped = NULL;
+        delete overlapped;
+
+        LOG_warn << "Async read failed at startup: " << e;
+        if (winContext->userCallback)
+        {
+            winContext->userCallback(winContext->userData);
+        }
+    }
+#endif
+}
+
+void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
+{
+#ifndef WINDOWS_PHONE
+    if (!context)
+    {
+        return;
+    }
+
+    WinAsyncIOContext *winContext = dynamic_cast<WinAsyncIOContext*>(context);
+    if (!winContext)
+    {
+        context->failed = true;
+        context->retry = false;
+        context->finished = true;
+        if (context->userCallback)
+        {
+            context->userCallback(context->userData);
+        }
+        return;
+    }
+
+    OVERLAPPED *overlapped = new OVERLAPPED;
+    memset(overlapped, 0, sizeof (OVERLAPPED));
+    overlapped->Offset = winContext->pos & 0xFFFFFFFF;
+    overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+    overlapped->hEvent = winContext;
+    winContext->overlapped = overlapped;
+
+    if (!WriteFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+                   overlapped, asyncopfinished))
+    {
+        DWORD e = GetLastError();
+        winContext->retry = WinFileSystemAccess::istransient(e);
+        winContext->failed = true;
+        winContext->finished = true;
+        winContext->overlapped = NULL;
+        delete overlapped;
+
+        LOG_warn << "Async write failed at startup: "  << e;
+        if (winContext->userCallback)
+        {
+            winContext->userCallback(winContext->userData);
+        }
+    }
+#endif
 }
 
 // update local name
@@ -167,16 +403,22 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(string* name, bool read, bool write)
+bool WinFileAccess::fopen(string *name, bool read, bool write)
 {
-    WIN32_FILE_ATTRIBUTE_DATA fad;
+    return fopen(name, read, write, false);
+}
+
+bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
+{
+    WIN32_FIND_DATA fad = { 0 };
 
 #ifdef WINDOWS_PHONE
     FILE_ID_INFO bhfi = { 0 };
 #else
-    BY_HANDLE_FILE_INFORMATION bhfi;
+    BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
 #endif
 
+    bool skipcasecheck = false;
     int added = WinFileSystemAccess::sanitizedriveletter(name);
     
     name->append("", 1);
@@ -187,21 +429,90 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     }
     else
     {
-        if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fad))
+        HANDLE  h = name->size() > sizeof(wchar_t)
+                ? FindFirstFileExW((LPCWSTR)name->data(), FindExInfoStandard, &fad,
+                             FindExSearchNameMatch, NULL, 0)
+                : INVALID_HANDLE_VALUE;
+
+        if (h != INVALID_HANDLE_VALUE)
         {
-            DWORD e = GetLastError();
-            LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
-            retry = WinFileSystemAccess::istransient(e);
-            name->resize(name->size() - added - 1);
-            return false;
+            FindClose(h);
+        }
+        else
+        {
+            WIN32_FILE_ATTRIBUTE_DATA fatd;
+            if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fatd))
+            {
+                DWORD e = GetLastError();
+                LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
+                retry = WinFileSystemAccess::istransient(e);
+                name->resize(name->size() - added - 1);
+                return false;
+            }
+            else
+            {
+                LOG_debug << "Possible root of network share";
+                skipcasecheck = true;
+                fad.dwFileAttributes = fatd.dwFileAttributes;
+                fad.ftCreationTime = fatd.ftCreationTime;
+                fad.ftLastAccessTime = fatd.ftLastAccessTime;
+                fad.ftLastWriteTime = fatd.ftLastWriteTime;
+                fad.nFileSizeHigh = fatd.nFileSizeHigh;
+                fad.nFileSizeLow = fatd.nFileSizeLow;
+            }
+        }
+
+        if (!skipcasecheck)
+        {
+            const char *filename = name->data() + name->size() - 1;
+            int filenamesize = 0;
+            bool separatorfound = false;
+            do {
+                filename -= sizeof(wchar_t);
+                filenamesize += sizeof(wchar_t);
+                separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t)) || !memcmp(L"/", filename, sizeof(wchar_t)) || !memcmp(L":", filename, sizeof(wchar_t));
+            } while (filename > name->data() && !separatorfound);
+
+            if (filenamesize > sizeof(wchar_t) || !separatorfound)
+            {
+                if (separatorfound)
+                {
+                    filename += sizeof(wchar_t);
+                }
+                else
+                {
+                    filenamesize += sizeof(wchar_t);
+                }
+
+                if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
+                        && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize))
+                        && !((filenamesize == 4 && !memcmp(filename, L".", 4))
+                             || (filenamesize == 6 && !memcmp(filename, L"..", 6))))
+                {
+                    LOG_warn << "fopen failed due to invalid case";
+                    retry = false;
+                    name->resize(name->size() - added - 1);
+                    return false;
+                }
+            }
         }
 
         // ignore symlinks - they would otherwise be treated as moves
         // also, ignore some other obscure filesystem object categories
         if (!added && skipattributes(fad.dwFileAttributes))
-        {
-            LOG_debug << "Skipped file " << fad.dwFileAttributes;
+        {            
             name->resize(name->size() - 1);
+            if (SimpleLogger::logCurrentLevel >= logDebug)
+            {
+                string excluded;
+                excluded.resize((name->size() + 1) * 4 / sizeof(wchar_t));
+                excluded.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)name->data(),
+                                                 name->size() / sizeof(wchar_t),
+                                                 (char*)excluded.data(),
+                                                 excluded.size() + 1,
+                                                 NULL, NULL));
+                LOG_debug << "Excluded: " << excluded << "   Attributes: " << fad.dwFileAttributes;
+            }
             retry = false;
             return false;
         }
@@ -219,19 +530,24 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     {
         ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
     }
+    else if (async)
+    {
+        ex.dwFileFlags = FILE_FLAG_OVERLAPPED;
+    }
 
     hFile = CreateFile2((LPCWSTR)name->data(),
-                        read ? GENERIC_READ : GENERIC_WRITE,
+                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
-                        read ? OPEN_EXISTING : OPEN_ALWAYS,
+                        !write ? OPEN_EXISTING : OPEN_ALWAYS,
                         &ex);
 #else
     hFile = CreateFileW((LPCWSTR)name->data(),
-                        read ? GENERIC_READ : GENERIC_WRITE,
+                        read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
-                        read ? OPEN_EXISTING : OPEN_ALWAYS,
-                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS : 0,
+                        !write ? OPEN_EXISTING : OPEN_ALWAYS,
+                        (type == FOLDERNODE) ? FILE_FLAG_BACKUP_SEMANTICS
+                                             : (async ? FILE_FLAG_OVERLAPPED : 0),
                         NULL);
 #endif
 
@@ -251,12 +567,12 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
     mtime = FileTime_to_POSIX(&fad.ftLastWriteTime);
 
 #ifdef WINDOWS_PHONE
-    if (read && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
+    if (!write && (fsidvalid = !!GetFileInformationByHandleEx(hFile, FileIdInfo, &bhfi, sizeof(bhfi))))
     {
         fsid = *(handle*)&bhfi.FileId;
     }
 #else
-    if (read && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
+    if (!write && (fsidvalid = !!GetFileInformationByHandle(hFile, &bhfi)))
     {
         fsid = ((handle)bhfi.nFileIndexHigh << 32) | (handle)bhfi.nFileIndexLow;
     }
@@ -288,10 +604,10 @@ bool WinFileAccess::fopen(string* name, bool read, bool write)
         return true;
     }
 
-    if (read)
+    if (!write)
     {
         size = ((m_off_t)fad.nFileSizeHigh << 32) + (m_off_t)fad.nFileSizeLow;
-        if(!size)
+        if (!size)
         {
             LOG_debug << "Zero-byte file. mtime: " << mtime << "  ctime: " << FileTime_to_POSIX(&fad.ftCreationTime)
                       << "  attrs: " << fad.dwFileAttributes << "  access: " << FileTime_to_POSIX(&fad.ftLastAccessTime);
@@ -306,9 +622,12 @@ WinFileSystemAccess::WinFileSystemAccess()
     notifyerr = false;
     notifyfailed = false;
 
-    pendingevents = 0;
-
     localseparator.assign((char*)L"\\", sizeof(wchar_t));
+}
+
+WinFileSystemAccess::~WinFileSystemAccess()
+{
+    assert(!dirnotifys.size());
 }
 
 // append \ to bare Windows drive letter paths
@@ -341,13 +660,8 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
     return istransient(e);
 }
 
-// wake up from filesystem updates
 void WinFileSystemAccess::addevents(Waiter* w, int)
 {
-#ifndef WINDOWS_PHONE
-    // overlapped completion wakes up WaitForMultipleObjectsEx()
-    ((WinWaiter*)w)->pendingfsevents = pendingevents;
-#endif
 }
 
 // generate unique local filename in the same fs as relatedpath
@@ -367,12 +681,20 @@ void WinFileSystemAccess::path2local(string* path, string* local) const
     // make space for the worst case
     local->resize((path->size() + 1) * sizeof(wchar_t));
 
-    // resize to actual result
-    local->resize(sizeof(wchar_t) * (MultiByteToWideChar(CP_UTF8, 0,
-                                                         path->c_str(),
-                                                         -1,
-                                                         (wchar_t*)local->data(),
-                                                         local->size() / sizeof(wchar_t) + 1) - 1));
+    int len = MultiByteToWideChar(CP_UTF8, 0,
+                                  path->c_str(),
+                                  -1,
+                                  (wchar_t*)local->data(),
+                                  local->size() / sizeof(wchar_t) + 1);
+    if (len)
+    {
+        // resize to actual result
+        local->resize(sizeof(wchar_t) * (len - 1));
+    }
+    else
+    {
+        local->clear();
+    }
 }
 
 // convert Windows Unicode to UTF-8
@@ -427,7 +749,7 @@ bool WinFileSystemAccess::getsname(string* name, string* sname) const
         sname->erase(0, (char*)ptr - sname->data() + sizeof(wchar_t));
     }
 
-    return true;
+    return sname->size();
 #endif
 }
 
@@ -444,7 +766,15 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool rep
     if (!r)
     {
         DWORD e = GetLastError();
-        LOG_debug << "Unable to move file. Error code: " << e;
+        if (SimpleLogger::logCurrentLevel >= logWarning)
+        {
+            string utf8oldname;
+            client->fsaccess->local2path(oldname, &utf8oldname);
+
+            string utf8newname;
+            client->fsaccess->local2path(newname, &utf8newname);
+            LOG_warn << "Unable to move file: " << utf8oldname.c_str() << " to " << utf8newname.c_str() << ". Error code: " << e;
+        }
         transient_error = istransientorexists(e);
     }
 
@@ -715,7 +1045,9 @@ size_t WinFileSystemAccess::lastpartlocal(string* name) const
 {
     for (size_t i = name->size() / sizeof(wchar_t); i--;)
     {
-        if (((wchar_t*)name->data())[i] == '\\' || ((wchar_t*)name->data())[i] == ':')
+        if (((wchar_t*)name->data())[i] == '\\'
+                || ((wchar_t*)name->data())[i] == '/'
+                || ((wchar_t*)name->data())[i] == ':')
         {
             return (i + 1) * sizeof(wchar_t);
         }
@@ -763,6 +1095,46 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, int si
 	return false;
 }
 
+bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
+{
+    string localpath = *path;
+    localpath.append("", 1);
+
+#ifdef WINDOWS_PHONE
+    wchar_t full[_MAX_PATH];
+    if (_wfullpath(full, (wchar_t *)localpath.data(), _MAX_PATH))
+    {
+        absolutepath->assign((char *)full, wcslen(full) * sizeof(wchar_t));
+        return true;
+    }
+    *absolutepath = *path;
+    return false;
+#else
+
+    int len = GetFullPathNameW((LPCWSTR)localpath.data(), 0, NULL, NULL);
+    if (len <= 0)
+    {
+        *absolutepath = *path;
+        return false;
+    }
+
+    absolutepath->resize(len * sizeof(wchar_t));
+    int newlen = GetFullPathNameW((LPCWSTR)localpath.data(), len, (LPWSTR)absolutepath->data(), NULL);
+    if (newlen <= 0 || newlen >= len)
+    {
+        *absolutepath = *path;
+        return false;
+    }
+
+    if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
+    {
+        absolutepath->insert(0, (const char *)L"\\\\?\\", 8);
+    }
+    absolutepath->resize(absolutepath->size() - 2);
+    return true;
+#endif
+}
+
 void WinFileSystemAccess::osversion(string* u) const
 {
     char buf[128];
@@ -770,12 +1142,62 @@ void WinFileSystemAccess::osversion(string* u) const
 #ifdef WINDOWS_PHONE
     sprintf(buf, "Windows Phone");
 #else
-    DWORD dwVersion = GetVersion();
+    typedef LONG MEGANTSTATUS;
+    typedef struct _MEGAOSVERSIONINFOW {
+        DWORD dwOSVersionInfoSize;
+        DWORD dwMajorVersion;
+        DWORD dwMinorVersion;
+        DWORD dwBuildNumber;
+        DWORD dwPlatformId;
+        WCHAR  szCSDVersion[ 128 ];     // Maintenance string for PSS usage
+    } MEGARTL_OSVERSIONINFOW, *PMEGARTL_OSVERSIONINFOW;
 
-    sprintf(buf, "Windows %d.%d", (int)(LOBYTE(LOWORD(dwVersion))), (int)(HIBYTE(LOWORD(dwVersion))));
+    typedef MEGANTSTATUS (WINAPI* RtlGetVersionPtr)(PMEGARTL_OSVERSIONINFOW);
+    MEGARTL_OSVERSIONINFOW version = { 0 };
+    HMODULE hMod = GetModuleHandleW(L"ntdll.dll");
+    if (hMod)
+    {
+        RtlGetVersionPtr RtlGetVersion = (RtlGetVersionPtr)GetProcAddress(hMod, "RtlGetVersion");
+        if (RtlGetVersion)
+        {
+            RtlGetVersion(&version);
+        }
+    }
+    snprintf(buf, sizeof(buf), "Windows %d.%d.%d", version.dwMajorVersion, version.dwMinorVersion, version.dwBuildNumber);
 #endif
 
     u->append(buf);
+}
+
+void WinFileSystemAccess::statsid(string *id) const
+{
+#ifndef WINDOWS_PHONE
+    LONG hr;
+    HKEY hKey = NULL;
+    hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Cryptography", 0,
+                      KEY_QUERY_VALUE 
+#ifdef KEY_WOW64_64KEY
+		      | KEY_WOW64_64KEY
+#else		      
+		      | 0x0100
+#endif		      
+		      , &hKey);
+    if (hr == ERROR_SUCCESS)
+    {
+        WCHAR pszData[256];
+        DWORD cbData = sizeof(pszData);
+        hr = RegQueryValueExW(hKey, L"MachineGuid", NULL, NULL, (LPBYTE)pszData, &cbData);
+        if (hr == ERROR_SUCCESS)
+        {
+            string localdata;
+            string utf8data;
+            localdata.assign((char *)pszData, cbData - sizeof(WCHAR));
+            local2path(&localdata, &utf8data);
+            id->append(utf8data);
+        }
+        RegCloseKey(hKey);
+    }
+#endif
 }
 
 // set DirNotify's root LocalNode
@@ -813,9 +1235,14 @@ fsfp_t WinDirNotify::fsfingerprint()
 VOID CALLBACK WinDirNotify::completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped)
 {
 #ifndef WINDOWS_PHONE
-    if (dwErrorCode != ERROR_OPERATION_ABORTED)
+    WinDirNotify *dirnotify = (WinDirNotify*)lpOverlapped->hEvent;
+    if (!dirnotify->exit && dwErrorCode != ERROR_OPERATION_ABORTED)
     {
-        ((WinDirNotify*)lpOverlapped->hEvent)->process(dwBytes);
+        dirnotify->process(dwBytes);
+    }
+    else
+    {
+        dirnotify->enabled = false;
     }
 #endif
 }
@@ -825,7 +1252,7 @@ void WinDirNotify::process(DWORD dwBytes)
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
-        // empty notification: re-read all trees
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL");
         readchanges();
         error = true;
     }
@@ -840,7 +1267,7 @@ void WinDirNotify::process(DWORD dwBytes)
         readchanges();
 
         // ensure accuracy of the notification timestamps
-        Waiter::bumpds();
+		WAIT_CLASS::bumpds();
 
         // we trust the OS to always return conformant data
         for (;;)
@@ -855,8 +1282,33 @@ void WinDirNotify::process(DWORD dwBytes)
               || (fni->FileNameLength > ignore.size()
                && memcmp((char*)fni->FileName + ignore.size(), (char*)L"\\", sizeof(wchar_t)))))
             {
+                if (SimpleLogger::logCurrentLevel >= logDebug)
+                {
+                    string local, path;
+                    local.assign((char*)fni->FileName, fni->FileNameLength);
+                    path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
+                    path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
+                                                     local.size() / sizeof(wchar_t),
+                                                     (char*)path.data(),
+                                                     path.size() + 1,
+                                                     NULL, NULL));
+                    LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+                }
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
             }
+            else if (SimpleLogger::logCurrentLevel >= logDebug)
+            {
+                string local, path;
+                local.assign((char*)fni->FileName, fni->FileNameLength);
+                path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
+                path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
+                                                 local.size() / sizeof(wchar_t),
+                                                 (char*)path.data(),
+                                                 path.size() + 1,
+                                                 NULL, NULL));
+                LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+            }
+
 
             if (!fni->NextEntryOffset)
             {
@@ -883,9 +1335,10 @@ void WinDirNotify::readchanges()
                               &dwBytes, &overlapped, completion))
     {
         failed = false;
+        enabled = true;
     }
     else
-    {
+    {        
         DWORD e = GetLastError();
         LOG_warn << "ReadDirectoryChanges not available. Error code: " << e;
         if (e == ERROR_NOTIFY_ENUM_DIR)
@@ -898,6 +1351,7 @@ void WinDirNotify::readchanges()
             // permanent failure - switch to scanning mode
             failed = true;
         }
+        enabled = false;
     }
 #endif
 }
@@ -906,16 +1360,15 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 {
 #ifndef WINDOWS_PHONE
     ZeroMemory(&overlapped, sizeof(overlapped));
-
     overlapped.hEvent = this;
-
+    enabled = false;
+    exit = false;
     active = 0;
 
     notifybuf[0].resize(65534);
     notifybuf[1].resize(65534);
 
     int added = WinFileSystemAccess::sanitizedriveletter(localbasepath);
-
     localbasepath->append("", 1);
 
     if ((hDirectory = CreateFileW((LPCWSTR)localbasepath->data(),
@@ -927,7 +1380,6 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
                                   NULL)) != INVALID_HANDLE_VALUE)
     {
         failed = false;
-
         readchanges();
     }
     else
@@ -941,17 +1393,29 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
 
 WinDirNotify::~WinDirNotify()
 {
+     exit = true;
+
 #ifndef WINDOWS_PHONE
     if (hDirectory != INVALID_HANDLE_VALUE)
     {
+        if (enabled)
+        {
+            CancelIo(hDirectory);
+            while (enabled)
+            {
+                SleepEx(INFINITE, true);
+            }
+        }
+
         CloseHandle(hDirectory);
     }
+    fsaccess->dirnotifys.erase(this);
 #endif
 }
 
 FileAccess* WinFileSystemAccess::newfileaccess()
 {
-    return new WinFileAccess();
+    return new WinFileAccess(waiter);
 }
 
 DirAccess* WinFileSystemAccess::newdiraccess()
@@ -961,10 +1425,13 @@ DirAccess* WinFileSystemAccess::newdiraccess()
 
 DirNotify* WinFileSystemAccess::newdirnotify(string* localpath, string* ignore)
 {
-    return new WinDirNotify(localpath, ignore);
+    WinDirNotify *dirnotify = new WinDirNotify(localpath, ignore);
+    dirnotify->fsaccess = this;
+    dirnotifys.insert(dirnotify);
+    return dirnotify;
 }
 
-bool WinFileSystemAccess::issyncsupported(string *localpath)
+bool WinFileSystemAccess::issyncsupported(string *localpath, bool *isnetwork)
 {
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     string path, fsname;
@@ -981,6 +1448,15 @@ bool WinFileSystemAccess::issyncsupported(string *localpath)
     {
         LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
         result = false;
+    }
+
+    if (GetDriveTypeW((LPCWSTR)path.data()) == DRIVE_REMOTE)
+    {
+        LOG_debug << "Network folder detected";
+        if (isnetwork)
+        {
+            *isnetwork = true;
+        }
     }
 
     string utf8fsname;
@@ -1057,7 +1533,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
 }
 
 // FIXME: implement followsymlinks
-bool WinDirAccess::dnext(string* path, string* name, bool followsymlinks, nodetype_t* type)
+bool WinDirAccess::dnext(string* /*path*/, string* name, bool /*followsymlinks*/, nodetype_t* type)
 {
     for (;;)
     {
@@ -1077,6 +1553,24 @@ bool WinDirAccess::dnext(string* path, string* name, bool followsymlinks, nodety
 
             ffdvalid = false;
             return true;
+        }
+        else
+        {
+            if (ffdvalid && SimpleLogger::logCurrentLevel >= logDebug)
+            {
+                if (*ffd.cFileName != '.' && (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2])))
+                {
+                    string local, excluded;
+                    local.assign((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
+                    excluded.resize((local.size() + 1) * 4 / sizeof(wchar_t));
+                    excluded.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
+                                                     local.size() / sizeof(wchar_t),
+                                                     (char*)excluded.data(),
+                                                     excluded.size() + 1,
+                                                     NULL, NULL));
+                    LOG_debug << "Excluded: " << excluded << "   Attributes: " << ffd.dwFileAttributes;
+                }
+            }
         }
 
         if (!(ffdvalid = FindNextFileW(hFind, &ffd) != 0))

@@ -30,16 +30,17 @@ using ::testing::TestInfo;
 using ::testing::TestPartResult;
 using ::testing::UnitTest;
 
-bool debug;
-
-TEST(JSON, storeobject) {
+TEST(JSON, storeobject)
+{
     std::string in_str("Test");
     JSON j;
+    j.begin(in_str.data());
     j.storeobject(&in_str);
 }
 
 // Test 64-bit int serialization/unserialization
-TEST(Serialize64, serialize) {
+TEST(Serialize64, serialize)
+{
     uint64_t in = 0xDEADBEEF;
     uint64_t out;
     byte buf[sizeof in];

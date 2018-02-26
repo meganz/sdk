@@ -52,6 +52,11 @@ String^ MUser::getEmail()
 	return ref new String((wchar_t *)utf16email.data());
 }
 
+uint64 MUser::getHandle()
+{
+    return megaUser ? megaUser->getHandle() : ::mega::INVALID_HANDLE;
+}
+
 MUserVisibility MUser::getVisibility()
 {
 	return (MUserVisibility) (megaUser ? megaUser->getVisibility() : ::mega::MegaUser::VISIBILITY_UNKNOWN);
@@ -60,4 +65,19 @@ MUserVisibility MUser::getVisibility()
 uint64 MUser::getTimestamp()
 {
 	return megaUser ? megaUser->getTimestamp() : 0;
+}
+
+bool MUser::hasChanged(int changeType)
+{
+    return megaUser ? megaUser->hasChanged(changeType) : false;
+}
+
+int MUser::getChanges()
+{
+    return megaUser ? megaUser->getChanges() : 0;
+}
+
+int MUser::isOwnChange()
+{
+    return megaUser ? megaUser->isOwnChange() : 0;
 }

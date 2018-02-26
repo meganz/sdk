@@ -68,8 +68,14 @@ void SymmCipher::setkey(const byte* newkey, int type)
     aescbc_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
     aescbc_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
 
-    aesccm_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
-    aesccm_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    aesccm8_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    aesccm8_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+
+    aesccm16_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    aesccm16_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+
+    aesgcm_e.SetKeyWithIV(key, KEYLENGTH, zeroiv);
+    aesgcm_d.SetKeyWithIV(key, KEYLENGTH, zeroiv);
 }
 
 bool SymmCipher::setkey(const string* key)
@@ -84,196 +90,98 @@ bool SymmCipher::setkey(const string* key)
     return false;
 }
 
-/**
- * @brief Encrypt symmetrically using AES in CBC mode.
- *
- * The size of the IV is one block in AES-128 (16 bytes).
- *
- * @param data Data to be encrypted (encryption in-place).
- * @param len Length of data to be encrypted in bytes.
- * @param iv Initialisation vector to use. Choose randomly and never re-use.
- * @return Void.
- */
 void SymmCipher::cbc_encrypt(byte* data, unsigned len, const byte* iv)
 {
     aescbc_e.Resynchronize(iv ? iv : zeroiv);
     aescbc_e.ProcessData(data, data, len);
 }
 
-/**
- * @brief Decrypt symmetrically using AES in CBC mode.
- *
- * The size of the IV is one block in AES-128 (16 bytes).
- *
- * @param data Data to be encrypted (encryption in-place).
- * @param len Length of cipher text to be decrypted in bytes.
- * @param iv Initialisation vector.
- * @return Void.
- */
 void SymmCipher::cbc_decrypt(byte* data, unsigned len, const byte* iv)
 {
     aescbc_d.Resynchronize(iv ? iv : zeroiv);
     aescbc_d.ProcessData(data, data, len);
 }
 
-/**
- * @brief Encrypt symmetrically using AES in CBC mode and pkcs padding
- *
- * The size of the IV is one block in AES-128 (16 bytes).
- *
- * @param data Data to be encrypted
- * @param iv Initialisation vector.
- * @param result Encrypted message
- * @return Void.
- */
 void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)
 {
     aescbc_e.Resynchronize(iv ? iv : zeroiv);
     StringSource(*data, true,
-           new CryptoPP::StreamTransformationFilter( aescbc_e, new StringSink( *result ),
-                                                     CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+           new StreamTransformationFilter( aescbc_e, new StringSink( *result ),
+                                                     StreamTransformationFilter::PKCS_PADDING));
 }
 
-/**
- * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
- *
- * The size of the IV is one block in AES-128 (16 bytes).
- *
- * @param data Data to be decrypted
- * @param iv Initialisation vector.
- * @param result Decrypted message
- * @return Void.
- */
 void SymmCipher::cbc_decrypt_pkcs_padding(const std::string *data, const byte *iv, string *result)
 {
     aescbc_d.Resynchronize(iv ? iv : zeroiv);
     StringSource(*data, true,
-           new CryptoPP::StreamTransformationFilter( aescbc_d, new StringSink( *result ),
-                                                     CryptoPP::StreamTransformationFilter::PKCS_PADDING));
+           new StreamTransformationFilter( aescbc_d, new StringSink( *result ),
+                                                     StreamTransformationFilter::PKCS_PADDING));
 }
 
-/**
- * @brief Encrypt symmetrically using AES in ECB mode.
- *
- * @param data Data to be encrypted.
- * @param dst Target buffer to encrypt to. If NULL, encrypt in-place (to `data`).
- * @param len Length of data to be encrypted in bytes. Defaults to
- *     SymCipher::BLOCKSIZE.
- * @return Void.
- */
 void SymmCipher::ecb_encrypt(byte* data, byte* dst, unsigned len)
 {
     aesecb_e.ProcessData(dst ? dst : data, data, len);
 }
 
-/**
- * @brief Decrypt symmetrically using AES in ECB mode.
- *
- * @param data Data to be decrypted (in-place).
- * @param len Length of data to be decrypted in bytes. Defaults to
- *     SymCipher::BLOCKSIZE.
- * @return Void.
- */
 void SymmCipher::ecb_decrypt(byte* data, unsigned len)
 {
     aesecb_d.ProcessData(data, data, len);
 }
 
-/**
- * @brief Authenticated symmetric encryption using AES in CCM mode
- *        (counter with CBC-MAC).
- *
- * The size of the IV limits the maximum length of data. A length of 12 bytes
- * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
- * sizes.
- *
- * Note: Due to in-place encryption, the buffer `data` must be large enough
- *       to accept the cipher text in multiples of the block size as well as
- *       the authentication tag (SymmCipher::TAG_SIZE bytes).
- *
- * @param data Data to be encrypted (encryption in-place). The result will be
- *     in the same structure as the concatenated pair `{ciphertext, tag}`
- * @param len Length of data to be encrypted in bytes.
- * @param iv Initialisation vector or nonce to use for encryption. Choose
- *     randomly and never re-use. See note on size above.
- * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
- *     bytes.
- * @return Void.
- */
-void SymmCipher::ccm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+void SymmCipher::ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    aesccm_e.Resynchronize(iv, ivLength);
-    aesccm_e.ProcessData(data, data, len);
+    if (taglen == 16)
+    {
+        aesccm16_e.Resynchronize(iv, ivlen);
+        aesccm16_e.SpecifyDataLengths(0, data->size(), 0);
+        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm16_e, new StringSink(*result)));
+    }
+    else if (taglen == 8)
+    {
+        aesccm8_e.Resynchronize(iv, ivlen);
+        aesccm8_e.SpecifyDataLengths(0, data->size(), 0);
+        StringSource(*data, true, new AuthenticatedEncryptionFilter(aesccm8_e, new StringSink(*result)));
+    }
 }
 
-/**
- * @brief Authenticated symmetric decryption using AES in CCM mode
- *        (counter with CBC-MAC).
- *
- * The size of the IV limits the maximum length of data. A length of 12 bytes
- * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
- * sizes.
- *
- * @param data Data to be encrypted (encryption in-place). The input given must
- *     be in the concatenated form `{ciphertext, tag}`
- * @param len Length of cipher text to be decrypted in bytes (includes length
- *     of authentication tag: SymmCipher::TAG_SIZE).
- * @param iv Initialisation vector or nonce.
- * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
- *     bytes.
- * @return Void.
- */
-void SymmCipher::ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+void SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    aesccm_d.Resynchronize(iv, ivLength);
-    aesccm_d.ProcessData(data, data, len);
+    try {
+        if (taglen == 16)
+        {
+            aesccm16_d.Resynchronize(iv, ivlen);
+            aesccm16_d.SpecifyDataLengths(0, data->size() - taglen, 0);
+            StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm16_d, new StringSink(*result)));
+        }
+        else if (taglen == 8)
+        {
+            aesccm8_d.Resynchronize(iv, ivlen);
+            aesccm8_d.SpecifyDataLengths(0, data->size() - taglen, 0);
+            StringSource(*data, true, new AuthenticatedDecryptionFilter(aesccm8_d, new StringSink(*result)));
+        }
+    } catch (HashVerificationFilter::HashVerificationFailed e)
+    {
+        result->clear();
+        LOG_err << "Failed AES-CCM decryption: " << e.GetWhat();
+    }
 }
 
-/**
- * @brief Authenticated symmetric encryption using AES in GCM mode.
- *
- * The size of the IV limits the maximum length of data. A length of 12 bytes
- * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
- * sizes.
- *
- * Note: Due to in-place encryption, the buffer `data` must be large enough
- *       to accept the cipher text in multiples of the block size as well as
- *       the authentication tag (16 bytes).
- *
- * @param data Data to be encrypted (encryption in-place). The result will be
- *     in the same structure as the concatenated pair `{ciphertext, tag}`
- * @param len Length of data to be encrypted in bytes.
- * @param iv Initialisation vector or nonce to use for encryption. Choose
- *     randomly and never re-use. See note on size above.
- * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
- *     bytes.
- * @return Void.
- */
-void SymmCipher::gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    aesgcm_e.Resynchronize(iv, ivLength);
-    aesgcm_e.ProcessData(data, data, len);
+    aesgcm_e.Resynchronize(iv, ivlen);
+    StringSource(*data, true, new AuthenticatedEncryptionFilter(aesgcm_e, new StringSink(*result), false, taglen));
 }
 
-/**
- * @brief Authenticated symmetric decryption using AES in GCM mode.
- *
- * The size of the IV limits the maximum length of data. A length of 12 bytes
- * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
- * sizes.
- *
- * @param data Data to be encrypted (encryption in-place). The input given must
- *     be in the concatenated form `{ciphertext, tag}`
- * @param len Length of cipher text to be decrypted in bytes (includes length
- *     of authentication tag: 16 bytes).
- * @param iv Initialisation vector or nonce.
- * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
- *     bytes.
- */
-void SymmCipher::gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength)
+void SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
-    aesgcm_d.Resynchronize(iv, ivLength);
-    aesgcm_d.ProcessData(data, data, len);
+    aesgcm_d.Resynchronize(iv, ivlen);
+    try {
+        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
+    } catch (HashVerificationFilter::HashVerificationFailed e)
+    {
+        result->clear();
+        LOG_err << "Failed AES-GCM decryption: " << e.GetWhat();
+    }
 }
 
 void SymmCipher::serializekeyforjs(string *d)
@@ -356,7 +264,7 @@ SymmCipher& SymmCipher::operator=(const SymmCipher& ref)
 // encryption: data must be NUL-padded to BLOCKSIZE
 // decryption: data must be padded to BLOCKSIZE
 // len must be < 2^31
-void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, byte* mac, bool encrypt)
+void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, byte* mac, bool encrypt, bool initmac)
 {
     assert(!(pos & (KEYLENGTH - 1)));
 
@@ -365,7 +273,7 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
     MemAccess::set<int64_t>(ctr,ctriv);
     setint64(pos / BLOCKSIZE, ctr + sizeof ctriv);
 
-    if (mac)
+    if (mac && initmac)
     {
         memcpy(mac, ctr, sizeof ctriv);
         memcpy(mac + sizeof ctriv, ctr, sizeof ctriv);
@@ -545,7 +453,48 @@ int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numby
 
 int AsymmCipher::setkey(int numints, const byte* data, int len)
 {
-    return decodeintarray(key, numints, data, len);
+    int ret = decodeintarray(key, numints, data, len);
+    padding = (numints == PUBKEY && ret) ? (len - key[PUB_PQ].ByteCount() - key[PUB_E].ByteCount() - 4) : 0;
+    return ret;
+}
+
+void AsymmCipher::resetkey()
+{
+    for (int i = 0; i < PRIVKEY; i++)
+    {
+        key[i] = Integer::Zero();
+        padding = 0;
+    }
+}
+
+void AsymmCipher::serializekeyforjs(string& d)
+{
+    unsigned sizePQ = key[PUB_PQ].ByteCount();
+    unsigned sizeE = key[PUB_E].ByteCount();
+    char c;
+
+    d.clear();
+    d.reserve(sizePQ + sizeE + padding);
+
+    for (int j = key[PUB_PQ].ByteCount(); j--;)
+    {
+        c = key[PUB_PQ].GetByte(j);
+        d.append(&c, sizeof c);
+    }
+
+    // accounts created by webclient use 4 bytes for serialization of exponent
+    // --> add left-padding up to 4 bytes for compatibility reasons
+    c = 0;
+    for (unsigned j = 0; j < padding; j++)
+    {
+        d.append(&c, sizeof c);
+    }
+
+    for (int j = sizeE; j--;)
+    {
+        c = key[PUB_E].GetByte(j);  // returns 0 if out-of-range
+        d.append(&c, sizeof c);
+    }
 }
 
 void AsymmCipher::serializekey(string* d, int keytype)
@@ -553,25 +502,33 @@ void AsymmCipher::serializekey(string* d, int keytype)
     serializeintarray(key, keytype, d);
 }
 
-void AsymmCipher::serializeintarray(Integer* t, int numints, string* d)
+void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool headers)
 {
     unsigned size = 0;
     char c;
 
     for (int i = numints; i--;)
     {
-        size += t[i].ByteCount() + 2;
+        size += t[i].ByteCount();
+
+        if (headers)
+        {
+            size += 2;
+        }
     }
 
     d->reserve(d->size() + size);
 
     for (int i = 0; i < numints; i++)
     {
-        c = t[i].BitCount() >> 8;
-        d->append(&c, sizeof c);
+        if (headers)
+        {
+            c = t[i].BitCount() >> 8;
+            d->append(&c, sizeof c);
 
-        c = (char)t[i].BitCount();
-        d->append(&c, sizeof c);
+            c = (char)t[i].BitCount();
+            d->append(&c, sizeof c);
+        }
 
         for (int j = t[i].ByteCount(); j--;)
         {
@@ -610,9 +567,22 @@ int AsymmCipher::decodeintarray(Integer* t, int numints, const byte* data, int l
     return i == numints && len - p < 16;
 }
 
-int AsymmCipher::isvalid()
+int AsymmCipher::isvalid(int keytype)
 {
-    return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
+    if (keytype == PUBKEY)
+    {
+        return key[PUB_PQ].BitCount() && key[PUB_E].BitCount();
+    }
+
+    if (keytype == PRIVKEY)
+    {
+        return key[PRIV_P].BitCount() &&
+                key[PRIV_Q].BitCount() &&
+                key[PRIV_D].BitCount() &&
+                key[PRIV_U].BitCount();
+    }
+
+    return 0;
 }
 
 // adapted from CryptoPP, rsa.cpp
@@ -682,7 +652,6 @@ void HashCRC32::get(byte* out)
 HMACSHA256::HMACSHA256(const byte *key, size_t length)
     : hmac(key, length)
 {
-
 }
 
 void HMACSHA256::add(const byte *data, unsigned len)
@@ -693,6 +662,29 @@ void HMACSHA256::add(const byte *data, unsigned len)
 void HMACSHA256::get(byte *out)
 {
     hmac.Final(out);
+}
+
+PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
+{
+}
+
+void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey, size_t derivedkeyLen,
+                                   byte* pwd, size_t pwdLen,
+                                   byte* salt, size_t saltLen, unsigned int iterations)
+{
+    pbkdf2.DeriveKey(
+            // buffer that holds the derived key
+            derivedkey, derivedkeyLen,
+            // purpose byte. unused by this PBKDF implementation.
+            0x00,
+            // password bytes. careful to be consistent with encoding...
+            pwd, pwdLen,
+            // salt bytes
+            salt, saltLen,
+            // iteration count. See SP 800-132 for details. You want this as large as you can tolerate.
+            // make sure to use the same iteration count on both sides...
+            iterations
+            );
 }
 
 } // namespace

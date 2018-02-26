@@ -22,8 +22,9 @@
 #ifndef MEGA_TRANSFER_H
 #define MEGA_TRANSFER_H 1
 
-#include "node.h"
+#include "filefingerprint.h"
 #include "backofftimer.h"
+#include "http.h"
 #include "command.h"
 
 namespace mega {
@@ -47,6 +48,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // representative local filename for this transfer
     string localfilename;
 
+    // progress completed
+    m_off_t progresscompleted;
+
     m_off_t pos;
 
     byte filekey[FILENODEKEYLENGTH];
@@ -57,8 +61,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // meta MAC
     int64_t metamac;
 
-    // file crypto key
-    SymmCipher key;
+    // file crypto key and shared cipher
+    byte transferkey[SymmCipher::KEYLENGTH];
+    SymmCipher *transfercipher();
 
     chunkmac_map chunkmacs;
 
@@ -75,7 +80,7 @@ struct MEGA_API Transfer : public FileFingerprint
     handletransfer_map::iterator faputcompletion_it;
     
     // upload result
-    byte ultoken[NewNode::UPLOADTOKENLEN + 1];
+    byte *ultoken;
 
     // backlink to base
     MegaClient* client;
@@ -90,11 +95,91 @@ struct MEGA_API Transfer : public FileFingerprint
     // execute completion
     void completefiles();
 
+    // next position to download/upload
+    m_off_t nextpos();
+
     // previous wrong fingerprint
     FileFingerprint badfp;
+
+    // flag to know if prevmetamac is valid
+    bool hasprevmetamac;
+
+    // previous wrong metamac
+    int64_t prevmetamac;
+
+    // flag to know if currentmetamac is valid
+    bool hascurrentmetamac;
+
+    // current wrong metamac
+    int64_t currentmetamac;
+
+    // transfer state
+    bool finished;
+
+    // cached temp URL for upload/download data
+    string cachedtempurl;
+
+    // context of the async fopen operation
+    AsyncIOContext* asyncopencontext;
    
+    // timestamp of the start of the transfer
+    m_time_t lastaccesstime;
+
+    // priority of the transfer
+    uint64_t priority;
+
+    // state of the transfer
+    transferstate_t state;
+
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
+
+    // serialize the Transfer object
+    virtual bool serialize(string*);
+
+    // unserialize a Transfer and add it to the transfer map
+    static Transfer* unserialize(MegaClient *, string*, transfer_map *);
+
+    // examine a file on disk for video/audio attributes to attach to the file, on upload/download
+    void addAnyMissingMediaFileAttributes(pnode_t node, std::string& localpath);
+};
+
+class MEGA_API TransferList
+{
+public:
+    static const uint64_t PRIORITY_START = 0x0000800000000000;
+    static const uint64_t PRIORITY_STEP  = 0x0000000000010000;
+
+    TransferList();
+    void addtransfer(Transfer* transfer);
+    void removetransfer(Transfer *transfer);
+    void movetransfer(Transfer *transfer, Transfer *prevTransfer);
+    void movetransfer(Transfer *transfer, unsigned int position);
+    void movetransfer(Transfer *transfer, transfer_list::iterator dstit);
+    void movetransfer(transfer_list::iterator it, transfer_list::iterator dstit);
+    void movetofirst(Transfer *transfer);
+    void movetofirst(transfer_list::iterator it);
+    void movetolast(Transfer *transfer);
+    void movetolast(transfer_list::iterator it);
+    void moveup(Transfer *transfer);
+    void moveup(transfer_list::iterator it);
+    void movedown(Transfer *transfer);
+    void movedown(transfer_list::iterator it);
+    error pause(Transfer *transfer, bool enable);
+    transfer_list::iterator begin(direction_t direction);
+    transfer_list::iterator end(direction_t direction);
+    transfer_list::iterator iterator(Transfer *transfer);
+    Transfer *nexttransfer(direction_t direction);
+    Transfer *transferat(direction_t direction, unsigned int position);
+
+    transfer_list transfers[2];
+    MegaClient *client;
+    uint64_t currentpriority;
+
+private:
+    void prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit);
+    void prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit);
+    bool isReady(Transfer *transfer);
 };
 
 struct MEGA_API DirectReadSlot
@@ -111,6 +196,9 @@ struct MEGA_API DirectReadSlot
     HttpReq* req;
 
     drs_list::iterator drs_it;
+    SpeedController speedController;
+    m_off_t speed;
+    m_off_t meanSpeed;
 
     bool doio();
 
@@ -166,7 +254,7 @@ struct MEGA_API DirectReadNode
     dsdrn_map::iterator dsdrn_it;
 
     // API command result
-    void cmdresult(error);
+    void cmdresult(error, dstime = 0);
     
     // enqueue new read
     void enqueue(m_off_t, m_off_t, int, void*);
@@ -178,7 +266,7 @@ struct MEGA_API DirectReadNode
     void schedule(dstime);
 
     // report failure to app and abort or retry all reads
-    void retry(error);
+    void retry(error, dstime = 0);
 
     DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t);
     ~DirectReadNode();

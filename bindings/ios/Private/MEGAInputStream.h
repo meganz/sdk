@@ -26,11 +26,13 @@ class MEGAInputStream : public mega::MegaInputStream {
 
 public:
     MEGAInputStream(ALAssetRepresentation *assetRepresentation);
+    MEGAInputStream(NSData *data);
     int64_t getSize();
     bool read(char *buffer, size_t size);
     
 private:
     ALAssetRepresentation *assetRepresentation;
+    NSData *data;
     long offset;
 };
 

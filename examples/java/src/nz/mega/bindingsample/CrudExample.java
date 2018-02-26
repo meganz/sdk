@@ -34,6 +34,7 @@ import nz.mega.sdk.MegaRequestListenerInterface;
 import nz.mega.sdk.MegaTransfer;
 import nz.mega.sdk.MegaTransferListenerInterface;
 import nz.mega.sdk.MegaUser;
+import nz.mega.sdk.MegaContactRequest;
 
 /**
  * A simple example implementation that demonstrates a CRUD (create, read,
@@ -446,6 +447,28 @@ public class CrudExample implements MegaRequestListenerInterface,
             this.wasSignalled = true;
             this.continueEvent.notify();
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaGlobalListenerInterface#onContactRequestsUpdate(nz.mega.sdk.MegaApiJava, java.util.ArrayList)
+     */
+    @Override
+    public void onContactRequestsUpdate(MegaApiJava api, ArrayList<MegaContactRequest> contactRequests) {
+        if (contactRequests != null && contactRequests.size() != 0) {
+            log.info("Contact request received (" + contactRequests.size() + ")");
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @see nz.mega.sdk.MegaGlobalListenerInterface#onAccountUpdate(nz.mega.sdk.MegaApiJava)
+     */
+    @Override
+    public void onAccountUpdate(MegaApiJava api) {
+        log.info("Account updated");
     }
 
     /**

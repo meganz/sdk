@@ -26,10 +26,27 @@
 #include "mega/gfx/qt.h"
 
 #include <QFileInfo>
+#include <QPainter>
+
+#ifdef HAVE_FFMPEG
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libswscale/swscale.h>
+#include <libavutil/avutil.h>
+#include <libavutil/mathematics.h>
+#include <libavutil/display.h>
+#include <libavutil/imgutils.h>
+}
+#endif
 
 namespace mega {
 
 QByteArray *GfxProcQT::formatstring = NULL;
+
+#ifdef HAVE_FFMPEG
+MUTEX_CLASS GfxProcQT::gfxMutex(false);
+#endif
 
 /************* EXIF STUFF **************/
 #define M_SOI   0xD8          // Start Of Image (beginning of datastream)
@@ -342,50 +359,89 @@ int GfxProcQT::processEXIF(QByteArray *data, int itemlen){
 }
 /************* END OF EXIF STUFF **************/
 
-
 /*GfxProc implementation*/
+GfxProcQT::GfxProcQT()
+{
+#ifdef HAVE_FFMPEG
+    gfxMutex.lock();
+    av_register_all();
+    avcodec_register_all();
+//    av_log_set_level(AV_LOG_VERBOSE);
+    gfxMutex.unlock();
+#endif
+    image = NULL;
+    orientation = -1;
+    isVideo = false;
+}
+
 bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
 {
 #ifdef _WIN32
     localname->append("", 1);
-    QString imagePath = QString::fromWCharArray((wchar_t *)localname->c_str());
-    if(imagePath.startsWith(QString::fromAscii("\\\\?\\")))
+    imagePath = QString::fromWCharArray((wchar_t *)localname->c_str());
+    if(imagePath.startsWith(QString::fromUtf8("\\\\?\\")))
         imagePath = imagePath.mid(4);
 #else
-    QString imagePath = QString::fromUtf8(localname->c_str());
+    imagePath = QString::fromUtf8(localname->c_str());
 #endif
 
-    image = readbitmapQT(w, h, orientation, imagePath);
+    image = readbitmapQT(w, h, orientation, isVideo, imagePath);
 
 #ifdef _WIN32
     localname->resize(localname->size()-1);
 #endif
 
-    return (image!=NULL);
+    return (image != NULL);
 }
 
 bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
 {
+    if (!image)
+    {
+        image = readbitmapQT(w, h, orientation, isVideo, imagePath);
+        if (!image)
+        {
+            return false;
+        }
+    }
+
     QImage result = resizebitmapQT(image, orientation, w, h, rw, rh);
+    if (isVideo)
+    {
+        delete image->device();
+    }
+    delete image;
+    image = NULL;
     if(result.isNull()) return false;
     jpegout->clear();
+
+    //Remove transparency
+    QImage finalImage(result.size(), QImage::Format_RGB32);
+    finalImage.fill(QColor(Qt::white).rgb());
+    QPainter painter(&finalImage);
+    painter.drawImage(0, 0, result);
 
     QByteArray ba;
     QBuffer buffer(&ba);
     buffer.open(QIODevice::WriteOnly);
-    result.save(&buffer, "JPG", 85);
+    finalImage.save(&buffer, "JPG", 85);
     jpegout->assign(ba.constData(), ba.size());
     return !!jpegout->size();
 }
 
 void GfxProcQT::freebitmap()
 {
+    if (image && isVideo)
+    {
+        delete image->device();
+    }
     delete image;
 }
 
 QImage GfxProcQT::createThumbnail(QString imagePath)
 {
     int w, h, orientation;
+    bool isVideo = false;
 
     QFileInfo info(imagePath);
     if(!info.exists())
@@ -395,17 +451,35 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
     if(!QString::fromUtf8(supportedformatsQT()).contains(ext, Qt::CaseInsensitive))
         return QImage();
 
-    QImageReader *image = readbitmapQT(w, h, orientation, imagePath);
+    QImageReader *image = readbitmapQT(w, h, orientation, isVideo, imagePath);
     if(!image)
         return QImage();
 
-    QImage result = GfxProcQT::resizebitmapQT(image, orientation, w, h, 120, 0);
+    QImage result = GfxProcQT::resizebitmapQT(image, orientation, w, h,
+            GfxProc::dimensions[GfxProc::THUMBNAIL][0],
+            GfxProc::dimensions[GfxProc::THUMBNAIL][1]);
+
+    if (isVideo)
+    {
+        delete image->device();
+    }
     delete image;
     return result;
 }
 
-QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, QString imagePath)
+QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, bool &isVideo, QString imagePath)
 {
+#ifdef HAVE_FFMPEG
+    QFileInfo info(imagePath);
+    QString ext = QString::fromUtf8(".%1.").arg(info.suffix()).toLower();
+    if (strstr(GfxProcQT::supportedformatsFfmpeg(), ext.toUtf8().constData()))
+    {
+        isVideo = true;
+        return readbitmapFfmpeg(w, h, orientation, imagePath);
+    }
+#endif
+
+    isVideo = false;
     QImageReader* image = new QImageReader(imagePath);
     QSize s = image->size();
     if(!s.isValid() || !s.width() || !s.height())
@@ -458,7 +532,12 @@ QImage GfxProcQT::resizebitmapQT(QImageReader *image, int orientation, int w, in
     }
 
     QImage result = image->read();
-    if(result.isNull()) return result;
+    if (result.isNull())
+    {
+        LOG_err << "Error reading image: " << image->errorString().toUtf8().constData();
+        return result;
+    }
+
     image->device()->seek(0);
 
     QTransform transform;
@@ -496,19 +575,332 @@ QImage GfxProcQT::resizebitmapQT(QImageReader *image, int orientation, int w, in
 
 const char *GfxProcQT::supportedformatsQT()
 {
-    if(!formatstring)
+    if (!formatstring)
     {
         formatstring = new QByteArray(".");
         QList<QByteArray> formats = QImageReader::supportedImageFormats();
         for(int i=0; i<formats.size(); i++)
             formatstring->append(QString::fromUtf8(formats[i]).toLower().toUtf8()).append(".");
+
+#ifdef HAVE_FFMPEG
+        formatstring->resize(formatstring->size() - 1);
+        formatstring->append(supportedformatsFfmpeg());
+#endif
     }
     return formatstring->constData();
 }
 
+#ifdef HAVE_FFMPEG
+
+#ifdef AV_CODEC_CAP_TRUNCATED
+#define CAP_TRUNCATED AV_CODEC_CAP_TRUNCATED
+#else
+#define CAP_TRUNCATED CODEC_CAP_TRUNCATED
+#endif
+
+const char *GfxProcQT::supportedformatsFfmpeg()
+{
+    return  ".264.265.3g2.3gp.3gpa.3gpp.3gpp2.mp3"
+            ".avi.dde.divx.evo.f4v.flv.gvi.h261.h263.h264.h265.hevc"
+            ".ismt.ismv.ivf.jpm.k3g.m1v.m2p.m2s.m2t.m2v.m4s.m4t.m4v.mac.mkv.mk3d"
+            ".mks.mov.mp1v.mp2v.mp4.mp4v.mpeg.mpg.mpgv.mpv.mqv.ogm.ogv"
+            ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
+}
+
+QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QString imagePath)
+{
+    // Open video file
+    AVFormatContext* formatContext = avformat_alloc_context();
+    if (avformat_open_input(&formatContext, imagePath.toUtf8().constData(), NULL, NULL))
+    {
+        LOG_warn << "Error opening video: " << imagePath;
+        return NULL;
+    }
+
+    // Get stream information
+    if (avformat_find_stream_info(formatContext, NULL))
+    {
+        LOG_warn << "Stream info not found: " << imagePath;
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    // Find first video stream type
+    AVStream *videoStream = NULL;
+    int videoStreamIdx = 0;
+    for (int i = 0; i < formatContext->nb_streams; i++)
+    {
+        if (formatContext->streams[i]->codec && formatContext->streams[i]->codec->codec_type == AVMediaType::AVMEDIA_TYPE_VIDEO)
+        {
+            videoStream = formatContext->streams[i];
+            videoStreamIdx = i;
+            break;
+        }
+    }
+
+    if (!videoStream)
+    {
+        LOG_warn << "Video stream not found: " << imagePath;
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    // Get codec context to determine video frame dimensions
+    AVCodecContext codecContext = *(videoStream->codec);
+    int width = codecContext.width;
+    int height = codecContext.height;
+    if (width <= 0 || height <= 0)
+    {
+        LOG_warn << "Invalid video dimensions: " << width << ", " << height;
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    if (codecContext.pix_fmt == AV_PIX_FMT_NONE)
+    {
+        LOG_warn << "Invalid pixel format: " << codecContext.pix_fmt;
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
+    AVPixelFormat targetPixelFormat = AVPixelFormat::AV_PIX_FMT_RGB24;
+    SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
+                                            width, height, targetPixelFormat,
+                                            SWS_FAST_BILINEAR, NULL, NULL, NULL);
+    if (!swsContext)
+    {
+        LOG_warn << "SWS Context not found: " << sourcePixelFormat;
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    // Find decoder for video stream
+    AVCodecID codecId = codecContext.codec_id;
+    AVCodec* decoder = avcodec_find_decoder(codecId);
+    if (!decoder)
+    {
+        LOG_warn << "Codec not found: " << codecId;
+        sws_freeContext(swsContext);
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    // Force seeking to key frames
+    formatContext->seek2any = false;
+    videoStream->skip_to_keyframe = true;
+    if (decoder->capabilities & CAP_TRUNCATED)
+    {
+        codecContext.flags |= CAP_TRUNCATED;
+    }
+
+    // Open codec
+    if (avcodec_open2(&codecContext, decoder, NULL) < 0)
+    {
+        LOG_warn << "Error opening codec: " << codecId;
+        sws_freeContext(swsContext);
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    //Allocate video frames
+    AVFrame* videoFrame = av_frame_alloc();
+    AVFrame* targetFrame = av_frame_alloc();
+    if (!videoFrame || !targetFrame)
+    {
+        LOG_warn << "Error allocating video frames";
+        if (videoFrame)
+        {
+            av_frame_free(&videoFrame);
+        }
+        if (targetFrame)
+        {
+            av_frame_free(&targetFrame);
+        }
+        sws_freeContext(swsContext);
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    targetFrame->format = targetPixelFormat;
+    targetFrame->width = width;
+    targetFrame->height = height;
+    if (av_image_alloc(targetFrame->data, targetFrame->linesize, targetFrame->width, targetFrame->height, targetPixelFormat, 32) < 0)
+    {
+        LOG_warn << "Error allocating frame";
+        av_frame_free(&videoFrame);
+        av_frame_free(&targetFrame);
+        avcodec_close(&codecContext);
+        sws_freeContext(swsContext);
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    // Calculation of seeking point. We need to rescale time units (seconds) to AVStream.time_base units to perform the seeking
+    // Timestamp in streams are measured in frames rather than seconds
+    //int64_t frametimestamp = (int64_t)(5 * AV_TIME_BASE);  // Seek five seconds from the beginning
+
+    int64_t seek_target = 0;
+    if (videoStream->duration != AV_NOPTS_VALUE)
+    {
+        seek_target = videoStream->duration / 5;
+    }
+    else
+    {
+        seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
+    }
+
+    if (!imagePath.endsWith(QString::fromUtf8(".mp3"), Qt::CaseInsensitive) && seek_target > 0
+            && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
+    {
+        LOG_warn << "Error seeking video";
+        av_frame_free(&videoFrame);
+        av_freep(&targetFrame->data[0]);
+        av_frame_free(&targetFrame);
+        avcodec_close(&codecContext);
+        sws_freeContext(swsContext);
+        avformat_close_input(&formatContext);
+        return NULL;
+    }
+
+    AVPacket packet;
+    av_init_packet(&packet);
+    packet.data = NULL;
+    packet.size = 0;
+
+    int decodedBytes;
+    int scalingResult;
+    int actualNumFrames = 0;
+    int frameExtracted  = 0;
+
+    // Read frames until succesfull decodification or reach limit of 220 frames
+    while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
+    {
+       if (packet.stream_index == videoStream->index)
+       {
+           decodedBytes = avcodec_decode_video2(&codecContext, videoFrame, &frameExtracted, &packet);
+           if (frameExtracted && decodedBytes >= 0)
+           {
+                if (sourcePixelFormat != codecContext.pix_fmt)
+                {
+                    LOG_warn << "Error: pixel format changed from " << sourcePixelFormat << " to " << codecContext.pix_fmt;
+                    av_packet_unref(&packet);
+                    av_frame_free(&videoFrame);
+                    avcodec_close(&codecContext);
+                    av_freep(&targetFrame->data[0]);
+                    av_frame_free(&targetFrame);
+                    sws_freeContext(swsContext);
+                    avformat_close_input(&formatContext);
+                    return NULL;
+                }
+
+                scalingResult = sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
+                                     0, codecContext.height, targetFrame->data, targetFrame->linesize);
+
+                if (scalingResult > 0)
+                {
+                    QImage image(width, height, QImage::Format_RGB888);
+                    if (avpicture_layout((AVPicture *)targetFrame, AV_PIX_FMT_RGB24,
+                                    width, height, image.bits(), image.byteCount()) <= 0)
+                    {
+                        LOG_warn << "Error copying frame";
+                        av_packet_unref(&packet);
+                        av_frame_free(&videoFrame);
+                        avcodec_close(&codecContext);
+                        av_freep(&targetFrame->data[0]);
+                        av_frame_free(&targetFrame);
+                        sws_freeContext(swsContext);
+                        avformat_close_input(&formatContext);
+                        return NULL;
+                    }
+
+                    QBuffer *buffer = new QBuffer();
+                    if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
+                    {
+                        LOG_warn << "Error extracting image";
+                        av_packet_unref(&packet);
+                        av_frame_free(&videoFrame);
+                        avcodec_close(&codecContext);
+                        av_freep(&targetFrame->data[0]);
+                        av_frame_free(&targetFrame);
+                        sws_freeContext(swsContext);
+                        avformat_close_input(&formatContext);
+                        return NULL;
+                    }
+
+                    orientation = ROTATION_UP;
+                    uint8_t* displaymatrix = av_stream_get_side_data(videoStream, AV_PKT_DATA_DISPLAYMATRIX, NULL);
+                    if (displaymatrix)
+                    {
+                        double rot = av_display_rotation_get((int32_t*) displaymatrix);
+                        if (!isnan(rot))
+                        {
+                            if (rot < -135 || rot > 135)
+                            {
+                                orientation = ROTATION_DOWN;
+                            }
+                            else if (rot < -45)
+                            {
+                                orientation = ROTATION_LEFT;
+                                width = codecContext.height;
+                                height = codecContext.width;
+                            }
+                            else if (rot > 45)
+                            {
+                                orientation = ROTATION_RIGHT;
+                                width = codecContext.height;
+                                height = codecContext.width;
+                            }
+                        }
+                    }
+
+                    w = width;
+                    h = height;
+                    buffer->seek(0);
+                    QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
+                    LOG_debug << "Video image ready";
+
+                    av_packet_unref(&packet);
+                    av_frame_free(&videoFrame);
+                    avcodec_close(&codecContext);
+                    av_freep(&targetFrame->data[0]);
+                    av_frame_free(&targetFrame);
+                    sws_freeContext(swsContext);
+                    avformat_close_input(&formatContext);
+                    return imageReader;
+                }
+           }
+
+           actualNumFrames++;
+       }
+
+       av_packet_unref(&packet);
+    }
+
+    LOG_warn << "Error reading frame";
+    av_packet_unref(&packet);
+    av_frame_free(&videoFrame);
+    avcodec_close(&codecContext);
+    av_freep(&targetFrame->data[0]);
+    av_frame_free(&targetFrame);
+    sws_freeContext(swsContext);
+    avformat_close_input(&formatContext);
+    return NULL;
+}
+
+#endif
+
 const char *GfxProcQT::supportedformats()
 {
     return supportedformatsQT();
+}
+
+const char *GfxProcQT::supportedvideoformats()
+{
+#ifdef HAVE_FFMPEG
+    return supportedformatsFfmpeg();
+#endif
+    return NULL;
 }
 
 } // namespace

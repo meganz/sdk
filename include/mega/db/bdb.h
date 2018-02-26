@@ -32,7 +32,7 @@ class MEGA_API BdbAccess : public DbAccess
     string dbpathprefix;
 
 public:
-    DbTable* open(FileSystemAccess*, string*);
+    DbTable* open(FileSystemAccess*, string*, bool = false);
 
     BdbAccess(string* = NULL);
     ~BdbAccess();

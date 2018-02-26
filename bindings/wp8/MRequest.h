@@ -24,6 +24,7 @@
 #include "MNode.h"
 #include "MAccountDetails.h"
 #include "MPricing.h"
+#include "MAchievementsDetails.h"
 
 #include "megaapi.h"
 
@@ -41,7 +42,7 @@ namespace mega
         TYPE_GET_PUBLIC_NODE, TYPE_GET_ATTR_FILE,
         TYPE_SET_ATTR_FILE, TYPE_GET_ATTR_USER,
         TYPE_SET_ATTR_USER, TYPE_RETRY_PENDING_CONNECTIONS,
-        TYPE_ADD_CONTACT, TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
+        TYPE_REMOVE_CONTACT, TYPE_CREATE_ACCOUNT,
         TYPE_CONFIRM_ACCOUNT,
         TYPE_QUERY_SIGNUP_LINK, TYPE_ADD_SYNC, TYPE_REMOVE_SYNC,
         TYPE_REMOVE_SYNCS, TYPE_PAUSE_TRANSFERS,
@@ -52,7 +53,20 @@ namespace mega
         TYPE_CREDIT_CARD_STORE, TYPE_UPGRADE_ACCOUNT, TYPE_CREDIT_CARD_QUERY_SUBSCRIPTIONS,
         TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
         TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
-        TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT
+        TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
+        TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
+        TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
+        TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
+        TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
+        TYPE_GET_CANCEL_LINK, TYPE_CONFIRM_CANCEL_LINK,
+        TYPE_GET_CHANGE_EMAIL_LINK, TYPE_CONFIRM_CHANGE_EMAIL_LINK,
+        TYPE_CHAT_UPDATE_PERMISSIONS, TYPE_CHAT_TRUNCATE, TYPE_CHAT_SET_TITLE, TYPE_SET_MAX_CONNECTIONS,
+        TYPE_PAUSE_TRANSFER, TYPE_MOVE_TRANSFER, TYPE_CHAT_PRESENCE_URL, TYPE_REGISTER_PUSH_NOTIFICATION,
+        TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
+        TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
+        TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
+        TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
+        TOTAL_OF_REQUEST_TYPES
     };
 
     public ref class MRequest sealed
@@ -78,7 +92,8 @@ namespace mega
         String^ getPrivateKey();
         int getAccess();
         String^ getFile();
-        MNode^ getPublicNode();
+        int getNumRetry();        
+        MNode^ getPublicMegaNode();
         int getParamType();
         String^ getText();
         uint64 getNumber();
@@ -86,7 +101,11 @@ namespace mega
         uint64 getTransferredBytes();
         uint64 getTotalBytes();
         MAccountDetails^ getMAccountDetails();
+        int getTransferTag();
+        int getNumDetails();
+        int getTag();
         MPricing^ getPricing();
+        MAchievementsDetails^ getMAchievementsDetails();
 
     private:
         MRequest(MegaRequest *megaRequest, bool cMemoryOwn);

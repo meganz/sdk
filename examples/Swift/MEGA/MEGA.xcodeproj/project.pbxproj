@@ -20,6 +20,8 @@
 		41AB404F1A52D66500E5E16E /* LoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41AB404D1A52D66500E5E16E /* LoginViewController.swift */; };
 		41ABAEA11A63DD410026CEAD /* ContactsTableViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */; };
 		41ABAEA31A63DD710026CEAD /* ContactTableViewCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */; };
+		41ABFDEF1CBB93F700CC9D71 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ABFDEE1CBB93F700CC9D71 /* AVFoundation.framework */; };
+		41ABFDF11CBB942D00CC9D71 /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ABFDF01CBB942D00CC9D71 /* CoreMedia.framework */; };
 		41B4A5B51A5E94B8008B6E73 /* Helper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B41A5E94B8008B6E73 /* Helper.swift */; };
 		41B4A5BA1A5EF067008B6E73 /* DetailsNodeInfoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */; };
 		41C346BC1B4C47C9002091F8 /* libMEGASDK.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 41C346BB1B4C47C9002091F8 /* libMEGASDK.a */; };
@@ -36,6 +38,20 @@
 		41F175A61A51F1AF00570E30 /* libc++.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A51A51F1AF00570E30 /* libc++.dylib */; };
 		41F175A81A51F1B700570E30 /* libz.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A71A51F1B700570E30 /* libz.dylib */; };
 		41F175AA1A51F1C200570E30 /* libsqlite3.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41F175A91A51F1C200570E30 /* libsqlite3.dylib */; };
+		A88EE20C1F0A62AF00AECF76 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2051F0A62AF00AECF76 /* libcares.a */; };
+		A88EE20D1F0A62AF00AECF76 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2061F0A62AF00AECF76 /* libcrypto.a */; };
+		A88EE20E1F0A62AF00AECF76 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2071F0A62AF00AECF76 /* libcryptopp.a */; };
+		A88EE20F1F0A62AF00AECF76 /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2081F0A62AF00AECF76 /* libcurl.a */; };
+		A88EE2101F0A62AF00AECF76 /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2091F0A62AF00AECF76 /* libssl.a */; };
+		A88EE2111F0A62AF00AECF76 /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE20A1F0A62AF00AECF76 /* libuv.a */; };
+		A88EE2121F0A62AF00AECF76 /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE20B1F0A62AF00AECF76 /* libsodium.a */; };
+		A88EE22D1F0A648600AECF76 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2261F0A648600AECF76 /* libcares.a */; };
+		A88EE22E1F0A648600AECF76 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2271F0A648600AECF76 /* libcrypto.a */; };
+		A88EE22F1F0A648600AECF76 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2281F0A648600AECF76 /* libcryptopp.a */; };
+		A88EE2301F0A648600AECF76 /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2291F0A648600AECF76 /* libcurl.a */; };
+		A88EE2311F0A648600AECF76 /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE22A1F0A648600AECF76 /* libsodium.a */; };
+		A88EE2321F0A648600AECF76 /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE22B1F0A648600AECF76 /* libssl.a */; };
+		A88EE2331F0A648600AECF76 /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE22C1F0A648600AECF76 /* libuv.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -56,6 +72,8 @@
 		41AB404D1A52D66500E5E16E /* LoginViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
 		41ABAEA01A63DD410026CEAD /* ContactsTableViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactsTableViewController.swift; sourceTree = "<group>"; };
 		41ABAEA21A63DD710026CEAD /* ContactTableViewCell.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContactTableViewCell.swift; sourceTree = "<group>"; };
+		41ABFDEE1CBB93F700CC9D71 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		41ABFDF01CBB942D00CC9D71 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		41B4A5B41A5E94B8008B6E73 /* Helper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Helper.swift; sourceTree = "<group>"; };
 		41B4A5B91A5EF067008B6E73 /* DetailsNodeInfoViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DetailsNodeInfoViewController.swift; path = ../CloudDrive/DetailsNodeInfoViewController.swift; sourceTree = "<group>"; };
 		41C346BB1B4C47C9002091F8 /* libMEGASDK.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libMEGASDK.a; path = "../../../bindings/ios/build/Debug-iphoneos/libMEGASDK.a"; sourceTree = "<group>"; };
@@ -76,6 +94,20 @@
 		41F175A51A51F1AF00570E30 /* libc++.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = "libc++.dylib"; path = "usr/lib/libc++.dylib"; sourceTree = SDKROOT; };
 		41F175A71A51F1B700570E30 /* libz.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libz.dylib; path = usr/lib/libz.dylib; sourceTree = SDKROOT; };
 		41F175A91A51F1C200570E30 /* libsqlite3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsqlite3.dylib; path = usr/lib/libsqlite3.dylib; sourceTree = SDKROOT; };
+		A88EE2051F0A62AF00AECF76 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libcares.a; sourceTree = "<group>"; };
+		A88EE2061F0A62AF00AECF76 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libcrypto.a; sourceTree = "<group>"; };
+		A88EE2071F0A62AF00AECF76 /* libcryptopp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libcryptopp.a; sourceTree = "<group>"; };
+		A88EE2081F0A62AF00AECF76 /* libcurl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libcurl.a; sourceTree = "<group>"; };
+		A88EE2091F0A62AF00AECF76 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libssl.a; sourceTree = "<group>"; };
+		A88EE20A1F0A62AF00AECF76 /* libuv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libuv.a; sourceTree = "<group>"; };
+		A88EE20B1F0A62AF00AECF76 /* libsodium.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libsodium.a; sourceTree = "<group>"; };
+		A88EE2261F0A648600AECF76 /* libcares.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcares.a; path = ../../../bindings/ios/3rdparty/lib/libcares.a; sourceTree = "<group>"; };
+		A88EE2271F0A648600AECF76 /* libcrypto.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcrypto.a; path = ../../../bindings/ios/3rdparty/lib/libcrypto.a; sourceTree = "<group>"; };
+		A88EE2281F0A648600AECF76 /* libcryptopp.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcryptopp.a; path = ../../../bindings/ios/3rdparty/lib/libcryptopp.a; sourceTree = "<group>"; };
+		A88EE2291F0A648600AECF76 /* libcurl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libcurl.a; path = ../../../bindings/ios/3rdparty/lib/libcurl.a; sourceTree = "<group>"; };
+		A88EE22A1F0A648600AECF76 /* libsodium.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsodium.a; path = ../../../bindings/ios/3rdparty/lib/libsodium.a; sourceTree = "<group>"; };
+		A88EE22B1F0A648600AECF76 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = ../../../bindings/ios/3rdparty/lib/libssl.a; sourceTree = "<group>"; };
+		A88EE22C1F0A648600AECF76 /* libuv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libuv.a; path = ../../../bindings/ios/3rdparty/lib/libuv.a; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -83,10 +115,26 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A88EE22D1F0A648600AECF76 /* libcares.a in Frameworks */,
+				A88EE22E1F0A648600AECF76 /* libcrypto.a in Frameworks */,
+				A88EE22F1F0A648600AECF76 /* libcryptopp.a in Frameworks */,
+				A88EE2301F0A648600AECF76 /* libcurl.a in Frameworks */,
+				A88EE2311F0A648600AECF76 /* libsodium.a in Frameworks */,
+				A88EE2321F0A648600AECF76 /* libssl.a in Frameworks */,
+				A88EE2331F0A648600AECF76 /* libuv.a in Frameworks */,
+				41ABFDF11CBB942D00CC9D71 /* CoreMedia.framework in Frameworks */,
+				41ABFDEF1CBB93F700CC9D71 /* AVFoundation.framework in Frameworks */,
+				A88EE2121F0A62AF00AECF76 /* libsodium.a in Frameworks */,
+				A88EE2101F0A62AF00AECF76 /* libssl.a in Frameworks */,
+				A88EE2111F0A62AF00AECF76 /* libuv.a in Frameworks */,
 				41C346BC1B4C47C9002091F8 /* libMEGASDK.a in Frameworks */,
 				41F175AA1A51F1C200570E30 /* libsqlite3.dylib in Frameworks */,
+				A88EE20E1F0A62AF00AECF76 /* libcryptopp.a in Frameworks */,
 				41F175A81A51F1B700570E30 /* libz.dylib in Frameworks */,
 				41F175A61A51F1AF00570E30 /* libc++.dylib in Frameworks */,
+				A88EE20D1F0A62AF00AECF76 /* libcrypto.a in Frameworks */,
+				A88EE20C1F0A62AF00AECF76 /* libcares.a in Frameworks */,
+				A88EE20F1F0A62AF00AECF76 /* libcurl.a in Frameworks */,
 				41F175A41A51F19F00570E30 /* libresolv.dylib in Frameworks */,
 				41F175A21A51F18B00570E30 /* MobileCoreServices.framework in Frameworks */,
 				41F175A01A51F17E00570E30 /* ImageIO.framework in Frameworks */,
@@ -233,6 +281,22 @@
 		41F175931A51E57C00570E30 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A88EE2261F0A648600AECF76 /* libcares.a */,
+				A88EE2271F0A648600AECF76 /* libcrypto.a */,
+				A88EE2281F0A648600AECF76 /* libcryptopp.a */,
+				A88EE2291F0A648600AECF76 /* libcurl.a */,
+				A88EE22A1F0A648600AECF76 /* libsodium.a */,
+				A88EE22B1F0A648600AECF76 /* libssl.a */,
+				A88EE22C1F0A648600AECF76 /* libuv.a */,
+				A88EE2051F0A62AF00AECF76 /* libcares.a */,
+				A88EE2061F0A62AF00AECF76 /* libcrypto.a */,
+				A88EE2071F0A62AF00AECF76 /* libcryptopp.a */,
+				A88EE2081F0A62AF00AECF76 /* libcurl.a */,
+				A88EE2091F0A62AF00AECF76 /* libssl.a */,
+				A88EE20A1F0A62AF00AECF76 /* libuv.a */,
+				A88EE20B1F0A62AF00AECF76 /* libsodium.a */,
+				41ABFDF01CBB942D00CC9D71 /* CoreMedia.framework */,
+				41ABFDEE1CBB93F700CC9D71 /* AVFoundation.framework */,
 				41C346BB1B4C47C9002091F8 /* libMEGASDK.a */,
 				41F175A91A51F1C200570E30 /* libsqlite3.dylib */,
 				41F175A71A51F1B700570E30 /* libz.dylib */,
@@ -274,11 +338,13 @@
 				CLASSPREFIX = "";
 				LastSwiftMigration = 0710;
 				LastSwiftUpdateCheck = 0710;
-				LastUpgradeCheck = 0610;
+				LastUpgradeCheck = 0730;
 				ORGANIZATIONNAME = "Mega Limited";
 				TargetAttributes = {
 					41F175681A51E22500570E30 = {
 						CreatedOnToolsVersion = 6.1.1;
+						DevelopmentTeam = T9RH74Y7L9;
+						LastSwiftMigration = 0830;
 					};
 				};
 			};
@@ -373,7 +439,9 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
+				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -388,7 +456,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -416,6 +484,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = YES;
+				ENABLE_BITCODE = NO;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
@@ -425,7 +494,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 8.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -437,12 +506,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = T9RH74Y7L9;
 				INFOPLIST_FILE = MEGA/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "nz.mega.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
+				SWIFT_VERSION = 3.0;
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
 			};
 			name = Debug;
@@ -451,12 +526,18 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				DEVELOPMENT_TEAM = T9RH74Y7L9;
 				INFOPLIST_FILE = MEGA/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				LIBRARY_SEARCH_PATHS = "$(inherited)";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "nz.mega.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/MEGA/MEGA-Bridging-Header.h";
+				SWIFT_VERSION = 3.0;
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include";
 			};
 			name = Release;

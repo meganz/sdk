@@ -39,7 +39,7 @@ public:
     void add(pnode_t, pnode_t, int);
     void add(NodeCore*, pnode_t, int, const byte* = NULL, int = 0);
 
-    void get(Command*);
+    void get(Command*, bool skiphandles = false);
 };
 } // namespace
 

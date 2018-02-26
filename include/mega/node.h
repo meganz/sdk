@@ -53,10 +53,12 @@ struct MEGA_API NodeCore
 // new node for putnodes()
 struct MEGA_API NewNode : public NodeCore
 {
-    static const int UPLOADTOKENLEN = 27;
+    static const int OLDUPLOADTOKENLEN = 27;
+    static const int UPLOADTOKENLEN = 36;
 
     newnodesource_t source;
 
+    handle ovhandle;
     handle uploadhandle;
     byte uploadtoken[UPLOADTOKENLEN];
 
@@ -70,6 +72,7 @@ struct MEGA_API NewNode : public NodeCore
         syncid = UNDEF;
         added = false;
         source = NEW_NODE;
+        ovhandle = UNDEF;
         uploadhandle = UNDEF;
         localnode = NULL;
     }
@@ -93,7 +96,7 @@ struct MEGA_API PublicLink
 };
 
 // filesystem node
-struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint, std::enable_shared_from_this<Node>
+struct MEGA_API Node : public NodeCore, FileFingerprint, std::enable_shared_from_this<Node>
 {
     MegaClient* client;
 
@@ -129,6 +132,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint, std::enable_s
 
     // check presence of file attribute
     int hasfileattribute(fatype) const;
+    static int hasfileattribute(const string *fileattrstring, fatype);
 
     // decrypt node attribute string
     static byte* decryptattr(SymmCipher*, const char*, int);
@@ -161,6 +165,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint, std::enable_s
         bool outshares : 1;
         bool pendingshares : 1;
         bool parent : 1;
+        bool publiclink : 1;
     } changed;
     
     void setkey(const byte* = NULL);
@@ -199,6 +204,8 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint, std::enable_s
     // handle of public link for the node
     PublicLink *plink;
 
+    void setpubliclink(handle, m_time_t, bool);
+
     bool serialize(string*);
     static pnode_t unserialize(MegaClient*, string*, node_vector*);
 
@@ -207,7 +214,7 @@ struct MEGA_API Node : public NodeCore, Cachable, FileFingerprint, std::enable_s
 };
 
 #ifdef ENABLE_SYNC
-struct MEGA_API LocalNode : public File, Cachable
+struct MEGA_API LocalNode : public File
 {
     class Sync* sync;
 
@@ -221,7 +228,7 @@ struct MEGA_API LocalNode : public File, Cachable
     localnode_map children;
 
     // for botched filesystems with legacy secondary ("short") names
-    string slocalname;
+    string *slocalname;
     localnode_map schildren;
 
     // local filesystem node ID (inode...) for rename/move detection
@@ -349,6 +356,9 @@ public:
     void clear();
 
     void freespace();
+
+    // reset `changed` struct of nodes in cache
+    void resetchanges();
 
     NodesCache(MegaClient *client);
     ~NodesCache();

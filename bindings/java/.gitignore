@@ -30,4 +30,6 @@ nz/mega/sdk/megaJNI.java
 nz/mega/sdk/MegaUserList.java
 nz/mega/sdk/MegaContactRequest.java
 nz/mega/sdk/MegaContactRequestList.java
+nz/mega/sdk/MegaInputStream.java
+nz/mega/sdk/MegaStringList.java
 nz/mega/sdk/SWIGTYPE_p_std__string.java

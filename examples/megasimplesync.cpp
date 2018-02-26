@@ -504,7 +504,6 @@ int main(int argc, char *argv[])
     if (argc < 3)
     {
         LOG_info << "Usage: " << argv[0] << " [local folder] [remote folder]";
-        LOG_info << "Please set both MEGA_EMAIL and MEGA_PWD (password) env variables!";
         LOG_info << "   (set MEGA_DEBUG to 1 or 2 to see debug output.";
         return 1;
     }
@@ -519,8 +518,17 @@ int main(int argc, char *argv[])
 
     // create MegaClient, providing our custom MegaApp and Waiter classes
     client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
-        NULL, NULL,
-        "megasimplesync", "megaclisync");
+                        #ifdef DBACCESS_CLASS
+                                                    new DBACCESS_CLASS,
+                        #else
+                                                    NULL,
+                        #endif
+                        #ifdef GFX_CLASS
+                                                    new GFX_CLASS,
+                        #else
+                                                    NULL,
+                        #endif
+                            "N9tSBJDC", "megasimplesync");
 
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))
@@ -528,7 +536,6 @@ int main(int argc, char *argv[])
         if (!strcmp(getenv("MEGA_DEBUG"), "1") || !strcmp(getenv("MEGA_DEBUG"), "2"))
         {
             SimpleLogger::setLogLevel(logDebug);
-            SimpleLogger::setOutputSettings(logDebug, true, true, true);
         }
     }
 

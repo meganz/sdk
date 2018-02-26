@@ -23,6 +23,7 @@
 #include "mega/utils.h"
 #include "mega/base64.h"
 #include "mega/logging.h"
+#include "mega/megaapp.h"
 
 namespace mega {
 DbTable::DbTable(SymmCipher *key)
@@ -142,6 +143,8 @@ bool DbTable::putuser(User * u)
         // The SDK creates a User during share's creation, even if the target email is not a contact yet
         // The User should not be written into DB as a user, but as a pending contact
 
+        //Don't return false if there are errors in the serialization
+        //to let the SDK continue and save the rest of records
         return true;
     }
 
@@ -181,6 +184,14 @@ bool DbTable::delpcr(PendingContactRequest *pcr)
     SymmCipher::xorblock((byte*)&id, hkey, HANDLEKEYLENGTH);
 
     return delpcr(id);
+}
+
+bool DbTable::deluser(User *user)
+{
+    handle id = user->userhandle;
+    SymmCipher::xorblock((byte*)&id, hkey, HANDLEKEYLENGTH);
+
+    return deluser(id);
 }
 
 bool DbTable::getnode(handle h, string* data)
@@ -256,6 +267,11 @@ bool DbTable::getnumchildfolders(handle ph, int *count)
     SymmCipher::xorblock((byte*)&ph, phkey, HANDLEKEYLENGTH);
 
     return getnumchildfoldersquery(ph, count);
+}
+
+bool DbTable::gettotalnodes(long long *count)
+{
+    return getnumtotalnodes(count);
 }
 
 handle_vector * DbTable::gethandleschildren(handle ph)
@@ -339,6 +355,28 @@ handle_vector *DbTable::gethandlespendingshares(handle ph)
     }
 
     return hshares;
+}
+
+handle_vector *DbTable::gethandlesfingerprint(string *fingerprint)
+{
+    handle_vector *hnodes = new handle_vector;
+
+    string fp;
+    if(fingerprint)
+    {
+        PaddedCBC::encrypt(&fp, key);
+    }
+
+    rewindhandlesfingerprint(&fp);
+
+    handle h;
+    while (nexthandle(&h))
+    {
+        SymmCipher::xorblock((byte*)&h, hkey, HANDLEKEYLENGTH);
+        hnodes->push_back(h);
+    }
+
+    return hnodes;
 }
 
 void DbTable::encrypthandle(handle h, string *hstring)

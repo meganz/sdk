@@ -34,6 +34,10 @@
  #define MEGA_API
 #endif
 
+// it needs to be reviewed that serialization/unserialization is not relying on this
+typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
+// if your build fails here, please contact MEGA developers
+
 // platform-specific includes and defines
 #ifdef _WIN32
 #include "mega/win32/megasys.h"
@@ -47,15 +51,19 @@ typedef int64_t m_off_t;
 // opaque filesystem fingerprint
 typedef uint64_t fsfp_t;
 
+#if USE_CRYPTOPP && (CRYPTOPP_VERSION >= 600) && (__cplusplus >= 201103L)
+    using byte = CryptoPP::byte;
+#else
+    typedef unsigned char byte;
+#endif
+
 #ifdef USE_CRYPTOPP
 #include "mega/crypto/cryptopp.h"
 #else
 #include "megacrypto.h"
 #endif
 
-#ifdef USE_SODIUM
 #include "mega/crypto/sodium.h"
-#endif
 
 #ifdef USE_QT
 #include "mega/thread/qtthread.h"
@@ -74,7 +82,7 @@ using namespace std;
 struct AttrMap;
 class BackoffTimer;
 class Command;
-class CommandLoadBalancing;
+class CommandPubKeyRequest;
 struct DirectRead;
 struct DirectReadNode;
 struct DirectReadSlot;
@@ -84,6 +92,7 @@ struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
 struct HttpReq;
+struct GenericHttpReq;
 struct HttpReqCommandPutFA;
 struct LocalNode;
 class MegaClient;
@@ -115,6 +124,11 @@ typedef CppThread MegaThread;
 typedef CppMutex MegaMutex;
 #endif
 
+class TransferList;
+struct Achievement;
+struct AchievementsDetails;
+struct AccountDetails;
+
 #define EOO 0
 
 typedef int64_t m_time_t;
@@ -129,9 +143,11 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
+
+typedef enum { METHOD_POST, METHOD_GET, METHOD_NONE} httpmethod_t;
 
 typedef enum { REQ_BINARY, REQ_JSON } contenttype_t;
 
@@ -141,7 +157,11 @@ typedef enum { NEW_NODE, NEW_PUBLIC, NEW_UPLOAD } newnodesource_t;
 // file chunk MAC
 struct ChunkMAC
 {
+    ChunkMAC() : offset(0), finished(false) { }
+
     byte mac[SymmCipher::BLOCKSIZE];
+    unsigned int offset;
+    bool finished;
 };
 
 // file chunk macs
@@ -177,7 +197,8 @@ typedef enum ErrorCodes
     API_EREAD = -21,                /**< File could not be read from (or changed
                                          unexpectedly during reading). */
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
-    API_ESSL = -23                  ///< SSL verification failed
+    API_ESSL = -23,                 ///< SSL verification failed
+    API_EGOINGOVERQUOTA = -24       ///< Not enough quota
 } error;
 
 // returned by loggedin()
@@ -244,7 +265,7 @@ typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 // contact visibility:
 // HIDDEN - not shown
 // VISIBLE - shown
-typedef enum { VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE, ME } visibility_t;
+typedef enum { VISIBILITY_UNKNOWN = -1, HIDDEN = 0, VISIBLE = 1, INACTIVE = 2, BLOCKED = 3 } visibility_t;
 
 typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 
@@ -254,7 +275,7 @@ typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
 typedef enum { SYNC_FAILED = -2, SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE } syncstate_t;
 
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
-               SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY } syncdel_t;
+               SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
 
 typedef vector<LocalNode*> localnode_vector;
 
@@ -288,6 +309,17 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 
 // map a FileFingerprint to the transfer for that FileFingerprint
 typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+
+typedef deque<Transfer*> transfer_list;
+
+// map a request tag with pending dbids of transfers and files
+typedef map<int, vector<uint32_t> > pendingdbid_map;
+
+// map a request tag with a pending dns request
+typedef map<int, GenericHttpReq*> pendinghttp_map;
+
+// map a request tag with pending paths of temporary files
+typedef map<int, vector<string> > pendingfiles_map;
 
 // map an upload handle to the corresponding transer
 typedef map<handle, Transfer*> handletransfer_map;
@@ -340,7 +372,7 @@ typedef map<handle, FileAttributeFetch*> faf_map;
 typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
-typedef enum { GET, PUT } direction_t;
+typedef enum { GET = 0, PUT, API, NONE } direction_t;
 
 typedef set<pair<int, handle> > fareq_set;
 
@@ -373,6 +405,10 @@ typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
 
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
+typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
+               TRANSFERSTATE_RETRYING, TRANSFERSTATE_COMPLETING, TRANSFERSTATE_COMPLETED,
+               TRANSFERSTATE_CANCELLED, TRANSFERSTATE_FAILED } transferstate_t;
+
 struct Notification
 {
     dstime timestamp;
@@ -393,35 +429,106 @@ typedef map<handle, node_list::iterator> hnode_map;
 // maps fingerprints to cache entries in double-linked list
 typedef map<string, node_list::iterator> fpnode_map;
 
+// Type-Value (for user attributes)
+typedef vector<string> string_vector;
+typedef map<string, string> string_map;
+typedef string_map TLV_map;
+
+
+// user attribute types
+typedef enum {
+    ATTR_UNKNOWN = -1,
+    ATTR_AVATAR = 0,            // public - char array - non-versioned
+    ATTR_FIRSTNAME = 1,         // public - char array - non-versioned
+    ATTR_LASTNAME = 2,          // public - char array - non-versioned
+    ATTR_AUTHRING = 3,          // private - byte array
+    ATTR_LAST_INT = 4,          // private - byte array
+    ATTR_ED25519_PUBK = 5,      // public - byte array - versioned
+    ATTR_CU25519_PUBK = 6,      // public - byte array - versioned
+    ATTR_KEYRING = 7,           // private - byte array - versioned
+    ATTR_SIG_RSA_PUBK = 8,      // public - byte array - versioned
+    ATTR_SIG_CU255_PUBK = 9,    // public - byte array - versioned
+    ATTR_COUNTRY = 10,          // public - char array - non-versioned
+    ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
+    ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
+    ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
+    ATTR_LANGUAGE = 14,         // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_PWD_REMINDER = 15,     // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_DISABLE_VERSIONS = 16  // private, non-encrypted - char array in B64 - non-versioned
+} attr_t;
+typedef map<attr_t, string> userattr_map;
+
+typedef enum {
+
+    AES_CCM_12_16 = 0x00,
+    AES_CCM_10_16 = 0x01,
+    AES_CCM_10_08 = 0x02,
+    AES_GCM_12_16_BROKEN = 0x03, // Same as 0x00 (due to a legacy bug)
+    AES_GCM_10_08_BROKEN = 0x04, // Same as 0x02 (due to a legacy bug)
+    AES_GCM_12_16 = 0x10,
+    AES_GCM_10_08 = 0x11
+
+} encryptionsetting_t;
+
+typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
+
 #ifdef ENABLE_CHAT
-typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_RW = 1, PRIV_FULL = 2, PRIV_OPERATOR = 3 } privilege_t;
+typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
-struct TextChat
+typedef map <handle, set <handle> > attachments_map;
+struct TextChat : public Cachable
 {
+    enum {
+        FLAG_OFFSET_ARCHIVE = 0
+    };
+
     handle id;
     privilege_t priv;
-    string url;
     int shard;
     userpriv_vector *userpriv;
     bool group;
+    string title;   // byte array
+    handle ou;
+    m_time_t ts;     // creation time
+    attachments_map attachedNodes;
+    byte flags; // currently only used for "archive" flag at first bit
 
-    TextChat()
-    {
-        id = UNDEF;
-        priv = PRIV_UNKNOWN;
-        shard = -1;
-        userpriv = NULL;
-        group = false;
-    }
+    int tag;    // source tag, to identify own changes
 
-    ~TextChat()
+    TextChat();
+    ~TextChat();
+
+    bool serialize(string *d);
+    static TextChat* unserialize(class MegaClient *client, string *d);
+
+    void setTag(int tag);
+    int getTag();
+    void resetTag();
+
+    struct
     {
-        delete userpriv;
-    }
+        bool attachments : 1;
+        bool flags : 1;
+    } changed;
+
+    // return false if failed
+    bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
+    bool setFlag(bool value, uint8_t offset = 0xFF);
+    bool setFlags(byte newFlags);
+    bool isFlagSet(uint8_t offset) const;
+
 };
 typedef vector<TextChat*> textchat_vector;
+typedef map<handle, TextChat*> textchat_map;
 #endif
+
+typedef enum { RECOVER_WITH_MASTERKEY = 9, RECOVER_WITHOUT_MASTERKEY = 10, CANCEL_ACCOUNT = 21, CHANGE_EMAIL = 12 } recovery_t;
+
+typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED = 2, EMAIL_FULLY_ACCEPTED = 3 } emailstatus_t;
+
+typedef unsigned int achievement_class_id;
+typedef map<achievement_class_id, Achievement> achievements_map;
 
 } // namespace
 

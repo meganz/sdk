@@ -75,6 +75,7 @@ void TreeProcDU::proc(MegaClient*, pnode_t n)
 void TreeProcDel::proc(MegaClient* client, pnode_t n)
 {
     n->changed.removed = true;
+    n->tag = client->reqtag;
     client->notifynode(n);
 }
 

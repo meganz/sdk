@@ -24,7 +24,6 @@
 
 #include "types.h"
 #include "node.h"
-#include "megaclient.h"
 #include "account.h"
 #include "http.h"
 
@@ -90,10 +89,14 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     handle th;
     fatype type;
     string* data;
+    m_off_t progressreported;
 
     void procresult();
 
-    HttpReqCommandPutFA(MegaClient*, handle, fatype, string*);
+    // progress information
+    virtual m_off_t transferred(MegaClient*);
+
+    HttpReqCommandPutFA(MegaClient*, handle, fatype, string*, bool);
     ~HttpReqCommandPutFA();
 };
 
@@ -104,7 +107,7 @@ class MEGA_API CommandGetFA : public Command
 public:
     void procresult();
 
-    CommandGetFA(int, handle, bool);
+    CommandGetFA(MegaClient *client, int, handle);
 };
 
 class MEGA_API CommandLogin : public Command
@@ -147,6 +150,14 @@ public:
     CommandResumeEphemeralSession(MegaClient*, handle, const byte*, int);
 };
 
+class MEGA_API CommandWhyAmIblocked : public Command
+{
+public:
+    void procresult();
+
+    CommandWhyAmIblocked(MegaClient*);
+};
+
 class MEGA_API CommandSendSignupLink : public Command
 {
 public:
@@ -181,33 +192,82 @@ public:
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
 };
 
-// invite contact/set visibility
-class MEGA_API CommandUserRequest : public Command
+// set visibility
+class MEGA_API CommandRemoveContact : public Command
 {
+    string email;
+    visibility_t v;
+
 public:
     void procresult();
 
-    CommandUserRequest(MegaClient*, const char*, visibility_t);
+    CommandRemoveContact(MegaClient*, const char*, visibility_t);
+};
+
+// set user attributes with version
+class MEGA_API CommandPutMultipleUAVer : public Command
+{
+    userattr_map attrs;  // attribute values
+
+public:
+    CommandPutMultipleUAVer(MegaClient*, const userattr_map *attrs, int);
+
+    void procresult();
+};
+
+// set user attributes with version
+class MEGA_API CommandPutUAVer : public Command
+{
+    attr_t at;  // attribute type
+    string av;  // attribute value
+
+public:
+    CommandPutUAVer(MegaClient*, attr_t, const byte*, unsigned, int);
+
+    void procresult();
 };
 
 // set user attributes
 class MEGA_API CommandPutUA : public Command
 {
+    attr_t at;  // attribute type
+    string av;  // attribute value
+
 public:
-    CommandPutUA(MegaClient*, const char*, const byte*, unsigned);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int);
 
     void procresult();
 };
 
 class MEGA_API CommandGetUA : public Command
 {
-    User* user;
-    string attributename;
+    string uid;
+    attr_t at;  // attribute type
 
 public:
-    CommandGetUA(MegaClient*, const char*, const char*);
+    CommandGetUA(MegaClient*, const char*, attr_t, int);
 
     void procresult();
+};
+
+#ifdef DEBUG
+class MEGA_API CommandDelUA : public Command
+{
+    string an;
+
+public:
+    CommandDelUA(MegaClient*, const char*);
+
+    void procresult();
+};
+#endif
+
+class MEGA_API CommandGetUserEmail : public Command
+{
+public:
+    void procresult();
+
+    CommandGetUserEmail(MegaClient*, const char *uid);
 };
 
 // reload nodes/shares/contacts
@@ -216,7 +276,7 @@ class MEGA_API CommandFetchNodes : public Command
 public:
     void procresult();
 
-    CommandFetchNodes(MegaClient*);
+    CommandFetchNodes(MegaClient*, bool nocache = false);
 };
 
 // update own node keys
@@ -242,7 +302,8 @@ public:
 class MEGA_API CommandMoveNode : public Command
 {
     handle h;
-    handle pp;
+    handle pp;  // previous parent
+    handle np;  // new parent
     bool syncop;
     syncdel_t syncdel;
 
@@ -265,7 +326,15 @@ class MEGA_API CommandDelNode : public Command
 public:
     void procresult();
 
-    CommandDelNode(MegaClient*, handle);
+    CommandDelNode(MegaClient*, handle, bool = false);
+};
+
+class MEGA_API CommandDelVersions : public Command
+{
+public:
+    void procresult();
+
+    CommandDelVersions(MegaClient*);
 };
 
 class MEGA_API CommandKillSessions : public Command
@@ -293,6 +362,7 @@ class MEGA_API CommandPubKeyRequest : public Command
 
 public:
     void procresult();
+    void invalidateUser();
 
     CommandPubKeyRequest(MegaClient*, User*);
 };
@@ -305,20 +375,21 @@ public:
     void cancel();
     void procresult();
 
-    CommandDirectRead(DirectReadNode*);
+    CommandDirectRead(MegaClient *client, DirectReadNode*);
 };
 
 class MEGA_API CommandGetFile : public Command
 {
     TransferSlot* tslot;
     handle ph;
+    bool priv;
     byte filekey[FILENODEKEYLENGTH];
 
 public:
     void cancel();
     void procresult();
 
-    CommandGetFile(TransferSlot*, byte*, handle, bool, const char* = NULL);
+    CommandGetFile(MegaClient *client, TransferSlot*, byte*, handle, bool, const char* = NULL, const char* = NULL);
 };
 
 class MEGA_API CommandPutFile : public Command
@@ -329,7 +400,7 @@ public:
     void cancel(void);
     void procresult();
 
-    CommandPutFile(TransferSlot*, int);
+    CommandPutFile(MegaClient *client, TransferSlot*, int);
 };
 
 class MEGA_API CommandAttachFA : public Command
@@ -340,7 +411,13 @@ class MEGA_API CommandAttachFA : public Command
 public:
     void procresult();
 
+    // use this one for attribute blobs 
     CommandAttachFA(handle, fatype, handle, int);
+
+    // use this one for numeric 64 bit attributes (which must be pre-encrypted with XXTEA)
+    // multiple attributes can be added at once, encryptedAttributes format "<N>*<attrib>/<M>*<attrib>"
+    // only the fatype specified will be notified back to the app
+    CommandAttachFA(handle, fatype, const std::string& encryptedAttributes, int);
 };
 
 
@@ -396,6 +473,7 @@ public:
 class MEGA_API CommandSetPendingContact : public Command
 {
     opcactions_t action;
+    string temail;  // target email
 
 public:
     void procresult();
@@ -421,6 +499,14 @@ public:
     void procresult();
 
     CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool);
+};
+
+class MEGA_API CommandQueryTransferQuota : public Command
+{
+public:
+    void procresult();
+
+    CommandQueryTransferQuota(MegaClient*, m_off_t size);
 };
 
 class MEGA_API CommandGetUserTransactions : public Command
@@ -456,6 +542,7 @@ public:
 class MEGA_API CommandSetPH : public Command
 {
     handle h;
+    m_time_t ets;
 
 public:
     void procresult();
@@ -506,16 +593,6 @@ public:
     void procresult();
 
     CommandReportEvent(MegaClient*, const char*, const char*);
-};
-
-class MEGA_API CommandLoadBalancing : public Command
-{
-public:
-    string service;
-
-    void procresult();
-
-    CommandLoadBalancing(MegaClient*, const char*);
 };
 
 class MEGA_API CommandSubmitPurchaseReceipt : public Command
@@ -600,11 +677,91 @@ public:
     CommandCleanRubbishBin(MegaClient*);
 };
 
+class MEGA_API CommandGetRecoveryLink : public Command
+{
+public:
+    void procresult();
+
+    CommandGetRecoveryLink(MegaClient*, const char *, int);
+};
+
+class MEGA_API CommandQueryRecoveryLink : public Command
+{
+public:
+    void procresult();
+
+    CommandQueryRecoveryLink(MegaClient*, const char*);
+};
+
+class MEGA_API CommandGetPrivateKey : public Command
+{
+public:
+    void procresult();
+
+    CommandGetPrivateKey(MegaClient*, const char*);
+};
+
+class MEGA_API CommandConfirmRecoveryLink : public Command
+{
+public:
+    void procresult();
+
+    CommandConfirmRecoveryLink(MegaClient*, const char*, uint64_t, const byte*, const byte*);
+};
+
+class MEGA_API CommandConfirmCancelLink : public Command
+{
+public:
+    void procresult();
+
+    CommandConfirmCancelLink(MegaClient *, const char *);
+};
+
+class MEGA_API CommandValidatePassword : public Command
+{
+public:
+    void procresult();
+
+    CommandValidatePassword(MegaClient*, const char*, uint64_t);
+};
+
+class MEGA_API CommandGetEmailLink : public Command
+{
+public:
+    void procresult();
+
+    CommandGetEmailLink(MegaClient*, const char*, int);
+};
+
+class MEGA_API CommandConfirmEmailLink : public Command
+{
+    string email;
+    bool replace;
+public:
+    void procresult();
+
+    CommandConfirmEmailLink(MegaClient*, const char*, const char *, uint64_t, bool);
+};
+
+class MEGA_API CommandGetVersion : public Command
+{
+public:
+    void procresult();
+
+    CommandGetVersion(MegaClient*, const char*);
+};
+
+class MEGA_API CommandGetLocalSSLCertificate : public Command
+{
+public:
+    void procresult();
+
+    CommandGetLocalSSLCertificate(MegaClient*);
+};
 
 #ifdef ENABLE_CHAT
 class MEGA_API CommandChatCreate : public Command
 {
-    MegaClient *client;
     userpriv_vector *chatPeers;
 
 public:
@@ -613,38 +770,32 @@ public:
     CommandChatCreate(MegaClient*, bool group, const userpriv_vector*);
 };
 
-class MEGA_API CommandChatFetch : public Command
-{
-    MegaClient *client;
-public:
-    void procresult();
-
-    CommandChatFetch(MegaClient*);
-};
-
 class MEGA_API CommandChatInvite : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle uh;
+    privilege_t priv;
+    string title;
 
 public:
     void procresult();
 
-    CommandChatInvite(MegaClient*, handle, const char *, privilege_t);
+    CommandChatInvite(MegaClient*, handle, handle uh, privilege_t, const char *);
 };
 
 class MEGA_API CommandChatRemove : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle uh;
+
 public:
     void procresult();
 
-    CommandChatRemove(MegaClient*, handle, const char * = NULL);
+    CommandChatRemove(MegaClient*, handle, handle uh);
 };
 
 class MEGA_API CommandChatURL : public Command
 {
-    MegaClient *client;
-
 public:
     void procresult();
 
@@ -653,7 +804,9 @@ public:
 
 class MEGA_API CommandChatGrantAccess : public Command
 {
-    MegaClient *client;
+    handle chatid;
+    handle h;
+    handle uh;
 
 public:
     void procresult();
@@ -662,16 +815,110 @@ public:
 };
 
 class MEGA_API CommandChatRemoveAccess : public Command
-{
-    MegaClient *client;
+{    
+    handle chatid;
+    handle h;
+    handle uh;
 
 public:
     void procresult();
 
     CommandChatRemoveAccess(MegaClient*, handle, handle, const char *);
 };
+
+class MEGA_API CommandChatUpdatePermissions : public Command
+{
+    handle chatid;
+    handle uh;
+    privilege_t priv;
+
+public:
+    void procresult();
+
+    CommandChatUpdatePermissions(MegaClient*, handle, handle, privilege_t);
+};
+
+class MEGA_API CommandChatTruncate : public Command
+{
+    handle chatid;
+
+public:
+    void procresult();
+
+    CommandChatTruncate(MegaClient*, handle, handle);
+};
+
+class MEGA_API CommandChatSetTitle : public Command
+{
+    handle chatid;
+    string title;
+
+public:
+    void procresult();
+
+    CommandChatSetTitle(MegaClient*, handle, const char *);
+};
+
+class MEGA_API CommandChatPresenceURL : public Command
+{
+
+public:
+    void procresult();
+
+    CommandChatPresenceURL(MegaClient*);
+};
+
+class MEGA_API CommandRegisterPushNotification : public Command
+{
+public:
+    void procresult();
+
+    CommandRegisterPushNotification(MegaClient*, int, const char*);
+};
+
+class MEGA_API CommandArchiveChat : public Command
+{
+public:
+    void procresult();
+
+    CommandArchiveChat(MegaClient*, handle chatid, bool archive);
+
+protected:
+    handle mChatid;
+    bool mArchive;
+};
+
 #endif
 
+class MEGA_API CommandGetMegaAchievements : public Command
+{
+    AchievementsDetails* details;
+public:
+    void procresult();
+
+    CommandGetMegaAchievements(MegaClient*, AchievementsDetails *details, bool registered_user = true);
+};
+
+class MEGA_API CommandGetWelcomePDF : public Command
+{
+public:
+    void procresult();
+
+    CommandGetWelcomePDF(MegaClient*);
+};
+
+
+class MEGA_API CommandMediaCodecs : public Command
+{
+public:
+    typedef void(*Callback)(MegaClient* client, int codecListVersion);
+    void procresult();
+
+    CommandMediaCodecs(MegaClient*, Callback );
+
+private:
+    Callback callback;
+};
 
 } // namespace
 

@@ -29,17 +29,29 @@
 #include "mega/base64.h"
 
 namespace mega {
+
+const int Sync::SCANNING_DELAY_DS = 5;
+const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
+const int Sync::FILE_UPDATE_DELAY_DS = 30;
+const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
+const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
+
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
-           string* clocaldebris, pnode_t remotenode, fsfp_t cfsfp, bool cinshare, int ctag)
+           string* clocaldebris, pnode_t remotenode, fsfp_t cfsfp, bool cinshare, int ctag, void *cappdata)
 {
+    isnetwork = false;
     client = cclient;
     tag = ctag;
     inshare = cinshare;
+    appData = cappdata;
     errorcode = API_OK;
     tmpfa = NULL;
     initializing = true;
+    updatedfilesize = ~0;
+    updatedfilets = 0;
+    updatedfileinitialts = 0;
 
     localbytes = 0;
     localnodes[FILENODE] = 0;
@@ -56,7 +68,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         debris = cdebris;
         client->fsaccess->path2local(&debris, &localdebris);
 
-        dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
+        dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
 
         localdebris.insert(0, client->fsaccess->localseparator);
         localdebris.insert(0, *crootpath);
@@ -66,8 +78,9 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify = client->fsaccess->newdirnotify(crootpath, &localdebris);
+        dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
     }
+    dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
     if (cfsfp)
@@ -286,6 +299,13 @@ void Sync::changestate(syncstate_t newstate)
     {
         client->app->syncupdate_state(this, newstate);
 
+        if (newstate == SYNC_FAILED && statecachetable)
+        {
+            statecachetable->remove();
+            delete statecachetable;
+            statecachetable = NULL;
+        }
+
         state = newstate;
         fullscan = false;
     }
@@ -406,6 +426,13 @@ bool Sync::scan(string* localpath, FileAccess* fa)
         string localname, name;
         bool success;
 
+        string utf8path;
+        if (SimpleLogger::logCurrentLevel >= logDebug)
+        {
+            client->fsaccess->local2path(localpath, &utf8path);
+            LOG_debug << "Scanning folder: " << utf8path;
+        }
+
         da = client->fsaccess->newdiraccess();
 
         // scan the dir, mark all items with a unique identifier
@@ -418,16 +445,16 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                 name = localname;
                 client->fsaccess->local2name(&name);
 
-                // check if this record is to be ignored
-                if (client->app->sync_syncable(name.c_str(), localpath, &localname))
+                if (t)
                 {
-                    if (t)
-                    {
-                        localpath->append(client->fsaccess->localseparator);
-                    }
+                    localpath->append(client->fsaccess->localseparator);
+                }
 
-                    localpath->append(localname);
+                localpath->append(localname);
 
+                // check if this record is to be ignored
+                if (client->app->sync_syncable(this, name.c_str(), localpath))
+                {
                     // skip the sync's debris folder
                     if (localpath->size() < localdebris.size()
                      || memcmp(localpath->data(), localdebris.data(), localdebris.size())
@@ -449,9 +476,13 @@ bool Sync::scan(string* localpath, FileAccess* fa)
                             dirnotify->notify(DirNotify::DIREVENTS, NULL, localpath->data(), localpath->size(), true);
                         }
                     }
-
-                    localpath->resize(t);
                 }
+                else
+                {
+                    LOG_debug << "Excluded: " << name;
+                }
+
+                localpath->resize(t);
             }
         }
 
@@ -468,7 +499,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 // path references a new FOLDERNODE: returns created node
 // path references a existing FILENODE: returns node
 // otherwise, returns NULL
-LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
+LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, dstime *backoffds)
 {
     LocalNode* ll = l;
     FileAccess* fa;
@@ -541,12 +572,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             return NULL;
         }
 
-        string name = newname;
+        string name = newname.size() ? newname : l->name;
         client->fsaccess->local2name(&name);
 
-        if (!client->app->sync_syncable(name.c_str(), &tmppath, &newname))
+        if (!client->app->sync_syncable(this, name.c_str(), &tmppath))
         {
-            LOG_debug << "Excluded path: " << path;
+            LOG_debug << "Excluded: " << path;
             return NULL;
         }
 
@@ -565,11 +596,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
     // attempt to open/type this file
     fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localname ? localpath : &tmppath, true, false))
+    if (initializing || fullscan)
     {
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
-        if (initializing || fullscan)
+        if (fa->fopen(localname ? localpath : &tmppath, false, false))
         {
             // find corresponding LocalNode by file-/foldername
             int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
@@ -613,6 +644,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             return NULL;
         }
 
+        delete fa;
+        fa = client->fsaccess->newfileaccess();
+    }
+
+    if (fa->fopen(localname ? localpath : &tmppath, true, false))
+    {
         if (!isroot)
         {
             if (l)
@@ -633,24 +670,35 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                             if (l->fsid != fa->fsid)
                             {
                                 handlelocalnode_map::iterator it;
+#ifdef _WIN32
+                                const char *colon;
+#endif
+                                fsfp_t fp1, fp2;
 
                                 // was the file overwritten by moving an existing file over it?
-                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end())
+                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
+                                        && (l->sync == it->second->sync
+                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
+                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
+                                                && (fp1 == fp2)
+                                            #ifdef _WIN32
+                                                // only consider fsid matches between different syncs for local drives with the
+                                                // same drive letter, to prevent problems with cloned Volume IDs
+                                                && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
+                                                && !memcmp(parent->sync->localroot.name.c_str(),
+                                                       it->second->sync->localroot.name.c_str(),
+                                                       colon - parent->sync->localroot.name.c_str())
+                                            #endif
+                                                )
+                                            )
+                                    )
                                 {
                                     // catch the not so unlikely case of a false fsid match due to
                                     // e.g. a file deletion/creation cycle that reuses the same inode
                                     if (it->second->mtime != fa->mtime || it->second->size != fa->size)
                                     {
-                                        // do not delete the LocalNode if it is in a different filesystem
-                                        // because it could be a file with the same fsid in another drive
-                                        fsfp_t fp1, fp2;
-                                        if (l->sync == it->second->sync
-                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
-                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
-                                                && (fp1 == fp2)))
-                                        {
-                                            delete it->second;
-                                        }
+                                        l->mtime = -1;  // trigger change detection
+                                        delete it->second;   // delete old LocalNode
                                     }
                                     else
                                     {
@@ -710,6 +758,14 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                             statecacheadd(l);
 
                             delete fa;
+
+                            if (isnetwork && l->type == FILENODE)
+                            {
+                                LOG_debug << "Queueing extra fs notification for modified file";
+                                dirnotify->notify(DirNotify::EXTRA, NULL,
+                                                  localname ? localpath->data() : tmppath.data(),
+                                                  localname ? localpath->size() : tmppath.size());
+                            }
                             return l;
                         }
                     }
@@ -717,9 +773,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                     {
                         // (we tolerate overwritten folders, because we do a
                         // content scan anyway)
-                        if (fa->fsidvalid)
+                        if (fa->fsidvalid && fa->fsid != l->fsid)
                         {
                             l->setfsid(fa->fsid);
+                            newnode = true;
                         }
                     }
                 }
@@ -736,6 +793,9 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
             {
                 // rename or move of existing node?
                 handlelocalnode_map::iterator it;
+#ifdef _WIN32
+                const char *colon;
+#endif
                 fsfp_t fp1, fp2;
                 if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
                     // additional checks to prevent wrong fsid matches
@@ -744,11 +804,132 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
                         || (it->second->sync == parent->sync)
                         || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
                             && (fp2 = parent->sync->dirnotify->fsfingerprint())
-                            && (fp1 == fp2)))
+                            && (fp1 == fp2)
+                        #ifdef _WIN32
+                            // allow moves between different syncs only for local drives with the
+                            // same drive letter, to prevent problems with cloned Volume IDs
+                            && (colon = strstr(parent->sync->localroot.name.c_str(), ":"))
+                            && !memcmp(parent->sync->localroot.name.c_str(),
+                                   it->second->sync->localroot.name.c_str(),
+                                   colon - parent->sync->localroot.name.c_str())
+                        #endif
+                            )
+                       )
                     && ((it->second->type != FILENODE)
                         || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
                     LOG_debug << "Move detected by fsid in checkpath. Type: " << it->second->type;
+
+                    if (fa->type == FILENODE && backoffds)
+                    {
+                        // logic to detect files being updated in the local computer moving the original file
+                        // to another location as a temporary backup
+
+                        m_time_t currentsecs = time(NULL);
+                        if (!updatedfileinitialts)
+                        {
+                            updatedfileinitialts = currentsecs;
+                        }
+
+                        if (currentsecs >= updatedfileinitialts)
+                        {
+                            if (currentsecs - updatedfileinitialts <= FILE_UPDATE_MAX_DELAY_SECS)
+                            {
+                                string local;
+                                bool waitforupdate = false;
+                                it->second->getlocalpath(&local, true);
+                                FileAccess *prevfa = client->fsaccess->newfileaccess();
+                                bool exists = prevfa->fopen(&local);
+                                if (exists)
+                                {
+                                    LOG_debug << "File detected in the origin of a move";
+
+                                    if (currentsecs >= updatedfilets)
+                                    {
+                                        if ((currentsecs - updatedfilets) < (FILE_UPDATE_DELAY_DS / 10))
+                                        {
+                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
+                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
+                                            LOG_debug << "The file was checked too recently. Waiting...";
+                                            waitforupdate = true;
+                                        }
+                                        else if (updatedfilesize != prevfa->size)
+                                        {
+                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
+                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
+                                            LOG_debug << "The file size has changed since the last check. Waiting...";
+                                            updatedfilesize = prevfa->size;
+                                            updatedfilets = currentsecs;
+                                            waitforupdate = true;
+                                        }
+                                        else
+                                        {
+                                            LOG_debug << "The file size seems stable";
+                                        }
+                                    }
+                                    else
+                                    {
+                                        LOG_warn << "File checked in the future";
+                                    }
+
+                                    if (!waitforupdate)
+                                    {
+                                        if (currentsecs >= prevfa->mtime)
+                                        {
+                                            if (currentsecs - prevfa->mtime < (FILE_UPDATE_DELAY_DS / 10))
+                                            {
+                                                LOG_verbose << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
+                                                LOG_debug << "File modified too recently. Waiting...";
+                                                waitforupdate = true;
+                                            }
+                                            else
+                                            {
+                                                LOG_debug << "The modification time seems stable.";
+                                            }
+                                        }
+                                        else
+                                        {
+                                            LOG_warn << "File modified in the future";
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (prevfa->retry)
+                                    {
+                                        LOG_debug << "The file in the origin is temporarily blocked. Waiting...";
+                                        waitforupdate = true;
+                                    }
+                                    else
+                                    {
+                                        LOG_debug << "There isn't anything in the origin path";
+                                    }
+                                }
+
+                                if (waitforupdate)
+                                {
+                                    LOG_debug << "Possible file update detected.";
+                                    *backoffds = FILE_UPDATE_DELAY_DS;
+                                    delete prevfa;
+                                    delete fa;
+                                    return NULL;
+                                }
+                                delete prevfa;
+                            }
+                            else
+                            {
+                                int creqtag = client->reqtag;
+                                client->reqtag = 0;
+                                client->sendevent(99438, "Timeout waiting for file update");
+                                client->reqtag = creqtag;
+                            }
+                        }
+                        else
+                        {
+                            LOG_warn << "File check started in the future";
+                        }
+                    }
+
                     client->app->syncupdate_local_move(this, it->second, path.c_str());
 
                     // (in case of a move, this synchronously updates l->parent
@@ -859,24 +1040,29 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
         if (changed || newnode)
         {
+            if (isnetwork && l->type == FILENODE)
+            {
+                LOG_debug << "Queueing extra fs notification for new file";
+                dirnotify->notify(DirNotify::EXTRA, NULL,
+                                  localname ? localpath->data() : tmppath.data(),
+                                  localname ? localpath->size() : tmppath.size());
+            }
+
             client->syncactivity = true;
         }
     }
     else
     {
-        if (initializing)
-        {
-            delete fa;
-            return NULL;
-        }
-
         LOG_warn << "Error opening file";
         if (fa->retry)
         {
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
+            LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
             dirnotify->notify(DirNotify::RETRY, ll, localpath->data(), localpath->size());
             client->syncfslockretry = true;
+            client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
+            client->blockedfile = path;
         }
         else if (l)
         {
@@ -906,11 +1092,11 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname)
 
 // add or refresh local filesystem item from scan stack, add items to scan stack
 // returns 0 if a parent node is missing, ~0 if control should be yielded, or the time
-// until a retry should be made (300 ms minimum latency).
+// until a retry should be made (500 ms minimum latency).
 dstime Sync::procscanq(int q)
 {
     size_t t = dirnotify->notifyq[q].size();
-    dstime dsmin = Waiter::ds - 3;
+    dstime dsmin = Waiter::ds - SCANNING_DELAY_DS;
     LocalNode* l;
 
     while (t--)
@@ -925,7 +1111,17 @@ dstime Sync::procscanq(int q)
 
         if ((l = dirnotify->notifyq[q].front().localnode) != (LocalNode*)~0)
         {
-            l = checkpath(l, &dirnotify->notifyq[q].front().path);
+            dstime backoffds = 0;
+            l = checkpath(l, &dirnotify->notifyq[q].front().path, NULL, &backoffds);
+            if (backoffds)
+            {
+                LOG_verbose << "Scanning deferred during " << backoffds << " ds";
+                dirnotify->notifyq[q].front().timestamp = Waiter::ds + backoffds - SCANNING_DELAY_DS;
+                return backoffds;
+            }
+            updatedfilesize = ~0;
+            updatedfilets = 0;
+            updatedfileinitialts = 0;
 
             // defer processing because of a missing parent node?
             if (l == (LocalNode*)~0)

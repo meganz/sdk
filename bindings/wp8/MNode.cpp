@@ -62,6 +62,60 @@ String^ MNode::getName()
     return utf8name ? ref new String((wchar_t *)utf16name.data()) : nullptr;
 }
 
+String^ MNode::getFingerprint()
+{
+    if (!megaNode) return nullptr;
+
+    std::string utf16fingerprint;
+    const char *utf8fingerprint = megaNode->getFingerprint();
+    MegaApi::utf8ToUtf16(utf8fingerprint, &utf16fingerprint);
+
+    return utf8fingerprint ? ref new String((wchar_t *)utf16fingerprint.data()) : nullptr;
+}
+
+bool MNode::hasCustomAttrs()
+{
+    return megaNode ? megaNode->hasCustomAttrs() : false;
+}
+
+MStringList^ MNode::getCustomAttrNames()
+{
+    return megaNode ? ref new MStringList(megaNode->getCustomAttrNames(), true) : nullptr;
+}
+
+String^ MNode::getCustomAttr(String^ attrName)
+{
+    if (!megaNode || attrName == nullptr) return nullptr;
+
+    std::string utf8attrName;
+    MegaApi::utf16ToUtf8(attrName->Data(), attrName->Length(), &utf8attrName);
+
+    const char *utf8customAttr = megaNode->getCustomAttr(utf8attrName.c_str());
+    if (!utf8customAttr)
+        return nullptr;
+
+    std::string utf16customAttr;
+    MegaApi::utf8ToUtf16(utf8customAttr, &utf16customAttr);
+    delete[] utf8customAttr;
+
+    return ref new String((wchar_t *)utf16customAttr.c_str());
+}
+
+int MNode::getDuration()
+{
+    return megaNode ? megaNode->getDuration() : MegaNode::INVALID_DURATION;
+}
+
+double MNode::getLatitude()
+{
+    return megaNode ? megaNode->getLatitude() : MegaNode::INVALID_COORDINATE;
+}
+
+double MNode::getLongitude()
+{
+    return megaNode ? megaNode->getLongitude() : MegaNode::INVALID_COORDINATE;
+}
+
 String^ MNode::getBase64Handle()
 {
     if (!megaNode) return nullptr;
@@ -122,9 +176,9 @@ int MNode::getTag()
     return megaNode ? megaNode->getTag() : 0;
 }
 
-uint64 MNode::getExpirationTime()
+int64 MNode::getExpirationTime()
 {
-    return megaNode ? megaNode->getExpirationTime() : 0;
+    return megaNode ? megaNode->getExpirationTime() : -1;
 }
 
 MegaHandle MNode::getPublicHandle()
@@ -137,12 +191,12 @@ MNode^ MNode::getPublicNode()
     return megaNode ? ref new MNode(megaNode->getPublicNode(), true) : nullptr;
 }
 
-String^ MNode::getPublicLink()
+String^ MNode::getPublicLink(bool includeKey)
 {
     if (!megaNode) return nullptr;
 
     std::string utf16link;
-    const char *utf8link = megaNode->getPublicLink();
+    const char *utf8link = megaNode->getPublicLink(includeKey);
     if (!utf8link)
         return nullptr;
 
@@ -205,4 +259,24 @@ bool MNode::isExpired()
 bool MNode::isTakenDown()
 {
     return megaNode ? megaNode->isTakenDown() : false;
+}
+
+bool MNode::isForeign()
+{
+    return megaNode ? megaNode->isForeign() : false;
+}
+
+bool MNode::isShared()
+{
+    return megaNode ? megaNode->isShared() : false;
+}
+
+bool MNode::isOutShare()
+{
+    return megaNode ? megaNode->isOutShare() : false;
+}
+
+bool MNode::isInShare()
+{
+    return megaNode ? megaNode->isInShare() : false;
 }

@@ -24,6 +24,7 @@
 
 #include "types.h"
 #include "waiter.h"
+#include "backofftimer.h"
 
 #ifndef _WIN32
 #include <sys/types.h>
@@ -32,6 +33,10 @@
 #else
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#endif
+
+#ifdef __FreeBSD__
+#include <netinet/in.h>
 #endif
 
 namespace mega {
@@ -68,26 +73,49 @@ namespace mega {
 "\x2e\x3c\xfd\xcf\xbb\x0b\x31\x21\xab\x81\x57\x95\xd3\x04\xf9\x52\x69\x2e\x30\xe5\x45\x2d\x23\x5f" \
 "\x6f\x26\x76\x69\x7a\x12\x99\x78\xe0\x08\x87\x33\xd6\x94\xf0\x6c\x6d"
 
+// SSL public key pinning - chat key
+#define CHATSSLMODULUS "\xbe\x75\xfe\xe1\xff\xac\x69\x2b\xc8\x0c\x12\xe9\x9f\x78\x60\xc2\xa0\xe1\xf1\xf2\xec\x48\xc5" \
+"\x8b\xb0\x94\xe9\x68\x02\xdd\xde\xe5\xc3\x15\x53\x55\x44\xc6\x5f\x71\xb3\xe5\x8f\xa3\x8a\x86\x75" \
+"\x13\x79\x10\x25\xef\x8c\xc6\x4d\xf0\xbf\x8b\x4a\xfb\x49\x58\xae\xe7\x71\x21\xf4\x29\x58\x28\xb4" \
+"\xbf\x41\xec\xa7\x81\xc8\xbe\x64\xd4\xf7\x44\xa2\x0c\x31\x6b\x7c\xfc\x33\x0a\x60\xa8\x36\x5a\xe8" \
+"\xfd\xdb\x11\x44\xf8\x69\x12\x4f\x4c\x4a\x48\x2b\x4e\x0a\x44\x1b\xb7\x86\x08\xd9\x5d\x61\x2a\x8b" \
+"\x51\x37\x51\x6d\x29\x8c\x4f\xfe\xc2\x84\x2d\x52\x94\xe0\xf4\x60\x5b\xdd\x8d\xda\x67\xe5\xfb\x37" \
+"\x77\x51\xc3\x52\xb1\x24\x7f\x46\x3f\x3c\x62\xb5\x1e\xfa\x76\x0f\x39\xaf\x23\xd8\x93\xa9\x4a\x53" \
+"\xdf\x38\x59\xde\x70\xbb\x1c\x66\xc8\xbc\xd4\xbc\x1e\xb9\x20\xa6\x62\x9a\x75\xd6\xc9\x94\x46\xcd" \
+"\x09\x8f\xa3\x9e\xf9\x1f\xe8\x11\x73\x98\x66\x84\x04\x8f\x7c\xee\xc6\x28\xb3\x21\xa4\x9b\x42\xa3" \
+"\xb1\x8f\x0f\xb9\x1a\x4d\xd6\xc0\x26\xa5\x42\x83\x6f\x64\xdf\x8e\x6a\x4e\xf9\x24\x50\x1f\x43\x74" \
+"\x42\x43\x0d\x31\x69\xf5\xca\x47\xf8\x82\x8f\xf2\x8b\xc6\xa2\x57\x15"
+
 // active and backup keys use the same exponent
 #define APISSLEXPONENTSIZE "\x03"
 #define APISSLEXPONENT "\x01\x00\x01"
-
-#define BALANCERMODULUS1 "\xb3\x48\x70\x39\x5a\x64\xee\xc7\xa8\xf3\x86\x22\xe9\x1d\xdd\xc6\x54\xc0\xa3\xb1\x30\x9c\xf3\x7c" \
-"\x1e\x98\xde\x43\xf4\xdb\x5b\xa9\x8b\x6f\xa2\x66\xd6\x7f\xff\x81\x25\xa5\xd6\x5d\x19\x2a\x3d\xbc" \
-"\x6d\x1e\x65\xb0\x39\x7e\xe7\x37\x40\x89\x00\x26\x87\x7b\x6a\x79\xa8\x17\x62\xc1\x47\x1d\x36\xc9" \
-"\x82\x3f\x87\xfd\x55\x98\x70\x28\x08\xc5\x07\xbe\x37\x5b\x55\x64\x7e\xe6\xca\x66\xec\x50\xac\xc3" \
-"\x87\xb6\x90\xd3\x5a\x0b\x5d\xf9\x10\xfd\x18\x6f\x38\x1d\x05\x99\x8e\xf3\x99\x41\x3f\xce\x33\x8e" \
-"\x68\x8b\xba\x56\xd4\xf3\x3e\x6c\xa7\x88\xa3\x9e\xa5\x19\x07\xe8\xe1\xb7\x28\x54\xe9\x76\x79\x45" \
-"\x58\x14\x21\x5e\x07\x0c\xe7\x04\x67\xc5\xf4\x1e\x81\xc1\x2a\x15\xe1\xf5\x4c\xf4\x6f\x69\x8a\x3c" \
-"\x19\x3c\x07\x40\xe7\x5c\x6c\x9f\xcc\x34\xc0\xc7\xe4\xec\xd3\xa1\xa9\xe1\x7d\x22\x2d\x8e\x3d\x96" \
-"\xbf\x24\xa2\x0e\x52\xd1\xbf\x81\x50\xa6\xbf\x3c\x83\x62\x13\x6f\x1e\xb3\xd1\xce\x64\x27\x04\x69" \
-"\xc0\xc8\x67\x78\x65\x02\x14\x3a\xd8\x44\x3a\x4f\x29\xb2\xaa\xa5\x3b\x67\x60\x5e\x5f\xec\x57\x8e" \
-"\x5e\x0a\x21\x08\xe9\xfd\xaa\x96\x9b\x84\x38\x5c\x7e\x06\x9d\xcd"
 
 #define MEGA_DNS_SERVERS "2001:978:2:aa::20:2,154.53.224.130," \
                          "2001:978:2:aa::21:2,154.53.224.134," \
                          "2403:9800:c020::43,122.56.56.216," \
                          "2405:f900:3e6a:1::103,103.244.183.5"
+
+class MEGA_API SpeedController
+{
+public:
+    SpeedController();
+    m_off_t calculateSpeed(long long numBytes = 0);
+    m_off_t getMeanSpeed();
+
+    // interval to calculate the mean speed (ds)
+    static const int SPEED_MEAN_INTERVAL_DS;
+
+    // max values to calculate the mean speed
+    static const int SPEED_MAX_VALUES;
+
+protected:
+    map<dstime, m_off_t> transferBytes;
+    m_off_t partialBytes;
+
+    m_off_t meanSpeed;
+    dstime lastUpdate;
+    int speedCounter;
+};
 
 // generic host HTTP I/O interface
 struct MEGA_API HttpIO : public EventTrigger
@@ -100,9 +128,6 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // cancel request
     virtual void cancel(HttpReq*) = 0;
-
-    // send queued chunked data
-    virtual void sendchunked(HttpReq*) = 0;
 
     // real-time POST progress information
     virtual m_off_t postpos(void*) = 0;
@@ -122,15 +147,27 @@ struct MEGA_API HttpIO : public EventTrigger
     void inetstatus(bool);
     bool inetisback();
 
-    // is HTTP chunked transfer encoding supported?
-    // (WinHTTP on XP does not)
-    bool chunkedok;
-
     // timestamp of last data received (across all connections)
     dstime lastdata;
 
-    // data receive timeout
-    static const int NETWORKTIMEOUT = 6000;
+    // download speed
+    SpeedController downloadSpeedController;
+    m_off_t downloadSpeed;
+    void updatedownloadspeed(m_off_t size = 0);
+
+    // upload speed
+    SpeedController uploadSpeedController;
+    m_off_t uploadSpeed;
+    void updateuploadspeed(m_off_t size = 0);
+
+    // data receive timeout (ds)
+    static const int NETWORKTIMEOUT;
+
+    // request timeout (ds)
+    static const int REQUESTTIMEOUT;
+
+    // connection timeout (ds)
+    static const int CONNECTTIMEOUT;
     
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;
@@ -138,7 +175,20 @@ struct MEGA_API HttpIO : public EventTrigger
     // get proxy settings from the system
     virtual Proxy *getautoproxy();
 
+    // get alternative DNS servers
     void getMEGADNSservers(string*, bool = true);
+
+    // set max download speed
+    virtual bool setmaxdownloadspeed(m_off_t bpslimit);
+
+    // set max upload speed
+    virtual bool setmaxuploadspeed(m_off_t bpslimit);
+
+    // get max download speed
+    virtual m_off_t getmaxdownloadspeed();
+
+    // get max upload speed
+    virtual m_off_t getmaxuploadspeed();
 
     HttpIO();
     virtual ~HttpIO() { }
@@ -148,32 +198,39 @@ struct MEGA_API HttpIO : public EventTrigger
 struct MEGA_API HttpReq
 {
     reqstatus_t status;
+    m_off_t pos;
 
-    int httpstatus;
+    long httpstatus;
 
+    httpmethod_t method;
     contenttype_t type;
+    int timeoutms;
 
     string posturl;
 
-    bool chunked;
+    bool protect;
+
     bool sslcheckfailed;
     string sslfakeissuer;
 
     string* out;
     string in;
     size_t inpurge;
+    size_t outpos;
 
     string outbuf;
-    string chunkedout;
 
     byte* buf;
-    m_off_t buflen, bufpos;
+    m_off_t buflen, bufpos, notifiedbufpos;
 
     // we assume that API responses are smaller than 4 GB
     m_off_t contentlength;
 
     // time left related to a bandwidth overquota
     m_time_t timeleft;
+
+    // Content-Type of the response
+    string contenttype;
 
     // HttpIO implementation-specific identifier for this connection
     void* httpiohandle;
@@ -185,9 +242,14 @@ struct MEGA_API HttpReq
     // set url and content type for subsequent requests
     void setreq(const char*, contenttype_t);
 
-    // post request to the network
+    // send POST request to the network
     void post(MegaClient*, const char* = NULL, unsigned = 0);
-    void postchunked(MegaClient*);
+
+    // send GET request to the network
+    void get(MegaClient*);
+
+    // send a DNS request
+    void dns(MegaClient*);
 
     // store chunk of incoming data with optional purging
     void put(void*, unsigned, bool = false);
@@ -211,7 +273,7 @@ struct MEGA_API HttpReq
     // progress information
     virtual m_off_t transferred(MegaClient*);
 
-    // timestamp of last data received
+    // timestamp of last data sent or received
     dstime lastdata;
 
     // prevent raw data from being dumped in debug mode
@@ -222,13 +284,37 @@ struct MEGA_API HttpReq
     void init();
 };
 
+struct MEGA_API GenericHttpReq : public HttpReq
+{
+    GenericHttpReq(bool = false);
+
+    // tag related to the request
+    int tag;
+
+    // max number of retries, including the first attempt
+    // 0 = infinite retries, 1 = no retries
+    int maxretries;
+
+    // current retry number
+    int numretry;
+
+    // backoff between retries
+    BackoffTimer bt;
+
+    // true when the backoff between retries is active
+    bool isbtactive;
+
+    // backoff to control the maximum allowed time for the request
+    BackoffTimer maxbt;
+};
+
 // file chunk I/O
 struct MEGA_API HttpReqXfer : public HttpReq
 {
     unsigned size;
 
-    virtual bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
-    virtual void finalize(FileAccess*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) { }
+    virtual void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
+    virtual void finalize(Transfer*) { }
 
     HttpReqXfer() : HttpReq(true), size(0) { }
 };
@@ -236,7 +322,10 @@ struct MEGA_API HttpReqXfer : public HttpReq
 // file chunk upload
 struct MEGA_API HttpReqUL : public HttpReqXfer
 {
-    bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    // size (in bytes) of the CRC of uploaded chunks
+    static const int CRCSIZE;
+
+    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
 
     m_off_t transferred(MegaClient*);
 
@@ -247,9 +336,10 @@ struct MEGA_API HttpReqUL : public HttpReqXfer
 struct MEGA_API HttpReqDL : public HttpReqXfer
 {
     m_off_t dlpos;
+    chunkmac_map chunkmacs;
 
-    bool prepare(FileAccess*, const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
-    void finalize(FileAccess*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
+    void finalize(Transfer *transfer);
 
     ~HttpReqDL() { }
 };

@@ -21,10 +21,29 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
-    MEGAUserVisibilityUnknown = -1,
-    MEGAUserVisibilityHidden = 0,
-    MEGAUserVisibilityVisible,
-    MEGAUserVisibilityMe
+    MEGAUserVisibilityUnknown  = -1,
+    MEGAUserVisibilityHidden   = 0,
+    MEGAUserVisibilityVisible  = 1,
+    MEGAUserVisibilityInactive = 2,
+    MEGAUserVisibilityBlocked  = 3
+};
+
+typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
+    MEGAUserChangeTypeAuth           = 0x01,
+    MEGAUserChangeTypeLstint         = 0x02,
+    MEGAUserChangeTypeAvatar         = 0x04,
+    MEGAUserChangeTypeFirstname      = 0x08,
+    MEGAUserChangeTypeLastname       = 0x10,
+    MEGAUserChangeTypeEmail          = 0x20,
+    MEGAUserChangeTypeKeyring        = 0x40,
+    MEGAUserChangeTypeCountry        = 0x80,
+    MEGAUserChangeTypeBirthday       = 0x100,
+    MEGAUserChangeTypePubKeyCu255    = 0x200,
+    MEGAUserChangeTypePubKeyEd255    = 0x400,
+    MEGAUserChangeTypeSigPubKeyRsa   = 0x800,
+    MEGAUserChangeTypeSigPubKeyCu255 = 0x1000,
+    MEGAUserChangeTypeLanguage       = 0x2000,
+    MEGAUserChangeTypePwdReminder    = 0x4000
 };
 
 /**
@@ -51,6 +70,12 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
 @property (readonly, nonatomic) NSString *email;
 
 /**
+ * @brief The handle associated with the contact.
+ *
+ */
+@property (readonly, nonatomic) uint64_t handle;
+
+/**
  * @brief The current visibility of the contact.
  *
  * The returned value will be one of these:
@@ -64,16 +89,147 @@ typedef NS_ENUM (NSInteger, MEGAUserVisibility) {
  * - MEGAUserVisibilityVisible = 1
  * The contact is currently visible
  *
- * - MEGAUserVisibilityMe = 2
- * The contact is the owner of the account being used by the SDK
+ * - MEGAUserVisibilityInactive = 2
+ * The contact is currently inactive
  *
+ * - MEGAUserVisibilityBlocked = 3
+ * The contact is currently blocked
+ *
+ * @note The visibility of your own user is undefined and shouldn't be used.
+ * @return Current visibility of the contact
  */
-@property (readonly, nonatomic) MEGAUserVisibility access;
+@property (readonly, nonatomic) MEGAUserVisibility visibility;
+
+/**
+ * @brief A bit field with the changes of the user
+ *
+ * This value is only useful for nodes notified by [MEGADelegate onUsersUpdate:userList:] or
+ * [MEGAGlobalDelegate onUsersUpdate:userList:] that can notify about user modifications.
+ *
+ * The value is an OR combination of these flags:
+ *
+ * - MEGAUserChangeTypeAuth            = 0x01
+ * Check if the user has new or modified authentication information
+ *
+ * - MEGAUserChangeTypeLstint          = 0x02
+ * Check if the last interaction timestamp is modified
+ *
+ * - MEGAUserChangeTypeAvatar          = 0x04
+ * Check if the user has a new or modified avatar image
+ *
+ * - MEGAUserChangeTypeFirstname       = 0x08
+ * Check if the user has new or modified firstname
+ *
+ * - MEGAUserChangeTypeLastname        = 0x10
+ * Check if the user has new or modified lastname
+ *
+ * - MEGAUserChangeTypeEmail           = 0x20
+ * Check if the user has modified email
+ *
+ * - MEGAUserChangeTypeKeyring         = 0x40
+ * Check if the user has new or modified keyring
+ *
+ * - MEGAUserChangeTypeCountry         = 0x80
+ * Check if the user has new or modified country
+ *
+ * - MEGAUserChangeTypeBirthday        = 0x100
+ * Check if the user has new or modified birthday, birthmonth or birthyear
+ *
+ * - MEGAUserChangeTypePubKeyCu255     = 0x200
+ * Check if the user has new or modified public key for chat
+ *
+ * - MEGAUserChangeTypePubKeyEd255     = 0x400
+ * Check if the user has new or modified public key for signing
+ *
+ * - MEGAUserChangeTypeSigPubKeyRsa    = 0x800
+ * Check if the user has new or modified signature for RSA public key
+ *
+ * - MEGAUserChangeTypeSigPubKeyCu255  = 0x1000
+ * Check if the user has new or modified signature for Cu25519 public key
+ *
+ * - MEGAUserChangeTypeLanguage        = 0x2000
+ * Check if the user has modified the preferred language
+ *
+ * - MEGAUserChangeTypePwdReminder     = 0x4000
+ * Check if the data related to the password reminder dialog has changed
+ */
+@property (readonly, nonatomic) MEGAUserChangeType changes;
+
+/**
+ * @brief Indicates if the user is changed by yourself or by another client.
+ *
+ * This value is only useful for users notified by [MEGADelegate onUsersUpdate:userList:] or
+ * [MEGAGlobalDelegate onUsersUpdate:userList:] that can notify about user modifications.
+ *
+ * @return 0 if the change is external. >0 if the change is the result of an
+ * explicit request, -1 if the change is the result of an implicit request
+ * made by the SDK internally.
+ */
+@property (readonly, nonatomic) NSInteger isOwnChange;
 
 /**
  * @brief The timestamp when the contact was added to the contact list (in seconds since the epoch).
  */
 @property (readonly, nonatomic) NSDate *timestamp;
+
+/**
+ * @brief Returns YES if this user has an specific change
+ *
+ * This value is only useful for nodes notified by [MEGADelegate onUsersUpdate:userList:] or
+ * [MEGAGlobalDelegate onUsersUpdate:userList:] that can notify about user modifications.
+ *
+ * In other cases, the return value of this function will be always false.
+ *
+ * @param changeType The type of change to check. It can be one of the following values:
+ *
+ * - MEGAUserChangeTypeAuth            = 0x01
+ * Check if the user has new or modified authentication information
+ *
+ * - MEGAUserChangeTypeLstint          = 0x02
+ * Check if the last interaction timestamp is modified
+ *
+ * - MEGAUserChangeTypeAvatar          = 0x04
+ * Check if the user has a new or modified avatar image
+ *
+ * - MEGAUserChangeTypeFirstname       = 0x08
+ * Check if the user has new or modified firstname
+ *
+ * - MEGAUserChangeTypeLastname        = 0x10
+ * Check if the user has new or modified lastname
+ *
+ * - MEGAUserChangeTypeEmail           = 0x20
+ * Check if the user has modified email
+ *
+ * - MEGAUserChangeTypeKeyring         = 0x40
+ * Check if the user has new or modified keyring
+ *
+ * - MEGAUserChangeTypeCountry         = 0x80
+ * Check if the user has new or modified country
+ *
+ * - MEGAUserChangeTypeBirthday        = 0x100
+ * Check if the user has new or modified birthday, birthmonth or birthyear
+ *
+ * - MEGAUserChangeTypePubKeyCu255     = 0x200
+ * Check if the user has new or modified public key for chat
+ *
+ * - MEGAUserChangeTypePubKeyEd255     = 0x400
+ * Check if the user has new or modified public key for signing
+ *
+ * - MEGAUserChangeTypeSigPubKeyRsa    = 0x800
+ * Check if the user has new or modified signature for RSA public key
+ *
+ * - MEGAUserChangeTypeSigPubKeyCu255  = 0x1000
+ * Check if the user has new or modified signature for Cu25519 public key
+ *
+ * - MEGAUserChangeTypeLanguage        = 0x2000
+ * Check if the user has new or modified signature for RSA public key
+ *
+ * - MEGAUserChangeTypePwdReminder     = 0x4000
+ * Check if the data related to the password reminder dialog has changed
+ *
+ * @return YES if this user has an specific change
+ */
+- (BOOL)hasChangedType:(MEGAUserChangeType)changeType;
 
 /**
  * @brief Creates a copy of this MEGAUser object.

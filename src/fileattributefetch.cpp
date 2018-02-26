@@ -22,6 +22,7 @@
 #include "mega/fileattributefetch.h"
 #include "mega/megaclient.h"
 #include "mega/megaapp.h"
+#include "mega/logging.h"
 
 namespace mega {
 FileAttributeFetchChannel::FileAttributeFetchChannel()
@@ -34,9 +35,10 @@ FileAttributeFetchChannel::FileAttributeFetchChannel()
     e = API_EINTERNAL;
 }
 
-FileAttributeFetch::FileAttributeFetch(handle h, fatype t, int ctag)
+FileAttributeFetch::FileAttributeFetch(handle h, string key, fatype t, int ctag)
 {
     nodehandle = h;
+    nodekey = key;
     type = t;
     retries = 0;
     tag = ctag;
@@ -71,6 +73,7 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
 
     if (req.outbuf.size())
     {
+        LOG_debug << "Getting file attribute";
         e = API_EFAILED;
         inbytes = 0;
         req.in.clear();
@@ -82,11 +85,12 @@ void FileAttributeFetchChannel::dispatch(MegaClient* client)
     else
     {
         timeout.reset();
+        req.status = REQ_PREPARED;
     }
 }
 
 // communicate received file attributes to the application
-void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
+void FileAttributeFetchChannel::parse(MegaClient* client, int /*fac*/, bool final)
 {
 #pragma pack(push,1)
     struct FaHeader
@@ -98,8 +102,6 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
 
     const char* ptr = req.data();
     const char* endptr = ptr + req.size();
-    pnode_t n;
-    SymmCipher* cipher;
     faf_map::iterator it;
     uint32_t falen = 0;
 
@@ -130,22 +132,18 @@ void FileAttributeFetchChannel::parse(MegaClient* client, int fac, bool final)
         // locate fetch request (could have been deleted by the application in the meantime)
         if (it != fafs[1].end())
         {
-            // locate related node (could have been deleted)
-            if ((n = client->nodebyhandle(it->second->nodehandle)))
+            client->restag = it->second->tag;
+
+            if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
             {
-                client->restag = it->second->tag;
-
-                if (!(falen & (SymmCipher::BLOCKSIZE - 1)))
+                if (client->tmpnodecipher.setkey(&it->second->nodekey))
                 {
-                    if ((cipher = n->nodecipher()))
-                    {
-                        cipher->cbc_decrypt((byte*)ptr, falen);
-                        client->app->fa_complete(n, it->second->type, ptr, falen);
-                    }
-
-                    delete it->second;
-                    fafs[1].erase(it);
+                    client->tmpnodecipher.cbc_decrypt((byte*)ptr, falen);
+                    client->app->fa_complete(it->second->nodehandle, it->second->type, ptr, falen);
                 }
+
+                delete it->second;
+                fafs[1].erase(it);
             }
         }
 

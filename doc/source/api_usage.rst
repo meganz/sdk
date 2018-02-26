@@ -407,14 +407,13 @@ User Contact Management
 Users maintain a *contact list* of peers they know.
 
 :Method: 
-    ``error addcontact(const char* user)``
+    ``inviteContact(const char *email,
+		const char *message,
+		int action,
+		MegaRequestListener *listener = NULL)``
+    :``email``:  User by e-mail address
 
-    :``user``: User by e-mail address or handle. If the user has an
-        existing MEGA account, he or she will appear in the local
-        contact list immediately. Otherwise, an e-mail invitation will
-        be sent.
-
-Receiving a folder share from a user implicitly adds him or her to the
+Receiving a folder share from a user implicitly invites him or her to the
 recipient's contact list.
 
 

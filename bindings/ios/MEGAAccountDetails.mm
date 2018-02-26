@@ -61,6 +61,10 @@ using namespace mega;
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed()] : nil;
 }
 
+- (long long)versionStorageUsed {
+    return self.accountDetails ? self.accountDetails->getVersionStorageUsed() : 0;
+}
+
 - (NSNumber *)storageMax {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageMax()] : nil;
 }
@@ -90,7 +94,13 @@ using namespace mega;
 }
 
 - (NSString *)subscriptionMethod {
-    return self.accountDetails ? [[NSString alloc] initWithUTF8String:self.accountDetails->getSubscriptionMethod()] : nil;
+    const char *val = self.accountDetails->getSubscriptionMethod();
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;    
 }
 
 - (NSString *)subscriptionCycle {
@@ -111,6 +121,14 @@ using namespace mega;
 
 - (NSNumber *)numberFoldersForHandle:(uint64_t)handle {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFolders(handle)] : nil;
+}
+
+- (long long)versionStorageUsedForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getVersionStorageUsed(handle) : 0;
+}
+
+- (long long)numberOfVersionFilesForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle) : 0;
 }
 
 @end

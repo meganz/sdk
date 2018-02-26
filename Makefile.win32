@@ -48,7 +48,7 @@ CXX=g++
 CC=gcc
 
 # common compilation flags for all apps
-CXXFLAGS=-DUNICODE -DUSE_SQLITE -DUSE_CRYPTOPP -DUSE_SODIUM -DUSE_FREEIMAGE -DENABLE_SYNC=1 -D_WIN32=1 -g -Wall -I. -Iinclude -Iinclude/mega -Iinclude/mega/win32 -isystem ../zlib -isystem ../cryptopp -isystem ../sodium/src/libsodium/include -isystem ../db/build_windows -Idb  -isystem .. -isystem ../sqlite3 -isystem ../FreeImage/Dist
+CXXFLAGS=-DUNICODE -DUSE_SQLITE -DUSE_CRYPTOPP -DUSE_FREEIMAGE -DENABLE_SYNC=1 -D_WIN32=1 -g -Wall -I. -Iinclude -Iinclude/mega -Iinclude/mega/win32 -isystem ../zlib -isystem ../cryptopp -isystem ../sodium/src/libsodium/include -isystem ../db/build_windows -Idb  -isystem .. -isystem ../sqlite3 -isystem ../FreeImage/Dist
 # megacli specific compilation flags
 
 MEGACLI_CXXFLAGS=-isystem ../FreeImage/Dist
@@ -89,6 +89,7 @@ COMMON_SRC=\
 		src/waiterbase.cpp  \
 		src/megaclient.cpp  \
 		src/proxy.cpp  \
+		src/pendingcontactrequest.cpp \
 		src/crypto/cryptopp.cpp \
 		src/crypto/sodium.cpp \
 		src/gfx.cpp \

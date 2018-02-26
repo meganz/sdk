@@ -22,6 +22,8 @@
 #include "mega/filefingerprint.h"
 #include "mega/serialize64.h"
 #include "mega/base64.h"
+#include "mega/logging.h"
+#include "mega/utils.h"
 
 namespace mega {
 bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
@@ -63,6 +65,45 @@ FileFingerprint::FileFingerprint()
     mtime = 0;
     isvalid = false;
     memset(crc, 0, sizeof crc);
+}
+
+bool FileFingerprint::serialize(string *d)
+{
+    d->append((const char*)&size, sizeof(size));
+    d->append((const char*)&mtime, sizeof(mtime));
+    d->append((const char*)crc, sizeof(crc));
+    d->append((const char*)&isvalid, sizeof(isvalid));
+
+    return true;
+}
+
+FileFingerprint *FileFingerprint::unserialize(string *d)
+{
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(m_off_t) + sizeof(m_time_t) + 4 * sizeof(int32_t) + sizeof(bool) > end)
+    {
+        LOG_err << "FileFingerprint unserialization failed - serialized string too short";
+        return NULL;
+    }
+
+    FileFingerprint *fp = new FileFingerprint();
+
+    fp->size = MemAccess::get<m_off_t>(ptr);
+    ptr += sizeof(m_off_t);
+
+    fp->mtime = MemAccess::get<m_time_t>(ptr);
+    ptr += sizeof(m_time_t);
+
+    memcpy(fp->crc, ptr, sizeof(fp->crc));
+    ptr += sizeof(fp->crc);
+
+    fp->isvalid = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+
+    d->erase(0, ptr - d->data());
+    return fp;
 }
 
 FileFingerprint& FileFingerprint::operator=(FileFingerprint& rhs)

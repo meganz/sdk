@@ -36,6 +36,7 @@
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/algparam.h>
 #include <cryptopp/hmac.h>
+#include <cryptopp/pwdbased.h>
 
 namespace mega {
 using namespace std;
@@ -72,11 +73,6 @@ public:
 class MEGA_API SymmCipher
 {
 public:
-    /**
-     * Size of the authentication digest for encryption in CCM mode.
-     * Valid values: 4, 6, 8, 10, 12, 14, and 16.
-     */
-    static const int TAG_SIZE = 12;
 
 private:
     CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aesecb_e;
@@ -85,8 +81,11 @@ private:
     CryptoPP::CBC_Mode<CryptoPP::AES>::Encryption aescbc_e;
     CryptoPP::CBC_Mode<CryptoPP::AES>::Decryption aescbc_d;
 
-    CryptoPP::CCM<CryptoPP::AES, TAG_SIZE>::Encryption aesccm_e;
-    CryptoPP::CCM<CryptoPP::AES, TAG_SIZE>::Decryption aesccm_d;
+    CryptoPP::CCM<CryptoPP::AES, 16>::Encryption aesccm16_e;
+    CryptoPP::CCM<CryptoPP::AES, 16>::Decryption aesccm16_d;
+
+    CryptoPP::CCM<CryptoPP::AES, 8>::Encryption aesccm8_e;
+    CryptoPP::CCM<CryptoPP::AES, 8>::Decryption aesccm8_d;
 
     CryptoPP::GCM<CryptoPP::AES>::Encryption aesgcm_e;
     CryptoPP::GCM<CryptoPP::AES>::Decryption aesgcm_d;
@@ -174,44 +173,35 @@ public:
     void cbc_decrypt_pkcs_padding(const string *data, const byte* iv, string *result);
 
     /**
-     * @brief Authenticated symmetric encryption using AES in CCM mode
-     *        (counter with CBC-MAC).
+     * Authenticated symmetric encryption using AES in CCM mode (counter with CBC-MAC).
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * Note: Due to in-place encryption, the buffer `data` must be large enough
-     *       to accept the cipher text in multiples of the block size as well as
-     *       the authentication tag (SymmCipher::TAG_SIZE bytes).
-     *
-     * @param data Data to be encrypted (encryption in-place).
-     * @param len Length of data to be encrypted in bytes.
-     * @param iv Initialisation vector or nonce to use for encryption. Choose
-     *     randomly and never re-use. See note on size above.
-     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
-     *     bytes.
-     * @return Void.
+     * @param data Data to be encrypted.
+     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
+     * and never re-use. See note on size above.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
+     * @param result Encrypted data, including the authentication tag.
      */
-    void ccm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+    void ccm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
-     * @brief Authenticated symmetric decryption using AES in CCM mode
-     *        (counter with CBC-MAC).
+     * @brief Authenticated symmetric decryption using AES in CCM mode (counter with CBC-MAC).
      *
      * The size of the IV limits the maximum length of data. A length of 12 bytes
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * @param data Data to be encrypted (encryption in-place).
-     * @param len Length of cipher text to be decrypted in bytes (includes length
-     *     of authentication tag: SymmCipher::TAG_SIZE).
+     * @param data Data to be decrypted.
      * @param iv Initialisation vector or nonce.
-     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
-     *     bytes.
-     * @return Void.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
+     * @param result Decrypted data, not including the authentication tag.
      */
-    void ccm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+    void ccm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
      * @brief Authenticated symmetric encryption using AES in GCM mode.
@@ -220,19 +210,14 @@ public:
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * Note: Due to in-place encryption, the buffer `data` must be large enough
-     *       to accept the cipher text in multiples of the block size as well as
-     *       the authentication tag (16 bytes).
-     *
-     * @param data Data to be encrypted (encryption in-place).
-     * @param len Length of data to be encrypted in bytes.
-     * @param iv Initialisation vector or nonce to use for encryption. Choose
-     *     randomly and never re-use. See note on size above.
-     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
-     *     bytes.
-     * @return Void.
+     * @param data Data to be encrypted.
+     * @param iv Initialisation vector or nonce to use for encryption. Choose randomly
+     * and never re-use. See note on size above.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag.
+     * @param result Encrypted data, including the authentication tag.
      */
-    void gcm_encrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+    void gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
      * @brief Authenticated symmetric decryption using AES in GCM mode.
@@ -241,14 +226,13 @@ public:
      * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
      * sizes.
      *
-     * @param data Data to be encrypted (encryption in-place).
-     * @param len Length of cipher text to be decrypted in bytes (includes length
-     *     of authentication tag: SymmCipher::TAG_SIZE).
+     * @param data Data to be decrypted.
      * @param iv Initialisation vector or nonce.
-     * @param ivLength Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13
-     *     bytes.
+     * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
+     * @param result Decrypted data, not including the authentication tag.
      */
-    void gcm_decrypt(byte* data, unsigned len, const byte* iv, int ivLength);
+    void gcm_decrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result);
 
     /**
      * @brief Serialize key for compatibility with the webclient
@@ -260,7 +244,7 @@ public:
      */
     void serializekeyforjs(string *);
 
-    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool);
+    void ctr_crypt(byte *, unsigned, m_off_t, ctr_iv, byte *, bool, bool initmac = true);
 
     static void setint64(int64_t, byte*);
 
@@ -290,6 +274,7 @@ public:
     static const int PUBKEY = 2;
 
     CryptoPP::Integer key[PRIVKEY];
+    unsigned int padding;
 
     static const int MAXKEYLENGTH = 1026;   // in bytes, allows for RSA keys up
                                             // to 8192 bits
@@ -306,11 +291,18 @@ public:
     int setkey(int numints, const byte* data, int len);
 
     /**
+     * @brief Reset the existing key
+     */
+    void resetkey();
+
+    /**
      * @brief Simple check for validity of key pair.
      *
+     * @param keytype Key type indication by number of integers for key type
+     *     (AsymmCipher::PRIVKEY or AsymmCipher::PUBKEY).
      * @return 0 on an invalid key pair.
      */
-    int isvalid();
+    int isvalid(int keytype = PUBKEY);
 
     /**
      * @brief Encrypts a randomly padded plain text into a buffer.
@@ -356,7 +348,7 @@ public:
      */
     unsigned rawdecrypt(const byte* cipher, int cipherlen, byte* buf, int buflen);
 
-    static void serializeintarray(CryptoPP::Integer*, int, string*);
+    static void serializeintarray(CryptoPP::Integer*, int, string*, bool headers = true);
 
     /**
      * @brief Serialises a key to a string.
@@ -367,6 +359,17 @@ public:
      * @return Void.
      */
     void serializekey(string* d, int keytype);
+
+    /**
+     * @brief Serialize public key for compatibility with the webclient.
+     *
+     * It also add padding (PUB_E size is forced to 4 bytes) in case the
+     * of the key, at reception from server, indicates it has zero-padding.
+     *
+     * @param d String to take the serialized key without size-headers
+     * @return Void.
+     */
+    void serializekeyforjs(string& d);
 
     /**
      * @brief Generates an RSA key pair of a given key size.
@@ -421,7 +424,6 @@ public:
      */
     HMACSHA256(const byte *key, size_t length);
 
-
     /**
      * @brief Add data to the HMAC
      * @param data Data to add
@@ -434,6 +436,20 @@ public:
      * @param out The HMAC-SHA256 will be returned in the first 32 bytes of this buffer
      */
     void get(byte *out);
+};
+
+/**
+ * @brief HMAC-SHA512 generator
+ */
+class MEGA_API PBKDF2_HMAC_SHA512
+{
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+
+public:
+    PBKDF2_HMAC_SHA512();
+    void deriveKey(byte* derivedkey, size_t derivedkeyLen,
+                   byte* pwd, size_t pwdLen,
+                   byte* salt, size_t saltLen, unsigned int iterations);
 };
 
 } // namespace

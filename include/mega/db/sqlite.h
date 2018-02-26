@@ -31,6 +31,7 @@ class MEGA_API SqliteDbAccess : public DbAccess
     string dbpath;
 
 public:
+    DbTable* open(FileSystemAccess*, string*);
     DbTable* open(FileSystemAccess*, string*, SymmCipher *key);
     DbTable* openlegacy(FileSystemAccess*, string*);
     bool legacydb(FileSystemAccess *fsaccess, string*);
@@ -51,6 +52,7 @@ public:
     bool getrootnode(int, string*);
     bool getnodebyhandle(handle, string*);
     bool getnodebyfingerprint(string*, string*);
+    bool getnumtotalnodes(long long*);
 
     bool getnumchildrenquery(handle, int*);
     bool getnumchildfilesquery(handle, int*);
@@ -68,6 +70,7 @@ public:
     void rewindhandlesoutshares();
     void rewindhandlespendingshares(handle);
     void rewindhandlespendingshares();
+    void rewindhandlesfingerprint(string*);
     bool next(string*);
     bool nexthandle(handle*);
 
@@ -79,6 +82,7 @@ public:
 
     bool delnode(handle);
     bool delpcr(handle);
+    bool deluser(handle);
 
     void truncate();
     void begin();

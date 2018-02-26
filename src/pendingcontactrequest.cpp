@@ -39,6 +39,7 @@ PendingContactRequest::PendingContactRequest(const handle id,const char *oemail,
     this->id = id;
     this->targetemail = "";
     this->update(oemail, temail, ts, uts, msg, outgoing);
+    memset(&changed, 0, sizeof changed);
 }
 
 void PendingContactRequest::update(const char *oemail, const char *temail, const m_time_t ts, const m_time_t uts, const char *msg, bool outgoing)
@@ -59,7 +60,6 @@ void PendingContactRequest::update(const char *oemail, const char *temail, const
     }
 
     this->isoutgoing = outgoing;
-    memset(&changed, 0, sizeof changed);
 }
 
 bool PendingContactRequest::removed()
@@ -73,22 +73,22 @@ bool PendingContactRequest::serialize(string *d)
 
     d->append((char*)&id, sizeof id);
 
-    l = originatoremail.size();
+    l = (unsigned char)originatoremail.size();
     d->append((char*)&l, sizeof l);
     d->append(originatoremail.c_str(), l);
 
-    l = targetemail.size();
+    l = (unsigned char)targetemail.size();
     d->append((char*)&l, sizeof l);
     d->append(targetemail.c_str(), l);
 
     d->append((char*)&ts, sizeof ts);
     d->append((char*)&uts, sizeof uts);
 
-    l = msg.size();
+    l = (unsigned char)msg.size();
     d->append((char*)&l, sizeof l);
     d->append(msg.c_str(), l);
 
-    d->append(isoutgoing, sizeof isoutgoing);
+    d->append((char*)&isoutgoing, sizeof isoutgoing);
 
     return true;
 }
@@ -101,27 +101,36 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
     m_time_t ts;
     m_time_t uts;
     string msg;
-    bool isoutgoing;
+    bool isoutgoing = false;
 
     const char* ptr = d->data();
     const char* end = ptr + d->size();
     unsigned char l;
 
+    if (ptr + sizeof id + sizeof l > end)
+    {
+        return NULL;
+    }
+
     id = MemAccess::get<handle>(ptr);
     ptr += sizeof id;
 
     l = *ptr++;
-    if (l)
+    if (ptr + l + sizeof l > end)
     {
-        oemail.assign(ptr, l);
+        return NULL;
     }
+
+    oemail.assign(ptr, l);
     ptr += l;
 
     l = *ptr++;
-    if (l)
+    if (ptr + l + sizeof ts + sizeof uts + sizeof l > end)
     {
-        temail.assign(ptr, l);
+        return NULL;
     }
+
+    temail.assign(ptr, l);
     ptr += l;
 
     ts = MemAccess::get<m_time_t>(ptr);
@@ -131,19 +140,35 @@ PendingContactRequest* PendingContactRequest::unserialize(class MegaClient *clie
     ptr += sizeof uts;
 
     l = *ptr++;
-    if (l)
+    if (ptr + l > end)
+    // should be ptr+l+sizeof(isoutgoing), but legacy code writes 0 bytes when false
     {
-        msg.assign(ptr, l);
+        return NULL;
     }
+
+    msg.assign(ptr, l);
     ptr += l;
 
-    isoutgoing = MemAccess::get<bool>(ptr);
-    ptr += sizeof isoutgoing;
+    if (ptr == end) // legacy bug writes 0 bytes for incoming PCRs
+    {
+        isoutgoing = false;
+    }
+    else if (ptr + sizeof isoutgoing == end)
+    {
+        isoutgoing = MemAccess::get<bool>(ptr);
+        ptr += sizeof isoutgoing;
+    }
 
-    PendingContactRequest *pcr = new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str(), isoutgoing);
-    client->mappcr(id, pcr);
-
-    return pcr;
+    if (ptr == end)
+    {
+        PendingContactRequest *pcr = new PendingContactRequest(id, oemail.c_str(), temail.c_str(), ts, uts, msg.c_str(), isoutgoing);
+        client->mappcr(id, pcr);
+        return pcr;
+    }
+    else
+    {
+        return NULL;
+    }
 }
 
 } //namespace

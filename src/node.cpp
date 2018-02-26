@@ -368,7 +368,21 @@ pnode_t Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         } while (numshares > 0);
     }
 
-    ptr = n->attrs.unserialize(ptr);
+    ptr = n->attrs.unserialize(ptr, end);
+    if (!ptr)
+    {
+        return NULL;
+    }
+
+    // It's needed to re-normalize node names because
+    // the updated version of utf8proc doesn't provide
+    // exactly the same output as the previous one that
+    // we were using
+    attr_map::iterator it = n->attrs.map.find('n');
+    if (it != n->attrs.map.end())
+    {
+        client->fsaccess->normalize(&(it->second));
+    }
 
     PublicLink *plink = NULL;
     if (isExported)
@@ -631,9 +645,9 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, int attrstrlen)
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
-    if (client->tmpcipher.setkey(&nodekey))
+    if (client->tmpnodecipher.setkey(&nodekey))
     {
-        return &client->tmpcipher;
+        return &client->tmpnodecipher;
     }
 
     return NULL;
@@ -758,16 +772,21 @@ const char* Node::displayname() const
 // returns position of file attribute or 0 if not present
 int Node::hasfileattribute(fatype t) const
 {
+    return Node::hasfileattribute(&fileattrstring, t);
+}
+
+int Node::hasfileattribute(const string *fileattrstring, fatype t)
+{
     char buf[24];
 
     sprintf(buf, ":%u*", t);
-    return fileattrstring.find(buf) + 1;
+    return fileattrstring->find(buf) + 1;
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful
 bool Node::applykey()
 {
-    int keylength = (type == FILENODE)
+    unsigned int keylength = (type == FILENODE)
                    ? FILENODEKEYLENGTH + 0
                    : FOLDERNODEKEYLENGTH + 0;
 
@@ -898,7 +917,7 @@ bool Node::setparent(pnode_t p)
             p = client->nodebyhandle(p->parenthandle);
         }
 
-        if (!p && !ISUNDEF(parenthandle))
+        if ((!p && !ISUNDEF(parenthandle)) || p->type == FILENODE)
         {
             TreeProcDelSyncGet tdsg;
             client->proctree(shared_from_this(), &tdsg);
@@ -937,6 +956,20 @@ bool Node::isbelow(pnode_t p) const
         }
 
         n = client->nodebyhandle(n->parenthandle);
+    }
+}
+
+void Node::setpubliclink(handle ph, m_time_t ets, bool takendown)
+{
+    if (!plink) // creation
+    {
+        plink = new PublicLink(ph, ets, takendown);
+    }
+    else            // update
+    {
+        plink->ph = ph;
+        plink->ets = ets;
+        plink->takendown = takendown;
     }
 }
 
@@ -985,9 +1018,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         // remove existing child linkage
         parent->children.erase(&localname);
 
-        if (slocalname.size())
+        if (slocalname)
         {
-            parent->schildren.erase(&slocalname);
+            parent->schildren.erase(slocalname);
+            delete slocalname;
+            slocalname = NULL;
         }
     }
 
@@ -1036,7 +1071,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                     // set new name
                     node->attrs.map['n'] = name;
                     sync->client->reqtag = sync->tag;
-                    sync->client->setattr(node, NULL, prevname.c_str());
+                    sync->client->setattr(node, prevname.c_str());
                     sync->client->reqtag = creqtag;
                 }
             }
@@ -1061,9 +1096,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parenthandle) != API_OK)
+                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parenthandle) == API_EACCESS
+                        && sync != parent->sync)
 //              I assume that 'node->parenthandle' is correctly set to its value or UNDEF
-//                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) != API_OK)
+//                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
+//                        && sync != parent->sync)
                 {
                     LOG_debug << "Rename not permitted. Using node copy/delete";
 
@@ -1096,9 +1133,18 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         // (we don't construct a UTF-8 or sname for the root path)
         parent->children[&localname] = this;
 
-        if (sync->client->fsaccess->getsname(newlocalpath, &slocalname))
+        if (!slocalname)
         {
-            parent->schildren[&slocalname] = this;
+            slocalname = new string();
+        }
+        if (sync->client->fsaccess->getsname(newlocalpath, slocalname) && *slocalname != localname)
+        {
+            parent->schildren[slocalname] = this;
+        }
+        else
+        {
+            delete slocalname;
+            slocalname = NULL;
         }
 
         treestate(TREESTATE_NONE);
@@ -1110,7 +1156,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
             sync->client->syncup(parent, &nds);
 
             // check if nodes can be immediately created
-            bool immediatecreation = sync->client->synccreate.size() == nc;
+            bool immediatecreation = (int) sync->client->synccreate.size() == nc;
 
             sync->client->syncupdate();
 
@@ -1127,8 +1173,11 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
     }
 
-    LocalTreeProcUpdateTransfers tput;
-    sync->client->proclocaltree(this, &tput);
+    if (newlocalpath)
+    {
+        LocalTreeProcUpdateTransfers tput;
+        sync->client->proclocaltree(this, &tput);
+    }
 }
 
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
@@ -1151,6 +1200,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     syncxfer = true;
     newnode = NULL;
     parent_dbid = 0;
+    slocalname = NULL;
 
     ts = TREESTATE_NONE;
     dts = TREESTATE_NONE;
@@ -1167,6 +1217,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     else
     {
         localname = *cfullpath;
+        sync->client->fsaccess->local2path(&localname, &name);
     }
 
     scanseqno = sync->scanseqno;
@@ -1182,6 +1233,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 
     sync->client->syncactivity = true;
 
+    sync->client->totalLocalNodes++;
     sync->localnodes[type]++;
 }
 
@@ -1332,11 +1384,10 @@ LocalNode::~LocalNode()
         newnode->localnode = NULL;
     }
 
-#ifdef USE_INOTIFY
-    if (sync->dirnotify)
+    if (sync->dirnotify.get())
     {
         // deactivate corresponding notifyq records
-        for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
+        for (int q = DirNotify::RETRY; q >= DirNotify::EXTRA; q--)
         {
             for (notify_deque::iterator it = sync->dirnotify->notifyq[q].begin(); it != sync->dirnotify->notifyq[q].end(); it++)
             {
@@ -1347,7 +1398,6 @@ LocalNode::~LocalNode()
             }
         }
     }
-#endif
     
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
@@ -1355,6 +1405,7 @@ LocalNode::~LocalNode()
         sync->client->fsidnode.erase(fsid_it);
     }
 
+    sync->client->totalLocalNodes--;
     sync->localnodes[type]--;
 
     if (type == FILENODE && size > 0)
@@ -1364,7 +1415,7 @@ LocalNode::~LocalNode()
 
     if (type == FOLDERNODE)
     {
-        if (sync->dirnotify)
+        if (sync->dirnotify.get())
         {
             sync->dirnotify->delnotify(this);
         }
@@ -1394,6 +1445,12 @@ LocalNode::~LocalNode()
             sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
+
+    if (slocalname)
+    {
+        delete slocalname;
+        slocalname = NULL;
+    }
 }
 
 void LocalNode::getlocalpath(string* path, bool sdisable) const
@@ -1406,9 +1463,9 @@ void LocalNode::getlocalpath(string* path, bool sdisable) const
     {
         // use short name, if available (less likely to overflow MAXPATH,
         // perhaps faster?) and sdisable not set
-        if (!sdisable && l->slocalname.size())
+        if (!sdisable && l->slocalname)
         {
-            path->insert(0, l->slocalname);
+            path->insert(0, *(l->slocalname));
         }
         else
         {
@@ -1451,7 +1508,7 @@ LocalNode* LocalNode::childbyname(string* localname)
 {
     localnode_map::iterator it;
 
-    if ((it = children.find(localname)) == children.end() && (it = schildren.find(localname)) == schildren.end())
+    if (!localname || ((it = children.find(localname)) == children.end() && (it = schildren.find(localname)) == schildren.end()))
     {
         return NULL;
     }
@@ -1464,7 +1521,7 @@ void LocalNode::prepare()
     getlocalpath(&transfer->localfilename, true);
 
     // is this transfer in progress? update file's filename.
-    if (transfer->slot && transfer->slot->fa->localname.size())
+    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->localname.size())
     {
         transfer->slot->fa->updatelocalname(&transfer->localfilename);
     }
@@ -1484,15 +1541,6 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     }
     else
     {
-        pnode_t pnode;
-        // otherwise, overwrite node if it already exists and complete in its
-        // place
-        if (node && (pnode = node->client->nodebyhandle(node->parenthandle)) && pnode->localnode)
-        {
-            sync->client->movetosyncdebris(node, sync->inshare);
-            sync->client->execsyncdeletions();
-        }
-
         h = parent->node->nodehandle;
     }
 
@@ -1522,7 +1570,7 @@ bool LocalNode::serialize(string* d)
 
     d->append((const char*)&h, MegaClient::NODEHANDLE);
 
-    unsigned short ll = localname.size();
+    unsigned short ll = (unsigned short)localname.size();
 
     d->append((char*)&ll, sizeof ll);
     d->append(localname.data(), ll);
@@ -1622,6 +1670,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     l->fsid = fsid;
 
     l->localname.assign(localname, localnamelen);
+    l->slocalname = NULL;
     l->name.assign(localname, localnamelen);
     sync->client->fsaccess->local2name(&l->name);
 
@@ -1782,6 +1831,14 @@ void NodesCache::clear()
 {
     nodes.clear();
     hmap.clear();
+}
+
+void NodesCache::resetchanges()
+{
+    for (node_list::iterator it = nodes.begin(); it != nodes.end(); it++)
+    {
+        memset(&((*it)->changed), 0, sizeof (*it)->changed);
+    }
 }
 
 bool NodesCache::remove(pnode_t n)

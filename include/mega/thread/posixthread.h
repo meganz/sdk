@@ -17,15 +17,30 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
+
+#if defined(HAVE_CONFIG_H) || !(defined _WIN32)
+// platform dependent constants
+#ifdef __ANDROID__
+#include "mega/config-android.h"
+#else
+#include "mega/config.h"
+#endif
+#endif
 
 #ifdef USE_PTHREAD
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS PosixThread
+#define MUTEX_CLASS PosixMutex
+#define SEMAPHORE_CLASS PosixSemaphore
 
 #include "mega/thread.h"
 #include <pthread.h>
+#include <semaphore.h>
 
 namespace mega {
 class PosixThread : public Thread
@@ -36,6 +51,8 @@ public:
     void join();
     virtual ~PosixThread();
 
+    static unsigned long long currentThreadId();
+
 protected:
     pthread_t *thread;
 };
@@ -44,6 +61,7 @@ class PosixMutex : public Mutex
 {
 public:
     PosixMutex();
+    PosixMutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();
@@ -52,6 +70,21 @@ public:
 protected:
     pthread_mutex_t *mutex;
     pthread_mutexattr_t *attr;
+};
+
+class PosixSemaphore : public Semaphore
+{
+public:
+    PosixSemaphore();
+    virtual void release();
+    virtual void wait();
+    virtual int timedwait(int milliseconds);
+    virtual ~PosixSemaphore();
+
+protected:
+    unsigned int count;
+    pthread_mutex_t mtx;
+    pthread_cond_t cv;
 };
 
 } // namespace

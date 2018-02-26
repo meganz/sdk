@@ -26,10 +26,11 @@ public:
     virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
     virtual void onAccountUpdate(MegaApi* api);
 	virtual void onReloadNeeded(MegaApi* api);
+    virtual void onEvent(MegaApi* api, MegaEvent *e);
 
 #ifdef ENABLE_SYNC
     virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState);
+    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
 

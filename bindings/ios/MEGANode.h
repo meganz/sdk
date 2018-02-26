@@ -91,6 +91,11 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) NSString *name;
 
 /**
+ * @brief Duration of the node for audio/video files, in seconds. -1 if not set.
+ */
+@property (readonly, nonatomic) NSInteger duration;
+
+/**
  * @brief Handle of this MEGANode in a Base64-encoded string.
  */
 @property (readonly, nonatomic) NSString *base64Handle;
@@ -157,7 +162,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  *
  * 0 for non-expire links, and -1 if the MEGANode is not exported.
  */
-@property (readonly, nonatomic) NSDate *expirationTime;
+@property (readonly, nonatomic) int64_t expirationTime;
 
 /**
  * @brief The public handle of an exported node. If the MEGANode
@@ -259,8 +264,8 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 /**
  * @brief Returns a bit field with the changes of the node
  *
- * This value is only useful for nodes notified by [DelegateMEGAListener onNodesUpdate] or
- * [DelegateMEGAGlobalListener onNodesUpdate] that can notify about node modifications.
+ * This value is only useful for nodes notified by [MEGADelegate onNodesUpdate:nodeList:] or
+ * [MEGAGlobalDelegate onNodesUpdate:nodeList:] that can notify about node modifications.
  *
  * @return The returned value is an OR combination of these flags:
  *

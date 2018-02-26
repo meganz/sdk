@@ -19,8 +19,9 @@
  * program.
  */
 
-#ifndef __MegaLib__CGMegaGFX__
-#define __MegaLib__CGMegaGFX__
+#ifdef USE_IOS
+#ifndef GFX_CLASS
+#define GFX_CLASS GfxProcCG
 
 #include "mega.h"
 #include <ImageIO/CGImageSource.h>
@@ -31,7 +32,6 @@ class MEGA_API GfxProcCG : public mega::GfxProc
     CGImageSourceRef imageSource;
     CFDictionaryRef imageParams;
     CFMutableDictionaryRef thumbnailParams;
-    CGFloat w, h;
     CGImageRef createThumbnailWithMaxSize(int size);
     int maxSizeForThumbnail(const int rw, const int rh);
 private: // mega::GfxProc implementations
@@ -44,4 +44,8 @@ public:
     ~GfxProcCG();
 };
 
-#endif /* defined(__MegaLib__CGMegaGFX__) */
+void ios_statsid(std::string *statsid);
+void ios_appbasepath(std::string *appbasepath);
+
+#endif
+#endif

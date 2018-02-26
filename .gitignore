@@ -1,3 +1,4 @@
+/SDK.log
 # Compiled Object files
 *.slo
 *.lo
@@ -30,7 +31,8 @@ examples/linux/megafuse
 
 # Autotool stuff
 .deps
-Makefile
+/Makefile
+/include/Makefile
 Makefile.in
 aclocal.m4
 autom4te.cache
@@ -81,7 +83,12 @@ Debug
 Release
 sdk_build
 /contrib/QtCreator/megacli.creator.user
+megaclient_statecache*
 
 # Mega SDK runtime
 *.db-journal
 /megaclient_statecache*
+
+/third_party/Makefile
+
+/contrib/QtCreator/build-*

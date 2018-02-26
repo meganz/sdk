@@ -31,10 +31,10 @@ In the `examples` folder you can find example apps using:
   - An example app for iOS (using Objective-C bindings) in `examples/iOS`
   - An example app for Windows Phone (using Windows Phone bindings) in `examples/wp8`
 
+[MEGAcmd](examples/megacmd), a higher level command line application that uses the SDK to provide interactive and scriptable access to MEGA, can be found [here](https://github.com/meganz/megacmd).
+
 Building
 --------
-
-If you plan to develop an app using this SDK, please use the stable branch or the last released tarball. The master branch is continuously evolving, could be unstable and could change very often.
 
 For platforms with Autotools, the generic way to build and install it is:
 
@@ -43,7 +43,9 @@ For platforms with Autotools, the generic way to build and install it is:
     make
     sudo make install
 
-That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`)
+Notice that you would need Autotools installed in your system (in Linux this normally entails having `autoconf` and `libtool` packages installed).
+
+That compilation will include the examples using our low level SDK (`megacli` and `megasimplesync`). 
 You also have specific build instructions for OSX (`doc/OSX.txt`) and FreeBSD (`doc/FreeBSD.txt`)
 and a build script to automatically download and build the SDK along with all its dependencies (`contrib/build_sdk.sh`)
 
@@ -64,7 +66,7 @@ The new intermediate layer has been documented using Doxygen. The only public he
 to include to use is `include/megaapi.h`. You can read the documentation in that header file,
 or download the same documentation in HTML format from this link:
 
-https://mega.co.nz/#!c5FzhBJL!HUVjsOJTylwkmXPZ0AxT66Wuu4YvZInyHbWGYgvTHt4
+https://mega.nz/#!7glwEQBT!Fy9cwPpCmuaVdEkW19qwBLaiMeyufB1kseqisOAxfi8
 
 Additional info
 ---------------
@@ -95,6 +97,7 @@ Debian and RedHat derivatives, respectively):
 
 Optional dependency:
 * Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
+* MediaInfoLib (optional, see third_party/README_MediaInfo.txt)
 
 Filesystem event monitoring: The provided filesystem layer implements
 the Linux `inotify` and the MacOS `fsevents` interfaces.
@@ -119,7 +122,7 @@ To build the client access engine under Windows, you'll need the following:
 * pthreads (MinGW)
 
 Optional dependency:
-* Sodium or configure `--with-sodium`
+* Sodium, configure `--with-sodium`
 
 To build the reference `megacli.exe` example, you will also need to procure
 development packages (at least headers and `.lib`/`.a` libraries) of:

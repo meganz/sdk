@@ -11,7 +11,8 @@ $(TESTS): $(top_builddir)/src/libmega.la
 # rules
 tests_misc_test_SOURCES = \
     tests/tests.cpp \
-    tests/paycrypt_test.cpp
+    tests/paycrypt_test.cpp \
+    tests/crypto_test.cpp
 
 tests_sdk_test_SOURCES = \
     tests/sdktests.cpp \
@@ -23,10 +24,10 @@ tests_purge_account_SOURCES = \
     tests/purge_account.cpp
 
 tests_misc_test_CXXFLAGS = -I$(GTEST_DIR)/include $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
-tests_misc_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(CRYPTO_LIBS) $(top_builddir)/src/libmega.la
+tests_misc_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(top_builddir)/src/libmega.la
 
 tests_sdk_test_CXXFLAGS = -I$(GTEST_DIR)/include -I$(top_builddir)/include $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
-tests_sdk_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(top_builddir)/src/libmega.la
+tests_sdk_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(top_builddir)/src/libmega.la
 
 tests_purge_account_CXXFLAGS = -I$(top_builddir)/include $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
 tests_purge_account_LDADD = $(top_builddir)/src/libmega.la

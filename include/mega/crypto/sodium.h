@@ -19,9 +19,10 @@
  * program.
  */
 
-#ifdef USE_SODIUM
 #ifndef SODIUM_H
 #define SODIUM_H 1
+
+#ifdef ENABLE_CHAT
 
 #include <sodium.h>
 
@@ -34,24 +35,18 @@ using namespace std;
 class MEGA_API EdDSA
 {
 public:
-    static CryptoPP::AutoSeededRandomPool rng;
+    static const int SEED_KEY_LENGTH = crypto_sign_SEEDBYTES;
+    static const int PUBLIC_KEY_LENGTH = crypto_sign_PUBLICKEYBYTES;
 
-    EdDSA() : keySeed(NULL) {}
+    // TLV key to access to the corresponding value in the TLV records
+    static const string TLV_KEY;
+    bool initializationOK;
 
-    unsigned char* keySeed;
+    EdDSA(unsigned char* keySeed = NULL);
+    ~EdDSA();
 
-    /**
-     *  @brief Initialise libsodium crypto system. Should be called only once.
-     */
-    static void init();
-
-    /**
-     * @brief Sets a private key seed from a buffer.
-     *
-     * @param data Buffer containing the key bytes.
-     * @return Void.
-     */
-    void setKeySeed(const char* data);
+    unsigned char keySeed[SEED_KEY_LENGTH];
+    unsigned char pubKey[PUBLIC_KEY_LENGTH];
 
     /**
      * @brief Computes the signature of a message.
@@ -62,40 +57,106 @@ public:
      * @return Number of bytes for signed message (msg length + signature),
      *     0 on failure.
      */
-    int sign(unsigned char* msg, unsigned long long msglen, char* sig);
+    int sign(const unsigned char* msg, const unsigned long long msglen,
+             unsigned char* sig);
 
     /**
      * @brief Verifies the signature of a message.
      *
-     * @param cipher The cipher text to encrypt.
-     * @param cipherlen Length of the cipher text.
-     * @param buf Buffer to take the plain text..
-     * @param buflen Length of the plain text.
+     * @param msg Text of the message.
+     * @param msglen Length of message.
+     * @param sig Signature of the message
+     * @param pubKey Public key to check the signature.
      * @return 1 on a valid signature, 0 on a failed verification.
      */
     static int verify(const unsigned char* msg, unsigned long long msglen,
                       const unsigned char* sig, const unsigned char* pubKey);
 
     /**
-     * @brief Generates a new Ed25519 private key seed. The key seed is stored
-     * in the object.
-     *
-     * @param privk Private key seed to return, unless NULL.
-     * @return 1 on success, 0 on failure.
+     * @brief Generates the fingerprint of the public key.
+     * @return The 20 bytes corresponding to the fingerprint. 40 bytes for hex format.
      */
-    int genKeySeed(unsigned char* privKey = NULL);
+    byte *genFingerprint(bool hexFormat = false);
 
     /**
-     * @brief Derives the Ed25519 public key from the stored private key seed.
-     *
-     * @param pubKey Public key.
-     * @return 1 on success, 0 on failure.
+     * @brief Generates the fingerprint of the public key in hexadecimal format.
+     * @return The fingerprint in hexadecimal format.
      */
-    int publicKey(unsigned char* pubKey);
+    char *genFingerprintHex();
+
+    void signKey(const unsigned char* key, const unsigned long long keyLength, std::string *sigBuf, uint64_t ts = 0);
+    bool verifyKey(const unsigned char* pubk, const unsigned long long pubkLen,
+                   string *sig, const unsigned char* singingPubKey = NULL);
+
+private:
+    static const int PRIVATE_KEY_LENGTH = crypto_sign_SECRETKEYBYTES;
+    unsigned char privKey[PRIVATE_KEY_LENGTH]; // don't use it externally, use keySeed instead
 };
 
 
+/**
+ * @brief Asymmetric cryptographic for chat messages encryptiong using
+ * ECDH approach with x25519 key pair.
+ */
+class MEGA_API ECDH
+{
+public:
+    static const int PRIVATE_KEY_LENGTH = crypto_box_SECRETKEYBYTES;
+    static const int PUBLIC_KEY_LENGTH = crypto_box_PUBLICKEYBYTES;
+
+    // TLV key to access to the corresponding value in the TLV records
+    static const string TLV_KEY;
+    bool initializationOK;
+
+    unsigned char privKey[PRIVATE_KEY_LENGTH];
+    unsigned char pubKey[PUBLIC_KEY_LENGTH];
+
+    ECDH(unsigned char * privKey = NULL);
+    ~ECDH();
+
+    /**
+     * @brief encrypt Encrypt a message using the public key of recipient, the
+     * private key of the sender and a nonce (number used once)
+     *
+     * @param encmsg Encrypted text after encryption. This function ensures that the
+     * first crypto_box_ZEROBYTES bytes of the encrypted text msg are all 0.
+     * @param msg Message to be encrypted. Caller must ensure that the first
+     * crypto_box_ZEROBYTES bytes of the message msg are all 0.
+     * @param msglen Lenght of the message to be encrypted.
+     * @param nonce Number used once. The same nonce must never be used to encrypt another
+     * packet from the sender's private key to this receiver's public key or viceversa.
+     * @param pubKey Public key of the receiver.
+     * @param privKey Private key of the sender.
+     *
+     * @return 1 on success, 0 on failure.
+     */
+    int encrypt(unsigned char* encmsg, const unsigned char* msg,
+               const unsigned long long msglen, const unsigned char* nonce,
+               const unsigned char* pubKey, const unsigned char* privKey);
+
+    /**
+     * @brief decrypt Decrypt a message using the public key of recipient, the
+     * private key of the sender and a nonce (number used once)
+     *
+     * @param msg Message in plain text after decryption. This function ensures that
+     * the first crypto_box_ZEROBYTES bytes of the message msg are all 0.
+     * @param encmsg Encrypted text to be decrypted. Caller must ensure that the first
+     * crypto_box_ZEROBYTES bytes of the chipered text encmsg are all 0.
+     * @param encmsglen Length of the encrypted text.
+     * @param nonce Number used once. The same nonce must never be used to encrypt another
+     * packet from the sender's private key to this receiver's public key or viceversa.
+     * @param pubKey Public key of the sender.
+     * @param privKey Private key of the receiver.
+     *
+     * @return 1 on success, 0 on failure.
+     */
+    int decrypt(unsigned char* msg, const unsigned char* encmsg,
+                 const unsigned long long encmsglen, const unsigned char* nonce,
+                 const unsigned char* pubKey, const unsigned char* privKey);
+};
+
 } // namespace
 
-#endif
+#endif  // ENABLE_CHAT
+
 #endif

@@ -23,6 +23,7 @@
 #define MEGA_UTILS_H 1
 
 #include "types.h"
+#include "mega/logging.h"
 
 namespace mega {
 // convert 2...8 character ID to int64 integer (endian agnostic)
@@ -34,12 +35,15 @@ namespace mega {
 #define MAKENAMEID7(a, b, c, d, e, f, g) (nameid)((((uint64_t)a) << 48) + (((uint64_t)b) << 40) + (((uint64_t)c) << 32) + ((d) << 24) + ((e) << 16) + ((f) << 8) + (g))
 #define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
 
+std::string toNodeHandle(handle nodeHandle);
+#define LOG_NODEHANDLE(x) toNodeHandle(x)
+
 struct MEGA_API ChunkedHash
 {
     static const int SEGSIZE = 131072;
 
     static m_off_t chunkfloor(m_off_t);
-    static m_off_t chunkceil(m_off_t);
+    static m_off_t chunkceil(m_off_t, m_off_t limit = -1);
 };
 
 /**
@@ -89,7 +93,7 @@ public:
     unsigned get(AsymmCipher*, byte*, unsigned);
 
     // verify signature
-    bool check(AsymmCipher*, const byte*, unsigned);
+    bool checksignature(AsymmCipher*, const byte*, unsigned);
 
     HashSignature(Hash*);
     ~HashSignature();
@@ -193,7 +197,7 @@ public:
 // read/write multibyte words
 struct MEGA_API MemAccess
 {
-#ifdef NO_DIRECT_WORD_ACCESS
+#ifndef ALLOW_UNALIGNED_MEMORY_ACCESS
     template<typename T> static T get(const char* ptr)
     {
         T val;
@@ -221,6 +225,110 @@ struct MEGA_API MemAccess
 #ifdef _WIN32
 int mega_snprintf(char *s, size_t n, const char *format, ...);
 #endif
+
+struct MEGA_API TLVstore
+{
+private:
+    TLV_map tlv;
+
+ public:
+
+    /**
+     * @brief containerToTLVrecords Builds a TLV object with records from an encrypted container
+     * @param data Binary byte array representing the encrypted container
+     * @param datalen Length of the byte array.
+     * @param key Master key to decrypt the container
+     * @return A new TLVstore object. You take the ownership of the object.
+     */
+    static TLVstore * containerToTLVrecords(const string *data, SymmCipher *key);
+
+    /**
+     * @brief Builds a TLV object with records from a container
+     * @param data Binary byte array representing the TLV records
+     * @param datalen Length of the byte array.
+     * @return A new TLVstore object. You take the ownership of the object.
+     */
+    static TLVstore * containerToTLVrecords(const string *data);
+
+    /**
+     * @brief Converts the TLV records into an encrypted byte array
+     * @param key Master key to decrypt the container
+     * @param encSetting Block encryption mode to be used by AES
+     * @return A new string holding the encrypted byte array. You take the ownership of the string.
+     */
+    string *tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
+
+    /**
+     * @brief Converts the TLV records into a byte array
+     * @return A new string holding the byte array. You take the ownership of the string.
+     */
+    string *tlvRecordsToContainer();
+
+    /**
+     * @brief get Get the value for a given key
+     * @param type Type of the value (without scope nor non-historic modifiers).
+     * @return String containing the array with the value, or NULL if error.
+     */
+    string get(string type);
+
+    /**
+     * @brief Get a reference to the TLV_map associated to this TLVstore
+     *
+     * The TLVstore object retains the ownership of the returned object. It will be
+     * valid until this TLVstore object is deleted.
+     *
+     * @return The TLV_map associated to this TLVstore
+     */
+    const TLV_map *getMap() const;
+
+    /**
+     * @brief Get a list of the keys contained in the TLV
+     *
+     * You take ownership of the returned value.
+     *
+     * @return A new vector with the keys included in the TLV
+     */
+    vector<string> *getKeys() const;
+
+    /**
+     * @brief find Checks whether a type of value is available in the TLV container.
+     * @param type Type of the value (without scope nor non-historic modifiers).
+     * @return True if the type of value is found, false otherwise.
+     */
+    bool find(string type);
+
+    /**
+     * @brief add Adds a new record to the container
+     * @param type Type for the new value (without scope nor non-historic modifiers).
+     * @param value New value to be set.
+     * @return
+     */
+    void set(string type, string value);
+
+    size_t size();
+
+    static unsigned getTaglen(int mode);
+    static unsigned getIvlen(int mode);
+    static encryptionmode_t getMode(int mode);
+
+    ~TLVstore();
+};
+
+class Utils {
+public:
+    /**
+     * @brief Converts a character string from UTF-8 to Unicode
+     * This method is a workaround for a legacy bug where Webclient used to encode
+     * each byte of the array in UTF-8, resulting in a wider string of variable length.
+     * @note The UTF-8 string should only contain characters encoded as 1 or 2 bytes.
+     * @param src Characters string encoded in UTF-8
+     * @param srclen Length of the string (in bytes)
+     * @param result String holding the byte array of Unicode characters
+     * @return True if success, false if the byte 'src' is not a valid UTF-8 string
+     */
+    static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
+};
+
 
 } // namespace
 

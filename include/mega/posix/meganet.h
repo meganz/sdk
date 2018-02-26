@@ -22,19 +22,9 @@
 #ifndef HTTPIO_CLASS
 #define HTTPIO_CLASS CurlHttpIO
 
-#include "mega/http.h"
+#include "mega.h"
 
-#ifdef _WIN32
-   #ifdef WINDOWS_PHONE
-   #include "mega/wp8/megawaiter.h"
-   #else
-   #include "mega/win32/megawaiter.h"
-   #endif
-#else
-   #include "mega/posix/megawaiter.h"
-#endif
-
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
 #include <openssl/ssl.h>
 #endif
 
@@ -43,7 +33,6 @@
 
 namespace mega {
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
 struct MEGA_API SockInfo
 {
     enum
@@ -56,17 +45,21 @@ struct MEGA_API SockInfo
     SockInfo();
     int fd;
     int mode;
+#if defined(_WIN32)
     HANDLE handle;
-};
 #endif
+};
 
 struct MEGA_API CurlDNSEntry;
 struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
+    static MUTEX_CLASS curlMutex;
+
     string useragent;
-    CURLM* curlm;
+    CURLM* curlm[3];
+
     CURLSH* curlsh;
     ares_channel ares;
     string proxyurl;
@@ -83,6 +76,7 @@ protected:
     bool ipv6requestsenabled;
     std::queue<CurlHttpContext *> pendingrequests;
     std::map<string, CurlDNSEntry> dnscache;
+    int pkpErrors;
 
     void send_pending_requests();
     void drop_pending_requests();
@@ -90,13 +84,29 @@ protected:
     static size_t read_data(void*, size_t, size_t, void*);
     static size_t write_data(void*, size_t, size_t, void*);
     static size_t check_header(void*, size_t, size_t, void*);
+    static int seek_data(void*, curl_off_t, int);
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
-    static int timer_callback(CURLM *multi, long timeout_ms, void *userp);
+    static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
+    static int api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
+    static int timer_callback(CURLM *multi, long timeout_ms, void *userp, direction_t d);
+    static int api_timer_callback(CURLM *multi, long timeout_ms, void *userp);
+    static int download_timer_callback(CURLM *multi, long timeout_ms, void *userp);
+    static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
+
+#if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
+    static MUTEX_CLASS **sslMutexes;
+    static void locking_function(int mode, int lockNumber, const char *, int);
+
+#if OPENSSL_VERSION_NUMBER >= 0x10000000
+    static void id_function(CRYPTO_THREADID* id);
+#else
+    static unsigned long id_function();
+#endif
 #endif
 
-#if !defined(USE_CURL_PUBLIC_KEY_PINNING) || defined(WINDOWS_PHONE)
+#ifdef USE_OPENSSL
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
 #endif
@@ -114,28 +124,37 @@ protected:
     bool curlipv6;
     bool reset;
     bool statechange;
+    bool dnsok;
     string dnsservers;
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
 
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    void addaresevents(WinWaiter *waiter);
-    void addcurlevents(WinWaiter *waiter);
+    void addaresevents(Waiter *waiter);
+    void addcurlevents(Waiter *waiter, direction_t d);
+    void closearesevents();
+    void closecurlevents(direction_t d);
+    void processaresevents();
+    void processcurlevents(direction_t d);
     std::vector<SockInfo> aressockets;
-    std::map<int, SockInfo> curlsockets;
-    m_time_t curltimeoutms;
-    m_time_t arestimeoutds;
-#endif
+    std::map<int, SockInfo> curlsockets[3];
+    m_time_t curltimeoutreset[3];
+    bool arerequestspaused[3];
+    int numconnections[3];
+    set<CURL *>pausedrequests[3];
+    m_off_t partialdata[2];
+    m_off_t maxspeed[2];
+    bool curlsocketsprocessed;
+    m_time_t arestimeout;
 
 public:
     void post(HttpReq*, const char* = 0, unsigned = 0);
     void cancel(HttpReq*);
-    void sendchunked(HttpReq*);
 
     m_off_t postpos(void*);
 
     bool doio(void);
+    bool multidoio(CURLM *curlmhandle);
 
     void addevents(Waiter*, int);
 
@@ -144,6 +163,18 @@ public:
     void setdnsservers(const char*);
     void disconnect();
 
+    // set max download speed
+    virtual bool setmaxdownloadspeed(m_off_t bpslimit);
+
+    // set max upload speed
+    virtual bool setmaxuploadspeed(m_off_t bpslimit);
+
+    // get max download speed
+    virtual m_off_t getmaxdownloadspeed();
+
+    // get max upload speed
+    virtual m_off_t getmaxuploadspeed();
+
     CurlHttpIO();
     ~CurlHttpIO();
 };
@@ -151,6 +182,7 @@ public:
 struct MEGA_API CurlHttpContext
 {
     CURL* curl;
+    direction_t d;
 
     HttpReq* req;
     CurlHttpIO* httpio;

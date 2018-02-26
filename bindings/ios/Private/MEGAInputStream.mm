@@ -23,15 +23,27 @@
 
 MEGAInputStream::MEGAInputStream(ALAssetRepresentation *assetRepresentation) {
     this->assetRepresentation = assetRepresentation;
-    offset = 0;
+    this->data = NULL;
+    this->offset = 0;
+}
+
+MEGAInputStream::MEGAInputStream(NSData *data) {
+    this->data = data;
+    this->assetRepresentation = NULL;
+    this->offset = 0;
 }
 
 int64_t MEGAInputStream::getSize() {
-    return assetRepresentation.size;
+    if (assetRepresentation) {
+        return assetRepresentation.size;
+    }
+    return (int64_t)data.length;
 }
 
 bool MEGAInputStream::read(char *buffer, size_t size) {
-    if ((offset + (long)size) > assetRepresentation.size) {
+    if (assetRepresentation && (offset + (long)size) > assetRepresentation.size) {
+        return false;
+    } else if (data && (offset + (long)size) > data.length) {
         return false;
     }
     
@@ -40,15 +52,20 @@ bool MEGAInputStream::read(char *buffer, size_t size) {
         return true;
     }
     
-    int numBytesToRead = (int)size;
-    while (numBytesToRead > 0) {
-        NSInteger n = [assetRepresentation getBytes:(uint8_t *)buffer fromOffset:offset length:numBytesToRead error:nil];
-        if (n == 0) {
-            return false;
+    if (assetRepresentation) {
+        int numBytesToRead = (int)size;
+        while (numBytesToRead > 0) {
+            int n = [assetRepresentation getBytes:(uint8_t *)buffer fromOffset:offset length:numBytesToRead error:nil];
+            if (n == 0) {
+                return false;
+            }
+            
+            offset += n;
+            numBytesToRead -= n;
         }
-        
-        offset += n;
-        numBytesToRead -= n;
+    } else if (data) {
+        memcpy(buffer, (unsigned char *)[data bytes] + offset, size);
+        offset += size;
     }
     
     return true;

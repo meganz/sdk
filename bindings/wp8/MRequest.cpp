@@ -170,9 +170,18 @@ String^ MRequest::getFile()
     return utf8file ? ref new String((wchar_t *)utf16file.data()) : nullptr;
 }
 
-MNode^ MRequest::getPublicNode()
+int MRequest::getNumRetry()
 {
-    return megaRequest && megaRequest->getPublicNode() ? ref new MNode(megaRequest->getPublicMegaNode(), true) : nullptr;
+    return megaRequest ? megaRequest->getNumRetry() : 0;
+}
+
+MNode^ MRequest::getPublicMegaNode()
+{
+    if (megaRequest == nullptr) return nullptr;
+    
+    MegaNode *node = megaRequest->getPublicMegaNode();    
+    
+    return node ? ref new MNode(node, true) : nullptr;
 }
 
 int MRequest::getParamType()
@@ -216,7 +225,27 @@ MAccountDetails^ MRequest::getMAccountDetails()
     return megaRequest ? ref new MAccountDetails(megaRequest->getMegaAccountDetails(), true) : nullptr;
 }
 
-MPricing^  MRequest::getPricing()
+int MRequest::getTransferTag()
+{
+    return megaRequest ? megaRequest->getTransferTag() : 0;
+}
+
+int MRequest::getNumDetails()
+{
+    return megaRequest ? megaRequest->getNumDetails() : 0;
+}
+
+int MRequest::getTag()
+{
+    return megaRequest ? megaRequest->getTag() : 0;
+}
+
+MPricing^ MRequest::getPricing()
 {
     return megaRequest ? ref new MPricing(megaRequest->getPricing(), true) : nullptr;
+}
+
+MAchievementsDetails^ MRequest::getMAchievementsDetails()
+{
+    return megaRequest ? ref new MAchievementsDetails(megaRequest->getMegaAchievementsDetails(), true) : nullptr;
 }

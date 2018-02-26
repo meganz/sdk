@@ -27,7 +27,7 @@ To build and run the project, follow theses steps:
 
 1. Download or clone the whole SDK
 
-2. Download the prebuilt third party dependencies from this link: https://mega.nz/#!YctVmTQI!KtYFz2c7pyTzXC3fs9RkSMRtfDggjgYqOoVP19-CjLc
+2. Download the prebuilt third party dependencies from this link: https://mega.nz/#!YIdnRKSR!UIOuMq_h8A5CHwt7OX_THnyZ_OR1eS_cPmiwm8yxsb0
 
 3. Uncompress the content and move `include`and `lib`to the directory `sdk/bindings/ios/3rdparty`
 

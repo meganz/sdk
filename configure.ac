@@ -31,18 +31,22 @@ AC_PREREQ([2.61])
 
 # The Mega SDK version number is generated into config.h.
 # The version in Git should reflect the *next* version planned.
-m4_define([mega_major_version], [2])
-m4_define([mega_minor_version], [6])
-m4_define([mega_micro_version], [0])
+m4_define([mega_major_version], [$(cat include/mega/version.h | grep "define MEGA_MAJOR" | cut -d" " -f 3)])
+m4_define([mega_minor_version], [$(cat include/mega/version.h | grep "define MEGA_MINOR" | cut -d" " -f 3)])
+m4_define([mega_micro_version], [$(cat include/mega/version.h | grep "define MEGA_MICRO" | cut -d" " -f 3)])
+
 m4_define([mega_version],
           [mega_major_version.mega_minor_version.mega_micro_version])
 
 # libtool interface versioning
 m4_define([mega_lt_revision], [0])
-m4_define([mega_lt_current], [m4_eval(100 * mega_minor_version + mega_micro_version)])
+m4_define([mega_lt_current], [$(grep define <include/mega/version.h | awk '{print @S|@3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf @S|@1*10000+@S|@2*100+@S|@3}')])
 m4_define([mega_lt_age], [0])
 
-AC_INIT([libmega], [mega_version], [https://github.com/meganz/sdk])
+AC_INIT([libmega], m4_esyscmd([ grep define < include/mega/version.h | awk '{print $3}' | awk 'BEGIN { RS = "" ; FS = "\n" } {printf $1"."$2"."$3}']), [https://github.com/meganz/sdk])
+
+#override default /usr/local prefix
+AC_PREFIX_DEFAULT([/])
 
 # Define _GNU_SOURCE
 # AC_GNU_SOURCE
@@ -55,21 +59,6 @@ AC_CONFIG_MACRO_DIR([m4])
 # enable silent build
 m4_ifndef([AM_SILENT_RULES], [m4_define([AM_SILENT_RULES],[])])
 AM_SILENT_RULES([yes])
-
-MEGA_MAJOR_VERSION=mega_major_version
-MEGA_MINOR_VERSION=mega_minor_version
-MEGA_MICRO_VERSION=mega_micro_version
-
-AC_SUBST(MEGA_MAJOR_VERSION)
-AC_SUBST(MEGA_MINOR_VERSION)
-AC_SUBST(MEGA_MICRO_VERSION)
-
-AC_DEFINE(MEGA_MAJOR_VERSION, [mega_major_version],
-    [MEGA SDK major version.])
-AC_DEFINE(MEGA_MINOR_VERSION, [mega_minor_version],
-    [MEGA SDK minor version.])
-AC_DEFINE(MEGA_MICRO_VERSION, [mega_micro_version],
-    [MEGA SDK micro version.])
 
 LT_CURRENT=mega_lt_current
 LT_REVISION=mega_lt_revision
@@ -100,6 +89,7 @@ AC_CANONICAL_HOST
 AC_DEFINE_UNQUOTED(OS, "${host}", [cpu-machine-OS])
 
 # Check programs
+AC_PROG_OBJCXX
 AC_PROG_CXX
 if test "$CXX" = no || test "$CXX:$GXX" = "g++:"; then
   AC_MSG_ERROR([C++ compiler not found !])
@@ -153,6 +143,8 @@ if test "x$enable_debug" = "xyes" ; then
     CXXFLAGS="$CXXFLAGS -Wall -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
+else
+    CXXFLAGS="$CXXFLAGS -DNDEBUG=1"
 fi
 
 # Check if we can use -fPIC flag
@@ -193,6 +185,7 @@ AC_CHECK_LIB([rt], [clock_gettime])
 # Check if building for Win32, determine Win32 API libs
 WIN32=no
 DARWIN=no
+ANDROID=no
 AC_MSG_CHECKING([if building for Win32 platform])
 case $host in
   *-*-cygwin*)
@@ -200,8 +193,8 @@ case $host in
     WIN32=yes
     ;;
   *-*-mingw*)
-    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi"
-    CXXFLAGS="$CXXFLAGS -DUNICODE"
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
     WIN32=yes
     ;;
   *-apple-darwin*)
@@ -209,6 +202,9 @@ case $host in
     AC_DEFINE([_DARWIN_C_SOURCE], [1], [Define _DARWIN_C_SOURCE])
     DARWIN=yes
     ;;
+  *-android*)
+    ANDROID=yes
+    ;;    
   *)
     LIBS_EXTRA=""
     ;;
@@ -216,7 +212,17 @@ esac
 AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AM_CONDITIONAL([DARWIN], [test "${DARWIN}" = "yes"])
+AM_CONDITIONAL([ANDROID], [test "${ANDROID}" = "yes"])
+
 AC_SUBST(LIBS_EXTRA)
+
+if test -n "$IOSC_TARGET"; then
+#	bu=yes
+    AC_DEFINE(USE_IOS, 1, [Use IOS])
+fi
+AM_CONDITIONAL([USE_IOS], [test  -n "$IOSC_TARGET"])
+
+
 
 # check for Pthreads
 AC_ARG_ENABLE(posix-threads,
@@ -231,6 +237,8 @@ fi
 if test "$HAVE_PTHREAD" = "yes"; then
     AC_DEFINE(USE_PTHREAD, 1, [Defined if pthreads are available])
 fi
+AM_CONDITIONAL([HAVE_PTHREAD], [test "${HAVE_PTHREAD}" = "yes"])
+
 
 # hardening options
 AC_ARG_ENABLE(gcc-hardening,
@@ -247,13 +255,24 @@ if test x$enable_gcc_hardening != xno; then
 fi
 
 # sync subsystem
+
 AC_ARG_ENABLE(sync,
     AS_HELP_STRING([--enable-sync], [include sync subsystem [default=yes]]),
-    [enable_sync=$enableval],
+    [enable_sync=$enableval
+    if test "x$enable_sync" = "xyes" && (test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes"); then
+        AC_MSG_ERROR([--enable-sync not allowed when building bindings (php/python/java)!])
+    fi
+    ],
     [enable_sync=yes])
+
+if test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+    enable_sync=no
+fi
+
 if test x$enable_sync = xyes; then
     AC_DEFINE(ENABLE_SYNC, 1, [Defined if sync subsystem is enabled])
 fi
+
 
 # MEGA API
 AC_ARG_ENABLE(megaapi,
@@ -265,11 +284,66 @@ if test x$enable_megaapi = xyes; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
 
+
+# Java
+AC_MSG_CHECKING([if building Java bindings])
+AC_ARG_ENABLE(java,
+    AS_HELP_STRING([--enable-java], [build Java language bindings]),
+    [AC_MSG_RESULT([yes])],
+    [
+     AC_MSG_RESULT([no])
+     enable_java=no]
+)
+AC_ARG_WITH(java-include-dir,
+    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
+	[JAVA_INCLUDE_DIR=$withval],)
+AC_SUBST(JAVA_INCLUDE_DIR)
+
+if test "x$enable_java" = "xyes" ; then
+    AX_PKG_SWIG(2.0.0, [], [
+        AC_MSG_ERROR([SWIG executable not found!])
+    ])
+    AX_SWIG_ENABLE_CXX
+    AX_SWIG_MULTI_MODULE_SUPPORT
+
+    if test -z "$SWIG"; then
+        AC_MSG_ERROR([SWIG executable not found!])
+    fi
+
+    AC_CHECK_PROG(JAVA, java, yes, no)
+    if test "x$JAVA" = "xno"; then
+      AC_MSG_ERROR([no java binary in PATH])
+    fi
+    AC_CHECK_PROG(JAVAC, javac, yes, no)
+    if test "x$JAVAC" = "xno"; then
+      AC_MSG_ERROR([no javac binary in PATH])
+    fi
+    AC_CHECK_PROG(JAR, jar, yes, no)
+    if test "x$JAR" = "xno"; then
+      AC_MSG_ERROR([no jar binary in PATH])
+    fi
+
+    SAVE_CPPFLAGS=$CPPFLAGS
+    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
+
+    # on Fedora / CentOS jni_md.h header is not included
+    if test -d "$JAVA_INCLUDE_DIR/linux"; then
+        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
+        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
+        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
+    fi
+
+    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
+    CPPFLAGS=$SAVE_CPPFLAGS
+fi
+AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
+
 # Chat
 AC_ARG_ENABLE(chat,
     AS_HELP_STRING([--enable-chat], [enable chat support]),
     [], [enable_chat=no])
-if test "x$enable_chat" = "xyes" ; then
+if test "x$enable_chat" = "xyes" || test "x$enable_java" = "xyes" || test "x$enable_python" = "xyes" || test "x$enable_php" = "xyes" ; then
+    enable_chat=yes
     AC_DEFINE(ENABLE_CHAT, 1, [Define to enable chat])
 fi
 
@@ -364,8 +438,8 @@ AC_ARG_WITH(sodium,
     sodium=false
      ;;
    yes)
-    AC_CHECK_HEADERS([sodium/core.h],, [
-        AC_MSG_ERROR([sodium/core.h header not found or not usable])
+    AC_CHECK_HEADERS([sodium.h],, [
+        AC_MSG_ERROR([sodium.h header not found or not usable])
     ])
     AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
             AC_MSG_ERROR([Could not find libsodium])
@@ -380,7 +454,7 @@ AC_ARG_WITH(sodium,
         CXXFLAGS="-I$with_sodium/include $CXXFLAGS"
         CPPFLAGS="-I$with_sodium/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS(sodium/core.h,
+        AC_CHECK_HEADERS(sodium.h,
          SODIUM_CXXFLAGS="-I$with_sodium/include"
          SODIUM_CPPFLAGS="-I$with_sodium/include"
          SODIUM_LDFLAGS="-L$with_sodium/lib",
@@ -392,11 +466,11 @@ AC_ARG_WITH(sodium,
         CXXFLAGS="-I$with_sodium/src/libsodium/include $CXXFLAGS"
         CPPFLAGS="-I$with_sodium/src/libsodium/include $CPPFLAGS"
 
-        AC_CHECK_HEADERS(sodium/core.h,
+        AC_CHECK_HEADERS(sodium.h,
          SODIUM_CXXFLAGS="-I$with_sodium/src/libsodium/include"
          SODIUM_CPPFLAGS="-I$with_sodium/src/libsodium/include"
          SODIUM_LDFLAGS="-L$with_sodium/src/libsodium/.libs",
-         AC_MSG_ERROR([sodium/core.h header not found or not usable])
+         AC_MSG_ERROR([sodium.h header not found or not usable])
          )
     fi
 
@@ -414,8 +488,16 @@ AC_ARG_WITH(sodium,
    esac
   ],
   [AC_MSG_RESULT([--with-sodium not specified])
-    AC_CHECK_HEADERS([sodium/core.h], [sodium=true], [])
-    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[])
+    AC_CHECK_HEADERS([sodium.h], [sodium=true], [
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([sodium.h header not found or not usable])
+		fi
+    ])
+    AC_CHECK_LIB(sodium, [sodium_init], [SODIUM_LIBS="-lsodium"],[
+		if test "x$enable_chat" = "xyes" ; then
+			AC_MSG_ERROR([Could not find libsodium])
+		fi
+    ])
     ]
   )
 AC_SUBST(SODIUM_CXXFLAGS)
@@ -427,6 +509,164 @@ if test "x$sodium" = "xtrue" ; then
     AC_DEFINE(USE_SODIUM, [1], [Define to use libsodium])
 fi
 AM_CONDITIONAL([USE_SODIUM], [test "x$sodium" = "xtrue"])
+
+#
+# PCRE
+#
+
+#libpcre
+AC_MSG_CHECKING(for libpcrecpp)
+pcre=false
+AC_ARG_WITH(pcre,
+  AS_HELP_STRING(--with-pcre=PATH, base of libpcrecpp installation),
+  [
+   case $with_pcre in
+   no)
+    pcre=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([pcrecpp.h],, [
+        AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcrecpp])
+    ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
+            AC_MSG_ERROR([Could not find libpcre])
+    ])
+    pcre=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_pcre/lib64"; then
+        LDFLAGS="-L$with_pcre/lib64 $LDFLAGS"
+        CXXFLAGS="-I$with_pcre/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pcre/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(pcrecpp.h,
+         PCRE_CXXFLAGS="-I$with_pcre/include"
+         PCRE_CPPFLAGS="-I$with_pcre/include"
+         PCRE_LDFLAGS="-L$with_pcre/lib64",
+         AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+         )
+    else
+        LDFLAGS="-L$with_pcre/lib32 $LDFLAGS"
+        CXXFLAGS="-I$with_pcre/include $CXXFLAGS"
+        CPPFLAGS="-I$with_pcre/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(pcrecpp.h,
+         PCRE_CXXFLAGS="-I$with_pcre/include"
+         PCRE_CPPFLAGS="-I$with_pcre/include"
+         PCRE_LDFLAGS="-L$with_pcre/lib32",
+         AC_MSG_ERROR([pcrecpp.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(pcrecpp, [main], [PCRE_LIBS="-lpcrecpp"],[
+            AC_MSG_ERROR([Could not find libpcrecpp])
+    ])
+    AC_CHECK_LIB(pcre, [pcre_compile], [PCRE_LIBS="$PCRE_LIBS -lpcre"],[
+            AC_MSG_ERROR([Could not find libpcre])
+    ])
+
+    pcre=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+)
+AC_SUBST(PCRE_CXXFLAGS)
+AC_SUBST(PCRE_CPPFLAGS)
+AC_SUBST(PCRE_LDFLAGS)
+AC_SUBST(PCRE_LIBS)
+
+if test "x$pcre" = "xtrue" ; then
+    AC_DEFINE(USE_PCRE, [1], [Define to use libpcre])
+fi
+AM_CONDITIONAL([USE_PCRE], [test "x$pcre" = "xtrue"])
+
+
+#
+# LIBUV
+#
+
+#libuv
+LIBUV_LIBS=""
+AC_MSG_CHECKING(for libuv)
+libuv=false
+AC_ARG_WITH(libuv,
+  AS_HELP_STRING(--with-libuv=PATH, base of libuv installation),
+  [
+   case $with_libuv in
+   no)
+    libuv=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([uv.h],, [
+        AC_MSG_ERROR([uv.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(uv, [uv_run], [LIBUV_LIBS="-luv"],[
+            AC_MSG_ERROR([Could not find libuv])
+    ])
+    libuv=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_libuv/lib"; then
+        LDFLAGS="-L$with_libuv/lib $LDFLAGS"
+        CXXFLAGS="-I$with_libuv/include $CXXFLAGS"
+        CPPFLAGS="-I$with_libuv/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(uv.h,
+         LIBUV_CXXFLAGS="-I$with_libuv/include"
+         LIBUV_CPPFLAGS="-I$with_libuv/include"
+         LIBUV_LDFLAGS="-L$with_libuv/lib",
+         AC_MSG_ERROR([uv.h header not found or not usable])
+         )
+    # assume we are using libuv source directory
+    else
+        LDFLAGS="-L$with_libuv/uv $LDFLAGS"
+        CXXFLAGS="-I$with_libuv $CXXFLAGS"
+        CPPFLAGS="-I$with_libuv $CPPFLAGS"
+
+        AC_CHECK_HEADERS(uv.h,
+         LIBUV_CXXFLAGS="-I$with_libuv"
+         LIBUV_CPPFLAGS="-I$with_libuv"
+         LIBUV_LDFLAGS="-L$with_libuv/uv",
+         AC_MSG_ERROR([uv.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(uv, [uv_run], [LIBUV_LIBS="-luv"],[
+            AC_MSG_ERROR([Could not find libuv])
+    ])
+
+    libuv=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-libuv not specified])]
+  )
+AC_SUBST(LIBUV_CXXFLAGS)
+AC_SUBST(LIBUV_CPPFLAGS)
+AC_SUBST(LIBUV_LDFLAGS)
+AC_SUBST(LIBUV_LIBS)
+if test "x$libuv" = "xtrue" ; then
+    AC_DEFINE(HAVE_LIBUV, [1], [Define to use libuv])
+fi
+AM_CONDITIONAL([USE_LIBUV], [test "x$libuv" = "xtrue"])
+
 
 #
 # Zlib
@@ -662,12 +902,247 @@ else
     AC_DEFINE(USE_SQLITE, [0], [Define to use SQLite])
     AC_DEFINE(USE_DB, [1], [Define to use Berkeley DB])
 fi
+
+#
+# LIBMediaInfo
+#
+#libzen
+LIBZEN_LIBS=""
+AC_MSG_CHECKING(for libzen)
+libzen=false
+AC_ARG_WITH(libzen,
+  AS_HELP_STRING(--with-libzen=PATH, base of libzen installation),
+  [
+   case $with_libzen in
+   no)
+    libzen=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([ZenLib/Ztring.h],, [
+        AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(zen, [_init], [LIBZEN_LIBS="-lzen"],[
+            AC_MSG_ERROR([Could not find libzen])
+    ])
+    libzen=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_libzen/lib"; then
+        LDFLAGS="-L$with_libzen/lib $LDFLAGS"
+        CXXFLAGS="-I$with_libzen/include $CXXFLAGS"
+        CPPFLAGS="-I$with_libzen/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(ZenLib/Ztring.h,
+         LIBZEN_CXXFLAGS="-I$with_libzen/include"
+         LIBZEN_CPPFLAGS="-I$with_libzen/include"
+         LIBZEN_LDFLAGS="-L$with_libzen/lib",
+         AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
+         )
+    # assume we are using libzen source directory
+    else
+        LDFLAGS="-L$with_libzen/zen $LDFLAGS"
+        CXXFLAGS="-I$with_libzen $CXXFLAGS"
+        CPPFLAGS="-I$with_libzen $CPPFLAGS"
+
+        AC_CHECK_HEADERS(ZenLib/Ztring.h,
+         LIBZEN_CXXFLAGS="-I$with_libzen"
+         LIBZEN_CPPFLAGS="-I$with_libzen"
+         LIBZEN_LDFLAGS="-L$with_libzen/zen",
+         AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(zen, [_init], [LIBZEN_LIBS="-lzen"],[
+            AC_MSG_ERROR([Could not find libzen])
+    ])
+
+    libzen=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-libzen not specified])
+    AC_CHECK_HEADERS([ZenLib/Ztring.h],
+        AC_CHECK_LIB(zen, [_init], [
+        LIBZEN_LIBS="-lzen"
+        libzen=true
+        ],)
+    ,)
+    
+  ]
+  )
+
+AC_CHECK_LIB(pthread, pthread_create, [pthread_available=yes], [pthread_available=no])
+
+if test "x$libzen" = "xtrue" && test "$pthread_available" = "yes"; then
+    #libmediainfo
+    LIBMEDIAINFO_LIBS=""
+    AC_MSG_CHECKING(for libmediainfo)
+    libmediainfo=false
+    AC_ARG_WITH(libmediainfo,
+      AS_HELP_STRING(--with-libmediainfo=PATH, base of libmediainfo installation),
+      [
+       case $with_libmediainfo in
+       no)
+        libmediainfo=false
+         ;;
+       yes)
+        AC_CHECK_HEADERS([MediaInfo/MediaInfo.h],, [
+            AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+        ])
+
+        LIBS="$LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
+        AC_MSG_RESULT(["AQUIITO LDFLAGS=$LDFLAGS CXXFLAGS=$CXXFLAGS CPPFLAGS=$CPPFLAGS LIBS=$LIBS" ]) #TODO: delete
+
+        AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo $LIBZEN_LIBS"],[
+                AC_MSG_ERROR([Could not find libmediainfo])
+        ])
+        LIBS="$SAVE_LIBS"
+        libmediainfo=true
+         ;;
+       *)
+
+        # determine if library is installed
+        if test -d "$with_libmediainfo/lib"; then
+            LDFLAGS="$LIBZEN_LDFLAGS $ZLIB_LDFLAGS -L$with_libmediainfo/lib $LDFLAGS"
+            CXXFLAGS="$LIBZEN_CXXFLAGS $ZLIB_CXXFLAGS -I$with_libmediainfo/include $CXXFLAGS"
+            CPPFLAGS="$LIBZEN_CPPFLAGS $ZLIB_CPPFLAGS  -I$with_libmediainfo/include $CPPFLAGS"
+
+            AC_CHECK_HEADERS(MediaInfo/MediaInfo.h,
+             LIBMEDIAINFO_CXXFLAGS="$LIBZEN_CXXFLAGS -I$with_libmediainfo/include"
+             LIBMEDIAINFO_CPPFLAGS="$LIBZEN_CPPFLAGS -I$with_libmediainfo/include"
+             LIBMEDIAINFO_LDFLAGS="$LIBZEN_LDFLAGS -L$with_libmediainfo/lib",
+             AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+             )
+        # assume we are using libmediainfo source directory
+        else
+            LDFLAGS="$LIBZEN_LDFLAGS $ZLIB_LDFLAGS -L$with_libmediainfo/mediainfo $LDFLAGS"
+            CXXFLAGS="$LIBZEN_CXXFLAGS $ZLIB_CXXFLAGS -I$with_libmediainfo $CXXFLAGS"
+            CPPFLAGS="$LIBZEN_CPPFLAGS $ZLIB_CPPFLAGS -I$with_libmediainfo $CPPFLAGS"
+
+            AC_CHECK_HEADERS(MediaInfo/MediaInfo.h,
+             LIBMEDIAINFO_CXXFLAGS="$LIBZEN_CXXFLAGS -I$with_libmediainfo"
+             LIBMEDIAINFO_CPPFLAGS="$LIBZEN_CPPFLAGS -I$with_libmediainfo"
+             LIBMEDIAINFO_LDFLAGS="$LIBZEN_LDFLAGS -L$with_libmediainfo/mediainfo",
+             AC_MSG_ERROR([MediaInfo/MediaInfo.h header not found or not usable])
+             )
+        fi
+
+        SAVE_LIBS="$LIBS"
+        LIBS="$LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
+
+        AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo $LIBZEN_LIBS"],[
+                AC_MSG_ERROR([Could not find libmediainfo])
+        ])
+        LIBS="$SAVE_LIBS"
+
+        libmediainfo=true
+
+        #restore
+        LDFLAGS=$SAVE_LDFLAGS
+        CXXFLAGS=$SAVE_CXXFLAGS
+        CPPFLAGS=$SAVE_CPPFLAGS
+        ;;
+       esac
+      ],
+      [AC_MSG_RESULT([--with-libmediainfo not specified])
+        AC_CHECK_HEADERS([MediaInfo/MediaInfo.h],
+
+            SAVE_LIBS="$LIBS"
+            LIBS="$LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
+
+            AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [
+            LIBMEDIAINFO_LIBS="-lmediainfo $LIBZEN_LIBS"
+            libmediainfo=true
+            ],)
+
+            LIBS="$SAVE_LIBS"
+            
+        ,)
+        
+      ]
+      )
+
+    if test "x$libmediainfo" = "xtrue" ; then
+     SAVE_LIBS="$LIBS"
+     LIBS="$LIBS $LIBMEDIAINFO_LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
+     LDFLAGS="$LIBMEDIAINFO_LDFLAGS"
+     CXXFLAGS="$LIBMEDIAINFO_CXXFLAGS"
+     CPPFLAGS="$LIBMEDIAINFO_CPPFLAGS"
+     lmediainfo_prog='#include <iostream> 
+    #include "ZenLib/Ztring.h"
+    #include "MediaInfo/MediaInfo.h"
+    int main () { std::cout << ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local().c_str() << std::endl; }
+    '
+
+      AC_LINK_IFELSE(
+        [AC_LANG_SOURCE($lmediainfo_prog)],
+         AC_MSG_RESULT([libmediainfo worked]),
+         #Try again with -DUNICODE
+         LIBMEDIAINFO_LDFLAGS="$LIBMEDIAINFO_LDFLAGS -DUNICODE"
+         LDFLAGS="$LIBMEDIAINFO_LDFLAGS"
+         AC_LINK_IFELSE(
+        [AC_LANG_SOURCE($lmediainfo_prog)],
+         AC_MSG_RESULT([libmediainfo worked worked with -DUNICODE])
+         AC_DEFINE(UNICODE, [1], [Define to use UNICODE (for MediaInfo)])
+         ,
+         AC_MSG_RESULT([libmediainfo failed to compile. Discarded])
+         libmediainfo=false
+         unset LIBMEDIAINFO_CXXFLAGS
+         unset LIBMEDIAINFO_CPPFLAGS
+         unset LIBMEDIAINFO_LDFLAGS
+         unset LIBMEDIAINFO_LIBS
+         )
+       )
+
+      #restore
+      LDFLAGS=$SAVE_LDFLAGS
+      CXXFLAGS=$SAVE_CXXFLAGS
+      CPPFLAGS=$SAVE_CPPFLAGS
+      LIBS="$SAVE_LIBS"
+
+    fi 
+    if test "x$libmediainfo" = "xtrue" ; then
+        AC_SUBST(LIBMEDIAINFO_CXXFLAGS)
+        AC_SUBST(LIBMEDIAINFO_CPPFLAGS)
+        AC_SUBST(LIBMEDIAINFO_LDFLAGS)
+        AC_SUBST(LIBMEDIAINFO_LIBS)
+        AC_DEFINE(USE_MEDIAINFO, [1], [Define to use libmediainfo])    
+    fi
+
+else
+    AC_MSG_RESULT([libmediainfo requires libzen])
+fi
+
+AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
+
 #
 # ** Posix dependent libraries **
 #
 openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
+
+    # librt #TODO: allow --with-rt=...
+    AC_CHECK_LIB([rt], [aio_write], [
+    SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
+    LDFLAGS="-lrt $LDFLAGS"
+    if test "$HAVE_PTHREAD" = "yes"; then
+        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
+        LDFLAGS="-pthread $LDFLAGS"
+    fi    
+#    LIBRT_CXXFLAGS="-lrt "
+#    LIBRT_CPPFLAGS="-lrt "
+#    LIBRT_LDFLAGS="-lrt "
+    AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
+    ],
+    )
 
     # OpenSSL
     AC_MSG_CHECKING(for OpenSSL)
@@ -838,7 +1313,8 @@ if test "x$WIN32" = "xno" ; then
        *)
 
         # determine if library is installed
-        LDFLAGS="-L$with_curl/lib $LDFLAGS"
+        LDFLAGS="-L$with_curl/lib $LDFLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS"
+
         CXXFLAGS="-I$with_curl/include $CXXFLAGS"
         SAVE_LIBS=$LIBS
         LIBS="-lcurl $LIBS"
@@ -899,9 +1375,8 @@ fi
 AM_CONDITIONAL(HAVE_OPENSSL, test x$openssl = xtrue)
 if test "x$openssl" = "xtrue" ; then
     AC_DEFINE(USE_OPENSSL, [1], [Define to use OpenSSL])
-else
-    AC_DEFINE(USE_OPENSSL, [0], [Define to use OpenSSL])
 fi
+
 
 # define on all platforms
 AM_CONDITIONAL(HAVE_CARES, test x$cares = xtrue)
@@ -922,7 +1397,7 @@ AC_SUBST(platform_include)
 # Examples
 AC_MSG_CHECKING([if building example applications])
 AC_ARG_ENABLE(examples,
-    AS_HELP_STRING([--enable-examples], [build example applications]),
+    AS_HELP_STRING([--enable-examples], [build example applications [default=yes]]),
     [], [enable_examples=yes])
 AM_CONDITIONAL([BUILD_EXAMPLES], [test "$enable_examples" = "yes"])
 AC_MSG_RESULT([$enable_examples])
@@ -1350,9 +1825,17 @@ if test "x$enable_php" = "xyes" ; then
     fi
 
     AC_SUBST(PHPINC)
-	AC_SUBST(PHPEXT)
-	AC_SUBST(PHPLIBDIR)
+    AC_SUBST(PHPEXT)
+    AC_SUBST(PHPLIBDIR)
 
+    m4_define([php_version], [$(php-config --version | cut -d '.' -f 1)])
+    if test "x"php_version = "x7" ; then
+        AX_PKG_SWIG(3.0.11, [SWIG_FLAGS_PHP='-php7'], AC_MSG_ERROR([PHP 7 requires SWIG >=3.0.11]))
+    else
+        SWIG_FLAGS_PHP='-php'
+    fi
+
+    #do AX_PKG_SWIG again to have $SWIG correctly defined, no only for >=3.0.11
     AX_PKG_SWIG(2.0.0, [], [
         AC_MSG_ERROR([SWIG executable not found!])
     ])
@@ -1362,62 +1845,11 @@ if test "x$enable_php" = "xyes" ; then
     if test -z "$SWIG"; then
         AC_MSG_ERROR([SWIG executable not found!])
     fi
+    
+    AC_SUBST([SWIG_FLAGS_PHP])
+
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
-
-# Java
-AC_MSG_CHECKING([if building Java bindings])
-AC_ARG_ENABLE(java,
-    AS_HELP_STRING([--enable-java], [build Java language bindings]),
-    [AC_MSG_RESULT([yes])],
-    [
-     AC_MSG_RESULT([no])
-     enable_java=no]
-)
-AC_ARG_WITH(java-include-dir,
-    AS_HELP_STRING([--with-java-include-dir=DIR], [look in DIR for Java headers]),
-	[JAVA_INCLUDE_DIR=$withval],)
-AC_SUBST(JAVA_INCLUDE_DIR)
-
-if test "x$enable_java" = "xyes" ; then
-    AX_PKG_SWIG(2.0.0, [], [
-        AC_MSG_ERROR([SWIG executable not found!])
-    ])
-    AX_SWIG_ENABLE_CXX
-    AX_SWIG_MULTI_MODULE_SUPPORT
-
-    if test -z "$SWIG"; then
-        AC_MSG_ERROR([SWIG executable not found!])
-    fi
-
-    AC_CHECK_PROG(JAVA, java, yes, no)
-    if test "x$JAVA" = "xno"; then
-      AC_MSG_ERROR([no java binary in PATH])
-    fi
-    AC_CHECK_PROG(JAVAC, javac, yes, no)
-    if test "x$JAVAC" = "xno"; then
-      AC_MSG_ERROR([no javac binary in PATH])
-    fi
-    AC_CHECK_PROG(JAR, jar, yes, no)
-    if test "x$JAR" = "xno"; then
-      AC_MSG_ERROR([no jar binary in PATH])
-    fi
-
-    SAVE_CPPFLAGS=$CPPFLAGS
-    CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR"
-
-    # on Fedora / CentOS jni_md.h header is not included
-    if test -d "$JAVA_INCLUDE_DIR/linux"; then
-        CPPFLAGS="$CPPFLAGS -I$JAVA_INCLUDE_DIR/linux"
-        JAVA_INCLUDE_DIR_LINUX="$JAVA_INCLUDE_DIR/linux"
-        AC_SUBST(JAVA_INCLUDE_DIR_LINUX)
-    fi
-
-    AC_CHECK_HEADER(jni.h,, [AC_MSG_ERROR([could not find jni.h, please specify JAVA include directory using --with-java-include-dir option.])])
-    CPPFLAGS=$SAVE_CPPFLAGS
-fi
-AM_CONDITIONAL([BUILD_JAVA], [test "$enable_java" = "yes"])
-
 
 dnl #########################################################################
 dnl Doxygen settings
@@ -1451,10 +1883,12 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Install prefix:   $prefix
   Compiler:         $CXX
   CXXFLAGS:         $CXXFLAGS
+  LDFLAGS:          $LDFLAGS
   gcc hardening:    $enable_gcc_hardening
   debug:            $enable_debug
   static:           $enable_static
-  sync subsystem    $enable_sync
+  sync subsystem:   $enable_sync
+  chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
 
@@ -1464,6 +1898,8 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Python bindings:  $enable_python
   Python3 bindings: $USE_PYTHON3
   PHP bindings:     $enable_php
+  SWIG_FLAGS_PHP:   $SWIG_FLAGS_PHP
+  
   Java bindings:    $enable_java
 
   OpenSSL:          $LIBSSL_FLAGS $LIBSSL_LDFLAGS $LIBSSL_LIBS
@@ -1476,4 +1912,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   FreeImage:        $FI_CXXFLAGS $FI_LDFLAGS $FI_LIBS
   Readline:         $RL_CXXFLAGS $RL_LDFLAGS $RL_LIBS
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
+  PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
+  LIBUV:            $LIBUV_CXXFLAGS $LIBUV_LDFLAGS $LIBUV_LIBS
+  LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
 ])

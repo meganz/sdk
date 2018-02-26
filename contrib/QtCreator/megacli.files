@@ -50,6 +50,7 @@
 ../../include/mega/json.h
 ../../include/mega/logging.h
 ../../include/mega/mega_utf8proc.h
+../../include/mega/mega_glob.h
 ../../include/mega/megaapp.h
 ../../include/mega/megaclient.h
 ../../include/mega/node.h
@@ -109,6 +110,7 @@
 ../../src/http.cpp
 ../../src/json.cpp
 ../../src/logging.cpp
+../../src/mega_glob.c
 ../../src/mega_utf8proc.cpp
 ../../src/mega_utf8proc_data.c
 ../../src/megaapi.cpp
@@ -132,9 +134,13 @@
 ../../tests/paycrypt_test.cpp
 ../../tests/tests.cpp
 ../../tests/sdk_test.cpp
-../../third_party/glob/glob.c
-../../third_party/glob/glob.h
 ../../Makefile
 
 ../../tests/sdktests.cpp
 ../../tests/sdk_test.h
+../../tests/crypto_test.cpp
+../../src/thread/libuvthread.cpp
+../../include/mega/thread/libuvthread.h
+../../include/mega/version.h
+../../src/mediafileattribute.cpp
+../../include/mega/mediafileattribute.h

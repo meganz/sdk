@@ -93,7 +93,7 @@ void ShareNodeKeys::add(NodeCore* n, pnode_t sn, int specific, const byte* item,
     }
 }
 
-void ShareNodeKeys::get(Command* c)
+void ShareNodeKeys::get(Command* c, bool skiphandles)
 {
     if (keys.size())
     {
@@ -111,9 +111,12 @@ void ShareNodeKeys::get(Command* c)
         // emit item handles (can be node handles or upload tokens)
         c->beginarray();
 
-        for (unsigned i = 0; i < items.size(); i++)
+        if (!skiphandles)
         {
-            c->element((const byte*)items[i].c_str(), items[i].size());
+            for (unsigned i = 0; i < items.size(); i++)
+            {
+                c->element((const byte*)items[i].c_str(), items[i].size());
+            }
         }
 
         c->endarray();

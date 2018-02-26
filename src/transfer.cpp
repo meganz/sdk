@@ -25,6 +25,9 @@
 #include "mega/megaapp.h"
 #include "mega/sync.h"
 #include "mega/logging.h"
+#include "mega/base64.h"
+#include "mega/mediafileattribute.h"
+#include "megawaiter.h"
 
 namespace mega {
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
@@ -40,8 +43,19 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     metamac = 0;
     tag = 0;
     slot = NULL;
-    
+    asyncopencontext = NULL;
+    progresscompleted = 0;
+    hasprevmetamac = false;
+    hascurrentmetamac = false;
+    finished = false;
+    lastaccesstime = 0;
+    ultoken = NULL;
+
+    priority = 0;
+    state = TRANSFERSTATE_NONE;
+
     faputcompletion_it = client->faputcompletion.end();
+    transfers_it = client->transfers[type].end();
 }
 
 // delete transfer with underlying slot, notify files
@@ -54,6 +68,11 @@ Transfer::~Transfer()
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
+        if (finished)
+        {
+            client->filecachedel(*it);
+        }
+
         (*it)->transfer = NULL;
         (*it)->terminated();
     }
@@ -62,11 +81,280 @@ Transfer::~Transfer()
     {
         client->transfers[type].erase(transfers_it);
     }
+    client->transferlist.removetransfer(this);
 
     if (slot)
     {
         delete slot;
     }
+
+    if (asyncopencontext)
+    {
+        delete asyncopencontext;
+        asyncopencontext = NULL;
+        client->asyncfopens--;
+    }
+
+    if (ultoken)
+    {
+        delete [] ultoken;
+    }
+
+    if (finished)
+    {
+        if (type == GET && localfilename.size())
+        {
+            client->fsaccess->unlinklocal(&localfilename);
+        }
+        client->transfercachedel(this);
+    }
+}
+
+bool Transfer::serialize(string *d)
+{
+    unsigned short ll;
+
+    d->append((const char*)&type, sizeof(type));
+
+    ll = (unsigned short)localfilename.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(localfilename.data(), ll);
+
+    d->append((const char*)filekey, sizeof(filekey));
+    d->append((const char*)&ctriv, sizeof(ctriv));
+    d->append((const char*)&metamac, sizeof(metamac));
+    d->append((const char*)transferkey, sizeof (transferkey));
+
+    ll = (unsigned short)chunkmacs.size();
+    d->append((char*)&ll, sizeof(ll));
+    for (chunkmac_map::iterator it = chunkmacs.begin(); it != chunkmacs.end(); it++)
+    {
+        d->append((char*)&it->first, sizeof(it->first));
+        d->append((char*)&it->second, sizeof(it->second));
+    }
+
+    if (!FileFingerprint::serialize(d))
+    {
+        LOG_err << "Error serializing Transfer: Unable to serialize FileFingerprint";
+        return false;
+    }
+
+    if (!badfp.serialize(d))
+    {
+        LOG_err << "Error serializing Transfer: Unable to serialize badfp";
+        return false;
+    }
+
+    d->append((const char*)&lastaccesstime, sizeof(lastaccesstime));
+
+    char hasUltoken;
+    if (ultoken)
+    {
+        hasUltoken = 2;
+        d->append((const char*)&hasUltoken, sizeof(char));
+        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN);
+    }
+    else
+    {
+        hasUltoken = 0;
+        d->append((const char*)&hasUltoken, sizeof(char));
+    }
+
+    if (slot)
+    {
+        ll = (unsigned short)slot->tempurl.size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(slot->tempurl.data(), ll);
+    }
+    else
+    {
+        ll = (unsigned short)cachedtempurl.size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(cachedtempurl.data(), ll);
+    }
+
+    char s = state;
+    d->append((const char*)&s, sizeof(s));
+    d->append((const char*)&priority, sizeof(priority));
+    d->append("", 1);
+    return true;
+}
+
+Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* transfers)
+{
+    unsigned short ll;
+    const char* ptr = d->data();
+    const char* end = ptr + d->size();
+
+    if (ptr + sizeof(direction_t) + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - serialized string too short (direction)";
+        return NULL;
+    }
+
+    direction_t type;
+    type = MemAccess::get<direction_t>(ptr);
+    ptr += sizeof(direction_t);
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll + FILENODEKEYLENGTH + sizeof(int64_t)
+            + sizeof(int64_t) + SymmCipher::KEYLENGTH
+            + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - serialized string too short (filepath)";
+        return NULL;
+    }
+
+    const char *filepath = ptr;
+    ptr += ll;
+
+    Transfer *t = new Transfer(client, type);
+
+    memcpy(t->filekey, ptr, sizeof t->filekey);
+    ptr += sizeof(t->filekey);
+
+    t->ctriv = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    t->metamac = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+
+    memcpy(t->transferkey, ptr, SymmCipher::KEYLENGTH);
+    ptr += SymmCipher::KEYLENGTH;
+
+    t->localfilename.assign(filepath, ll);
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    {
+        LOG_err << "Transfer unserialization failed - chunkmacs too long";
+        delete t;
+        return NULL;
+    }
+
+    for (int i = 0; i < ll; i++)
+    {
+        m_off_t pos = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+
+        memcpy(&(t->chunkmacs[pos]), ptr, sizeof(ChunkMAC));
+        ptr += sizeof(ChunkMAC);
+    }
+
+    d->erase(0, ptr - d->data());
+
+    FileFingerprint *fp = FileFingerprint::unserialize(d);
+    if (!fp)
+    {
+        LOG_err << "Error unserializing Transfer: Unable to unserialize FileFingerprint";
+        delete t;
+        return NULL;
+    }
+
+    *(FileFingerprint *)t = *(FileFingerprint *)fp;
+    delete fp;
+
+    fp = FileFingerprint::unserialize(d);
+    t->badfp = *fp;
+    delete fp;
+
+    ptr = d->data();
+    end = ptr + d->size();
+
+    if (ptr + sizeof(m_time_t) + sizeof(char) > end)
+    {
+        LOG_err << "Transfer unserialization failed - fingerprint too long";
+        delete t;
+        return NULL;
+    }
+
+    t->lastaccesstime = MemAccess::get<m_time_t>(ptr);
+    ptr += sizeof(m_time_t);
+
+
+    char hasUltoken = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    ll = hasUltoken ? ((hasUltoken == 1) ? NewNode::OLDUPLOADTOKENLEN + 1 : NewNode::UPLOADTOKENLEN) : 0;
+    if (hasUltoken < 0 || hasUltoken > 2
+            || (ptr + ll + sizeof(unsigned short) > end))
+    {
+        LOG_err << "Transfer unserialization failed - invalid ultoken";
+        delete t;
+        return NULL;
+    }
+
+    if (hasUltoken)
+    {
+        t->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
+        memcpy(t->ultoken, ptr, ll);
+        ptr += ll;
+    }
+
+    ll = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(ll);
+
+    if (ptr + ll + 10 > end)
+    {
+        LOG_err << "Transfer unserialization failed - temp URL too long";
+        delete t;
+        return NULL;
+    }
+
+    t->cachedtempurl.assign(ptr, ll);
+    ptr += ll;
+
+    char state = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+    if (state == TRANSFERSTATE_PAUSED)
+    {
+        LOG_debug << "Unserializing paused transfer";
+        t->state = TRANSFERSTATE_PAUSED;
+    }
+
+    t->priority =  MemAccess::get<uint64_t>(ptr);
+    ptr += sizeof(uint64_t);
+
+    if (*ptr)
+    {
+        LOG_err << "Transfer unserialization failed - invalid version";
+        delete t;
+        return NULL;
+    }
+    ptr++;
+
+    for (chunkmac_map::iterator it = t->chunkmacs.begin(); it != t->chunkmacs.end(); it++)
+    {
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, t->size);
+
+        if (t->pos == it->first && it->second.finished)
+        {
+            t->pos = chunkceil;
+            t->progresscompleted = chunkceil;
+        }
+        else if (it->second.finished)
+        {
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            t->progresscompleted += chunksize;
+        }
+        else
+        {
+            t->progresscompleted += it->second.offset;
+        }
+    }
+
+    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
+    return t;
+}
+
+SymmCipher *Transfer::transfercipher()
+{
+    client->tmptransfercipher.setkey(transferkey);
+    return &client->tmptransfercipher;
 }
 
 // transfer attempt failed, notify all related files, collect request on
@@ -77,46 +365,131 @@ void Transfer::failed(error e, dstime timeleft)
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (!timeleft)
+    if (!timeleft || e != API_EOVERQUOTA)
     {
         bt.backoff();
     }
     else
     {
         bt.backoff(timeleft);
+        LOG_debug << "backoff: " << timeleft;
         client->overquotauntil = Waiter::ds + timeleft;
     }
 
+    state = TRANSFERSTATE_RETRYING;
+    client->looprequested = true;
     client->app->transfer_failed(this, e, timeleft);
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ((*it)->failed(e) && !defer)
+        if ( (*it)->failed(e)
+                || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
+                    && type == PUT
+                    && slot && slot->tempurl.empty()
+                    && failcount < 16) )
         {
             defer = true;
         }
     }
 
-    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    cachedtempurl.clear();
+    if (type == PUT)
     {
+        chunkmacs.clear();
+        progresscompleted = 0;
+        delete [] ultoken;
+        ultoken = NULL;
+        pos = 0;
+
+        if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
+        {
+            LOG_warn << "Modification detected during active upload";
+            defer = false;
+        }
+    }
+
+    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    {        
         failcount++;
         delete slot;
+        slot = NULL;
+        client->transfercacheadd(this);
 
-        LOG_debug << "Deferring transfer " << failcount;
+        LOG_debug << "Deferring transfer " << failcount << " during " << (bt.retryin() * 100) << " ms";
     }
     else
     {
         LOG_debug << "Removing transfer";
+        state = TRANSFERSTATE_FAILED;
+        finished = true;
 
+        for (file_list::iterator it = files.begin(); it != files.end(); it++)
+        {
+#ifdef ENABLE_SYNC
+            if((*it)->syncxfer)
+            {
+                client->syncdownrequired = true;
+            }
+#endif
+            client->app->file_removed(*it, e);
+        }
         client->app->transfer_removed(this);
         delete this;
     }
+}
+
+static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
+{
+    // returns the last half, beyond the actual key, ie the nonce+crc
+    return (uint32_t*)(filekey + FILENODEKEYLENGTH / 2);
+}
+
+void Transfer::addAnyMissingMediaFileAttributes(pnode_t node, /*const*/ std::string& localpath)
+{
+    assert(type == PUT || node && node->type == FILENODE);
+
+#ifdef USE_MEDIAINFO
+    char ext[8];
+    if (((type == PUT && size >= 16) || (node && node->nodekey.size() == FILENODEKEYLENGTH && node->size >= 16)) &&
+        client->fsaccess->getextension(&localpath, ext, sizeof(ext)) &&
+        MediaProperties::isMediaFilenameExt(ext) &&
+        !client->mediaFileInfo.mediaCodecsFailed)
+    {
+        // for upload, the key is in the transfer.  for download, the key is in the node.
+        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey : (byte*)node->nodekey.data());
+
+        if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
+        {
+            // if we don't have the codec id mappings yet, send the request
+            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+
+            // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
+            MediaProperties vp;
+            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess);
+
+            if (type == PUT)
+            {
+                minfa += client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle);
+            }
+            else
+            {
+                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodehandle);
+            }
+        }
+    }
+#else
+    node;
+    localpath;
+#endif
 }
 
 // transfer completion: copy received file locally, set timestamp(s), verify
 // fingerprint, notify app, notify files
 void Transfer::complete()
 {
+    state = TRANSFERSTATE_COMPLETING;
+    client->app->transfer_update(this);
+
     if (type == GET)
     {
         LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
@@ -149,30 +522,67 @@ void Transfer::complete()
         FileFingerprint fingerprint;
         pnode_t n;
         bool fixfingerprint = false;
+        bool fixedfingerprint = false;
+        bool syncxfer = false;
 
-        if (!transient_error && fa->fopen(&localfilename, true, false))
+        for (file_list::iterator it = files.begin(); it != files.end(); it++)
+        {
+            if ((*it)->syncxfer)
+            {
+                syncxfer = true;
+            }
+
+            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->h))
+                 && !(*(FileFingerprint*)this == *(FileFingerprint*)n.get()))
+            {
+                LOG_debug << "Wrong fingerprint already fixed";
+                fixedfingerprint = true;
+            }
+
+            if (syncxfer && fixedfingerprint)
+            {
+                break;
+            }
+        }
+
+        if (!fixedfingerprint && success && fa->fopen(&localfilename, true, false))
         {
             fingerprint.genfingerprint(fa);
-
             if (isvalid && !(fingerprint == *(FileFingerprint*)this))
             {
-                if (!badfp.isvalid || !(badfp == fingerprint))
+                LOG_err << "Fingerprint mismatch";
+
+                // enforce the verification of the fingerprint for sync transfers only
+                if (syncxfer && (!badfp.isvalid || !(badfp == fingerprint)))
                 {
                     badfp = fingerprint;
                     delete fa;
+                    chunkmacs.clear();
                     client->fsaccess->unlinklocal(&localfilename);
                     return failed(API_EWRITE);
                 }
                 else
                 {
-                    fixfingerprint = true;
+                    // We consider that mtime is different if the difference is >2
+                    // due to the resolution of mtime in some filesystems (like FAT).
+                    // This check prevents changes in the fingerprint due to silent
+                    // errors in setmtimelocal (returning success but not setting the
+                    // modification time) that seem to happen in some Android devices.
+                    if (abs(mtime - fingerprint.mtime) <= 2)
+                    {
+                        fixfingerprint = true;
+                    }
+                    else
+                    {
+                        LOG_warn << "Silent failure in setmtimelocal";
+                    }
                 }
             }
         }
 #ifdef ENABLE_SYNC
         else
         {
-            if (!transient_error)
+            if (syncxfer && !fixedfingerprint && success)
             {
                 transient_error = fa->retry;
                 LOG_debug << "Unable to validate fingerprint " << transient_error;
@@ -181,45 +591,34 @@ void Transfer::complete()
 #endif
         delete fa;
 
-        int missingattr = 0;
-        handle attachh;
-        SymmCipher* symmcipher;
+        char me64[12];
+        Base64::btoa((const byte*)&client->me, MegaClient::USERHANDLE, me64);
 
         if (!transient_error)
         {
-            // set FileFingerprint on source node(s) if missing
-            for (file_list::iterator it = files.begin(); it != files.end(); it++)
+            if (fingerprint.isvalid)
             {
-                if ((*it)->hprivate && (n = client->nodebyhandle((*it)->h)))
+                // set FileFingerprint on source node(s) if missing
+                set<handle> nodes;
+                for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    if (client->gfx && client->gfx->isgfx(&(*it)->localname))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                            && nodes.find(n->nodehandle) == nodes.end())
                     {
-                        // check for missing imagery
-                        if (!n->hasfileattribute(GfxProc::THUMBNAIL120X120)) missingattr |= 1 << GfxProc::THUMBNAIL120X120;
-                        if (!n->hasfileattribute(GfxProc::PREVIEW1000x1000)) missingattr |= 1 << GfxProc::PREVIEW1000x1000;
-                        attachh = n->nodehandle;
-                        symmcipher = n->nodecipher();
-                    }
+                        nodes.insert(n->nodehandle);
 
-                    if (fingerprint.isvalid && (!n->isvalid || fixfingerprint))
-                    {
-                        *(FileFingerprint*)n.get() = fingerprint;
+                        if ((!n->isvalid || fixfingerprint)
+                                && !(fingerprint == *(FileFingerprint*)n.get())
+                                && fingerprint.size == this->size)
+                        {
+                            LOG_debug << "Fixing fingerprint";
+                            *static_pointer_cast<FileFingerprint>(n) = fingerprint;
 
-                        n->serializefingerprint(&n->attrs.map['c']);
-                        client->setattr(n);
+                            n->serializefingerprint(&n->attrs.map['c']);
+                            client->setattr(n);
+                        }
                     }
                 }
-            }
-
-            if (fingerprint.isvalid && fixfingerprint)
-            {
-                (*(FileFingerprint*)this) = fingerprint;
-            }
-
-            if (missingattr)
-            {
-                // FIXME: do this while file is still open
-                client->gfx->gendimensionsputfa(NULL, &localfilename, attachh, symmcipher, missingattr);
             }
 
             // ...and place it in all target locations. first, update the files'
@@ -229,6 +628,7 @@ void Transfer::complete()
                 (*it)->updatelocalname();
             }
 
+            set<string> keys;
             // place file in all target locations - use up to one renames, copy
             // operations for the rest
             // remove and complete successfully completed files
@@ -238,119 +638,132 @@ void Transfer::complete()
                 success = false;
                 localname = (*it)->localname;
 
-                fa = client->fsaccess->newfileaccess();
-                if (fa->fopen(&localname))
+                if (localname != localfilename)
                 {
-                    // the destination path already exists
-    #ifdef ENABLE_SYNC
-                    if((*it)->syncxfer)
+                    fa = client->fsaccess->newfileaccess();
+                    if (fa->fopen(&localname) || fa->type == FOLDERNODE)
                     {
-                        sync_list::iterator it2;
-                        for (it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
+                        // the destination path already exists
+        #ifdef ENABLE_SYNC
+                        if((*it)->syncxfer)
                         {
-                            Sync *sync = (*it2);
-                            LocalNode *localNode = sync->localnodebypath(NULL, &localname);
-                            if (localNode)
+                            sync_list::iterator it2;
+                            for (it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
                             {
-                                LOG_debug << "Overwritting a local synced file. Moving the previous one to debris";
-
-                                // try to move to local debris
-                                if(!sync->movetolocaldebris(&localname))
+                                Sync *sync = (*it2);
+                                LocalNode *localNode = sync->localnodebypath(NULL, &localname);
+                                if (localNode)
                                 {
-                                    transient_error = client->fsaccess->transient_error;
-                                }
+                                    LOG_debug << "Overwritting a local synced file. Moving the previous one to debris";
 
-                                break;
-                            }
-                        }
+                                    // try to move to local debris
+                                    if(!sync->movetolocaldebris(&localname))
+                                    {
+                                        transient_error = client->fsaccess->transient_error;
+                                    }
 
-                        if(it2 == client->syncs.end())
-                        {
-                            LOG_err << "LocalNode for destination file not found";
-
-                            if(client->syncs.size())
-                            {
-                                // try to move to debris in the first sync
-                                if(!client->syncs.front()->movetolocaldebris(&localname))
-                                {
-                                    transient_error = client->fsaccess->transient_error;
+                                    break;
                                 }
                             }
-                        }
-                    }
-                    else
-    #endif
-                    {
-                        LOG_debug << "The destination file exist (not synced). Saving with a different name";
 
-                        // the destination path isn't synced, save with a (x) suffix
-                        string utf8fullname;
-                        client->fsaccess->local2path(&localname, &utf8fullname);
-                        size_t dotindex = utf8fullname.find_last_of('.');
-                        string name;
-                        string extension;
-                        if (dotindex == string::npos)
-                        {
-                            name = utf8fullname;
+                            if(it2 == client->syncs.end())
+                            {
+                                LOG_err << "LocalNode for destination file not found";
+
+                                if(client->syncs.size())
+                                {
+                                    // try to move to debris in the first sync
+                                    if(!client->syncs.front()->movetolocaldebris(&localname))
+                                    {
+                                        transient_error = client->fsaccess->transient_error;
+                                    }
+                                }
+                            }
                         }
                         else
+        #endif
                         {
-                            string separator;
-                            client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
-                            size_t sepindex = utf8fullname.find_last_of(separator);
-                            if(sepindex == string::npos || sepindex < dotindex)
-                            {
-                                name = utf8fullname.substr(0, dotindex);
-                                extension = utf8fullname.substr(dotindex);
-                            }
-                            else
+                            LOG_debug << "The destination file exist (not synced). Saving with a different name";
+
+                            // the destination path isn't synced, save with a (x) suffix
+                            string utf8fullname;
+                            client->fsaccess->local2path(&localname, &utf8fullname);
+                            size_t dotindex = utf8fullname.find_last_of('.');
+                            string name;
+                            string extension;
+                            if (dotindex == string::npos)
                             {
                                 name = utf8fullname;
                             }
+                            else
+                            {
+                                string separator;
+                                client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
+                                size_t sepindex = utf8fullname.find_last_of(separator);
+                                if(sepindex == string::npos || sepindex < dotindex)
+                                {
+                                    name = utf8fullname.substr(0, dotindex);
+                                    extension = utf8fullname.substr(dotindex);
+                                }
+                                else
+                                {
+                                    name = utf8fullname;
+                                }
+                            }
+
+                            string suffix;
+                            string newname;
+                            string localnewname;
+                            int num = 0;
+                            do
+                            {
+                                num++;
+                                ostringstream oss;
+                                oss << " (" << num << ")";
+                                suffix = oss.str();
+                                newname = name + suffix + extension;
+                                client->fsaccess->path2local(&newname, &localnewname);
+                            } while (fa->fopen(&localnewname) || fa->type == FOLDERNODE);
+
+
+                            (*it)->localname = localnewname;
+                            localname = localnewname;
                         }
+                    }
+                    else
+                    {
+                        transient_error = fa->retry;
+                    }
 
-                        string suffix;
-                        string newname;
-                        string localnewname;
-                        int num = 0;
-                        do
-                        {
-                            num++;
-                            ostringstream oss;
-                            oss << " (" << num << ")";
-                            suffix = oss.str();
-                            newname = name + suffix + extension;
-                            client->fsaccess->path2local(&newname, &localnewname);
-                        } while (fa->fopen(&localnewname));
+                    delete fa;
 
-
-                        (*it)->localname = localnewname;
-                        localname = localnewname;
+                    if (transient_error)
+                    {
+                        LOG_warn << "Transient error checking if the destination file exist";
+                        it++;
+                        continue;
                     }
                 }
-                else
-                {
-                    transient_error = fa->retry;
-                }
 
-                delete fa;
-                if (transient_error)
+                if (files.size() == 1 && !tmplocalname.size())
                 {
-                    LOG_warn << "Transient error checking if the destination file exist";
-                    it++;
-                    continue;
-                }
-
-                if (!tmplocalname.size())
-                {
-                    if (client->fsaccess->renamelocal(&localfilename, &localname))
+                    if (localfilename != localname)
+                    {
+                        LOG_debug << "Renaming temporary file to target path";
+                        if (client->fsaccess->renamelocal(&localfilename, &localname))
+                        {
+                            tmplocalname = localname;
+                            success = true;
+                        }
+                        else if (client->fsaccess->transient_error)
+                        {
+                            transient_error = true;
+                        }
+                    }
+                    else
                     {
                         tmplocalname = localname;
                         success = true;
-                    }
-                    else if (client->fsaccess->transient_error)
-                    {
-                        transient_error = true;
                     }
                 }
 
@@ -372,11 +785,43 @@ void Transfer::complete()
                     }
                 }
 
+                if (success)
+                {
+                    // set missing node attributes
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                    {
+                        if (client->gfx && client->gfx->isgfx(&localname) &&
+                                keys.find(n->nodekey) == keys.end() &&    // this file hasn't been processed yet
+                                client->checkaccess(n, OWNER))
+                        {
+                            keys.insert(n->nodekey);
+
+                            // check if restoration of missing attributes failed in the past (no access)
+                            if (n->attrs.map.find('f') == n->attrs.map.end() || n->attrs.map['f'] != me64)
+                            {
+                                // check for missing imagery
+                                int missingattr = 0;
+                                if (!n->hasfileattribute(GfxProc::THUMBNAIL)) missingattr |= 1 << GfxProc::THUMBNAIL;
+                                if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
+
+                                if (missingattr)
+                                {
+                                    client->gfx->gendimensionsputfa(NULL, &localname, n->nodehandle, n->nodecipher(), missingattr);
+                                }
+
+                                addAnyMissingMediaFileAttributes(n, localname);
+                            }
+                        }
+                    }
+                }
+
                 if (success || !transient_error)
                 {
                     if (success)
                     {
                         // prevent deletion of associated Transfer object in completed()
+                        client->filecachedel(*it);
+                        client->app->file_complete(*it);
                         (*it)->transfer = NULL;
                         (*it)->completed(this, NULL);
                     }
@@ -385,17 +830,25 @@ void Transfer::complete()
                     {
                         File* f = (*it);
                         files.erase(it++);
-                        if(!success)
+                        if (!success)
                         {
                             LOG_warn << "Unable to complete transfer due to a persistent error";
-
+                            client->filecachedel(f);
+#ifdef ENABLE_SYNC
+                            if (f->syncxfer)
+                            {
+                                client->syncdownrequired = true;
+                            }
+#endif
+                            client->app->file_removed(f, API_EWRITE);
                             f->transfer = NULL;
                             f->terminated();
                         }
                     }
                     else
                     {
-                        LOG_debug << "Persistent error completing file";
+                        failcount++;
+                        LOG_debug << "Persistent error completing file. Failcount: " << failcount;
                         it++;
                     }
                 }
@@ -414,8 +867,12 @@ void Transfer::complete()
 
         if (!files.size())
         {
+            state = TRANSFERSTATE_COMPLETED;
             localfilename = localname;
+            finished = true;
+            client->looprequested = true;
             client->app->transfer_complete(this);
+            localfilename.clear();
             delete this;
         }
         else
@@ -434,12 +891,83 @@ void Transfer::complete()
     else
     {
         LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+        delete slot->fa;
+        slot->fa = NULL;
 
         // files must not change during a PUT transfer
-        if (genfingerprint(slot->fa, true))
+        for (file_list::iterator it = files.begin(); it != files.end(); )
+        {
+            File *f = (*it);
+            bool isOpen = true;
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            string *localpath = &f->localname;
+
+#ifdef ENABLE_SYNC
+            string synclocalpath;
+            LocalNode *ll = dynamic_cast<LocalNode *>(f);
+            if (ll)
+            {
+                LOG_debug << "Verifying sync upload";
+                ll->getlocalpath(&synclocalpath, true);
+                localpath = &synclocalpath;
+            }
+            else
+            {
+                LOG_debug << "Verifying regular upload";
+            }
+#endif
+
+            if (!fa->fopen(localpath))
+            {
+                isOpen = false;
+                if (client->fsaccess->transient_error)
+                {
+                    LOG_warn << "Retrying upload completion due to a transient error";
+                    slot->retrying = true;
+                    slot->retrybt.backoff(11);
+                    delete fa;
+                    return;
+                }
+            }
+
+            if (!isOpen || f->genfingerprint(fa))
+            {
+                if (!isOpen)
+                {
+                    LOG_warn << "Deletion detected after upload";
+                }
+                else
+                {
+                    LOG_warn << "Modification detected after upload";
+                }
+
+#ifdef ENABLE_SYNC
+                if (f->syncxfer)
+                {
+                    client->syncdownrequired = true;
+                }
+#endif
+                client->filecachedel(f);
+                files.erase(it++);
+                client->app->file_removed(f, API_EREAD);
+                f->transfer = NULL;
+                f->terminated();
+            }
+            else
+            {
+                it++;
+            }
+            delete fa;
+        }
+
+        if (!files.size())
         {
             return failed(API_EREAD);
         }
+
+
+        // prepare file attributes for video/audio files if the file is suitable
+        addAnyMissingMediaFileAttributes(NULL, localfilename);
 
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this);
@@ -450,13 +978,46 @@ void Transfer::complete()
 void Transfer::completefiles()
 {
     // notify all files and give them an opportunity to self-destruct
+    vector<uint32_t> &ids = client->pendingtcids[tag];
+    vector<string> *pfs = NULL;
+
     for (file_list::iterator it = files.begin(); it != files.end(); )
     {
-        // prevent deletion of associated Transfer object in completed()
-        (*it)->transfer = NULL;
-        (*it)->completed(this, NULL);
+        File *f = (*it);
+        ids.push_back(f->dbid);
+        if (f->temporaryfile)
+        {
+            if (!pfs)
+            {
+                pfs = &client->pendingfiles[tag];
+            }
+            pfs->push_back(f->localname);
+        }
+
+        client->app->file_complete(f);
+        f->transfer = NULL;
+        f->completed(this, NULL);
         files.erase(it++);
     }
+    ids.push_back(dbid);
+}
+
+m_off_t Transfer::nextpos()
+{
+    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end())
+    {    
+        if (chunkmacs[ChunkedHash::chunkfloor(pos)].finished)
+        {
+            pos = ChunkedHash::chunkceil(pos);
+        }
+        else
+        {
+            pos += chunkmacs[ChunkedHash::chunkfloor(pos)].offset;
+            break;
+        }
+    }
+
+    return pos;
 }
 
 DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv)
@@ -512,14 +1073,14 @@ void DirectReadNode::dispatch()
         schedule(DirectReadSlot::TIMEOUT_DS);
         if (!pendingcmd)
         {
-            pendingcmd = new CommandDirectRead(this);
+            pendingcmd = new CommandDirectRead(client, this);
             client->reqs.add(pendingcmd);
         }
     }
 }
 
 // abort all active reads, remove pending reads and reschedule with app-supplied backoff
-void DirectReadNode::retry(error e)
+void DirectReadNode::retry(error e, dstime timeleft)
 {
     if (reads.empty())
     {
@@ -545,12 +1106,22 @@ void DirectReadNode::retry(error e)
 
         if (e)
         {
-            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata);
+            dstime retryds = client->app->pread_failure(e, retries, (*it)->appdata, timeleft);
 
             if (retryds < minretryds)
             {
                 minretryds = retryds;
             }
+        }
+    }
+
+    if (e == API_EOVERQUOTA && timeleft)
+    {
+        // don't retry at least until the end of the overquota state
+        client->overquotauntil = Waiter::ds + timeleft;
+        if (minretryds < timeleft)
+        {
+            minretryds = timeleft;
         }
     }
 
@@ -577,7 +1148,7 @@ void DirectReadNode::retry(error e)
     }
 }
 
-void DirectReadNode::cmdresult(error e)
+void DirectReadNode::cmdresult(error e, dstime timeleft)
 {
     pendingcmd = NULL;
 
@@ -594,7 +1165,7 @@ void DirectReadNode::cmdresult(error e)
     }
     else
     {
-        retry(e);
+        retry(e, timeleft);
     }
 }
 
@@ -664,9 +1235,13 @@ bool DirectReadSlot::doio()
             if (req->httpio)
             {
                 req->httpio->lastdata = Waiter::ds;
+                req->lastdata = Waiter::ds;
             }
 
-            if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, dr->appdata))
+            speed = speedController.calculateSpeed(t);
+            meanSpeed = speedController.getMeanSpeed();
+            dr->drn->client->httpio->updatedownloadspeed(t);
+            if (dr->drn->client->app->pread_data((byte*)req->in.data(), t, pos, speed, meanSpeed, dr->appdata))
             {
                 pos += t;
                 dr->drn->partiallen += t;
@@ -695,8 +1270,36 @@ bool DirectReadSlot::doio()
     }
     else if (req->status == REQ_FAILURE)
     {
-        // a failure triggers a complete abort and retry of all pending reads for this node
-        dr->drn->retry(API_EREAD);
+        if (req->httpstatus == 509)
+        {
+            if (req->timeleft < 0)
+            {
+                int creqtag = dr->drn->client->reqtag;
+                dr->drn->client->reqtag = 0;
+                dr->drn->client->sendevent(99408, "Overquota without timeleft");
+                dr->drn->client->reqtag = creqtag;
+            }
+
+            dstime backoff;
+
+            LOG_warn << "Bandwidth overquota from storage server for streaming transfer";
+            if (req->timeleft > 0)
+            {
+                backoff = dstime(req->timeleft * 10);
+            }
+            else
+            {
+                // default retry interval
+                backoff = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
+            }
+
+            dr->drn->retry(API_EOVERQUOTA, backoff);
+        }
+        else
+        {
+            // a failure triggers a complete abort and retry of all pending reads for this node
+            dr->drn->retry(API_EREAD);
+        }
         return true;
     }
 
@@ -779,6 +1382,8 @@ DirectReadSlot::DirectReadSlot(DirectRead* cdr)
 
     pos = dr->offset + dr->progress;
 
+    speed = meanSpeed = 0;
+
     req = new HttpReq(true);
 
     sprintf(buf,"/%" PRIu64 "-", pos);
@@ -833,4 +1438,407 @@ DirectReadSlot::~DirectReadSlot()
     LOG_debug << "Deleting DirectReadSlot";
     delete req;
 }
+
+bool priority_comparator(Transfer* i, Transfer *j)
+{
+    return (i->priority < j->priority);
+}
+
+TransferList::TransferList()
+{
+    currentpriority = PRIORITY_START;
+}
+
+void TransferList::addtransfer(Transfer *transfer)
+{
+    if (transfer->state != TRANSFERSTATE_PAUSED)
+    {
+        transfer->state = TRANSFERSTATE_QUEUED;
+    }
+
+    if (!transfer->priority)
+    {
+        currentpriority += PRIORITY_STEP;
+        transfer->priority = currentpriority;
+        assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
+        transfers[transfer->type].push_back(transfer);
+        client->transfercacheadd(transfer);
+    }
+    else
+    {
+        transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
+        assert(it == transfers[transfer->type].end() || (*it)->priority != transfer->priority);
+        transfers[transfer->type].insert(it, transfer);
+    }
+}
+
+void TransferList::removetransfer(Transfer *transfer)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it != transfers[transfer->type].end())
+    {
+        transfers[transfer->type].erase(it);
+    }
+}
+
+void TransferList::movetransfer(Transfer *transfer, Transfer *prevTransfer)
+{
+    transfer_list::iterator dstit = iterator(prevTransfer);
+    if (dstit == transfers[prevTransfer->type].end())
+    {
+        return;
+    }
+    movetransfer(transfer, dstit);
+}
+
+void TransferList::movetransfer(Transfer *transfer, unsigned int position)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    transfer_list::iterator dstit;
+    if (position >= transfers[transfer->type].size())
+    {
+        dstit = transfers[transfer->type].end();
+    }
+    else
+    {
+        dstit = transfers[transfer->type].begin() + position;
+    }
+
+    movetransfer(it, dstit);
+}
+
+void TransferList::movetransfer(Transfer *transfer, transfer_list::iterator dstit)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it == transfers[transfer->type].end())
+    {
+        return;
+    }
+    movetransfer(it, dstit);
+}
+
+void TransferList::movetransfer(transfer_list::iterator it, transfer_list::iterator dstit)
+{
+    if (it == dstit)
+    {
+        LOG_warn << "Trying to move before the same transfer";
+        return;
+    }
+
+    if ((it + 1) == dstit)
+    {
+        LOG_warn << "Trying to move to the same position";
+        return;
+    }
+
+    Transfer *transfer = (*it);
+    if (dstit == transfers[transfer->type].end())
+    {
+        LOG_debug << "Moving transfer to the last position";
+        prepareDecreasePriority(transfer, it, dstit);
+
+        transfers[transfer->type].erase(it);
+        currentpriority += PRIORITY_STEP;
+        transfer->priority = currentpriority;
+        assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
+        transfers[transfer->type].push_back(transfer);
+        client->transfercacheadd(transfer);
+        client->app->transfer_update(transfer);
+        return;
+    }
+
+    int srcindex = std::distance(transfers[transfer->type].begin(), it);
+    int dstindex = std::distance(transfers[transfer->type].begin(), dstit);
+    LOG_debug << "Moving transfer from " << srcindex << " to " << dstindex;
+
+    uint64_t prevpriority = 0;
+    uint64_t nextpriority = 0;
+
+    nextpriority = (*dstit)->priority;
+    if (dstit != transfers[transfer->type].begin())
+    {
+        transfer_list::iterator previt = dstit - 1;
+        prevpriority = (*previt)->priority;
+    }
+    else
+    {
+        prevpriority = nextpriority - 2 * PRIORITY_STEP;
+    }
+
+    uint64_t newpriority = (prevpriority + nextpriority) / 2;
+    LOG_debug << "Moving transfer between priority " << prevpriority << " and " << nextpriority << ". New: " << newpriority;
+    if (prevpriority == newpriority)
+    {
+        LOG_warn << "There is no space for the move. Adjusting priorities.";
+        int positions = dstindex;
+        uint64_t fixedPriority = transfers[transfer->type][0]->priority - PRIORITY_STEP * (positions + 1);
+        for (int i = 0; i < positions; i++)
+        {
+            Transfer *t = transfers[transfer->type][i];
+            LOG_debug << "Adjusting priority of transfer " << i << " to " << fixedPriority;
+            t->priority = fixedPriority;
+            client->transfercacheadd(t);
+            client->app->transfer_update(t);
+            fixedPriority += PRIORITY_STEP;
+        }
+        newpriority = fixedPriority;
+        LOG_debug << "Fixed priority: " << fixedPriority;
+    }
+
+    transfer->priority = newpriority;
+    if (srcindex > dstindex)
+    {
+        prepareIncreasePriority(transfer, it, dstit);
+    }
+    else
+    {
+        prepareDecreasePriority(transfer, it, dstit);
+        dstindex--;
+    }
+
+    transfers[transfer->type].erase(it);
+    transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
+    assert(fit == transfers[transfer->type].end() || (*fit)->priority != transfer->priority);
+    transfers[transfer->type].insert(fit, transfer);
+    client->transfercacheadd(transfer);
+    client->app->transfer_update(transfer);
+}
+
+void TransferList::movetofirst(Transfer *transfer)
+{
+    movetransfer(transfer, transfers[transfer->type].begin());
+}
+
+void TransferList::movetofirst(transfer_list::iterator it)
+{
+    Transfer *transfer = (*it);
+    movetransfer(it, transfers[transfer->type].begin());
+}
+
+void TransferList::movetolast(Transfer *transfer)
+{
+    movetransfer(transfer, transfers[transfer->type].end());
+}
+
+void TransferList::movetolast(transfer_list::iterator it)
+{
+    Transfer *transfer = (*it);
+    movetransfer(it, transfers[transfer->type].end());
+}
+
+void TransferList::moveup(Transfer *transfer)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it == transfers[transfer->type].begin())
+    {
+        return;
+    }
+    transfer_list::iterator dstit = it - 1;
+    movetransfer(it, dstit);
+}
+
+void TransferList::moveup(transfer_list::iterator it)
+{
+    if (it == transfers[(*it)->type].begin())
+    {
+        return;
+    }
+
+    transfer_list::iterator dstit = it - 1;
+    movetransfer(it, dstit);
+}
+
+void TransferList::movedown(Transfer *transfer)
+{
+    transfer_list::iterator it = iterator(transfer);
+    if (it == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    transfer_list::iterator dstit = it + 1;
+    if (dstit == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    dstit++;
+    movetransfer(it, dstit);
+}
+
+void TransferList::movedown(transfer_list::iterator it)
+{
+    if (it == transfers[(*it)->type].end())
+    {
+        return;
+    }
+
+    transfer_list::iterator dstit = it + 1;
+    movetransfer(it, dstit);
+}
+
+error TransferList::pause(Transfer *transfer, bool enable)
+{
+    if (!transfer)
+    {
+        return API_ENOENT;
+    }
+
+    if ((enable && transfer->state == TRANSFERSTATE_PAUSED) ||
+            (!enable && transfer->state != TRANSFERSTATE_PAUSED))
+    {
+        return API_OK;
+    }
+
+    if (!enable)
+    {
+        transfer_list::iterator it = iterator(transfer);
+        transfer->state = TRANSFERSTATE_QUEUED;
+        prepareIncreasePriority(transfer, it, it);
+        client->transfercacheadd(transfer);
+        client->app->transfer_update(transfer);
+        return API_OK;
+    }
+
+    if (transfer->state == TRANSFERSTATE_ACTIVE
+            || transfer->state == TRANSFERSTATE_QUEUED
+            || transfer->state == TRANSFERSTATE_RETRYING)
+    {
+        if (transfer->slot)
+        {
+            transfer->bt.arm();
+            transfer->cachedtempurl = transfer->slot->tempurl;
+            delete transfer->slot;
+        }
+        transfer->state = TRANSFERSTATE_PAUSED;
+        client->transfercacheadd(transfer);
+        client->app->transfer_update(transfer);
+        return API_OK;
+    }
+
+    return API_EFAILED;
+}
+
+transfer_list::iterator TransferList::begin(direction_t direction)
+{
+    return transfers[direction].begin();
+}
+
+transfer_list::iterator TransferList::end(direction_t direction)
+{
+    return transfers[direction].end();
+}
+
+transfer_list::iterator TransferList::iterator(Transfer *transfer)
+{
+    if (!transfer)
+    {
+        LOG_err << "Getting iterator of a NULL transfer";
+        return transfer_list::iterator();
+    }
+
+    transfer_list::iterator it = std::lower_bound(transfers[transfer->type].begin(), transfers[transfer->type].end(), transfer, priority_comparator);
+    if (it != transfers[transfer->type].end() && (*it) == transfer)
+    {
+        return it;
+    }
+    LOG_debug << "Transfer not found";
+    return transfers[transfer->type].end();
+}
+
+Transfer *TransferList::nexttransfer(direction_t direction)
+{
+    for (transfer_list::iterator it = transfers[direction].begin(); it != transfers[direction].end(); it++)
+    {
+        Transfer *transfer = (*it);
+        if ((!transfer->slot && isReady(transfer))
+                || (transfer->asyncopencontext
+                    && transfer->asyncopencontext->finished))
+        {
+            return transfer;
+        }
+    }
+    return NULL;
+}
+
+Transfer *TransferList::transferat(direction_t direction, unsigned int position)
+{
+    if (transfers[direction].size() > position)
+    {
+        return transfers[direction][position];
+    }
+    return NULL;
+}
+
+void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit)
+{
+    if (dstit == transfers[transfer->type].end())
+    {
+        return;
+    }
+
+    if (!transfer->slot && transfer->state != TRANSFERSTATE_PAUSED)
+    {
+        Transfer *lastActiveTransfer = NULL;
+        for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++)
+        {
+            Transfer *t = (*it)->transfer;
+            if (t && t->type == transfer->type && t->slot
+                    && t->state == TRANSFERSTATE_ACTIVE
+                    && t->priority > transfer->priority
+                    && (!lastActiveTransfer || t->priority > lastActiveTransfer->priority))
+            {
+                lastActiveTransfer = t;
+            }
+        }
+
+        if (lastActiveTransfer)
+        {
+            lastActiveTransfer->bt.arm();
+            lastActiveTransfer->cachedtempurl = lastActiveTransfer->slot->tempurl;
+            delete lastActiveTransfer->slot;
+            lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
+            client->transfercacheadd(lastActiveTransfer);
+            client->app->transfer_update(lastActiveTransfer);
+        }
+    }
+}
+
+void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::iterator it, transfer_list::iterator dstit)
+{
+    if (transfer->slot && transfer->state == TRANSFERSTATE_ACTIVE)
+    {
+        transfer_list::iterator cit = it + 1;
+        while (cit != transfers[transfer->type].end())
+        {
+            if (!(*cit)->slot && isReady(*cit))
+            {
+                transfer->bt.arm();
+                transfer->cachedtempurl = (*it)->slot->tempurl;
+                delete transfer->slot;
+                transfer->state = TRANSFERSTATE_QUEUED;
+                break;
+            }
+
+            if (cit == dstit)
+            {
+                break;
+            }
+
+            cit++;
+        }
+    }
+}
+
+bool TransferList::isReady(Transfer *transfer)
+{
+    return ((transfer->state == TRANSFERSTATE_QUEUED || transfer->state == TRANSFERSTATE_RETRYING)
+            && transfer->bt.armed());
+}
+
 } // namespace

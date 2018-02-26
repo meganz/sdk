@@ -63,12 +63,28 @@ using namespace mega;
     return self.megaUser->getEmail() ? [[NSString alloc] initWithUTF8String:self.megaUser->getEmail()] : nil;
 }
 
-- (MEGAUserVisibility)access {
+- (uint64_t)handle {
+    return self.megaUser ? self.megaUser->getHandle() : mega::INVALID_HANDLE;
+}
+
+- (MEGAUserVisibility)visibility {
     return (MEGAUserVisibility) (self.megaUser ? self.megaUser->getVisibility() : ::mega::MegaUser::VISIBILITY_UNKNOWN);
+}
+
+- (MEGAUserChangeType)changes {
+    return (MEGAUserChangeType) (self.megaUser ? self.megaUser->getChanges() : 0);
+}
+
+- (NSInteger)isOwnChange {
+    return self.megaUser ? self.megaUser->isOwnChange() : 0;
 }
 
 - (NSDate *)timestamp {
     return self.megaUser ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaUser->getTimestamp()] : nil;
+}
+
+- (BOOL)hasChangedType:(MEGAUserChangeType)changeType {
+    return self.megaUser ? self.megaUser->hasChanged((int)changeType) : NO;
 }
 
 @end

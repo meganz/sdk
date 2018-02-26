@@ -17,45 +17,73 @@
  *
  * You should have received a copy of the license along with this
  * program.
+ *
+ * This file is also distributed under the terms of the GNU General
+ * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#ifdef WINDOWS_PHONE
+#if defined WINDOWS_PHONE || defined USE_CPPTHREAD
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS CppThread
+#define MUTEX_CLASS CppMutex
+#define SEMAPHORE_CLASS CppSemaphore
 
 #include "mega/thread.h"
 
+#if defined(WINDOWS_PHONE) && !defined(__STDC_LIMIT_MACROS)
+#define __STDC_LIMIT_MACROS
+#endif
+
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 
 namespace mega {
 
 class CppThread : public Thread
 {
 public:
-	CppThread();
+    CppThread();
     virtual void start(void *(*start_routine)(void*), void *parameter);
     virtual void join();
-	virtual ~CppThread();
+    virtual ~CppThread();
+
+    static unsigned long long currentThreadId();
 
 protected:
-	std::thread *thread;
+    std::thread *thread;
 };
 
 	
 class CppMutex : public Mutex
 {
 public:
-	CppMutex();
+    CppMutex();
+    CppMutex(bool recursive);
     virtual void init(bool recursive);
     virtual void lock();
     virtual void unlock();
 	virtual ~CppMutex();
 
 protected:
-	std::mutex *mutex;
-	std::recursive_mutex *rmutex;
+    std::mutex *mutex;
+    std::recursive_mutex *rmutex;
+};
+
+class CppSemaphore : public Semaphore
+{
+public:
+    CppSemaphore();
+    virtual void release();
+    virtual void wait();
+    virtual int timedwait(int milliseconds);
+    virtual ~CppSemaphore();
+
+protected:
+    std::mutex mtx;
+    unsigned int count;
+    std::condition_variable cv;
 };
 
 } // namespace
