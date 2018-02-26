@@ -1804,6 +1804,7 @@ class MegaApiImpl : public MegaApp
 
         // management
         char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalWebDavLink(MegaNode *node);
         void httpServerSetMaxBufferSize(int bufferSize);
         int httpServerGetMaxBufferSize();
         void httpServerSetMaxOutputSize(int outputSize);
@@ -2324,6 +2325,7 @@ protected:
     static http_parser_settings parsercfg;
 
     set<handle> allowedHandles;
+    set<handle> allowedWebDavHandles;
     handle lastHandle;
     list<MegaHTTPContext*> connections;
     uv_async_t exit_handle;
@@ -2417,8 +2419,9 @@ public:
     bool isFolderServerEnabled();
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
+    bool isHandleWebDavAllowed(handle h);
     void clearAllowedHandles();
-    char* getLink(MegaNode *node);
+    char* getLink(MegaNode *node, bool enablewebdav = false);
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
 

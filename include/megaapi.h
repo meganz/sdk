@@ -10145,6 +10145,20 @@ class MegaApi
         char *httpServerGetLocalLink(MegaNode *node);
 
         /**
+         * @brief Returns a WEBDAV valid URL to a node in the local HTTP proxy server
+         *
+         * The HTTP proxy server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local HTTP link
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        char *httpServerGetLocalWebDavLink(MegaNode *node);
+
+
+        /**
          * @brief Set the maximum buffer size for the internal buffer
          *
          * The HTTP proxy server has an internal buffer to store the data received from MEGA

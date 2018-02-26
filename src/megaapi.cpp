@@ -3111,6 +3111,11 @@ char *MegaApi::httpServerGetLocalLink(MegaNode *node)
     return pImpl->httpServerGetLocalLink(node);
 }
 
+char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalWebDavLink(node);
+}
+
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
 {
     pImpl->httpServerSetMaxBufferSize(bufferSize);

@@ -6938,6 +6938,25 @@ char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
     return result;
 }
 
+char *MegaApiImpl::httpServerGetLocalWebDavLink(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+    if (!httpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char *result = httpServer->getLink(node, true);
+    sdkMutex.unlock();
+    return result;
+}
+
 void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
 {
     sdkMutex.lock();
@@ -18756,13 +18775,20 @@ bool MegaHTTPServer::isHandleAllowed(handle h)
             || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
 }
 
+bool MegaHTTPServer::isHandleWebDavAllowed(handle h)
+{
+    return allowedWebDavHandles.count(h);
+}
+
+
 void MegaHTTPServer::clearAllowedHandles()
 {
     allowedHandles.clear();
+    allowedWebDavHandles.clear();
     lastHandle = INVALID_HANDLE;
 }
 
-char *MegaHTTPServer::getLink(MegaNode *node)
+char *MegaHTTPServer::getLink(MegaNode *node, bool enablewebdav)
 {
     if (!node)
     {
@@ -18771,6 +18797,10 @@ char *MegaHTTPServer::getLink(MegaNode *node)
 
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
+    if (enablewebdav)
+    {
+       allowedWebDavHandles.insert(lastHandle);
+    }
 
     ostringstream oss;
     oss << "http" << (useTLS?"s":"") << "://127.0.0.1:" << port << "/";
@@ -19727,23 +19757,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
     httpctx->streamingBuffer.setMaxOutputSize(httpctx->server->getMaxOutputSize());
 
-    if (parser->method == HTTP_OPTIONS)
-    {
-        LOG_debug << "Request method: OPTIONS";
-        response << "HTTP/1.1 200 OK\r\n"
-                    "Allow: GET, POST, HEAD, OPTIONS, PROPFIND, MOVE, PUT, DELETE, MKCOL, COPY, LOCK, UNLOCK, PROPPATCH\r\n"
-                    //"Allow: TRACE,LOCK,UNLOCK,ORDERPATCH\r\n"
-                    "dav: 1, 2 \r\n" //Class 2 requires LOCK
-                    "content-length: 0\r\n"
-                    "Connection: close\r\n"
-                    "\r\n";
-
-        httpctx->resultCode = API_OK;
-        string resstr = response.str();
-        sendHeaders(httpctx, &resstr);
-        return 0;
-    }
-
     switch (parser->method)
     {
     case HTTP_GET:
@@ -19826,6 +19839,43 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         httpctx->resultCode = 403;
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
+    }
+
+
+    if (parser->method == HTTP_OPTIONS)
+    {
+        LOG_debug << "Returning HTTP_OPTIONS for a " << (httpctx->server->isHandleWebDavAllowed(h)?"":"non ") << "WEBDAV URI";
+
+        response << "HTTP/1.1 200 OK\r\n";
+
+        if (httpctx->server->isHandleWebDavAllowed(h))
+        {
+            response << "Allow: GET, POST, HEAD, OPTIONS, PROPFIND, MOVE, PUT, DELETE, MKCOL, COPY, LOCK, UNLOCK, PROPPATCH\r\n"
+                        "dav: 1 \r\n"; // 2 requires LOCK to be fully functional
+        }
+        else
+        {
+            response << "Allow: GET,POST,HEAD,OPTIONS\r\n";
+        }
+
+        response << "content-length: 0\r\n"
+        "Connection: close\r\n"
+        "\r\n";
+
+        httpctx->resultCode = API_OK;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        return 0;
+    }
+
+
+    //if webdav method, check is handle is a valid webdav
+    if ( (parser->method != HTTP_GET) && (parser->method != HTTP_POST) && (parser->method != HTTP_PUT) && (parser->method != HTTP_HEAD) && !httpctx->server->isHandleWebDavAllowed(h))
+    {
+        LOG_debug << "Forbidden due to not webdav allowed";
+        returnHttpCode(httpctx, 405);
         delete node;
         return 0;
     }
@@ -20978,9 +21028,8 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
         LOG_warn << "Transfer failed with error code: " << ecode;
         failed = true;
         finished = true;
-        uv_async_send(&asynchandle);
     }
-
+    uv_async_send(&asynchandle);
 }
 
 void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
