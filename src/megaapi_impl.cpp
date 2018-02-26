@@ -16587,11 +16587,6 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CONTACT_LINK_DELETE:
         {
             handle h = request->getNodeHandle();
-            if (h == UNDEF)
-            {
-                e = API_EARGS;
-                break;
-            }
             client->contactlinkdelete(h);
             break;
         }

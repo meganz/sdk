@@ -5735,8 +5735,10 @@ void CommandContactLinkQuery::procresult()
 CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
 {
     cmd("cld");
-    arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
-    
+    if (!ISUNDEF(h))
+    {
+        arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+    }
     tag = client->reqtag;    
 }
 
