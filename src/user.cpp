@@ -497,7 +497,6 @@ bool User::needversioning(attr_t at)
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
-        case ATTR_CONTACT_LINK_VERIFICATION:
             return 0;
 
         case ATTR_AUTHRING:
@@ -507,6 +506,7 @@ bool User::needversioning(attr_t at)
         case ATTR_SIG_RSA_PUBK:
         case ATTR_SIG_CU255_PUBK:
         case ATTR_KEYRING:
+        case ATTR_CONTACT_LINK_VERIFICATION:
             return 1;
 
         default:
