@@ -5712,7 +5712,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void getContactLinksOption(MegaRequestListenerInterface listener){
-        megaApi.getFileVersionsOption(createDelegateRequestListener(listener));
+        megaApi.getContactLinksOption(createDelegateRequestListener(listener));
     }
     
     /**
