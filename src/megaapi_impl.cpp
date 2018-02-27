@@ -6877,7 +6877,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     }
 
     httpServerStop();
-    httpServer = new MegaHTTPServer(this, useTLS, certificatepath?certificatepath:string(), keypath?keypath:string());
+    httpServer = new MegaHTTPServer(this, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
@@ -18683,6 +18683,8 @@ void MegaHTTPServer::run()
         if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
         {
             LOG_err << "Unable to init evt ctx";
+            port = 0;
+            uv_sem_post(&semaphore);
             return;
         }
         evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
