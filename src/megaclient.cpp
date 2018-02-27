@@ -12459,7 +12459,10 @@ long long MegaClient::gettotalnodes()
 {
     long long result = 0;
 
-    sctable->gettotalnodes(&result);
+    if (sctable)
+    {
+        sctable->gettotalnodes(&result);
+    }
 
     return result;
 }
