@@ -9967,7 +9967,7 @@ class MegaApi
          * @param keypath path to certificate key
          * @return True is the server is ready, false if the initialization failed
          */
-        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
 
         /**
          * @brief Stop the HTTP proxy server

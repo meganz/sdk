@@ -3041,7 +3041,7 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, std::string certificatepath, std::string keypath)
+bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
 {
     return pImpl->httpServerStart(localOnly, port, useTLS, certificatepath, keypath);
 }

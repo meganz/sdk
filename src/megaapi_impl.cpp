@@ -6866,7 +6866,7 @@ bool MegaApiImpl::isOnline()
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, std::string certificatepath, std::string keypath)
+bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
 {
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)

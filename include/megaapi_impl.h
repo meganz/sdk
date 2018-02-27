@@ -1801,7 +1801,7 @@ class MegaApiImpl : public MegaApp
 
 #ifdef HAVE_LIBUV
         // start/stop
-        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
         void httpServerStop();
         int httpServerIsRunning();
 
