@@ -336,4 +336,16 @@ class DelegateMegaListener extends MegaListener {
             });
         }
     }
+
+    @Override
+    public void onEvent(MegaApi api, MegaEvent event){
+        if (listener != null) {
+            final MegaEvent megaEvent = event.copy();
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onEvent(megaApi, megaEvent);
+                }
+            });
+        }
+    }
 }

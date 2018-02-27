@@ -150,6 +150,14 @@ public:
     CommandResumeEphemeralSession(MegaClient*, handle, const byte*, int);
 };
 
+class MEGA_API CommandWhyAmIblocked : public Command
+{
+public:
+    void procresult();
+
+    CommandWhyAmIblocked(MegaClient*);
+};
+
 class MEGA_API CommandSendSignupLink : public Command
 {
 public:

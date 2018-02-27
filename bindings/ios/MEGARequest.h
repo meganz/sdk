@@ -110,7 +110,9 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeDownloadFile,
     MEGARequestTypeQueryTransferQuota,
     MEGARequestTypePasswordLink,
-    MEGARequestTypeGetAchievements
+    MEGARequestTypeGetAchievements,
+    MEGARequestTypeRestore,
+    MEGARequestTypeRemoveVersions
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {

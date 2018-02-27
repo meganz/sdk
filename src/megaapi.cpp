@@ -1308,6 +1308,11 @@ int MegaApi::isLoggedIn()
     return pImpl->isLoggedIn();
 }
 
+void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
+{
+    return pImpl->whyAmIBlocked(false, listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
@@ -2597,9 +2602,9 @@ void MegaApi::queryDNS(const char *hostname, MegaRequestListener *listener)
     pImpl->queryDNS(hostname, listener);
 }
 
-void MegaApi::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+void MegaApi::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
 {
-    pImpl->queryGeLB(service, timeoutms, maxretries, listener);
+    pImpl->queryGeLB(service, timeoutds, maxretries, listener);
 }
 
 void MegaApi::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
@@ -3130,6 +3135,7 @@ int MegaApi::httpServerGetMaxOutputSize()
 {
     return pImpl->httpServerGetMaxOutputSize();
 }
+#endif
 
 char *MegaApi::getMimeType(const char *extension)
 {
@@ -3719,7 +3725,6 @@ char *MegaApi::getMimeType(const char *extension)
 
     return MegaApi::strdup(it->second.c_str());
 }
-#endif
 
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
@@ -4649,6 +4654,11 @@ int MegaEvent::getType() const
 const char *MegaEvent::getText() const
 {
     return NULL;
+}
+
+const int MegaEvent::getNumber() const
+{
+    return 0;
 }
 
 MegaHandleList *MegaHandleList::createInstance()

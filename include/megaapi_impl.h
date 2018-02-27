@@ -844,13 +844,15 @@ public:
 
     virtual int getType() const;
     virtual const char *getText() const;
+    virtual const int getNumber() const;
 
     void setText(const char* text);
+    void setNumber(int number);
 
 protected:
     int type;
     const char* text;
-
+    int number;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -1486,6 +1488,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
         char* getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
@@ -1755,7 +1758,7 @@ class MegaApiImpl : public MegaApp
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
-        void queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener = NULL);
+        void queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener = NULL);
         void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
@@ -1983,6 +1986,9 @@ protected:
         // ephemeral session creation/resumption result
         virtual void ephemeral_result(error);
         virtual void ephemeral_result(handle, const byte*);
+
+        // check the reason of being blocked
+        virtual void whyamiblocked_result(int);
 
         // account creation
         virtual void sendsignuplink_result(error);

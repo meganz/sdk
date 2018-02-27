@@ -247,6 +247,9 @@ public:
     // check if logged in
     sessiontype_t loggedin();
 
+    // check the reason of being blocked
+    void whyamiblocked();
+
     // dump current session
     int dumpsession(byte*, size_t);
 
