@@ -24,6 +24,7 @@
 #ifdef USE_SQLITE
 namespace mega {
 SqliteDbAccess::SqliteDbAccess(string* path)
+    : DbAccess()
 {
     if (path)
     {
@@ -35,48 +36,88 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-// return true if no current DB version, but legacy DB to be converted is available
-bool SqliteDbAccess::legacydb(FileSystemAccess *fsaccess, string* name)
+// return true if no current DB version, but broken DB version is available
+bool SqliteDbAccess::discardbrokendb(FileSystemAccess *fsaccess, string* name)
 {
     bool result = false;
+
+    FileAccess *fa = fsaccess->newfileaccess();
 
     ostringstream oss;
     oss << dbpath;
     oss << "megaclient_statecache";
-    oss << LEGACY_DB_VERSION;
+    oss << BROKEN_DB_VERSION;
     oss << "_" << *name << ".db";
 
-    string dbfileOld = oss.str();
+    string buf = oss.str();
+    string dbfileOld;
+    fsaccess->path2local(&buf, &dbfileOld);
 
-    oss.str("");
-    oss << dbpath;
-    oss << "megaclient_statecache";
-    oss << DB_VERSION;
-    oss << "_" << *name << ".db";
-
-    string dbfileNew = oss.str();
-
-    FileAccess *fa = fsaccess->newfileaccess();
-    if (!fa->fopen(&dbfileNew))
+    result = fa->fopen(&dbfileOld);
+    if (result)
     {
         fa->closef();
-
-        // if current version not available, check previous version
-        result = fa->fopen(&dbfileOld);
+        fsaccess->unlinklocal(&dbfileOld);
     }
 
     delete fa;
     return result;
 }
 
-DbTable* SqliteDbAccess::openlegacy(FileSystemAccess* fsaccess, string* name)
+// return true if no DB with current format, but DB with old format to be converted is available
+bool SqliteDbAccess::checkoldformat(FileSystemAccess *fsaccess, string *name)
+{
+    bool result = false;
+
+    FileAccess *fa = fsaccess->newfileaccess();
+
+    ostringstream oss;
+    oss << dbpath;
+    oss << "megaclient_statecache";
+    oss << DB_VERSION;
+    oss << "_" << *name << ".db";
+
+    string buf = oss.str();
+    string dbfileOld;
+    fsaccess->path2local(&buf, &dbfileOld);
+
+    oss.flush();
+    oss << dbpath;
+    oss << "megaclient_statecache";
+    oss << DB_VERSION;
+    oss << "nod";
+    oss << "_" << *name << ".db";
+
+    buf = oss.str();
+    string dbfileNew;
+    fsaccess->path2local(&buf, &dbfileNew);
+
+    // first check if new format is already available
+    bool newIsOpened = true;
+    if (!fa->fopen(&dbfileNew))
+    {
+        // if current format not available, check previous version
+        result = fa->fopen(&dbfileOld);
+        newIsOpened = false;
+    }
+
+    if (newIsOpened || result)
+    {
+        fa->closef();
+    }
+
+    delete fa;
+    return result;
+}
+
+DbTable* SqliteDbAccess::openoldformat(FileSystemAccess* fsaccess, string* name)
 {
     sqlite3* db;
 
     ostringstream legacyoss;
     legacyoss << dbpath;
     legacyoss << "megaclient_statecache";
-    legacyoss << LEGACY_DB_VERSION;
+    legacyoss << DB_VERSION;
     legacyoss << "_" << *name << ".db";
 
     string dbfile = legacyoss.str();
@@ -92,51 +133,10 @@ DbTable* SqliteDbAccess::openlegacy(FileSystemAccess* fsaccess, string* name)
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
 #endif
 
-    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
-
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-    if (rc)
-    {
-        return NULL;
-    }
-
-    return new SqliteDbTable(db, fsaccess, &dbfile, NULL);
-}
-
-DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCipher *key)
-{
-    //Each table will use its own database object and its own file
-    //The previous implementation was closing the first database
-    //when the second one was opened.
-    sqlite3* db;
-
-    if (sqlite3_config(SQLITE_CONFIG_MULTITHREAD) != SQLITE_OK && !sqlite3_threadsafe())
-    {
-        LOG_warn << "Cannot establish multithread mode for Sqlite";
-    }
-
-    ostringstream oss;
-    oss << dbpath;
-    oss << "megaclient_statecache";
-    oss << DB_VERSION;
-    oss << "_" << *name << ".db";
-
-    string dbfile = oss.str();
-
-    int rc = sqlite3_open(dbfile.c_str(), &db);
-    if (rc)
-    {
-        return NULL;
-    }
-
-#if !(TARGET_OS_IPHONE)
-    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
-#endif
-
     // 0. Check if DB is already initialized
     bool tableExists = true;
     sqlite3_stmt *stmt = NULL;
-    if (sqlite3_prepare(db, "SELECT name FROM sqlite_master WHERE type='table' AND name='init'", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "SELECT name FROM sqlite_master WHERE type='table' AND name='statecache'", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_step(stmt) == SQLITE_DONE)
         {
@@ -145,110 +145,29 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
     }
     sqlite3_finalize(stmt); // no-op if stmt=NULL
 
-    // 1. Create table 'scsn'
-    string sql = "CREATE TABLE IF NOT EXISTS init (id INTEGER PRIMARY KEY NOT NULL, content BLOB NOT NULL)";
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-    if (rc)
+    if (tableExists)
+    {
+        return new SqliteDbTable(db, fsaccess, &dbfile, NULL);
+    }
+    else
     {
         return NULL;
     }
-
-    // 2. Create table for 'nodes'
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle INTEGER PRIMARY KEY NOT NULL, parenthandle INTEGER NOT NULL, fingerprint BLOB, attrstring TEXT, shared INTEGER NOT NULL, node BLOB NOT NULL)";
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-    if (rc)
-    {
-        return NULL;
-    }
-
-    // 3. Create table for 'users'
-    sql = "CREATE TABLE IF NOT EXISTS users (userhandle INTEGER PRIMARY KEY NOT NULL, user BLOB NOT NULL)";
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-    if (rc)
-    {
-        return NULL;
-    }
-
-    // 4. Create table for 'pcrs'
-    sql = "CREATE TABLE IF NOT EXISTS pcrs (id INTEGER PRIMARY KEY NOT NULL, pcr BLOB NOT NULL)";
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-    if (rc)
-    {
-        return NULL;
-    }
-
-    // 5. If no previous records, generate and save the keys to encrypt handles
-    if (!tableExists)
-    {
-        // one key for nodehandles
-        byte *hkey = NULL;
-        hkey = (byte*) malloc(HANDLEKEYLENGTH);
-        PrnGen::genblock(hkey, HANDLEKEYLENGTH);
-
-        string buf;
-        buf.resize(HANDLEKEYLENGTH * 4/3 + 3);
-        buf.resize(Base64::btoa((const byte *)hkey, HANDLEKEYLENGTH, (char *) buf.data()));
-
-        PaddedCBC::encrypt(&buf, key);
-
-        bool result = false;
-        sqlite3_stmt *stmt = NULL;
-        if (sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
-        {
-            // `id` for the `hkey` is always the same (4), only one row
-            if (sqlite3_bind_int(stmt, 1, 4) == SQLITE_OK)
-            {
-                if (sqlite3_bind_blob(stmt, 2, buf.data(), buf.size(), SQLITE_STATIC) == SQLITE_OK)
-                {
-                    if (sqlite3_step(stmt) == SQLITE_DONE)
-                    {
-                        // one key for parenthandles (to avoid figure out the folder structure by analyzing relationship between nodehandles and parenthandles)
-                        sqlite3_reset(stmt);
-
-                        PrnGen::genblock(hkey, HANDLEKEYLENGTH);
-
-                        buf.resize(HANDLEKEYLENGTH * 4/3 + 3);
-                        buf.resize(Base64::btoa((const byte *)hkey, HANDLEKEYLENGTH, (char *) buf.data()));
-
-                        PaddedCBC::encrypt(&buf, key);
-                        if (sqlite3_prepare(db, "INSERT OR REPLACE INTO init (id, content) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
-                        {
-                            // `id` for the `hkey` is always the same (5), only one row
-                            if (sqlite3_bind_int(stmt, 1, 5) == SQLITE_OK)
-                            {
-                                if (sqlite3_bind_blob(stmt, 2, buf.data(), buf.size(), SQLITE_STATIC) == SQLITE_OK)
-                                {
-                                    if (sqlite3_step(stmt) == SQLITE_DONE)
-                                    {
-                                        result = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        sqlite3_finalize(stmt);
-        free(hkey);
-
-        if (!result)
-            return NULL;
-    }
-
-    return new SqliteDbTable(db, fsaccess, &dbfile, key);
 }
 
-DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
+DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool recycleLegacyDB)
 {
-    sqlite3* db;
+    discardbrokendb(fsaccess, name);
 
+    //Each table will use its own database object and its own file
+    sqlite3* db;
+    string dbfile;
     ostringstream legacyoss;
     legacyoss << dbpath;
     legacyoss << "megaclient_statecache";
     legacyoss << LEGACY_DB_VERSION;
     legacyoss << "_" << *name << ".db";
+    string legacydbpath = legacyoss.str();
 
     ostringstream newoss;
     newoss << dbpath;
@@ -263,8 +182,117 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     bool legacydbavailable = fa->fopen(&locallegacydbpath);
     delete fa;
 
-    int rc = sqlite3_open(dbfile.c_str(), &db);
+    if (legacydbavailable)
+    {
+        if (currentDbVersion == LEGACY_DB_VERSION)
+        {
+            LOG_debug << "Using a legacy DB";
+            dbfile = legacydbpath;
+        }
+        else
+        {
+            if (!recycleLegacyDB)
+            {
+                LOG_debug << "Legacy DB is outdated. Deleting.";
+                fsaccess->unlinklocal(&locallegacydbpath);
+            }
+            else
+            {
+                LOG_debug << "Trying to recycle a legacy DB";
+                string localcurrentdbpath;
+                fsaccess->path2local(&currentdbpath, &localcurrentdbpath);
+                if (fsaccess->renamelocal(&locallegacydbpath, &localcurrentdbpath, false))
+                {
+                    string suffix = "-shm";
+                    string localsuffix;
+                    fsaccess->path2local(&suffix, &localsuffix);
+
+                    string oldfile = locallegacydbpath + localsuffix;
+                    string newfile = localcurrentdbpath + localsuffix;
+                    fsaccess->renamelocal(&oldfile, &newfile, true);
+
+                    suffix = "-wal";
+                    fsaccess->path2local(&suffix, &localsuffix);
+                    oldfile = locallegacydbpath + localsuffix;
+                    newfile = localcurrentdbpath + localsuffix;
+                    fsaccess->renamelocal(&oldfile, &newfile, true);
+                    LOG_debug << "Legacy DB recycled";
+                }
+                else
+                {
+                    LOG_debug << "Unable to recycle legacy DB. Deleting.";
+                    fsaccess->unlinklocal(&locallegacydbpath);
+                }
+            }
+        }
+    }
+
+    if (!dbfile.size())
+    {
+        LOG_debug << "Using an upgraded DB";
+        dbfile = currentdbpath;
+        currentDbVersion = DB_VERSION;
+    }
+
+    int rc;
+
+    rc = sqlite3_open(dbfile.c_str(), &db);
+
     if (rc)
+    {
+        return NULL;
+    }
+
+#if !(TARGET_OS_IPHONE)
+    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
+#endif
+
+    const char *sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
+
+    rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+
+    if (rc)
+    {
+        return NULL;
+    }
+
+    return new SqliteDbTable(db, fsaccess, &dbfile, NULL);
+}
+
+DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCipher *key)
+{
+    discardbrokendb(fsaccess, name);
+
+    sqlite3* db;
+    string dbfile;
+
+    if (sqlite3_config(SQLITE_CONFIG_MULTITHREAD) != SQLITE_OK && !sqlite3_threadsafe())
+    {
+        LOG_warn << "Cannot establish multithread mode for Sqlite";
+    }
+
+    ostringstream legacyoss;
+    legacyoss << dbpath;
+    legacyoss << "megaclient_statecache";
+    legacyoss << LEGACY_DB_VERSION;
+    legacyoss << "_" << *name << ".db";
+    string legacydbpath = legacyoss.str();
+
+    ostringstream newoss;
+    newoss << dbpath;
+    newoss << "megaclient_statecache";
+    newoss << DB_VERSION;
+    newoss << "nod";
+    newoss << "_" << *name << ".db";
+    string currentdbpath = newoss.str();
+
+    string locallegacydbpath;
+    FileAccess *fa = fsaccess->newfileaccess();
+    fsaccess->path2local(&legacydbpath, &locallegacydbpath);
+    bool legacydbavailable = fa->fopen(&locallegacydbpath);
+    delete fa;
+
+    if (legacydbavailable)
     {
         if (currentDbVersion == LEGACY_DB_VERSION)
         {
@@ -296,30 +324,14 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
         }
     }
 
-#if !(TARGET_OS_IPHONE)
-    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
-#endif
-
-    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
-
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-
-    if (rc)
+    if (!dbfile.size())
     {
         LOG_debug << "Using an upgraded DB";
         dbfile = currentdbpath;
         currentDbVersion = DB_VERSION;
     }
 
-    ostringstream oss;
-    oss << dbpath;
-    oss << "megaclient_statecache";
-    oss << DB_VERSION;
-    oss << "_" << *name << ".db";
-
-    string dbfile = oss.str();
-
-    rc = sqlite3_open(dbfile.c_str(), &db);
+    int rc = sqlite3_open(dbfile.c_str(), &db);
     if (rc)
     {
         return NULL;
@@ -341,9 +353,8 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name)
     }
     sqlite3_finalize(stmt); // no-op if stmt=NULL
 
-
     // 1. Create table 'scsn'
-    sql = "CREATE TABLE IF NOT EXISTS init (id INTEGER PRIMARY KEY NOT NULL, content BLOB NOT NULL)";
+    string sql = "CREATE TABLE IF NOT EXISTS init (id INTEGER PRIMARY KEY NOT NULL, content BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {

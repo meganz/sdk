@@ -707,7 +707,7 @@ private:
     DbTable *openlegacysctable();
 
     // open/create state cache database table
-    bool converttable();
+    bool convertsctable();
     
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);

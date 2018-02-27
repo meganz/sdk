@@ -31,10 +31,12 @@ class MEGA_API SqliteDbAccess : public DbAccess
     string dbpath;
 
 public:
-    DbTable* open(FileSystemAccess*, string*);
+    DbTable* open(FileSystemAccess*, string*, bool = false);
+
+    bool discardbrokendb(FileSystemAccess *fsaccess, string*);
+    bool checkoldformat(FileSystemAccess *fsaccess, string*);
+    DbTable* openoldformat(FileSystemAccess*, string*);
     DbTable* open(FileSystemAccess*, string*, SymmCipher *key);
-    DbTable* openlegacy(FileSystemAccess*, string*);
-    bool legacydb(FileSystemAccess *fsaccess, string*);
 
     SqliteDbAccess(string* = NULL);
     ~SqliteDbAccess();

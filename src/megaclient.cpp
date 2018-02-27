@@ -7203,24 +7203,11 @@ void MegaClient::login(const byte* session, int size)
         key.setkey(session);
         setsid(session + sizeof key.key, size - sizeof key.key);
 
-        if (legacydb()) // if working with a legacy DB, read 'scsn' from it
-        {
-            legacysctable = openlegacysctable();
-            if (legacysctable && legacysctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
-            {
-                cachedscsn = MemAccess::get<handle>(t.data());
-            }
-        }
-        else
-        {
-            dbaccess->currentDbVersion = DbAccess::DB_VERSION;
+        opensctable();
 
-            opensctable();
-
-            if (sctable && sctable->getscsn(&t) && t.size() == sizeof cachedscsn)
-            {
-                cachedscsn = MemAccess::get<handle>(t.data());
-            }
+        if (sctable && sctable->getscsn(&t) && t.size() == sizeof cachedscsn)
+        {
+            cachedscsn = MemAccess::get<handle>(t.data());
         }
 
         byte sek[SymmCipher::KEYLENGTH];
@@ -7379,7 +7366,25 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
+            dbaccess->discardbrokendb(fsaccess, &dbname);       // it deletes broken version if found
+
+            if (dbaccess->checkoldformat(fsaccess, &dbname))    // if current cache uses old schema, convert it to new schema
+            {
+                legacysctable = dbaccess->openoldformat(fsaccess, &dbname);
+            }
+
             sctable = dbaccess->open(fsaccess, &dbname, &key);
+
+            if (sctable && legacysctable)
+            {
+                if (convertsctable())
+                {
+                    legacysctable->remove();
+                }
+
+                delete legacysctable;
+                legacysctable = NULL;
+            }
 
             if (sctable && !sctable->readhkey())
             {
@@ -7392,7 +7397,7 @@ void MegaClient::opensctable()
 
             if (sctable && !dbthread)
             {
-                dbthread = new DbThread(app, dbaccess, &dbname, &key);
+                dbthread = new DbThread(app, dbaccess, fsaccess, &dbname, &key);
                 dbthread->start(DbThread::loop, dbthread);
 
                 pendingsccommit = false;
@@ -7411,7 +7416,7 @@ bool MegaClient::legacydb()
         dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
-        return dbaccess->legacydb(fsaccess, &dbname);
+        return dbaccess->discardbrokendb(fsaccess, &dbname);
     }
 
     return false;
@@ -7428,13 +7433,13 @@ DbTable* MegaClient::openlegacysctable()
         dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
         dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
 
-        sctable = dbaccess->openlegacy(fsaccess, &dbname);
+        sctable = dbaccess->openoldformat(fsaccess, &dbname);
     }
 
     return sctable;
 }
 
-bool MegaClient::converttable()
+bool MegaClient::convertsctable()
 {
     uint32_t id;
     string data;
@@ -7523,7 +7528,7 @@ bool MegaClient::converttable()
     sctable->putrootnodes(rootnodes);
     sctable->commit();
 
-    LOG_info << "DB converssion successfull!";
+    LOG_info << "DB conversion successfull!";
 
     return true;
 }
@@ -9731,7 +9736,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -9825,7 +9830,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname);
+    tctable = dbaccess->open(fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -9859,18 +9864,6 @@ void MegaClient::fetchnodes(bool nocache)
     {
         sctable->truncate();
         cachednodes->clear();
-    }
-
-    if (loggedin() == FULLACCOUNT && sctable && legacysctable && !ISUNDEF(cachedscsn))
-    {
-        converttable();
-
-        // rename the legacy table to avoid conversion next time
-        legacysctable->remove();
-        delete legacysctable;
-        legacysctable = NULL;
-
-        dbaccess->currentDbVersion = DbAccess::DB_VERSION;
     }
 
     // only initial load from local cache

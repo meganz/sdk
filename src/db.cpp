@@ -523,10 +523,11 @@ void DbQueryQueue::pop()
  * @param dbname Specific name of the database file
  * @param key Master key used to encrypt/decrypt data from database
  */
-DbThread::DbThread(MegaApp *app, DbAccess *dbaccess, string *dbname, SymmCipher *key)
+DbThread::DbThread(MegaApp *app, DbAccess *dbaccess, FileSystemAccess *fsaccess, string *dbname, SymmCipher *key)
 {
     this->app = app;
     this->dbaccess = dbaccess;
+    this->fsaccess = fsaccess;
     this->dbname = *dbname;
     this->key = new SymmCipher(key->key);    // make a copy, since it is used in a different thread
 
@@ -551,7 +552,7 @@ void * DbThread::loop(void *param)
 {
     DbThread *t = (DbThread *)param;
 
-    DbTable *sctable = t->dbaccess->open(NULL, &(t->dbname), t->key);
+    DbTable *sctable = t->dbaccess->open(t->fsaccess, &(t->dbname), t->key);
     if (!sctable || !sctable->readhkey())
     {
         LOG_err << "Cannot open DB from the background thread";

@@ -183,15 +183,20 @@ public:
 
 struct MEGA_API DbAccess
 {
-    static const int BROKEN_DB_VERSION = 9;
+    static const int BROKEN_DB_VERSION = 10;    // not supported. If found, it will be discarded automatically
     static const int LEGACY_DB_VERSION = 10;
     static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();
-    virtual DbTable* open(FileSystemAccess*, string*) = 0;  // for transfers only
-    virtual DbTable* openlegacy(FileSystemAccess*, string*) = 0;
+    virtual DbTable* open(FileSystemAccess*, string*, bool = false) = 0; // for transfers & syncs only
+
+    // if BROKEN_DB_VERSION is found, delete it and return true
+    virtual bool discardbrokendb(FileSystemAccess *fsaccess, string*) = 0;
+
+    // return true if no DB_VERSION is available with new format, but with old format
+    virtual bool checkoldformat(FileSystemAccess *fsaccess, string*) = 0;
+    virtual DbTable* openoldformat(FileSystemAccess*, string*) = 0;
     virtual DbTable* open(FileSystemAccess*, string*, SymmCipher *key) = 0; // main cache
-    virtual bool legacydb(FileSystemAccess *fsaccess, string*) = 0;
 
     virtual ~DbAccess() { }
 
@@ -248,6 +253,7 @@ private:
     // application callbacks
     struct MegaApp* app;
     DbAccess *dbaccess;
+    FileSystemAccess *fsaccess;
     SymmCipher *key;
     string dbname;
 
@@ -257,7 +263,7 @@ public:
 
     static void *loop(void *param);
 
-    DbThread(struct MegaApp *app, DbAccess *dbaccess, string *dbname, SymmCipher *key);
+    DbThread(struct MegaApp *app, DbAccess *dbaccess, FileSystemAccess *fsaccess, string *dbname, SymmCipher *key);
     ~DbThread();
 };
 
