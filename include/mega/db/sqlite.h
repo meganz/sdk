@@ -81,10 +81,12 @@ public:
     bool putnode(handle, handle, string*, string*, int, string*);
     bool putuser(handle, string*);
     bool putpcr(handle, string*);
+    bool putchat(handle, string*);
 
     bool delnode(handle);
     bool delpcr(handle);
     bool deluser(handle);
+    bool delchat(handle);
 
     void truncate();
     void begin();

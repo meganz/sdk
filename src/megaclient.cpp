@@ -3840,7 +3840,7 @@ void MegaClient::initsc()
             // 5. write new or modified chats
             for (textchat_map::iterator it = chats.begin(); it != chats.end(); it++)
             {
-                if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
+                if (!(complete = sctable->putchat(it->second)))
                 {
                     break;
                 }
@@ -3977,7 +3977,7 @@ void MegaClient::updatesc()
             {
                 char base64[12];
                 LOG_verbose << "Adding chat to database: " << (Base64::btoa((byte*)&(it->second->id),MegaClient::CHATHANDLE,base64) ? base64 : "");
-                if (!(complete = sctable->put(CACHEDCHAT, it->second, &key)))
+                if (!(complete = sctable->putchat(it->second)))
                 {
                     break;
                 }
@@ -7446,6 +7446,7 @@ bool MegaClient::convertsctable()
     pnode_t n;
     User* u;
     PendingContactRequest* pcr;
+    TextChat *chat;
     node_vector dp;
 
     LOG_info << "Converting legacy database to the new format...";
@@ -7520,6 +7521,17 @@ bool MegaClient::convertsctable()
                 else
                 {
                     LOG_err << "Failed - user record read error";
+                    return false;
+                }
+
+            case CACHEDCHAT:
+                if ((chat = TextChat::unserialize(this, &data)))
+                {
+                    sctable->putchat(chat);
+                }
+                else
+                {
+                    LOG_err << "Failed - chat record read error";
                     return false;
                 }
         }

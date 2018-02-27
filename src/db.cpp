@@ -170,6 +170,18 @@ bool DbTable::putpcr(PendingContactRequest *pcr)
     return putpcr(id, &data);
 }
 
+bool DbTable::putchat(TextChat *chat)
+{
+    string data;
+    chat->serialize(&data);
+    PaddedCBC::encrypt(&data, key);
+
+    handle id = chat->id;
+    SymmCipher::xorblock((byte*)&id, hkey, HANDLEKEYLENGTH);
+
+    return putchat(id, &data);
+}
+
 bool DbTable::delnode(pnode_t n)
 {
     handle h = n->nodehandle;
@@ -192,6 +204,14 @@ bool DbTable::deluser(User *user)
     SymmCipher::xorblock((byte*)&id, hkey, HANDLEKEYLENGTH);
 
     return deluser(id);
+}
+
+bool DbTable::delchat(TextChat *chat)
+{
+    handle id = chat->id;
+    SymmCipher::xorblock((byte*)&id, hkey, HANDLEKEYLENGTH);
+
+    return delchat(id);
 }
 
 bool DbTable::getnode(handle h, string* data)

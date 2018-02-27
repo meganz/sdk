@@ -385,7 +385,15 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, SymmCiph
         return NULL;
     }
 
-    // 5. If no previous records, generate and save the keys to encrypt handles
+    // 5. Create table for 'chats'
+    sql = "CREATE TABLE IF NOT EXISTS chats (id INTEGER PRIMARY KEY NOT NULL, chat BLOB NOT NULL)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
+
+    // 6. If no previous records, generate and save the keys to encrypt handles
     if (!tableExists)
     {
         // one key for nodehandles
@@ -1128,6 +1136,34 @@ bool SqliteDbTable::putpcr(handle id, string *pcr)
     return result;
 }
 
+bool SqliteDbTable::putchat(handle id, string *chat)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    bool result = false;
+
+    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO chats (id, chat) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, id) == SQLITE_OK)
+        {
+            if (sqlite3_bind_blob(stmt, 2, chat->data(), chat->size(), SQLITE_STATIC) == SQLITE_OK)
+            {
+                if (sqlite3_step(stmt) == SQLITE_DONE)
+                {
+                    result = true;
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
 bool SqliteDbTable::delnode(handle h)
 {
     if (!db)
@@ -1189,6 +1225,31 @@ bool SqliteDbTable::deluser(handle id)
     bool result = false;
 
     if (sqlite3_prepare(db, "DELETE FROM users WHERE id = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, id) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_DONE)
+            {
+                result = true;
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+bool SqliteDbTable::delchat(handle id)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    sqlite3_stmt *stmt = NULL;
+    bool result = false;
+
+    if (sqlite3_prepare(db, "DELETE FROM chats WHERE id = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, id) == SQLITE_OK)
         {

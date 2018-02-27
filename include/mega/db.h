@@ -106,24 +106,28 @@ public:
     bool putnode(pnode_t);
     bool putuser(User *);
     bool putpcr(PendingContactRequest *);
+    bool putchat(TextChat *);
 
 protected:
     // update or add specific record
     virtual bool putnode(handle, handle, string*, string*, int, string*) = 0;
     virtual bool putuser(handle, string*) = 0;
     virtual bool putpcr(handle, string*) = 0;
+    virtual bool putchat(handle, string*) = 0;
     virtual bool putrootnode(int, string*) = 0;
 
 public:
     // delete specific record
     bool delnode(pnode_t);
     bool delpcr(PendingContactRequest *);
-    bool deluser(User *u);
+    bool deluser(User *);
+    bool delchat(TextChat *);
 
 //protected:
     virtual bool delnode(handle) = 0;
     virtual bool delpcr(handle) = 0;
     virtual bool deluser(handle) = 0;
+    virtual bool delchat(handle) = 0;
 
 public:
     // delete all records
