@@ -270,6 +270,7 @@ HEADERS  += include/mega.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
             include/mega/mega_evt_tls.h \
+            include/mega/mega_evt_queue.h \
             include/mega/thread/posixthread.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h
