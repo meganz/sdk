@@ -917,7 +917,7 @@ bool Node::setparent(pnode_t p)
             p = client->nodebyhandle(p->parenthandle);
         }
 
-        if ((!p && !ISUNDEF(parenthandle)) || p->type == FILENODE)
+        if (!p || p->type == FILENODE)
         {
             TreeProcDelSyncGet tdsg;
             client->proctree(shared_from_this(), &tdsg);
