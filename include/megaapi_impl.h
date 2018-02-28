@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file megaapi_impl.h
  * @brief Private header file of the intermediate layer for the MEGA C++ SDK.
  *
@@ -134,7 +134,9 @@ class MegaGfxProc : public GfxProcExternal {};
 #endif
 
 #ifdef HAVE_LIBUV
+class MegaTCPServer;
 class MegaHTTPServer;
+class MegaFTPServer;
 #endif
 
 class MegaDbAccess : public SqliteDbAccess
@@ -2261,15 +2263,15 @@ protected:
     unsigned int maxOutputSize;
 };
 
-class MegaHTTPServer;
-class MegaHTTPContext : public MegaTransferListener, public MegaRequestListener
+class MegaTCPServer;
+class MegaTCPContext : public MegaTransferListener, public MegaRequestListener
 {
 public:
-    MegaHTTPContext();
-    ~MegaHTTPContext();
+    MegaTCPContext();
+    ~MegaTCPContext();
 
     // Connection management
-    MegaHTTPServer *server;
+    MegaTCPServer *server;
     StreamingBuffer streamingBuffer;
     MegaTransferPrivate *transfer;
     uv_tcp_t tcphandle;
@@ -2302,13 +2304,13 @@ public:
     m_off_t nodesize;
     int resultCode;
 
-    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
-    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
-    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
-    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+//    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
+//    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+//    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+//    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
-class MegaHTTPServer
+class MegaTCPServer
 {
 protected:
     static void *threadEntryPoint(void *param);
@@ -2316,7 +2318,7 @@ protected:
 
     set<handle> allowedHandles;
     handle lastHandle;
-    list<MegaHTTPContext*> connections;
+    list<MegaTCPContext*> connections;
     uv_async_t exit_handle;
     MegaApiImpl *megaApi;
     uv_sem_t semaphore;
@@ -2345,8 +2347,6 @@ protected:
 
     //libuv tls
     static void onNewClient_tls(uv_stream_t* server_handle, int status);
-    static void onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
-    static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
     static void onWriteFinished_tls_async(uv_write_t* req, int status);
     static void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data);
     static int uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz);
@@ -2354,32 +2354,33 @@ protected:
     static void on_hd_complete( evt_tls_t *evt_tls, int status);
     static void evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz);
 
-
-
     static void onAsyncEventClose(uv_handle_t* handle);
     static void onAsyncEvent(uv_async_t* handle);
-    static void onCloseRequested(uv_async_t* handle);
-    static void onWriteFinished(uv_write_t* req, int status);
 
-    // HTTP parser callback
-    static int onMessageBegin(http_parser* parser);
-    static int onHeadersComplete(http_parser* parser);
-    static int onUrlReceived(http_parser* parser, const char* url, size_t length);
-    static int onHeaderField(http_parser* parser, const char* at, size_t length);
-    static int onHeaderValue(http_parser* parser, const char* at, size_t length);
-    static int onBody(http_parser* parser, const char* at, size_t length);
-    static int onMessageComplete(http_parser* parser);
+    static void onCloseRequested(uv_async_t* handle);
+
+    static void onWriteFinished(uv_write_t* req, int status); //This might need to go to HTTPServer
+    static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
+
 
     void run();
-    static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
-    static void sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylocked = false);
-    static int streamNode(MegaHTTPContext *httpctx);
+
+
+
+    //virtual methods:
+    virtual void processReceivedData(MegaTCPContext *httpctx, ssize_t nread, const uv_buf_t * buf) = 0;
+    virtual void processAsyncEvent(MegaTCPContext *httpctx) = 0;
+    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle) = 0;
+    virtual void processWriteFinished(MegaTCPContext* httpctx, int status) = 0;
+
 
 public:
     bool useTLS;
 
-    MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
-    virtual ~MegaHTTPServer();
+
+
+    MegaTCPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    virtual ~MegaTCPServer();
     bool start(int port, bool localOnly = true);
     void stop();
     int getPort();
@@ -2400,6 +2401,103 @@ public:
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
 };
+
+
+class MegaTCServer;
+class MegaHTTPServer;
+class MegaHTTPContext : public MegaTCPContext
+{
+
+public:
+    MegaHTTPContext();
+    ~MegaHTTPContext();
+
+    http_parser parser;
+
+    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
+    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+};
+
+class MegaHTTPServer: public MegaTCPServer
+{
+protected:
+    //virtual methods:
+    virtual void processReceivedData(MegaTCPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *httpctx);
+    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
+    virtual void processWriteFinished(MegaTCPContext* httpctx, int status);
+
+
+    // HTTP parser callback
+    static int onMessageBegin(http_parser* parser);
+    static int onHeadersComplete(http_parser* parser);
+    static int onUrlReceived(http_parser* parser, const char* url, size_t length);
+    static int onHeaderField(http_parser* parser, const char* at, size_t length);
+    static int onHeaderValue(http_parser* parser, const char* at, size_t length);
+    static int onBody(http_parser* parser, const char* at, size_t length);
+    static int onMessageComplete(http_parser* parser);
+
+    static void sendHeaders(MegaTCPContext *httpctx, string *headers);
+    static void sendNextBytes(MegaTCPContext *httpctx, bool mutexalreadylocked = false);
+    static int streamNode(MegaTCPContext *httpctx);
+
+public:
+    MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    virtual ~MegaHTTPServer();
+};
+
+
+//ftp parser: todo: move somewhere else
+
+typedef struct ftp_parser ftp_parser;
+struct ftp_parser {
+//  uint32_t nread;          /* # bytes read in various scenarios */
+//  uint64_t content_length; /* # bytes in body (0 if no Content-Length header) */
+
+  /** READ-ONLY **/
+  unsigned short http_major;
+  unsigned short http_minor;
+  unsigned int status_code : 16; /* responses only */
+  unsigned int method : 8;       /* requests only */
+
+  /** PUBLIC **/
+  void *data; /* A pointer to get hook to the "connection" or "socket" object */
+};
+
+void ftp_parser_init(ftp_parser *parser);
+
+class MegaFTPServer;
+class MegaFTPContext : public MegaTCPContext
+{
+public:
+    MegaFTPContext();
+    ~MegaFTPContext();
+
+    ftp_parser parser;
+
+    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
+    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+};
+
+class MegaFTPServer: public MegaTCPServer
+{
+protected:
+    //virtual methods:
+    virtual void processReceivedData(MegaTCPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *httpctx);
+    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
+    virtual void processWriteFinished(MegaTCPContext* httpctx, int status);
+
+public:
+    MegaFTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    virtual ~MegaFTPServer();
+};
+
+
 #endif
 
 }
