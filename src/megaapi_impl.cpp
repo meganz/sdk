@@ -19760,7 +19760,8 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
         // onWriteFinished_tls expects to have the mutex locked
         // but it's not strictly needed here because the transfer hasn't started yet
         //uv_mutex_lock(&httpctx->mutex);
-        if (int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls) )
+        int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
             evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
@@ -19880,7 +19881,9 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylo
 
     if (httpctx->server->useTLS)
     {
-        if (int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls) ) //notice this, contrary to !useTLS is synchronous
+        //notice this, contrary to !useTLS is synchronous
+        int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
             evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
