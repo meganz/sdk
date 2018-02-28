@@ -2348,10 +2348,9 @@ protected:
     static void onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
     static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
     static void onWriteFinished_tls_async(uv_write_t* req, int status);
-    static void on_tcp_eof(uv_handle_t *handle);
     static void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data);
     static int uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz);
-    static void on_close(evt_tls_t *evt_tls, int status);
+    static void on_evt_tls_close(evt_tls_t *evt_tls, int status);
     static void on_hd_complete( evt_tls_t *evt_tls, int status);
     static void evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz);
 

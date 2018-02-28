@@ -18902,7 +18902,7 @@ void MegaHTTPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
     onDataReceived_tls(httpctx, sz, &data);
 }
 
-void MegaHTTPServer::on_close(evt_tls_t *evt_tls, int status)
+void MegaHTTPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
     assert(httpctx != NULL);
@@ -18921,7 +18921,7 @@ void MegaHTTPServer::on_hd_complete(evt_tls_t *evt_tls, int status)
     }
     else
     {
-        evt_tls_close(evt_tls, on_close);
+        evt_tls_close(evt_tls, on_evt_tls_close);
     }
 }
 
@@ -19035,14 +19035,6 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
     }
 }
 
-void MegaHTTPServer::on_tcp_eof(uv_handle_t *handle)
-{
-    MegaHTTPContext *httpctx = (MegaHTTPContext*) handle->data;
-    assert(httpctx != NULL);
-    evt_tls_free(httpctx->evt_tls);
-    httpctx->evt_tls = NULL;
-}
-
 void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *data)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
@@ -19054,12 +19046,15 @@ void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *
         {
             if (evt_tls_is_handshake_over(httpctx->evt_tls))
             {
-                evt_tls_close(httpctx->evt_tls, on_close);
+                evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
             }
             else
             {
                 //if handshake is not over, simply tear down without close_notify
-                uv_close((uv_handle_t*)tcp, on_tcp_eof);
+                if (!uv_is_closing((uv_handle_t*)tcp))
+                {
+                    uv_close((uv_handle_t*)tcp, onClose);
+                }
             }
         }
         delete[] data->base;
@@ -19763,7 +19758,12 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
         // onWriteFinished_tls expects to have the mutex locked
         // but it's not strictly needed here because the transfer hasn't started yet
         //uv_mutex_lock(&httpctx->mutex);
-        evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        if (int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls) )
+        {
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            httpctx->finished = true;
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
         //uv_mutex_unlock(&httpctx->mutex);
     }
     else
@@ -19879,7 +19879,12 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylo
 
     if (httpctx->server->useTLS)
     {
-        evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls); //notice this, contrary to !useTLS is synchronous
+        if (int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls) ) //notice this, contrary to !useTLS is synchronous
+        {
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            httpctx->finished = true;
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
     }
     else
     {
@@ -19924,7 +19929,7 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
         }
 
         httpctx->finished = true;
-        evt_tls_close(evt_tls, on_close);
+        evt_tls_close(evt_tls, on_evt_tls_close);
         return;
     }
 
