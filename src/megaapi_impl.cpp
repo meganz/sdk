@@ -19845,11 +19845,18 @@ void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
 
 void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylocked)
 {
-    if (!mutexalreadylocked) uv_mutex_lock(&httpctx->mutex);
+    if (!mutexalreadylocked)
+    {
+        uv_mutex_lock(&httpctx->mutex);
+    }
+
     if (httpctx->lastBuffer)
     {
         LOG_verbose << "Skipping write due to another ongoing write";
-        if (!mutexalreadylocked) uv_mutex_unlock(&httpctx->mutex);
+        if (!mutexalreadylocked)
+        {
+            uv_mutex_unlock(&httpctx->mutex);
+        }
         return;
     }
 
@@ -19862,7 +19869,10 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylo
     if (httpctx->tcphandle.write_queue_size > httpctx->streamingBuffer.availableCapacity() / 8)
     {
         LOG_warn << "Skipping write. Too much queued data";
-        if (!mutexalreadylocked) uv_mutex_unlock(&httpctx->mutex);
+        if (!mutexalreadylocked)
+        {
+            uv_mutex_unlock(&httpctx->mutex);
+        }
         return;
     }
 
@@ -19870,7 +19880,10 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylo
     if (!resbuf.len)
     {
         LOG_verbose << "Skipping write. No data available";
-        if (!mutexalreadylocked) uv_mutex_unlock(&httpctx->mutex);
+        if (!mutexalreadylocked)
+        {
+            uv_mutex_unlock(&httpctx->mutex);
+        }
         return;
     }
 
@@ -19904,7 +19917,11 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylo
             }
         }
     }
-    if (!mutexalreadylocked) uv_mutex_unlock(&httpctx->mutex);
+
+    if (!mutexalreadylocked)
+    {
+        uv_mutex_unlock(&httpctx->mutex);
+    }
 }
 
 void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
