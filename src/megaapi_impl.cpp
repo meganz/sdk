@@ -20073,9 +20073,11 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
 
     // append the data to the buffer
     uv_mutex_lock(&mutex);
-    if (streamingBuffer.availableSpace() < 2 * size)
+    long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
+    long long availableSpace = streamingBuffer.availableSpace();
+    if (remaining > availableSpace && availableSpace < (2 * size))
     {
-        LOG_debug << "Buffer full: " << streamingBuffer.availableSpace() << " of "
+        LOG_debug << "Buffer full: " << availableSpace << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
