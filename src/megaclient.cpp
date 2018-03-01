@@ -7205,11 +7205,6 @@ void MegaClient::login(const byte* session, int size)
 
         opensctable();
 
-        if (sctable && sctable->getscsn(&t) && t.size() == sizeof cachedscsn)
-        {
-            cachedscsn = MemAccess::get<handle>(t.data());
-        }
-
         byte sek[SymmCipher::KEYLENGTH];
         PrnGen::genblock(sek, sizeof sek);
 
@@ -7366,42 +7361,43 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            dbaccess->discardbrokendb(fsaccess, &dbname);       // it deletes broken version if found
+            string t;
 
             if (dbaccess->checkoldformat(fsaccess, &dbname))    // if current cache uses old schema, convert it to new schema
             {
-                legacysctable = dbaccess->openoldformat(fsaccess, &dbname);
-            }
-
-            sctable = dbaccess->open(fsaccess, &dbname, &key);
-
-            if (sctable && legacysctable)
-            {
-                if (convertsctable())
+                legacysctable = dbaccess->openoldformat(fsaccess, &dbname);                
+                if (legacysctable && legacysctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
                 {
-                    legacysctable->remove();
+                    cachedscsn = MemAccess::get<handle>(t.data());
+                }
+            }
+            else    // already using new DB schema
+            {
+                sctable = dbaccess->open(fsaccess, &dbname, &key);
+                if (sctable && sctable->getscsn(&t) && t.size() == sizeof cachedscsn)
+                {
+                    cachedscsn = MemAccess::get<handle>(t.data());
                 }
 
-                delete legacysctable;
-                legacysctable = NULL;
+                if (sctable && !sctable->readhkey())
+                {
+                    delete sctable;
+                    sctable = NULL;
+                }
+
+                if (!cachednodes)
+                {
+                    cachednodes = new NodesCache(this);
+                }
+
+                if (sctable && !dbthread)
+                {
+                    dbthread = new DbThread(app, dbaccess, fsaccess, &dbname, &key);
+                    dbthread->start(DbThread::loop, dbthread);
+                }
             }
 
-            if (sctable && !sctable->readhkey())
-            {
-                delete sctable;
-                sctable = NULL;
-            }
-
-            if (!cachednodes)
-                cachednodes = new NodesCache(this);
-
-            if (sctable && !dbthread)
-            {
-                dbthread = new DbThread(app, dbaccess, fsaccess, &dbname, &key);
-                dbthread->start(DbThread::loop, dbthread);
-
-                pendingsccommit = false;
-            }
+            pendingsccommit = false;
         }
     }
 }
@@ -7441,6 +7437,41 @@ DbTable* MegaClient::openlegacysctable()
 
 bool MegaClient::convertsctable()
 {
+    assert (legacysctable);
+    assert (!sctable);
+
+    string dbname;
+    if (sid.size() >= SIDLEN)
+    {
+        dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+    }
+    else if (publichandle != UNDEF)
+    {
+        dbname.resize(NODEHANDLE * 4 / 3 + 3);
+        dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+    }
+
+    if (dbname.size())
+    {
+        // prepare/create DB with new schema
+        sctable = dbaccess->open(fsaccess, &dbname, &key);
+    }
+
+    // check keys for handles were properly created
+    if (!sctable || !sctable->readhkey())
+    {
+        delete sctable;
+        sctable = NULL;
+
+        return false;
+    }
+
+    if (!cachednodes)
+    {
+        cachednodes = new NodesCache(this);
+    }
+
     uint32_t id;
     string data;
     pnode_t n;
@@ -7451,11 +7482,10 @@ bool MegaClient::convertsctable()
 
     LOG_info << "Converting legacy database to the new format...";
 
-    legacysctable->begin();
-    legacysctable->rewind();
-
+    sctable->begin();
     totalNodes = 0;
 
+    legacysctable->rewind();
     while (legacysctable->next(&id, &data, &key))
     {
         switch (id & 15)
@@ -7541,6 +7571,17 @@ bool MegaClient::convertsctable()
 
     sctable->putrootnodes(rootnodes);
     sctable->commit();
+    pendingsccommit = false;
+
+    legacysctable->remove();
+    delete legacysctable;
+    legacysctable = NULL;
+
+    if (sctable && !dbthread)
+    {
+        dbthread = new DbThread(app, dbaccess, fsaccess, &dbname, &key);
+        dbthread->start(DbThread::loop, dbthread);
+    }
 
     LOG_info << "DB conversion successfull!";
 

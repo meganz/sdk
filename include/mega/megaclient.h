@@ -697,17 +697,11 @@ private:
     // a TransferSlot chunk failed
     bool chunkfailed;
 
-    // legacy local cache
-    DbTable *legacysctable;
-
     // check existence of legacy db to convert
     bool legacydb();
 
     // open/create state cache database table
     DbTable *openlegacysctable();
-
-    // open/create state cache database table
-    bool convertsctable();
     
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
@@ -803,6 +797,9 @@ public:
     // state cache table for logged in user
     DbTable* sctable;
 
+    // state cache table to be converted to new DB schema
+    DbTable *legacysctable;
+
     // there is data to commit to the database when possible
     bool pendingsccommit;
 
@@ -838,7 +835,12 @@ public:
     void initsc();
     void updatesc();
     void finalizesc(bool);
-    int nodescount;     // for counting the added/updated nodes at fetchnodes
+
+    // open/create state cache database table
+    bool convertsctable();
+
+    // for counting the added/updated nodes at fetchnodes
+    int nodescount;
 
     // cache of Most Recently Used nodes
     NodesCache *cachednodes;

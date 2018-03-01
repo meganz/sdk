@@ -1560,6 +1560,16 @@ void CommandLogin::procresult()
                         client->key.setkey(sek);
                         client->key.ecb_decrypt(k);
                         client->key.setkey(k);
+
+                        if (client->legacysctable && !client->convertsctable())
+                        {
+                            LOG_fatal << "Failed to convert cache to new DB schema";
+
+                            delete client->legacysctable;
+                            client->legacysctable = NULL;
+
+                            return client->app->login_result(API_EINTERNAL);
+                        }
                     }
                 }
 
