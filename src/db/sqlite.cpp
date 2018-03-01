@@ -56,7 +56,6 @@ bool SqliteDbAccess::discardbrokendb(FileSystemAccess *fsaccess, string* name)
     result = fa->fopen(&dbfileOld);
     if (result)
     {
-        fa->closef();
         fsaccess->unlinklocal(&dbfileOld);
     }
 
@@ -93,17 +92,10 @@ bool SqliteDbAccess::checkoldformat(FileSystemAccess *fsaccess, string *name)
     fsaccess->path2local(&buf, &dbfileNew);
 
     // first check if new format is already available
-    bool newIsOpened = true;
     if (!fa->fopen(&dbfileNew))
     {
         // if current format not available, check previous version
         result = fa->fopen(&dbfileOld);
-        newIsOpened = false;
-    }
-
-    if (newIsOpened || result)
-    {
-        fa->closef();
     }
 
     delete fa;
