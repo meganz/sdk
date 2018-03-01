@@ -844,13 +844,15 @@ public:
 
     virtual int getType() const;
     virtual const char *getText() const;
+    virtual const int getNumber() const;
 
     void setText(const char* text);
+    void setNumber(int number);
 
 protected:
     int type;
     const char* text;
-
+    int number;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -1486,6 +1488,7 @@ class MegaApiImpl : public MegaApp
         void setProxySettings(MegaProxy *proxySettings);
         MegaProxy *getAutoProxySettings();
         int isLoggedIn();
+        void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
         char* getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
@@ -1755,7 +1758,7 @@ class MegaApiImpl : public MegaApp
         void getLastAvailableVersion(const char *appKey, MegaRequestListener *listener = NULL);
         void getLocalSSLCertificate(MegaRequestListener *listener = NULL);
         void queryDNS(const char *hostname, MegaRequestListener *listener = NULL);
-        void queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener = NULL);
+        void queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener = NULL);
         void downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener = NULL);
         const char *getUserAgent();
         const char *getBasePath();
@@ -1798,7 +1801,7 @@ class MegaApiImpl : public MegaApp
 
 #ifdef HAVE_LIBUV
         // start/stop
-        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
         void httpServerStop();
         int httpServerIsRunning();
 
@@ -1987,6 +1990,9 @@ protected:
         // ephemeral session creation/resumption result
         virtual void ephemeral_result(error);
         virtual void ephemeral_result(handle, const byte*);
+
+        // check the reason of being blocked
+        virtual void whyamiblocked_result(int);
 
         // account creation
         virtual void sendsignuplink_result(error);
@@ -2363,10 +2369,9 @@ protected:
     static void onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
     static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
     static void onWriteFinished_tls_async(uv_write_t* req, int status);
-    static void on_tcp_eof(uv_handle_t *handle);
     static void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data);
     static int uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz);
-    static void on_close(evt_tls_t *evt_tls, int status);
+    static void on_evt_tls_close(evt_tls_t *evt_tls, int status);
     static void on_hd_complete( evt_tls_t *evt_tls, int status);
     static void evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz);
 
@@ -2395,7 +2400,7 @@ protected:
 
     void run();
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
-    static void sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylocked = false);
+    static void sendNextBytes(MegaHTTPContext *httpctx);
     static int streamNode(MegaHTTPContext *httpctx);
 
     //Utility funcitons

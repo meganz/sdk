@@ -50,6 +50,9 @@ struct MEGA_API MegaApp
     virtual void ephemeral_result(error) { }
     virtual void ephemeral_result(handle, const byte*) { }
 
+    // check the reason of being blocked result
+    virtual void whyamiblocked_result(int) { }
+
     // account creation
     virtual void sendsignuplink_result(error) { }
     virtual void querysignuplink_result(error) { }

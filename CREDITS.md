@@ -143,5 +143,6 @@ Copyright (c) 2015 Devchandra M. Leishangthem
 https://github.com/deleisha/evt-tls
 
 Files included in this repository based on `evt-tls`:
-- `src/mega_evt_tls.cpp` (based on `zxcvbn.c`)
-- `include/mega/mega_evt_tls.h` (based on `zxcvbn.h`)
+- `src/mega_evt_tls.cpp` (based on `evt_tls.c`)
+- `include/mega/mega_evt_tls.h` (based on `evt_tls.h`)
+- `include/mega/mega_evt_queue.h` (based on `queue.h`)

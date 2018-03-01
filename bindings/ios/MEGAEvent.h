@@ -24,7 +24,9 @@
 typedef NS_ENUM(NSUInteger, Event) {
     EventCommitDB = 0,
     EventAccountConfirmation = 1,
-    EventChangeToHttps = 2
+    EventChangeToHttps = 2,
+    EventDisconnect = 3,
+    EventAccountBlocked = 4
 };
 
 /**

@@ -236,8 +236,9 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
     switch ( op ) {
         case EVT_TLS_OP_HANDSHAKE: {
             r = SSL_do_handshake(conn->ssl);
-            bytes = evt__send_pending(conn);
-            assert( bytes >= 0);
+            do {
+                bytes = evt__send_pending(conn);
+            } while ( bytes > 0 );
             if (1 == r || 0 == r) {
                 assert(conn->hshake_cb != NULL );
                 conn->hshake_cb(conn, r);
@@ -249,8 +250,9 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
             r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
             do {
                 if ( r == 0 ) goto handle_shutdown;
-
-                bytes = evt__send_pending(conn);
+                do {
+                    bytes = evt__send_pending(conn);
+                } while ( bytes > 0 );
                 assert(conn->read_cb != NULL);
                 conn->read_cb(conn, tbuf, r);
                 r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
@@ -262,7 +264,9 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
             assert( sz > 0 && "number of bytes to write should be positive");
             r = SSL_write(conn->ssl, buf, sz);
             if ( 0 == r) goto handle_shutdown;
-            bytes = evt__send_pending(conn);
+            do {
+                bytes = evt__send_pending(conn);
+            } while ( bytes > 0 );
             if ( r > 0 && conn->write_cb) {
                 conn->write_cb(conn, r);
             }
@@ -281,7 +285,9 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
 
         case EVT_TLS_OP_SHUTDOWN: {
             r = SSL_shutdown(conn->ssl);
-            bytes = evt__send_pending(conn);
+            do {
+                bytes = evt__send_pending(conn);
+            } while ( bytes > 0 );
             if ( conn->close_cb ) {
                 conn->close_cb(conn, r);
             }

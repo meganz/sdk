@@ -95,6 +95,8 @@ struct DemoApp : public MegaApp
     void ephemeral_result(error);
     void ephemeral_result(handle, const byte*);
 
+    void whyamiblocked_result(int);
+
     void sendsignuplink_result(error);
     void querysignuplink_result(error);
     void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t);

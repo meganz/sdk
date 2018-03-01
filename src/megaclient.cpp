@@ -3267,16 +3267,19 @@ void MegaClient::dnsrequest(const char *hostname)
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = string("http://") + hostname;
+    req->posturl = (usehttps ? string("https://") : string("http://")) + hostname;
     req->dns(this);
 }
 
-void MegaClient::gelbrequest(const char *service, int timeoutms, int retries)
+void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
 {
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;
     req->maxretries = retries;
-    req->maxbt.backoff(timeoutms);
+    if (timeoutds > 0)
+    {
+        req->maxbt.backoff(timeoutds);
+    }
     pendinghttp[reqtag] = req;
     req->posturl = GELBURL;
     req->posturl.append("?service=");
@@ -5332,12 +5335,14 @@ void MegaClient::sc_chatnode()
             case EOO:
                 if (chatid != UNDEF && h != UNDEF && uh != UNDEF && (r || g))
                 {
-                    if (chats.find(chatid) == chats.end())
+                    textchat_map::iterator it = chats.find(chatid);
+                    if (it == chats.end())
                     {
-                        chats[chatid] = new TextChat();
+                        LOG_err << "Unknown chat for user/node access to attachment";
+                        return;
                     }
 
-                    TextChat *chat = chats[chatid];
+                    TextChat *chat = it->second;
                     if (r)  // access revoked
                     {
                         if(!chat->setNodeUserAccess(h, uh, true))
@@ -5370,12 +5375,12 @@ void MegaClient::sc_chatnode()
 
 void MegaClient::sc_chatflags()
 {
-    handle chatid = UNDEF;
-    byte flags = 0;
-
     bool done = false;
     while(!done)
     {
+        handle chatid = UNDEF;
+        byte flags = 0;
+
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i','d'):
@@ -8512,12 +8517,15 @@ void MegaClient::procmcna(JSON *j)
                 case EOO:
                     if (chatid != UNDEF && h != UNDEF && uh != UNDEF)
                     {
-                        if (chats.find(chatid) == chats.end())
+                        textchat_map::iterator it = chats.find(chatid);
+                        if (it == chats.end())
                         {
-                            chats[chatid] = new TextChat();
+                            LOG_err << "Unknown chat for user/node access to attachment";
                         }
-
-                        chats[chatid]->setNodeUserAccess(h, uh);
+                        else
+                        {
+                            it->second->setNodeUserAccess(h, uh);
+                        }
                     }
                     else
                     {
@@ -8916,7 +8924,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         hmacsha256.add(derivedKey + 32, 32);
         hmacsha256.get(hmacComputed);
     }
-    else // algorithm == 2 (fix legacy Webclient bug: swap data and key
+    else // algorithm == 2 (fix legacy Webclient bug: swap data and key)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
         HMACSHA256 hmacsha256(derivedKey + 32, 32);
@@ -9043,7 +9051,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         }
 
         // Preapare payload to derive encryption key
-        byte algorithm = 1;
+        byte algorithm = 2;
         byte type = isFolder ? 0 : 1;
         string payload;
         payload.append((char*) &algorithm, sizeof algorithm);
@@ -9113,6 +9121,11 @@ sessiontype_t MegaClient::loggedin()
     }
 
     return FULLACCOUNT;
+}
+
+void MegaClient::whyamiblocked()
+{
+    reqs.add(new CommandWhyAmIblocked(this));
 }
 
 error MegaClient::changepw(const byte* oldpwkey, const byte* newpwkey)
