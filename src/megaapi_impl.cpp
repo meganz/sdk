@@ -19792,9 +19792,17 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
     if (httpctx->failed)
     {
         LOG_warn << "Streaming transfer failed. Closing connection.";
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        if (httpctx->server->useTLS)
         {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
+        else
+        {
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
         }
         return;
     }
@@ -20120,7 +20128,6 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     {
         LOG_warn << "Transfer failed with error code: " << ecode;
         failed = true;
-        finished = true;
         uv_async_send(&asynchandle);
     }
 }
