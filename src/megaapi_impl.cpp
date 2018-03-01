@@ -19123,6 +19123,7 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
     }
 
     delete httpctx->node;
+    uv_mutex_destroy(&httpctx->mutex);
     delete httpctx;
     LOG_debug << "Connection deleted";
 }
