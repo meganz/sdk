@@ -2372,7 +2372,7 @@ protected:
 
     void run();
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
-    static void sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylocked = false);
+    static void sendNextBytes(MegaHTTPContext *httpctx);
     static int streamNode(MegaHTTPContext *httpctx);
 
 public:
