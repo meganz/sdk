@@ -61,10 +61,12 @@ public:
     virtual void rewindnode() = 0;
     virtual void rewinduser() = 0;
     virtual void rewindpcr() = 0;
+    virtual void rewindchat() = 0;
     bool getrootnodes(handle*);
     bool getuser(string*);
     bool getpcr(string*);
     bool getnode(string*);
+    bool getchat(string*);
 
     // get records for `scsn`
     virtual bool getscsn(string*) = 0;

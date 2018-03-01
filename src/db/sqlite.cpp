@@ -800,6 +800,21 @@ void SqliteDbTable::rewindnode()
     sqlite3_prepare(db, "SELECT node FROM nodes", -1, &pStmt, NULL);
 }
 
+void SqliteDbTable::rewindchat()
+{
+    if (!db)
+    {
+        return;
+    }
+
+    if (pStmt)
+    {
+        sqlite3_reset(pStmt);
+    }
+
+    sqlite3_prepare(db, "SELECT chat FROM chats", -1, &pStmt, NULL);
+}
+
 void SqliteDbTable::rewindhandleschildren(handle ph)
 {
     if (!db)

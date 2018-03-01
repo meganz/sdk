@@ -268,6 +268,16 @@ bool DbTable::getnode(string *data)
     return false;
 }
 
+bool DbTable::getchat(string *data)
+{
+    if (next(data))
+    {
+        return PaddedCBC::decrypt(data, key);
+    }
+
+    return false;
+}
+
 bool DbTable::getnumchildren(handle ph, int *count)
 {
     SymmCipher::xorblock((byte*)&ph, phkey, HANDLEKEYLENGTH);

@@ -63,6 +63,7 @@ public:
     void rewindnode();
     void rewinduser();
     void rewindpcr();
+    void rewindchat();
     void rewindencryptednode();
     void rewindoutshares(string*);
     void rewindpendingshares(string*);

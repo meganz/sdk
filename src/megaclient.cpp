@@ -7523,6 +7523,7 @@ bool MegaClient::convertsctable()
                     LOG_err << "Failed - user record read error";
                     return false;
                 }
+                break;
 
             case CACHEDCHAT:
                 if ((chat = TextChat::unserialize(this, &data)))
@@ -7534,6 +7535,7 @@ bool MegaClient::convertsctable()
                     LOG_err << "Failed - chat record read error";
                     return false;
                 }
+                break;
         }
     }
 
@@ -9642,18 +9644,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
         }
     }
 
-//    TODO: implement chat persistence with new table in DB
-//
-//    // 4. Load all the chats
-//    sctable->rewindchat();
-//    while (sctable->getchat(&data))
-//    {
-//        if (!TextChat::unserialize(this, &data))
-//        {
-//            LOG_err << "Failed - chat record read error";
-//            return false;
-//        }
-//    }
+    // 4. Load all the chats
+    sctable->rewindchat();
+    while (sctable->getchat(&data))
+    {
+        if (!TextChat::unserialize(this, &data))
+        {
+            LOG_err << "Failed - chat record read error";
+            return false;
+        }
+    }
 
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
