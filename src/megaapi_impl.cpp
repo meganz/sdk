@@ -19729,6 +19729,8 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         httpctx->streamingBuffer.init(len + resstr.size());
         httpctx->size = len;
     }
+    uv_mutex_init(&httpctx->mutex);
+
     sendHeaders(httpctx, &resstr);
     if (httpctx->parser.method == HTTP_HEAD)
     {
@@ -19736,7 +19738,6 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     }
 
     LOG_debug << "Requesting range. From " << start << "  size " << len;
-    uv_mutex_init(&httpctx->mutex);
     httpctx->rangeWritten = 0;
     httpctx->megaApi->startStreaming(node, start, len, httpctx);
     return 0;
