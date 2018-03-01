@@ -2918,6 +2918,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
         case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
+        case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
+        case TYPE_WHY_AM_I_BLOCKED: return "WHY_AM_I_BLOCKED";
     }
     return "UNKNOWN";
 }
@@ -3933,7 +3935,15 @@ int MegaApiImpl::isLoggedIn()
     sdkMutex.lock();
     int result = client->loggedin();
     sdkMutex.unlock();
-	return result;
+    return result;
+}
+
+void MegaApiImpl::whyAmIBlocked(bool logout, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);
+    request->setFlag(logout);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 char* MegaApiImpl::getMyEmail()
@@ -5368,7 +5378,7 @@ void MegaApiImpl::invalidateCache()
 
 int MegaApiImpl::getPasswordStrength(const char *password)
 {
-    if (!password)
+    if (!password || strlen(password) < 4)
     {
         return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
     }
@@ -7347,6 +7357,16 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
 
     return fileAttributes;
 }
+
+void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_ARCHIVE, listener);
+    request->setNodeHandle(chatid);
+    request->setFlag(archive);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 #endif
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
@@ -7956,11 +7976,11 @@ void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+void MegaApiImpl::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GELB, listener);
     request->setName(service);
-    request->setNumber(timeoutms);
+    request->setNumber(timeoutds);
     request->setNumRetry(maxretries);
     requestQueue.push(request);
     waiter->notify();
@@ -9486,6 +9506,21 @@ void MegaApiImpl::registerpushnotification_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::archivechat_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
 void MegaApiImpl::chats_updated(textchat_map *chats, int count)
 {
     if (chats)
@@ -10638,6 +10673,12 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
 void MegaApiImpl::request_error(error e)
 {
+    if (e == API_EBLOCKED && client->sid.size())
+    {
+        whyAmIBlocked(true);
+        return;
+    }
+
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
     request->setFlag(false);
     request->setParamType(e);
@@ -10652,7 +10693,6 @@ void MegaApiImpl::request_error(error e)
         client->removecaches();
         client->locallogout();
     }
-
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11378,6 +11418,60 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     client->reqtag = client->restag;
     client->fetchnodes();
     client->reqtag = creqtag;
+}
+
+void MegaApiImpl::whyamiblocked_result(int code)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_WHY_AM_I_BLOCKED)))
+    {
+        return;
+    }
+
+    if (request->getFlag())
+    {
+        client->removecaches();
+        client->locallogout();
+
+        MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+        logoutRequest->setFlag(false);
+        request->setParamType(API_EBLOCKED);
+        requestQueue.push(logoutRequest);
+        waiter->notify();
+    }
+
+    if (code <= 0)
+    {
+        MegaError megaError(code);
+        fireOnRequestFinish(request, megaError);
+    }
+    else    // code > 0
+    {
+        string reason = "Your account was terminated due to breach of Mega's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
+
+        if (code == 100)    // deprecated
+        {
+            reason = "You have been suspended due to excess data usage.";
+        }
+        else if (code == 200)
+        {
+            reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
+        }
+        //else if (code == 300) --> default reason
+
+        request->setNumber(code);
+        request->setText(reason.c_str());
+        fireOnRequestFinish(request, API_OK);
+
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_BLOCKED);
+        event->setNumber(code);
+        event->setText(reason.c_str());
+        fireOnEvent(event);
+    }
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
@@ -16119,7 +16213,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_QUERY_GELB:
         {
             const char *service = request->getName();
-            int timeoutms = request->getNumber();
+            int timeoutds = request->getNumber();
             int maxretries = request->getNumRetry();
             if (!service)
             {
@@ -16127,7 +16221,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->gelbrequest(service, timeoutms, maxretries);
+            client->gelbrequest(service, timeoutds, maxretries);
             break;
         }
         case MegaRequest::TYPE_DOWNLOAD_FILE:
@@ -16314,6 +16408,19 @@ void MegaApiImpl::sendPendingRequests()
             client->registerPushNotification(deviceType, token);
             break;
         }
+        case MegaRequest::TYPE_CHAT_ARCHIVE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            bool archive = request->getFlag();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->archiveChat(chatid, archive);
+            break;
+        }
         case MegaRequest::TYPE_CHAT_STATS:
         {
             const char *json = request->getName();
@@ -16346,6 +16453,11 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_WHY_AM_I_BLOCKED:
+        {
+            client->whyamiblocked();
+            break;
+        }
         case MegaRequest::TYPE_GET_ACHIEVEMENTS:
         {
             if (request->getFlag())
@@ -19788,6 +19900,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->ou = chat->getOriginatingUser();
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
+    this->archived = chat->isArchived();
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
 }
@@ -19803,6 +19916,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->title = chat->title;
     this->tag = chat->tag;
     this->ts = chat->ts;
+    this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
     this->changed = 0;
     if (chat->changed.attachments)
     {
@@ -19872,6 +19986,11 @@ int MegaTextChatPrivate::isOwnChange() const
 int64_t MegaTextChatPrivate::getCreationTime() const
 {
     return ts;
+}
+
+bool MegaTextChatPrivate::isArchived() const
+{
+    return archived;
 }
 
 bool MegaTextChatPrivate::hasChanged(int changeType) const
@@ -20086,6 +20205,7 @@ MegaEventPrivate::MegaEventPrivate(int type)
 {
     this->type = type;
     this->text = NULL;
+    this->number = 0;
 }
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
@@ -20094,6 +20214,7 @@ MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
 
     this->type = event->getType();
     this->setText(event->getText());
+    this->setNumber(event->getNumber());
 }
 
 MegaEventPrivate::~MegaEventPrivate()
@@ -20116,6 +20237,11 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
+const int MegaEventPrivate::getNumber() const
+{
+    return number;
+}
+
 void MegaEventPrivate::setText(const char *text)
 {
     if(this->text)
@@ -20123,6 +20249,11 @@ void MegaEventPrivate::setText(const char *text)
         delete [] this->text;
     }
     this->text = MegaApi::strdup(text);
+}
+
+void MegaEventPrivate::setNumber(int number)
+{
+    this->number = number;
 }
 
 MegaHandleListPrivate::MegaHandleListPrivate()

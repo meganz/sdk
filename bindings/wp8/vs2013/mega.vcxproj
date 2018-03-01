@@ -358,6 +358,7 @@
     <ClInclude Include="..\..\..\include\mega\http.h" />
     <ClInclude Include="..\..\..\include\mega\json.h" />
     <ClInclude Include="..\..\..\include\mega\logging.h" />
+    <ClInclude Include="..\..\..\include\mega\mediafileattribute.h" />
     <ClInclude Include="..\..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\..\include\mega\node.h" />
@@ -402,6 +403,7 @@
     <ClInclude Include="..\MContactRequestList.h" />
     <ClInclude Include="..\MegaSDK.h" />
     <ClInclude Include="..\MError.h" />
+    <ClInclude Include="..\MEvent.h" />
     <ClInclude Include="..\MGfxProcessorInterface.h" />
     <ClInclude Include="..\MGlobalListenerInterface.h" />
     <ClInclude Include="..\MInputStream.h" />
@@ -444,6 +446,7 @@
     <ClCompile Include="..\..\..\src\http.cpp" />
     <ClCompile Include="..\..\..\src\json.cpp" />
     <ClCompile Include="..\..\..\src\logging.cpp" />
+    <ClCompile Include="..\..\..\src\mediafileattribute.cpp" />
     <ClCompile Include="..\..\..\src\megaapi.cpp" />
     <ClCompile Include="..\..\..\src\megaapi_impl.cpp" />
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
@@ -486,6 +489,7 @@
     <ClCompile Include="..\MContactRequestList.cpp" />
     <ClCompile Include="..\MegaSDK.cpp" />
     <ClCompile Include="..\MError.cpp" />
+    <ClCompile Include="..\MEvent.cpp" />
     <ClCompile Include="..\MInputStreamAdapter.cpp" />
     <ClCompile Include="..\MNode.cpp" />
     <ClCompile Include="..\MNodeList.cpp" />

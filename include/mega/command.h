@@ -150,6 +150,14 @@ public:
     CommandResumeEphemeralSession(MegaClient*, handle, const byte*, int);
 };
 
+class MEGA_API CommandWhyAmIblocked : public Command
+{
+public:
+    void procresult();
+
+    CommandWhyAmIblocked(MegaClient*);
+};
+
 class MEGA_API CommandSendSignupLink : public Command
 {
 public:
@@ -866,6 +874,18 @@ public:
     void procresult();
 
     CommandRegisterPushNotification(MegaClient*, int, const char*);
+};
+
+class MEGA_API CommandArchiveChat : public Command
+{
+public:
+    void procresult();
+
+    CommandArchiveChat(MegaClient*, handle chatid, bool archive);
+
+protected:
+    handle mChatid;
+    bool mArchive;
 };
 
 #endif

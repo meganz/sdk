@@ -51,6 +51,12 @@ typedef int64_t m_off_t;
 // opaque filesystem fingerprint
 typedef uint64_t fsfp_t;
 
+#if USE_CRYPTOPP && (CRYPTOPP_VERSION >= 600) && (__cplusplus >= 201103L)
+    using byte = CryptoPP::byte;
+#else
+    typedef unsigned char byte;
+#endif
+
 #ifdef USE_CRYPTOPP
 #include "mega/crypto/cryptopp.h"
 #else
@@ -435,6 +441,10 @@ typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
 struct TextChat : public Cachable
 {
+    enum {
+        FLAG_OFFSET_ARCHIVE = 0
+    };
+
     handle id;
     privilege_t priv;
     int shard;
@@ -444,6 +454,7 @@ struct TextChat : public Cachable
     handle ou;
     m_time_t ts;     // creation time
     attachments_map attachedNodes;
+    byte flags; // currently only used for "archive" flag at first bit
 
     int tag;    // source tag, to identify own changes
 
@@ -460,10 +471,15 @@ struct TextChat : public Cachable
     struct
     {
         bool attachments : 1;
+        bool flags : 1;
     } changed;
 
     // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
+    bool setFlag(bool value, uint8_t offset = 0xFF);
+    bool setFlags(byte newFlags);
+    bool isFlagSet(uint8_t offset) const;
+
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;

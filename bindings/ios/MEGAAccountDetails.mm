@@ -61,6 +61,10 @@ using namespace mega;
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageUsed()] : nil;
 }
 
+- (long long)versionStorageUsed {
+    return self.accountDetails ? self.accountDetails->getVersionStorageUsed() : 0;
+}
+
 - (NSNumber *)storageMax {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getStorageMax()] : nil;
 }
@@ -117,6 +121,14 @@ using namespace mega;
 
 - (NSNumber *)numberFoldersForHandle:(uint64_t)handle {
     return self.accountDetails ? [[NSNumber alloc] initWithLongLong:self.accountDetails->getNumFolders(handle)] : nil;
+}
+
+- (long long)versionStorageUsedForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getVersionStorageUsed(handle) : 0;
+}
+
+- (long long)numberOfVersionFilesForHandle:(uint64_t)handle {
+    return self.accountDetails ? self.accountDetails->getNumVersionFiles(handle) : 0;
 }
 
 @end

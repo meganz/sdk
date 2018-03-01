@@ -247,6 +247,9 @@ public:
     // check if logged in
     sessiontype_t loggedin();
 
+    // check the reason of being blocked
+    void whyamiblocked();
+
     // dump current session
     int dumpsession(byte*, size_t);
 
@@ -538,6 +541,8 @@ public:
 
     // register a token device to route push notifications
     void registerPushNotification(int deviceType, const char *token = NULL);
+
+    void archiveChat(handle chatid, bool archived);
 #endif
 
     // get mega achievements
@@ -711,6 +716,7 @@ private:
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
     void sc_chatnode();
+    void sc_chatflags();
 #endif
     void sc_uac();
 

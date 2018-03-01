@@ -698,6 +698,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << "\tGroup chat: no" << endl;
     }
+    if (chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE))
+    {
+        cout << "\tArchived chat: yes" << endl;
+    }
+    else
+    {
+        cout << "\tArchived chat: no" << endl;
+    }
     cout << "\tPeers:";
 
     if (chat->userpriv)
@@ -2063,7 +2071,7 @@ static void process_line(char* l)
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
-                cout << "      chatc group [email ro|sta|mod]*" << endl;
+                cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
                 cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
@@ -2072,6 +2080,7 @@ static void process_line(char* l)
                 cout << "      chatga chatid nodehandle uid" << endl;
                 cout << "      chatra chatid nodehandle uid" << endl;
                 cout << "      chatst chatid title64" << endl;
+                cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
 #endif
                 cout << "      quit" << endl;
 
@@ -3684,6 +3693,29 @@ static void process_line(char* l)
                             return;
                         }
                     }
+                    else if (words[0] == "chata")
+                    {
+                        if (words.size() == 3)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            bool archive = (words[2] == "1");
+                            if (!archive && (words[2] != "0"))
+                            {
+                                cout << "Use 1 or 0 to archive/unarchive chats" << endl;
+                                return;
+                            }
+
+                            client->archiveChat(chatid, archive);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to archive chat" << endl;
+                            cout << "      chata chatid archive" << endl;
+                            return;
+                        }
+                    }
                     else if (words[0] == "chats")
                     {
                         if (words.size() == 1)
@@ -4417,6 +4449,19 @@ void DemoApp::request_error(error e)
         client->locallogout();
         return;
     }
+    else if (e == API_EBLOCKED)
+    {
+        if (client->sid.size())
+        {
+            cout << "Your account is blocked." << endl;
+            client->whyamiblocked();
+        }
+        else
+        {
+            cout << "The link has been blocked." << endl;
+        }
+        return;
+    }
 
     cout << "FATAL: Request failed (" << errorstring(e) << "), exiting" << endl;
 
@@ -4690,6 +4735,39 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     cout << buf << endl;
 
     client->fetchnodes();
+}
+
+void DemoApp::whyamiblocked_result(int code)
+{
+    if (code < 0)
+    {
+        error e = (error) code;
+        cout << "Why am I blocked failed: " << errorstring(e) << endl;
+    }
+    else if (code == 0)
+    {
+        cout << "You're not blocked" << endl;
+    }
+    else    // code > 0
+    {
+        string reason = "Your account was terminated due to breach of Mega's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
+
+        if (code == 100)    // deprecated
+        {
+            reason = "You have been suspended due to excess data usage.";
+        }
+        else if (code == 200)
+        {
+            reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
+        }
+        //else if (code == 300) --> default reason
+
+
+        cout << "Reason: " << reason << endl;
+        cout << "Logging out..." << endl;
+
+        client->locallogout();
+    }
 }
 
 // password change result
