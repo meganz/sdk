@@ -19912,6 +19912,11 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
     assert(httpctx != NULL);
+    if (httpctx->finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the TLS write";
+        return;
+    }
 
     httpctx->bytesWritten += httpctx->lastBufferLen;
     LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
@@ -19965,15 +19970,27 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 void MegaHTTPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*)req->data;
-    LOG_debug << "TLS write finished";
-    uv_async_send(&httpctx->asynchandle);
     delete req;
+
+    if (httpctx->finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the async TLS write";
+        return;
+    }
+
+    LOG_debug << "Async TLS write finished";
+    uv_async_send(&httpctx->asynchandle);
 }
 
 void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) req->data;
     assert(httpctx != NULL);
+    if (httpctx->finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the write";
+        return;
+    }
 
     httpctx->bytesWritten += httpctx->lastBufferLen;
     LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
@@ -20092,6 +20109,12 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
 
 void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 {
+    if (finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the transfer";
+        return;
+    }
+
     int ecode = e->getErrorCode();
     if (ecode != API_OK && ecode != API_EINCOMPLETE)
     {
@@ -20104,6 +20127,12 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 
 void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
 {
+    if (finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the request";
+        return;
+    }
+
     node = request->getPublicMegaNode();
     nodereceived = true;
     uv_async_send(&asynchandle);
