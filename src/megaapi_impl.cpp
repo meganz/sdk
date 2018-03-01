@@ -18956,6 +18956,7 @@ void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
     if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle))
     {
         LOG_err << "uv_accept failed";
+        onClose((uv_handle_t*)&httpctx->tcphandle);
         return;
     }
 
@@ -18965,6 +18966,7 @@ void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
     if (evt_tls_accept(httpctx->evt_tls, on_hd_complete))
     {
         LOG_err << "evt_tls_accept failed";
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
         return;
     }
 
@@ -19002,6 +19004,7 @@ void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
     if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle))
     {
         LOG_err << "uv_accept failed";
+        onClose((uv_handle_t*)&httpctx->tcphandle);
         return;
     }
 
@@ -19079,12 +19082,8 @@ void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread,
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
-        httpctx->finished = true;
         LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-        {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-        }
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
     }
 }
 
@@ -19757,16 +19756,12 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 
     if (httpctx->server->useTLS)
     {
-        // onWriteFinished_tls expects to have the mutex locked
-        // but it's not strictly needed here because the transfer hasn't started yet
-        //uv_mutex_lock(&httpctx->mutex);
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
             evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
         }
-        //uv_mutex_unlock(&httpctx->mutex);
     }
     else
     {
@@ -19843,23 +19838,15 @@ void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
     uv_close((uv_handle_t *)&httpServer->exit_handle, NULL);
 }
 
-void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylocked)
+void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 {
-    if (!mutexalreadylocked)
-    {
-        uv_mutex_lock(&httpctx->mutex);
-    }
-
     if (httpctx->lastBuffer)
     {
         LOG_verbose << "Skipping write due to another ongoing write";
-        if (!mutexalreadylocked)
-        {
-            uv_mutex_unlock(&httpctx->mutex);
-        }
         return;
     }
 
+    uv_mutex_lock(&httpctx->mutex);
     if (httpctx->lastBufferLen)
     {
         httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
@@ -19869,21 +19856,16 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylo
     if (httpctx->tcphandle.write_queue_size > httpctx->streamingBuffer.availableCapacity() / 8)
     {
         LOG_warn << "Skipping write. Too much queued data";
-        if (!mutexalreadylocked)
-        {
-            uv_mutex_unlock(&httpctx->mutex);
-        }
+        uv_mutex_unlock(&httpctx->mutex);
         return;
     }
 
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
+    uv_mutex_unlock(&httpctx->mutex);
+
     if (!resbuf.len)
     {
         LOG_verbose << "Skipping write. No data available";
-        if (!mutexalreadylocked)
-        {
-            uv_mutex_unlock(&httpctx->mutex);
-        }
         return;
     }
 
@@ -19917,11 +19899,6 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx, bool mutexalreadylo
             }
         }
     }
-
-    if (!mutexalreadylocked)
-    {
-        uv_mutex_unlock(&httpctx->mutex);
-    }
 }
 
 void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
@@ -19931,7 +19908,6 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 
     httpctx->bytesWritten += httpctx->lastBufferLen;
     LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
-    httpctx->lastBuffer = NULL;
 
     if (status < 0 || httpctx->size == httpctx->bytesWritten)
     {
@@ -19952,6 +19928,14 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
         return;
     }
 
+    httpctx->lastBuffer = NULL;
+    uv_mutex_lock(&httpctx->mutex);
+    if (httpctx->lastBufferLen)
+    {
+        httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
+        httpctx->lastBufferLen = 0;
+    }
+
     if (httpctx->pause)
     {
         if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
@@ -19966,20 +19950,26 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
             httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
     }
-    sendNextBytes(httpctx, true);
+    uv_mutex_unlock(&httpctx->mutex);
+
+    uv_async_send(&httpctx->asynchandle);
 }
 
 void MegaHTTPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
 {
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)req->data;
+    LOG_debug << "TLS write finished";
+    uv_async_send(&httpctx->asynchandle);
     delete req;
 }
 
 void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) req->data;
+    assert(httpctx != NULL);
+
     httpctx->bytesWritten += httpctx->lastBufferLen;
     LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
-    httpctx->lastBuffer = NULL;
     delete req;
 
     if (status < 0 || httpctx->size == httpctx->bytesWritten)
@@ -20005,9 +19995,16 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
         return;
     }
 
+    httpctx->lastBuffer = NULL;
+    uv_mutex_lock(&httpctx->mutex);
+    if (httpctx->lastBufferLen)
+    {
+        httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
+        httpctx->lastBufferLen = 0;
+    }
+
     if (httpctx->pause)
     {
-        uv_mutex_lock(&httpctx->mutex);
         if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
         {
             httpctx->pause = false;
@@ -20019,8 +20016,9 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
                      << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
             httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
-        uv_mutex_unlock(&httpctx->mutex);
     }
+    uv_mutex_unlock(&httpctx->mutex);
+
     sendNextBytes(httpctx);
 }
 
