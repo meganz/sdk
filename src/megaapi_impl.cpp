@@ -18948,6 +18948,9 @@ void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
     httpctx->server->connections.push_back(httpctx);
     LOG_debug << "Connection received! " << httpctx->server->connections.size();
 
+    // Mutex to protect the data buffer
+    uv_mutex_init(&httpctx->mutex);
+
     // Async handle to perform writes
     uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
 
@@ -18995,6 +18998,9 @@ void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
     httpctx->asynchandle.data = httpctx;
     httpctx->server->connections.push_back(httpctx);
     LOG_debug << "Connection received! " << httpctx->server->connections.size();
+
+    // Mutex to protect the data buffer
+    uv_mutex_init(&httpctx->mutex);
 
     // Async handle to perform writes
     uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
@@ -19729,7 +19735,6 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         httpctx->streamingBuffer.init(len + resstr.size());
         httpctx->size = len;
     }
-    uv_mutex_init(&httpctx->mutex);
 
     sendHeaders(httpctx, &resstr);
     if (httpctx->parser.method == HTTP_HEAD)
