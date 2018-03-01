@@ -19371,7 +19371,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             delete fsAccess;
         }
 
-        if(!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize?(httpctx->messageBodySize+1):0) )
+        if(!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize) )
         {
             returnHttpCode(httpctx, 500);
             return 0;
@@ -21196,8 +21196,8 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     {
         LOG_warn << "Transfer failed with error code: " << ecode;
         failed = true;
-        uv_async_send(&asynchandle);
     }
+    uv_async_send(&asynchandle);
 }
 
 void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
