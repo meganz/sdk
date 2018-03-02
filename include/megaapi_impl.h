@@ -564,6 +564,30 @@ protected:
     vector<uint64_t> uploadPriorities;
 };
 
+class MegaFolderInfoPrivate : public MegaFolderInfo
+{
+public:
+    MegaFolderInfoPrivate(int numFiles, int numFolders, int numVersions, long long currentSize, long long versionsSize);
+    MegaFolderInfoPrivate(const MegaFolderInfoPrivate *folderData);
+
+    virtual ~MegaFolderInfoPrivate();
+
+    virtual MegaFolderInfo *copy() const;
+
+    virtual int getNumVersions() const;
+    virtual int getNumFiles() const;
+    virtual int getNumFolders() const;
+    virtual long long getCurrentSize() const;
+    virtual long long getVersionsSize() const;
+
+protected:
+    int numFiles;
+    int numFolders;
+    int numVersions;
+    long long currentSize;
+    long long versionsSize;
+};
+
 class MegaContactRequestPrivate : public MegaContactRequest
 {
 public:
@@ -783,6 +807,8 @@ class MegaRequestPrivate : public MegaRequest
 #endif
         virtual MegaStringMap *getMegaStringMap() const;
         void setMegaStringMap(const MegaStringMap *);
+        virtual MegaFolderInfo *getMegaFolderInfo() const;
+        void setMegaFolderInfo(const MegaFolderInfo *);
 
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
@@ -829,7 +855,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaTextChatPeerList *chatPeerList;
         MegaTextChatList *chatList;
 #endif
-        MegaStringMap *stringMap;      
+        MegaStringMap *stringMap;
+        MegaFolderInfo *folderInfo;
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -1372,6 +1399,22 @@ class SizeProcessor : public TreeProcessor
         long long getTotalBytes();
 };
 
+class TreeProcFolderInfo : public TreeProc
+{
+    public:
+        TreeProcFolderInfo();
+        virtual void proc(MegaClient*, Node*);
+        virtual ~TreeProcFolderInfo() {}
+        MegaFolderInfo *getResult();
+
+    protected:
+        int numFiles;
+        int numFolders;
+        int numVersions;
+        long long currentSize;
+        long long versionsSize;
+};
+
 //Thread safe request queue
 class RequestQueue
 {
@@ -1677,6 +1720,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* getVersions(MegaNode *node);
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
+        void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
         int getIndex(MegaNode* node, int order=1);

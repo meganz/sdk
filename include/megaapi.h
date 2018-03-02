@@ -71,6 +71,7 @@ class MegaUserList;
 class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
+class MegaFolderInfo;
 class MegaApi;
 
 class MegaSemaphore;
@@ -2028,7 +2029,7 @@ class MegaRequest
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
-            TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -2618,6 +2619,20 @@ class MegaRequest
          * @return String map including the key-value pairs of the attribute
          */
         virtual MegaStringMap* getMegaStringMap() const;
+
+        /**
+         * @brief Returns information about the contents of a folder
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getFolderInfo - Returns the information related to the folder
+         *
+         * @return Object with information about the contents of a folder
+         */
+        virtual MegaFolderInfo *getMegaFolderInfo() const;
 };
 
 /**
@@ -3068,6 +3083,76 @@ class MegaTransfer
          * @return Notification number
          */
         virtual long long getNotificationNumber() const;
+};
+
+/**
+ * @brief Provides information about the contents of a folder
+ *
+ * This object is related to provide the results of the function MegaApi::getFolderInfo
+ *
+ * Objects of this class aren't live, they are snapshots of the state of the contents of the
+ * folder when the object is created, they are immutable.
+ *
+ */
+class MegaFolderInfo
+{
+public:
+    virtual ~MegaFolderInfo();
+
+    /**
+     * @brief Creates a copy of this MegaFolderInfo object
+     *
+     * The resulting object is fully independent of the source MegaFolderInfo,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTransferData object
+     */
+    virtual MegaFolderInfo *copy() const;
+
+    /**
+     * @brief Return the number of file versions inside the folder
+     *
+     * The current version of files is not taken into account for the return value of this function
+     *
+     * @return Number of file versions inside the folder
+     */
+    virtual int getNumVersions() const;
+
+    /**
+     * @brief Returns the number of files inside the folder
+     *
+     * File versions are not counted for the return value of this function
+     *
+     * @return Number of files inside the folder
+     */
+    virtual int getNumFiles() const;
+
+    /**
+     * @brief Returns the number of folders inside the folder
+     * @return Number of folders inside the folder
+     */
+    virtual int getNumFolders() const;
+
+    /**
+     * @brief Returns the total size of files inside the folder
+     *
+     * File versions are not taken into account for the return value of this function
+     *
+     * @return Total size of files inside the folder
+     */
+    virtual long long getCurrentSize() const;
+
+    /**
+     * @brief Returns the total size of file versions inside the folder
+     *
+     * The current version of files is not taken into account for the return value of this function
+     *
+     * @return Total size of file versions inside the folder
+     */
+    virtual long long getVersionsSize() const;
 };
 
 /**
@@ -8684,6 +8769,19 @@ class MegaApi
          * @return true if the node has any previous version
          */
         bool hasVersions(MegaNode *node);
+
+        /**
+         * @brief getFolderInfo Get information about the contents of a folder
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FOLDER_INFO
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaFolderInfo - MegaFolderInfo object with the information related to the folder
+         *
+         * @param node Folder node to inspect
+         * @param listener MegaRequestListener to track this request
+         */
+        void getFolderInfo(MegaNode *node, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get file and folder children of a MegaNode separatedly
