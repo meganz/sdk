@@ -214,7 +214,7 @@ static int evt__send_pending(evt_tls_t *conn)
     if ( !(pending > 0) )
         return 0;
 
-    void *buf = calloc(1, pending);
+    void *buf = new char[pending];
     assert(buf != NULL && "Memory alloc failed");
     if (!buf) return 0;
 
@@ -223,7 +223,6 @@ static int evt__send_pending(evt_tls_t *conn)
 
     assert( conn->writer != NULL && "You need to set network writer first");
     p = conn->writer(conn, buf, p);
-    free(buf);
     return p;
 }
 
