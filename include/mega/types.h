@@ -51,6 +51,12 @@ typedef int64_t m_off_t;
 // opaque filesystem fingerprint
 typedef uint64_t fsfp_t;
 
+#if USE_CRYPTOPP && (CRYPTOPP_VERSION >= 600) && (__cplusplus >= 201103L)
+    using byte = CryptoPP::byte;
+#else
+    typedef unsigned char byte;
+#endif
+
 #ifdef USE_CRYPTOPP
 #include "mega/crypto/cryptopp.h"
 #else
