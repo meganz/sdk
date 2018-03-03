@@ -243,7 +243,11 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                 assert(conn->hshake_cb != NULL );
                 conn->hshake_cb(conn, r);
             }
-            break;
+            if (r != 1)
+            {
+                break;
+            }
+            // fall through to process possible data queued after the handshake
         }
 
         case EVT_TLS_OP_READ: {
