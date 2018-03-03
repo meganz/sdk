@@ -18924,7 +18924,8 @@ void MegaHTTPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
 
 void MegaHTTPServer::on_hd_complete(evt_tls_t *evt_tls, int status)
 {
-    if ((status - 1) == 0)
+    LOG_debug << "TLS handshake finished. Status: " << status;
+    if (status)
     {
         evt_tls_read(evt_tls, evt_on_rd);
     }
