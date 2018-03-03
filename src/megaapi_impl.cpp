@@ -19035,6 +19035,8 @@ void MegaHTTPServer::allocBuffer(uv_handle_t *, size_t suggested_size, uv_buf_t*
 
 void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf)
 {
+    LOG_debug << "Received " << nread << " bytes";
+
     ssize_t parsed = -1;
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
     if (nread >= 0)
@@ -19090,6 +19092,8 @@ void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *
 
 void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t* buf)
 {
+    LOG_debug << "Decrypted " << nread << " bytes";
+
     ssize_t parsed = -1;
     if (nread >= 0)
     {
