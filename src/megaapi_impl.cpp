@@ -19059,22 +19059,25 @@ void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
     assert(httpctx != NULL);
 
-    if (nrd <= 0)
+    LOG_debug << "Received " << nrd << " bytes";
+    if (!nrd)
     {
-        if (nrd == UV_EOF)
+        return;
+    }
+
+    if (nrd < 0)
+    {
+        if (evt_tls_is_handshake_over(httpctx->evt_tls))
         {
-            if (evt_tls_is_handshake_over(httpctx->evt_tls))
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
+        else
+        {
+            //if handshake is not over, simply tear down without close_notify
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)tcp))
             {
-                evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-            }
-            else
-            {
-                //if handshake is not over, simply tear down without close_notify
-                httpctx->finished = true;
-                if (!uv_is_closing((uv_handle_t*)tcp))
-                {
-                    uv_close((uv_handle_t*)tcp, onClose);
-                }
+                uv_close((uv_handle_t*)tcp, onClose);
             }
         }
         delete[] data->base;
