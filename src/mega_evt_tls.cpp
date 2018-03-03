@@ -253,8 +253,10 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                 do {
                     bytes = evt__send_pending(conn);
                 } while ( bytes > 0 );
-                assert(conn->read_cb != NULL);
-                conn->read_cb(conn, tbuf, r);
+                if (r > 0) {
+                    assert(conn->read_cb != NULL);
+                    conn->read_cb(conn, tbuf, r);
+                }
                 r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
             } while (r > 0); //do it again if required
             break;
