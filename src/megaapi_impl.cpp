@@ -20106,10 +20106,12 @@ MegaHTTPContext::MegaHTTPContext()
 {
     rangeStart = -1;
     rangeEnd = -1;
+    rangeWritten = -1;
     size = -1;
     range = false;
     finished = false;
     failed = false;
+    pause = false;
     nodereceived = false;
     resultCode = API_EINTERNAL;
     bytesWritten = 0;
@@ -20117,6 +20119,10 @@ MegaHTTPContext::MegaHTTPContext()
     transfer = NULL;
     nodesize = -1;
     evt_tls = NULL;
+    server = NULL;
+    megaApi = NULL;
+    lastBuffer = NULL;
+    lastBufferLen = 0;
 }
 
 MegaHTTPContext::~MegaHTTPContext()
