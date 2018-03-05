@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URLConnection;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -21,10 +22,6 @@ import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
 
-import mega.privacy.android.app.MegaApplication;
-import mega.privacy.android.app.utils.ThumbnailUtilsLollipop;
-import mega.privacy.android.app.utils.Util;
-
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
     int orientation;
@@ -32,14 +29,33 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     Bitmap bitmap;
     static boolean isVideo;
     byte[] bitmapData;
+    static Context context = null;
 
     protected AndroidGfxProcessor() {
+        if (context == null) {
+            try {
+                context = (Context) Class.forName("android.app.AppGlobals")
+                        .getMethod("getInitialApplication")
+                        .invoke(null, (Object[]) null);
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    public static boolean isVideoFile(String path) {
+        try {
+            String mimeType = URLConnection.guessContentTypeFromName(path);
+            return mimeType != null && mimeType.startsWith("video");
+        }
+        catch(Exception e){
+            return false;
+        }
     }
 
     public static Rect getImageDimensions(String path, int orientation) {
         Rect rect = new Rect();
 
-        if(Util.isVideoFile(path)){
+        if(isVideoFile(path)){
             try {
 
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
@@ -77,7 +93,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
     public boolean readBitmap(String path) {
 
-        if(Util.isVideoFile(path)){
+        if(isVideoFile(path)){
             isVideo = true;
             srcPath = path;
             size = getImageDimensions(srcPath, orientation);
@@ -109,14 +125,13 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
             try {
                 Bitmap bmThumbnail;
                 bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
-                if(bmThumbnail==null) {
+                if(context != null && bmThumbnail == null) {
 
                     String SELECTION = MediaStore.MediaColumns.DATA + "=?";
                     String[] PROJECTION = {BaseColumns._ID};
 
                     Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
                     String[] selectionArgs = {path};
-                    Context context = Util.getContext();
                     ContentResolver cr = context.getContentResolver();
                     Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
                     if (cursor.moveToFirst()) {
