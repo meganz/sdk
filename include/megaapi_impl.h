@@ -2305,6 +2305,9 @@ public:
     MegaHandle nodeToMove; //node to be moved after delete
     MegaHandle newParentNode; //parent node for moved after delete
 
+    uv_mutex_t mutex_responses;
+    std::list<std::string> responses;
+
     //tls stuff:
     evt_tls_t *evt_tls;
     std::list<char*> writePointers;
@@ -2437,8 +2440,11 @@ public:
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
 
-    static void returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
-    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
+    static void returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e, bool synchronous = true);
+    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string(), bool synchronous = true);
+
+    static void returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
+    static void returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
 
 };
 #endif

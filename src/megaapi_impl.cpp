@@ -19210,6 +19210,7 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
 
     delete httpctx->node;
     uv_mutex_destroy(&httpctx->mutex);
+    uv_mutex_destroy(&httpctx->mutex_responses);
     delete httpctx;
     LOG_debug << "Connection deleted";
 }
@@ -19821,7 +19822,7 @@ string MegaHTTPServer::getHTTPErrorString(int errorcode)
 }
 
 
-void MegaHTTPServer::returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e)
+void MegaHTTPServer::returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e, bool synchronous)
 {
     int reqError = e->getErrorCode();
     int httpreturncode = 500;
@@ -19851,11 +19852,11 @@ void MegaHTTPServer::returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx,
     LOG_debug << "HTTP petition failed. request error=" << reqError << " HTTP status to return = " << httpreturncode;
     //string errorMessage = getHTTPErrorString(httpreturncode) + " "+ getErrorString(reqError);
     string errorMessage = e->getErrorString(reqError);
-    return returnHttpCode(httpctx, httpreturncode, errorMessage);
+    return returnHttpCode(httpctx, httpreturncode, errorMessage, synchronous);
 }
 
 
-void MegaHTTPServer::returnHttpCode(MegaHTTPContext* httpctx, int errorCode, string errorMessage)
+void MegaHTTPServer::returnHttpCode(MegaHTTPContext* httpctx, int errorCode, string errorMessage, bool synchronous)
 {
     std::ostringstream response;
     response << "HTTP/1.1 " << errorCode << " "
@@ -19866,8 +19867,30 @@ void MegaHTTPServer::returnHttpCode(MegaHTTPContext* httpctx, int errorCode, str
 
     httpctx->resultCode = errorCode;
     string resstr = response.str();
-    sendHeaders(httpctx, &resstr);
+    if (synchronous)
+    {
+        sendHeaders(httpctx, &resstr);
+    }
+    else
+    {
+        uv_mutex_lock(&httpctx->mutex_responses);
+        httpctx->responses.push_back(resstr);
+        uv_mutex_unlock(&httpctx->mutex_responses);
+        uv_async_send(&httpctx->asynchandle);
+    }
 }
+
+void MegaHTTPServer::returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e)
+{
+    return returnHttpCodeBasedOnRequestError(httpctx, e, false);
+}
+
+
+void MegaHTTPServer::returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, string errorMessage)
+{
+    return returnHttpCode(httpctx, errorCode, errorMessage, false);
+}
+
 
 int MegaHTTPServer::onMessageComplete(http_parser *parser)
 {
@@ -20842,6 +20865,14 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
         return;
     }
 
+    uv_mutex_lock(&httpctx->mutex_responses);
+    while (httpctx->responses.size())
+    {
+        sendHeaders(httpctx,&httpctx->responses.front());
+        httpctx->responses.pop_front();
+    }
+    uv_mutex_unlock(&httpctx->mutex_responses);
+
     if (httpctx->parser.method != HTTP_GET && httpctx->parser.method != HTTP_POST)
     {
         return;
@@ -21170,6 +21201,7 @@ MegaHTTPContext::MegaHTTPContext()
     overwrite = true; //GVFS-DAV via command line does not include this header (assumed true)
 
     uv_mutex_init(&mutex);
+    uv_mutex_init(&mutex_responses);
     server = NULL;
     megaApi = NULL;
     lastBuffer = NULL;
@@ -21247,11 +21279,11 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     {
         if (ecode == API_OK)
         {
-            server->returnHttpCode(this, 201); //TODO actually if resource already existed this should be 200
+            server->returnHttpCodeAsync(this, 201); //TODO actually if resource already existed this should be 200
         }
         else
         {
-            server->returnHttpCodeBasedOnRequestError(this, e);
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
 
@@ -21283,7 +21315,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
                 MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
                 if (!nodetoRename || !strcmp(nodetoRename->getName(),newname.c_str()))
                 {
-                    server->returnHttpCode(this, 204);
+                    server->returnHttpCodeAsync(this, 204);
                 }
                 else
                 {
@@ -21293,23 +21325,23 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
             }
             else
             {
-                server->returnHttpCode(this, 204);
+                server->returnHttpCodeAsync(this, 204);
             }
         }
         else
         {
-            server->returnHttpCodeBasedOnRequestError(this, e);
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_RENAME )
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            server->returnHttpCode(this, 204);
+            server->returnHttpCodeAsync(this, 204);
         }
         else
         {
-            server->returnHttpCodeBasedOnRequestError(this, e);
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_REMOVE )
@@ -21324,7 +21356,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
             }
             else
             {
-                server->returnHttpCode(this, 204); // Standard success response
+                server->returnHttpCodeAsync(this, 204); // Standard success response
             }
 
             nodeToMove = UNDEF;
@@ -21334,29 +21366,29 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         }
         else
         {
-            server->returnHttpCodeBasedOnRequestError(this, e);
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER )
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            server->returnHttpCode(this, 201);
+            server->returnHttpCodeAsync(this, 201);
         }
         else
         {
-            server->returnHttpCodeBasedOnRequestError(this, e);
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_COPY )
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            server->returnHttpCode(this, 201);
+            server->returnHttpCodeAsync(this, 201);
         }
         else
         {
-            server->returnHttpCodeBasedOnRequestError(this, e);
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     uv_async_send(&asynchandle);
