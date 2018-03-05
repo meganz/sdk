@@ -3108,7 +3108,7 @@ public:
      *
      * You are the owner of the returned object
      *
-     * @return Copy of the MegaTransferData object
+     * @return Copy of the MegaFolderInfo object
      */
     virtual MegaFolderInfo *copy() const;
 
@@ -8771,7 +8771,7 @@ class MegaApi
         bool hasVersions(MegaNode *node);
 
         /**
-         * @brief getFolderInfo Get information about the contents of a folder
+         * @brief Get information about the contents of a folder
          *
          * The associated request type with this request is MegaRequest::TYPE_FOLDER_INFO
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
