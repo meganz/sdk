@@ -2307,6 +2307,7 @@ public:
 
     //tls stuff:
     evt_tls_t *evt_tls;
+    std::list<char*> writePointers;
 
     // Request information
     bool range;

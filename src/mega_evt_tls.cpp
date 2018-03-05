@@ -9,6 +9,7 @@
 //%///////////////////////////////////////////////////////////////////////////
 
 #include <assert.h>
+#include <string.h>
 #include "mega/mega_evt_tls.h"
 
 /*
@@ -214,7 +215,7 @@ static int evt__send_pending(evt_tls_t *conn)
     if ( !(pending > 0) )
         return 0;
 
-    void *buf = calloc(1, pending);
+    void *buf = new char[pending];
     assert(buf != NULL && "Memory alloc failed");
     if (!buf) return 0;
 
@@ -223,7 +224,6 @@ static int evt__send_pending(evt_tls_t *conn)
 
     assert( conn->writer != NULL && "You need to set network writer first");
     p = conn->writer(conn, buf, p);
-    free(buf);
     return p;
 }
 
@@ -243,7 +243,11 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                 assert(conn->hshake_cb != NULL );
                 conn->hshake_cb(conn, r);
             }
-            break;
+            if (r != 1)
+            {
+                break;
+            }
+            // fall through to process possible data queued after the handshake
         }
 
         case EVT_TLS_OP_READ: {
@@ -253,8 +257,10 @@ static int evt__tls__op(evt_tls_t *conn, enum tls_op_type op, void *buf, int sz)
                 do {
                     bytes = evt__send_pending(conn);
                 } while ( bytes > 0 );
-                assert(conn->read_cb != NULL);
-                conn->read_cb(conn, tbuf, r);
+                if (r > 0) {
+                    assert(conn->read_cb != NULL);
+                    conn->read_cb(conn, tbuf, r);
+                }
                 r = SSL_read(conn->ssl, tbuf, sizeof(tbuf));
             } while (r > 0); //do it again if required
             break;

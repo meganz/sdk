@@ -18677,10 +18677,16 @@ int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
     if (uv_is_writable((uv_stream_t*)(&httpctx->tcphandle)))
     {
         uv_write_t *req = new uv_write_t();
+        httpctx->writePointers.push_back((char*)bfr);
         req->data = httpctx;
+        LOG_debug << "Sending " << sz << " bytes of TLS data";
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &b, 1, onWriteFinished_tls_async))
         {
             LOG_warn << "At uv_tls_writer: Finishing due to an error sending the response: " << err;
+            httpctx->writePointers.pop_back();
+            delete [] bfr;
+            delete req;
+
             httpctx->finished = true;
             if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
             {
@@ -18691,6 +18697,7 @@ int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
     }
     else
     {
+        delete [] bfr;
         LOG_debug << " uv_is_writable returned false";
     }
 
@@ -18966,6 +18973,7 @@ void MegaHTTPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
     MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
     assert(httpctx != NULL);
 
+    LOG_debug << "TLS connection closed";
     httpctx->finished = true;
     if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
     {
@@ -18975,7 +18983,8 @@ void MegaHTTPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
 
 void MegaHTTPServer::on_hd_complete(evt_tls_t *evt_tls, int status)
 {
-    if ((status - 1) == 0)
+    LOG_debug << "TLS handshake finished. Status: " << status;
+    if (status)
     {
         evt_tls_read(evt_tls, evt_on_rd);
     }
@@ -19086,6 +19095,8 @@ void MegaHTTPServer::allocBuffer(uv_handle_t *, size_t suggested_size, uv_buf_t*
 
 void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf)
 {
+    LOG_debug << "Received " << nread << " bytes";
+
     ssize_t parsed = -1;
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
     if (nread >= 0)
@@ -19121,22 +19132,25 @@ void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
     assert(httpctx != NULL);
 
-    if (nrd <= 0)
+    LOG_debug << "Received " << nrd << " bytes";
+    if (!nrd)
     {
-        if (nrd == UV_EOF)
+        return;
+    }
+
+    if (nrd < 0)
+    {
+        if (evt_tls_is_handshake_over(httpctx->evt_tls))
         {
-            if (evt_tls_is_handshake_over(httpctx->evt_tls))
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
+        else
+        {
+            //if handshake is not over, simply tear down without close_notify
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)tcp))
             {
-                evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-            }
-            else
-            {
-                //if handshake is not over, simply tear down without close_notify
-                httpctx->finished = true;
-                if (!uv_is_closing((uv_handle_t*)tcp))
-                {
-                    uv_close((uv_handle_t*)tcp, onClose);
-                }
+                uv_close((uv_handle_t*)tcp, onClose);
             }
         }
         delete[] data->base;
@@ -19149,6 +19163,8 @@ void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *
 
 void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t* buf)
 {
+    LOG_debug << "Decrypted " << nread << " bytes";
+
     ssize_t parsed = -1;
     if (nread >= 0)
     {
@@ -19179,6 +19195,7 @@ void MegaHTTPServer::onClose(uv_handle_t* handle)
 void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+    assert(!httpctx->writePointers.size());
 
     if (httpctx->resultCode == API_EINTERNAL)
     {
@@ -20787,6 +20804,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
         req->data = httpctx;
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
+            delete req;
             LOG_warn << "Finishing due to an error sending the response: " << err;
             httpctx->finished = true;
             if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
@@ -20800,6 +20818,12 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+    if (httpctx->finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring async event";
+        return;
+    }
+
     if (httpctx->failed)
     {
         LOG_warn << "Streaming transfer failed. Closing connection.";
@@ -20871,6 +20895,12 @@ void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
 
 void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 {
+    if (httpctx->finished)
+    {
+        LOG_debug << "HTTP link closed, aborting write";
+        return;
+    }
+
     if (httpctx->lastBuffer)
     {
         LOG_verbose << "Skipping write due to another ongoing write";
@@ -20922,6 +20952,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
         {
+            delete req;
             LOG_warn << "Finishing due to an error in uv_write: " << err;
             delete req;
             httpctx->finished = true;
@@ -20951,6 +20982,7 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
         if (status < 0)
         {
             LOG_warn << "Finishing request. Write failed: " << status;
+            evt_tls_close(evt_tls, on_evt_tls_close);
         }
         else
         {
@@ -20961,7 +20993,6 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
             }
         }
 
-        evt_tls_close(evt_tls, on_evt_tls_close);
         return;
     }
 
@@ -20995,11 +21026,35 @@ void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 void MegaHTTPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*)req->data;
+    assert(httpctx->writePointers.size());
+    delete [] httpctx->writePointers.front();
+    httpctx->writePointers.pop_front();
     delete req;
 
     if (httpctx->finished)
     {
-        LOG_debug << "HTTP link closed, ignoring the result of the async TLS write";
+        if (httpctx->size == httpctx->bytesWritten && !httpctx->writePointers.size())
+        {
+            LOG_debug << "HTTP link closed, shutdown result: " << status;
+        }
+        else
+        {
+            LOG_debug << "HTTP link closed, ignoring the result of the async TLS write: " << status;
+        }
+        return;
+    }
+
+    if (status < 0)
+    {
+        LOG_warn << "Finishing request. Async TLS write failed: " << status;
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        return;
+    }
+
+    if (httpctx->size == httpctx->bytesWritten && !httpctx->writePointers.size())
+    {
+        LOG_debug << "Finishing request. All data delivered";
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
         return;
     }
 
@@ -21092,11 +21147,15 @@ MegaHTTPContext::MegaHTTPContext()
 {
     rangeStart = -1;
     rangeEnd = -1;
+    rangeWritten = -1;
+    size = -1;
     range = false;
     finished = false;
     failed = false;
+    pause = false;
     nodereceived = false;
     resultCode = API_EINTERNAL;
+    bytesWritten = 0;
     node = NULL;
     transfer = NULL;
     nodesize = -1;
@@ -21111,6 +21170,10 @@ MegaHTTPContext::MegaHTTPContext()
     overwrite = true; //GVFS-DAV via command line does not include this header (assumed true)
 
     uv_mutex_init(&mutex);
+    server = NULL;
+    megaApi = NULL;
+    lastBuffer = NULL;
+    lastBufferLen = 0;
 }
 
 MegaHTTPContext::~MegaHTTPContext()
