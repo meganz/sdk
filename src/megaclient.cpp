@@ -8924,7 +8924,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         hmacsha256.add(derivedKey + 32, 32);
         hmacsha256.get(hmacComputed);
     }
-    else // algorithm == 2 (fix legacy Webclient bug: swap data and key
+    else // algorithm == 2 (fix legacy Webclient bug: swap data and key)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
         HMACSHA256 hmacsha256(derivedKey + 32, 32);
@@ -9051,7 +9051,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         }
 
         // Preapare payload to derive encryption key
-        byte algorithm = 1;
+        byte algorithm = 2;
         byte type = isFolder ? 0 : 1;
         string payload;
         payload.append((char*) &algorithm, sizeof algorithm);
