@@ -20873,11 +20873,6 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
     }
     uv_mutex_unlock(&httpctx->mutex_responses);
 
-    if (httpctx->parser.method != HTTP_GET && httpctx->parser.method != HTTP_POST)
-    {
-        return;
-    }
-
     if (httpctx->nodereceived)
     {
         httpctx->nodereceived = false;
@@ -21303,9 +21298,6 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         return;
     }
 
-    node = request->getPublicMegaNode();
-    nodereceived = true;
-
     if (request->getType() == MegaRequest::TYPE_MOVE )
     {
         if (e->getErrorCode() == MegaError::API_OK )
@@ -21390,6 +21382,11 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         {
             server->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
+    }
+    else if (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE )
+    {
+        node = request->getPublicMegaNode();
+        nodereceived = true;
     }
     uv_async_send(&asynchandle);
 }
