@@ -2290,6 +2290,7 @@ public:
 
     //tls stuff:
     evt_tls_t *evt_tls;
+    std::list<char*> writePointers;
 
     // Request information
     bool range;
@@ -2440,7 +2441,7 @@ protected:
     static int onMessageComplete(http_parser* parser);
 
     static void sendHeaders(MegaTCPContext *httpctx, string *headers);
-    static void sendNextBytes(MegaTCPContext *httpctx, bool mutexalreadylocked = false);
+    static void sendNextBytes(MegaTCPContext *httpctx);
     static int streamNode(MegaTCPContext *httpctx);
 
 public:
