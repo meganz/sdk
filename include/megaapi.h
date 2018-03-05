@@ -4750,6 +4750,28 @@ class MegaApi
          */
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
 
+        /**
+        * @brief MegaApi Constructor that supports log output during construction (eg. to debug startup issues) 
+        *
+        * @param appKey AppKey of your application
+        * You can generate your AppKey for free here:
+        * - https://mega.nz/#sdk
+        *
+        * @param processor Image processor. The SDK will use it to generate previews and thumbnails
+        * If you pass NULL to this parameter, the SDK will try to use the built-in image processors.
+        *
+        * @param basePath Base path to store the local cache
+        * If you pass NULL to this parameter, the SDK won't use any local cache.
+        *
+        * @param userAgent User agent to use in network requests
+        * If you pass NULL to this parameter, a default user agent will be used
+        *
+        * @param megaLogger Logging object.  It is installed as a logger as if addLoggerObject were called.
+        * If you pass NULL to this parameter, no logging will occur during construction.
+        *
+        */
+        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, MegaLogger *megaLogger, int fseventsfd = -1);
+
 #ifdef ENABLE_SYNC
         /**
          * @brief Special constructor to allow non root synchronization on OSX

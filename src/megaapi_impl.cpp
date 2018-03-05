@@ -3790,6 +3790,11 @@ MegaTransferPrivate *MegaApiImpl::getMegaTransferPrivate(int tag)
 
 ExternalLogger MegaApiImpl::externalLogger;
 
+MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, MegaLogger* logger, int fseventsfd)
+{
+    init(api, appKey, processor, basePath, userAgent, fseventsfd, logger);
+}
+
 MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent)
 {
 	init(api, appKey, processor, basePath, userAgent);
@@ -3805,7 +3810,7 @@ MegaApiImpl::MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath,
 	init(api, appKey, NULL, basePath, userAgent, fseventsfd);
 }
 
-void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd)
+void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath, const char *userAgent, int fseventsfd, MegaLogger* initLogger)
 {
     this->api = api;
 
@@ -3832,6 +3837,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     syncLowerSizeLimit = 0;
     syncUpperSizeLimit = 0;
 
+    addLoggerClass(initLogger);
+
 #ifdef HAVE_LIBUV
     httpServer = NULL;
     httpServerMaxBufferSize = 0;
@@ -3847,6 +3854,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
 #ifndef __APPLE__
     (void)fseventsfd;
+    assert(fseventsfd == -1);
     fsAccess = new MegaFileSystemAccess();
 #else
     fsAccess = new MegaFileSystemAccess(fseventsfd);
