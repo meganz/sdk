@@ -13635,7 +13635,7 @@ void MegaApiImpl::sendPendingTransfers()
 
                             if (prevTransfer && transfer->getAppData())
                             {
-                                string appData = prevTransfer->getAppData() ? string(transfer->getAppData()) + "!" : string();
+                                string appData = prevTransfer->getAppData() ? string(prevTransfer->getAppData()) + "!" : string();
                                 appData.append(transfer->getAppData());
                                 prevTransfer->setAppData(appData.c_str());
                             }
