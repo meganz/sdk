@@ -13627,7 +13627,8 @@ void MegaApiImpl::sendPendingTransfers()
                                     if (f->h != UNDEF && f->h == (*fi)->h && !f->targetuser.size()
                                             && !(*fi)->targetuser.size() && f->name == (*fi)->name)
                                     {
-                                        prevTransfer = getMegaTransferPrivate(f->tag);
+                                        prevTransfer = getMegaTransferPrivate((*fi)->tag);
+                                        break;
                                     }
                                 }
                             }
