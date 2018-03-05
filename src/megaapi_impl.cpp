@@ -13617,6 +13617,28 @@ void MegaApiImpl::sendPendingTransfers()
                         }
                         else
                         {
+                            MegaTransferPrivate* prevTransfer = NULL;
+                            transfer_map::iterator it = client->transfers[PUT].find(f);
+                            if (it != client->transfers[PUT].end())
+                            {
+                                Transfer *t = it->second;
+                                for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
+                                {
+                                    if (f->h != UNDEF && f->h == (*fi)->h && !f->targetuser.size()
+                                            && !(*fi)->targetuser.size() && f->name == (*fi)->name)
+                                    {
+                                        prevTransfer = getMegaTransferPrivate(f->tag);
+                                    }
+                                }
+                            }
+
+                            if (prevTransfer && transfer->getAppData())
+                            {
+                                string appData = prevTransfer->getAppData() ? string(transfer->getAppData()) + "!" : string();
+                                appData.append(transfer->getAppData());
+                                prevTransfer->setAppData(appData.c_str());
+                            }
+
                             //Already existing transfer
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
