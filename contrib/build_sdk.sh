@@ -55,6 +55,7 @@ extra_openssl_params=""
 cross_compiling=0
 configure_cross_options=""
 openssl_cross_option=""
+status_dir=""
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -300,7 +301,7 @@ package_install() {
         cd $cwd
     else
         cd $cwd
-        echo $exit_code > ../$name.success
+        echo $exit_code > $status_dir/$name.success
     fi
 
     # some packages install libraries to "lib64" folder
@@ -324,11 +325,11 @@ openssl_pkg() {
     local openssl_params="--openssldir=$install_dir no-shared $extra_openssl_params"
     local loc_make_opts=$make_opts
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $openssl_url $openssl_file $openssl_md5
@@ -382,11 +383,11 @@ cryptopp_pkg() {
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $cryptopp_url $cryptopp_file $cryptopp_md5
@@ -423,11 +424,11 @@ sodium_pkg() {
         local sodium_params="--disable-shared --enable-static --disable-pie"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $sodium_url $sodium_file $sodium_md5
@@ -456,11 +457,11 @@ libuv_pkg() {
         local libuv_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $libuv_url $libuv_file $libuv_md5
@@ -501,11 +502,11 @@ zlib_pkg() {
         local zlib_params="--static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $zlib_url $zlib_file $zlib_md5
@@ -554,11 +555,11 @@ sqlite_pkg() {
         local sqlite_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $sqlite_url $sqlite_file $sqlite_md5
@@ -587,11 +588,11 @@ cares_pkg() {
         local cares_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $cares_url $cares_file $cares_md5
@@ -635,11 +636,11 @@ curl_pkg() {
             --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $curl_url $curl_file $curl_md5
@@ -668,11 +669,11 @@ readline_pkg() {
         local readline_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $readline_url $readline_file $readline_md5
@@ -701,11 +702,11 @@ termcap_pkg() {
         local termcap_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $termcap_url $termcap_file $termcap_md5
@@ -731,11 +732,11 @@ freeimage_pkg() {
     local freeimage_dir_extract="freeimage-$freeimage_ver"
     local freeimage_dir="freeimage-$freeimage_ver/FreeImage"
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $freeimage_url $freeimage_file $freeimage_md5
@@ -778,7 +779,7 @@ freeimage_pkg() {
         # manually copy header and library
         cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
         cp $freeimage_dir/Dist/libfreeimage* $install_dir/lib || exit 1
-        echo $? > $name.success
+        echo $? > $status_dir/$name.success
     # MinGW
     else
         package_build $name $freeimage_dir "-f Makefile.mingw"
@@ -788,7 +789,7 @@ freeimage_pkg() {
         cp $freeimage_dir/Dist/FreeImage.dll $install_dir/lib || 1
         cp $freeimage_dir/Dist/FreeImage.lib $install_dir/lib || 1
         cp $freeimage_dir/Dist/libFreeImage.a $install_dir/lib || 1
-        echo $? > $name.success
+        echo $? > $status_dir/$name.success
     fi
 }
 
@@ -803,11 +804,11 @@ readline_win_pkg() {
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $readline_url $readline_file $readline_md5
@@ -843,12 +844,11 @@ mediainfo_pkg() {
     local mediainfolib_dir_extract="MediaInfoLib-$mediainfolib_ver"
     local mediainfolib_dir="MediaInfoLib-$mediainfolib_ver/Project/GNU/Library"
 
-
-    if [ $incremental -eq 1 ] && [ -e $build_dir/$mediainfolib_name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$mediainfolib_name.success ]; then
         echo "$mediainfolib_name already built"
         return
     else
-        rm -f $mediainfolib_name.success
+        rm -f $status_dir/$mediainfolib_name.success
     fi
 
     package_download $zenlib_name $zenlib_url $zenlib_file $zenlib_md5
@@ -942,11 +942,11 @@ readline_win_pkg() {
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
 
-    if [ $incremental -eq 1 ] && [ -e $name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
         echo "$name already built"
         return
     else
-        rm -f $name.success
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $readline_url $readline_file $readline_md5
@@ -973,11 +973,11 @@ build_sdk() {
     local sodium_flags="--without-sodium"
     local cwd=$(pwd)
 
-    if [ $incremental -eq 1 ] && [ -e ./MegaSDK.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/MegaSDK.success ]; then
         echo "MegaSDK already built"
         return
     else
-        rm -f ./MegaSDK.success
+        rm -f $status_dir/MegaSDK.success
     fi
 
     echo "Configuring MEGA SDK"
@@ -1086,7 +1086,7 @@ build_sdk() {
         make install
         local exit_code=$?
         if [ $exit_code -eq 0 ]; then
-            echo $exit_code > ./MegaSDK.success
+            echo $exit_code > $status_dir/MegaSDK.success
         fi
     fi
 }
@@ -1140,6 +1140,7 @@ main() {
     local debug=""
     # by the default store archives in work_dir
     local_dir=$work_dir
+    status_dir=$work_dir
 
     while getopts ":habcdefgiIlm:no:p:rRsS:tuvyXC:O:wqz0" opt; do
         case $opt in
