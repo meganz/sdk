@@ -3656,6 +3656,31 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (BOOL)hasVersionsForNode:(MEGANode *)node;
 
 /**
+ * @brief Get information about the contents of a folder
+ *
+ * The associated request type with this request is MEGARequestTypeFolderInfo
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaFolderInfo] - MEGAFolderInfo object with the information related to the folder
+ *
+ * @param node Folder node to inspect
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getFolderInfoForNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get information about the contents of a folder
+ *
+ * The associated request type with this request is MEGARequestTypeFolderInfo
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaFolderInfo] - MEGAFolderInfo object with the information related to the folder
+ *
+ * @param node Folder node to inspect
+ */
+- (void)getFolderInfoForNode:(MEGANode *)node;
+
+/**
  * @brief Get file and folder children of a MEGANode separatedly
  *
  * If the parent node doesn't exist or it isn't a folder, this function
