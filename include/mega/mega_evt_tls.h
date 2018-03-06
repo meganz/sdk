@@ -18,7 +18,6 @@ extern "C" {
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <openssl/conf.h>
-#include <openssl/engine.h>
 #include "mega_evt_queue.h"
 
 #ifdef _WIN32
