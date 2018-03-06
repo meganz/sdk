@@ -237,7 +237,7 @@ package_configure() {
     fi
 
     echo -n "configuring $name with : $conf $config_opts --prefix=$install_dir $params"
-    [ -z "$extralibs" ] && echo " LIBS=$extralibs" || echo ""
+    [ -z "$extralibs" ] && echo "" || echo " LIBS=$extralibs"
 
     if [ -z "$extralibs" ]; then
         $conf $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
