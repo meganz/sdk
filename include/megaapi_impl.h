@@ -2272,43 +2272,19 @@ public:
 
     // Connection management
     MegaTCPServer *server;
-    StreamingBuffer streamingBuffer;
-    MegaTransferPrivate *transfer;
     uv_tcp_t tcphandle;
     uv_async_t asynchandle;
-    http_parser parser;
     uv_mutex_t mutex;
     MegaApiImpl *megaApi;
     m_off_t bytesWritten;
     m_off_t size;
-    char *lastBuffer;
-    int lastBufferLen;
-    bool nodereceived;
+
     bool finished;
-    bool failed;
-    bool pause;
 
     //tls stuff:
     evt_tls_t *evt_tls;
     std::list<char*> writePointers;
 
-    // Request information
-    bool range;
-    m_off_t rangeStart;
-    m_off_t rangeEnd;
-    m_off_t rangeWritten;
-    MegaNode *node;
-    std::string path;
-    std::string nodehandle;
-    std::string nodekey;
-    std::string nodename;
-    m_off_t nodesize;
-    int resultCode;
-
-//    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
-//    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
-//    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
-//    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
 class MegaTCPServer
@@ -2363,18 +2339,19 @@ protected:
     static void onWriteFinished(uv_write_t* req, int status); //This might need to go to HTTPServer
     static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
 
-    static void closeConnection(MegaTCPContext *httpctx);
-    static void closeTCPConnection(MegaTCPContext *httpctx);
+    static void closeConnection(MegaTCPContext *tcpctx);
+    static void closeTCPConnection(MegaTCPContext *tcpctx);
 
     void run();
 
 
 
     //virtual methods:
-    virtual void processReceivedData(MegaTCPContext *httpctx, ssize_t nread, const uv_buf_t * buf) = 0;
-    virtual void processAsyncEvent(MegaTCPContext *httpctx) = 0;
+    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf) = 0;
+    virtual void processAsyncEvent(MegaTCPContext *tcpctx) = 0;
     virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle) = 0;
-    virtual void processWriteFinished(MegaTCPContext* httpctx, int status) = 0;
+    virtual void processWriteFinished(MegaTCPContext* tcpctx, int status) = 0;
+    virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx) = 0;
 
 
 public:
@@ -2413,7 +2390,30 @@ public:
     MegaHTTPContext();
     ~MegaHTTPContext();
 
+    // Connection management
+    StreamingBuffer streamingBuffer;
+    MegaTransferPrivate *transfer;
     http_parser parser;
+    char *lastBuffer;
+    int lastBufferLen;
+    bool nodereceived;
+    bool failed;
+    bool pause;
+
+    // Request information
+    bool range;
+    m_off_t rangeStart;
+    m_off_t rangeEnd;
+    m_off_t rangeWritten;
+    MegaNode *node;
+    std::string path;
+    std::string nodehandle;
+    std::string nodekey;
+    std::string nodename;
+    m_off_t nodesize;
+    int resultCode;
+
+
 
     virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
@@ -2425,10 +2425,11 @@ class MegaHTTPServer: public MegaTCPServer
 {
 protected:
     //virtual methods:
-    virtual void processReceivedData(MegaTCPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
-    virtual void processAsyncEvent(MegaTCPContext *httpctx);
+    virtual void processReceivedData(MegaTCPContext *ftpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *ftpctx);
     virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
-    virtual void processWriteFinished(MegaTCPContext* httpctx, int status);
+    virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
+    virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
 
 
     // HTTP parser callback
@@ -2440,9 +2441,9 @@ protected:
     static int onBody(http_parser* parser, const char* at, size_t length);
     static int onMessageComplete(http_parser* parser);
 
-    static void sendHeaders(MegaTCPContext *httpctx, string *headers);
-    static void sendNextBytes(MegaTCPContext *httpctx);
-    static int streamNode(MegaTCPContext *httpctx);
+    static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
+    static void sendNextBytes(MegaHTTPContext *httpctx);
+    static int streamNode(MegaHTTPContext *httpctx);
 
 public:
     MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
@@ -2488,10 +2489,12 @@ class MegaFTPServer: public MegaTCPServer
 {
 protected:
     //virtual methods:
-    virtual void processReceivedData(MegaTCPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
-    virtual void processAsyncEvent(MegaTCPContext *httpctx);
+    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
     virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
-    virtual void processWriteFinished(MegaTCPContext* httpctx, int status);
+    virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
+    virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
+
 
 public:
     MegaFTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
