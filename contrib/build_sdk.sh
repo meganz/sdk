@@ -1151,7 +1151,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyxXC:O:wqz0" opt; do
+    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyx:XC:O:wqz0" opt; do
         case $opt in
             h)
                 display_help $0
