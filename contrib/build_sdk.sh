@@ -304,7 +304,7 @@ openssl_pkg() {
         local cwd=$(pwd)
         cd $openssl_dir
         perl -pi -e 's/install: all install_docs install_sw/install: install_docs install_sw/g' Makefile.org
-        ./config shared no-ssl2 no-ssl3 no-comp no-hw --prefix=$install_dir
+        ./config shared no-ssl2 no-ssl3 no-comp no-hw no-engine --prefix=$install_dir
         make depend || exit 1
         cd $cwd
     else
