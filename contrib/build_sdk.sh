@@ -236,7 +236,9 @@ package_configure() {
         exit 1
     fi
 
-    echo "configuring $name with : $conf $config_opts --prefix=$install_dir $params [ and LIBS=$extralibs if specified ]"
+    echo -n "configuring $name with : $conf $config_opts --prefix=$install_dir $params"
+    [ -z "$extralibs" ] && echo "" || echo " LIBS=$extralibs"
+
     if [ -z "$extralibs" ]; then
         $conf $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
     else
@@ -245,7 +247,7 @@ package_configure() {
 
     if [ $no_optimisation -eq 1 ]; then
         # this one works for OpenSSL, other files may need to be adjusted differently
-        sed -i -e "s/\(CFLAG *=.*\)-O[1-3]/\1-O0/" ./Makefile
+        sed -i -e "s/\(C[XP]*FLAGS\? *=.*\)-O[1-3]/\1-O0/" ./Makefile
     fi
 
     cd $cwd
@@ -322,7 +324,11 @@ openssl_pkg() {
 
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
+    if [ $use_dynamic -eq 1 ]; then
+    local openssl_params="--openssldir=$install_dir shared $extra_openssl_params"
+    else
     local openssl_params="--openssldir=$install_dir no-shared $extra_openssl_params"
+    fi
     local loc_make_opts=$make_opts
 
     if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
@@ -758,8 +764,12 @@ freeimage_pkg() {
     export CXXFLAGS="$CXXFLAGS -fdollars-in-identifiers"
     find $freeimage_dir/Source/OpenEXR/IlmImf/ -name "*.cpp" | xargs sed -i -e "s/0xffffffffffffffffL/0xffffffffffffffffull/" 
     find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs sed -i -e "s/\(0x[0-9A-Fa-f]\{9,16\}\)/\1ull/g" 
-    find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs dos2unix
-    find $freeimage_dir/Source/LibRawLite/internal/ -name "*.h" | xargs dos2unix
+    if command -v dos2unix; then
+        find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs dos2unix
+        find $freeimage_dir/Source/LibRawLite/internal/ -name "*.h" | xargs dos2unix
+    else
+        echo "Command dos2unix not found, skipping some fixes for FreeImage"
+    fi
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
@@ -924,10 +934,9 @@ EOF
 
     package_build $mediainfolib_name $mediainfolib_dir
 
-    local restore_dir=$(pwd)
-    cd $build_dir/ZenLib
+    pushd $build_dir/ZenLib >/dev/null
     package_install $mediainfolib_name $build_dir/$mediainfolib_dir $install_dir
-    cd $restore_dir
+    popd
 
 }
 
@@ -1142,7 +1151,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyXC:O:wqz0" opt; do
+    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyx:XC:O:wqz0" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1239,6 +1248,10 @@ main() {
             w)
                 download_only=1
                 echo "* Downloading software archives only."
+                ;;
+            x)
+                config_opts="$OPTARG"
+                echo "* Using configuration options: $config_opts"
                 ;;
             X)
                 cross_compiling=1
