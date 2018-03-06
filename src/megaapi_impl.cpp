@@ -18649,11 +18649,7 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
             delete [] bfr;
             delete req;
 
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
+            closeTCPConnection(httpctx);
         }
         rv = sz; //writer should return the written size
     }
@@ -18907,11 +18903,7 @@ void MegaTCPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
     assert(httpctx != NULL);
 
     LOG_debug << "TLS connection closed";
-    httpctx->finished = true;
-    if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-    {
-        uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-    }
+    closeTCPConnection(httpctx);
 }
 
 void MegaTCPServer::on_hd_complete( evt_tls_t *evt_tls, int status)
@@ -19032,11 +19024,7 @@ void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *d
         else
         {
             //if handshake is not over, simply tear down without close_notify
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)tcp))
-            {
-                uv_close((uv_handle_t*)tcp, onClose);
-            }
+            closeTCPConnection(httpctx);
         }
         delete[] data->base;
         return;
@@ -19185,17 +19173,34 @@ void MegaTCPServer::onCloseRequested(uv_async_t *handle)
     for (list<MegaTCPContext*>::iterator it = httpServer->connections.begin(); it != httpServer->connections.end(); it++)
     {
         MegaTCPContext *httpctx = (*it);
-        httpctx->finished = true;
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-        {
-            uv_close((uv_handle_t *)&httpctx->tcphandle, onClose);
-        }
+        closeTCPConnection(httpctx);
     }
 
     uv_close((uv_handle_t *)&httpServer->server, NULL);
     uv_close((uv_handle_t *)&httpServer->exit_handle, NULL);
 }
 
+void MegaTCPServer::closeConnection(MegaTCPContext *httpctx)
+{
+    if (httpctx->server->useTLS)
+    {
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+    }
+    else
+    {
+        closeTCPConnection(httpctx);
+        return;
+    }
+}
+
+void MegaTCPServer::closeTCPConnection(MegaTCPContext *httpctx)
+{
+    httpctx->finished = true;
+    if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+    {
+        uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+    }
+}
 
 ///////////////////////////////
 //  MegaHTTPServer specifics //
@@ -19247,18 +19252,7 @@ void MegaHTTPServer::processReceivedData(MegaTCPContext *httpctx, ssize_t nread,
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
         LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
-        if (useTLS)
-        {
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-        }
-        else
-        {   
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
-        }
+        closeConnection(httpctx);
     }
 }
 
@@ -19289,19 +19283,7 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* httpctx, int status)
             }
         }
 
-        if (useTLS)
-        {
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-        }
-        else
-        {
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
-            return;
-        }
+        closeConnection(httpctx);
     }
 
     uv_mutex_lock(&httpctx->mutex);
@@ -19975,7 +19957,7 @@ void MegaHTTPServer::sendHeaders(MegaTCPContext *httpctx, string *headers)
         if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+            closeConnection(httpctx);
         }
     }
     else
@@ -19986,11 +19968,7 @@ void MegaHTTPServer::sendHeaders(MegaTCPContext *httpctx, string *headers)
         {
             delete req;
             LOG_warn << "Finishing due to an error sending the response: " << err;
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
+            closeTCPConnection(httpctx);
         }
     }
 }
@@ -20006,18 +19984,7 @@ void MegaHTTPServer::processAsyncEvent(MegaTCPContext* httpctx)
     if (httpctx->failed)
     {
         LOG_warn << "Streaming transfer failed. Closing connection.";
-        if (httpctx->server->useTLS)
-        {
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-        }
-        else
-        {
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
-        }
+        closeConnection(httpctx);
         return;
     }
 
@@ -20098,7 +20065,7 @@ void MegaHTTPServer::sendNextBytes(MegaTCPContext *httpctx)
         if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+            closeConnection(httpctx);
         }
     }
     else
@@ -20110,11 +20077,7 @@ void MegaHTTPServer::sendNextBytes(MegaTCPContext *httpctx)
         {
             delete req;
             LOG_warn << "Finishing due to an error in uv_write: " << err;
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
+            closeTCPConnection(httpctx);
         }
     }
 }
@@ -20259,18 +20222,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *httpctx, ssize_t nread, 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
         LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
-        if (useTLS)
-        {
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-        }
-        else
-        {   
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
-        }
+        closeConnection(httpctx);
     }
 }
 

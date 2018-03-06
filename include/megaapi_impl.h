@@ -2363,6 +2363,8 @@ protected:
     static void onWriteFinished(uv_write_t* req, int status); //This might need to go to HTTPServer
     static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
 
+    static void closeConnection(MegaTCPContext *httpctx);
+    static void closeTCPConnection(MegaTCPContext *httpctx);
 
     void run();
 
@@ -2377,8 +2379,6 @@ protected:
 
 public:
     bool useTLS;
-
-
 
     MegaTCPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaTCPServer();
