@@ -28,13 +28,10 @@
 #include "mega/base64.h"
 #include "mega/mediafileattribute.h"
 #include "megawaiter.h"
+#include "mega/utils.h"
 
 namespace mega {
-static long long abs(long long n)
-{
-    // for pre-c++11 where this version is not defined yet
-    return n >= 0 ? n : -n;
-}
+
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 {
     type = ctype;

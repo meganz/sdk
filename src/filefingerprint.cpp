@@ -26,11 +26,6 @@
 #include "mega/utils.h"
 
 namespace mega {
-long long abs(long long n)
-{
-    // for pre-c++11 where this version is not defined yet
-    return n >= 0 ? n : -n;
-}
 
 bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
 {

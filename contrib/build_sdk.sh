@@ -655,7 +655,7 @@ curl_pkg() {
     fi
 
     package_extract $name $curl_file $curl_dir
-    package_configure $name $curl_dir $install_dir "$curl_params" "-ldl -lpthread"
+    package_configure $name $curl_dir $install_dir "$curl_params" ""
     package_build $name $curl_dir
     package_install $name $curl_dir $install_dir
 }
