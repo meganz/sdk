@@ -26,6 +26,7 @@
 #include "mega/utils.h"
 
 namespace mega {
+
 bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
 {
     // size differs - cannot be equal
