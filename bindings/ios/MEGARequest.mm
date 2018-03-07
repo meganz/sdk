@@ -177,7 +177,7 @@ using namespace mega;
 }
 
 - (MEGAFolderInfo *)megaFolderInfo {
-    return self.megaRequest ? [[MEGAFolderInfo alloc] initWithMegaFolderInfo:self.megaRequest->getMegaFolderInfo() cMemoryOwn:YES] : nil;
+    return self.megaRequest ? [[MEGAFolderInfo alloc] initWithMegaFolderInfo:self.megaRequest->getMegaFolderInfo()->copy() cMemoryOwn:YES] : nil;
 }
 
 - (NSInteger)transferTag {
