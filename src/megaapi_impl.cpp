@@ -5378,7 +5378,7 @@ void MegaApiImpl::invalidateCache()
 
 int MegaApiImpl::getPasswordStrength(const char *password)
 {
-    if (!password || strlen(password) < 4)
+    if (!password || strlen(password) < 8)
     {
         return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
     }
