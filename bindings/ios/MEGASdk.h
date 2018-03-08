@@ -1356,9 +1356,10 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest nodeHandle] - Return the handle of the new contact link
  *
+ * @param renew YES to invalidate the previous contact link (if any).
  * @param delegate Delegate to track this request
  */
-- (void)contactLinkCreateWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)contactLinkCreateRenew:(BOOL)renew delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Create a contact link
@@ -1368,8 +1369,10 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest nodeHandle] - Return the handle of the new contact link
+ *
+ * @param renew YES to invalidate the previous contact link (if any).
  */
-- (void)contactLinkCreate;
+- (void)contactLinkCreateRenew:(BOOL)renew;
 
 /**
  * @brief Get information about a contact link
@@ -1409,29 +1412,26 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)contactLinkQueryWithHandle:(uint64_t)handle;
 
 /**
- * @brief Delete a contact link
+ * @brief Delete the active contact link
  *
  * The associated request type with this request is MEGARequestTypeContactLinkDelete.
  *
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the contact link
  *
- * @param handle Handle of the contact link to delete
  * @param delegate Delegate to track this request
  */
-- (void)contactLinkDeleteWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+- (void)contactLinkDeleteWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Delete a contact link
+ * @brief Delete the active contact link
  *
  * The associated request type with this request is MEGARequestTypeContactLinkDelete.
  *
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the contact link
- *
- * @param handle Handle of the contact link to delete
  */
-- (void)contactLinkDeleteWithHandle:(uint64_t)handle;
+- (void)contactLinkDelete;
 
 #pragma mark - Filesystem changes Requests
 

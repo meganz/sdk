@@ -614,12 +614,12 @@ using namespace mega;
     self.megaApi->confirmChangeEmail((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }
 
-- (void)contactLinkCreateWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->contactLinkCreate([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)contactLinkCreateRenew:(BOOL)renew delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkCreate(renew, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)contactLinkCreate {
-    self.megaApi->contactLinkCreate();
+- (void)contactLinkCreateRenew:(BOOL)renew {
+    self.megaApi->contactLinkCreate(renew);
 }
 
 - (void)contactLinkQueryWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
@@ -630,12 +630,12 @@ using namespace mega;
     self.megaApi->contactLinkQuery(handle);
 }
 
-- (void)contactLinkDeleteWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->contactLinkDelete(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)contactLinkDeleteWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkDelete(INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)contactLinkDeleteWithHandle:(uint64_t)handle {
-    self.megaApi->contactLinkDelete(handle);
+    self.megaApi->contactLinkDelete();
 }
 
 #pragma mark - Filesystem changes Requests
