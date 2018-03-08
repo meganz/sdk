@@ -1,6 +1,6 @@
 #!/bin/sh
 
-LIBSODIUM_VERSION="1.0.11"
+LIBSODIUM_VERSION="1.0.16"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -59,8 +59,8 @@ export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
 mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
 
 # Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=7.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=7.0"
+export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=9.0 -L${BUILD_SDKROOT}/usr/lib"
+export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=9.0 -DNDEBUG"
 export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
 export CXXFLAGS="${CPPFLAGS}"
 

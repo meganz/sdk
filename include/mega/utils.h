@@ -329,6 +329,8 @@ public:
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
 };
 
+// for pre-c++11 where this version is not defined yet.  
+long long abs(long long n);
 
 } // namespace
 

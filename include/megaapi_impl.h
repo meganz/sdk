@@ -33,6 +33,8 @@
 #ifdef HAVE_LIBUV
 #include "uv.h"
 #include "mega/mega_http_parser.h"
+#include "mega/mega_evt_tls.h"
+
 #endif
 
 #ifndef _WIN32
@@ -1806,7 +1808,7 @@ class MegaApiImpl : public MegaApp
 
 #ifdef HAVE_LIBUV
         // start/stop
-        bool httpServerStart(bool localOnly = true, int port = 4443);
+        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
         void httpServerStop();
         int httpServerIsRunning();
 
@@ -2276,6 +2278,7 @@ class MegaHTTPContext : public MegaTransferListener, public MegaRequestListener
 {
 public:
     MegaHTTPContext();
+    ~MegaHTTPContext();
 
     // Connection management
     MegaHTTPServer *server;
@@ -2294,6 +2297,10 @@ public:
     bool finished;
     bool failed;
     bool pause;
+
+    //tls stuff:
+    evt_tls_t *evt_tls;
+    std::list<char*> writePointers;
 
     // Request information
     bool range;
@@ -2338,11 +2345,30 @@ protected:
     bool started;
     int port;
 
+    // TLS
+    evt_ctx_t evtctx;
+    std::string certificatepath;
+    std::string keypath;
+
     // libuv callbacks
     static void onNewClient(uv_stream_t* server_handle, int status);
     static void onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf);
     static void allocBuffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf);
     static void onClose(uv_handle_t* handle);
+
+    //libuv tls
+    static void onNewClient_tls(uv_stream_t* server_handle, int status);
+    static void onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
+    static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
+    static void onWriteFinished_tls_async(uv_write_t* req, int status);
+    static void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data);
+    static int uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz);
+    static void on_evt_tls_close(evt_tls_t *evt_tls, int status);
+    static void on_hd_complete( evt_tls_t *evt_tls, int status);
+    static void evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz);
+
+
+
     static void onAsyncEventClose(uv_handle_t* handle);
     static void onAsyncEvent(uv_async_t* handle);
     static void onCloseRequested(uv_async_t* handle);
@@ -2363,7 +2389,9 @@ protected:
     static int streamNode(MegaHTTPContext *httpctx);
 
 public:
-    MegaHTTPServer(MegaApiImpl *megaApi);
+    bool useTLS;
+
+    MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
     bool start(int port, bool localOnly = true);
     void stop();
