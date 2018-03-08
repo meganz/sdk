@@ -8248,7 +8248,17 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
 			}
 		}
 	}
-	bool result = processor->processNode(node);
+    
+    bool result;
+    if (recursive)
+    {
+        result = processor->processNode(node);
+    }
+    else
+    {
+        result = 1;
+    }
+    
     sdkMutex.unlock();
 	return result;
 }
@@ -8270,9 +8280,18 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    
-    processTree(node, &searchProcessor, recursive);
-    
+    if (recursive)
+    {
+        for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+        {
+            processTree(*it++, &searchProcessor, recursive);
+        }
+    }
+    else
+    {
+        processTree(node, &searchProcessor, recursive);
+    }
+
     vector<Node *>& vNodes = searchProcessor.getResults();
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
