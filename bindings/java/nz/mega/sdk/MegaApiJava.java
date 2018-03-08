@@ -1317,10 +1317,11 @@ public class MegaApiJava {
      * is MegaError::API_OK:
      * - MegaRequest::getNodeHandle - Return the handle of the new contact link
      *
+     * @param renew True to invalidate the previous contact link (if any).
      * @param listener MegaRequestListener to track this request
      */
-    public void contactLinkCreate(MegaRequestListenerInterface listener){
-        megaApi.contactLinkCreate(createDelegateRequestListener(listener));
+    public void contactLinkCreate(boolean renew, MegaRequestListenerInterface listener){
+        megaApi.contactLinkCreate(renew, createDelegateRequestListener(listener));
     }
 
     /**
@@ -1387,6 +1388,8 @@ public class MegaApiJava {
      * - MegaRequest::getNodeHandle - Returns the handle of the contact link
      *
      * @param handle Handle of the contact link to delete
+     * If the parameter is INVALID_HANDLE, the active contact link is deleted
+     *
      * @param listener MegaRequestListener to track this request
      */
     public void contactLinkDelete(long handle, MegaRequestListenerInterface listener){
