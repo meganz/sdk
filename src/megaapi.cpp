@@ -1313,9 +1313,9 @@ void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
     return pImpl->whyAmIBlocked(false, listener);
 }
 
-void MegaApi::contactLinkCreate(MegaRequestListener *listener)
+void MegaApi::contactLinkCreate(bool renew, MegaRequestListener *listener)
 {
-    pImpl->contactLinkCreate(listener);
+    pImpl->contactLinkCreate(renew, listener);
 }
 
 void MegaApi::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)

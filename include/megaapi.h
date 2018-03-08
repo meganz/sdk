@@ -5749,9 +5749,10 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Return the handle of the new contact link
          *
+         * @param renew True to invalidate the previous contact link (if any).
          * @param listener MegaRequestListener to track this request
          */
-        void contactLinkCreate(MegaRequestListener *listener = NULL);
+        void contactLinkCreate(bool renew = false, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get information about a contact link
@@ -5781,9 +5782,11 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the handle of the contact link
          *
          * @param handle Handle of the contact link to delete
+         * If the parameter is INVALID_HANDLE, the active contact link is deleted
+         *
          * @param listener MegaRequestListener to track this request
          */
-        void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
+        void contactLinkDelete(MegaHandle handle = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account

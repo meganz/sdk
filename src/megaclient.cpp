@@ -708,9 +708,9 @@ void MegaClient::confirmemaillink(const char *code, const char *email, const byt
     reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
 }
 
-void MegaClient::contactlinkcreate()
+void MegaClient::contactlinkcreate(bool renew)
 {
-    reqs.add(new CommandContactLinkCreate(this));
+    reqs.add(new CommandContactLinkCreate(this, renew));
 }
 
 void MegaClient::contactlinkquery(handle h)

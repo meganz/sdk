@@ -8004,9 +8004,10 @@ void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequest
     waiter->notify();
 }
 
-void MegaApiImpl::contactLinkCreate(MegaRequestListener *listener)
+void MegaApiImpl::contactLinkCreate(bool renew, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_CREATE, listener);
+    request->setFlag(renew);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -16570,7 +16571,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_CONTACT_LINK_CREATE:
         {
-            client->contactlinkcreate();
+            client->contactlinkcreate(request->getFlag());
             break;
         }
         case MegaRequest::TYPE_CONTACT_LINK_QUERY:

@@ -5672,9 +5672,16 @@ void CommandMediaCodecs::procresult()
     callback(client, version);
 }
 
-CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client)
+CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
 {
-    cmd("clc");
+    if (renew)
+    {
+        cmd("clr");
+    }
+    else
+    {
+        cmd("clc");
+    }
     
     tag = client->reqtag;
 }

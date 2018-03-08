@@ -1763,7 +1763,7 @@ class MegaApiImpl : public MegaApp
         const char *getUserAgent();
         const char *getBasePath();
 
-        void contactLinkCreate(MegaRequestListener *listener = NULL);
+        void contactLinkCreate(bool renew = false, MegaRequestListener *listener = NULL);
         void contactLinkQuery(MegaHandle handle, MegaRequestListener *listener = NULL);
         void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
 

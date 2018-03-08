@@ -1281,7 +1281,7 @@ public:
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
 
     // create contact link
-    void contactlinkcreate();
+    void contactlinkcreate(bool renew);
 
     // query contact link
     void contactlinkquery(handle);

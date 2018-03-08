@@ -925,7 +925,7 @@ class MEGA_API CommandContactLinkCreate : public Command
 public:
     void procresult();
 
-    CommandContactLinkCreate(MegaClient*);
+    CommandContactLinkCreate(MegaClient*, bool);
 };
 
 class MEGA_API CommandContactLinkQuery : public Command
