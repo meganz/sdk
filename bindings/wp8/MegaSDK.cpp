@@ -1112,14 +1112,14 @@ int MegaSDK::isLoggedIn()
 	return megaApi->isLoggedIn();
 }
 
-void MegaSDK::contactLinkCreate(MRequestListenerInterface^ listener)
+void MegaSDK::contactLinkCreateRenew(bool renew, MRequestListenerInterface^ listener)
 {
-    megaApi->contactLinkCreate(createDelegateMRequestListener(listener));
+    megaApi->contactLinkCreate(renew, createDelegateMRequestListener(listener));
 }
 
-void MegaSDK::contactLinkCreate()
+void MegaSDK::contactLinkCreateRenew(bool renew)
 {
-    megaApi->contactLinkCreate();
+    megaApi->contactLinkCreate(renew);
 }
 
 void MegaSDK::contactLinkQuery(MegaHandle handle, MRequestListenerInterface^ listener)
@@ -1140,6 +1140,16 @@ void MegaSDK::contactLinkDelete(MegaHandle handle, MRequestListenerInterface^ li
 void MegaSDK::contactLinkDelete(MegaHandle handle)
 {
     megaApi->contactLinkDelete(handle);
+}
+
+void MegaSDK::contactLinkDeleteActive(MRequestListenerInterface^ listener)
+{
+    megaApi->contactLinkDelete(mega::INVALID_HANDLE, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::contactLinkDeleteActive()
+{
+    megaApi->contactLinkDelete(mega::INVALID_HANDLE);
 }
 
 String^ MegaSDK::getMyEmail()

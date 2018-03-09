@@ -233,9 +233,10 @@ namespace mega
          * is MError::API_OK:
          * - MRequest::getNodeHandle - Return the handle of the new contact link
          *
+         * @param renew YES to invalidate the previous contact link (if any).
          * @param listener MRequestListener to track this request
          */
-        void contactLinkCreate(MRequestListenerInterface^ listener);
+        void contactLinkCreateRenew(bool renew, MRequestListenerInterface^ listener);
 
         /**
          * @brief Create a contact link
@@ -245,8 +246,10 @@ namespace mega
          * Valid data in the MRequest object received in onRequestFinish when the error code
          * is MError::API_OK:
          * - MRequest::getNodeHandle - Return the handle of the new contact link
+         *
+         * @param renew YES to invalidate the previous contact link (if any).
          */
-        void contactLinkCreate();
+        void contactLinkCreateRenew(bool renew);
 
         /**
          * @brief Get information about a contact link
@@ -294,6 +297,8 @@ namespace mega
          * - MRequest::getNodeHandle - Returns the handle of the contact link
          *
          * @param handle Handle of the contact link to delete
+         * If the parameter is INVALID_HANDLE, the active contact link is deleted
+         *
          * @param listener MegaRequestListener to track this request
          */
         void contactLinkDelete(MegaHandle handle, MRequestListenerInterface^ listener);
@@ -307,8 +312,31 @@ namespace mega
          * - MRequest::getNodeHandle - Returns the handle of the contact link
          *
          * @param handle Handle of the contact link to delete
+         * If the parameter is INVALID_HANDLE, the active contact link is deleted
          */
         void contactLinkDelete(MegaHandle handle);
+
+        /**
+        * @brief Delete the active contact link
+        *
+        * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_DELETE.
+        *
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the contact link
+        *
+        * @param listener MegaRequestListener to track this request
+        */
+        void contactLinkDeleteActive(MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Delete the active contact link
+        *
+        * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_DELETE.
+        *
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the contact link
+        */
+        void contactLinkDeleteActive();
 
         String^ getMyEmail();
         String^ getMyUserHandle();
