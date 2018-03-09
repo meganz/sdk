@@ -1905,9 +1905,7 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
         arg("msg", msg);
     }
 
-    if (action == OPCA_DELETE  // for reminders, need the actionpacket to update `uts`
-            || (action == OPCA_ADD // for additions with contact link, need the actionpacket
-                && ISUNDEF(contactLink))) // to get `ts` of automatically accepted requests
+    if (action != OPCA_REMIND)  // for reminders, need the actionpacket to update `uts`
     {
         notself(client);
     }
@@ -1941,14 +1939,7 @@ void CommandSetPendingContact::procresult()
 
             if (!pcr)
             {
-                if (action == OPCA_ADD && temail.size())
-                {
-                    LOG_debug << "PCR automatically accepted";
-                }
-                else
-                {
-                    LOG_err << "Reminded/deleted PCR not found";
-                }
+                LOG_err << "Reminded/deleted PCR not found";
             }
             else if (action == OPCA_DELETE)
             {
