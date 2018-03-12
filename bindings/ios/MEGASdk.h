@@ -1352,6 +1352,9 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  *
  * The associated request type with this request is MEGARequestTypeContactLinkCreate.
  *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest flag] - Returns the value of \c renew parameter
+ *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest nodeHandle] - Return the handle of the new contact link
@@ -1365,6 +1368,9 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @brief Create a contact link
  *
  * The associated request type with this request is MEGARequestTypeContactLinkCreate.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest flag] - Returns the value of \c renew parameter
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -1384,6 +1390,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
+ * - [MEGARequest parentHandle] - Returns the userhandle of the contact
  * - [MEGARequest email] - Returns the email of the contact
  * - [MEGARequest name] - Returns the first name of the contact
  * - [MEGARequest text] - Returns the last name of the contact
@@ -1403,6 +1410,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
+ * - [MEGARequest parentHandle] - Returns the userhandle of the contact
  * - [MEGARequest email] - Returns the email of the contact
  * - [MEGARequest name] - Returns the first name of the contact
  * - [MEGARequest text] - Returns the last name of the contact
@@ -2906,14 +2914,12 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 /**
  * @brief Invite another person to be your MEGA contact using a contact link handle
  *
- * The user doesn't need to be registered on MEGA. If the email isn't associated with
- * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
- *
  * The associated request type with this request is MEGARequestTypeInviteContact
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email of the contact
  * - [MEGARequest text] - Returns the text of the invitation
  * - [MEGARequest number] - Returns the action
+ * - [MEGARequest nodeHandle] - Returns the contact link handle
  *
  * Sending a reminder within a two week period since you started or your last reminder will
  * fail the API returning the error code MEGAErrorTypeApiEAccess.
@@ -2925,7 +2931,8 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * - MEGAInviteActionDelete = 1
  * - MEGAInviteActionRemind = 2
  *
- * @param handle Contact link handle of the other account
+ * @param handle Contact link handle of the other account. This parameter is considered only if the
+ * \c action is MEGAInviteActionAdd. Otherwise, it's ignored and it has no effect.
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
@@ -2933,14 +2940,12 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 /**
  * @brief Invite another person to be your MEGA contact using a contact link handle
  *
- * The user doesn't need to be registered on MEGA. If the email isn't associated with
- * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
- *
  * The associated request type with this request is MEGARequestTypeInviteContact
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest email] - Returns the email of the contact
  * - [MEGARequest text] - Returns the text of the invitation
  * - [MEGARequest number] - Returns the action
+ * - [MEGARequest nodeHandle] - Returns the contact link handle
  *
  * Sending a reminder within a two week period since you started or your last reminder will
  * fail the API returning the error code MEGAErrorTypeApiEAccess.
@@ -2952,7 +2957,8 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * - MEGAInviteActionDelete = 1
  * - MEGAInviteActionRemind = 2
  *
- * @param handle Contact link handle of the other account
+ * @param handle Contact link handle of the other account. This parameter is considered only if the
+ * \c action is MEGAInviteActionAdd. Otherwise, it's ignored and it has no effect.
  */
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle;
 
