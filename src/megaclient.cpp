@@ -4165,16 +4165,18 @@ void MegaClient::sc_updatenode()
                 if (!ISUNDEF(h))
                 {
                     Node* n;
+                    bool notify = false;
 
                     if ((n = nodebyhandle(h)))
                     {
-                        if (u)
+                        if (u && n->owner != u)
                         {
                             n->owner = u;
                             n->changed.owner = true;
+                            notify = true;
                         }
 
-                        if (a)
+                        if (a && ((n->attrstring && !strcmp(n->attrstring->c_str(), a)) || !n->attrstring))
                         {
                             if (!n->attrstring)
                             {
@@ -4182,18 +4184,23 @@ void MegaClient::sc_updatenode()
                             }
                             Node::copystring(n->attrstring, a);
                             n->changed.attrs = true;
+                            notify = true;
                         }
 
-                        if (ts + 1)
+                        if (ts != -1 && n->ctime != ts)
                         {
                             n->ctime = ts;
                             n->changed.ctime = true;
+                            notify = true;
                         }
 
                         n->applykey();
                         n->setattr();
 
-                        notifynode(n);
+                        if (notify)
+                        {
+                            notifynode(n);
+                        }
                     }
                 }
                 return;
