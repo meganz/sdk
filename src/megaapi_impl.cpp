@@ -1312,6 +1312,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DISABLE_VERSIONS;
     }
+    if(user->changed.contactLinkVerification)
+    {
+        changed |= MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()

@@ -1102,7 +1102,8 @@ class MegaUser
             CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
             CHANGE_TYPE_LANGUAGE        = 0x2000,
             CHANGE_TYPE_PWD_REMINDER    = 0x4000,
-            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000
+            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
+            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
         };
 
         /**
@@ -1163,6 +1164,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
          * Check if option for file versioning has changed
          *
+         * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
+         * Check if option for automatic contact-link verification has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1222,6 +1226,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
          * Check if option for file versioning has changed
+         *
+         * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
+         * Check if option for automatic contact-link verification has changed
          */
         virtual int getChanges();
 
