@@ -23,6 +23,7 @@
 #import "MEGAAccountDetails.h"
 #import "MEGAPricing.h"
 #import "MEGAAchievementsDetails.h"
+#import "MEGAFolderInfo.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -117,7 +118,9 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeWhyAmIBlocked,
     MEGARequestTypeContactLinkCreate,
     MEGARequestTypeContactLinkQuery,
-    MEGARequestTypeContactLinkDelete
+    MEGARequestTypeContactLinkDelete,
+    MEGARequestTypeFolderInfo,
+    TotalOfRequestTypes
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
@@ -425,6 +428,16 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGAAchievementsDetails *megaAchievementsDetails;
+
+/**
+ * @brief Information about the contents of a folder
+ *
+ * This value is valid for these requests in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk getFolderInfoForNode:] - Returns the information related to the folder
+ *
+ */
+@property (readonly, nonatomic) MEGAFolderInfo *megaFolderInfo;
 
 /**
  * @brief Tag of a transfer related to the request.

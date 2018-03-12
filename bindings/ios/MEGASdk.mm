@@ -1225,6 +1225,14 @@ using namespace mega;
     return self.megaApi->hasVersions(node ? [node getCPtr] : NULL);
 }
 
+- (void)getFolderInfoForNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFolderInfo(node ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getFolderInfoForNode:(MEGANode *)node {
+    self.megaApi->getFolderInfo(node ? [node getCPtr] : NULL);
+}
+
 - (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
     return [[MEGAChildrenLists alloc] initWithMegaChildrenLists:self.megaApi->getFileFolderChildren(parent ? [parent getCPtr] : NULL, (int)order) cMemoryOwn:YES];
 }
