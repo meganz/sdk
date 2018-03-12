@@ -11557,6 +11557,7 @@ void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, stri
 
     if (!e)
     {
+        request->setParentHandle(h);
         request->setEmail(email->c_str());
         request->setName(firstname->c_str());
         request->setText(lastname->c_str());

@@ -5774,6 +5774,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the userhandle of the contact
          * - MegaRequest::getEmail - Returns the email of the contact
          * - MegaRequest::getName - Returns the first name of the contact
          * - MegaRequest::getText - Returns the last name of the contact
