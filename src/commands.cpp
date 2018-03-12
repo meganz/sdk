@@ -5707,7 +5707,7 @@ void CommandContactLinkQuery::procresult()
 
     if (client->json.isnumeric())
     {
-        client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname);
+        return client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname);
     }
 
     for (;;)
@@ -5731,7 +5731,7 @@ void CommandContactLinkQuery::procresult()
             default:
                 if (!client->json.storeobject())
                 {
-                    LOG_err << "Failed to parse query link response";
+                    LOG_err << "Failed to parse query contact link response";
                     return client->app->contactlinkquery_result(API_EINTERNAL, h, &email, &firstname, &lastname);
                 }
                 break;
