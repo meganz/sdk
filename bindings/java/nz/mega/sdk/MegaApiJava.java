@@ -4599,6 +4599,21 @@ public class MegaApiJava {
     }
 
     /**
+     * Get information about the contents of a folder
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FOLDER_INFO
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaFolderInfo - MegaFolderInfo object with the information related to the folder
+     *
+     * @param node Folder node to inspect
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getFolderInfo(MegaNode node, MegaRequestListenerInterface listener){
+        megaApi.getFolderInfo(node, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Get file and folder children of a MegaNode separatedly
      *
      * If the parent node doesn't exist or it isn't a folder, this function

@@ -2335,6 +2335,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 #endif
 
     stringMap = NULL;
+    folderInfo = NULL;
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
@@ -2402,6 +2403,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
+    this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -2466,6 +2468,21 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
     this->stringMap = stringMap ? stringMap->copy() : NULL;
 }
 
+MegaFolderInfo *MegaRequestPrivate::getMegaFolderInfo() const
+{
+    return folderInfo;
+}
+
+void MegaRequestPrivate::setMegaFolderInfo(const MegaFolderInfo *folderInfo)
+{
+    if (this->folderInfo)
+    {
+        delete this->folderInfo;
+    }
+
+    this->folderInfo = folderInfo ? folderInfo->copy() : NULL;
+}
+
 #ifdef ENABLE_SYNC
 void MegaRequestPrivate::setSyncListener(MegaSyncListener *syncListener)
 {
@@ -2523,6 +2540,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete achievementsDetails;
     delete [] text;
     delete stringMap;
+    delete folderInfo;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -2920,6 +2938,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
         case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
         case TYPE_WHY_AM_I_BLOCKED: return "WHY_AM_I_BLOCKED";
+        case TYPE_FOLDER_INFO: return "FOLDER_INFO";
     }
     return "UNKNOWN";
 }
@@ -12881,6 +12900,17 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
     return result;
 }
 
+void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FOLDER_INFO, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE)
@@ -16456,6 +16486,37 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_WHY_AM_I_BLOCKED:
         {
             client->whyamiblocked();
+            break;
+        }
+        case MegaRequest::TYPE_FOLDER_INFO:
+        {
+            MegaHandle h = request->getNodeHandle();
+            if (ISUNDEF(h))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            Node *node = client->nodebyhandle(h);
+            if (!node)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            if (node->type == FILENODE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            TreeProcFolderInfo folderProcessor;
+            client->proctree(node, &folderProcessor, false, false);
+            MegaFolderInfo *folderInfo = folderProcessor.getResult();
+            request->setMegaFolderInfo(folderInfo);
+            delete folderInfo;
+
+            fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
         case MegaRequest::TYPE_GET_ACHIEVEMENTS:
@@ -21025,4 +21086,92 @@ long long MegaAchievementsDetailsPrivate::currentTransferReferrals()
 MegaAchievementsDetailsPrivate::MegaAchievementsDetailsPrivate(AchievementsDetails *details)
 {
     this->details = (*details);
+}
+
+MegaFolderInfoPrivate::MegaFolderInfoPrivate(int numFiles, int numFolders, int numVersions, long long currentSize, long long versionsSize)
+{
+    this->numFiles = numFiles;
+    this->numFolders = numFolders;
+    this->numVersions = numVersions;
+    this->currentSize = currentSize;
+    this->versionsSize = versionsSize;
+}
+
+MegaFolderInfoPrivate::MegaFolderInfoPrivate(const MegaFolderInfoPrivate *folderData)
+{
+    this->numFiles = folderData->getNumFiles();
+    this->numFolders = folderData->getNumFolders();
+    this->numVersions = folderData->getNumVersions();
+    this->currentSize = folderData->getCurrentSize();
+    this->versionsSize = folderData->getVersionsSize();
+}
+
+MegaFolderInfoPrivate::~MegaFolderInfoPrivate()
+{
+
+}
+
+MegaFolderInfo *MegaFolderInfoPrivate::copy() const
+{
+    return new MegaFolderInfoPrivate(this);
+}
+
+int MegaFolderInfoPrivate::getNumVersions() const
+{
+    return numVersions;
+}
+
+int MegaFolderInfoPrivate::getNumFiles() const
+{
+    return numFiles;
+}
+
+int MegaFolderInfoPrivate::getNumFolders() const
+{
+    return numFolders;
+}
+
+long long MegaFolderInfoPrivate::getCurrentSize() const
+{
+    return currentSize;
+}
+
+long long MegaFolderInfoPrivate::getVersionsSize() const
+{
+    return versionsSize;
+}
+
+TreeProcFolderInfo::TreeProcFolderInfo()
+{
+    numFiles = 0;
+    numFolders = 0;
+    numVersions = 0;
+    currentSize = 0;
+    versionsSize = 0;
+}
+
+void TreeProcFolderInfo::proc(MegaClient *, Node *node)
+{
+    if (node->parent && node->parent->type == FILENODE)
+    {
+        numVersions++;
+        versionsSize += node->size;
+    }
+    else
+    {
+        if (node->type == FILENODE)
+        {
+            numFiles++;
+            currentSize += node->size;
+        }
+        else
+        {
+            numFolders++;
+        }
+    }
+}
+
+MegaFolderInfo *TreeProcFolderInfo::getResult()
+{
+    return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
 }

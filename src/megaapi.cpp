@@ -702,6 +702,11 @@ MegaStringMap *MegaRequest::getMegaStringMap() const
     return NULL;
 }
 
+MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -2930,6 +2935,11 @@ bool MegaApi::hasVersions(MegaNode *node)
     return pImpl->hasVersions(node);
 }
 
+void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->getFolderInfo(node, listener);
+}
+
 MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
 {
     return pImpl->getFileFolderChildren(p, order);
@@ -4822,6 +4832,41 @@ long long MegaAchievementsDetails::currentStorageReferrals()
 }
 
 long long MegaAchievementsDetails::currentTransferReferrals()
+{
+    return 0;
+}
+
+MegaFolderInfo::~MegaFolderInfo()
+{
+
+}
+
+MegaFolderInfo *MegaFolderInfo::copy() const
+{
+    return NULL;
+}
+
+int MegaFolderInfo::getNumVersions() const
+{
+    return 0;
+}
+
+int MegaFolderInfo::getNumFiles() const
+{
+    return 0;
+}
+
+int MegaFolderInfo::getNumFolders() const
+{
+    return 0;
+}
+
+long long MegaFolderInfo::getCurrentSize() const
+{
+    return 0;
+}
+
+long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
 }
