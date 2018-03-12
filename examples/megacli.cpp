@@ -2044,6 +2044,7 @@ static void process_line(char* l)
                 cout << "      export remotepath [expireTime|del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                cout << "      clink [renew|query handle|del handle]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
                 cout << "      users [email del]" << endl;
@@ -3767,6 +3768,34 @@ static void process_line(char* l)
                             cout << "      reset email [mk]" << endl;
                         }
                         return;
+                    }                    
+                    else if (words[0] == "clink")
+                    {
+                        bool renew = false;
+                        if (words.size() == 1 || (words.size() == 2 && (renew = words[1] == "renew")))
+                        {
+                            client->contactlinkcreate(renew);
+                        }
+                        else if ((words.size() == 3) && (words[1] == "query"))
+                        {
+                            handle clink;
+                            Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+
+                            client->contactlinkquery(clink);
+
+                        }
+                        else if ((words.size() == 3) && (words[1] == "del"))
+                        {
+                            handle clink;
+                            Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+
+                            client->contactlinkdelete(clink);
+                        }
+                        else
+                        {
+                            cout << "      clink [renew|query handle|del handle]" << endl;
+                        }
+                        return;
                     }
 
                     break;
@@ -5146,6 +5175,46 @@ void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
     {
         cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
         client->reqs.add(new CommandGetPH(client, ph, (const byte *)k->data(), 1));
+    }
+}
+
+void DemoApp::contactlinkcreate_result(error e, handle h)
+{
+    if (e)
+    {
+        cout << "Failed to create contact link. Error: " << e << endl;
+    }
+    else
+    {
+        cout << "Contact link created successfully: " << LOG_NODEHANDLE(h) << endl;
+    }
+}
+
+void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln)
+{
+    if (e)
+    {
+        cout << "Failed to get contact link details. Error: " << e << endl;
+    }
+    else
+    {
+        cout << "Contact link created successfully: " << endl;
+        cout << "\tUserhandle: " << LOG_HANDLE(h) << endl;
+        cout << "\tEmail: " << *email << endl;
+        cout << "\tFirstname: " << *fn << endl;
+        cout << "\tLastname: " << *ln << endl;
+    }
+}
+
+void DemoApp::contactlinkdelete_result(error e)
+{
+    if (e)
+    {
+        cout << "Failed to delete contact link. Error: " << e << endl;
+    }
+    else
+    {
+        cout << "Contact link deleted successfully." << endl;
     }
 }
 
