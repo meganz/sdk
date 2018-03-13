@@ -478,7 +478,7 @@ class MEGA_API CommandSetPendingContact : public Command
 public:
     void procresult();
 
-    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL);
+    CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
 };
 
 class MEGA_API CommandUpdatePendingContact : public Command
@@ -918,6 +918,30 @@ public:
 
 private:
     Callback callback;
+};
+
+class MEGA_API CommandContactLinkCreate : public Command
+{
+public:
+    void procresult();
+
+    CommandContactLinkCreate(MegaClient*, bool);
+};
+
+class MEGA_API CommandContactLinkQuery : public Command
+{
+public:
+    void procresult();
+
+    CommandContactLinkQuery(MegaClient*, handle);
+};
+
+class MEGA_API CommandContactLinkDelete : public Command
+{
+public:
+    void procresult();
+
+    CommandContactLinkDelete(MegaClient*, handle);
 };
 
 } // namespace
