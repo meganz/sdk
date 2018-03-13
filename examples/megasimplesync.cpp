@@ -94,7 +94,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
     {
         if (!l)
         {
-            if (*ptr >= 0)
+            if (*(const signed char*)ptr >= 0)
             {
                 if (*ptr == '\\')
                 {
