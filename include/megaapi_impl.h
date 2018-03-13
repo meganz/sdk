@@ -2536,7 +2536,12 @@ protected:
         FTP_CMD_SYST,
         FTP_CMD_STAT,
         FTP_CMD_HELP,
+        FTP_CMD_FEAT,  //rfc2389
+        //        FTP_CMD_SIZE, //TODO: add this one
+        //        FTP_CMD_MDTM, //TODO: add this one
         FTP_CMD_NOOP
+
+
     };
 
     MegaFTPDataServer * ftpDataServer; //TODO: more than 1?
@@ -2557,7 +2562,7 @@ public:
     virtual ~MegaFTPServer();
 };
 
-
+class MegaFTPDataContext;
 class MegaFTPDataServer: public MegaTCPServer
 {
 protected:
@@ -2572,9 +2577,12 @@ protected:
     virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
     virtual bool respondNewConnection(MegaTCPContext* tcpctx);
 
+    void sendNextBytes(MegaFTPDataContext *ftpdatactx);
+
 
 public:
     std::string resultmsj; //TODO: char *? TODO: delete this and do it via sendData(msj)?
+    MegaNode *nodeToDownload;
     void sendData();
 
     MegaFTPDataServer(MegaApiImpl *megaApi, MegaFTPContext * controlftpctx, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
@@ -2591,6 +2599,18 @@ public:
 
     MegaFTPDataContext();
     ~MegaFTPDataContext();
+
+
+    // Connection management
+    StreamingBuffer streamingBuffer;
+    MegaTransferPrivate *transfer;
+    char *lastBuffer;
+    int lastBufferLen;
+    bool failed;
+    bool pause;
+    MegaNode *node;
+
+    m_off_t rangeWritten;
 
     virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
