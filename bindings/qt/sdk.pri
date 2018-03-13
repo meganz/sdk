@@ -137,7 +137,7 @@ CONFIG(USE_FFMPEG) {
                FFMPEGLIBPATH = /usr/lib
             }
         }
-        else:packagesExist(ffmpeg) {
+        else:packagesExist(ffmpeg)|packagesExist(libavcodec) {
             LIBS += -lavcodec -lavformat -lavutil -lswscale
         }
         else {
