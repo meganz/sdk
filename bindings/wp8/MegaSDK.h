@@ -229,6 +229,9 @@ namespace mega
          *
          * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_CREATE.
          *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getFlag - Returns the value of \c renew parameter
+         *
          * Valid data in the MRequest object received in onRequestFinish when the error code
          * is MError::API_OK:
          * - MRequest::getNodeHandle - Return the handle of the new contact link
@@ -242,6 +245,9 @@ namespace mega
          * @brief Create a contact link
          *
          * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_CREATE.
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getFlag - Returns the value of \c renew parameter
          *
          * Valid data in the MRequest object received in onRequestFinish when the error code
          * is MError::API_OK:
@@ -261,6 +267,7 @@ namespace mega
          *
          * Valid data in the MRequest object received in onRequestFinish when the error code
          * is MError::API_OK:
+         * - MRequest::getParentHandle - Returns the userhandle of the contact
          * - MRequest::getEmail - Returns the email of the contact
          * - MRequest::getName - Returns the first name of the contact
          * - MRequest::getText - Returns the last name of the contact
@@ -280,6 +287,7 @@ namespace mega
          *
          * Valid data in the MRequest object received in onRequestFinish when the error code
          * is MError::API_OK:
+         * - MRequest::getParentHandle - Returns the userhandle of the contact
          * - MRequest::getEmail - Returns the email of the contact
          * - MRequest::getName - Returns the first name of the contact
          * - MRequest::getText - Returns the last name of the contact
@@ -479,6 +487,7 @@ namespace mega
          * - MRequest::getEmail - Returns the email of the contact
          * - MRequest::getText - Returns the text of the invitation
          * - MRequest::getNumber - Returns the action
+         * - MRequest::getNodeHandle - Returns the contact link handle
          *
          * Sending a reminder within a two week period since you started or your last reminder will
          * fail the API returning the error code MError::API_EACCESS.
@@ -489,7 +498,8 @@ namespace mega
          * - MContactRequestInviteActionType::INVITE_ACTION_ADD = 0
          * - MContactRequestInviteActionType::INVITE_ACTION_DELETE = 1
          * - MContactRequestInviteActionType::INVITE_ACTION_REMIND = 2
-         * @param contactLink Contact link handle of the other account
+         * @param contactLink Contact link handle of the other account. This parameter is considered only if the
+         * \c action is MContactRequestInviteActionType::INVITE_ACTION_ADD. Otherwise, it's ignored and it has no effect.
          *
          * @param listener MRequestListener to track this request
          */
@@ -506,6 +516,7 @@ namespace mega
          * - MRequest::getEmail - Returns the email of the contact
          * - MRequest::getText - Returns the text of the invitation
          * - MRequest::getNumber - Returns the action
+         * - MRequest::getNodeHandle - Returns the contact link handle
          *
          * Sending a reminder within a two week period since you started or your last reminder will
          * fail the API returning the error code MError::API_EACCESS.
@@ -516,7 +527,8 @@ namespace mega
          * - MContactRequestInviteActionType::INVITE_ACTION_ADD = 0
          * - MContactRequestInviteActionType::INVITE_ACTION_DELETE = 1
          * - MContactRequestInviteActionType::INVITE_ACTION_REMIND = 2
-         * @param contactLink Contact link handle of the other account
+         * @param contactLink Contact link handle of the other account. This parameter is considered only if the
+         * \c action is MContactRequestInviteActionType::INVITE_ACTION_ADD. Otherwise, it's ignored and it has no effect.
          */
         void inviteContactByLinkHandle(String^ email, String^ message, MContactRequestInviteActionType action, MegaHandle contactLink);
         
