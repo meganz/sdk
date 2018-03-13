@@ -708,6 +708,21 @@ void MegaClient::confirmemaillink(const char *code, const char *email, const byt
     reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
 }
 
+void MegaClient::contactlinkcreate(bool renew)
+{
+    reqs.add(new CommandContactLinkCreate(this, renew));
+}
+
+void MegaClient::contactlinkquery(handle h)
+{
+    reqs.add(new CommandContactLinkQuery(this, h));
+}
+
+void MegaClient::contactlinkdelete(handle h)
+{
+    reqs.add(new CommandContactLinkDelete(this, h));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -4165,16 +4180,18 @@ void MegaClient::sc_updatenode()
                 if (!ISUNDEF(h))
                 {
                     Node* n;
+                    bool notify = false;
 
                     if ((n = nodebyhandle(h)))
                     {
-                        if (u)
+                        if (u && n->owner != u)
                         {
                             n->owner = u;
                             n->changed.owner = true;
+                            notify = true;
                         }
 
-                        if (a)
+                        if (a && ((n->attrstring && strcmp(n->attrstring->c_str(), a)) || !n->attrstring))
                         {
                             if (!n->attrstring)
                             {
@@ -4182,18 +4199,23 @@ void MegaClient::sc_updatenode()
                             }
                             Node::copystring(n->attrstring, a);
                             n->changed.attrs = true;
+                            notify = true;
                         }
 
-                        if (ts + 1)
+                        if (ts != -1 && n->ctime != ts)
                         {
                             n->ctime = ts;
                             n->changed.ctime = true;
+                            notify = true;
                         }
 
                         n->applykey();
                         n->setattr();
 
-                        notifynode(n);
+                        if (notify)
+                        {
+                            notifynode(n);
+                        }
                     }
                 }
                 return;
@@ -7605,9 +7627,9 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
 }
 
 // Add/delete/remind outgoing pending contact request
-void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail)
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink));
 }
 
 void MegaClient::updatepcr(handle p, ipcactions_t action)

@@ -702,6 +702,11 @@ MegaStringMap *MegaRequest::getMegaStringMap() const
     return NULL;
 }
 
+MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1311,6 +1316,21 @@ int MegaApi::isLoggedIn()
 void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
 {
     return pImpl->whyAmIBlocked(false, listener);
+}
+
+void MegaApi::contactLinkCreate(bool renew, MegaRequestListener *listener)
+{
+    pImpl->contactLinkCreate(renew, listener);
+}
+
+void MegaApi::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkQuery(handle, listener);
+}
+
+void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkDelete(handle, listener);
 }
 
 char *MegaApi::getMyEmail()
@@ -1948,7 +1968,12 @@ bool MegaApi::usingHttpsOnly()
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
 {
-    pImpl->inviteContact(email, message, action, listener);
+    pImpl->inviteContact(email, message, action, UNDEF, listener);
+}
+
+void MegaApi::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
+{
+    pImpl->inviteContact(email, message, action, contactLink, listener);
 }
 
 void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
@@ -2667,9 +2692,19 @@ void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
     pImpl->setFileVersionsOption(disable, listener);
 }
 
+void MegaApi::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    pImpl->setContactLinksOption(disable, listener);
+}
+
 void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
 {
     pImpl->getFileVersionsOption(listener);
+}
+
+void MegaApi::getContactLinksOption(MegaRequestListener *listener)
+{
+    pImpl->getContactLinksOption(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)
@@ -2928,6 +2963,11 @@ int MegaApi::getNumVersions(MegaNode *node)
 bool MegaApi::hasVersions(MegaNode *node)
 {
     return pImpl->hasVersions(node);
+}
+
+void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->getFolderInfo(node, listener);
 }
 
 MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
@@ -4822,6 +4862,41 @@ long long MegaAchievementsDetails::currentStorageReferrals()
 }
 
 long long MegaAchievementsDetails::currentTransferReferrals()
+{
+    return 0;
+}
+
+MegaFolderInfo::~MegaFolderInfo()
+{
+
+}
+
+MegaFolderInfo *MegaFolderInfo::copy() const
+{
+    return NULL;
+}
+
+int MegaFolderInfo::getNumVersions() const
+{
+    return 0;
+}
+
+int MegaFolderInfo::getNumFiles() const
+{
+    return 0;
+}
+
+int MegaFolderInfo::getNumFolders() const
+{
+    return 0;
+}
+
+long long MegaFolderInfo::getCurrentSize() const
+{
+    return 0;
+}
+
+long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
 }
