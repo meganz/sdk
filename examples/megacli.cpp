@@ -2044,7 +2044,7 @@ static void process_line(char* l)
                 cout << "      export remotepath [expireTime|del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
-                cout << "      clink [renew|query handle|del handle]" << endl;
+                cout << "      clink [renew|query handle|del [handle]]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
                 cout << "      users [email del]" << endl;
@@ -3784,16 +3784,20 @@ static void process_line(char* l)
                             client->contactlinkquery(clink);
 
                         }
-                        else if ((words.size() == 3) && (words[1] == "del"))
+                        else if (((words.size() == 3) || (words.size() == 2)) && (words[1] == "del"))
                         {
-                            handle clink;
-                            Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+                            handle clink = UNDEF;
+
+                            if (words.size() == 3)
+                            {
+                                Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+                            }
 
                             client->contactlinkdelete(clink);
                         }
                         else
                         {
-                            cout << "      clink [renew|query handle|del handle]" << endl;
+                            cout << "      clink [renew|query handle|del [handle]]" << endl;
                         }
                         return;
                     }
