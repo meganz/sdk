@@ -8282,49 +8282,45 @@ void MegaApiImpl::resumeActionPackets()
 
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
 {
-	if(!node) return 1;
-	if(!processor) return 0;
+    if (!node)
+    {
+        return 1;
+    }
+
+    if (!processor)
+    {
+        return 0;
+    }
 
     sdkMutex.lock();
-	node = client->nodebyhandle(node->nodehandle);
-	if(!node)
-	{
+    node = client->nodebyhandle(node->nodehandle);
+    if (!node)
+    {
         sdkMutex.unlock();
-		return 1;
-	}
+        return 1;
+    }
 
-	if (node->type != FILENODE)
-	{
-		for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
-		{
-			if(recursive)
-			{
-				if(!processTree(*it++,processor))
-				{
-                    sdkMutex.unlock();
-					return 0;
-				}
-			}
-			else
-			{
-				if(!processor->processNode(*it++))
-				{
-                    sdkMutex.unlock();
-					return 0;
-				}
-			}
-		}
-	}
-	bool result = processor->processNode(node);
+    if (recursive && node->type != FILENODE)
+    {
+        for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+        {
+            if (!processTree(*it++,processor))
+            {
+                sdkMutex.unlock();
+                return 0;
+            }
+        }
+    }
+    bool result = processor->processNode(node);
     sdkMutex.unlock();
-	return result;
+    return result;
 }
 
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive)
 {
     if (!n || !searchString)
     {
-    	return new MegaNodeListPrivate();
+        return new MegaNodeListPrivate();
     }
     
     sdkMutex.lock();
@@ -8341,12 +8337,10 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     {
         processTree(*it++, &searchProcessor, recursive);
     }
+
     vector<Node *>& vNodes = searchProcessor.getResults();
-
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
-
     sdkMutex.unlock();
-
     return nodeList;
 }
 
