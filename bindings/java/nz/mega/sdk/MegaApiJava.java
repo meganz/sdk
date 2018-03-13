@@ -1313,6 +1313,9 @@ public class MegaApiJava {
      *
      * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_CREATE.
      *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getFlag - Returns the value of \c renew parameter
+     *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getNodeHandle - Return the handle of the new contact link
@@ -3368,14 +3371,12 @@ public class MegaApiJava {
     /**
      * Invite another person to be your MEGA contact using a contact link handle
      *
-     * The user doesn't need to be registered on MEGA. If the email isn't associated with
-     * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
-     *
      * The associated request type with this request is MegaRequest::TYPE_INVITE_CONTACT
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getEmail - Returns the email of the contact
      * - MegaRequest::getText - Returns the text of the invitation
      * - MegaRequest::getNumber - Returns the action
+     * - MegaRequest::getNodeHandle - Returns the contact link handle
      *
      * Sending a reminder within a two week period since you started or your last reminder will
      * fail the API returning the error code MegaError::API_EACCESS.
@@ -3386,7 +3387,8 @@ public class MegaApiJava {
      * - MegaContactRequest::INVITE_ACTION_ADD = 0
      * - MegaContactRequest::INVITE_ACTION_DELETE = 1
      * - MegaContactRequest::INVITE_ACTION_REMIND = 2
-     * @param contactLink Contact link handle of the other account
+     * @param contactLink Contact link handle of the other account. This parameter is considered only if the
+     * \c action is MegaContactRequest::INVITE_ACTION_ADD. Otherwise, it's ignored and it has no effect.
      *
      * @param listener MegaRequestListener to track this request
      */
