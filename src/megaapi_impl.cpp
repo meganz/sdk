@@ -8293,39 +8293,18 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
 		return 1;
 	}
 
-	if (node->type != FILENODE)
+    if (recursive && node->type != FILENODE)
 	{
 		for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
 		{
-			if(recursive)
-			{
-				if(!processTree(*it++,processor))
-				{
-                    sdkMutex.unlock();
-					return 0;
-				}
-			}
-			else
-			{
-				if(!processor->processNode(*it++))
-				{
-                    sdkMutex.unlock();
-					return 0;
-				}
-			}
+            if (!processTree(*it++,processor))
+            {
+                sdkMutex.unlock();
+                return 0;
+            }
 		}
 	}
-    
-    bool result;
-    if (recursive)
-    {
-        result = processor->processNode(node);
-    }
-    else
-    {
-        result = 1;
-    }
-    
+    bool result = processor->processNode(node);
     sdkMutex.unlock();
 	return result;
 }
@@ -8347,18 +8326,10 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    if (recursive)
+    for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
     {
-        for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
-        {
-            processTree(*it++, &searchProcessor, recursive);
-        }
+        processTree(*it++, &searchProcessor, recursive);
     }
-    else
-    {
-        processTree(node, &searchProcessor, recursive);
-    }
-
     vector<Node *>& vNodes = searchProcessor.getResults();
 
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
