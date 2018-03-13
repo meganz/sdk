@@ -71,6 +71,7 @@ class MegaUserList;
 class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
+class MegaFolderInfo;
 class MegaApi;
 
 class MegaSemaphore;
@@ -1102,7 +1103,8 @@ class MegaUser
             CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
             CHANGE_TYPE_LANGUAGE        = 0x2000,
             CHANGE_TYPE_PWD_REMINDER    = 0x4000,
-            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000
+            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
+            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
         };
 
         /**
@@ -1163,6 +1165,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
          * Check if option for file versioning has changed
          *
+         * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
+         * Check if option for automatic contact-link verification has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1222,6 +1227,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
          * Check if option for file versioning has changed
+         *
+         * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
+         * Check if option for automatic contact-link verification has changed
          */
         virtual int getChanges();
 
@@ -1602,6 +1610,12 @@ public:
      * @return Creation date of the chat
      */
     virtual int64_t getCreationTime() const;
+
+    /**
+     * @brief Returns whether this chat has been archived by the user or not
+     * @return True if this chat is archived.
+     */
+    virtual bool isArchived() const;
 };
 
 /**
@@ -2021,8 +2035,9 @@ class MegaRequest
             TYPE_GET_USER_EMAIL, TYPE_APP_VERSION, TYPE_GET_LOCAL_SSL_CERT, TYPE_SEND_SIGNUP_LINK,
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
-            TYPE_RESTORE, TYPE_REMOVE_VERSIONS,
-            TOTAL_OF_REQUEST_TYPES
+            TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
+            TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
+            TYPE_FOLDER_INFO, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -2612,6 +2627,20 @@ class MegaRequest
          * @return String map including the key-value pairs of the attribute
          */
         virtual MegaStringMap* getMegaStringMap() const;
+
+        /**
+         * @brief Returns information about the contents of a folder
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getFolderInfo - Returns the information related to the folder
+         *
+         * @return Object with information about the contents of a folder
+         */
+        virtual MegaFolderInfo *getMegaFolderInfo() const;
 };
 
 /**
@@ -2625,10 +2654,11 @@ class MegaEvent
 public:
 
     enum {
-        EVENT_COMMIT_DB = 0,
-        EVENT_ACCOUNT_CONFIRMATION = 1,
-        EVENT_CHANGE_TO_HTTPS = 2,
-        EVENT_DISCONNECT = 3
+        EVENT_COMMIT_DB                 = 0,
+        EVENT_ACCOUNT_CONFIRMATION      = 1,
+        EVENT_CHANGE_TO_HTTPS           = 2,
+        EVENT_DISCONNECT                = 3,
+        EVENT_ACCOUNT_BLOCKED           = 4
     };
 
     virtual ~MegaEvent();
@@ -2661,6 +2691,13 @@ public:
      * @return Text relative to this event
      */
     virtual const char *getText() const;
+
+    /**
+     * @brief Returns a number relative to this event
+     *
+     * @return Number relative to this event
+     */
+    virtual const int getNumber() const;
 };
 
 /**
@@ -3054,6 +3091,76 @@ class MegaTransfer
          * @return Notification number
          */
         virtual long long getNotificationNumber() const;
+};
+
+/**
+ * @brief Provides information about the contents of a folder
+ *
+ * This object is related to provide the results of the function MegaApi::getFolderInfo
+ *
+ * Objects of this class aren't live, they are snapshots of the state of the contents of the
+ * folder when the object is created, they are immutable.
+ *
+ */
+class MegaFolderInfo
+{
+public:
+    virtual ~MegaFolderInfo();
+
+    /**
+     * @brief Creates a copy of this MegaFolderInfo object
+     *
+     * The resulting object is fully independent of the source MegaFolderInfo,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaFolderInfo object
+     */
+    virtual MegaFolderInfo *copy() const;
+
+    /**
+     * @brief Return the number of file versions inside the folder
+     *
+     * The current version of files is not taken into account for the return value of this function
+     *
+     * @return Number of file versions inside the folder
+     */
+    virtual int getNumVersions() const;
+
+    /**
+     * @brief Returns the number of files inside the folder
+     *
+     * File versions are not counted for the return value of this function
+     *
+     * @return Number of files inside the folder
+     */
+    virtual int getNumFiles() const;
+
+    /**
+     * @brief Returns the number of folders inside the folder
+     * @return Number of folders inside the folder
+     */
+    virtual int getNumFolders() const;
+
+    /**
+     * @brief Returns the total size of files inside the folder
+     *
+     * File versions are not taken into account for the return value of this function
+     *
+     * @return Total size of files inside the folder
+     */
+    virtual long long getCurrentSize() const;
+
+    /**
+     * @brief Returns the total size of file versions inside the folder
+     *
+     * The current version of files is not taken into account for the return value of this function
+     *
+     * @return Total size of file versions inside the folder
+     */
+    virtual long long getVersionsSize() const;
 };
 
 /**
@@ -4232,6 +4339,16 @@ class MegaGlobalListener
          * receiving this event reset its connections with other servers, since the disconnect
          * performed by the SDK is due to a network change or IP addresses becoming invalid.
          *
+         *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
+         * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
+         * logout.
+         *
+         *  Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: message to show to the user.
+         *      - MegaEvent::getNumber: code representing the reason for being blocked.
+         *          200: suspension message for any type of suspension, but copyright suspension.
+         *          300: suspension only for multiple copyright violations.
+         *
          * You can check the type of event by calling MegaEvent::getType
          *
          * The SDK retains the ownership of the details of the event (\c event).
@@ -4644,7 +4761,8 @@ class MegaApi
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
             USER_ATTR_LANGUAGE = 14,            // private - char array
             USER_ATTR_PWD_REMINDER = 15,        // private - char array
-            USER_ATTR_DISABLE_VERSIONS = 16     // private - byte array
+            USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
+            USER_ATTR_CONTACT_LINK_VERIFICATION = 17     // private - byte array
         };
 
         enum {
@@ -5692,6 +5810,79 @@ class MegaApi
          * @return 0 if not logged in, Otherwise, a number >= 0
          */
         int isLoggedIn();
+
+        /**
+         * @brief Check the reason of being blocked.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_WHY_AM_I_BLOCKED.
+         *
+         * This request can be sent internally at anytime (whenever an account gets blocked), so
+         * a MegaGlobalListener should process the result, show the reason and logout.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the reason string (in English)
+         * - MegaRequest::getNumber - Returns the reason code. Possible values:
+         *     0: The account is not blocked
+         *     200: suspension message for any type of suspension, but copyright suspension.
+         *     300: suspension only for multiple copyright violations.
+         *
+         * If the error code in the MegaRequest object received in onRequestFinish
+         * is MegaError::API_OK, the user is not blocked.
+         */
+        void whyAmIBlocked(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Create a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_CREATE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getFlag - Returns the value of \c renew parameter
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Return the handle of the new contact link
+         *
+         * @param renew True to invalidate the previous contact link (if any).
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkCreate(bool renew = false, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_QUERY.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the userhandle of the contact
+         * - MegaRequest::getEmail - Returns the email of the contact
+         * - MegaRequest::getName - Returns the first name of the contact
+         * - MegaRequest::getText - Returns the last name of the contact
+         *
+         * @param handle Handle of the contact link to check
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkQuery(MegaHandle handle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Delete a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_DELETE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * @param handle Handle of the contact link to delete
+         * If the parameter is INVALID_HANDLE, the active contact link is deleted
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkDelete(MegaHandle handle = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account
@@ -6998,6 +7189,32 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Invite another person to be your MEGA contact using a contact link handle
+         *
+         * The associated request type with this request is MegaRequest::TYPE_INVITE_CONTACT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email of the contact
+         * - MegaRequest::getText - Returns the text of the invitation
+         * - MegaRequest::getNumber - Returns the action
+         * - MegaRequest::getNodeHandle - Returns the contact link handle
+         *
+         * Sending a reminder within a two week period since you started or your last reminder will
+         * fail the API returning the error code MegaError::API_EACCESS.
+         *
+         * @param email Email of the new contact
+         * @param message Message for the user (can be NULL)
+         * @param action Action for this contact request. Valid values are:
+         * - MegaContactRequest::INVITE_ACTION_ADD = 0
+         * - MegaContactRequest::INVITE_ACTION_DELETE = 1
+         * - MegaContactRequest::INVITE_ACTION_REMIND = 2
+         * @param contactLink Contact link handle of the other account. This parameter is considered only if the
+         * \c action is MegaContactRequest::INVITE_ACTION_ADD. Otherwise, it's ignored and it has no effect.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void inviteContact(const char* email, const char* message, int action, MegaHandle contactLink, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Reply to a contact request
@@ -8641,6 +8858,19 @@ class MegaApi
         bool hasVersions(MegaNode *node);
 
         /**
+         * @brief Get information about the contents of a folder
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FOLDER_INFO
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaFolderInfo - MegaFolderInfo object with the information related to the folder
+         *
+         * @param node Folder node to inspect
+         * @param listener MegaRequestListener to track this request
+         */
+        void getFolderInfo(MegaNode *node, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get file and folder children of a MegaNode separatedly
          *
          * If the parent node doesn't exist or it isn't a folder, this function
@@ -9555,11 +9785,12 @@ class MegaApi
          * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
          *
          * @param service Service to check
-         * @param timeoutms Timeout for the request, including all possible retries
+         * @param timeoutds Timeout for the request, including all possible retries (in deciseconds)
+         * A value <= 0 means no (or infinite) timeout.
          * @param maxretries Maximum number of retries for the request
          * @param listener MegaRequestListener to track this request
          */
-        void queryGeLB(const char *service, int timeoutms = 4000, int maxretries = 4, MegaRequestListener *listener = NULL);
+        void queryGeLB(const char *service, int timeoutds = 40, int maxretries = 4, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Download a file using a HTTP GET request
@@ -9664,6 +9895,22 @@ class MegaApi
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish:
+         * - MegaRequest::getText - "0" for disable, "1" for enable
+         *
+         * @param disable True to disable the automatic approval of incoming contact requests using a contact link
+         * @param listener MegaRequestListener to track this request
+         */
+        void setContactLinksOption(bool disable, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Check if file versioning is enabled or disabled
          *
          * If the option has never been set, the error code will be MegaError::API_ENOENT.
@@ -9681,6 +9928,25 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getFileVersionsOption(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+         *
+         * If the option has never been set, the error code will be MegaError::API_ENOENT.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - "0" for disable, "1" for enable
+         * - MegaRequest::getFlag - false if disabled, true if enabled
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getContactLinksOption(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Keep retrying when public key pinning fails
@@ -9916,9 +10182,12 @@ class MegaApi
          *
          * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
          * @param port Port in which the server must accept connections
+         * @param useTLS Use TLS (default false)
+         * @param certificatepath path to certificate (PEM format)
+         * @param keypath path to certificate key
          * @return True is the server is ready, false if the initialization failed
          */
-        bool httpServerStart(bool localOnly = true, int port = 4443);
+        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
 
         /**
          * @brief Stop the HTTP proxy server
@@ -10208,6 +10477,8 @@ class MegaApi
          */
         int httpServerGetMaxOutputSize();
 
+#endif
+    
         /**
          * @brief Get the MIME type associated with the extension
          *
@@ -10217,7 +10488,6 @@ class MegaApi
          * @return MIME type associated with the extension
          */
         static char *getMimeType(const char* extension);
-#endif
 
 #ifdef ENABLE_CHAT
         /**
@@ -10527,6 +10797,21 @@ class MegaApi
          * @return char array with files attributes from the node.
          */
         const char* getFileAttribute(MegaHandle h);
+
+        /**
+         * @brief Archive a chat
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_ARCHIVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getFlag - Returns chat desired state
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param archive Desired chat state
+         * @param listener MegaRequestListener to track this request
+         */
+        void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+
 #endif
 
         /**

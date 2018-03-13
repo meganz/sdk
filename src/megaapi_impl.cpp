@@ -1312,6 +1312,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DISABLE_VERSIONS;
     }
+    if(user->changed.contactLinkVerification)
+    {
+        changed |= MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -2335,6 +2339,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 #endif
 
     stringMap = NULL;
+    folderInfo = NULL;
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
@@ -2402,6 +2407,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
+    this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -2466,6 +2472,21 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
     this->stringMap = stringMap ? stringMap->copy() : NULL;
 }
 
+MegaFolderInfo *MegaRequestPrivate::getMegaFolderInfo() const
+{
+    return folderInfo;
+}
+
+void MegaRequestPrivate::setMegaFolderInfo(const MegaFolderInfo *folderInfo)
+{
+    if (this->folderInfo)
+    {
+        delete this->folderInfo;
+    }
+
+    this->folderInfo = folderInfo ? folderInfo->copy() : NULL;
+}
+
 #ifdef ENABLE_SYNC
 void MegaRequestPrivate::setSyncListener(MegaSyncListener *syncListener)
 {
@@ -2523,6 +2544,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete achievementsDetails;
     delete [] text;
     delete stringMap;
+    delete folderInfo;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -2918,6 +2940,12 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
         case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
+        case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
+        case TYPE_WHY_AM_I_BLOCKED: return "WHY_AM_I_BLOCKED";
+        case TYPE_CONTACT_LINK_CREATE: return "CONTACT_LINK_CREATE";
+        case TYPE_CONTACT_LINK_QUERY: return "CONTACT_LINK_QUERY";
+        case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
+        case TYPE_FOLDER_INFO: return "FOLDER_INFO";
     }
     return "UNKNOWN";
 }
@@ -3933,7 +3961,15 @@ int MegaApiImpl::isLoggedIn()
     sdkMutex.lock();
     int result = client->loggedin();
     sdkMutex.unlock();
-	return result;
+    return result;
+}
+
+void MegaApiImpl::whyAmIBlocked(bool logout, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_WHY_AM_I_BLOCKED, listener);
+    request->setFlag(logout);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 char* MegaApiImpl::getMyEmail()
@@ -4238,6 +4274,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
             attrname = "!dv";
             break;
+
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+            attrname = "clv";
+            break;
     }
 
     return attrname;
@@ -4271,6 +4311,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LANGUAGE:
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
             scope = '^';
             break;
 
@@ -5368,7 +5409,7 @@ void MegaApiImpl::invalidateCache()
 
 int MegaApiImpl::getPasswordStrength(const char *password)
 {
-    if (!password)
+    if (!password || strlen(password) < 4)
     {
         return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
     }
@@ -5576,12 +5617,13 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
     return MegaApi::strdup(colors[index].c_str());
 }
 
-void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)
+void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
     request->setNumber(action);
     request->setEmail(email);
     request->setText(message);
+    request->setNodeHandle(contactLink);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6856,7 +6898,7 @@ bool MegaApiImpl::isOnline()
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApiImpl::httpServerStart(bool localOnly, int port)
+bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
 {
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
@@ -6867,7 +6909,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port)
     }
 
     httpServerStop();
-    httpServer = new MegaHTTPServer(this);
+    httpServer = new MegaHTTPServer(this, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
@@ -7347,6 +7389,16 @@ const char* MegaApiImpl::getFileAttribute(MegaHandle h)
 
     return fileAttributes;
 }
+
+void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_ARCHIVE, listener);
+    request->setNodeHandle(chatid);
+    request->setFlag(archive);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 #endif
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
@@ -7956,11 +8008,11 @@ void MegaApiImpl::queryDNS(const char *hostname, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+void MegaApiImpl::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GELB, listener);
     request->setName(service);
-    request->setNumber(timeoutms);
+    request->setNumber(timeoutds);
     request->setNumRetry(maxretries);
     requestQueue.push(request);
     waiter->notify();
@@ -7971,6 +8023,30 @@ void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequest
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DOWNLOAD_FILE, listener);
     request->setLink(url);
     request->setFile(dstpath);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkCreate(bool renew, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_CREATE, listener);
+    request->setFlag(renew);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_QUERY, listener);
+    request->setNodeHandle(handle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_DELETE, listener);
+    request->setNodeHandle(handle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8163,6 +8239,17 @@ void MegaApiImpl::setFileVersionsOption(bool disable, MegaRequestListener *liste
 void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
 {
     getUserAttr(NULL, MegaApi::USER_ATTR_DISABLE_VERSIONS, NULL, listener);
+}
+
+void MegaApiImpl::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    string av = disable ? "0" : "1";
+    setUserAttr(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, av.data(), listener);
+}
+
+void MegaApiImpl::getContactLinksOption(MegaRequestListener *listener)
+{
+    getUserAttr(NULL, MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, NULL, listener);
 }
 
 void MegaApiImpl::retrySSLerrors(bool enable)
@@ -9486,6 +9573,21 @@ void MegaApiImpl::registerpushnotification_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
+void MegaApiImpl::archivechat_result(error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)
+    {
+        return;
+    }
+
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
 void MegaApiImpl::chats_updated(textchat_map *chats, int count)
 {
     if (chats)
@@ -10638,6 +10740,12 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
 void MegaApiImpl::request_error(error e)
 {
+    if (e == API_EBLOCKED && client->sid.size())
+    {
+        whyAmIBlocked(true);
+        return;
+    }
+
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
     request->setFlag(false);
     request->setParamType(e);
@@ -10652,7 +10760,6 @@ void MegaApiImpl::request_error(error e)
         client->removecaches();
         client->locallogout();
     }
-
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11267,11 +11374,13 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         case MegaApi::USER_ATTR_LANGUAGE:   // it's a c-string in binary format, want the plain data
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
 
-                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS)
+                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS
+                        || attrType == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
                 {
                     request->setFlag(str == "1");
                 }
@@ -11378,6 +11487,115 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     client->reqtag = client->restag;
     client->fetchnodes();
     client->reqtag = creqtag;
+}
+
+void MegaApiImpl::whyamiblocked_result(int code)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_WHY_AM_I_BLOCKED)))
+    {
+        return;
+    }
+
+    if (request->getFlag())
+    {
+        client->removecaches();
+        client->locallogout();
+
+        MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+        logoutRequest->setFlag(false);
+        request->setParamType(API_EBLOCKED);
+        requestQueue.push(logoutRequest);
+        waiter->notify();
+    }
+
+    if (code <= 0)
+    {
+        MegaError megaError(code);
+        fireOnRequestFinish(request, megaError);
+    }
+    else    // code > 0
+    {
+        string reason = "Your account was terminated due to breach of Mega's Terms of Service, such as abuse of rights of others; sharing and/or importing illegal data; or system abuse.";
+
+        if (code == 100)    // deprecated
+        {
+            reason = "You have been suspended due to excess data usage.";
+        }
+        else if (code == 200)
+        {
+            reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
+        }
+        //else if (code == 300) --> default reason
+
+        request->setNumber(code);
+        request->setText(reason.c_str());
+        fireOnRequestFinish(request, API_OK);
+
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_BLOCKED);
+        event->setNumber(code);
+        event->setText(reason.c_str());
+        fireOnEvent(event);
+    }
+}
+
+void MegaApiImpl::contactlinkcreate_result(error e, handle h)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_CREATE)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setNodeHandle(h);
+    }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_QUERY)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setParentHandle(h);
+        request->setEmail(email->c_str());
+        request->setName(firstname->c_str());
+        request->setText(lastname->c_str());
+    }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::contactlinkdelete_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_DELETE)))
+    {
+        return;
+    }
+    fireOnRequestFinish(request, e);
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
@@ -12785,6 +13003,17 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
     bool result = current->children.size() != 0;
     sdkMutex.unlock();
     return result;
+}
+
+void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FOLDER_INFO, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
@@ -14786,6 +15015,16 @@ void MegaApiImpl::sendPendingRequests()
 
                     client->putua(type, (byte *)value, 1);
                 }
+                else if (type == ATTR_CONTACT_LINK_VERIFICATION)
+                {
+                    if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    client->putua(type, (byte *)value, 1);
+                }
                 else
                 {
                     e = API_EARGS;
@@ -15089,6 +15328,7 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             const char *message = request->getText();
             int action = request->getNumber();
+            MegaHandle contactLink = request->getNodeHandle();
 
             if(client->loggedin() != FULLACCOUNT)
             {
@@ -15108,7 +15348,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->setpcr(email, (opcactions_t)action, message);
+            client->setpcr(email, (opcactions_t)action, message, NULL, contactLink);
             break;
         }
         case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:
@@ -16119,7 +16359,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_QUERY_GELB:
         {
             const char *service = request->getName();
-            int timeoutms = request->getNumber();
+            int timeoutds = request->getNumber();
             int maxretries = request->getNumRetry();
             if (!service)
             {
@@ -16127,7 +16367,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->gelbrequest(service, timeoutms, maxretries);
+            client->gelbrequest(service, timeoutds, maxretries);
             break;
         }
         case MegaRequest::TYPE_DOWNLOAD_FILE:
@@ -16314,6 +16554,19 @@ void MegaApiImpl::sendPendingRequests()
             client->registerPushNotification(deviceType, token);
             break;
         }
+        case MegaRequest::TYPE_CHAT_ARCHIVE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            bool archive = request->getFlag();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->archiveChat(chatid, archive);
+            break;
+        }
         case MegaRequest::TYPE_CHAT_STATS:
         {
             const char *json = request->getName();
@@ -16346,6 +16599,65 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 #endif
+        case MegaRequest::TYPE_WHY_AM_I_BLOCKED:
+        {
+            client->whyamiblocked();
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_CREATE:
+        {
+            client->contactlinkcreate(request->getFlag());
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_QUERY:
+        {
+            handle h = request->getNodeHandle();
+            if (ISUNDEF(h))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->contactlinkquery(h);
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_DELETE:
+        {
+            handle h = request->getNodeHandle();
+            client->contactlinkdelete(h);
+            break;
+        }
+        case MegaRequest::TYPE_FOLDER_INFO:
+        {
+            MegaHandle h = request->getNodeHandle();
+            if (ISUNDEF(h))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            Node *node = client->nodebyhandle(h);
+            if (!node)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            if (node->type == FILENODE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            TreeProcFolderInfo folderProcessor;
+            client->proctree(node, &folderProcessor, false, false);
+            MegaFolderInfo *folderInfo = folderProcessor.getResult();
+            request->setMegaFolderInfo(folderInfo);
+            delete folderInfo;
+
+            fireOnRequestFinish(request, MegaError(API_OK));
+            break;
+        }
         case MegaRequest::TYPE_GET_ACHIEVEMENTS:
         {
             if (request->getFlag())
@@ -18474,7 +18786,7 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 // http_parser settings
 http_parser_settings MegaHTTPServer::parsercfg;
 
-MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi)
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS, string certificatepath, string keypath)
 {
     this->megaApi = megaApi;
     this->localOnly = true;
@@ -18487,6 +18799,9 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi)
     this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     this->lastHandle = INVALID_HANDLE;
     this->subtitlesSupportEnabled = false;
+    this->useTLS = useTLS;
+    this->certificatepath = certificatepath;
+    this->keypath = keypath;
 }
 
 MegaHTTPServer::~MegaHTTPServer()
@@ -18511,6 +18826,46 @@ bool MegaHTTPServer::start(int port, bool localOnly)
     return started;
 }
 
+int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
+{
+    int rv = 0;
+    uv_buf_t b;
+    b.base = (char*)bfr;
+    b.len = sz;
+
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
+    assert(httpctx != NULL);
+
+    if (uv_is_writable((uv_stream_t*)(&httpctx->tcphandle)))
+    {
+        uv_write_t *req = new uv_write_t();
+        httpctx->writePointers.push_back((char*)bfr);
+        req->data = httpctx;
+        LOG_debug << "Sending " << sz << " bytes of TLS data";
+        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &b, 1, onWriteFinished_tls_async))
+        {
+            LOG_warn << "At uv_tls_writer: Finishing due to an error sending the response: " << err;
+            httpctx->writePointers.pop_back();
+            delete [] bfr;
+            delete req;
+
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
+        }
+        rv = sz; //writer should return the written size
+    }
+    else
+    {
+        delete [] bfr;
+        LOG_debug << " uv_is_writable returned false";
+    }
+
+    return rv;
+}
+
 void MegaHTTPServer::run()
 {
     // parser callbacks
@@ -18521,6 +18876,18 @@ void MegaHTTPServer::run()
     parsercfg.on_header_field = onHeaderField;
     parsercfg.on_header_value = onHeaderValue;
     parsercfg.on_body = onBody;
+
+    if (useTLS)
+    {
+        if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
+        {
+            LOG_err << "Unable to init evt ctx";
+            port = 0;
+            uv_sem_post(&semaphore);
+            return;
+        }
+        evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
+    }
 
     uv_loop_t *uv_loop = uv_default_loop();
 
@@ -18541,19 +18908,32 @@ void MegaHTTPServer::run()
     {
         uv_ip4_addr("0.0.0.0", port, &address);
     }
+    uv_connection_cb onNewClientCB;
+    if (useTLS)
+    {
+         onNewClientCB = onNewClient_tls;
+    }
+    else
+    {
+        onNewClientCB = onNewClient;
+    }
 
     if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
-        || uv_listen((uv_stream_t*)&server, 32, onNewClient))
+        || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
     {
         port = 0;
         uv_sem_post(&semaphore);
         return;
     }
 
-    LOG_info << "HTTP server started on port " << port;
+    LOG_info << "HTTP" << (useTLS ? "S" : "") << " server started on port " << port;
     started = true;
     uv_sem_post(&semaphore);
     uv_run(uv_loop, UV_RUN_DEFAULT);
+    if (useTLS)
+    {
+        evt_ctx_free(&evtctx);
+    }
 
     uv_loop_close(uv_loop);
     started = false;
@@ -18667,7 +19047,7 @@ char *MegaHTTPServer::getLink(MegaNode *node)
     allowedHandles.insert(lastHandle);
 
     ostringstream oss;
-    oss << "http://127.0.0.1:" << port << "/";
+    oss << "http" << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
     char *base64handle = node->getBase64Handle();
     oss << base64handle;
     delete [] base64handle;
@@ -18718,6 +19098,94 @@ void *MegaHTTPServer::threadEntryPoint(void *param)
     return NULL;
 }
 
+void MegaHTTPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
+    assert(httpctx != NULL);
+
+    uv_buf_t data;
+    data.base = bfr;
+    data.len = sz;
+    onDataReceived_tls(httpctx, sz, &data);
+}
+
+void MegaHTTPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
+    assert(httpctx != NULL);
+
+    LOG_debug << "TLS connection closed";
+    httpctx->finished = true;
+    if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+    {
+        uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+    }
+}
+
+void MegaHTTPServer::on_hd_complete(evt_tls_t *evt_tls, int status)
+{
+    LOG_debug << "TLS handshake finished. Status: " << status;
+    if (status)
+    {
+        evt_tls_read(evt_tls, evt_on_rd);
+    }
+    else
+    {
+        evt_tls_close(evt_tls, on_evt_tls_close);
+    }
+}
+
+void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
+{
+    if (status < 0)
+    {
+        return;
+    }
+
+    // Create an object to save context information
+    MegaHTTPContext* httpctx = new MegaHTTPContext();
+
+    // Initialize the parser
+    http_parser_init(&httpctx->parser, HTTP_REQUEST);
+
+    // Set connection data
+    httpctx->server = (MegaHTTPServer *)(server_handle->data);
+    httpctx->megaApi = httpctx->server->megaApi;
+    httpctx->parser.data = httpctx;
+    httpctx->tcphandle.data = httpctx;
+    httpctx->asynchandle.data = httpctx;
+    httpctx->server->connections.push_back(httpctx);
+    LOG_debug << "Connection received! " << httpctx->server->connections.size();
+
+    // Mutex to protect the data buffer
+    uv_mutex_init(&httpctx->mutex);
+
+    // Async handle to perform writes
+    uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
+
+    // Accept the connection
+    uv_tcp_init(uv_default_loop(), &httpctx->tcphandle);
+    if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle))
+    {
+        LOG_err << "uv_accept failed";
+        onClose((uv_handle_t*)&httpctx->tcphandle);
+        return;
+    }
+
+    httpctx->evt_tls = evt_ctx_get_tls(&httpctx->server->evtctx);
+    assert(httpctx->evt_tls != NULL);
+    httpctx->evt_tls->data = httpctx;
+    if (evt_tls_accept(httpctx->evt_tls, on_hd_complete))
+    {
+        LOG_err << "evt_tls_accept failed";
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        return;
+    }
+
+    // Start reading
+    uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
+}
+
 void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
 {
     if (status < 0)
@@ -18740,12 +19208,20 @@ void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
     httpctx->server->connections.push_back(httpctx);
     LOG_debug << "Connection received! " << httpctx->server->connections.size();
 
+    // Mutex to protect the data buffer
+    uv_mutex_init(&httpctx->mutex);
+
     // Async handle to perform writes
     uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
 
     // Accept the connection
     uv_tcp_init(uv_default_loop(), &httpctx->tcphandle);
-    uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle);
+    if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle))
+    {
+        LOG_err << "uv_accept failed";
+        onClose((uv_handle_t*)&httpctx->tcphandle);
+        return;
+    }
 
     // Start reading
     uv_read_start((uv_stream_t*)&httpctx->tcphandle, allocBuffer, onDataReceived);
@@ -18759,6 +19235,8 @@ void MegaHTTPServer::allocBuffer(uv_handle_t *, size_t suggested_size, uv_buf_t*
 
 void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf)
 {
+    LOG_debug << "Received " << nread << " bytes";
+
     ssize_t parsed = -1;
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
     if (nread >= 0)
@@ -18775,6 +19253,59 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
         {
             uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
         }
+    }
+}
+
+void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *data)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
+    assert(httpctx != NULL);
+
+    LOG_debug << "Received " << nrd << " bytes";
+    if (!nrd)
+    {
+        return;
+    }
+
+    if (nrd < 0)
+    {
+        if (evt_tls_is_handshake_over(httpctx->evt_tls))
+        {
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
+        else
+        {
+            //if handshake is not over, simply tear down without close_notify
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)tcp))
+            {
+                uv_close((uv_handle_t*)tcp, onClose);
+            }
+        }
+        delete[] data->base;
+        return;
+    }
+
+    evt_tls_feed_data(httpctx->evt_tls, data->base, nrd);
+    delete[] data->base;
+}
+
+void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t* buf)
+{
+    LOG_debug << "Decrypted " << nread << " bytes";
+
+    ssize_t parsed = -1;
+    if (nread >= 0)
+    {
+        parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+    }
+    // delete [] buf->base;
+    // we don't have to delete the buffer here because it's a local array of evt_tls
+
+    if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
+    {
+        LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
     }
 }
 
@@ -18795,6 +19326,7 @@ void MegaHTTPServer::onClose(uv_handle_t* handle)
 void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+    assert(!httpctx->writePointers.size());
 
     if (httpctx->resultCode == API_EINTERNAL)
     {
@@ -18808,6 +19340,7 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
     }
 
     delete httpctx->node;
+    uv_mutex_destroy(&httpctx->mutex);
     delete httpctx;
     LOG_debug << "Connection deleted";
 }
@@ -19420,6 +19953,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
         httpctx->streamingBuffer.init(len + resstr.size());
         httpctx->size = len;
     }
+
     sendHeaders(httpctx, &resstr);
     if (httpctx->parser.method == HTTP_HEAD)
     {
@@ -19427,7 +19961,6 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     }
 
     LOG_debug << "Requesting range. From " << start << "  size " << len;
-    uv_mutex_init(&httpctx->mutex);
     httpctx->rangeWritten = 0;
     httpctx->megaApi->startStreaming(node, start, len, httpctx);
     return 0;
@@ -19445,15 +19978,28 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     httpctx->transfer->setTotalBytes(httpctx->size);
     httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
 
-    uv_write_t *req = new uv_write_t;
-    req->data = httpctx;
-    if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
+    if (httpctx->server->useTLS)
     {
-        LOG_warn << "Finishing due to an error sending the response: " << err;
-        httpctx->finished = true;
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        if (err <= 0)
         {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
+    }
+    else
+    {
+        uv_write_t *req = new uv_write_t();
+        req->data = httpctx;
+        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
+        {
+            delete req;
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
         }
     }
 }
@@ -19461,12 +20007,26 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+    if (httpctx->finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring async event";
+        return;
+    }
+
     if (httpctx->failed)
     {
         LOG_warn << "Streaming transfer failed. Closing connection.";
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        if (httpctx->server->useTLS)
         {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
+        else
+        {
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
         }
         return;
     }
@@ -19519,14 +20079,19 @@ void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
 
 void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 {
-    uv_mutex_lock(&httpctx->mutex);
-    if (httpctx->lastBuffer)
+    if (httpctx->finished)
     {
-        LOG_verbose << "Skipping write due to another ongoing write";
-        uv_mutex_unlock(&httpctx->mutex);
+        LOG_debug << "HTTP link closed, aborting write";
         return;
     }
 
+    if (httpctx->lastBuffer)
+    {
+        LOG_verbose << "Skipping write due to another ongoing write";
+        return;
+    }
+
+    uv_mutex_lock(&httpctx->mutex);
     if (httpctx->lastBufferLen)
     {
         httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
@@ -19541,38 +20106,157 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
     }
 
     uv_buf_t resbuf = httpctx->streamingBuffer.nextBuffer();
+    uv_mutex_unlock(&httpctx->mutex);
+
     if (!resbuf.len)
     {
         LOG_verbose << "Skipping write. No data available";
-        uv_mutex_unlock(&httpctx->mutex);
         return;
     }
-
-    uv_write_t *req = new uv_write_t;
-    req->data = httpctx;
 
     LOG_verbose << "Writting " << resbuf.len << " bytes";
     httpctx->rangeWritten += resbuf.len;
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
-    if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, MegaHTTPServer::onWriteFinished))
+
+    if (httpctx->server->useTLS)
     {
-        LOG_warn << "Finishing due to an error in uv_write: " << err;
-        httpctx->finished = true;
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        //notice this, contrary to !useTLS is synchronous
+        int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        if (err <= 0)
         {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        }
+    }
+    else
+    {
+        uv_write_t *req = new uv_write_t();
+        req->data = httpctx;
+
+        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
+        {
+            delete req;
+            LOG_warn << "Finishing due to an error in uv_write: " << err;
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
+        }
+    }
+}
+
+void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
+    assert(httpctx != NULL);
+    if (httpctx->finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the TLS write";
+        return;
+    }
+
+    httpctx->bytesWritten += httpctx->lastBufferLen;
+    LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
+
+    if (status < 0 || httpctx->size == httpctx->bytesWritten)
+    {
+        if (status < 0)
+        {
+            LOG_warn << "Finishing request. Write failed: " << status;
+            evt_tls_close(evt_tls, on_evt_tls_close);
+        }
+        else
+        {
+            LOG_debug << "Finishing request. All data sent";
+            if (httpctx->resultCode == API_EINTERNAL)
+            {
+                httpctx->resultCode = API_OK;
+            }
+        }
+
+        return;
+    }
+
+    httpctx->lastBuffer = NULL;
+    uv_mutex_lock(&httpctx->mutex);
+    if (httpctx->lastBufferLen)
+    {
+        httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
+        httpctx->lastBufferLen = 0;
+    }
+
+    if (httpctx->pause)
+    {
+        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
+        {
+            httpctx->pause = false;
+            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
+            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
+
+            LOG_debug << "Resuming streaming from " << start << " len: " << len
+                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
+                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
+            httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
     }
     uv_mutex_unlock(&httpctx->mutex);
+
+    uv_async_send(&httpctx->asynchandle);
+}
+
+void MegaHTTPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
+{
+    MegaHTTPContext *httpctx = (MegaHTTPContext*)req->data;
+    assert(httpctx->writePointers.size());
+    delete [] httpctx->writePointers.front();
+    httpctx->writePointers.pop_front();
+    delete req;
+
+    if (httpctx->finished)
+    {
+        if (httpctx->size == httpctx->bytesWritten && !httpctx->writePointers.size())
+        {
+            LOG_debug << "HTTP link closed, shutdown result: " << status;
+        }
+        else
+        {
+            LOG_debug << "HTTP link closed, ignoring the result of the async TLS write: " << status;
+        }
+        return;
+    }
+
+    if (status < 0)
+    {
+        LOG_warn << "Finishing request. Async TLS write failed: " << status;
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        return;
+    }
+
+    if (httpctx->size == httpctx->bytesWritten && !httpctx->writePointers.size())
+    {
+        LOG_debug << "Finishing request. All data delivered";
+        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        return;
+    }
+
+    LOG_debug << "Async TLS write finished";
+    uv_async_send(&httpctx->asynchandle);
 }
 
 void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) req->data;
+    assert(httpctx != NULL);
+    if (httpctx->finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the write";
+        return;
+    }
+
     httpctx->bytesWritten += httpctx->lastBufferLen;
     LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
-    httpctx->lastBuffer = NULL;
     delete req;
 
     if (status < 0 || httpctx->size == httpctx->bytesWritten)
@@ -19598,9 +20282,16 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
         return;
     }
 
+    httpctx->lastBuffer = NULL;
+    uv_mutex_lock(&httpctx->mutex);
+    if (httpctx->lastBufferLen)
+    {
+        httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
+        httpctx->lastBufferLen = 0;
+    }
+
     if (httpctx->pause)
     {
-        uv_mutex_lock(&httpctx->mutex);
         if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
         {
             httpctx->pause = false;
@@ -19612,8 +20303,9 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
                      << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
             httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
         }
-        uv_mutex_unlock(&httpctx->mutex);
     }
+    uv_mutex_unlock(&httpctx->mutex);
+
     sendNextBytes(httpctx);
 }
 
@@ -19622,14 +20314,31 @@ MegaHTTPContext::MegaHTTPContext()
 {
     rangeStart = -1;
     rangeEnd = -1;
+    rangeWritten = -1;
+    size = -1;
     range = false;
     finished = false;
     failed = false;
+    pause = false;
     nodereceived = false;
     resultCode = API_EINTERNAL;
+    bytesWritten = 0;
     node = NULL;
     transfer = NULL;
     nodesize = -1;
+    evt_tls = NULL;
+    server = NULL;
+    megaApi = NULL;
+    lastBuffer = NULL;
+    lastBufferLen = 0;
+}
+
+MegaHTTPContext::~MegaHTTPContext()
+{
+    if (evt_tls)
+    {
+        evt_tls_free(evt_tls);
+    }
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
@@ -19653,9 +20362,11 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
 
     // append the data to the buffer
     uv_mutex_lock(&mutex);
-    if (streamingBuffer.availableSpace() < 2 * size)
+    long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
+    long long availableSpace = streamingBuffer.availableSpace();
+    if (remaining > availableSpace && availableSpace < (2 * size))
     {
-        LOG_debug << "Buffer full: " << streamingBuffer.availableSpace() << " of "
+        LOG_debug << "Buffer full: " << availableSpace << " of "
                  << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
         pause = true;
     }
@@ -19669,18 +20380,29 @@ bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *bu
 
 void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 {
+    if (finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the transfer";
+        return;
+    }
+
     int ecode = e->getErrorCode();
     if (ecode != API_OK && ecode != API_EINCOMPLETE)
     {
         LOG_warn << "Transfer failed with error code: " << ecode;
         failed = true;
-        finished = true;
         uv_async_send(&asynchandle);
     }
 }
 
 void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
 {
+    if (finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the request";
+        return;
+    }
+
     node = request->getPublicMegaNode();
     nodereceived = true;
     uv_async_send(&asynchandle);
@@ -19788,6 +20510,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->ou = chat->getOriginatingUser();
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
+    this->archived = chat->isArchived();
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
 }
@@ -19803,6 +20526,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->title = chat->title;
     this->tag = chat->tag;
     this->ts = chat->ts;
+    this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
     this->changed = 0;
     if (chat->changed.attachments)
     {
@@ -19872,6 +20596,11 @@ int MegaTextChatPrivate::isOwnChange() const
 int64_t MegaTextChatPrivate::getCreationTime() const
 {
     return ts;
+}
+
+bool MegaTextChatPrivate::isArchived() const
+{
+    return archived;
 }
 
 bool MegaTextChatPrivate::hasChanged(int changeType) const
@@ -20086,6 +20815,7 @@ MegaEventPrivate::MegaEventPrivate(int type)
 {
     this->type = type;
     this->text = NULL;
+    this->number = 0;
 }
 
 MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
@@ -20094,6 +20824,7 @@ MegaEventPrivate::MegaEventPrivate(MegaEventPrivate *event)
 
     this->type = event->getType();
     this->setText(event->getText());
+    this->setNumber(event->getNumber());
 }
 
 MegaEventPrivate::~MegaEventPrivate()
@@ -20116,6 +20847,11 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
+const int MegaEventPrivate::getNumber() const
+{
+    return number;
+}
+
 void MegaEventPrivate::setText(const char *text)
 {
     if(this->text)
@@ -20123,6 +20859,11 @@ void MegaEventPrivate::setText(const char *text)
         delete [] this->text;
     }
     this->text = MegaApi::strdup(text);
+}
+
+void MegaEventPrivate::setNumber(int number)
+{
+    this->number = number;
 }
 
 MegaHandleListPrivate::MegaHandleListPrivate()
@@ -20484,4 +21225,92 @@ long long MegaAchievementsDetailsPrivate::currentTransferReferrals()
 MegaAchievementsDetailsPrivate::MegaAchievementsDetailsPrivate(AchievementsDetails *details)
 {
     this->details = (*details);
+}
+
+MegaFolderInfoPrivate::MegaFolderInfoPrivate(int numFiles, int numFolders, int numVersions, long long currentSize, long long versionsSize)
+{
+    this->numFiles = numFiles;
+    this->numFolders = numFolders;
+    this->numVersions = numVersions;
+    this->currentSize = currentSize;
+    this->versionsSize = versionsSize;
+}
+
+MegaFolderInfoPrivate::MegaFolderInfoPrivate(const MegaFolderInfoPrivate *folderData)
+{
+    this->numFiles = folderData->getNumFiles();
+    this->numFolders = folderData->getNumFolders();
+    this->numVersions = folderData->getNumVersions();
+    this->currentSize = folderData->getCurrentSize();
+    this->versionsSize = folderData->getVersionsSize();
+}
+
+MegaFolderInfoPrivate::~MegaFolderInfoPrivate()
+{
+
+}
+
+MegaFolderInfo *MegaFolderInfoPrivate::copy() const
+{
+    return new MegaFolderInfoPrivate(this);
+}
+
+int MegaFolderInfoPrivate::getNumVersions() const
+{
+    return numVersions;
+}
+
+int MegaFolderInfoPrivate::getNumFiles() const
+{
+    return numFiles;
+}
+
+int MegaFolderInfoPrivate::getNumFolders() const
+{
+    return numFolders;
+}
+
+long long MegaFolderInfoPrivate::getCurrentSize() const
+{
+    return currentSize;
+}
+
+long long MegaFolderInfoPrivate::getVersionsSize() const
+{
+    return versionsSize;
+}
+
+TreeProcFolderInfo::TreeProcFolderInfo()
+{
+    numFiles = 0;
+    numFolders = 0;
+    numVersions = 0;
+    currentSize = 0;
+    versionsSize = 0;
+}
+
+void TreeProcFolderInfo::proc(MegaClient *, Node *node)
+{
+    if (node->parent && node->parent->type == FILENODE)
+    {
+        numVersions++;
+        versionsSize += node->size;
+    }
+    else
+    {
+        if (node->type == FILENODE)
+        {
+            numFiles++;
+            currentSize += node->size;
+        }
+        else
+        {
+            numFolders++;
+        }
+    }
+}
+
+MegaFolderInfo *TreeProcFolderInfo::getResult()
+{
+    return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
 }

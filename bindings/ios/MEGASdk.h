@@ -80,18 +80,19 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 };
 
 typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
-    MEGAUserAttributeAvatar            = 0, // public - char array
-    MEGAUserAttributeFirstname         = 1, // public - char array
-    MEGAUserAttributeLastname          = 2, // public - char array
-    MEGAUserAttributeAuthRing          = 3, // private - byte array
-    MEGAUserAttributeLastInteraction   = 4, // private - byte array
-    MEGAUserAttributeED25519PublicKey  = 5, // public - byte array
-    MEGAUserAttributeCU25519PublicKey  = 6, // public - byte array
-    MEGAUserAttributeKeyring           = 7, // private - byte array
-    MEGAUserAttributeSigRsaPublicKey   = 8, // public - byte array
-    MEGAUserAttributeSigCU255PublicKey = 9, // public - byte array
-    MEGAUserAttributeLanguage          = 14, // private - char array
-    MEGAUserAttributePwdReminder       = 15  // private- char array
+    MEGAUserAttributeAvatar                  = 0, // public - char array
+    MEGAUserAttributeFirstname               = 1, // public - char array
+    MEGAUserAttributeLastname                = 2, // public - char array
+    MEGAUserAttributeAuthRing                = 3, // private - byte array
+    MEGAUserAttributeLastInteraction         = 4, // private - byte array
+    MEGAUserAttributeED25519PublicKey        = 5, // public - byte array
+    MEGAUserAttributeCU25519PublicKey        = 6, // public - byte array
+    MEGAUserAttributeKeyring                 = 7, // private - byte array
+    MEGAUserAttributeSigRsaPublicKey         = 8, // public - byte array
+    MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
+    MEGAUserAttributeLanguage                = 14, // private - char array
+    MEGAUserAttributePwdReminder             = 15, // private - char array
+    MEGAUserAttributeContactLinkVerification = 17  // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -1346,6 +1347,100 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  */
 - (void)confirmChangeEmailWithLink:(NSString *)link password:(NSString *)password;
 
+/**
+ * @brief Create a contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkCreate.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest flag] - Returns the value of \c renew parameter
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Return the handle of the new contact link
+ *
+ * @param renew YES to invalidate the previous contact link (if any).
+ * @param delegate Delegate to track this request
+ */
+- (void)contactLinkCreateRenew:(BOOL)renew delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Create a contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkCreate.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest flag] - Returns the value of \c renew parameter
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Return the handle of the new contact link
+ *
+ * @param renew YES to invalidate the previous contact link (if any).
+ */
+- (void)contactLinkCreateRenew:(BOOL)renew;
+
+/**
+ * @brief Get information about a contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkQuery.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest parentHandle] - Returns the userhandle of the contact
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest name] - Returns the first name of the contact
+ * - [MEGARequest text] - Returns the last name of the contact
+ *
+ * @param handle Handle of the contact link to check
+ * @param delegate Delegate to track this request
+ */
+- (void)contactLinkQueryWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get information about a contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkQuery.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest parentHandle] - Returns the userhandle of the contact
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest name] - Returns the first name of the contact
+ * - [MEGARequest text] - Returns the last name of the contact
+ *
+ * @param handle Handle of the contact link to check
+ */
+- (void)contactLinkQueryWithHandle:(uint64_t)handle;
+
+/**
+ * @brief Delete the active contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkDelete.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact link
+ *
+ * @param delegate Delegate to track this request
+ */
+- (void)contactLinkDeleteWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Delete the active contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkDelete.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact link
+ */
+- (void)contactLinkDelete;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -1515,11 +1610,17 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)renameNode:(MEGANode *)node newName:(NSString *)newName;
 
 /**
- * @brief Remove a node in the MEGA account.
+ * @brief Remove a node from the MEGA account.
+ *
+ * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+ * the node to the Rubbish Bin use [MEGASdk moveNode:newParent:delegate:].
+ *
+ * If the node has previous versions, they will be deleted too.
  *
  * The associated request type with this request is MEGARequestTypeRemove.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
+ * - [MEGARequest flag] - Returns NO because previous versions won't be preserved
  *
  * @param node Node to remove.
  * @param delegate Delegate to track this request.
@@ -1527,15 +1628,112 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)removeNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Remove a node in the MEGA account.
+ * @brief Remove a node from the MEGA account.
+ *
+ * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+ * the node to the Rubbish Bin use [MEGASdk moveNode:newParent:delegate:].
+ *
+ * If the node has previous versions, they will be deleted too.
  *
  * The associated request type with this request is MEGARequestTypeRemove.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node to rename
+ * - [MEGARequest flag] - Returns NO because previous versions won't be preserved
  *
  * @param node Node to remove.
  */
 - (void)removeNode:(MEGANode *)node;
+
+/**
+ * @brief Remove all versions from the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRemoveVersions
+ *
+ * When the request finishes, file versions might not be deleted yet.
+ * Deletions are notified using onNodesUpdate callbacks.
+ *
+ * @param MEGARequestDelegate Delegate to track this request
+ */
+- (void)removeVersionsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove all versions from the MEGA account
+ *
+ * The associated request type with this request is MEGARequestTypeRemoveVersions
+ *
+ * When the request finishes, file versions might not be deleted yet.
+ * Deletions are notified using onNodesUpdate callbacks.
+ *
+ */
+- (void)removeVersions;
+
+/**
+ * @brief Remove a version of a file from the MEGA account
+ *
+ * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+ * the node to the Rubbish Bin use [MEGASdk moveNode:newParent:delegate:].
+ *
+ * If the node has previous versions, they won't be deleted.
+ *
+ * The associated request type with this request is MEGARequestTypeRemove
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to remove
+ * - [MEGARequest flag] - Returns YES because previous versions will be preserved
+ *
+ * @param node Node to remove
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)removeVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove a version of a file from the MEGA account
+ *
+ * This function doesn't move the node to the Rubbish Bin, it fully removes the node. To move
+ * the node to the Rubbish Bin use [MEGASdk moveNode:newParent:delegate:].
+ *
+ * If the node has previous versions, they won't be deleted.
+ *
+ * The associated request type with this request is MEGARequestTypeRemove
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to remove
+ * - [MEGARequest flag] - Returns YES because previous versions will be preserved
+ *
+ * @param node Node to remove
+ */
+- (void)removeVersionNode:(MEGANode *)node;
+
+/**
+ * @brief Restore a previous version of a file
+ *
+ * Only versions of a file can be restored, not the current version (because it's already current).
+ * The node will be copied and set as current. All the version history will be preserved without changes,
+ * being the old current node the previous version of the new current node, and keeping the restored
+ * node also in its previous place in the version history.
+ *
+ * The associated request type with this request is MEGARequestTypeRestore
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to restore
+ *
+ * @param node Node with the version to restore
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)restoreVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Restore a previous version of a file
+ *
+ * Only versions of a file can be restored, not the current version (because it's already current).
+ * The node will be copied and set as current. All the version history will be preserved without changes,
+ * being the old current node the previous version of the new current node, and keeping the restored
+ * node also in its previous place in the version history.
+ *
+ * The associated request type with this request is MEGARequestTypeRestore
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node to restore
+ *
+ * @param node Node with the version to restore
+ */
+- (void)restoreVersionNode:(MEGANode *)node;
 
 /**
  * @brief Clean the Rubbish Bin in the MEGA account
@@ -2714,6 +2912,57 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action;
 
 /**
+ * @brief Invite another person to be your MEGA contact using a contact link handle
+ *
+ * The associated request type with this request is MEGARequestTypeInviteContact
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest text] - Returns the text of the invitation
+ * - [MEGARequest number] - Returns the action
+ * - [MEGARequest nodeHandle] - Returns the contact link handle
+ *
+ * Sending a reminder within a two week period since you started or your last reminder will
+ * fail the API returning the error code MEGAErrorTypeApiEAccess.
+ *
+ * @param email Email of the new contact
+ * @param message Message for the user (can be nil)
+ * @param action Action for this contact request. Valid values are:
+ * - MEGAInviteActionAdd = 0
+ * - MEGAInviteActionDelete = 1
+ * - MEGAInviteActionRemind = 2
+ *
+ * @param handle Contact link handle of the other account. This parameter is considered only if the
+ * \c action is MEGAInviteActionAdd. Otherwise, it's ignored and it has no effect.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Invite another person to be your MEGA contact using a contact link handle
+ *
+ * The associated request type with this request is MEGARequestTypeInviteContact
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest text] - Returns the text of the invitation
+ * - [MEGARequest number] - Returns the action
+ * - [MEGARequest nodeHandle] - Returns the contact link handle
+ *
+ * Sending a reminder within a two week period since you started or your last reminder will
+ * fail the API returning the error code MEGAErrorTypeApiEAccess.
+ *
+ * @param email Email of the new contact
+ * @param message Message for the user (can be nil)
+ * @param action Action for this contact request. Valid values are:
+ * - MEGAInviteActionAdd = 0
+ * - MEGAInviteActionDelete = 1
+ * - MEGAInviteActionRemind = 2
+ *
+ * @param handle Contact link handle of the other account. This parameter is considered only if the
+ * \c action is MEGAInviteActionAdd. Otherwise, it's ignored and it has no effect.
+ */
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle;
+
+/**
  * @brief Reply to a contact request
  * @param request Contact request. You can get your pending contact requests using [MEGASdk incomingContactRequests]
  * @param action Action for this contact request. Valid values are:
@@ -3532,6 +3781,52 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (MEGANode *)childNodeForParent:(MEGANode *)parent name:(NSString *)name;
 
 /**
+ * @brief Get all versions of a file
+ * @param node Node to check
+ * @return List with all versions of the node, including the current version
+ */
+- (MEGANodeList *)versionsForNode:(MEGANode *)node;
+
+/**
+ * @brief Get the number of versions of a file
+ * @param node Node to check
+ * @return Number of versions of the node, including the current version
+ */
+- (NSInteger)numberOfVersionsForNode:(MEGANode *)node;
+
+/**
+ * @brief Check if a file has previous versions
+ * @param node Node to check
+ * @return YES if the node has any previous version
+ */
+- (BOOL)hasVersionsForNode:(MEGANode *)node;
+
+/**
+ * @brief Get information about the contents of a folder
+ *
+ * The associated request type with this request is MEGARequestTypeFolderInfo
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaFolderInfo] - MEGAFolderInfo object with the information related to the folder
+ *
+ * @param node Folder node to inspect
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getFolderInfoForNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get information about the contents of a folder
+ *
+ * The associated request type with this request is MEGARequestTypeFolderInfo
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaFolderInfo] - MEGAFolderInfo object with the information related to the folder
+ *
+ * @param node Folder node to inspect
+ */
+- (void)getFolderInfoForNode:(MEGANode *)node;
+
+/**
  * @brief Get file and folder children of a MEGANode separatedly
  *
  * If the parent node doesn't exist or it isn't a folder, this function
@@ -4109,6 +4404,73 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)getLanguagePreference;
 
 /**
+ * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+ *
+ * The associated request type with this request is MegaRequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "0" for disable, "1" for enable
+ *
+ * @param disable YES to disable the automatic approval of incoming contact requests using a contact link
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+ *
+ * The associated request type with this request is MegaRequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "0" for disable, "1" for enable
+ *
+ * @param disable YES to disable the automatic approval of incoming contact requests using a contact link
+ */
+- (void)setContactLinksOptionDisable:(BOOL)disable;
+
+/**
+ * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MegaRequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "0" for disable, "1" for enable
+ * - [MEGARequest flag] - NO if disabled, YES if enabled
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getContactLinksOptionWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MegaRequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "0" for disable, "1" for enable
+ * - [MEGARequest flag] - NO if disabled, YES if enabled
+ */
+- (void)getContactLinksOption;
+
+/**
  * @brief Create a thumbnail for an image
  * @param imagePath Image path
  * @param destinationPath Destination path for the thumbnail (including the file name)
@@ -4457,6 +4819,14 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (NSInteger)httpServerGetMaxOutputSize;
 
 #endif
+
+/**
+ * @brief Get the MIME type associated with the extension
+ *
+ * @param extension File extension (with or without a leading dot)
+ * @return MIME type associated with the extension
+ */
++ (NSString *)mimeTypeByExtension:(NSString *)extension;
 
 /**
  * @brief Register a device token for iOS push notifications

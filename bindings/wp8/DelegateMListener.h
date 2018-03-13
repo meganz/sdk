@@ -29,33 +29,34 @@
 
 namespace mega
 {
-	ref class MegaSDK;
+    ref class MegaSDK;
 
-	using namespace Windows::Foundation;
-	using Platform::String;
+    using namespace Windows::Foundation;
+    using Platform::String;
 
-	private class DelegateMListener : public MegaListener
-	{
-	public:
-		DelegateMListener(MegaSDK^ megaSDK, MListenerInterface^ listener);
-		MListenerInterface^ getUserListener();
+    private class DelegateMListener : public MegaListener
+    {
+    public:
+        DelegateMListener(MegaSDK^ megaSDK, MListenerInterface^ listener);
+        MListenerInterface^ getUserListener();
 
-		void onRequestStart(MegaApi* api, MegaRequest* request);
-		void onRequestFinish(MegaApi* api, MegaRequest* request, MegaError* e);
-		void onRequestUpdate(MegaApi* api, MegaRequest* request);
-		void onRequestTemporaryError(MegaApi* api, MegaRequest* request, MegaError* e);
-		void onTransferStart(MegaApi* api, MegaTransfer* transfer);
-		void onTransferFinish(MegaApi* api, MegaTransfer* transfer, MegaError* e);
-		void onTransferUpdate(MegaApi* api, MegaTransfer* transfer);
-		void onTransferTemporaryError(MegaApi* api, MegaTransfer* transfer, MegaError* e);
-		void onUsersUpdate(MegaApi* api, MegaUserList *users);
-		void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
-		void onAccountUpdate(MegaApi* api);
+        void onRequestStart(MegaApi* api, MegaRequest* request);
+        void onRequestFinish(MegaApi* api, MegaRequest* request, MegaError* e);
+        void onRequestUpdate(MegaApi* api, MegaRequest* request);
+        void onRequestTemporaryError(MegaApi* api, MegaRequest* request, MegaError* e);
+        void onTransferStart(MegaApi* api, MegaTransfer* transfer);
+        void onTransferFinish(MegaApi* api, MegaTransfer* transfer, MegaError* e);
+        void onTransferUpdate(MegaApi* api, MegaTransfer* transfer);
+        void onTransferTemporaryError(MegaApi* api, MegaTransfer* transfer, MegaError* e);
+        void onUsersUpdate(MegaApi* api, MegaUserList *users);
+        void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
+        void onAccountUpdate(MegaApi* api);
         void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
-		void onReloadNeeded(MegaApi* api);
+        void onReloadNeeded(MegaApi* api);
+        void onEvent(MegaApi* api, MegaEvent* ev);
 
-	private:
-		MegaSDK^ megaSDK;
-		MListenerInterface^ listener;
-	};
+    private:
+        MegaSDK^ megaSDK;
+        MListenerInterface^ listener;
+    };
 }

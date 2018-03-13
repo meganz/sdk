@@ -184,6 +184,9 @@
     <ClInclude Include="..\..\..\include\mega\mega_utf8proc.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\mega_evt_tls.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\include\mega\megaapp.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
@@ -275,6 +278,12 @@
       <Filter>Bindings</Filter>
     </ClInclude>
     <ClInclude Include="..\MAchievementsDetails.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\mediafileattribute.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MEvent.h">
       <Filter>Bindings</Filter>
     </ClInclude>
   </ItemGroup>
@@ -411,6 +420,9 @@
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_evt_tls.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\src\megaapi.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
@@ -502,6 +514,12 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\MAchievementsDetails.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\mediafileattribute.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MEvent.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>

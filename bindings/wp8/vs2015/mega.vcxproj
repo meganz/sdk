@@ -47,10 +47,12 @@
     <ClInclude Include="..\..\..\include\mega\http.h" />
     <ClInclude Include="..\..\..\include\mega\json.h" />
     <ClInclude Include="..\..\..\include\mega\logging.h" />
+    <ClInclude Include="..\..\..\include\mega\mediafileattribute.h" />
     <ClInclude Include="..\..\..\include\mega\megaapp.h" />
     <ClInclude Include="..\..\..\include\mega\megaclient.h" />
     <ClInclude Include="..\..\..\include\mega\mega_http_parser.h" />
     <ClInclude Include="..\..\..\include\mega\mega_utf8proc.h" />
+    <ClInclude Include="..\..\..\include\mega\mega_evt_tls.h" />
     <ClInclude Include="..\..\..\include\mega\node.h" />
     <ClInclude Include="..\..\..\include\mega\pendingcontactrequest.h" />
     <ClInclude Include="..\..\..\include\mega\proxy.h" />
@@ -91,6 +93,7 @@
     <ClInclude Include="..\MContactRequestList.h" />
     <ClInclude Include="..\MegaSDK.h" />
     <ClInclude Include="..\MError.h" />
+    <ClInclude Include="..\MEvent.h" />
     <ClInclude Include="..\MGfxProcessorInterface.h" />
     <ClInclude Include="..\MGlobalListenerInterface.h" />
     <ClInclude Include="..\MInputStream.h" />
@@ -134,11 +137,13 @@
     <ClCompile Include="..\..\..\src\http.cpp" />
     <ClCompile Include="..\..\..\src\json.cpp" />
     <ClCompile Include="..\..\..\src\logging.cpp" />
+    <ClCompile Include="..\..\..\src\mediafileattribute.cpp" />
     <ClCompile Include="..\..\..\src\megaapi.cpp" />
     <ClCompile Include="..\..\..\src\megaapi_impl.cpp" />
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\..\src\mega_http_parser.cpp" />
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\..\src\mega_evt_tls.cpp" />
     <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp" />
@@ -177,6 +182,7 @@
     <ClCompile Include="..\MContactRequestList.cpp" />
     <ClCompile Include="..\MegaSDK.cpp" />
     <ClCompile Include="..\MError.cpp" />
+    <ClCompile Include="..\MEvent.cpp" />
     <ClCompile Include="..\MInputStreamAdapter.cpp" />
     <ClCompile Include="..\MNode.cpp" />
     <ClCompile Include="..\MNodeList.cpp" />

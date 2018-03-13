@@ -131,3 +131,18 @@ Files included in this repository based on `zxcvbn-c`:
 - `third_party/zxcvbn-c/README.md` (copy of the `README.MD` file of `zxcvbn-c`)
 - `third_party/zxcvbn-c/LICENSE.txt` (copy of the licence of `zxcvbn-c`)
 
+#### evt-tls
+evt-tls is an abstraction layer of OpenSSL using bio pair to expose callback based asynchronous API
+ and should integrate easily with any event based networking library like libuv,
+ libevent and libev or any other network library which want to use OpenSSL as an state machine
+
+License: MIT
+
+Copyright (c) 2015 Devchandra M. Leishangthem
+
+https://github.com/deleisha/evt-tls
+
+Files included in this repository based on `evt-tls`:
+- `src/mega_evt_tls.cpp` (based on `evt_tls.c`)
+- `include/mega/mega_evt_tls.h` (based on `evt_tls.h`)
+- `include/mega/mega_evt_queue.h` (based on `queue.h`)

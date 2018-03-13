@@ -416,7 +416,8 @@ typedef enum {
     ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
     ATTR_LANGUAGE = 14,         // private, non-encrypted - char array in B64 - non-versioned
     ATTR_PWD_REMINDER = 15,     // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_DISABLE_VERSIONS = 16  // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_DISABLE_VERSIONS = 16, // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_CONTACT_LINK_VERIFICATION = 17  // private, non-encrypted - char array in B64 - non-versioned
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 
@@ -441,6 +442,10 @@ typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
 struct TextChat : public Cachable
 {
+    enum {
+        FLAG_OFFSET_ARCHIVE = 0
+    };
+
     handle id;
     privilege_t priv;
     int shard;
@@ -450,6 +455,7 @@ struct TextChat : public Cachable
     handle ou;
     m_time_t ts;     // creation time
     attachments_map attachedNodes;
+    byte flags; // currently only used for "archive" flag at first bit
 
     int tag;    // source tag, to identify own changes
 
@@ -466,10 +472,15 @@ struct TextChat : public Cachable
     struct
     {
         bool attachments : 1;
+        bool flags : 1;
     } changed;
 
     // return false if failed
     bool setNodeUserAccess(handle h, handle uh, bool revoke = false);
+    bool setFlag(bool value, uint8_t offset = 0xFF);
+    bool setFlags(byte newFlags);
+    bool isFlagSet(uint8_t offset) const;
+
 };
 typedef vector<TextChat*> textchat_vector;
 typedef map<handle, TextChat*> textchat_map;

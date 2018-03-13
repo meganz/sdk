@@ -137,7 +137,7 @@ AC_ARG_ENABLE(debug,
 # Enable debug flags / build
 if test "x$enable_debug" = "xyes" ; then
     AM_CXXFLAGS="-Wall -g -ggdb3 -O0"
-    CXXFLAGS="-Wall -g -ggdb3 -O0"
+    CXXFLAGS="$CXXFLAGS -Wall -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
 else
@@ -995,7 +995,7 @@ AC_ARG_WITH(libzen,
     AC_CHECK_HEADERS([ZenLib/Ztring.h],, [
         AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
     ])
-    AC_CHECK_LIB(zen, [_init], [LIBZEN_LIBS="-lzen"],[
+    AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [LIBZEN_LIBS="-lzen"],[
             AC_MSG_ERROR([Could not find libzen])
     ])
     libzen=true
@@ -1028,7 +1028,7 @@ AC_ARG_WITH(libzen,
          )
     fi
 
-    AC_CHECK_LIB(zen, [_init], [LIBZEN_LIBS="-lzen"],[
+    AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [LIBZEN_LIBS="-lzen"],[
             AC_MSG_ERROR([Could not find libzen])
     ])
 
@@ -1043,7 +1043,7 @@ AC_ARG_WITH(libzen,
   ],
   [AC_MSG_RESULT([--with-libzen not specified])
     AC_CHECK_HEADERS([ZenLib/Ztring.h],
-        AC_CHECK_LIB(zen, [_init], [
+        AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [
         LIBZEN_LIBS="-lzen"
         libzen=true
         ],)

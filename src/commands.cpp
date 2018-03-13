@@ -1873,7 +1873,7 @@ void CommandSetShare::procresult()
 }
 
 
-CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail)
+CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
 {
     cmd("upc");
 
@@ -1893,6 +1893,10 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
             break;
         case OPCA_ADD:
             arg("aa", "a");
+            if (!ISUNDEF(contactLink))
+            {
+                arg("cl", (byte*)&contactLink, MegaClient::CONTACTLINKHANDLE);
+            }
             break;
     }
 
@@ -3734,6 +3738,25 @@ void CommandResumeEphemeralSession::procresult()
     }
 }
 
+CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
+{
+    cmd("whyamiblocked");
+
+    tag = client->reqtag;
+}
+
+void CommandWhyAmIblocked::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->whyamiblocked_result(client->json.getint());
+    }
+
+    client->json.storeobject();
+
+    client->app->whyamiblocked_result(API_EINTERNAL);
+}
+
 CommandSendSignupLink::CommandSendSignupLink(MegaClient* client, const char* email, const char* name, byte* c)
 {
     cmd("uc");
@@ -5298,6 +5321,54 @@ void CommandRegisterPushNotification::procresult()
         client->app->registerpushnotification_result(API_EINTERNAL);
     }
 }
+
+CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
+{
+    this->mChatid = chatid;
+    this->mArchive = archive;
+
+    cmd("mcsf");
+
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("m", 1);
+    arg("f", archive);
+
+    notself(client);
+
+    tag = client->reqtag;
+}
+
+void CommandArchiveChat::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            textchat_map::iterator it = client->chats.find(mChatid);
+            if (it == client->chats.end())
+            {
+                LOG_err << "Archive chat succeeded for a non-existing chatroom";
+                client->app->archivechat_result(API_ENOENT);
+                return;
+            }
+
+            TextChat *chat = it->second;
+            chat->setFlag(mArchive, TextChat::FLAG_OFFSET_ARCHIVE);
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->archivechat_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->archivechat_result(API_EINTERNAL);
+    }
+}
+
 #endif
 
 CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)
@@ -5590,6 +5661,105 @@ void CommandMediaCodecs::procresult()
         version = int(result);
     }
     callback(client, version);
+}
+
+CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
+{
+    if (renew)
+    {
+        cmd("clr");
+    }
+    else
+    {
+        cmd("clc");
+    }
+    
+    tag = client->reqtag;
+}
+
+void CommandContactLinkCreate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->contactlinkcreate_result((error)client->json.getint(), UNDEF);
+    }
+    else
+    {
+        handle h = client->json.gethandle(MegaClient::CONTACTLINKHANDLE);
+        client->app->contactlinkcreate_result(API_OK, h);                
+    }
+}
+
+CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
+{
+    cmd("clg");
+    arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+    
+    tag = client->reqtag;
+}
+
+void CommandContactLinkQuery::procresult()
+{    
+    handle h = UNDEF;
+    string email;
+    string firstname;
+    string lastname;
+
+    if (client->json.isnumeric())
+    {
+        return client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname);
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'h':
+                h = client->json.gethandle(MegaClient::USERHANDLE);
+                break;
+            case 'e':
+                client->json.storeobject(&email);
+                break;
+            case MAKENAMEID2('f', 'n'):
+                client->json.storeobject(&firstname);
+                break;
+            case MAKENAMEID2('l', 'n'):
+                client->json.storeobject(&lastname);
+                break;
+            case EOO:
+                return client->app->contactlinkquery_result(API_OK, h, &email, &firstname, &lastname);
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse query contact link response";
+                    return client->app->contactlinkquery_result(API_EINTERNAL, h, &email, &firstname, &lastname);
+                }
+                break;
+        }
+    }
+}
+
+CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
+{
+    cmd("cld");
+    if (!ISUNDEF(h))
+    {
+        arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+    }
+    tag = client->reqtag;    
+}
+
+void CommandContactLinkDelete::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->contactlinkdelete_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->contactlinkdelete_result(API_EINTERNAL);
+    }
 }
 
 } // namespace
