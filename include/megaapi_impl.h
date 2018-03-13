@@ -1606,7 +1606,7 @@ class MegaApiImpl : public MegaApp
         void updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool mkExported, bool dontShowAgain, bool lastLogin, MegaRequestListener *listener = NULL);
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-        void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
+        void inviteContact(const char* email, const char* message, int action, MegaHandle contactLink, MegaRequestListener* listener = NULL);
         void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
         void respondContactRequest();
 
@@ -1807,6 +1807,10 @@ class MegaApiImpl : public MegaApp
         const char *getUserAgent();
         const char *getBasePath();
 
+        void contactLinkCreate(bool renew = false, MegaRequestListener *listener = NULL);
+        void contactLinkQuery(MegaHandle handle, MegaRequestListener *listener = NULL);
+        void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
+
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
@@ -1816,6 +1820,9 @@ class MegaApiImpl : public MegaApp
 
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
         void getFileVersionsOption(MegaRequestListener *listener = NULL);
+
+        void setContactLinksOption(bool disable, MegaRequestListener *listener = NULL);
+        void getContactLinksOption(MegaRequestListener *listener = NULL);
 
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
@@ -2033,6 +2040,11 @@ protected:
 
         // check the reason of being blocked
         virtual void whyamiblocked_result(int);
+
+        // contact link management
+        virtual void contactlinkcreate_result(error, handle);
+        virtual void contactlinkquery_result(error, handle, string*, string*, string*);
+        virtual void contactlinkdelete_result(error);
 
         // account creation
         virtual void sendsignuplink_result(error);

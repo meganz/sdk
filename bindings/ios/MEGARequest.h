@@ -116,6 +116,9 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeRemoveVersions,
     MEGARequestTypeChatArchive,
     MEGARequestTypeWhyAmIBlocked,
+    MEGARequestTypeContactLinkCreate,
+    MEGARequestTypeContactLinkQuery,
+    MEGARequestTypeContactLinkDelete,
     MEGARequestTypeFolderInfo,
     TotalOfRequestTypes
 };

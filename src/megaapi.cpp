@@ -1318,6 +1318,21 @@ void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
     return pImpl->whyAmIBlocked(false, listener);
 }
 
+void MegaApi::contactLinkCreate(bool renew, MegaRequestListener *listener)
+{
+    pImpl->contactLinkCreate(renew, listener);
+}
+
+void MegaApi::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkQuery(handle, listener);
+}
+
+void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkDelete(handle, listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
@@ -1953,7 +1968,12 @@ bool MegaApi::usingHttpsOnly()
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
 {
-    pImpl->inviteContact(email, message, action, listener);
+    pImpl->inviteContact(email, message, action, UNDEF, listener);
+}
+
+void MegaApi::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
+{
+    pImpl->inviteContact(email, message, action, contactLink, listener);
 }
 
 void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
@@ -2672,9 +2692,19 @@ void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
     pImpl->setFileVersionsOption(disable, listener);
 }
 
+void MegaApi::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    pImpl->setContactLinksOption(disable, listener);
+}
+
 void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
 {
     pImpl->getFileVersionsOption(listener);
+}
+
+void MegaApi::getContactLinksOption(MegaRequestListener *listener)
+{
+    pImpl->getContactLinksOption(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)

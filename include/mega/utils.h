@@ -36,7 +36,9 @@ namespace mega {
 #define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
 
 std::string toNodeHandle(handle nodeHandle);
+std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
+#define LOG_HANDLE(x) toHandle(x)
 
 struct MEGA_API ChunkedHash
 {

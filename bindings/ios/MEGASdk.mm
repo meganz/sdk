@@ -614,6 +614,30 @@ using namespace mega;
     self.megaApi->confirmChangeEmail((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }
 
+- (void)contactLinkCreateRenew:(BOOL)renew delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkCreate(renew, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkCreateRenew:(BOOL)renew {
+    self.megaApi->contactLinkCreate(renew);
+}
+
+- (void)contactLinkQueryWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkQuery(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkQueryWithHandle:(uint64_t)handle {
+    self.megaApi->contactLinkQuery(handle);
+}
+
+- (void)contactLinkDeleteWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkDelete(INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkDeleteWithHandle:(uint64_t)handle {
+    self.megaApi->contactLinkDelete();
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -965,6 +989,14 @@ using namespace mega;
 
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action {
     self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action);
+}
+
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle {
+    self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, handle);
 }
 
 - (void)replyContactRequest:(MEGAContactRequest *)request action:(MEGAReplyAction)action delegate:(id<MEGARequestDelegate>)delegate {
@@ -1512,6 +1544,22 @@ using namespace mega;
 
 - (void)getLanguagePreference {
     self.megaApi->getLanguagePreference();
+}
+
+- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setContactLinksOption(disable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setContactLinksOptionDisable:(BOOL)disable {
+    self.megaApi->setContactLinksOption(disable);
+}
+
+- (void)getContactLinksOptionWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getContactLinksOption([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getContactLinksOption {
+    self.megaApi->getContactLinksOption();
 }
 
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
