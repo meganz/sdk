@@ -122,8 +122,9 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
         if(AndroidGfxProcessor.isVideo){
 
-            try {
-                Bitmap bmThumbnail;
+            Bitmap bmThumbnail = null;
+
+            try{
                 bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
                 if(context != null && bmThumbnail == null) {
 
@@ -140,7 +141,45 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                     }
                     cursor.close();
                 }
+            }
+            catch(Exception e){
+                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                try{
+                    retriever.setDataSource(path);
+                    bmThumbnail = retriever.getFrameAtTime();
+                }
+                catch(Exception e1){
 
+                    try{
+                        bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.MINI_KIND);
+                        if(context != null && bmThumbnail == null) {
+
+                            String SELECTION = MediaStore.MediaColumns.DATA + "=?";
+                            String[] PROJECTION = {BaseColumns._ID};
+
+                            Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                            String[] selectionArgs = {path};
+                            ContentResolver cr = context.getContentResolver();
+                            Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                            if (cursor.moveToFirst()) {
+                                long videoId = cursor.getLong(0);
+                                bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.MINI_KIND, null);
+                            }
+                            cursor.close();
+                        }
+                    }
+                    catch (Exception e2){
+                    }
+                }
+                finally {
+                    try {
+                        retriever.release();
+                    } catch (Exception ex) {
+                    }
+                }
+            }
+
+            try {
                 if (bmThumbnail != null) {
                     return Bitmap.createScaledBitmap(bmThumbnail, w, h, true);
                 }
