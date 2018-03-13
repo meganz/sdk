@@ -4176,7 +4176,7 @@ void MegaClient::sc_updatenode()
                             notify = true;
                         }
 
-                        if (a && ((n->attrstring && !strcmp(n->attrstring->c_str(), a)) || !n->attrstring))
+                        if (a && ((n->attrstring && strcmp(n->attrstring->c_str(), a)) || !n->attrstring))
                         {
                             if (!n->attrstring)
                             {
