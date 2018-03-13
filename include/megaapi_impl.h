@@ -1804,8 +1804,11 @@ class MegaApiImpl : public MegaApp
 #ifdef HAVE_LIBUV
         // start/stop
         bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
+        bool ftpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
         void httpServerStop();
+        void ftpServerStop();
         int httpServerIsRunning();
+        int ftpServerIsRunning();
 
         // management
         char *httpServerGetLocalLink(MegaNode *node);
@@ -1919,6 +1922,7 @@ protected:
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
+        MegaFTPServer *ftpServer;
         int httpServerMaxBufferSize;
         int httpServerMaxOutputSize;
         bool httpServerEnableFiles;
@@ -2344,7 +2348,7 @@ protected:
 
     void run();
 
-
+    void answer(MegaTCPContext* tcpctx, const char *rsp, int rlen);
 
     //virtual methods:
     virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf) = 0;
@@ -2352,7 +2356,7 @@ protected:
     virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle) = 0;
     virtual void processWriteFinished(MegaTCPContext* tcpctx, int status) = 0;
     virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx) = 0;
-
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx) = 0; //returns true if server needs to start by reading
 
 public:
     bool useTLS;
@@ -2413,8 +2417,6 @@ public:
     m_off_t nodesize;
     int resultCode;
 
-
-
     virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
@@ -2430,6 +2432,7 @@ protected:
     virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
     virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
     virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx);
 
 
     // HTTP parser callback
@@ -2474,6 +2477,16 @@ class MegaFTPServer;
 class MegaFTPContext : public MegaTCPContext
 {
 public:
+
+    int command;
+    std::string arg1;
+    std::string arg2;
+    int resultcode;
+    int pasiveport;
+
+    //status
+    MegaHandle cwd;
+
     MegaFTPContext();
     ~MegaFTPContext();
 
@@ -2485,21 +2498,106 @@ public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
+class MegaFTPDataServer;
 class MegaFTPServer: public MegaTCPServer
 {
 protected:
+    enum{
+        FTP_CMD_INVALID = -1,
+        FTP_CMD_USER = 1,
+        FTP_CMD_PASS,
+        FTP_CMD_ACCT,
+        FTP_CMD_CWD,
+        FTP_CMD_CDUP,
+        FTP_CMD_SMNT,
+        FTP_CMD_QUIT,
+        FTP_CMD_REIN,
+        FTP_CMD_PORT,
+        FTP_CMD_PASV,
+        FTP_CMD_TYPE,
+        FTP_CMD_STRU,
+        FTP_CMD_MODE,
+        FTP_CMD_RETR,
+        FTP_CMD_STOR,
+        FTP_CMD_STOU,
+        FTP_CMD_APPE,
+        FTP_CMD_ALLO,
+        FTP_CMD_REST,
+        FTP_CMD_RNFR,
+        FTP_CMD_RNTO,
+        FTP_CMD_ABOR,
+        FTP_CMD_DELE,
+        FTP_CMD_RMD,
+        FTP_CMD_MKD,
+        FTP_CMD_PWD,
+        FTP_CMD_LIST,
+        FTP_CMD_NLST,
+        FTP_CMD_SITE,
+        FTP_CMD_SYST,
+        FTP_CMD_STAT,
+        FTP_CMD_HELP,
+        FTP_CMD_NOOP
+    };
+
+    MegaFTPDataServer * ftpDataServer; //TODO: more than 1?
+
+    string getListingLineFromNode(MegaNode *child);
+
     //virtual methods:
     virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
     virtual void processAsyncEvent(MegaTCPContext *tcpctx);
     virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
     virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
     virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx);
 
 
 public:
     MegaFTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaFTPServer();
 };
+
+
+class MegaFTPDataServer: public MegaTCPServer
+{
+protected:
+
+    MegaFTPContext *controlftpctx;
+
+    //virtual methods:
+    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
+    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
+    virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
+    virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx);
+
+
+public:
+    std::string resultmsj; //TODO: char *? TODO: delete this and do it via sendData(msj)?
+    void sendData();
+
+    MegaFTPDataServer(MegaApiImpl *megaApi, MegaFTPContext * controlftpctx, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    virtual ~MegaFTPDataServer();
+    string getListingLineFromNode(MegaNode *child);
+};
+
+class MegaFTPDataServer;
+class MegaFTPDataContext : public MegaTCPContext
+{
+public:
+    //TODO: transfer...?
+
+
+    MegaFTPDataContext();
+    ~MegaFTPDataContext();
+
+    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
+    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+};
+
 
 
 #endif

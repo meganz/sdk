@@ -3056,6 +3056,22 @@ int MegaApi::httpServerIsRunning()
     return pImpl->httpServerIsRunning();
 }
 
+bool MegaApi::ftpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
+{
+    return pImpl->ftpServerStart(localOnly, port, useTLS, certificatepath, keypath);
+}
+
+void MegaApi::ftpServerStop()
+{
+    pImpl->ftpServerStop();
+}
+
+
+int MegaApi::ftpServerIsRunning()
+{
+    return pImpl->ftpServerIsRunning();
+}
+
 bool MegaApi::httpServerIsLocalOnly()
 {
     return pImpl->httpServerIsLocalOnly();

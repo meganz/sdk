@@ -9983,6 +9983,60 @@ class MegaApi
          */
         int httpServerIsRunning();
 
+
+        /**
+         * @brief Start an FTP proxy server in specified port
+         *
+         * //TODO: review docs
+         * If this function returns true, that means that the server is
+         * ready to accept connections. The initialization is synchronous.
+         *
+         * The server will serve files using this URL format:
+         * ftp://127.0.0.1/<NodeHandle>/<NodeName>
+         *
+         * The node name must be URL encoded and must match with the node handle.
+         * You can generate a correct link for a MegaNode using MegaApi::ftpServerGetLocalLink
+         *
+         * If the node handle belongs to a folder node, a web with the list of files
+         * inside the folder is returned.
+         *
+         * It's important to know that the FTP proxy server has several configuration options
+         * that can restrict the nodes that will be served and the connections that will be accepted.
+         *
+         * These are the default options:
+         * - The restricted mode of the server is set to MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * (see MegaApi::ftpServerSetRestrictedMode)
+         *
+         * - Folder nodes are NOT allowed to be served (see MegaApi::ftpServerEnableFolderServer)
+         * - File nodes are allowed to be served (see MegaApi::ftpServerEnableFileServer)
+         * - Subtitles support is disabled (see MegaApi::ftpServerEnableSubtitlesSupport)
+         *
+         * The FTP server will only stream a node if it's allowed by all configuration options.
+         *
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
+         * @param port Port in which the server must accept connections
+         * @param useTLS Use TLS (default false)
+         * @param certificatepath path to certificate (PEM format)
+         * @param keypath path to certificate key
+         * @return True is the server is ready, false if the initialization failed
+         */
+        bool ftpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
+
+        /**
+         * @brief Stop the FTP proxy server
+         *
+         * When this function returns, the server is already shutdown.
+         * If the FTP proxy server isn't running, this functions does nothing
+         */
+        void ftpServerStop();
+
+        /**
+         * @brief Check if the FTP proxy server is running
+         * @return 0 if the server is not running. Otherwise the port in which it's listening to
+         */
+        int ftpServerIsRunning();
+
+
         /**
          * @brief Check if the HTTP proxy server is listening on all network interfaces
          * @return true if the HTTP proxy server is listening on 127.0.0.1 only, or it's not started.
