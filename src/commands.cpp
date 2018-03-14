@@ -5365,6 +5365,48 @@ void CommandArchiveChat::procresult()
     }
 }
 
+CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
+{
+    cmd("erlsd");
+
+    arg("url", url, true);
+
+    tag = client->reqtag;
+}
+
+void CommandRichLink::procresult()
+{
+    std::string result("");
+    error e = API_OK;
+    if (client->json.isnumeric())
+    {
+        e = (error) client->json.getint();
+    }
+    else
+    {
+        if (client->json.storeobject(NULL))
+        {
+            result = string(client->json.getvalue());
+            result.erase(result.size() - 2);
+            if (result.find("url") == string::npos)
+            {
+                e = API_EINTERNAL;
+                result = "";
+            }
+            else
+            {
+                e = API_OK;
+            }
+        }
+        else
+        {
+            e = API_EINTERNAL;
+        }
+    }
+
+    client->app->richlinkrequest_result(&result ,e);
+}
+
 #endif
 
 CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)

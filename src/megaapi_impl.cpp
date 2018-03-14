@@ -2939,6 +2939,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
         case TYPE_WHY_AM_I_BLOCKED: return "WHY_AM_I_BLOCKED";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
+        case TYPE_RICH_LINK: return "RICH_LINK";
     }
     return "UNKNOWN";
 }
@@ -7386,6 +7387,14 @@ void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListene
     waiter->notify();
 }
 
+void MegaApiImpl::requestRichPreview(const char *url, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RICH_LINK, listener);
+    request->setText(url);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 #endif
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
@@ -9553,6 +9562,23 @@ void MegaApiImpl::chats_updated(textchat_map *chats, int count)
         fireOnChatsUpdate(NULL);
     }
 }
+
+void MegaApiImpl::richlinkrequest_result(string *richLink, error e)
+{
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_RICH_LINK)
+    {
+        return;
+    }
+
+    request->setText(richLink->c_str());
+    MegaError megaError(e);
+    fireOnRequestFinish(request, megaError);
+}
+
 #endif
 
 #ifdef ENABLE_SYNC
@@ -16480,6 +16506,19 @@ void MegaApiImpl::sendPendingRequests()
             {
                 e = API_EARGS;
             }
+            break;
+        }
+
+        case MegaRequest::TYPE_RICH_LINK:
+        {
+            const char *url = request->getText();
+            if (!url)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->richlinkrequest(url);
             break;
         }
 #endif

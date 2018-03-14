@@ -2029,7 +2029,7 @@ class MegaRequest
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
-            TYPE_FOLDER_INFO, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -10689,6 +10689,18 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Request rich preview for url
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RICH_LINK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns a json with meta contained from url
+         *
+         * @param url url to request meta contained
+         * @param listener MegaRequestListener to track this request
+         */
+        void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 
 #endif
 
