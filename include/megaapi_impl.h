@@ -2537,7 +2537,7 @@ protected:
         FTP_CMD_STAT,
         FTP_CMD_HELP,
         FTP_CMD_FEAT,  //rfc2389
-        //        FTP_CMD_SIZE, //TODO: add this one
+        FTP_CMD_SIZE,
         //        FTP_CMD_MDTM, //TODO: add this one
         FTP_CMD_NOOP
 

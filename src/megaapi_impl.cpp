@@ -20365,7 +20365,7 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child)
 
     char toprint[3000];
     sprintf(toprint,
-            "%c%s %5d %4d %4d %8d %s %s",
+            "%c%s %5d %4d %4d %8"PRId64" %s %s",
             (child->isFolder())?'d':'-',
             perms,
             1,//number of contents for folders
@@ -20578,6 +20578,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             ftpctx->command = FTP_CMD_FEAT;
         }
+        else if(command == "SIZE")
+        {
+            ftpctx->command = FTP_CMD_SIZE;
+        }
         else if(command == "NOOP")
         {
             ftpctx->command = FTP_CMD_NOOP;
@@ -20628,6 +20632,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_RNFR:
         case FTP_CMD_RNTO:
         case FTP_CMD_SITE:
+        case FTP_CMD_SIZE:
             if (psep != string::npos && ( (psep + 1)< petition.size()) )
             {
                 string rest = petition.substr(psep+1);
@@ -20779,8 +20784,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 MegaNode *newcwd = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
                 if (newcwd)
                 {
-                    ftpctx->cwd = newcwd->getHandle();
-                    response = "250 Directory successfully changed";
+                    if (newcwd->isFolder())
+                    {
+                        ftpctx->cwd = newcwd->getHandle();
+                        response = "250 Directory successfully changed";
+                    }
+                    else
+                    {
+                        response = "550 CWD failed."; //chrome requires this
+                    }
 
                     delete newcwd;
                 }
@@ -20885,10 +20897,43 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             char *lineseparator = "\r\n";
             response = "211-Features:";
             response.append(lineseparator);
-//            SIZE  //TODO: add this one once implemented
-            response.append(" LIST");
+            response.append(" SIZE");
             response.append(lineseparator);
             response.append("211 End");
+            break;
+        }
+        case FTP_CMD_SIZE: //TODO: this has to be exact, and depends ond STRU, MODE & TYPE!!
+        {
+            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            if (n)
+            {
+                MegaNode *nodeToGetSize = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
+                if (nodeToGetSize)
+                {
+                    if (nodeToGetSize->isFile())
+                    {
+                        response = "213 ";
+
+                        ostringstream sizenumber;
+                        sizenumber << nodeToGetSize->getSize();
+                        response.append(sizenumber.str());
+                    }
+                    else
+                    {
+                        response = "213 "; //212? not specified in RFC
+                        response.append("0"); //TODO: do we need the actual size??
+                    }
+                }
+                else
+                {
+                    response = "530 Not Found";
+                }
+                delete n;
+            }
+            else
+            {
+                response = "530 Not Found";
+            }
             break;
         }
         case FTP_CMD_INVALID:
