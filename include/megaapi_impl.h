@@ -2492,6 +2492,8 @@ public:
     int pasiveport;
     MegaFTPDataServer * ftpDataServer;
 
+    bool return226; //TODO: sth more versatile. probably include here some msj or queque of messages to control channel
+
     //status
     MegaHandle cwd;
 
@@ -2546,6 +2548,7 @@ protected:
         FTP_CMD_HELP,
         FTP_CMD_FEAT,  //rfc2389
         FTP_CMD_SIZE,
+        FTP_CMD_PROT,
         //        FTP_CMD_MDTM, //TODO: add this one
         FTP_CMD_NOOP
 

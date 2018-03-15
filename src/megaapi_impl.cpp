@@ -18707,7 +18707,7 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
         uv_write_t *req = new uv_write_t();
         tcpctx->writePointers.push_back((char*)bfr);
         req->data = tcpctx;
-        LOG_debug << "Sending " << sz << " bytes of TLS data";
+        LOG_debug << "Sending " << sz << " bytes of TLS data on port = " << tcpctx->server->port;
         if (int err = uv_write(req, (uv_stream_t*)&tcpctx->tcphandle, &b, 1, onWriteFinished_tls_async))
         {
             LOG_warn << "At uv_tls_writer: Finishing due to an error sending the response: " << err;
@@ -18994,9 +18994,14 @@ void MegaTCPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
 void MegaTCPServer::on_hd_complete( evt_tls_t *evt_tls, int status)
 {
     LOG_debug << "TLS handshake finished. Status: " << status;
+    MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
+
     if (status)
     {
-        evt_tls_read(evt_tls, evt_on_rd);
+        if ( tcpctx->server->respondNewConnection(tcpctx) )
+        {
+            evt_tls_read(evt_tls, evt_on_rd);
+        }
     }
     else
     {
@@ -19041,11 +19046,7 @@ void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
         return;
     }
 
-    if (tcpctx->server->respondNewConnection(tcpctx) )
-    {
-        // Start reading
-        uv_read_start((uv_stream_t*)(&tcpctx->tcphandle), allocBuffer, on_tcp_read);
-    }
+    uv_read_start((uv_stream_t*)(&tcpctx->tcphandle), allocBuffer, on_tcp_read);
 }
 
 void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
@@ -19100,7 +19101,7 @@ void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *d
     MegaTCPContext *tcpctx = (MegaTCPContext*) tcp->data;
     assert( tcpctx != NULL);
 
-    LOG_debug << "Received " << nrd << " bytes";
+    LOG_debug << "Received " << nrd << " bytes at port " << tcpctx->server->port;
     if (!nrd)
     {
         return;
@@ -19198,7 +19199,7 @@ void MegaTCPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
     }
 
     LOG_debug << "Async TLS write finished";
-    uv_async_send(&tcpctx->asynchandle);
+//    uv_async_send(&tcpctx->asynchandle); //TODO: consecuences on commenting this? review HTTP streaming!
 }
 
 void MegaTCPServer::onWriteFinished(uv_write_t* req, int status)
@@ -19234,11 +19235,15 @@ MegaTCPContext::~MegaTCPContext()
     }
 }
 
-
 void MegaTCPServer::onAsyncEvent(uv_async_t* handle)
 {
     MegaTCPContext* tcpctx = (MegaTCPContext*) handle->data;
 
+    if (tcpctx->server->useTLS && !evt_tls_is_handshake_over(tcpctx->evt_tls))
+    {
+        LOG_debug << " skipping processAsyncEvent due to handshake not over on port = " << tcpctx->server->port;
+        return;
+    }
     tcpctx->server->processAsyncEvent(tcpctx);
 }
 
@@ -20513,7 +20518,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             ftpctx->command = FTP_CMD_PORT;
         }
-        else if(command == "PASV")
+        else if(command == "PASV" || command == "EPSV")
         {
             ftpctx->command = FTP_CMD_PASV;
         }
@@ -20613,6 +20618,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             ftpctx->command = FTP_CMD_SIZE;
         }
+        else if(command == "PROT")
+        {
+            ftpctx->command = FTP_CMD_PROT;
+        }
         else if(command == "NOOP")
         {
             ftpctx->command = FTP_CMD_NOOP;
@@ -20664,6 +20673,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_RNTO:
         case FTP_CMD_SITE:
         case FTP_CMD_SIZE:
+        case FTP_CMD_PROT:
             if (psep != string::npos && ( (psep + 1)< petition.size()) )
             {
                 string rest = petition.substr(psep+1);
@@ -20764,6 +20774,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             break;
         }
         case FTP_CMD_TYPE:
+        case FTP_CMD_PROT: // we might want to require that arg1 = "P". or disable useTLS in data channel otherwise
         {
             response = "200 OK"; //TODO: implement
             break;
@@ -20959,6 +20970,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             response.append(lineseparator);
             response.append(" SIZE");
             response.append(lineseparator);
+            response.append(" PROT");
+            response.append(lineseparator);
             response.append("211 End");
             break;
         }
@@ -21048,12 +21061,15 @@ void MegaFTPServer::processAsyncEvent(MegaTCPContext *tcpctx)
         return;
     }
 
-    //TODO: use a flag to know if data is ended and hence, data connection has closed and 226 is expected!
-    string response = "226 Directory sent OK"; // (close connection: all ok) TODO: this should be added after async_send on ftpctx->asynchandle (review webdav branch way of dealing with this)
-    char *crlfout = "\r\n"; //TODO: use global definition
-    response.append(crlfout);
-    answer(tcpctx,response.c_str(),response.size());
-
+    MegaFTPContext* ftpctx = dynamic_cast<MegaFTPContext *>(tcpctx);
+    if (ftpctx->return226) //remove count usage (how to check whether handshake is over?)
+    {
+        ftpctx->return226 = false;
+        string response = "226 Directory sent OK";
+        char *crlfout = "\r\n"; //TODO: use global definition
+        response.append(crlfout);
+        answer(tcpctx,response.c_str(),response.size());
+    }
 }
 
 void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
@@ -21112,6 +21128,7 @@ MegaFTPContext::MegaFTPContext()
     cwd = UNDEF;
     pasiveport = -1;
     ftpDataServer = NULL;
+    return226 = false;
 }
 
 MegaFTPContext::~MegaFTPContext()
@@ -21205,6 +21222,7 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 
         if (this->controlftpctx)
         {
+            this->controlftpctx->return226 = true;
             uv_async_send(&this->controlftpctx->asynchandle); //So that it sends 226 message //TODO: maybe we want to stablish some flag to true here
         }
         else
@@ -21239,6 +21257,7 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
             //So that it sends 226 message //TODO: we DO want to stablish some flag to true here & in resultmsj case
             if (this->controlftpctx)
             {
+                this->controlftpctx->return226 = true;
                 uv_async_send(&this->controlftpctx->asynchandle);
             }
             else
@@ -21284,7 +21303,14 @@ void MegaFTPDataServer::sendData()
     if (tcpctx)
     {
         LOG_debug << " at sendData. triggering asyncsend for tcpctx=" << tcpctx;
-        uv_async_send(&tcpctx->asynchandle);
+        if (useTLS && !evt_tls_is_handshake_over(tcpctx->evt_tls))
+        {
+            this->notifyNewConnectionRequired = true;
+        }
+        else
+        {
+            uv_async_send(&tcpctx->asynchandle);
+        }
     }
     else
     {
