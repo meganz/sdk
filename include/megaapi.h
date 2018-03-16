@@ -10271,17 +10271,17 @@ class MegaApi
          *
          * By default, it is not enabled
          *
-         * This is using when serving files in WEBDAV, it will cause windows clients to not load a file
+         * This is used when serving files in WEBDAV, it will cause windows clients to not load a file
          * when it is selected. It is intended to reduce unnecessary traffic.
          *
-         * @param enable true to allow to server folders, false to forbid it
+         * @param enable true to enable the FILE_ATTRIBUTE_OFFLINE attribute, false to disable it
          */
         void httpServerEnableOfflineAttribute(bool enable);
 
         /**
          * @brief Check if FILE_ATTRIBUTE_OFFLINE it's enabled
          *
-         * @return true if it's allowed to serve folders, otherwise false
+         * @return true if the FILE_ATTRIBUTE_OFFLINE attribute is enabled, otherwise false
          */
         bool httpServerIsOfflineAttributeEnabled();
 

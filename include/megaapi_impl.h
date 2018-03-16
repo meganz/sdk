@@ -2350,13 +2350,13 @@ public:
     int depth;
     std::string lastheader;
     std::string subpathrelative;
-    const char * messageBody;
+    const char *messageBody;
     size_t messageBodySize;
     std::string host;
     std::string destination;
     bool overwrite;
     FileAccess *tmpFileAccess;
-    std:: string tmpFileName;
+    std::string tmpFileName;
     std::string newname; //newname for moved node
     MegaHandle nodeToMove; //node to be moved after delete
     MegaHandle newParentNode; //parent node for moved after delete
