@@ -18857,11 +18857,13 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS, string certifi
     this->useTLS = useTLS;
     this->certificatepath = certificatepath;
     this->keypath = keypath;
+    fsAccess = new MegaFileSystemAccess();
 }
 
 MegaHTTPServer::~MegaHTTPServer()
 {
     stop();
+    delete fsAccess;
 }
 
 bool MegaHTTPServer::start(int port, bool localOnly)
@@ -19590,20 +19592,17 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
         {
             httpctx->tmpFileName="httputfile";
             string suffix;
-            MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
-            fsAccess->tmpnamelocal(&suffix);
+            httpctx->server->fsAccess->tmpnamelocal(&suffix);
             httpctx->tmpFileName.append(suffix);
-            httpctx->tmpFileAccess = fsAccess->newfileaccess();
+            httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             string localPath;
-            fsAccess->path2local(&httpctx->tmpFileName, &localPath);
-            fsAccess->unlinklocal(&localPath);
+            httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
+            httpctx->server->fsAccess->unlinklocal(&localPath);
             if(!httpctx->tmpFileAccess->fopen(&localPath, false, true))
             {
                 returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
-                delete fsAccess;
                 return 0;
             }
-            delete fsAccess;
         }
 
         if(!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize) )
@@ -19615,9 +19614,9 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
     }
     else
     {
-        char * newbody = new char[n+httpctx->messageBodySize];
-        memcpy(newbody, httpctx->messageBody,httpctx->messageBodySize);
-        memcpy(newbody + (httpctx->messageBodySize?(httpctx->messageBodySize + 1):0), b, n);
+        char * newbody = new char[n + httpctx->messageBodySize];
+        memcpy(newbody, httpctx->messageBody, httpctx->messageBodySize);
+        memcpy(newbody + httpctx->messageBodySize, b, n);
         httpctx->messageBodySize += n;
         delete httpctx->messageBody;
         httpctx->messageBody = newbody;
@@ -20703,23 +20702,20 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             {
                 httpctx->tmpFileName="httputfile";
                 string suffix;
-                MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
-                fsAccess->tmpnamelocal(&suffix);
+                httpctx->server->fsAccess->tmpnamelocal(&suffix);
                 httpctx->tmpFileName.append(suffix);
-                httpctx->tmpFileAccess = fsAccess->newfileaccess();
+                httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 string localPath;
-                fsAccess->path2local(&httpctx->tmpFileName, &localPath);
-                fsAccess->unlinklocal(&localPath);
+                httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
+                httpctx->server->fsAccess->unlinklocal(&localPath);
                 if(!httpctx->tmpFileAccess->fopen(&localPath, false, true))
                 {
                     returnHttpCode(httpctx, 500);
                     delete node;
                     delete baseNode;
                     delete newParentNode;
-                    delete fsAccess;
                     return 0;
                 }
-                delete fsAccess;
             }
 
             httpctx->megaApi->startUpload(httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), httpctx);
@@ -21429,10 +21425,8 @@ MegaHTTPContext::~MegaHTTPContext()
 
     if (tmpFileAccess)
     {
-        MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
-        fsAccess->unlinklocal(&tmpFileName);
+        server->fsAccess->unlinklocal(&tmpFileName);
         delete tmpFileAccess;
-        delete fsAccess;
     }
     delete []messageBody;
 }

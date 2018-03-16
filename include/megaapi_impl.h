@@ -2470,6 +2470,8 @@ protected:
 
 public:
     bool useTLS;
+    MegaFileSystemAccess *fsAccess;
+
 
     MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
