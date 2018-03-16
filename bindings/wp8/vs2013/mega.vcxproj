@@ -451,6 +451,7 @@
     <ClCompile Include="..\..\..\src\megaapi_impl.cpp" />
     <ClCompile Include="..\..\..\src\megaclient.cpp" />
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp" />
+    <ClCompile Include="..\..\..\src\mega_evt_tls.cpp" />
     <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\..\src\node.cpp" />
     <ClCompile Include="..\..\..\src\posix\net.cpp" />

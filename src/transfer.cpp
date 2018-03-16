@@ -28,8 +28,10 @@
 #include "mega/base64.h"
 #include "mega/mediafileattribute.h"
 #include "megawaiter.h"
+#include "mega/utils.h"
 
 namespace mega {
+
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 {
     type = ctype;

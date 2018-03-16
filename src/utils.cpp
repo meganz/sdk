@@ -28,8 +28,15 @@ namespace mega {
 
 string toNodeHandle(handle nodeHandle)
 {
-    char base64Handle[14];
+    char base64Handle[12];
     Base64::btoa((byte*)&(nodeHandle), MegaClient::NODEHANDLE, base64Handle);
+    return string(base64Handle);
+}
+
+string toHandle(handle h)
+{
+    char base64Handle[14];
+    Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
 }
 
@@ -68,7 +75,7 @@ bool TextChat::serialize(string *d)
     d->append((char*)&priv, sizeof priv);
     d->append((char*)&shard, sizeof shard);
 
-    ll = userpriv ? userpriv->size() : 0;
+    ll = (unsigned short)(userpriv ? userpriv->size() : 0);
     d->append((char*)&ll, sizeof ll);
     if (userpriv)
     {
@@ -88,7 +95,7 @@ bool TextChat::serialize(string *d)
     d->append((char*)&group, sizeof group);
 
     // title is a binary array
-    ll = title.size();
+    ll = (unsigned short)title.size();
     d->append((char*)&ll, sizeof ll);
     d->append(title.data(), ll);
 
@@ -103,14 +110,14 @@ bool TextChat::serialize(string *d)
 
     if (hasAttachments)
     {
-        ll = attachedNodes.size();  // number of nodes with granted access
+        ll = (unsigned short)attachedNodes.size();  // number of nodes with granted access
         d->append((char*)&ll, sizeof ll);
 
         for (attachments_map::iterator it = attachedNodes.begin(); it != attachedNodes.end(); it++)
         {
             d->append((char*)&it->first, sizeof it->first); // nodehandle
 
-            ll = it->second.size(); // number of users with granted access to the node
+            ll = (unsigned short)it->second.size(); // number of users with granted access to the node
             d->append((char*)&ll, sizeof ll);
             for (set<handle>::iterator ituh = it->second.begin(); ituh != it->second.end(); ituh++)
             {
@@ -1074,5 +1081,12 @@ bool Utils::utf8toUnicode(const uint8_t *src, unsigned srclen, string *result)
 
     return true;
 }
+
+long long abs(long long n)
+{
+    // for pre-c++11 where this version is not defined yet
+    return n >= 0 ? n : -n;
+}
+
 
 } // namespace
