@@ -301,6 +301,15 @@ struct MEGA_API MegaApp
     // HTTP request finished
     virtual void http_result(error, int, byte*, int) { }
 
+    // contact link create
+    virtual void contactlinkcreate_result(error, handle) { }
+
+    // contact link query
+    virtual void contactlinkquery_result(error, handle, string*, string*, string*) { }
+
+    // contact link delete
+    virtual void contactlinkdelete_result(error) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

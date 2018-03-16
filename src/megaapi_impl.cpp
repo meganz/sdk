@@ -1312,6 +1312,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DISABLE_VERSIONS;
     }
+    if(user->changed.contactLinkVerification)
+    {
+        changed |= MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -2335,6 +2339,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 #endif
 
     stringMap = NULL;
+    folderInfo = NULL;
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
@@ -2402,6 +2407,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
+    this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -2466,6 +2472,21 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
     this->stringMap = stringMap ? stringMap->copy() : NULL;
 }
 
+MegaFolderInfo *MegaRequestPrivate::getMegaFolderInfo() const
+{
+    return folderInfo;
+}
+
+void MegaRequestPrivate::setMegaFolderInfo(const MegaFolderInfo *folderInfo)
+{
+    if (this->folderInfo)
+    {
+        delete this->folderInfo;
+    }
+
+    this->folderInfo = folderInfo ? folderInfo->copy() : NULL;
+}
+
 #ifdef ENABLE_SYNC
 void MegaRequestPrivate::setSyncListener(MegaSyncListener *syncListener)
 {
@@ -2523,6 +2544,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete achievementsDetails;
     delete [] text;
     delete stringMap;
+    delete folderInfo;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -2920,6 +2942,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
         case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
         case TYPE_WHY_AM_I_BLOCKED: return "WHY_AM_I_BLOCKED";
+        case TYPE_CONTACT_LINK_CREATE: return "CONTACT_LINK_CREATE";
+        case TYPE_CONTACT_LINK_QUERY: return "CONTACT_LINK_QUERY";
+        case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
+        case TYPE_FOLDER_INFO: return "FOLDER_INFO";
     }
     return "UNKNOWN";
 }
@@ -4249,6 +4275,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
             attrname = "!dv";
             break;
+
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+            attrname = "clv";
+            break;
     }
 
     return attrname;
@@ -4282,6 +4312,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LANGUAGE:
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
             scope = '^';
             break;
 
@@ -5587,12 +5618,13 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
     return MegaApi::strdup(colors[index].c_str());
 }
 
-void MegaApiImpl::inviteContact(const char *email, const char *message,int action, MegaRequestListener *listener)
+void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
     request->setNumber(action);
     request->setEmail(email);
     request->setText(message);
+    request->setNodeHandle(contactLink);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8032,6 +8064,30 @@ void MegaApiImpl::downloadFile(const char *url, const char *dstpath, MegaRequest
     waiter->notify();
 }
 
+void MegaApiImpl::contactLinkCreate(bool renew, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_CREATE, listener);
+    request->setFlag(renew);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_QUERY, listener);
+    request->setNodeHandle(handle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_DELETE, listener);
+    request->setNodeHandle(handle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
@@ -8222,6 +8278,17 @@ void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
     getUserAttr(NULL, MegaApi::USER_ATTR_DISABLE_VERSIONS, NULL, listener);
 }
 
+void MegaApiImpl::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    string av = disable ? "0" : "1";
+    setUserAttr(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, av.data(), listener);
+}
+
+void MegaApiImpl::getContactLinksOption(MegaRequestListener *listener)
+{
+    getUserAttr(NULL, MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, NULL, listener);
+}
+
 void MegaApiImpl::retrySSLerrors(bool enable)
 {
     sdkMutex.lock();
@@ -8252,49 +8319,45 @@ void MegaApiImpl::resumeActionPackets()
 
 bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive)
 {
-	if(!node) return 1;
-	if(!processor) return 0;
+    if (!node)
+    {
+        return 1;
+    }
+
+    if (!processor)
+    {
+        return 0;
+    }
 
     sdkMutex.lock();
-	node = client->nodebyhandle(node->nodehandle);
-	if(!node)
-	{
+    node = client->nodebyhandle(node->nodehandle);
+    if (!node)
+    {
         sdkMutex.unlock();
-		return 1;
-	}
+        return 1;
+    }
 
-	if (node->type != FILENODE)
-	{
-		for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
-		{
-			if(recursive)
-			{
-				if(!processTree(*it++,processor))
-				{
-                    sdkMutex.unlock();
-					return 0;
-				}
-			}
-			else
-			{
-				if(!processor->processNode(*it++))
-				{
-                    sdkMutex.unlock();
-					return 0;
-				}
-			}
-		}
-	}
-	bool result = processor->processNode(node);
+    if (recursive && node->type != FILENODE)
+    {
+        for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+        {
+            if (!processTree(*it++,processor))
+            {
+                sdkMutex.unlock();
+                return 0;
+            }
+        }
+    }
+    bool result = processor->processNode(node);
     sdkMutex.unlock();
-	return result;
+    return result;
 }
 
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool recursive)
 {
     if (!n || !searchString)
     {
-    	return new MegaNodeListPrivate();
+        return new MegaNodeListPrivate();
     }
     
     sdkMutex.lock();
@@ -8311,12 +8374,10 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, bool re
     {
         processTree(*it++, &searchProcessor, recursive);
     }
+
     vector<Node *>& vNodes = searchProcessor.getResults();
-
     MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), vNodes.size());
-
     sdkMutex.unlock();
-
     return nodeList;
 }
 
@@ -11344,11 +11405,13 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
         case MegaApi::USER_ATTR_LANGUAGE:   // it's a c-string in binary format, want the plain data
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
+        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
             {
                 string str((const char*)data,len);
                 request->setText(str.c_str());
 
-                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS)
+                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS
+                        || attrType == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
                 {
                     request->setFlag(str == "1");
                 }
@@ -11509,6 +11572,61 @@ void MegaApiImpl::whyamiblocked_result(int code)
         event->setText(reason.c_str());
         fireOnEvent(event);
     }
+}
+
+void MegaApiImpl::contactlinkcreate_result(error e, handle h)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_CREATE)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setNodeHandle(h);
+    }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_QUERY)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setParentHandle(h);
+        request->setEmail(email->c_str());
+        request->setName(firstname->c_str());
+        request->setText(lastname->c_str());
+    }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::contactlinkdelete_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_DELETE)))
+    {
+        return;
+    }
+    fireOnRequestFinish(request, e);
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
@@ -12918,6 +13036,17 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
     return result;
 }
 
+void MegaApiImpl::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FOLDER_INFO, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE)
@@ -13304,7 +13433,7 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 	do {
 		if (!l)
 		{
-			if (*path >= 0)
+            if (*(const signed char*)path >= 0)
 			{
 				if (*path == '\\')
 				{
@@ -13654,6 +13783,29 @@ void MegaApiImpl::sendPendingTransfers()
                         }
                         else
                         {
+                            MegaTransferPrivate* prevTransfer = NULL;
+                            transfer_map::iterator it = client->transfers[PUT].find(f);
+                            if (it != client->transfers[PUT].end())
+                            {
+                                Transfer *t = it->second;
+                                for (file_list::iterator fi = t->files.begin(); fi != t->files.end(); fi++)
+                                {
+                                    if (f->h != UNDEF && f->h == (*fi)->h && !f->targetuser.size()
+                                            && !(*fi)->targetuser.size() && f->name == (*fi)->name)
+                                    {
+                                        prevTransfer = getMegaTransferPrivate((*fi)->tag);
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (prevTransfer && transfer->getAppData())
+                            {
+                                string appData = prevTransfer->getAppData() ? string(prevTransfer->getAppData()) + "!" : string();
+                                appData.append(transfer->getAppData());
+                                prevTransfer->setAppData(appData.c_str());
+                            }
+
                             //Already existing transfer
                             transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
@@ -14917,6 +15069,16 @@ void MegaApiImpl::sendPendingRequests()
 
                     client->putua(type, (byte *)value, 1);
                 }
+                else if (type == ATTR_CONTACT_LINK_VERIFICATION)
+                {
+                    if (!value || strlen(value) != 1 || (value[0] != '0' && value[0] != '1'))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    client->putua(type, (byte *)value, 1);
+                }
                 else
                 {
                     e = API_EARGS;
@@ -15220,6 +15382,7 @@ void MegaApiImpl::sendPendingRequests()
             const char *email = request->getEmail();
             const char *message = request->getText();
             int action = request->getNumber();
+            MegaHandle contactLink = request->getNodeHandle();
 
             if(client->loggedin() != FULLACCOUNT)
             {
@@ -15239,7 +15402,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->setpcr(email, (opcactions_t)action, message);
+            client->setpcr(email, (opcactions_t)action, message, NULL, contactLink);
             break;
         }
         case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:
@@ -16493,6 +16656,60 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_WHY_AM_I_BLOCKED:
         {
             client->whyamiblocked();
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_CREATE:
+        {
+            client->contactlinkcreate(request->getFlag());
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_QUERY:
+        {
+            handle h = request->getNodeHandle();
+            if (ISUNDEF(h))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->contactlinkquery(h);
+            break;
+        }
+        case MegaRequest::TYPE_CONTACT_LINK_DELETE:
+        {
+            handle h = request->getNodeHandle();
+            client->contactlinkdelete(h);
+            break;
+        }
+        case MegaRequest::TYPE_FOLDER_INFO:
+        {
+            MegaHandle h = request->getNodeHandle();
+            if (ISUNDEF(h))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            Node *node = client->nodebyhandle(h);
+            if (!node)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            if (node->type == FILENODE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            TreeProcFolderInfo folderProcessor;
+            client->proctree(node, &folderProcessor, false, false);
+            MegaFolderInfo *folderInfo = folderProcessor.getResult();
+            request->setMegaFolderInfo(folderInfo);
+            delete folderInfo;
+
+            fireOnRequestFinish(request, MegaError(API_OK));
             break;
         }
         case MegaRequest::TYPE_GET_ACHIEVEMENTS:
@@ -22208,4 +22425,92 @@ long long MegaAchievementsDetailsPrivate::currentTransferReferrals()
 MegaAchievementsDetailsPrivate::MegaAchievementsDetailsPrivate(AchievementsDetails *details)
 {
     this->details = (*details);
+}
+
+MegaFolderInfoPrivate::MegaFolderInfoPrivate(int numFiles, int numFolders, int numVersions, long long currentSize, long long versionsSize)
+{
+    this->numFiles = numFiles;
+    this->numFolders = numFolders;
+    this->numVersions = numVersions;
+    this->currentSize = currentSize;
+    this->versionsSize = versionsSize;
+}
+
+MegaFolderInfoPrivate::MegaFolderInfoPrivate(const MegaFolderInfoPrivate *folderData)
+{
+    this->numFiles = folderData->getNumFiles();
+    this->numFolders = folderData->getNumFolders();
+    this->numVersions = folderData->getNumVersions();
+    this->currentSize = folderData->getCurrentSize();
+    this->versionsSize = folderData->getVersionsSize();
+}
+
+MegaFolderInfoPrivate::~MegaFolderInfoPrivate()
+{
+
+}
+
+MegaFolderInfo *MegaFolderInfoPrivate::copy() const
+{
+    return new MegaFolderInfoPrivate(this);
+}
+
+int MegaFolderInfoPrivate::getNumVersions() const
+{
+    return numVersions;
+}
+
+int MegaFolderInfoPrivate::getNumFiles() const
+{
+    return numFiles;
+}
+
+int MegaFolderInfoPrivate::getNumFolders() const
+{
+    return numFolders;
+}
+
+long long MegaFolderInfoPrivate::getCurrentSize() const
+{
+    return currentSize;
+}
+
+long long MegaFolderInfoPrivate::getVersionsSize() const
+{
+    return versionsSize;
+}
+
+TreeProcFolderInfo::TreeProcFolderInfo()
+{
+    numFiles = 0;
+    numFolders = 0;
+    numVersions = 0;
+    currentSize = 0;
+    versionsSize = 0;
+}
+
+void TreeProcFolderInfo::proc(MegaClient *, Node *node)
+{
+    if (node->parent && node->parent->type == FILENODE)
+    {
+        numVersions++;
+        versionsSize += node->size;
+    }
+    else
+    {
+        if (node->type == FILENODE)
+        {
+            numFiles++;
+            currentSize += node->size;
+        }
+        else
+        {
+            numFolders++;
+        }
+    }
+}
+
+MegaFolderInfo *TreeProcFolderInfo::getResult()
+{
+    return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
 }
