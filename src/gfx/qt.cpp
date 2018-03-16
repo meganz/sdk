@@ -630,7 +630,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     int videoStreamIdx = 0;
     for (int i = 0; i < formatContext->nb_streams; i++)
     {
-        if (formatContext->streams[i]->codec && formatContext->streams[i]->codec->codec_type == AVMediaType::AVMEDIA_TYPE_VIDEO)
+        if (formatContext->streams[i]->codec && formatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             videoStream = formatContext->streams[i];
             videoStreamIdx = i;
@@ -664,7 +664,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     }
 
     AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
-    AVPixelFormat targetPixelFormat = AVPixelFormat::AV_PIX_FMT_RGB24;
+    AVPixelFormat targetPixelFormat = AV_PIX_FMT_RGB24;
     SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
                                             width, height, targetPixelFormat,
                                             SWS_FAST_BILINEAR, NULL, NULL, NULL);
