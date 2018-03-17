@@ -453,7 +453,7 @@ libuv_pkg() {
     local install_dir=$2
     local name="libuv"
     local libuv_ver="v1.8.0"
-    local libuv_url="http://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
+    local libuv_url="https://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
     local libuv_md5="f4229c4360625e973ae933cb92e1faf7"
     local libuv_file="libuv-$libuv_ver.tar.gz"
     local libuv_dir="libuv-$libuv_ver"
