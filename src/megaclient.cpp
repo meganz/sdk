@@ -578,7 +578,7 @@ void MegaClient::exportDatabase(string filename)
 
     for (map<uint32_t, string>::iterator it = entries.begin(); it != entries.end(); it++)
     {
-        fprintf(fp, "%8.u\t%s\n", it->first, it->second.c_str());
+        fprintf(fp, "%8.d\t%s\n" PRIu32, it->first, it->second.c_str());
     }
 
     fclose(fp);
@@ -11243,7 +11243,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 char report[256];
 
                 // always report LocalNode's type, name length, mtime, file size
-                sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %ld" PRIi64,
+                sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %d" PRIi64,
                     (int)nchildren.size(),
                     (int)l->children.size(),
                     l->node ? (int)l->node->children.size() : -1,
@@ -11254,7 +11254,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     (int)ll->mtime,
                     (int)ll->sync->state,
                     (int)ll->sync->inshare,
-                    ll->size);
+                    (int)ll->size);
 
                 if (ll->node)
                 {
