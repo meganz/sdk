@@ -20283,7 +20283,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         string subnodepath = httpctx->subpathrelative;
         //remove trailing "/"
         size_t seppos = subnodepath.find_last_of("/");
-        while ((seppos + 1) == subnodepath.size())
+        while ( (seppos != string::npos) && ((seppos + 1) == subnodepath.size()) )
         {
             subnodepath = subnodepath.substr(0,seppos);
             seppos = subnodepath.find_last_of("/");
@@ -20446,7 +20446,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         string dest = httpctx->subpathrelative;
         size_t seppos = dest.find_last_of("/");
 
-        while ((seppos + 1) == dest.size())
+        while ( (seppos != string::npos) && ((seppos + 1) == dest.size()) )
         {
             dest = dest.substr(0,seppos);
             seppos = dest.find_last_of("/");
@@ -20547,7 +20547,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         if (!newParentNode)
         {
             size_t seppos = dest.find_last_of("/");
-            while ((seppos + 1) == dest.size())
+            while ( (seppos != string::npos) && ((seppos + 1) == dest.size()) )
             {
                 dest = dest.substr(0,seppos);
                 seppos = dest.find_last_of("/");
@@ -20604,7 +20604,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
             string dest = httpctx->subpathrelative;
             size_t seppos = dest.find_last_of("/");
-            while ((seppos + 1) == dest.size())
+            while ( (seppos != string::npos) && ((seppos + 1) == dest.size()) )
             {
                 dest = dest.substr(0,seppos);
                 seppos = dest.find_last_of("/");
@@ -20712,7 +20712,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                     httpctx->newname = destNode->getName();
                     httpctx->nodeToMove = node->getHandle();
                     httpctx->megaApi->remove(destNode, false, httpctx);
-
+                    delete node;
                     delete baseNode;
                     delete destNode;
                     return 0;
@@ -20730,23 +20730,20 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         else
         {
             MegaNode *newParentNode = NULL;
-            if (!newParentNode)
+            size_t seppos = dest.find_last_of("/");
+            httpctx->newname = dest;
+            if (seppos == string::npos)
             {
-                size_t seppos = dest.find_last_of("/");
-                httpctx->newname = dest;
-                if (seppos == string::npos)
+                newParentNode = baseNode ? baseNode->copy() : node->copy();
+            }
+            else
+            {
+                if ((seppos + 1) < httpctx->newname.size())
                 {
-                    newParentNode = baseNode ? baseNode->copy() : node->copy();
+                    httpctx->newname = httpctx->newname.substr(seppos + 1);
                 }
-                else
-                {
-                    if ((seppos + 1) < httpctx->newname.size())
-                    {
-                        httpctx->newname = httpctx->newname.substr(seppos + 1);
-                    }
-                    string newparentpath = dest.substr(0, seppos);
-                    newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(), baseNode ? baseNode : node);
-                }
+                string newparentpath = dest.substr(0, seppos);
+                newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(), baseNode ? baseNode : node);
             }
             if (!newParentNode)
             {
