@@ -239,7 +239,7 @@ struct DemoApp : public MegaApp
     void reload(const char*);
     void clearing();
 
-    void notify_retry(dstime);
+    void notify_retry(dstime, retryreason_t);
 };
 
 struct DemoAppFolder : public DemoApp

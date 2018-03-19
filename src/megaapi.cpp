@@ -3055,7 +3055,7 @@ bool MegaApi::isWaiting()
     return pImpl->isWaiting();
 }
 
-bool MegaApi::areServersBusy()
+int MegaApi::areServersBusy()
 {
     return pImpl->areServersBusy();
 }

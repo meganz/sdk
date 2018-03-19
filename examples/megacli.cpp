@@ -1105,7 +1105,7 @@ void DemoApp::delua_result(error e)
 #endif
 
 
-void DemoApp::notify_retry(dstime dsdelta)
+void DemoApp::notify_retry(dstime dsdelta, retryreason_t)
 {
     if (dsdelta)
     {

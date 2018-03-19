@@ -4805,6 +4805,14 @@ class MegaApi
             PASSWORD_STRENGTH_STRONG = 4
         };
 
+        enum {
+            RETRY_NONE = 0,
+            RETRY_CONNECTIVITY = 1,
+            RETRY_SERVERS_BUSY = 2,
+            RETRY_API_OVERLOADED = 3,
+            RETRY_UNKNOWN = 4
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -8612,10 +8620,26 @@ class MegaApi
         bool isWaiting();
 
         /**
-         * @brief Check if the SDK is waiting for the server
-         * @return true if the SDK is waiting for the server to complete a request
+         * @brief Check if the SDK is waiting for the server to complete a request and get the reason
+         * @return State of SDK related to a request.
+         * Valid values are:
+         * - MegaApi::RETRY_NONE = 0
+         * SDK is not waiting for the server to complete a request
+         *
+         * - MegaApi::RETRY_CONNECTIVITY = 1
+         * SDK is waiting for the server to complete a request due to connectivity issues
+         *
+         * - MegaApi::RETRY_SERVERS_BUSY = 2
+         * SDK is waiting for the server to complete a request due to error 500
+         *
+         * - MegaApi::RETRY_API_OVERLOADED = 3
+         * SDK is waiting for the server to complete a request due to API overload
+         *
+         * - MegaApi::RETRY_UNKNOWN = 4
+         * SDK is waiting for the server to complete a request with unknown reason
+         *
          */
-        bool areServersBusy();
+        int areServersBusy();
 
         /**
          * @brief Get the number of pending uploads
