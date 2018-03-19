@@ -4729,7 +4729,6 @@ void MegaClient::sc_ipc()
     m_time_t uts = 0;
     m_time_t rts = 0;
     m_time_t dts = 0;
-//    int ps = 0;
     const char *m = NULL;
     const char *msg = NULL;
     handle p = UNDEF;
@@ -4743,10 +4742,6 @@ void MegaClient::sc_ipc()
             case 'm':
                 m = jsonsc.getvalue();
                 break;
-//            case MAKENAMEID2('p', 's'):
-//                // pending shares (for informative purposes)
-//                ps = jsonsc.getint();
-//                break;
             case MAKENAMEID2('t', 's'):
                 ts = jsonsc.getint();
                 break;
@@ -6587,7 +6582,6 @@ void MegaClient::readipc(JSON *j)
         {
             m_time_t ts = 0;
             m_time_t uts = 0;
-//            int ps = 0;
             const char *m = NULL;
             const char *msg = NULL;
             handle p = UNDEF;
@@ -6596,9 +6590,6 @@ void MegaClient::readipc(JSON *j)
             while (!done)
             {
                 switch (j->getnameid()) {
-//                    case MAKENAMEID2('p', 's'):
-//                        ps = j->getint();
-//                        break;
                     case 'm':
                         m = j->getvalue();
                         break;
@@ -6669,7 +6660,6 @@ void MegaClient::readopc(JSON *j)
         {
             m_time_t ts = 0;
             m_time_t uts = 0;
-//            m_time_t rts = 0;
             const char *e = NULL;
             const char *m = NULL;
             const char *msg = NULL;
@@ -6692,9 +6682,6 @@ void MegaClient::readopc(JSON *j)
                     case MAKENAMEID3('u', 't', 's'):
                         uts = j->getint();
                         break;
-//                    case MAKENAMEID3('r', 't', 's'):
-//                        rts = j->getint();
-//                        break;
                     case MAKENAMEID3('m', 's', 'g'):
                         msg = j->getvalue();
                         break;

@@ -588,7 +588,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
 
     m_off_t filesize = fa->size; 
     size_t totalBytesRead = 0, jumps = 0;
-    //size_t opened = mi.Open_Buffer_Init(filesize, 0);
+    mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
     time_t startTime = 0;
 
@@ -625,9 +625,9 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
 
         totalBytesRead += n;
         size_t bitfield = mi.Open_Buffer_Continue((byte*)buf, n);
+        // flag bitmask --> 1:accepted, 2:filled, 4:updated, 8:finalised
         bool accepted = bitfield & 1;
         bool filled = bitfield & 2;
-        //bool updated = bitfield & 4;
         bool finalised = bitfield & 8;
         if (filled || finalised)
         {
@@ -636,11 +636,9 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
 
         if (accepted)
         {
-            //bool hasGeneral = 0 < mi.Count_Get(MediaInfoLib::Stream_General, 0);
             bool hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
             bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
 
-            //bool genDuration = !mi.Get(MediaInfoLib::Stream_General, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
             bool vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
             bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
 
@@ -654,7 +652,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
         if (requestPos != (m_off_t)-1)
         {
             readpos = requestPos;
-//            opened = mi.Open_Buffer_Init(filesize, readpos);
+            mi.Open_Buffer_Init(filesize, readpos);
             jumps += 1;
         }
     }
