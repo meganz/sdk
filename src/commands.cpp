@@ -1970,8 +1970,8 @@ void CommandSetPendingContact::procresult()
     handle p = UNDEF;    
     m_time_t ts = 0;
     m_time_t uts = 0;
-    m_time_t rts = 0;
-    m_time_t dts = 0;
+//    m_time_t rts = 0;
+//    m_time_t dts = 0;
     const char *e = NULL;
     const char *m = NULL;
     const char *msg = NULL;
@@ -1998,12 +1998,12 @@ void CommandSetPendingContact::procresult()
             case MAKENAMEID3('u', 't', 's'):
                 uts = client->json.getint();
                 break;
-            case MAKENAMEID3('r', 't', 's'):
-                rts = client->json.getint();
-                break;
-            case MAKENAMEID3('d', 't', 's'):
-                dts = client->json.getint();
-                break;
+//            case MAKENAMEID3('r', 't', 's'):
+//                rts = client->json.getint();
+//                break;
+//            case MAKENAMEID3('d', 't', 's'):
+//                dts = client->json.getint();
+//                break;
             case EOO:
                 if (ISUNDEF(p))
                 {

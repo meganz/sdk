@@ -153,7 +153,7 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
     bool working = json.enterarray();
     if (working)
     {
-        while (working = json.enterarray())
+        while ((working = json.enterarray()))
         {
             MediaFileInfo::MediaCodecs::shortformatrec rec;
             unsigned id = atoi(json.getvalue());
@@ -588,7 +588,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
 
     m_off_t filesize = fa->size; 
     size_t totalBytesRead = 0, jumps = 0;
-    size_t opened = mi.Open_Buffer_Init(filesize, 0);
+    //size_t opened = mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
     time_t startTime = 0;
 
@@ -627,7 +627,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
         size_t bitfield = mi.Open_Buffer_Continue((byte*)buf, n);
         bool accepted = bitfield & 1;
         bool filled = bitfield & 2;
-        bool updated = bitfield & 4;
+        //bool updated = bitfield & 4;
         bool finalised = bitfield & 8;
         if (filled || finalised)
         {
@@ -636,11 +636,11 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
 
         if (accepted)
         {
-            bool hasGeneral = 0 < mi.Count_Get(MediaInfoLib::Stream_General, 0);
+            //bool hasGeneral = 0 < mi.Count_Get(MediaInfoLib::Stream_General, 0);
             bool hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
             bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
 
-            bool genDuration = !mi.Get(MediaInfoLib::Stream_General, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+            //bool genDuration = !mi.Get(MediaInfoLib::Stream_General, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
             bool vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
             bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
 
@@ -654,7 +654,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
         if (requestPos != (m_off_t)-1)
         {
             readpos = requestPos;
-            opened = mi.Open_Buffer_Init(filesize, readpos);
+//            opened = mi.Open_Buffer_Init(filesize, readpos);
             jumps += 1;
         }
     }
