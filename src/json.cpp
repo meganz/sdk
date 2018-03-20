@@ -33,7 +33,7 @@ bool JSON::storeobject(string* s)
     const char* ptr;
     bool escaped = false;
 
-    while (*pos > 0 && *pos <= ' ')
+    while (*(const signed char*)pos > 0 && *pos <= ' ')
     {
         pos++;
     }
