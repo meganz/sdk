@@ -6910,7 +6910,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     }
 
     httpServerStop();
-    httpServer = new MegaHTTPServer(this, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
+    httpServer = new MegaHTTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
@@ -18840,7 +18840,7 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 // http_parser settings
 http_parser_settings MegaHTTPServer::parsercfg;
 
-MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS, string certificatepath, string keypath)
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
 {
     this->megaApi = megaApi;
     this->localOnly = true;
@@ -18858,6 +18858,7 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS, string certifi
     this->certificatepath = certificatepath;
     this->keypath = keypath;
     fsAccess = new MegaFileSystemAccess();
+    this->basePath = basePath;
 }
 
 MegaHTTPServer::~MegaHTTPServer()
@@ -19591,7 +19592,11 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
         //create tmp file with contents in messageBody
         if (!httpctx->tmpFileAccess)
         {
-            httpctx->tmpFileName="httputfile";
+            httpctx->tmpFileName=httpctx->server->basePath;
+            string utf8Separator;
+            httpctx->server->fsAccess->local2path(&httpctx->server->fsAccess->localseparator, &utf8Separator);
+            httpctx->tmpFileName.append(utf8Separator);
+            httpctx->tmpFileName.append("httputfile");
             string suffix, utf8suffix;
             httpctx->server->fsAccess->tmpnamelocal(&suffix);
             httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
@@ -20635,7 +20640,11 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
             if (!httpctx->tmpFileAccess) //put with no body contents
             {
-                httpctx->tmpFileName = "httputfile";
+                httpctx->tmpFileName=httpctx->server->basePath;
+                string utf8Separator;
+                httpctx->server->fsAccess->local2path(&httpctx->server->fsAccess->localseparator, &utf8Separator);
+                httpctx->tmpFileName.append(utf8Separator);
+                httpctx->tmpFileName.append("httputfile");
                 string suffix, utf8suffix;
                 httpctx->server->fsAccess->tmpnamelocal(&suffix);
                 httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
