@@ -20180,6 +20180,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         httpctx->resultCode = API_OK;
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
+        delete node;
         return 0;
     }
 
