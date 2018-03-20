@@ -2472,9 +2472,9 @@ public:
     bool useTLS;
     MegaFileSystemAccess *fsAccess;
 
-    string basePath;
+    std::string basePath;
 
-    MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaHTTPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
     bool start(int port, bool localOnly = true);
     void stop();
