@@ -18858,7 +18858,16 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTL
     this->certificatepath = certificatepath;
     this->keypath = keypath;
     fsAccess = new MegaFileSystemAccess();
-    this->basePath = basePath;
+
+    string sBasePath = basePath;
+    int lastIndex = sBasePath.size() - 1;
+    if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+    {
+        string utf8Separator;
+        fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
+        sBasePath.append(utf8Separator);
+    }
+    this->basePath = sBasePath;
 }
 
 MegaHTTPServer::~MegaHTTPServer()
@@ -19593,9 +19602,6 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
         if (!httpctx->tmpFileAccess)
         {
             httpctx->tmpFileName=httpctx->server->basePath;
-            string utf8Separator;
-            httpctx->server->fsAccess->local2path(&httpctx->server->fsAccess->localseparator, &utf8Separator);
-            httpctx->tmpFileName.append(utf8Separator);
             httpctx->tmpFileName.append("httputfile");
             string suffix, utf8suffix;
             httpctx->server->fsAccess->tmpnamelocal(&suffix);
@@ -20641,9 +20647,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             if (!httpctx->tmpFileAccess) //put with no body contents
             {
                 httpctx->tmpFileName=httpctx->server->basePath;
-                string utf8Separator;
-                httpctx->server->fsAccess->local2path(&httpctx->server->fsAccess->localseparator, &utf8Separator);
-                httpctx->tmpFileName.append(utf8Separator);
                 httpctx->tmpFileName.append("httputfile");
                 string suffix, utf8suffix;
                 httpctx->server->fsAccess->tmpnamelocal(&suffix);
