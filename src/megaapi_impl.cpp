@@ -20374,6 +20374,7 @@ void getPermissionsString(int permissions, char *getPermissionsString)
 MegaFTPServer::MegaFTPServer(MegaApiImpl *megaApi, bool useTLS, string certificatepath, string keypath)
 : MegaTCPServer(megaApi, useTLS, certificatepath, keypath)
 {
+    nodeHandleToRename = UNDEF;
 }
 
 MegaFTPServer::~MegaFTPServer()
@@ -20494,7 +20495,6 @@ string MegaFTPServer::getFTPErrorString(int errorcode)
         return "Need account for login.";
     case 350:
         return "Requested file action pending further information.";
-
     case 421:
         return "Service not available, closing control connection.";
         //         This may be a reply to any command if the service knows it
@@ -20649,7 +20649,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 
         petition = string(buf->base, nread);
 
-        LOG_verbose << "Received: " << petition; //TODO: delete
+        LOG_verbose << "Received: " << petition << " tcpctx = " << tcpctx; //TODO: delete
 
         size_t psep = petition.find_first_of(separators);
         size_t psepend = petition.find(crlf); //CLRF //TODO: windows? unix?
@@ -21020,15 +21020,32 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_CWD:
         {
-            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            MegaNode *n = NULL;
+            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+            {
+                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
+                if (rootNode)
+                {
+                    ftpctx->cwd = rootNode->getHandle();
+                    n = rootNode;
+                }
+            }
+            else
+            {
+                n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            }
+
             if (n)
             {
                 MegaNode *newcwd = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
                 if (newcwd)
                 {
-                    if (newcwd->isFolder())
+
+                    if (newcwd->isFolder() && newcwd->getHandle() != UNDEF)
                     {
                         ftpctx->cwd = newcwd->getHandle();
+                        ftpctx->parentcwd = newcwd->getParentHandle();
+
                         response = "250 Directory successfully changed";
                     }
                     else
@@ -21046,7 +21063,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             else
             {
-                response = "530 Not Found";
+                response = "530 CWD not Found.";
             }
             break;
         }
@@ -21183,6 +21200,141 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             break;
         }
+        case FTP_CMD_RNFR:
+        {
+            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            if (n)
+            {
+                MegaNode *nodetoRename = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
+                if (nodetoRename)
+                {
+                    this->nodeHandleToRename = nodetoRename->getHandle();
+                    response = "350 Pending RNTO";
+
+                    delete nodetoRename;
+                }
+                else
+                {
+                    response = "530 Not Found";
+                }
+                delete n;
+            }
+            else
+            {
+                response = "530 Not Found";
+            }
+            break;
+        }
+        case FTP_CMD_RMD:
+        case FTP_CMD_DELE:
+        {
+            MegaNode *nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            if (nodecwd)
+            {
+                MegaNode *nodeToDelete = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), nodecwd);
+
+                if (nodeToDelete)
+                {
+    //                    if ( (ftpctx->command == FTP_CMD_DELE) ? nodeToDelete->isFolder() : nodeToDelete->isFile() )
+    //                    { //unix ftp command seems to always use RMD even with "rmdir" command
+                        ftpctx->megaApi->remove(nodeToDelete, false, ftpctx);
+                        delayresponse = true;
+//                    }
+//                    else
+//                    {
+//                        response = "501 Wrong type";
+//                    }
+
+                    delete nodeToDelete;
+                }
+                else
+                {
+                    response = "530 Not Found"; //TODO: review error code
+                }
+                delete nodecwd;
+            }
+            else
+            {
+                response = "530 Not Found"; //TODO: review error code
+            }
+            break;
+        }
+        case FTP_CMD_RNTO:
+        {
+            if (this->nodeHandleToRename == UNDEF)
+            {
+                response = "503 Bad sequence of commands, required RNFR first";
+            }
+            else
+            {
+                MegaNode *nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+                if (nodecwd)
+                {
+                    MegaNode *nodeToRename = ftpctx->megaApi->getNodeByHandle(this->nodeHandleToRename);
+                    if (nodeToRename)
+                    {
+                        MegaNode *newParentNode = NULL;
+                        size_t seppos = ftpctx->arg1.find_last_of("/");
+                        string newName = ftpctx->arg1;
+                        MegaNode *n = ftpctx->megaApi->getNodeByPath(newName.c_str(), nodecwd); //TODO: do we need this?
+                        if (n)
+                        {
+                            response = "450 already existing!"; //TODO: review error code
+                            delete n;
+                        }
+                        else
+                        {
+                            if (seppos != string::npos)
+                            {
+                                if ((seppos + 1) < newName.size())
+                                {
+                                    newName = newName.substr(seppos + 1);
+                                }
+                                string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/";
+                                newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                                if (!newParentNode)
+                                {
+                                    newName = ""; //empty
+                                }
+                            }
+
+                            if (newName.size())
+                            {
+                                if (newParentNode && newParentNode->getHandle() != nodeToRename->getParentHandle())
+                                {
+                                    newNameAfterMove = newName;
+                                    ftpctx->megaApi->moveNode(nodeToRename, newParentNode, ftpctx);
+                                    delayresponse = true;
+                                }
+                                else
+                                {
+                                    ftpctx->megaApi->renameNode(nodeToRename, newName.c_str(), ftpctx);
+                                    delayresponse = true;
+                                }
+                               delete nodeToRename;
+                            }
+                            else
+                            {
+                                response = "530 Not Found"; //TODO: review error code // this could actually be separated invalid_destiny/not found/...
+                            }
+                            delete newParentNode;
+                        }
+                    }
+                    else
+                    {
+                        response = "530 Not Found";
+                    }
+                    delete nodecwd;
+                }
+                else
+                {
+                    response = "530 Not Found";
+                }
+
+                nodeHandleToRename = UNDEF; //TODO: perhaps we want to do this if previous command != RNFR
+            }
+            break;
+        }
         case FTP_CMD_MKD:
         {
             MegaNode *nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
@@ -21205,7 +21357,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                         {
                             newNameFolder = newNameFolder.substr(seppos + 1);
                         }
-                        string newparentpath = seppos ? newNameFolder.substr(0, seppos) : ".";
+                        string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/";
                         newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
                         if (!newParentNode)
                         {
@@ -21436,6 +21588,7 @@ MegaFTPContext::MegaFTPContext()
     resultcode = 0;
 
     cwd = UNDEF;
+    parentcwd = UNDEF;
     pasiveport = -1;
     ftpDataServer = NULL;
     return226 = false;
@@ -21484,12 +21637,82 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
         return;
     }
 
+    MegaFTPServer* ftpserver = dynamic_cast<MegaFTPServer *>(this->server);
 
-    if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER)
+    if (request->getType() == MegaRequest::TYPE_REMOVE)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+//            MegaNode *n = this->megaApi->getNodeByHandle(nodeToMove);
+//            MegaNode *p = this->megaApi->getNodeByHandle(newParentNode);
+//            if (n && p) //delete + move
+//            {
+//                this->megaApi->moveNode(n, p, this);
+//            }
+//            else
+//            {
+            if (cwd == request->getNodeHandle())
+            {
+                LOG_debug << " Removing cwd node, going back to parent" << " ftpctx = " << this; //TODO: delete
+                cwd = parentcwd; // reverting to parent //TODO: what if deleting serveral nested folders?
+            }
+            MegaFTPServer::returnFtpCodeAsync(this, 250);
+
+//            }
+
+//            nodeToMove = UNDEF;
+//            newParentNode = UNDEF;
+//            delete n;
+//            delete p;
+        }
+        else
+        {
+            MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER)
     {
         if (e->getErrorCode() == MegaError::API_OK)
         {
             MegaFTPServer::returnFtpCodeAsync(this, 257);
+        }
+        else
+        {
+            MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_RENAME)
+    {
+        if (e->getErrorCode() == MegaError::API_OK )
+        {
+            MegaFTPServer::returnFtpCodeAsync(this, 250);
+        }
+        else
+        {
+            MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else  if (request->getType() == MegaRequest::TYPE_MOVE) //TODO: this has not been tested, (no client found doing that?)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+            if (ftpserver->newNameAfterMove.size())
+            {
+                MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
+                if (!nodetoRename || !strcmp(nodetoRename->getName(), ftpserver->newNameAfterMove.c_str()))
+                {
+                    MegaFTPServer::returnFtpCodeAsync(this, 530); //TODO: review error code
+                }
+                else
+                {
+                    this->megaApi->renameNode(nodetoRename, ftpserver->newNameAfterMove.c_str(), this);
+                }
+                delete nodetoRename;
+            }
+            else
+            {
+                MegaFTPServer::returnFtpCodeAsync(this, 530); //TODO: review error code
+            }
         }
         else
         {

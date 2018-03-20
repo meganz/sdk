@@ -2501,6 +2501,7 @@ public:
 
     //status
     MegaHandle cwd;
+    MegaHandle parentcwd;
 
     MegaFTPContext();
     ~MegaFTPContext();
@@ -2560,6 +2561,8 @@ protected:
 
     };
 
+    MegaHandle nodeHandleToRename;
+
     std::string getListingLineFromNode(MegaNode *child);
 
     //virtual methods:
@@ -2572,6 +2575,9 @@ protected:
     virtual void processOnExitHandleClose(MegaTCPServer* tcpServer);
 
 public:
+
+    std::string newNameAfterMove;
+
     MegaFTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaFTPServer();
 
