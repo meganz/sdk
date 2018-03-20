@@ -18859,15 +18859,18 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTL
     this->keypath = keypath;
     fsAccess = new MegaFileSystemAccess();
 
-    string sBasePath = basePath;
-    int lastIndex = sBasePath.size() - 1;
-    if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+    if (basePath.size())
     {
-        string utf8Separator;
-        fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
-        sBasePath.append(utf8Separator);
+        string sBasePath = basePath;
+        int lastIndex = sBasePath.size() - 1;
+        if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+        {
+            string utf8Separator;
+            fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
+            sBasePath.append(utf8Separator);
+        }
+        this->basePath = sBasePath;
     }
-    this->basePath = sBasePath;
 }
 
 MegaHTTPServer::~MegaHTTPServer()
