@@ -21369,7 +21369,9 @@ MegaHTTPContext::~MegaHTTPContext()
 
     if (tmpFileAccess)
     {
-        server->fsAccess->unlinklocal(&tmpFileName);
+        string localPath;
+        server->fsAccess->path2local(&tmpFileName, &localPath);
+        server->fsAccess->unlinklocal(&localPath);
         delete tmpFileAccess;
     }
     delete [] messageBody;
