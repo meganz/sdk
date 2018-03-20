@@ -2365,6 +2365,8 @@ protected:
 
 public:
     bool useTLS;
+    MegaFileSystemAccess *fsAccess;
+
 
     MegaTCPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaTCPServer();
@@ -2387,6 +2389,7 @@ public:
     char* getLink(MegaNode *node);
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
+    void readData(MegaTCPContext* tcpctx);
 };
 
 
@@ -2593,6 +2596,9 @@ public:
 
     std::string resultmsj;
     MegaNode *nodeToDownload;
+    std::string remotePathToUpload;
+    std::string newNameToUpload;
+    MegaHandle newParentNodeHandle;
     m_off_t rangeStartREST;
     void sendData();
     bool notifyNewConnectionRequired;
@@ -2624,6 +2630,10 @@ public:
 
     m_off_t rangeStart;
     m_off_t rangeWritten;
+
+    std::string tmpFileName;
+    FileAccess* tmpFileAccess;
+    size_t tmpFileSize;
 
     virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);

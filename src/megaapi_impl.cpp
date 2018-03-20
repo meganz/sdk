@@ -18668,11 +18668,13 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, bool useTLS, string certifica
     this->keypath = keypath;
     this->closing = false;
     this->remainingcloseevents = 0;
+    fsAccess = new MegaFileSystemAccess();
 }
 
 MegaTCPServer::~MegaTCPServer()
 {
     stop();
+    delete fsAccess;
 }
 
 bool MegaTCPServer::start(int port, bool localOnly)
@@ -19046,7 +19048,19 @@ void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
         return;
     }
 
-    uv_read_start((uv_stream_t*)(&tcpctx->tcphandle), allocBuffer, on_tcp_read);
+    tcpctx->server->readData(tcpctx);
+}
+
+void MegaTCPServer::readData(MegaTCPContext* tcpctx)
+{
+    if (useTLS)
+    {
+        uv_read_start((uv_stream_t*)(&tcpctx->tcphandle), allocBuffer, on_tcp_read);
+    }
+    else
+    {
+        uv_read_start((uv_stream_t*)&tcpctx->tcphandle, allocBuffer, onDataReceived);
+    }
 }
 
 void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
@@ -19079,7 +19093,7 @@ void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
     if (tcpctx->server->respondNewConnection(tcpctx))
     {
         // Start reading
-        uv_read_start((uv_stream_t*)&tcpctx->tcphandle, allocBuffer, onDataReceived);
+        tcpctx->server->readData(tcpctx);
     }
 }
 
@@ -20941,6 +20955,57 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             break;
         }
+//        case FTP_CMD_STOU: //do create random unique name
+        case FTP_CMD_STOR:
+        {
+            //TODO: deal with foreign node / public link and so on ?
+            MegaNode *nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            if (nodecwd)
+            {
+                MegaNode *newParentNode = NULL;
+                size_t seppos = ftpctx->arg1.find_last_of("/");
+                ftpctx->ftpDataServer->newNameToUpload = ftpctx->arg1;
+                if (seppos == string::npos)
+                {
+                    ftpctx->ftpDataServer->newParentNodeHandle = ftpctx->cwd;
+                }
+                else
+                {
+                    if ((seppos + 1) < ftpctx->ftpDataServer->newNameToUpload.size())
+                    {
+                        ftpctx->ftpDataServer->newNameToUpload = ftpctx->ftpDataServer->newNameToUpload.substr(seppos + 1);
+                    }
+                    string newparentpath = ftpctx->ftpDataServer->newNameToUpload.substr(0, seppos);
+                    newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                    if (newParentNode)
+                    {
+                        ftpctx->ftpDataServer->newParentNodeHandle = newParentNode->getHandle();
+                        delete newParentNode;
+                    }
+                    else
+                    {
+                        ftpctx->ftpDataServer->newNameToUpload = ""; //empty
+                    }
+                }
+
+                if (ftpctx->ftpDataServer->newNameToUpload.size())
+                {
+                    ftpctx->ftpDataServer->remotePathToUpload = ftpctx->arg1;
+                    response = "150 There  you go with "; //TODO: maybe we should ensure theres a ftpDataServer running?
+                    response.append(ftpctx->arg1);
+                }
+                else
+                {
+                    response = "530 Not Found"; //TODO: review error code // this could actually be separated invalid_destiny/not found/...
+                }
+                delete nodecwd;
+            }
+            else
+            {
+                response = "530 Not Found"; //TODO: review error code
+            }
+            break;
+        }
         case FTP_CMD_REST:
         {
             if (ftpctx->ftpDataServer && ftpctx->ftpDataServer->nodeToDownload)
@@ -21027,7 +21092,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 //    {
     if ( nread < 0  /*|| ftpctx->parser.upgrade*/)
     {
-        LOG_warn << "FTP Control Server received invalid read size. Closing connection";
+        LOG_debug << "FTP Control Server received invalid read size. Closing connection";
         closeConnection(ftpctx);
     }
     else
@@ -21040,11 +21105,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 ( ftpctx->command == FTP_CMD_LIST
                   || ftpctx->command == FTP_CMD_NLST
                   || ftpctx->command == FTP_CMD_REST
+                  || ftpctx->command == FTP_CMD_STOR
                   || ftpctx->command == FTP_CMD_RETR )
             )
         {
             LOG_debug << " calling sending data... ";
-            ftpctx->ftpDataServer->sendData();
+            ftpctx->ftpDataServer->sendData(); //rename to sth more sensefull: like wake data channel
         }
     }
     uv_mutex_unlock(&tcpctx->mutex);
@@ -21158,7 +21224,9 @@ void MegaFTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
         LOG_debug << "HTTP link closed, ignoring the result of the transfer";
         return;
     }
-    // TODO: fill this
+
+    //TODO: add error control and (multiple message responses? i dont think so)
+    return226 = true;
     uv_async_send(&asynchandle);
 }
 
@@ -21187,6 +21255,7 @@ MegaFTPDataServer::MegaFTPDataServer(MegaApiImpl *megaApi, MegaFTPContext * cont
     this->nodeToDownload = NULL;
     this->rangeStartREST = 0;
     notifyNewConnectionRequired = false;
+    this->newParentNodeHandle = UNDEF;
 }
 
 MegaFTPDataServer::~MegaFTPDataServer()
@@ -21215,6 +21284,12 @@ MegaTCPContext* MegaFTPDataServer::initializeContext(uv_stream_t *server_handle)
 
 void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 {
+    if (status)
+    {
+        LOG_warn << " error received at processWriteFinished: " << status << ": " << uv_err_name(status);
+    }
+
+
     LOG_debug << " processWriteFinished on MegaFTPDataServer. status = " << status;
     if (resultmsj.size())
     {
@@ -21243,7 +21318,7 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
         {
             if (status < 0)
             {
-                LOG_warn << "Finishing request. Write failed: " << status;
+                LOG_warn << "Finishing request. Write failed: " << status << ": " << uv_err_name(status);
             }
             else
             {
@@ -21321,16 +21396,61 @@ void MegaFTPDataServer::sendData()
 
 void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf)
 {
-    MegaFTPDataContext* ftpctx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
-    //TODO: deal with this: probably for uploads
+
+
+    MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
+    MegaFTPDataServer* fds = dynamic_cast<MegaFTPDataServer *>(ftpdatactx->server);
+
+    if (nread < 0)
+    {
+        LOG_warn << "FTP Data Channel received invalid read size: " << nread << ". Closing connection";
+        //TODO: this will trigger response to controlftpx and so on.
+        //This is done in processAsyncOnClose, we might want to place it here
+        closeConnection(tcpctx);
+        return;
+    }
+
+    if (fds->newNameToUpload.size())
+    {
+        //create tmp file with contents in messageBody
+        if (!ftpdatactx->tmpFileAccess)
+        {
+            ftpdatactx->tmpFileName="ftpstorfile";
+            string suffix;
+            fds->fsAccess->tmpnamelocal(&suffix);
+            ftpdatactx->tmpFileName.append(suffix);
+            ftpdatactx->tmpFileAccess = fds->fsAccess->newfileaccess();
+            string localPath;
+            fds->fsAccess->path2local(&ftpdatactx->tmpFileName, &localPath);
+            fds->fsAccess->unlinklocal(&localPath);
+            if(!ftpdatactx->tmpFileAccess->fopen(&localPath, false, true))
+            {
+    //            returnHttpCode(ftpdatactx, 500);
+    //            return 0;
+                //TODO: implement this
+            }
+        }
+
+        LOG_verbose << " Writting " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
+        if(!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
+        {
+            //            returnHttpCode(ftpdatactx, 500);
+            //            return 0;
+                        //TODO: implement this
+        }
+        ftpdatactx->tmpFileSize += nread;
+    }
+    else
+    {
+        LOG_err << "FTPData server receiving unexpected data: " << nread << " bytes";
+    }
 }
-
-
 
 void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
 {
     LOG_debug << " at processAsyncEvent on FTPData server tcptcx= " << tcpctx;
     MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
+    MegaFTPDataServer* fds = dynamic_cast<MegaFTPDataServer *>(tcpctx->server);
 
     if (ftpdatactx->finished)
     {
@@ -21350,19 +21470,23 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
         LOG_debug << " responding DATA: " << resultmsj;
         answer(ftpdatactx, resultmsj.c_str(), resultmsj.size());
     }
+    else if (remotePathToUpload.size())
+    {
+        LOG_debug << " receive data to store in tmp file:";
+        readData(ftpdatactx);
+    }
     else if (nodeToDownload)
     {
-        if (!rangeStartREST)
-        {
-            LOG_debug << "Initiating node download";
-        }
-        else
-        {
-            LOG_debug << "Initiating node download from: " << rangeStartREST;
-        }
-
         if (!ftpdatactx->node || rangeStartREST) //alterantive to || rangeStart, define aborted?
         {
+            if (!rangeStartREST)
+            {
+                LOG_debug << "Initiating node download via port " << fds->port;
+            }
+            else
+            {
+                LOG_debug << "Initiating node download from: " << rangeStartREST << " via port " << fds->port;
+            }
             ftpdatactx->rangeStart = rangeStartREST;
             rangeStartREST = 0;// so as not to start again
             ftpdatactx->bytesWritten = 0;
@@ -21418,6 +21542,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
         }
         else
         {
+            LOG_debug << "Calling sendNextBytes port = " << fds->port;
             sendNextBytes(ftpdatactx);
         }
     }
@@ -21431,8 +21556,25 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
 void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 {
     MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
-    //TODO: fill this
     MegaFTPDataServer *fds = ((MegaFTPDataServer *)ftpdatactx->server);
+
+    if (ftpdatactx->tmpFileName.size())
+    {
+
+        MegaNode *newParentNode = ftpdatactx->megaApi->getNodeByHandle(fds->newParentNodeHandle); // TODO: use sth like fds->parentNewNodeHandle)
+        if (newParentNode)
+        {
+            LOG_debug << "Starting upload of file " << fds->newNameToUpload;
+            ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(), fds->controlftpctx);
+        }
+        else
+        {
+            //TODO: deal with error
+            LOG_err << "unable to start upload";
+            //TODO: force return !=226 in control channel
+        }
+        ftpdatactx->tmpFileName="";
+    }
 
     LOG_debug << " at processOnAsyncEventClose on MegaFTPDataServer tcpctx=" << tcpctx << " port = " << ((MegaFTPDataServer *)ftpdatactx->server)->port;
 
@@ -21547,12 +21689,14 @@ MegaFTPDataContext::MegaFTPDataContext()
     node = NULL;
     rangeWritten = 0;
     rangeStart = 0;
-
+    tmpFileAccess = NULL;
+    tmpFileSize = 0;
 }
 
 MegaFTPDataContext::~MegaFTPDataContext()
 {
     delete transfer;
+    delete tmpFileAccess;
 }
 
 
