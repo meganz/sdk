@@ -21369,10 +21369,11 @@ MegaHTTPContext::~MegaHTTPContext()
 
     if (tmpFileAccess)
     {
+        delete tmpFileAccess;
+
         string localPath;
         server->fsAccess->path2local(&tmpFileName, &localPath);
         server->fsAccess->unlinklocal(&localPath);
-        delete tmpFileAccess;
     }
     delete [] messageBody;
 }
