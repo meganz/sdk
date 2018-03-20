@@ -2496,6 +2496,8 @@ public:
     MegaFTPDataServer * ftpDataServer;
 
     bool return226; //TODO: sth more versatile. probably include here some msj or queque of messages to control channel
+    uv_mutex_t mutex_responses;
+    std::list<std::string> responses;
 
     //status
     MegaHandle cwd;
@@ -2558,7 +2560,7 @@ protected:
 
     };
 
-    string getListingLineFromNode(MegaNode *child);
+    std::string getListingLineFromNode(MegaNode *child);
 
     //virtual methods:
     virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
@@ -2572,6 +2574,15 @@ protected:
 public:
     MegaFTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaFTPServer();
+
+    static std::string getFTPErrorString(int errorcode);
+
+    static void returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e, bool synchronous = true);
+    static void returnFtpCode(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string(), bool synchronous = true);
+
+    static void returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
+    static void returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
+
 };
 
 class MegaFTPDataContext;
