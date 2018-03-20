@@ -19592,9 +19592,10 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
         if (!httpctx->tmpFileAccess)
         {
             httpctx->tmpFileName="httputfile";
-            string suffix;
+            string suffix, utf8suffix;
             httpctx->server->fsAccess->tmpnamelocal(&suffix);
-            httpctx->tmpFileName.append(suffix);
+            httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
+            httpctx->tmpFileName.append(utf8suffix);
             httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             string localPath;
             httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
@@ -20635,9 +20636,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             if (!httpctx->tmpFileAccess) //put with no body contents
             {
                 httpctx->tmpFileName = "httputfile";
-                string suffix;
+                string suffix, utf8suffix;
                 httpctx->server->fsAccess->tmpnamelocal(&suffix);
-                httpctx->tmpFileName.append(suffix);
+                httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
+                httpctx->tmpFileName.append(utf8suffix);
                 httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 string localPath;
                 httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
