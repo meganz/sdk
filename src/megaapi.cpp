@@ -3116,6 +3116,16 @@ void MegaApi::httpServerEnableFolderServer(bool enable)
     pImpl->httpServerEnableFolderServer(enable);
 }
 
+void MegaApi::httpServerEnableOfflineAttribute(bool enable)
+{
+    pImpl->httpServerEnableOfflineAttribute(enable);
+}
+
+bool MegaApi::httpServerIsOfflineAttributeEnabled()
+{
+    return pImpl->httpServerIsOfflineAttributeEnabled();
+}
+
 bool MegaApi::httpServerIsFolderServerEnabled()
 {
     return pImpl->httpServerIsFolderServerEnabled();
@@ -3154,6 +3164,11 @@ void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
 char *MegaApi::httpServerGetLocalLink(MegaNode *node)
 {
     return pImpl->httpServerGetLocalLink(node);
+}
+
+char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalWebDavLink(node);
 }
 
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
