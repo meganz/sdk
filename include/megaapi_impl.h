@@ -2367,8 +2367,9 @@ public:
     bool useTLS;
     MegaFileSystemAccess *fsAccess;
 
+    std::string basePath;
 
-    MegaTCPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaTCPServer();
     bool start(int port, bool localOnly = true);
     void stop();
@@ -2458,7 +2459,7 @@ protected:
     static int streamNode(MegaHTTPContext *httpctx);
 
 public:
-    MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
 };
 
@@ -2578,7 +2579,7 @@ public:
 
     std::string newNameAfterMove;
 
-    MegaFTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaFTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaFTPServer();
 
     static std::string getFTPErrorString(int errorcode);
@@ -2620,7 +2621,7 @@ public:
     void sendData();
     bool notifyNewConnectionRequired;
 
-    MegaFTPDataServer(MegaApiImpl *megaApi, MegaFTPContext * controlftpctx, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaFTPDataServer(MegaApiImpl *megaApi, string basePath, MegaFTPContext * controlftpctx, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaFTPDataServer();
     string getListingLineFromNode(MegaNode *child);
 };
