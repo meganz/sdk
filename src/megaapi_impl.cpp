@@ -10677,7 +10677,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
     if (dsdelta && requestMap.size() == 1)
     {
         MegaRequestPrivate *request = requestMap.begin()->second;
-        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN));
+        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
     }
 }
 
