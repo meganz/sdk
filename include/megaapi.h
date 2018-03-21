@@ -10291,6 +10291,25 @@ class MegaApi
         bool httpServerIsFolderServerEnabled();
 
         /**
+         * @brief Stablish FILE_ATTRIBUTE_OFFLINE attribute
+         *
+         * By default, it is not enabled
+         *
+         * This is used when serving files in WEBDAV, it will cause windows clients to not load a file
+         * when it is selected. It is intended to reduce unnecessary traffic.
+         *
+         * @param enable true to enable the FILE_ATTRIBUTE_OFFLINE attribute, false to disable it
+         */
+        void httpServerEnableOfflineAttribute(bool enable);
+
+        /**
+         * @brief Check if FILE_ATTRIBUTE_OFFLINE it's enabled
+         *
+         * @return true if the FILE_ATTRIBUTE_OFFLINE attribute is enabled, otherwise false
+         */
+        bool httpServerIsOfflineAttributeEnabled();
+
+        /**
          * @brief Enable/disable the restricted mode of the HTTP server
          *
          * This function allows to restrict the nodes that are allowed to be served.
@@ -10435,6 +10454,20 @@ class MegaApi
          * @return URL to the node in the local HTTP proxy server, otherwise NULL
          */
         char *httpServerGetLocalLink(MegaNode *node);
+
+        /**
+         * @brief Returns a WEBDAV valid URL to a node in the local HTTP proxy server
+         *
+         * The HTTP proxy server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local HTTP link
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        char *httpServerGetLocalWebDavLink(MegaNode *node);
+
 
         /**
          * @brief Set the maximum buffer size for the internal buffer

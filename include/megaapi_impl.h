@@ -1858,6 +1858,7 @@ class MegaApiImpl : public MegaApp
 
         // management
         char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalWebDavLink(MegaNode *node);
         void httpServerSetMaxBufferSize(int bufferSize);
         int httpServerGetMaxBufferSize();
         void httpServerSetMaxOutputSize(int outputSize);
@@ -1868,11 +1869,13 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsFileServerEnabled();
         void httpServerEnableFolderServer(bool enable);
         bool httpServerIsFolderServerEnabled();
+        bool httpServerIsOfflineAttributeEnabled();
         void httpServerSetRestrictedMode(int mode);
         int httpServerGetRestrictedMode();
         void httpServerEnableSubtitlesSupport(bool enable);
         bool httpServerIsSubtitlesSupportEnabled();
         bool httpServerIsLocalOnly();
+        void httpServerEnableOfflineAttribute(bool enable);
 
         void httpServerAddListener(MegaTransferListener *listener);
         void httpServerRemoveListener(MegaTransferListener *listener);
@@ -1972,6 +1975,7 @@ protected:
         int httpServerMaxOutputSize;
         bool httpServerEnableFiles;
         bool httpServerEnableFolders;
+        bool httpServerOfflineAttributeEnabled;
         int httpServerRestrictedMode;
         bool httpServerSubtitlesSupportEnabled;
         set<MegaTransferListener *> httpServerListeners;
@@ -2342,6 +2346,24 @@ public:
     bool failed;
     bool pause;
 
+    // WEBDAV related
+    int depth;
+    std::string lastheader;
+    std::string subpathrelative;
+    const char *messageBody;
+    size_t messageBodySize;
+    std::string host;
+    std::string destination;
+    bool overwrite;
+    FileAccess *tmpFileAccess;
+    std::string tmpFileName;
+    std::string newname; //newname for moved node
+    MegaHandle nodeToMove; //node to be moved after delete
+    MegaHandle newParentNode; //parent node for moved after delete
+
+    uv_mutex_t mutex_responses;
+    std::list<std::string> responses;
+
     //tls stuff:
     evt_tls_t *evt_tls;
     std::list<char*> writePointers;
@@ -2372,6 +2394,7 @@ protected:
     static http_parser_settings parsercfg;
 
     set<handle> allowedHandles;
+    set<handle> allowedWebDavHandles;
     handle lastHandle;
     list<MegaHTTPContext*> connections;
     uv_async_t exit_handle;
@@ -2383,6 +2406,7 @@ protected:
     int maxOutputSize;
     bool fileServerEnabled;
     bool folderServerEnabled;
+    bool offlineAttribute;
     bool subtitlesSupportEnabled;
     int restrictedMode;
     bool localOnly;
@@ -2427,15 +2451,30 @@ protected:
     static int onBody(http_parser* parser, const char* at, size_t length);
     static int onMessageComplete(http_parser* parser);
 
+    static std::string getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx);
+
+    // WEBDAV related
+    static std::string getWebDavPropFindResponseForNode(std::string baseURL, std::string subnodepath, MegaNode *node, MegaHTTPContext* httpctx);
+    static std::string getWebDavProfFindNodeContents(MegaNode *node, std::string baseURL, bool offlineAttribute);
+
+
     void run();
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
     static void sendNextBytes(MegaHTTPContext *httpctx);
     static int streamNode(MegaHTTPContext *httpctx);
 
+    //Utility funcitons
+    static std::string getHTTPMethodName(int httpmethod);
+    static std::string getHTTPErrorString(int errorcode);
+
+
 public:
     bool useTLS;
+    MegaFileSystemAccess *fsAccess;
 
-    MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    std::string basePath;
+
+    MegaHTTPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
     bool start(int port, bool localOnly = true);
     void stop();
@@ -2452,10 +2491,20 @@ public:
     bool isFolderServerEnabled();
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
+    bool isHandleWebDavAllowed(handle h);
+    void enableOfflineAttribute(bool enable);
+    bool isOfflineAttributeEnabled();
     void clearAllowedHandles();
-    char* getLink(MegaNode *node);
+    char* getLink(MegaNode *node, bool enablewebdav = false);
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
+
+    static void returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e, bool synchronous = true);
+    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string(), bool synchronous = true);
+
+    static void returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
+    static void returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
+
 };
 #endif
 
