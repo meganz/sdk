@@ -3844,7 +3844,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     totalDownloads = 0;
     client = NULL;
     waiting = false;
-    waitingRequest = false;
+    waitingRequest = RETRY_NONE;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
     totalDownloadBytes = 0;
@@ -10658,16 +10658,16 @@ void MegaApiImpl::clearing()
 #endif
 }
 
-void MegaApiImpl::notify_retry(dstime dsdelta)
+void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 {
 #ifdef ENABLE_SYNC
-    bool previousFlag = waitingRequest;
+    retryreason_t previousFlag = waitingRequest;
 #endif
 
     if(!dsdelta)
-        waitingRequest = false;
+        waitingRequest = RETRY_NONE;
     else if(dsdelta > 10)
-        waitingRequest = true;
+        waitingRequest = reason;
 
 #ifdef ENABLE_SYNC
     if(previousFlag != waitingRequest)
@@ -10677,7 +10677,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta)
     if (dsdelta && requestMap.size() == 1)
     {
         MegaRequestPrivate *request = requestMap.begin()->second;
-        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN));
+        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
     }
 }
 
@@ -10864,7 +10864,7 @@ void MegaApiImpl::logout_result(error e)
         totalUploads = 0;
         totalDownloads = 0;
         waiting = false;
-        waitingRequest = false;
+        waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
         syncLowerSizeLimit = 0;
@@ -16816,18 +16816,19 @@ void MegaApiImpl::update()
     waiter->notify();
 }
 
-bool MegaApiImpl::isWaiting()
+int MegaApiImpl::isWaiting()
 {
-    return waiting || waitingRequest 
 #ifdef ENABLE_SYNC
-        || client->syncfslockretry
+    if (waiting || client->syncfslockretry)
+        return RETRY_LOCAL_LOCK;
 #endif
-    ;
+
+    return waitingRequest;
 }
 
-bool MegaApiImpl::areServersBusy()
+int MegaApiImpl::areServersBusy()
 {
-    return waitingRequest;
+    return isWaiting();
 }
 
 TreeProcCopy::TreeProcCopy()

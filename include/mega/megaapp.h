@@ -286,7 +286,7 @@ struct MEGA_API MegaApp
     virtual void clearing() { }
 
     // failed request retry notification
-    virtual void notify_retry(dstime) { }
+    virtual void notify_retry(dstime, retryreason_t) { }
 
     virtual void notify_dbcommit() { }
 

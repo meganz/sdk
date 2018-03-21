@@ -1331,6 +1331,9 @@ void MegaClient::exec()
             // do we have an API request outstanding?
             if (pendingcs)
             {
+                // handle retry reason for requests
+                retryreason_t reason = RETRY_NONE;
+
                 switch (pendingcs->status)
                 {
                     case REQ_READY:
@@ -1371,7 +1374,7 @@ void MegaClient::exec()
 
                                 if (csretrying)
                                 {
-                                    app->notify_retry(0);
+                                    app->notify_retry(0, RETRY_NONE);
                                     csretrying = false;
                                 }
 
@@ -1428,6 +1431,14 @@ void MegaClient::exec()
                         }
                         else
                         {
+                            if (pendingcs->in == "-3")
+                            {
+                                reason = RETRY_API_LOCK;
+                            }
+                            else
+                            {
+                                reason = RETRY_RATE_LIMIT;
+                            }
                             if (fetchingnodes)
                             {
                                 fnstats.eAgainCount++;
@@ -1436,6 +1447,22 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        if (!reason && pendingcs->httpstatus != 200)
+                        {
+                            if (pendingcs->httpstatus == 500)
+                            {
+                                reason = RETRY_SERVERS_BUSY;
+                            }
+                            else if (pendingcs->httpstatus == 0)
+                            {
+                                reason = RETRY_CONNECTIVITY;
+                            }
+                            else
+                            {
+                                reason = RETRY_UNKNOWN;
+                            }
+                        }
+
                         if (fetchingnodes && pendingcs->httpstatus != 200)
                         {
                             if (pendingcs->httpstatus == 500)
@@ -1471,7 +1498,7 @@ void MegaClient::exec()
                         pendingcs = NULL;
 
                         btcs.backoff();
-                        app->notify_retry(btcs.retryin());
+                        app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
 
                     default:

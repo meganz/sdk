@@ -3050,12 +3050,12 @@ void MegaApi::update()
    pImpl->update();
 }
 
-bool MegaApi::isWaiting()
+int MegaApi::isWaiting()
 {
     return pImpl->isWaiting();
 }
 
-bool MegaApi::areServersBusy()
+int MegaApi::areServersBusy()
 {
     return pImpl->areServersBusy();
 }

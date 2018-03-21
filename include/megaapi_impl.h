@@ -1697,8 +1697,8 @@ class MegaApiImpl : public MegaApp
 #endif
 
         void update();
-        bool isWaiting();
-        bool areServersBusy();
+        int isWaiting();
+        int areServersBusy();
 
         //Statistics
         int getNumPendingUploads();
@@ -2008,7 +2008,7 @@ protected:
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         bool waiting;
-        bool waitingRequest;
+        retryreason_t waitingRequest;
         vector<string> excludedNames;
         vector<string> excludedPaths;
         long long syncLowerSizeLimit;
@@ -2220,7 +2220,7 @@ protected:
         virtual void clearing();
 
         // failed request retry notification
-        virtual void notify_retry(dstime);
+        virtual void notify_retry(dstime, retryreason_t);
 
         // notify about db commit
         virtual void notify_dbcommit();
