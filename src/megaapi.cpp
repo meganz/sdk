@@ -3050,7 +3050,7 @@ void MegaApi::update()
    pImpl->update();
 }
 
-bool MegaApi::isWaiting()
+int MegaApi::isWaiting()
 {
     return pImpl->isWaiting();
 }

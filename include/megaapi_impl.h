@@ -1697,7 +1697,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
         void update();
-        bool isWaiting();
+        int isWaiting();
         int areServersBusy();
 
         //Statistics

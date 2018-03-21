@@ -16816,18 +16816,19 @@ void MegaApiImpl::update()
     waiter->notify();
 }
 
-bool MegaApiImpl::isWaiting()
+int MegaApiImpl::isWaiting()
 {
-    return waiting || waitingRequest 
 #ifdef ENABLE_SYNC
-        || client->syncfslockretry
+    if (waiting || client->syncfslockretry)
+        return RETRY_LOCAL_LOCK;
 #endif
-    ;
+
+    return waitingRequest;
 }
 
 int MegaApiImpl::areServersBusy()
 {
-    return waitingRequest;
+    return isWaiting();
 }
 
 TreeProcCopy::TreeProcCopy()

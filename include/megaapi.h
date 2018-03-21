@@ -4811,7 +4811,8 @@ class MegaApi
             RETRY_SERVERS_BUSY = 2,
             RETRY_API_LOCK = 3,
             RETRY_RATE_LIMIT = 4,
-            RETRY_UNKNOWN = 5
+            RETRY_LOCAL_LOCK = 5,
+            RETRY_UNKNOWN = 6
         };
 
         /**
@@ -8615,14 +8616,9 @@ class MegaApi
         void update();
 
         /**
-         * @brief Check if the SDK is waiting for something external (filesystem lock or a server)
-         * @return true if the SDK is waiting for the server to complete a request
-         */
-        bool isWaiting();
-
-        /**
-         * @brief Check if the SDK is waiting for the server to complete a request and get the reason
-         * @return State of SDK related to a request.
+         * @brief Check if the SDK is waiting to complete a request and get the reason
+         * @return State of SDK.
+         *
          * Valid values are:
          * - MegaApi::RETRY_NONE = 0
          * SDK is not waiting for the server to complete a request
@@ -8639,9 +8635,42 @@ class MegaApi
          * - MegaApi::RETRY_RATE_LIMIT = 4,
          * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
          *
-         * - MegaApi::RETRY_UNKNOWN = 5
+         * - MegaApi::RETRY_LOCAL_LOCK = 5
+         * SDK is waiting for a local locked file
+         *
+         * - MegaApi::RETRY_UNKNOWN = 6
          * SDK is waiting for the server to complete a request with unknown reason
          *
+         */
+        int isWaiting();
+
+        /**
+         * @brief Check if the SDK is waiting to complete a request and get the reason
+         * @return State of SDK.
+         *
+         * Valid values are:
+         * - MegaApi::RETRY_NONE = 0
+         * SDK is not waiting for the server to complete a request
+         *
+         * - MegaApi::RETRY_CONNECTIVITY = 1
+         * SDK is waiting for the server to complete a request due to connectivity issues
+         *
+         * - MegaApi::RETRY_SERVERS_BUSY = 2
+         * SDK is waiting for the server to complete a request due to a HTTP error 500
+         *
+         * - MegaApi::RETRY_API_LOCK = 3
+         * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+         *
+         * - MegaApi::RETRY_RATE_LIMIT = 4,
+         * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+         *
+         * - MegaApi::RETRY_LOCAL_LOCK = 5
+         * SDK is waiting for a local locked file
+         *
+         * - MegaApi::RETRY_UNKNOWN = 6
+         * SDK is waiting for the server to complete a request with unknown reason
+         *
+         * @deprecated Use MegaApi::isWaiting instead of this function.
          */
         int areServersBusy();
 
