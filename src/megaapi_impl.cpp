@@ -21362,15 +21362,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 
                 if (nodeToDelete)
                 {
-    //                    if ( (ftpctx->command == FTP_CMD_DELE) ? nodeToDelete->isFolder() : nodeToDelete->isFile() )
-    //                    { //unix ftp command seems to always use RMD even with "rmdir" command
+                    if ( (ftpctx->command == FTP_CMD_DELE) ? nodeToDelete->isFile() : nodeToDelete->isFolder() )
+                    {
                         ftpctx->megaApi->remove(nodeToDelete, false, ftpctx);
                         delayresponse = true;
-//                    }
-//                    else
-//                    {
-//                        response = "501 Wrong type";
-//                    }
+                    }
+                    else
+                    {
+                        response = "501 Wrong type";
+                    }
 
                     delete nodeToDelete;
                 }
