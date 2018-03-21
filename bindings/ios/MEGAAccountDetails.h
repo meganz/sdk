@@ -45,6 +45,11 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
 @property (readonly, nonatomic) NSNumber *storageUsed;
 
 /**
+ * @brief The used storage by versions (in bytes)
+ */
+@property (readonly) long long versionStorageUsed;
+
+/**
  * @brief Maximum storage for the account (in bytes).
  */
 @property (readonly, nonatomic) NSNumber *storageMax;
@@ -180,6 +185,28 @@ typedef NS_ENUM(NSInteger, MEGASubscriptionStatus) {
  * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode].
  */
 - (NSNumber *)numberFoldersForHandle:(uint64_t)handle;
+
+/**
+ * @brief Get the used storage by versions in for a node
+ *
+ * Only root nodes are supported.
+ *
+ * @param handle Handle of the node to check
+ * @return Used storage by versions (in bytes)
+ * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode];
+ */
+- (long long)versionStorageUsedForHandle:(uint64_t)handle;
+
+/**
+ * @brief Get the number of versioned files in a node
+ *
+ * Only root nodes are supported.
+ *
+ * @param handle Handle of the node to check
+ * @return Number of versioned files in the node
+ * @see [MEGASdk rootNode], [MEGASdk rubbishNode], [MEGASdk inboxNode];
+ */
+- (long long)numberOfVersionFilesForHandle:(uint64_t)handle;
 
 
 

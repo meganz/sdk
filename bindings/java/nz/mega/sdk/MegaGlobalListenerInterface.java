@@ -64,7 +64,84 @@ public interface MegaGlobalListenerInterface {
      *            API connected to account.
      */
     public void onReloadNeeded(MegaApiJava api);
-    
+
+    /**
+     * This function is called when the account has been updated (confirmed/upgraded/downgraded)
+     *
+     * The usage of this callback to handle the external account confirmation is deprecated.
+     * Instead, you should use MegaGlobalListener::onEvent.
+     *
+     * @param api MegaApi object connected to the account
+     */
     public void onAccountUpdate(MegaApiJava api);
+
+    /**
+     * This function is called when there are new or updated contact requests in the account
+     *
+     * When the full account is reloaded or a large number of server notifications arrives at once, the
+     * second parameter will be NULL.
+     *
+     * The SDK retains the ownership of the MegaContactRequestList in the second parameter. The list and all the
+     * MegaContactRequest objects that it contains will be valid until this function returns. If you want to save the
+     * list, use MegaContactRequestList::copy. If you want to save only some of the MegaContactRequest objects, use MegaContactRequest::copy
+     * for them.
+     *
+     * @param api MegaApi object connected to the account
+     * @param requests List that contains the new or updated contact requests
+     */
     public void onContactRequestsUpdate(MegaApiJava api, ArrayList<MegaContactRequest> requests);
+
+    /**
+     * The details about the event, like the type of event and optionally any
+     * additional parameter, is received in the \c params parameter.
+     *
+     * Currently, the following type of events are notified:
+     *
+     *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
+     *  This event can be used to keep synchronization between the SDK cache and the
+     *  cache managed by the app thanks to the sequence number.
+     *
+     *  Valid data in the MegaEvent object received in the callback:
+     *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
+     *
+     *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
+     * by the user by confirming the signup link.
+     *
+     *   Valid data in the MegaEvent object received in the callback:
+     *      - MegaEvent::getText: email address used to confirm the account
+     *
+     *  - MegaEvent::EVENT_CHANGE_TO_HTTPS: when the SDK automatically starts using HTTPS for all
+     * its communications. This happens when the SDK is able to detect that MEGA servers can't be
+     * reached using HTTP or that HTTP communications are being tampered. Transfers of files and
+     * file attributes (thumbnails and previews) use HTTP by default to save CPU usage. Since all data
+     * is already end-to-end encrypted, it's only needed to use HTTPS if HTTP doesn't work. Anyway,
+     * applications can force the SDK to always use HTTPS using MegaApi::useHttpsOnly. It's recommended
+     * that applications that receive one of these events save that information on its settings and
+     * automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
+     * and automatically switch to HTTPS every time that the application starts.
+     *
+     *  - MegaEvent::EVENT_DISCONNECT: when the SDK performs a disconnect to reset all the
+     * existing open-connections, since they have become unusable. It's recommended that the app
+     * receiving this event reset its connections with other servers, since the disconnect
+     * performed by the SDK is due to a network change or IP addresses becoming invalid.
+     *
+     *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
+     * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
+     * logout.
+     *
+     *  Valid data in the MegaEvent object received in the callback:
+     *      - MegaEvent::getText: message to show to the user.
+     *      - MegaEvent::getNumber: code representing the reason for being blocked.
+     *          200: suspension message for any type of suspension, but copyright suspension.
+     *          300: suspension only for multiple copyright violations.
+     *
+     * You can check the type of event by calling MegaEvent::getType
+     *
+     * The SDK retains the ownership of the details of the event (\c event).
+     * Don't use them after this functions returns.
+     *
+     * @param api MegaApi object connected to the account
+     * @param event Details about the event
+     */
+    public void onEvent(MegaApiJava api, MegaEvent event);
 }

@@ -702,6 +702,11 @@ MegaStringMap *MegaRequest::getMegaStringMap() const
     return NULL;
 }
 
+MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1306,6 +1311,26 @@ MegaApi::~MegaApi()
 int MegaApi::isLoggedIn()
 {
     return pImpl->isLoggedIn();
+}
+
+void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
+{
+    return pImpl->whyAmIBlocked(false, listener);
+}
+
+void MegaApi::contactLinkCreate(bool renew, MegaRequestListener *listener)
+{
+    pImpl->contactLinkCreate(renew, listener);
+}
+
+void MegaApi::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkQuery(handle, listener);
+}
+
+void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkDelete(handle, listener);
 }
 
 char *MegaApi::getMyEmail()
@@ -1943,7 +1968,12 @@ bool MegaApi::usingHttpsOnly()
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
 {
-    pImpl->inviteContact(email, message, action, listener);
+    pImpl->inviteContact(email, message, action, UNDEF, listener);
+}
+
+void MegaApi::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
+{
+    pImpl->inviteContact(email, message, action, contactLink, listener);
 }
 
 void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
@@ -2597,9 +2627,9 @@ void MegaApi::queryDNS(const char *hostname, MegaRequestListener *listener)
     pImpl->queryDNS(hostname, listener);
 }
 
-void MegaApi::queryGeLB(const char *service, int timeoutms, int maxretries, MegaRequestListener *listener)
+void MegaApi::queryGeLB(const char *service, int timeoutds, int maxretries, MegaRequestListener *listener)
 {
-    pImpl->queryGeLB(service, timeoutms, maxretries, listener);
+    pImpl->queryGeLB(service, timeoutds, maxretries, listener);
 }
 
 void MegaApi::downloadFile(const char *url, const char *dstpath, MegaRequestListener *listener)
@@ -2662,9 +2692,19 @@ void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
     pImpl->setFileVersionsOption(disable, listener);
 }
 
+void MegaApi::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    pImpl->setContactLinksOption(disable, listener);
+}
+
 void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
 {
     pImpl->getFileVersionsOption(listener);
+}
+
+void MegaApi::getContactLinksOption(MegaRequestListener *listener)
+{
+    pImpl->getContactLinksOption(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)
@@ -2925,6 +2965,11 @@ bool MegaApi::hasVersions(MegaNode *node)
     return pImpl->hasVersions(node);
 }
 
+void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->getFolderInfo(node, listener);
+}
+
 MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
 {
     return pImpl->getFileFolderChildren(p, order);
@@ -3036,9 +3081,9 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApi::httpServerStart(bool localOnly, int port)
+bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
 {
-    return pImpl->httpServerStart(localOnly, port);
+    return pImpl->httpServerStart(localOnly, port, useTLS, certificatepath, keypath);
 }
 
 void MegaApi::httpServerStop()
@@ -3069,6 +3114,16 @@ bool MegaApi::httpServerIsFileServerEnabled()
 void MegaApi::httpServerEnableFolderServer(bool enable)
 {
     pImpl->httpServerEnableFolderServer(enable);
+}
+
+void MegaApi::httpServerEnableOfflineAttribute(bool enable)
+{
+    pImpl->httpServerEnableOfflineAttribute(enable);
+}
+
+bool MegaApi::httpServerIsOfflineAttributeEnabled()
+{
+    return pImpl->httpServerIsOfflineAttributeEnabled();
 }
 
 bool MegaApi::httpServerIsFolderServerEnabled()
@@ -3111,6 +3166,11 @@ char *MegaApi::httpServerGetLocalLink(MegaNode *node)
     return pImpl->httpServerGetLocalLink(node);
 }
 
+char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalWebDavLink(node);
+}
+
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
 {
     pImpl->httpServerSetMaxBufferSize(bufferSize);
@@ -3130,6 +3190,7 @@ int MegaApi::httpServerGetMaxOutputSize()
 {
     return pImpl->httpServerGetMaxOutputSize();
 }
+#endif
 
 char *MegaApi::getMimeType(const char *extension)
 {
@@ -3719,7 +3780,6 @@ char *MegaApi::getMimeType(const char *extension)
 
     return MegaApi::strdup(it->second.c_str());
 }
-#endif
 
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
@@ -3805,6 +3865,11 @@ bool MegaApi::hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle 
 const char* MegaApi::getFileAttribute(MegaHandle h)
 {
     return pImpl->getFileAttribute(h);
+}
+
+void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
+{
+    pImpl->archiveChat(chatid, archive, listener);
 }
 
 #endif
@@ -4527,6 +4592,11 @@ int64_t MegaTextChat::getCreationTime() const
     return 0;
 }
 
+bool MegaTextChat::isArchived() const
+{
+    return false;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 
@@ -4639,6 +4709,11 @@ int MegaEvent::getType() const
 const char *MegaEvent::getText() const
 {
     return NULL;
+}
+
+const int MegaEvent::getNumber() const
+{
+    return 0;
 }
 
 MegaHandleList *MegaHandleList::createInstance()
@@ -4802,6 +4877,41 @@ long long MegaAchievementsDetails::currentStorageReferrals()
 }
 
 long long MegaAchievementsDetails::currentTransferReferrals()
+{
+    return 0;
+}
+
+MegaFolderInfo::~MegaFolderInfo()
+{
+
+}
+
+MegaFolderInfo *MegaFolderInfo::copy() const
+{
+    return NULL;
+}
+
+int MegaFolderInfo::getNumVersions() const
+{
+    return 0;
+}
+
+int MegaFolderInfo::getNumFiles() const
+{
+    return 0;
+}
+
+int MegaFolderInfo::getNumFolders() const
+{
+    return 0;
+}
+
+long long MegaFolderInfo::getCurrentSize() const
+{
+    return 0;
+}
+
+long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
 }

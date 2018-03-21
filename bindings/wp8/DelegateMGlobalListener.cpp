@@ -26,31 +26,31 @@ using namespace Platform;
 
 DelegateMGlobalListener::DelegateMGlobalListener(MegaSDK^ megaSDK, MGlobalListenerInterface^ listener)
 {
-	this->megaSDK = megaSDK;
-	this->listener = listener;
+    this->megaSDK = megaSDK;
+    this->listener = listener;
 }
 
 MGlobalListenerInterface^ DelegateMGlobalListener::getUserListener()
 {
-	return listener;
+    return listener;
 }
 
 void DelegateMGlobalListener::onUsersUpdate(MegaApi* api, MegaUserList *users)
 {
-	if (listener != nullptr)
-		listener->onUsersUpdate(megaSDK, users ? ref new MUserList(users->copy(), true) : nullptr);
+    if (listener != nullptr)
+        listener->onUsersUpdate(megaSDK, users ? ref new MUserList(users->copy(), true) : nullptr);
 }
 
 void DelegateMGlobalListener::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)
 {
-	if (listener != nullptr)
-		listener->onNodesUpdate(megaSDK, nodes ? ref new MNodeList(nodes->copy(), true) : nullptr);
+    if (listener != nullptr)
+        listener->onNodesUpdate(megaSDK, nodes ? ref new MNodeList(nodes->copy(), true) : nullptr);
 }
 
 void DelegateMGlobalListener::onAccountUpdate(MegaApi* api)
 {
-	if (listener != nullptr)
-		listener->onAccountUpdate(megaSDK);
+    if (listener != nullptr)
+        listener->onAccountUpdate(megaSDK);
 }
 
 void DelegateMGlobalListener::onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests)
@@ -61,6 +61,12 @@ void DelegateMGlobalListener::onContactRequestsUpdate(MegaApi* api, MegaContactR
 
 void DelegateMGlobalListener::onReloadNeeded(MegaApi* api)
 {
-	if (listener != nullptr)
-		listener->onReloadNeeded(megaSDK);
+    if (listener != nullptr)
+        listener->onReloadNeeded(megaSDK);
+}
+
+void DelegateMGlobalListener::onEvent(MegaApi* api, MegaEvent* ev)
+{
+    if (listener != nullptr)
+        listener->onEvent(megaSDK, ev ? ref new MEvent(ev->copy(), true) : nullptr);
 }

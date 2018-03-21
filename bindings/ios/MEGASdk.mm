@@ -614,6 +614,30 @@ using namespace mega;
     self.megaApi->confirmChangeEmail((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }
 
+- (void)contactLinkCreateRenew:(BOOL)renew delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkCreate(renew, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkCreateRenew:(BOOL)renew {
+    self.megaApi->contactLinkCreate(renew);
+}
+
+- (void)contactLinkQueryWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkQuery(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkQueryWithHandle:(uint64_t)handle {
+    self.megaApi->contactLinkQuery(handle);
+}
+
+- (void)contactLinkDeleteWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkDelete(INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkDeleteWithHandle:(uint64_t)handle {
+    self.megaApi->contactLinkDelete();
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -662,6 +686,30 @@ using namespace mega;
 
 - (void)removeNode:(MEGANode *)node {
     self.megaApi->remove((node != nil) ? [node getCPtr] : NULL);
+}
+
+- (void)removeVersionsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->removeVersions([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)removeVersions {
+    self.megaApi->removeVersions();
+}
+
+- (void)removeVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->removeVersion(node ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)removeVersionNode:(MEGANode *)node {
+    self.megaApi->removeVersion(node ? [node getCPtr] : NULL);
+}
+
+- (void)restoreVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->restoreVersion(node ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)restoreVersionNode:(MEGANode *)node {
+    self.megaApi->restoreVersion(node ? [node getCPtr] : NULL);
 }
 
 - (void)cleanRubbishBinWithDelegate:(id<MEGARequestDelegate>)delegate {
@@ -943,6 +991,14 @@ using namespace mega;
     self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action);
 }
 
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle {
+    self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, handle);
+}
+
 - (void)replyContactRequest:(MEGAContactRequest *)request action:(MEGAReplyAction)action delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->replyContactRequest((request != nil) ? [request getCPtr] : NULL, (int)action, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1155,6 +1211,26 @@ using namespace mega;
 
 - (MEGANodeList *)childrenForParent:(MEGANode *)parent {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getChildren((parent != nil) ? [parent getCPtr] : NULL) cMemoryOwn:YES];
+}
+
+- (MEGANodeList *)versionsForNode:(MEGANode *)node {
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getVersions(node ? [node getCPtr] : NULL) cMemoryOwn:YES];
+}
+
+- (NSInteger)numberOfVersionsForNode:(MEGANode *)node {
+    return self.megaApi->getNumVersions(node ? [node getCPtr] : NULL);
+}
+
+- (BOOL)hasVersionsForNode:(MEGANode *)node {
+    return self.megaApi->hasVersions(node ? [node getCPtr] : NULL);
+}
+
+- (void)getFolderInfoForNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFolderInfo(node ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getFolderInfoForNode:(MEGANode *)node {
+    self.megaApi->getFolderInfo(node ? [node getCPtr] : NULL);
 }
 
 - (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
@@ -1470,6 +1546,22 @@ using namespace mega;
     self.megaApi->getLanguagePreference();
 }
 
+- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setContactLinksOption(disable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setContactLinksOptionDisable:(BOOL)disable {
+    self.megaApi->setContactLinksOption(disable);
+}
+
+- (void)getContactLinksOptionWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getContactLinksOption([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getContactLinksOption {
+    self.megaApi->getContactLinksOption();
+}
+
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
     if (imagePath == nil || destinationPath == nil) return NO;
     
@@ -1575,6 +1667,16 @@ using namespace mega;
 }
 
 #endif
+
++ (NSString *)mimeTypeByExtension:(NSString *)extension {
+    const char *val = MegaApi::getMimeType([extension UTF8String]);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
 
 - (void)registeriOSdeviceToken:(NSString *)deviceToken delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->registerPushNotifications(PushNotificationTokenTypeiOSStandard, deviceToken ? [deviceToken UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);

@@ -137,7 +137,7 @@ AC_ARG_ENABLE(debug,
 # Enable debug flags / build
 if test "x$enable_debug" = "xyes" ; then
     AM_CXXFLAGS="-Wall -g -ggdb3 -O0"
-    CXXFLAGS="-Wall -g -ggdb3 -O0"
+    CXXFLAGS="$CXXFLAGS -Wall -g -ggdb3 -O0"
     AC_SUBST([AM_CXXFLAGS])
     AC_DEFINE(DEBUG, 1, [Define to enable debug logging])
 else
@@ -901,6 +901,83 @@ else
 fi
 
 #
+# FFMPEG
+#
+AC_MSG_CHECKING(for ffmpeg)
+AC_ARG_WITH(ffmpeg,
+  #AS_HELP_STRING(--with-ffmpeg=PATH, base of ffmpeg installation), #TODO: allow PATH specification
+  AS_HELP_STRING(--with-ffmpeg, enforce usage of ffmpeg),
+  [
+   case $with_ffmpeg in
+   no)
+    ffmpeg=false
+     ;;
+   yes)
+    #ffmpeg-mega
+    AC_CHECK_HEADERS([ffmpeg-mega/libavutil/macros.h],
+       # LDFLAGS="-L$with_ffmpeg/lib $LDFLAGS"
+        CXXFLAGS="-I/usr/include/ffmpeg-mega $CXXFLAGS"
+        CPPFLAGS="-I/usr/include/ffmpeg-mega $CPPFLAGS"
+
+        FFMPEG_CXXFLAGS="-I/usr/include/ffmpeg-mega"
+        FFMPEG_CPPFLAGS="-I/usr/include/ffmpeg-mega"
+
+        AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [LIBBZ2FFMPEG="-lbz2"],)
+        AC_CHECK_LIB(lzma, lzma_code, [LIBLZMAFFMPEG="-llzma"],)
+
+        AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS=["-lavformat -lavcodec -lavutil -lswscale $LIBBZ2FFMPEG $LIBLZMAFFMPEG"]]
+        ,[
+                AC_MSG_ERROR([Could not find ffmpeg])
+        ])
+    ,
+        AC_CHECK_HEADERS([libavutil/macros.h],, [AC_MSG_ERROR([libavutil/macros.h (ffmpeg) header not found or not usable])]) #CONFLICTIVEOLDAUTOTOOLS
+        AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS="-lavcodec -lavformat -lavutil -lswscale"],[
+                AC_MSG_ERROR([Could not find ffmpeg])
+        ])
+    )
+    ffmpeg=true
+
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+  [AC_MSG_RESULT([--with-ffmpeg not specified])
+
+    AC_CHECK_HEADERS([ffmpeg-mega/libavutil/macros.h],
+       # LDFLAGS="-L$with_ffmpeg/lib $LDFLAGS"
+        CXXFLAGS="-I/usr/include/ffmpeg-mega $CXXFLAGS"
+        CPPFLAGS="-I/usr/include/ffmpeg-mega $CPPFLAGS"
+
+        FFMPEG_CXXFLAGS="-I/usr/include/ffmpeg-mega"
+        FFMPEG_CPPFLAGS="-I/usr/include/ffmpeg-mega"
+
+        AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [LIBBZ2FFMPEG="-lbz2"],)
+        AC_CHECK_LIB(lzma, lzma_code, [LIBLZMAFFMPEG="-llzma"],)
+
+        AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS=["-lavformat -lavcodec -lavutil -lswscale $LIBBZ2FFMPEG $LIBLZMAFFMPEG"]]
+        ffmpeg=true
+        ,)
+    ,
+        AC_CHECK_HEADERS([libavutil/macros.h],AC_CHECK_LIB(avformat, main, [FFMPEG_LIBS="-lavcodec -lavformat -lavutil -lswscale"]  #CONFLICTIVEOLDAUTOTOOLS
+        ffmpeg=true,),)  #CONFLICTIVEOLDAUTOTOOLS
+    )
+
+  ]
+  )
+
+if test "x$ffmpeg" = "xtrue" ; then
+AC_SUBST(FFMPEG_CXXFLAGS)
+AC_SUBST(FFMPEG_CPPFLAGS)
+AC_SUBST(FFMPEG_LDFLAGS)
+AC_SUBST(FFMPEG_LIBS)
+AC_DEFINE(HAVE_FFMPEG, [1], [Define to use FFMPEG])
+fi
+
+#
 # LIBMediaInfo
 #
 #libzen
@@ -918,7 +995,7 @@ AC_ARG_WITH(libzen,
     AC_CHECK_HEADERS([ZenLib/Ztring.h],, [
         AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
     ])
-    AC_CHECK_LIB(zen, [_init], [LIBZEN_LIBS="-lzen"],[
+    AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [LIBZEN_LIBS="-lzen"],[
             AC_MSG_ERROR([Could not find libzen])
     ])
     libzen=true
@@ -951,7 +1028,7 @@ AC_ARG_WITH(libzen,
          )
     fi
 
-    AC_CHECK_LIB(zen, [_init], [LIBZEN_LIBS="-lzen"],[
+    AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [LIBZEN_LIBS="-lzen"],[
             AC_MSG_ERROR([Could not find libzen])
     ])
 
@@ -966,7 +1043,7 @@ AC_ARG_WITH(libzen,
   ],
   [AC_MSG_RESULT([--with-libzen not specified])
     AC_CHECK_HEADERS([ZenLib/Ztring.h],
-        AC_CHECK_LIB(zen, [_init], [
+        AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [
         LIBZEN_LIBS="-lzen"
         libzen=true
         ],)
@@ -1912,4 +1989,5 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
   LIBUV:            $LIBUV_CXXFLAGS $LIBUV_LDFLAGS $LIBUV_LIBS
   LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
+  FFMPEG:           $FFMPEG_CXXFLAGS $FFMPEG_LDFLAGS $FFMPEG_LIBS
 ])

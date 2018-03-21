@@ -46,8 +46,16 @@ enable_cares=0
 enable_curl=0
 enable_libuv=0
 android_build=0
+readline_build=0
 enable_cryptopp=0
 disable_mediainfo=0
+incremental=0
+no_optimisation=0
+extra_openssl_params=""
+cross_compiling=0
+configure_cross_options=""
+openssl_cross_option=""
+status_dir=""
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -115,7 +123,6 @@ package_download() {
         return
     fi
 
-    echo "Downloading $name"
 
     if [ -f $file ]; then
         rm -f $file || true
@@ -123,14 +130,19 @@ package_download() {
 
     # use packages previously downloaded in /tmp/megasdkbuild folder
     # if not present download from URL specified
-    # if wget fail, try curl
+    # if wget fails, try curl
     mkdir -p /tmp/megasdkbuild/
-    
+
 #    cp /srv/dependencies_manually_downloaded/$3 $file 2>/dev/null || \
 
-    cp /tmp/megasdkbuild/$3 $file || \
-    wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
-    curl -k $url > $file || exit 1
+    if [ -e /tmp/megasdkbuild/$3 ] ; then
+        echo "Using cached file /tmp/megasdkbuild/$3"
+        cp /tmp/megasdkbuild/$3 $file 
+    else
+        echo "Downloading $name to get $3"
+        wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        curl -k $url > $file || exit 1
+    fi
     
     echo "Checking MD5SUM for $file"
     if ! echo $md5sum \*$file | md5sum -c - ; then
@@ -150,6 +162,7 @@ package_download() {
     
     #copy to tmp download folder for next constructions
     cp $file /tmp/megasdkbuild/$3
+    echo "Cached package file at /tmp/megasdkbuild/$3"
 }
 
 package_extract() {
@@ -194,9 +207,12 @@ package_configure() {
     local dir=$2
     local install_dir="$3"
     local params="$4"
+    local extralibs="$5"
 
+    local conf_f0="./Configure"  #OpenSSL has ./config which first guesses a cross-compiling then calls Configure.  To support reliable cross-compiling, we can call Configure directly with $CC $CXX set appropriately already
     local conf_f1="./config"
     local conf_f2="./configure"
+    local conf=""
     local autogen="./autogen.sh"
 
     echo "Configuring $name"
@@ -208,14 +224,30 @@ package_configure() {
         $autogen
     fi
 
-    if [ -f $conf_f1 ]; then
-        $conf_f1 --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+    if [ $cross_compiling -eq 1 ] && [ -f $conf_f0 ]; then
+        conf="$conf_f0 os/compiler:$openssl_cross_option"
+    elif [ $cross_compiling -eq 0 ] && [ -f $conf_f1 ]; then  # ./config is used to figure out which compiler; if we are cross compiling then skip that and use configure directly, $CC $CXX etc specify the tools
+        conf="$conf_f1"
     elif [ -f $conf_f2 ]; then
-        $conf_f2 $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+        conf="$conf_f2 $configure_cross_options"
     else
         local exit_code=$?
         echo "Failed to configure $name, exit status: $exit_code"
         exit 1
+    fi
+
+    echo -n "configuring $name with : $conf $config_opts --prefix=$install_dir $params"
+    [ -z "$extralibs" ] && echo "" || echo " LIBS=$extralibs"
+
+    if [ -z "$extralibs" ]; then
+        $conf $config_opts --prefix=$install_dir $params &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+    else
+        $conf $config_opts --prefix=$install_dir $params LIBS="$extralibs" &> ../$name.conf.log || exitwithlog ../$name.conf.log 1
+    fi
+
+    if [ $no_optimisation -eq 1 ]; then
+        # this one works for OpenSSL, other files may need to be adjusted differently
+        sed -i -e "s/\(C[XP]*FLAGS\? *=.*\)-O[1-3]/\1-O0/" ./Makefile
     fi
 
     cd $cwd
@@ -268,8 +300,11 @@ package_install() {
     if [ $exit_code -ne 0 ]; then
         echo "Failed to install $name, exit status: $exit_code"
         exitwithlog ../$name.install.log 1
+        cd $cwd
+    else
+        cd $cwd
+        echo $exit_code > $status_dir/$name.success
     fi
-    cd $cwd
 
     # some packages install libraries to "lib64" folder
     local lib64=$install_dir/lib64
@@ -289,8 +324,19 @@ openssl_pkg() {
 
     local openssl_file="openssl-$openssl_ver.tar.gz"
     local openssl_dir="openssl-$openssl_ver"
-    local openssl_params="--openssldir=$install_dir no-shared shared"
+    if [ $use_dynamic -eq 1 ]; then
+    local openssl_params="--openssldir=$install_dir shared $extra_openssl_params"
+    else
+    local openssl_params="--openssldir=$install_dir no-shared $extra_openssl_params"
+    fi
     local loc_make_opts=$make_opts
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
 
     package_download $name $openssl_url $openssl_file $openssl_md5
     if [ $download_only -eq 1 ]; then
@@ -321,7 +367,7 @@ openssl_pkg() {
                 package_configure $name $openssl_dir $install_dir "$openssl_params"
             fi
         else
-            package_configure $name $openssl_dir $install_dir "$openssl_params"
+            package_configure $name $openssl_dir $install_dir "$openssl_params" || exit 1
         fi
     fi
 
@@ -342,6 +388,13 @@ cryptopp_pkg() {
     local cryptopp_md5="df5ef4647b4e978bba0cac79a83aaed5"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
 
     package_download $name $cryptopp_url $cryptopp_file $cryptopp_md5
     if [ $download_only -eq 1 ]; then
@@ -377,6 +430,13 @@ sodium_pkg() {
         local sodium_params="--disable-shared --enable-static --disable-pie"
     fi
 
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
+
     package_download $name $sodium_url $sodium_file $sodium_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -393,7 +453,7 @@ libuv_pkg() {
     local install_dir=$2
     local name="libuv"
     local libuv_ver="v1.8.0"
-    local libuv_url="http://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
+    local libuv_url="https://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
     local libuv_md5="f4229c4360625e973ae933cb92e1faf7"
     local libuv_file="libuv-$libuv_ver.tar.gz"
     local libuv_dir="libuv-$libuv_ver"
@@ -401,6 +461,13 @@ libuv_pkg() {
         local libuv_params="--enable-shared"
     else
         local libuv_params="--disable-shared --enable-static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $libuv_url $libuv_file $libuv_md5
@@ -433,10 +500,19 @@ zlib_pkg() {
     local zlib_file="zlib-$zlib_ver.tar.gz"
     local zlib_dir="zlib-$zlib_ver"
     local loc_conf_opts=$config_opts
+    local loc_configure_cross_options=$configure_cross_options
+
     if [ $use_dynamic -eq 1 ]; then
         local zlib_params=""
     else
         local zlib_params="--static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $zlib_url $zlib_file $zlib_md5
@@ -448,6 +524,7 @@ zlib_pkg() {
 
     # doesn't recognize --host=xxx
     config_opts=""
+    configure_cross_options=""
 
     # Windows must use Makefile.gcc
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
@@ -465,6 +542,7 @@ zlib_pkg() {
         unset LIBRARY_PATH
     fi
     config_opts=$loc_conf_opts
+    configure_cross_options=$loc_configure_cross_options
 
 }
 
@@ -481,6 +559,13 @@ sqlite_pkg() {
         local sqlite_params="--enable-shared"
     else
         local sqlite_params="--disable-shared --enable-static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $sqlite_url $sqlite_file $sqlite_md5
@@ -507,6 +592,13 @@ cares_pkg() {
         local cares_params="--enable-shared"
     else
         local cares_params="--disable-shared --enable-static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $cares_url $cares_file $cares_md5
@@ -550,13 +642,20 @@ curl_pkg() {
             --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
+
     package_download $name $curl_url $curl_file $curl_md5
     if [ $download_only -eq 1 ]; then
         return
     fi
 
     package_extract $name $curl_file $curl_dir
-    package_configure $name $curl_dir $install_dir "$curl_params"
+    package_configure $name $curl_dir $install_dir "$curl_params" ""
     package_build $name $curl_dir
     package_install $name $curl_dir $install_dir
 }
@@ -574,6 +673,13 @@ readline_pkg() {
         local readline_params="--enable-shared"
     else
         local readline_params="--disable-shared --enable-static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
     fi
 
     package_download $name $readline_url $readline_file $readline_md5
@@ -602,6 +708,13 @@ termcap_pkg() {
         local termcap_params="--disable-shared --enable-static"
     fi
 
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
+
     package_download $name $termcap_url $termcap_file $termcap_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -625,6 +738,13 @@ freeimage_pkg() {
     local freeimage_dir_extract="freeimage-$freeimage_ver"
     local freeimage_dir="freeimage-$freeimage_ver/FreeImage"
 
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
+
     package_download $name $freeimage_url $freeimage_file $freeimage_md5
     if [ $download_only -eq 1 ]; then
         return
@@ -637,6 +757,19 @@ freeimage_pkg() {
     
     #patch to fix problem with newest compilers
     sed -i "s#CXXFLAGS += -D__ANSI__#CXXFLAGS += -D__ANSI__ -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
+
+    #freeimage uses some macros with a dollarsign in the name, and also has some constants that don't fit in a long
+    #as gcc building for 32 bit linux has long as 32 bit.  Also some files have the utf-8 BOM which old gcc doesn't like
+    export CFLAGS="$CFLAGS -fdollars-in-identifiers"
+    export CXXFLAGS="$CXXFLAGS -fdollars-in-identifiers"
+    find $freeimage_dir/Source/OpenEXR/IlmImf/ -name "*.cpp" | xargs sed -i -e "s/0xffffffffffffffffL/0xffffffffffffffffull/" 
+    find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs sed -i -e "s/\(0x[0-9A-Fa-f]\{9,16\}\)/\1ull/g" 
+    if command -v dos2unix; then
+        find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs dos2unix
+        find $freeimage_dir/Source/LibRawLite/internal/ -name "*.h" | xargs dos2unix
+    else
+        echo "Command dos2unix not found, skipping some fixes for FreeImage"
+    fi
 
     # replace Makefile on MacOS
     if [ "$(uname)" == "Darwin" ]; then
@@ -656,6 +789,7 @@ freeimage_pkg() {
         # manually copy header and library
         cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
         cp $freeimage_dir/Dist/libfreeimage* $install_dir/lib || exit 1
+        echo $? > $status_dir/$name.success
     # MinGW
     else
         package_build $name $freeimage_dir "-f Makefile.mingw"
@@ -665,6 +799,7 @@ freeimage_pkg() {
         cp $freeimage_dir/Dist/FreeImage.dll $install_dir/lib || 1
         cp $freeimage_dir/Dist/FreeImage.lib $install_dir/lib || 1
         cp $freeimage_dir/Dist/libFreeImage.a $install_dir/lib || 1
+        echo $? > $status_dir/$name.success
     fi
 }
 
@@ -678,6 +813,13 @@ readline_win_pkg() {
     local readline_md5="91beae8726edd7ad529f67d82153e61a"
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
 
     package_download $name $readline_url $readline_file $readline_md5
     if [ $download_only -eq 1 ]; then
@@ -712,6 +854,13 @@ mediainfo_pkg() {
     local mediainfolib_dir_extract="MediaInfoLib-$mediainfolib_ver"
     local mediainfolib_dir="MediaInfoLib-$mediainfolib_ver/Project/GNU/Library"
 
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$mediainfolib_name.success ]; then
+        echo "$mediainfolib_name already built"
+        return
+    else
+        rm -f $status_dir/$mediainfolib_name.success
+    fi
+
     package_download $zenlib_name $zenlib_url $zenlib_file $zenlib_md5
     package_download $mediainfolib_name $mediainfolib_url $mediainfolib_file $mediainfolib_md5
     if [ $download_only -eq 1 ]; then
@@ -739,6 +888,8 @@ mediainfo_pkg() {
         mkdir -p $build_dir/Shared/Source/zlib
         #~ ln -sfr $(find $install_dir -name zlib.a) $build_dir/Shared/Source/zlib/libz.a
         ln -sfr $install_dir/lib/libz.a $build_dir/Shared/Source/zlib/libz.a || ln -sf $install_dir/lib/libz.a $build_dir/Shared/Source/zlib/libz.a
+        ln -sfr $install_dir/include/zlib.h $build_dir/Shared/Source/zlib/zlib.h || ln -sf $install_dir/include/zlib.h $build_dir/Shared/Source/zlib/zlib.h
+        ln -sfr $install_dir/include/zconf.h $build_dir/Shared/Source/zlib/zconf.h || ln -sf $install_dir/include/zconf.h $build_dir/Shared/Source/zlib/zconf.h
     fi
 
     package_configure $zenlib_name $zenlib_dir $install_dir "$zenlib_params" #TODO: tal vez install dir ha de ser ./ZenLib!!! casi 100% seguro
@@ -782,7 +933,10 @@ EOF
     (cd $mediainfolib_dir/../../../Source/MediaInfo; patch MediaInfo_Config.cpp < $build_dir/mediainfopatch)
 
     package_build $mediainfolib_name $mediainfolib_dir
-    package_install $mediainfolib_name $mediainfolib_dir $install_dir
+
+    pushd $build_dir/ZenLib >/dev/null
+    package_install $mediainfolib_name $build_dir/$mediainfolib_dir $install_dir
+    popd
 
 }
 
@@ -796,6 +950,13 @@ readline_win_pkg() {
     local readline_md5="91beae8726edd7ad529f67d82153e61a"
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
 
     package_download $name $readline_url $readline_file $readline_md5
     if [ $download_only -eq 1 ]; then
@@ -820,6 +981,13 @@ build_sdk() {
     local openssl_flags=""
     local sodium_flags="--without-sodium"
     local cwd=$(pwd)
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/MegaSDK.success ]; then
+        echo "MegaSDK already built"
+        return
+    else
+        rm -f $status_dir/MegaSDK.success
+    fi
 
     echo "Configuring MEGA SDK"
 
@@ -851,7 +1019,7 @@ build_sdk() {
     fi
 
     # add readline and termcap flags if building examples
-    if [ -z "$no_examples" ]; then
+    if [ $readline_build -eq 1 ] || [ -z "$no_examples" ]; then
         readline_flags=" \
             --with-readline=$install_dir \
             --with-termcap=$install_dir \
@@ -867,7 +1035,8 @@ build_sdk() {
     fi
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
-        ./configure \
+        local configure_flags="\
+            $configure_cross_options \
             $static_flags \
             --disable-silent-rules \
             --disable-curl-checks \
@@ -886,7 +1055,9 @@ build_sdk() {
             $config_opts \
             $mediainfo_flags \
             --prefix=$install_dir \
-            $debug || exit 1
+            $debug"
+        echo "running: ./configure $configure_flags"
+        ./configure $configure_flags || exit 1
     # Windows (MinGW) build, uses WinHTTP instead of cURL + c-ares, without OpenSSL
     else
         ./configure \
@@ -922,6 +1093,10 @@ build_sdk() {
             make
         fi
         make install
+        local exit_code=$?
+        if [ $exit_code -eq 0 ]; then
+            echo $exit_code > $status_dir/MegaSDK.success
+        fi
     fi
 }
 
@@ -942,10 +1117,12 @@ display_help() {
     echo " -f : Disable FreeImage"
     echo " -g : Enable curl"
     echo " -i : Disable external media info"
+    echo " -I : Incremental build.  Already built dependencies will be skipped"
     echo " -l : Use local software archive files instead of downloading"
     echo " -n : Disable example applications"
     echo " -s : Disable OpenSSL"
     echo " -r : Enable Android build"
+    echo " -R : Build ReadLine too (even with example apps disabled)"
     echo " -t : Disable POSIX Threads support"
     echo " -u : Enable Sodium cryptographic library"
     echo " -v : Enable libuv"
@@ -953,10 +1130,14 @@ display_help() {
     echo " -y : Build dynamic library and executable (instead of static)"
     echo " -m [opts]: make options"
     echo " -x [opts]: configure options"
+    echo " -X [args]: Indicate that we are cross-compiling (and so don't call any ./config scripts)"
+    echo " -C [args]: cross-compile flags (--host etc) for 'configure' scripts (when using -X)"
+    echo " -O [arg]: pass the os/compiler flag for OpenSSL (when using -X)"
     echo " -o [path]: Directory to store and look for downloaded archives"
     echo " -p [path]: Installation directory"
     echo " -q : Use Crypto++"
     echo " -z : Disable libz"
+    echo " -0 : Turn off optimisations (in case of issues on old compilers)"  
     echo ""
 }
 
@@ -968,8 +1149,9 @@ main() {
     local debug=""
     # by the default store archives in work_dir
     local_dir=$work_dir
+    status_dir=$work_dir
 
-    while getopts ":habcdefgilm:no:p:rstuvyx:wqz" opt; do
+    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyx:XC:O:wqz0" opt; do
         case $opt in
             h)
                 display_help $0
@@ -979,7 +1161,7 @@ main() {
                 echo "* Enabling MegaApi"
                 enable_megaapi=1
                 ;;
-             b)
+            b)
                 only_build_dependencies=1
                 echo "* Building dependencies only."
                 ;;
@@ -1006,6 +1188,10 @@ main() {
             i)
                 echo "* Disabling external MediaInfo"
                 disable_mediainfo=1
+                ;;
+            I)
+                echo "* Incremental build - skipping already built/downloaded dependencies"
+                incremental=1
                 ;;
             l)
                 echo "* Using local files"
@@ -1036,9 +1222,17 @@ main() {
                 echo "* Building for Android"
                 android_build=1
                 ;;
+            R)
+                echo "* Building readline for clients"
+                readline_build=1
+                ;;
             s)
                 echo "* Disabling OpenSSL"
                 disable_ssl=1
+                ;;
+            S)
+                echo "* extra OpenSSL config params: $OPTARG"
+                extra_openssl_params="$OPTARG"
                 ;;
             t)
                 disable_posix_threads="--disable-posix-threads"
@@ -1059,6 +1253,18 @@ main() {
                 config_opts="$OPTARG"
                 echo "* Using configuration options: $config_opts"
                 ;;
+            X)
+                cross_compiling=1
+                echo "* cross-compiling"
+                ;;
+            C)
+               configure_cross_options="$OPTARG"
+               echo "* configure cross compile options: $configure_cross_options"
+                ;;
+            O)
+                openssl_cross_option="$OPTARG"
+                echo "* OpenSSL Configure option: $openssl_cross_option"
+                ;;
             y)
                 use_dynamic=1
                 echo "* Building dynamic library and executable."
@@ -1066,6 +1272,10 @@ main() {
             z)
                 disable_zlib=1
                 echo "* Disabling external libz."
+                ;;
+            0)
+                no_optimisation=1
+                echo "* Disabling compiler optimisations."  # some older versions of gcc have optimisations problems with eg. OpenSSL - rsa_test suite can fail
                 ;;
             \?)
                 display_help $0
@@ -1102,7 +1312,9 @@ main() {
         cd $build_dir
     fi
 
-    rm -fr *.log
+    if [ $incremental -eq 0 ]; then
+        rm -fr *.log
+    fi
 
     export PREFIX=$install_dir
     local old_pkg_conf=$PKG_CONFIG_PATH
@@ -1155,7 +1367,7 @@ main() {
     fi
 
     # Build readline and termcap if no_examples isn't set
-    if [ -z "$no_examples" ]; then
+    if [ $readline_build -eq 1 ] || [ -z "$no_examples" ]; then
         if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
             readline_pkg $build_dir $install_dir
             termcap_pkg $build_dir $install_dir

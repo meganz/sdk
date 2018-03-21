@@ -95,6 +95,8 @@ struct DemoApp : public MegaApp
     void ephemeral_result(error);
     void ephemeral_result(handle, const byte*);
 
+    void whyamiblocked_result(int);
+
     void sendsignuplink_result(error);
     void querysignuplink_result(error);
     void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t);
@@ -229,6 +231,10 @@ struct DemoApp : public MegaApp
 
     void getmegaachievements_result(AchievementsDetails*, error);
     void getwelcomepdf_result(handle, string*, error);
+
+    void contactlinkcreate_result(error, handle);
+    void contactlinkquery_result(error, handle, string*, string*, string*);
+    void contactlinkdelete_result(error);
 
     void reload(const char*);
     void clearing();
