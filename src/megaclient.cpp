@@ -1431,7 +1431,14 @@ void MegaClient::exec()
                         }
                         else
                         {
-                            reason = RETRY_API_OVERLOADED;
+                            if (pendingcs->in == "-3")
+                            {
+                                reason = RETRY_API_LOCK;
+                            }
+                            else
+                            {
+                                reason = RETRY_RATE_LIMIT;
+                            }
                             if (fetchingnodes)
                             {
                                 fnstats.eAgainCount++;

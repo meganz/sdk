@@ -4809,8 +4809,9 @@ class MegaApi
             RETRY_NONE = 0,
             RETRY_CONNECTIVITY = 1,
             RETRY_SERVERS_BUSY = 2,
-            RETRY_API_OVERLOADED = 3,
-            RETRY_UNKNOWN = 4
+            RETRY_API_LOCK = 3,
+            RETRY_RATE_LIMIT = 4,
+            RETRY_UNKNOWN = 5
         };
 
         /**
@@ -8630,12 +8631,15 @@ class MegaApi
          * SDK is waiting for the server to complete a request due to connectivity issues
          *
          * - MegaApi::RETRY_SERVERS_BUSY = 2
-         * SDK is waiting for the server to complete a request due to error 500
+         * SDK is waiting for the server to complete a request due to a HTTP error 500
          *
-         * - MegaApi::RETRY_API_OVERLOADED = 3
-         * SDK is waiting for the server to complete a request due to API overload
+         * - MegaApi::RETRY_API_LOCK = 3
+         * SDK is waiting for the server to complete a request due to an API lock (API error -3)
          *
-         * - MegaApi::RETRY_UNKNOWN = 4
+         * - MegaApi::RETRY_RATE_LIMIT = 4,
+         * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+         *
+         * - MegaApi::RETRY_UNKNOWN = 5
          * SDK is waiting for the server to complete a request with unknown reason
          *
          */
