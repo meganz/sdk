@@ -87,7 +87,7 @@ print_distro_help()
     type apt-get >/dev/null 2>&1
     local exit_code=$?
     if [ $exit_code -eq 0 ]; then
-        echo "Please execute the following command:  sudo apt-get install gcc c++ libtool-bin unzip autoconf m4 make wget"
+        echo "Please execute the following command:  sudo apt-get install gcc g++ libtool-bin unzip autoconf m4 make wget"
         echo " (or 'libtool' on older Debian / Ubuntu distro versions)"
         return
     fi
