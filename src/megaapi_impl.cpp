@@ -7000,6 +7000,80 @@ char *MegaApiImpl::httpServerGetLocalWebDavLink(MegaNode *node)
     return result;
 }
 
+MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
+{
+
+    MegaStringListPrivate * links;
+
+    sdkMutex.lock();
+    if (!httpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    set<handle> handles = httpServer->getAllowedWebDavHandles();
+
+    vector<char *> listoflinks;
+
+    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+    {
+        handle h = *it;
+        MegaNode *n = getNodeByHandle(h);
+        if (n)
+        {
+            listoflinks.push_back(httpServer->getLink(n, true));
+
+        }
+    }
+    sdkMutex.unlock();
+
+    links = new MegaStringListPrivate(listoflinks.data(),listoflinks.size());
+
+    return links;
+}
+
+MegaNodeList *MegaApiImpl::httpServerGetWebDavAllowedNodes()
+{
+    MegaNodeListPrivate * nodes;
+
+    sdkMutex.lock();
+    if (!httpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    set<handle> handles = httpServer->getAllowedWebDavHandles();
+
+    vector<Node *> listofnodes;
+
+    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+    {
+        handle h = *it;
+        Node *n = client->nodebyhandle(h);
+        if (n)
+        {
+            listofnodes.push_back(n);
+        }
+    }
+    sdkMutex.unlock();
+
+    nodes = new MegaNodeListPrivate(listofnodes.data(),listofnodes.size());
+
+    return nodes;
+}
+
+void MegaApiImpl::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
+{
+    sdkMutex.lock();
+    if (httpServer)
+    {
+        httpServer->removeAllowedWebDavHandle(handle);
+    }
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
 {
     sdkMutex.lock();
@@ -19188,6 +19262,16 @@ void *MegaHTTPServer::threadEntryPoint(void *param)
     MegaHTTPServer *httpServer = (MegaHTTPServer *)param;
     httpServer->run();
     return NULL;
+}
+
+set<handle> MegaHTTPServer::getAllowedWebDavHandles()
+{
+    return allowedWebDavHandles;
+}
+
+void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
+{
+    allowedWebDavHandles.erase(handle);
 }
 
 void MegaHTTPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
