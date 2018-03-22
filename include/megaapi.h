@@ -10444,6 +10444,39 @@ class MegaApi
          */
         char *httpServerGetLocalWebDavLink(MegaNode *node);
 
+        /**
+         * @brief Returns the list with the links of locations served via WEBDAV
+         *
+         * The HTTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local HTTP server, otherwise NULL
+         */
+        MegaStringList *httpServerGetWebDavLinks();
+
+        /**
+         * @brief Returns the list of nodes served via WEBDAV
+         *
+         * The HTTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local HTTP server, otherwise NULL
+         */
+        MegaNodeList *httpServerGetWebDavAllowedNodes();
+
+        /**
+         * @brief Stops serving a node via webdav.
+         * The webdav link will no longer be valid.
+         *
+         * @param handle Handle of the node to stop serving
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
+
 
         /**
          * @brief Set the maximum buffer size for the internal buffer
