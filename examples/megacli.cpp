@@ -5149,6 +5149,18 @@ void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
     }
 }
 
+void DemoApp::richlinkrequest_result(string *json, error e)
+{
+    if (!e)
+    {
+        cout << "Result:" << endl << *json << endl;
+    }
+    else
+    {
+        cout << "Failed to request rich link. Error: " << e << endl;
+    }
+}
+
 // display account details/history
 void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, bool pro, bool purchases,
                               bool transactions, bool sessions)
