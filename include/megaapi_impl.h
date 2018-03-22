@@ -2027,6 +2027,9 @@ class MegaApiImpl : public MegaApp
         // management
         char *httpServerGetLocalLink(MegaNode *node);
         char *httpServerGetLocalWebDavLink(MegaNode *node);
+        MegaStringList *httpServerGetWebDavLinks();
+        MegaNodeList *httpServerGetWebDavAllowedNodes();
+        void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
         void httpServerSetMaxBufferSize(int bufferSize);
         int httpServerGetMaxBufferSize();
         void httpServerSetMaxOutputSize(int outputSize);
@@ -2687,6 +2690,8 @@ public:
     static void returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
     static void returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
 
+    set<handle> getAllowedWebDavHandles();
+    void removeAllowedWebDavHandle(MegaHandle handle);
 };
 #endif
 

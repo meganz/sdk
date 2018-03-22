@@ -3234,6 +3234,21 @@ char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)
     return pImpl->httpServerGetLocalWebDavLink(node);
 }
 
+MegaStringList *MegaApi::httpServerGetWebDavLinks()
+{
+    return pImpl->httpServerGetWebDavLinks();
+}
+
+MegaNodeList *MegaApi::httpServerGetWebDavAllowedNodes()
+{
+    return pImpl->httpServerGetWebDavAllowedNodes();
+}
+
+void MegaApi::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
+{
+    return pImpl->httpServerRemoveWebDavAllowedNode(handle);
+}
+
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
 {
     pImpl->httpServerSetMaxBufferSize(bufferSize);
