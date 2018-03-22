@@ -7067,7 +7067,10 @@ MegaNodeList *MegaApiImpl::httpServerGetWebDavAllowedNodes()
 void MegaApiImpl::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
 {
     sdkMutex.lock();
-    httpServer->removeAllowedWebDavHandle(handle);
+    if (httpServer)
+    {
+        httpServer->removeAllowedWebDavHandle(handle);
+    }
     sdkMutex.unlock();
 }
 
