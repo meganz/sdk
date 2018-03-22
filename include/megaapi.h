@@ -10691,13 +10691,17 @@ class MegaApi
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Request rich preview for url
+         * @brief Request rich preview information for specified URL
          *
          * The associated request type with this request is MegaRequest::TYPE_RICH_LINK
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getText - Returns a json with meta contained from url
+         * - MegaRequest::getLink - Returns the requested URL
          *
-         * @param url url to request meta contained
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns a JSON containing metadata from the URL
+         *
+         * @param url URL to request metadata (format: http://servername.domain)
          * @param listener MegaRequestListener to track this request
          */
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);

@@ -7390,7 +7390,7 @@ void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListene
 void MegaApiImpl::requestRichPreview(const char *url, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RICH_LINK, listener);
-    request->setText(url);
+    request->setLink(url);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9565,6 +9565,7 @@ void MegaApiImpl::chats_updated(textchat_map *chats, int count)
 
 void MegaApiImpl::richlinkrequest_result(string *richLink, error e)
 {
+    MegaError megaError(e);
     MegaRequestPrivate* request;
     map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
     if(it == requestMap.end()       ||
@@ -9574,8 +9575,10 @@ void MegaApiImpl::richlinkrequest_result(string *richLink, error e)
         return;
     }
 
-    request->setText(richLink->c_str());
-    MegaError megaError(e);
+    if (!e)
+    {
+        request->setText(richLink->c_str());
+    }
     fireOnRequestFinish(request, megaError);
 }
 
@@ -16511,7 +16514,7 @@ void MegaApiImpl::sendPendingRequests()
 
         case MegaRequest::TYPE_RICH_LINK:
         {
-            const char *url = request->getText();
+            const char *url = request->getLink();
             if (!url)
             {
                 e = API_EARGS;

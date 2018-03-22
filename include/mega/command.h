@@ -894,9 +894,6 @@ public:
     void procresult();
 
     CommandRichLink(MegaClient *client, const char *url);
-
-protected:
-    string url;
 };
 
 #endif

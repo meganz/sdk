@@ -5369,7 +5369,7 @@ CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
 {
     cmd("erlsd");
 
-    arg("url", url, true);
+    arg("url", url);
 
     tag = client->reqtag;
 }
