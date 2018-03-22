@@ -9,18 +9,11 @@ sh build-cares.sh
 sh build-curl.sh
 sh build-libuv.sh
 sh build-libsodium.sh
+sh build-mediainfolib.sh
 
 # MEGAchat deps
 if [ "$1" == "--enable-chat" ]; then
-sh build-libevent2.sh
-sh build-libws.sh
-
-# WebRTC deps
-if [ "$2" == "--enable-webrtc" ]; then
-sh build-webrtc.sh
-fi
-
-sh build-megachat.sh $2
+sh build-libwebsockets.sh
 fi
 
 echo "Done."

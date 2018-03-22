@@ -708,6 +708,21 @@ void MegaClient::confirmemaillink(const char *code, const char *email, const byt
     reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
 }
 
+void MegaClient::contactlinkcreate(bool renew)
+{
+    reqs.add(new CommandContactLinkCreate(this, renew));
+}
+
+void MegaClient::contactlinkquery(handle h)
+{
+    reqs.add(new CommandContactLinkQuery(this, h));
+}
+
+void MegaClient::contactlinkdelete(handle h)
+{
+    reqs.add(new CommandContactLinkDelete(this, h));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1325,6 +1340,9 @@ void MegaClient::exec()
             // do we have an API request outstanding?
             if (pendingcs)
             {
+                // handle retry reason for requests
+                retryreason_t reason = RETRY_NONE;
+
                 switch (pendingcs->status)
                 {
                     case REQ_READY:
@@ -1365,7 +1383,7 @@ void MegaClient::exec()
 
                                 if (csretrying)
                                 {
-                                    app->notify_retry(0);
+                                    app->notify_retry(0, RETRY_NONE);
                                     csretrying = false;
                                 }
 
@@ -1422,6 +1440,14 @@ void MegaClient::exec()
                         }
                         else
                         {
+                            if (pendingcs->in == "-3")
+                            {
+                                reason = RETRY_API_LOCK;
+                            }
+                            else
+                            {
+                                reason = RETRY_RATE_LIMIT;
+                            }
                             if (fetchingnodes)
                             {
                                 fnstats.eAgainCount++;
@@ -1430,6 +1456,22 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        if (!reason && pendingcs->httpstatus != 200)
+                        {
+                            if (pendingcs->httpstatus == 500)
+                            {
+                                reason = RETRY_SERVERS_BUSY;
+                            }
+                            else if (pendingcs->httpstatus == 0)
+                            {
+                                reason = RETRY_CONNECTIVITY;
+                            }
+                            else
+                            {
+                                reason = RETRY_UNKNOWN;
+                            }
+                        }
+
                         if (fetchingnodes && pendingcs->httpstatus != 200)
                         {
                             if (pendingcs->httpstatus == 500)
@@ -1465,7 +1507,7 @@ void MegaClient::exec()
                         pendingcs = NULL;
 
                         btcs.backoff();
-                        app->notify_retry(btcs.retryin());
+                        app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
 
                     default:
@@ -1677,7 +1719,8 @@ void MegaClient::exec()
                 delete badhostcs;
                 badhostcs = NULL;
             }
-            else if(badhostcs->status == REQ_FAILURE)
+            else if(badhostcs->status == REQ_FAILURE
+                    || (badhostcs->status == REQ_INFLIGHT && Waiter::ds >= (badhostcs->lastdata + HttpIO::REQUESTTIMEOUT)))
             {
                 LOG_debug << "Failed badhost report. Retrying...";
                 btbadhost.backoff();
@@ -1718,7 +1761,7 @@ void MegaClient::exec()
                 requestLock = false;
             }
             else if (workinglockcs->status == REQ_FAILURE
-                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT))
+                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= (workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT)))
             {
                 LOG_warn << "Failed lock request. Retrying...";
                 btworkinglock.backoff();
@@ -2541,6 +2584,21 @@ int MegaClient::preparewait()
                 }
             }
         }
+
+
+        if (badhostcs && EVER(badhostcs->lastdata)
+                && badhostcs->status == REQ_INFLIGHT)
+        {
+            dstime timeout = badhostcs->lastdata + HttpIO::REQUESTTIMEOUT;
+            if (timeout > Waiter::ds && timeout < nds)
+            {
+                nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
+            }
+        }
     }
 
     // immediate action required?
@@ -3299,16 +3357,19 @@ void MegaClient::dnsrequest(const char *hostname)
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = string("http://") + hostname;
+    req->posturl = (usehttps ? string("https://") : string("http://")) + hostname;
     req->dns(this);
 }
 
-void MegaClient::gelbrequest(const char *service, int timeoutms, int retries)
+void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
 {
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;
     req->maxretries = retries;
-    req->maxbt.backoff(timeoutms);
+    if (timeoutds > 0)
+    {
+        req->maxbt.backoff(timeoutds);
+    }
     pendinghttp[reqtag] = req;
     req->posturl = GELBURL;
     req->posturl.append("?service=");
@@ -3687,6 +3748,11 @@ bool MegaClient::procsc()
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
                                 sc_chatupdate();
+                                break;
+
+                            case MAKENAMEID4('m', 'c', 'f', 'c'):
+                                // chat flags update
+                                sc_chatflags();
                                 break;
 
                             case MAKENAMEID4('m', 'c', 'n', 'a'):
@@ -4189,16 +4255,18 @@ void MegaClient::sc_updatenode()
                 if (!ISUNDEF(h))
                 {
                     Node* n;
+                    bool notify = false;
 
                     if ((n = nodebyhandle(h)))
                     {
-                        if (u)
+                        if (u && n->owner != u)
                         {
                             n->owner = u;
                             n->changed.owner = true;
+                            notify = true;
                         }
 
-                        if (a)
+                        if (a && ((n->attrstring && strcmp(n->attrstring->c_str(), a)) || !n->attrstring))
                         {
                             if (!n->attrstring)
                             {
@@ -4206,18 +4274,23 @@ void MegaClient::sc_updatenode()
                             }
                             Node::copystring(n->attrstring, a);
                             n->changed.attrs = true;
+                            notify = true;
                         }
 
-                        if (ts + 1)
+                        if (ts != -1 && n->ctime != ts)
                         {
                             n->ctime = ts;
                             n->changed.ctime = true;
+                            notify = true;
                         }
 
                         n->applykey();
                         n->setattr();
 
-                        notifynode(n);
+                        if (notify)
+                        {
+                            notifynode(n);
+                        }
                     }
                 }
                 return;
@@ -5262,6 +5335,7 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->ou = ou;
                     chat->title = title;
+                    // chat->flags = ?; --> flags are received in other AP: mcfc
                     if (ts != -1)
                     {
                         chat->ts = ts;  // only in APs related to chat creation or when you're added to
@@ -5358,12 +5432,14 @@ void MegaClient::sc_chatnode()
             case EOO:
                 if (chatid != UNDEF && h != UNDEF && uh != UNDEF && (r || g))
                 {
-                    if (chats.find(chatid) == chats.end())
+                    textchat_map::iterator it = chats.find(chatid);
+                    if (it == chats.end())
                     {
-                        chats[chatid] = new TextChat();
+                        LOG_err << "Unknown chat for user/node access to attachment";
+                        return;
                     }
 
-                    TextChat *chat = chats[chatid];
+                    TextChat *chat = it->second;
                     if (r)  // access revoked
                     {
                         if(!chat->setNodeUserAccess(h, uh, true))
@@ -5390,6 +5466,55 @@ void MegaClient::sc_chatnode()
                 {
                     return;
                 }
+        }
+    }
+}
+
+void MegaClient::sc_chatflags()
+{
+    bool done = false;
+    while(!done)
+    {
+        handle chatid = UNDEF;
+        byte flags = 0;
+
+        switch (jsonsc.getnameid())
+        {
+            case MAKENAMEID2('i','d'):
+                chatid = jsonsc.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case 'f':
+                flags = jsonsc.getint();
+                break;
+
+            case EOO:
+            {
+                done = true;
+                textchat_map::iterator it = chats.find(chatid);
+                if (it == chats.end())
+                {
+                    string chatidB64;
+                    string tmp((const char*)&chatid, sizeof(chatid));
+                    Base64::btoa(tmp, chatidB64);
+                    LOG_err << "Received flags for unknown chatid: " << chatidB64.c_str();
+                    break;
+                }
+
+                TextChat *chat = chats[chatid];
+                chat->setFlags(flags);
+
+                chat->setTag(0);    // external change
+                notifychat(chat);
+                break;
+            }
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    return;
+                }
+                break;
         }
     }
 }
@@ -7577,9 +7702,9 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
 }
 
 // Add/delete/remind outgoing pending contact request
-void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail)
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink));
 }
 
 void MegaClient::updatepcr(handle p, ipcactions_t action)
@@ -8265,112 +8390,198 @@ void MegaClient::procsuk(JSON* j)
 #ifdef ENABLE_CHAT
 void MegaClient::procmcf(JSON *j)
 {
-    if (j->enterobject() && j->getnameid() == 'c' && j->enterarray())
+    if (j->enterobject())
     {
-        while(j->enterobject())   // while there are more chats to read...
+        bool done = false;
+        while (!done)
         {
-            handle chatid = UNDEF;
-            privilege_t priv = PRIV_UNKNOWN;
-            int shard = -1;
-            userpriv_vector *userpriv = NULL;
-            bool group = false;
-            string title;
-            m_time_t ts = -1;
-
-            bool readingChat = true;
-            while(readingChat) // read the chat information
+            switch(j->getnameid())
             {
-                switch (j->getnameid())
+                case 'c':   // list of chatrooms
                 {
-                case MAKENAMEID2('i','d'):
-                    chatid = j->gethandle(MegaClient::CHATHANDLE);
-                    break;
+                    j->enterarray();
 
-                case 'p':
-                    priv = (privilege_t) j->getint();
-                    break;
-
-                case MAKENAMEID2('c','s'):
-                    shard = j->getint();
-                    break;
-
-                case 'u':   // list of users participating in the chat (+privileges)
-                    userpriv = readuserpriv(j);
-                    break;
-
-                case 'g':
-                    group = j->getint();
-                    break;
-
-                case MAKENAMEID2('c','t'):
-                    j->storeobject(&title);
-                    break;
-
-                case MAKENAMEID2('t', 's'):  // actual creation timestamp
-                    ts = j->getint();
-                    break;
-
-                case EOO:
-                    if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
+                    while(j->enterobject())   // while there are more chats to read...
                     {
-                        if (chats.find(chatid) == chats.end())
-                        {
-                            chats[chatid] = new TextChat();
-                        }
+                        handle chatid = UNDEF;
+                        privilege_t priv = PRIV_UNKNOWN;
+                        int shard = -1;
+                        userpriv_vector *userpriv = NULL;
+                        bool group = false;
+                        string title;
+                        m_time_t ts = -1;
 
-                        TextChat *chat = chats[chatid];
-                        chat->id = chatid;
-                        chat->priv = priv;
-                        chat->shard = shard;
-                        chat->group = group;
-                        chat->title = title;
-                        chat->ts = (ts != -1) ? ts : 0;
-
-                        // remove yourself from the list of users (only peers matter)
-                        if (userpriv)
+                        bool readingChat = true;
+                        while(readingChat) // read the chat information
                         {
-                            userpriv_vector::iterator upvit;
-                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                            switch (j->getnameid())
                             {
-                                if (upvit->first == me)
+                            case MAKENAMEID2('i','d'):
+                                chatid = j->gethandle(MegaClient::CHATHANDLE);
+                                break;
+
+                            case 'p':
+                                priv = (privilege_t) j->getint();
+                                break;
+
+                            case MAKENAMEID2('c','s'):
+                                shard = j->getint();
+                                break;
+
+                            case 'u':   // list of users participating in the chat (+privileges)
+                                userpriv = readuserpriv(j);
+                                break;
+
+                            case 'g':
+                                group = j->getint();
+                                break;
+
+                            case MAKENAMEID2('c','t'):
+                                j->storeobject(&title);
+                                break;
+
+                            case MAKENAMEID2('t', 's'):  // actual creation timestamp
+                                ts = j->getint();
+                                break;
+
+                            case EOO:
+                                if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
-                                    userpriv->erase(upvit);
-                                    if (userpriv->empty())
+                                    if (chats.find(chatid) == chats.end())
                                     {
-                                        delete userpriv;
-                                        userpriv = NULL;
+                                        chats[chatid] = new TextChat();
                                     }
-                                    break;
+
+                                    TextChat *chat = chats[chatid];
+                                    chat->id = chatid;
+                                    chat->priv = priv;
+                                    chat->shard = shard;
+                                    chat->group = group;
+                                    chat->title = title;
+                                    chat->ts = (ts != -1) ? ts : 0;
+
+                                    // remove yourself from the list of users (only peers matter)
+                                    if (userpriv)
+                                    {
+                                        userpriv_vector::iterator upvit;
+                                        for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                                        {
+                                            if (upvit->first == me)
+                                            {
+                                                userpriv->erase(upvit);
+                                                if (userpriv->empty())
+                                                {
+                                                    delete userpriv;
+                                                    userpriv = NULL;
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    delete chat->userpriv;  // discard any existing `userpriv`
+                                    chat->userpriv = userpriv;
                                 }
+                                else
+                                {
+                                    LOG_err << "Failed to parse chat information";
+                                }
+                                readingChat = false;
+                                break;
+
+                            default:
+                                if (!j->storeobject())
+                                {
+                                    LOG_err << "Failed to parse chat information";
+                                    readingChat = false;
+                                    delete userpriv;
+                                    userpriv = NULL;
+                                }
+                                break;
                             }
                         }
-                        delete chat->userpriv;  // discard any existing `userpriv`
-                        chat->userpriv = userpriv;
+                        j->leaveobject();
                     }
-                    else
+
+                    j->leavearray();
+                    break;
+                }
+
+                case MAKENAMEID2('c', 'f'):
+                {
+                    j->enterarray();
+
+                    while(j->enterobject()) // while there are more chatid/flag tuples to read...
                     {
-                        LOG_err << "Failed to parse chat information";
+                        handle chatid = UNDEF;
+                        int flags = 0xFF;
+
+                        bool readingFlags = true;
+                        while (readingFlags)
+                        {
+                            switch (j->getnameid())
+                            {
+
+                            case MAKENAMEID2('i','d'):
+                                chatid = j->gethandle(MegaClient::CHATHANDLE);
+                                break;
+
+                            case 'f':
+                                flags = j->getint();
+                                break;
+
+                            case EOO:
+                                if (chatid != UNDEF && flags != 0xFF)
+                                {
+                                    textchat_map::iterator it = chats.find(chatid);
+                                    if (it == chats.end())
+                                    {
+                                        string chatidB64;
+                                        string tmp((const char*)&chatid, sizeof(chatid));
+                                        Base64::btoa(tmp, chatidB64);
+                                        LOG_err << "Received flags for unknown chatid: " << chatidB64.c_str();
+                                    }
+                                    else
+                                    {
+                                        it->second->setFlags(flags);
+                                    }
+                                }
+                                else
+                                {
+                                    LOG_err << "Failed to parse chat flags";
+                                }
+                                readingFlags = false;
+                                break;
+
+                            default:
+                                if (!j->storeobject())
+                                {
+                                    LOG_err << "Failed to parse chat flags";
+                                    readingFlags = false;
+                                }
+                                break;
+                            }
+                        }
+
+                        j->leaveobject();
                     }
-                    readingChat = false;
+
+                    j->leavearray();
+                    break;
+                }
+
+                case EOO:
+                    done = true;
+                    j->leaveobject();
                     break;
 
                 default:
                     if (!j->storeobject())
                     {
-                        LOG_err << "Failed to parse chat information";
-                        readingChat = false;
-                        delete userpriv;
-                        userpriv = NULL;
+                        return;
                     }
-                    break;
-                }
             }
-            j->leaveobject();
         }
     }
-
-    j->leavearray();
-    j->leaveobject();
 }
 
 void MegaClient::procmcna(JSON *j)
@@ -8403,12 +8614,15 @@ void MegaClient::procmcna(JSON *j)
                 case EOO:
                     if (chatid != UNDEF && h != UNDEF && uh != UNDEF)
                     {
-                        if (chats.find(chatid) == chats.end())
+                        textchat_map::iterator it = chats.find(chatid);
+                        if (it == chats.end())
                         {
-                            chats[chatid] = new TextChat();
+                            LOG_err << "Unknown chat for user/node access to attachment";
                         }
-
-                        chats[chatid]->setNodeUserAccess(h, uh);
+                        else
+                        {
+                            it->second->setNodeUserAccess(h, uh);
+                        }
                     }
                     else
                     {
@@ -8807,7 +9021,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         hmacsha256.add(derivedKey + 32, 32);
         hmacsha256.get(hmacComputed);
     }
-    else // algorithm == 2 (fix legacy Webclient bug: swap data and key
+    else // algorithm == 2 (fix legacy Webclient bug: swap data and key)
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
         HMACSHA256 hmacsha256(derivedKey + 32, 32);
@@ -8934,7 +9148,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         }
 
         // Preapare payload to derive encryption key
-        byte algorithm = 1;
+        byte algorithm = 2;
         byte type = isFolder ? 0 : 1;
         string payload;
         payload.append((char*) &algorithm, sizeof algorithm);
@@ -9004,6 +9218,11 @@ sessiontype_t MegaClient::loggedin()
     }
 
     return FULLACCOUNT;
+}
+
+void MegaClient::whyamiblocked()
+{
+    reqs.add(new CommandWhyAmIblocked(this));
 }
 
 error MegaClient::changepw(const byte* oldpwkey, const byte* newpwkey)
@@ -12124,6 +12343,11 @@ void MegaClient::getChatPresenceUrl()
 void MegaClient::registerPushNotification(int deviceType, const char *token)
 {
     reqs.add(new CommandRegisterPushNotification(this, deviceType, token));
+}
+
+void MegaClient::archiveChat(handle chatid, bool archived)
+{
+    reqs.add(new CommandArchiveChat(this, chatid, archived));
 }
 
 #endif

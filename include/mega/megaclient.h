@@ -247,6 +247,9 @@ public:
     // check if logged in
     sessiontype_t loggedin();
 
+    // check the reason of being blocked
+    void whyamiblocked();
+
     // dump current session
     int dumpsession(byte*, size_t);
 
@@ -399,7 +402,7 @@ public:
     void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
 
     // Add/delete/remind outgoing pending contact request
-    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL);
+    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
@@ -543,6 +546,8 @@ public:
 
     // register a token device to route push notifications
     void registerPushNotification(int deviceType, const char *token = NULL);
+
+    void archiveChat(handle chatid, bool archived);
 #endif
 
     // get mega achievements
@@ -718,6 +723,7 @@ private:
 #ifdef ENABLE_CHAT
     void sc_chatupdate();
     void sc_chatnode();
+    void sc_chatflags();
 #endif
     void sc_uac();
 
@@ -1157,6 +1163,7 @@ public:
     static const int CHATHANDLE = 8;
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
+    static const int CONTACTLINKHANDLE = 6;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -1279,6 +1286,15 @@ public:
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
+
+    // create contact link
+    void contactlinkcreate(bool renew);
+
+    // query contact link
+    void contactlinkquery(handle);
+
+    // delete contact link
+    void contactlinkdelete(handle);
 
     // achievements enabled for the account
     bool achievements_enabled;

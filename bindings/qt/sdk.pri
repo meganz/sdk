@@ -38,6 +38,7 @@ SOURCES += src/attrmap.cpp \
     src/gfx/external.cpp \
     src/mega_utf8proc.cpp \
     src/mega_ccronexpr.cpp \
+    src/mega_evt_tls.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp
 
@@ -137,7 +138,7 @@ CONFIG(USE_FFMPEG) {
                FFMPEGLIBPATH = /usr/lib
             }
         }
-        else:packagesExist(ffmpeg) {
+        else:packagesExist(ffmpeg)|packagesExist(libavcodec) {
             LIBS += -lavcodec -lavformat -lavutil -lswscale
         }
         else {
@@ -270,6 +271,8 @@ HEADERS  += include/mega.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
             include/mega/mega_ccronexpr.h \
+            include/mega/mega_evt_tls.h \
+            include/mega/mega_evt_queue.h \
             include/mega/thread/posixthread.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h

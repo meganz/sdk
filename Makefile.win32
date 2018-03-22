@@ -98,6 +98,7 @@ COMMON_SRC=\
 		src/db/sqlite.cpp \
 		src/mega_utf8proc.cpp \
 		src/mega_ccronexpr.cpp
+		src/mega_evt_tls.cpp
 
 MEGACLI_SRC=examples/megacli.cpp
 MEGASIMPLESYNC_SRC=examples/megasimplesync.cpp
