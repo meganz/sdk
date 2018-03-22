@@ -5376,35 +5376,49 @@ CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
 
 void CommandRichLink::procresult()
 {
-    std::string result("");
-    error e = API_OK;
+    // error format: [{"error":<code>}]
+    // result format: [{"result":{
+    //                      "url":"<url>",
+    //                      "t":"<title>",
+    //                      "d":"<description>",
+    //                      "ic":"<format>:<icon_B64>",
+    //                      "i":"<format>:<image>"}}]
+
     if (client->json.isnumeric())
     {
-        e = (error) client->json.getint();
+        return client->app->richlinkrequest_result(NULL, (error)client->json.getint());
     }
-    else
+
+    error e = API_EINTERNAL;
+
+    string res;
+    if (client->json.storeobject(&res))
     {
-        if (client->json.storeobject(NULL))
+        if (res.find("error") != string::npos)
         {
-            result = string(client->json.getvalue());
-            result.erase(result.size() - 2);
-            if (result.find("url") == string::npos)
+            int code = client->json.getint();
+            if (code == 403)
             {
-                e = API_EINTERNAL;
-                result = "";
+                e = API_EACCESS;
             }
-            else
+            else if (code == 404)
             {
-                e = API_OK;
+                e = API_ENOENT;
             }
         }
-        else
+        else if (res.find("result") != string::npos)
         {
-            e = API_EINTERNAL;
+            client->json.pos++; //discard ':'
+
+            string metadata;
+            if (client->json.storeobject(&metadata))
+            {
+                return client->app->richlinkrequest_result(&metadata, API_OK);
+            }
         }
     }
 
-    client->app->richlinkrequest_result(&result ,e);
+    client->app->richlinkrequest_result(NULL, e);
 }
 
 #endif
