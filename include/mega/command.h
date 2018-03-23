@@ -888,6 +888,14 @@ protected:
     bool mArchive;
 };
 
+class MEGA_API CommandRichLink : public Command
+{
+public:
+    void procresult();
+
+    CommandRichLink(MegaClient *client, const char *url);
+};
+
 #endif
 
 class MEGA_API CommandGetMegaAchievements : public Command

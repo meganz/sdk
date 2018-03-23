@@ -1907,6 +1907,7 @@ class MegaApiImpl : public MegaApp
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+        void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
@@ -2188,6 +2189,7 @@ protected:
         virtual void archivechat_result(error);
 
         virtual void chats_updated(textchat_map *, int);
+        virtual void richlinkrequest_result(string*, error);
 #endif
 
 #ifdef ENABLE_SYNC

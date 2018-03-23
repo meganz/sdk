@@ -450,6 +450,9 @@ public:
     // send chat logs with user's annonymous id
     void sendchatlogs(const char*, const char*);
 
+    // request meta information from an url (title, description, icon)
+    void richlinkrequest(const char*);
+
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
 

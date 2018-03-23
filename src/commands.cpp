@@ -5361,6 +5361,83 @@ void CommandArchiveChat::procresult()
     }
 }
 
+CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
+{
+    cmd("erlsd");
+
+    arg("url", url);
+
+    tag = client->reqtag;
+}
+
+void CommandRichLink::procresult()
+{
+    // error format: [{"error":<code>}]
+    // result format: [{"result":{
+    //                      "url":"<url>",
+    //                      "t":"<title>",
+    //                      "d":"<description>",
+    //                      "ic":"<format>:<icon_B64>",
+    //                      "i":"<format>:<image>"}}]
+
+    if (client->json.isnumeric())
+    {
+        return client->app->richlinkrequest_result(NULL, (error)client->json.getint());
+    }
+
+
+    string res;
+    int errCode = 0;
+    string metadata;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID5('e', 'r', 'r', 'o', 'r'):
+                errCode = client->json.getint();
+                break;
+
+            case MAKENAMEID6('r', 'e', 's', 'u', 'l', 't'):
+                client->json.storeobject(&metadata);
+                break;
+
+            case EOO:
+            {
+                error e = API_EINTERNAL;
+                if (!metadata.empty())
+                {
+                    return client->app->richlinkrequest_result(&metadata, API_OK);
+                }
+                else if (errCode)
+                {
+                    switch(errCode)
+                    {
+                        case 403:
+                            e = API_EACCESS;
+                            break;
+
+                        case 404:
+                            e = API_ENOENT;
+                            break;
+
+                        default:
+                            e = API_EINTERNAL;
+                            break;
+                    }
+                }
+
+                return client->app->richlinkrequest_result(NULL, e);
+            }
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->richlinkrequest_result(NULL, API_EINTERNAL);
+                }
+        }
+    }
+}
+
 #endif
 
 CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)

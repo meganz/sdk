@@ -3887,6 +3887,11 @@ void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *l
     pImpl->archiveChat(chatid, archive, listener);
 }
 
+void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)
+{
+    pImpl->requestRichPreview(url, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)
