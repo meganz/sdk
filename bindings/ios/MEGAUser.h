@@ -43,7 +43,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeSigPubKeyRsa   = 0x800,
     MEGAUserChangeTypeSigPubKeyCu255 = 0x1000,
     MEGAUserChangeTypeLanguage       = 0x2000,
-    MEGAUserChangeTypePwdReminder    = 0x4000
+    MEGAUserChangeTypePwdReminder    = 0x4000,
+    MEGAUserChangeTypeDisableVersions = 0x8000,
+    MEGAUserChangeTypeContactLinkVerification = 0x10000
 };
 
 /**
@@ -152,6 +154,13 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypePwdReminder     = 0x4000
  * Check if the data related to the password reminder dialog has changed
+ *
+ * - MEGAUserChangeTypeDisableVersions = 0x8000
+ * Check if option for file versioning has changed
+ *
+ * - MEGAUserChangeTypeContactLinkVerification = 0x10000
+ * Check if option for automatic contact-link verification has changed
+ *
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 
@@ -226,6 +235,12 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypePwdReminder     = 0x4000
  * Check if the data related to the password reminder dialog has changed
+ *
+ * - MEGAUserChangeTypeDisableVersions = 0x8000
+ * Check if option for file versioning has changed
+ *
+ * - MEGAUserChangeTypeContactLinkVerification = 0x10000
+ * Check if option for automatic contact-link verification has changed
  *
  * @return YES if this user has an specific change
  */

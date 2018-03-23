@@ -708,6 +708,21 @@ void MegaClient::confirmemaillink(const char *code, const char *email, const byt
     reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
 }
 
+void MegaClient::contactlinkcreate(bool renew)
+{
+    reqs.add(new CommandContactLinkCreate(this, renew));
+}
+
+void MegaClient::contactlinkquery(handle h)
+{
+    reqs.add(new CommandContactLinkQuery(this, h));
+}
+
+void MegaClient::contactlinkdelete(handle h)
+{
+    reqs.add(new CommandContactLinkDelete(this, h));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1316,6 +1331,9 @@ void MegaClient::exec()
             // do we have an API request outstanding?
             if (pendingcs)
             {
+                // handle retry reason for requests
+                retryreason_t reason = RETRY_NONE;
+
                 switch (pendingcs->status)
                 {
                     case REQ_READY:
@@ -1356,7 +1374,7 @@ void MegaClient::exec()
 
                                 if (csretrying)
                                 {
-                                    app->notify_retry(0);
+                                    app->notify_retry(0, RETRY_NONE);
                                     csretrying = false;
                                 }
 
@@ -1413,6 +1431,14 @@ void MegaClient::exec()
                         }
                         else
                         {
+                            if (pendingcs->in == "-3")
+                            {
+                                reason = RETRY_API_LOCK;
+                            }
+                            else
+                            {
+                                reason = RETRY_RATE_LIMIT;
+                            }
                             if (fetchingnodes)
                             {
                                 fnstats.eAgainCount++;
@@ -1421,6 +1447,22 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        if (!reason && pendingcs->httpstatus != 200)
+                        {
+                            if (pendingcs->httpstatus == 500)
+                            {
+                                reason = RETRY_SERVERS_BUSY;
+                            }
+                            else if (pendingcs->httpstatus == 0)
+                            {
+                                reason = RETRY_CONNECTIVITY;
+                            }
+                            else
+                            {
+                                reason = RETRY_UNKNOWN;
+                            }
+                        }
+
                         if (fetchingnodes && pendingcs->httpstatus != 200)
                         {
                             if (pendingcs->httpstatus == 500)
@@ -1456,7 +1498,7 @@ void MegaClient::exec()
                         pendingcs = NULL;
 
                         btcs.backoff();
-                        app->notify_retry(btcs.retryin());
+                        app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
 
                     default:
@@ -1668,7 +1710,8 @@ void MegaClient::exec()
                 delete badhostcs;
                 badhostcs = NULL;
             }
-            else if(badhostcs->status == REQ_FAILURE)
+            else if(badhostcs->status == REQ_FAILURE
+                    || (badhostcs->status == REQ_INFLIGHT && Waiter::ds >= (badhostcs->lastdata + HttpIO::REQUESTTIMEOUT)))
             {
                 LOG_debug << "Failed badhost report. Retrying...";
                 btbadhost.backoff();
@@ -1709,7 +1752,7 @@ void MegaClient::exec()
                 requestLock = false;
             }
             else if (workinglockcs->status == REQ_FAILURE
-                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT))
+                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= (workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT)))
             {
                 LOG_warn << "Failed lock request. Retrying...";
                 btworkinglock.backoff();
@@ -2507,6 +2550,21 @@ int MegaClient::preparewait()
                 {
                     nds = 0;
                 }
+            }
+        }
+
+
+        if (badhostcs && EVER(badhostcs->lastdata)
+                && badhostcs->status == REQ_INFLIGHT)
+        {
+            dstime timeout = badhostcs->lastdata + HttpIO::REQUESTTIMEOUT;
+            if (timeout > Waiter::ds && timeout < nds)
+            {
+                nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
             }
         }
     }
@@ -4170,16 +4228,18 @@ void MegaClient::sc_updatenode()
                 if (!ISUNDEF(h))
                 {
                     Node* n;
+                    bool notify = false;
 
                     if ((n = nodebyhandle(h)))
                     {
-                        if (u)
+                        if (u && n->owner != u)
                         {
                             n->owner = u;
                             n->changed.owner = true;
+                            notify = true;
                         }
 
-                        if (a)
+                        if (a && ((n->attrstring && strcmp(n->attrstring->c_str(), a)) || !n->attrstring))
                         {
                             if (!n->attrstring)
                             {
@@ -4187,18 +4247,23 @@ void MegaClient::sc_updatenode()
                             }
                             Node::copystring(n->attrstring, a);
                             n->changed.attrs = true;
+                            notify = true;
                         }
 
-                        if (ts + 1)
+                        if (ts != -1 && n->ctime != ts)
                         {
                             n->ctime = ts;
                             n->changed.ctime = true;
+                            notify = true;
                         }
 
                         n->applykey();
                         n->setattr();
 
-                        notifynode(n);
+                        if (notify)
+                        {
+                            notifynode(n);
+                        }
                     }
                 }
                 return;
@@ -7610,9 +7675,9 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
 }
 
 // Add/delete/remind outgoing pending contact request
-void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail)
+void MegaClient::setpcr(const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
 {
-    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail));
+    reqs.add(new CommandSetPendingContact(this, temail, action, msg, oemail, contactLink));
 }
 
 void MegaClient::updatepcr(handle p, ipcactions_t action)

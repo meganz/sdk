@@ -1105,7 +1105,7 @@ void DemoApp::delua_result(error e)
 #endif
 
 
-void DemoApp::notify_retry(dstime dsdelta)
+void DemoApp::notify_retry(dstime dsdelta, retryreason_t)
 {
     if (dsdelta)
     {
@@ -1218,7 +1218,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     do {
         if (!l)
         {
-            if (*ptr >= 0)
+            if (*(const signed char*)ptr >= 0)
             {
                 if (*ptr == '\\')
                 {
@@ -2044,6 +2044,7 @@ static void process_line(char* l)
                 cout << "      export remotepath [expireTime|del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
                 cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                cout << "      clink [renew|query handle|del [handle]]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
                 cout << "      users [email del]" << endl;
@@ -2760,7 +2761,7 @@ static void process_line(char* l)
                                         #else
                                                                     NULL,
                                         #endif
-                                                                    "SDKSAMPLE",
+                                                                    "Gk8DyQBS",
                                                                     "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
                                                                     "." TOSTRING(MEGA_MINOR_VERSION)
                                                                     "." TOSTRING(MEGA_MICRO_VERSION));
@@ -3765,6 +3766,38 @@ static void process_line(char* l)
                         else
                         {
                             cout << "      reset email [mk]" << endl;
+                        }
+                        return;
+                    }                    
+                    else if (words[0] == "clink")
+                    {
+                        bool renew = false;
+                        if (words.size() == 1 || (words.size() == 2 && (renew = words[1] == "renew")))
+                        {
+                            client->contactlinkcreate(renew);
+                        }
+                        else if ((words.size() == 3) && (words[1] == "query"))
+                        {
+                            handle clink;
+                            Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+
+                            client->contactlinkquery(clink);
+
+                        }
+                        else if (((words.size() == 3) || (words.size() == 2)) && (words[1] == "del"))
+                        {
+                            handle clink = UNDEF;
+
+                            if (words.size() == 3)
+                            {
+                                Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+                            }
+
+                            client->contactlinkdelete(clink);
+                        }
+                        else
+                        {
+                            cout << "      clink [renew|query handle|del [handle]]" << endl;
                         }
                         return;
                     }
@@ -5158,6 +5191,47 @@ void DemoApp::richlinkrequest_result(string *json, error e)
     else
     {
         cout << "Failed to request rich link. Error: " << e << endl;
+
+    }
+}
+
+void DemoApp::contactlinkcreate_result(error e, handle h)
+{
+    if (e)
+    {
+        cout << "Failed to create contact link. Error: " << e << endl;
+    }
+    else
+    {
+        cout << "Contact link created successfully: " << LOG_NODEHANDLE(h) << endl;
+    }
+}
+
+void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln)
+{
+    if (e)
+    {
+        cout << "Failed to get contact link details. Error: " << e << endl;
+    }
+    else
+    {
+        cout << "Contact link created successfully: " << endl;
+        cout << "\tUserhandle: " << LOG_HANDLE(h) << endl;
+        cout << "\tEmail: " << *email << endl;
+        cout << "\tFirstname: " << *fn << endl;
+        cout << "\tLastname: " << *ln << endl;
+    }
+}
+
+void DemoApp::contactlinkdelete_result(error e)
+{
+    if (e)
+    {
+        cout << "Failed to delete contact link. Error: " << e << endl;
+    }
+    else
+    {
+        cout << "Contact link deleted successfully." << endl;
     }
 }
 
@@ -5479,7 +5553,7 @@ int main()
 #else
                             NULL,
 #endif
-                            "SDKSAMPLE",
+                            "Gk8DyQBS",
                             "megacli/" TOSTRING(MEGA_MAJOR_VERSION)
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));

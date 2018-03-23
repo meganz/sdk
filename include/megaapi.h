@@ -1103,7 +1103,8 @@ class MegaUser
             CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
             CHANGE_TYPE_LANGUAGE        = 0x2000,
             CHANGE_TYPE_PWD_REMINDER    = 0x4000,
-            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000
+            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
+            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
         };
 
         /**
@@ -1164,6 +1165,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
          * Check if option for file versioning has changed
          *
+         * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
+         * Check if option for automatic contact-link verification has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1223,6 +1227,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_DISABLE_VERSIONS     = 0x8000
          * Check if option for file versioning has changed
+         *
+         * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
+         * Check if option for automatic contact-link verification has changed
          */
         virtual int getChanges();
 
@@ -2029,6 +2036,7 @@ class MegaRequest
             TYPE_QUERY_DNS, TYPE_QUERY_GELB, TYPE_CHAT_STATS, TYPE_DOWNLOAD_FILE,
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
+            TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TOTAL_OF_REQUEST_TYPES
         };
 
@@ -4753,7 +4761,8 @@ class MegaApi
             USER_ATTR_SIG_CU255_PUBLIC_KEY = 9, // public - byte array
             USER_ATTR_LANGUAGE = 14,            // private - char array
             USER_ATTR_PWD_REMINDER = 15,        // private - char array
-            USER_ATTR_DISABLE_VERSIONS = 16     // private - byte array
+            USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
+            USER_ATTR_CONTACT_LINK_VERIFICATION = 17     // private - byte array
         };
 
         enum {
@@ -4794,6 +4803,16 @@ class MegaApi
             PASSWORD_STRENGTH_MEDIUM = 2,
             PASSWORD_STRENGTH_GOOD = 3,
             PASSWORD_STRENGTH_STRONG = 4
+        };
+
+        enum {
+            RETRY_NONE = 0,
+            RETRY_CONNECTIVITY = 1,
+            RETRY_SERVERS_BUSY = 2,
+            RETRY_API_LOCK = 3,
+            RETRY_RATE_LIMIT = 4,
+            RETRY_LOCAL_LOCK = 5,
+            RETRY_UNKNOWN = 6
         };
 
         /**
@@ -5822,6 +5841,58 @@ class MegaApi
          * is MegaError::API_OK, the user is not blocked.
          */
         void whyAmIBlocked(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Create a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_CREATE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getFlag - Returns the value of \c renew parameter
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Return the handle of the new contact link
+         *
+         * @param renew True to invalidate the previous contact link (if any).
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkCreate(bool renew = false, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get information about a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_QUERY.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the userhandle of the contact
+         * - MegaRequest::getEmail - Returns the email of the contact
+         * - MegaRequest::getName - Returns the first name of the contact
+         * - MegaRequest::getText - Returns the last name of the contact
+         *
+         * @param handle Handle of the contact link to check
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkQuery(MegaHandle handle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Delete a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_DELETE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * @param handle Handle of the contact link to delete
+         * If the parameter is INVALID_HANDLE, the active contact link is deleted
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkDelete(MegaHandle handle = INVALID_HANDLE, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account
@@ -7130,6 +7201,32 @@ class MegaApi
         void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
 
         /**
+         * @brief Invite another person to be your MEGA contact using a contact link handle
+         *
+         * The associated request type with this request is MegaRequest::TYPE_INVITE_CONTACT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email of the contact
+         * - MegaRequest::getText - Returns the text of the invitation
+         * - MegaRequest::getNumber - Returns the action
+         * - MegaRequest::getNodeHandle - Returns the contact link handle
+         *
+         * Sending a reminder within a two week period since you started or your last reminder will
+         * fail the API returning the error code MegaError::API_EACCESS.
+         *
+         * @param email Email of the new contact
+         * @param message Message for the user (can be NULL)
+         * @param action Action for this contact request. Valid values are:
+         * - MegaContactRequest::INVITE_ACTION_ADD = 0
+         * - MegaContactRequest::INVITE_ACTION_DELETE = 1
+         * - MegaContactRequest::INVITE_ACTION_REMIND = 2
+         * @param contactLink Contact link handle of the other account. This parameter is considered only if the
+         * \c action is MegaContactRequest::INVITE_ACTION_ADD. Otherwise, it's ignored and it has no effect.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void inviteContact(const char* email, const char* message, int action, MegaHandle contactLink, MegaRequestListener* listener = NULL);
+
+        /**
          * @brief Reply to a contact request
          * @param request Contact request. You can get your pending contact requests using MegaApi::getIncomingContactRequests
          * @param action Action for this contact request. Valid values are:
@@ -7302,7 +7399,11 @@ class MegaApi
          * @param parent Parent node for the file or folder in the MEGA account
          * @param appData Custom app data to save in the MegaTransfer object
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer.
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
          * @param listener MegaTransferListener to track this transfer
          */
         void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, MegaTransferListener *listener=NULL);
@@ -7313,7 +7414,11 @@ class MegaApi
          * @param parent Parent node for the file or folder in the MEGA account
          * @param appData Custom app data to save in the MegaTransfer object
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
-         * related to the transfer.
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
          * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
          * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
          * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
@@ -8511,16 +8616,63 @@ class MegaApi
         void update();
 
         /**
-         * @brief Check if the SDK is waiting for something external (filesystem lock or a server)
-         * @return true if the SDK is waiting for the server to complete a request
+         * @brief Check if the SDK is waiting to complete a request and get the reason
+         * @return State of SDK.
+         *
+         * Valid values are:
+         * - MegaApi::RETRY_NONE = 0
+         * SDK is not waiting for the server to complete a request
+         *
+         * - MegaApi::RETRY_CONNECTIVITY = 1
+         * SDK is waiting for the server to complete a request due to connectivity issues
+         *
+         * - MegaApi::RETRY_SERVERS_BUSY = 2
+         * SDK is waiting for the server to complete a request due to a HTTP error 500
+         *
+         * - MegaApi::RETRY_API_LOCK = 3
+         * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+         *
+         * - MegaApi::RETRY_RATE_LIMIT = 4,
+         * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+         *
+         * - MegaApi::RETRY_LOCAL_LOCK = 5
+         * SDK is waiting for a local locked file
+         *
+         * - MegaApi::RETRY_UNKNOWN = 6
+         * SDK is waiting for the server to complete a request with unknown reason
+         *
          */
-        bool isWaiting();
+        int isWaiting();
 
         /**
-         * @brief Check if the SDK is waiting for the server
-         * @return true if the SDK is waiting for the server to complete a request
+         * @brief Check if the SDK is waiting to complete a request and get the reason
+         * @return State of SDK.
+         *
+         * Valid values are:
+         * - MegaApi::RETRY_NONE = 0
+         * SDK is not waiting for the server to complete a request
+         *
+         * - MegaApi::RETRY_CONNECTIVITY = 1
+         * SDK is waiting for the server to complete a request due to connectivity issues
+         *
+         * - MegaApi::RETRY_SERVERS_BUSY = 2
+         * SDK is waiting for the server to complete a request due to a HTTP error 500
+         *
+         * - MegaApi::RETRY_API_LOCK = 3
+         * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+         *
+         * - MegaApi::RETRY_RATE_LIMIT = 4,
+         * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+         *
+         * - MegaApi::RETRY_LOCAL_LOCK = 5
+         * SDK is waiting for a local locked file
+         *
+         * - MegaApi::RETRY_UNKNOWN = 6
+         * SDK is waiting for the server to complete a request with unknown reason
+         *
+         * @deprecated Use MegaApi::isWaiting instead of this function.
          */
-        bool areServersBusy();
+        int areServersBusy();
 
         /**
          * @brief Get the number of pending uploads
@@ -9808,6 +9960,22 @@ class MegaApi
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish:
+         * - MegaRequest::getText - "0" for disable, "1" for enable
+         *
+         * @param disable True to disable the automatic approval of incoming contact requests using a contact link
+         * @param listener MegaRequestListener to track this request
+         */
+        void setContactLinksOption(bool disable, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Check if file versioning is enabled or disabled
          *
          * If the option has never been set, the error code will be MegaError::API_ENOENT.
@@ -9825,6 +9993,25 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getFileVersionsOption(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+         *
+         * If the option has never been set, the error code will be MegaError::API_ENOENT.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - "0" for disable, "1" for enable
+         * - MegaRequest::getFlag - false if disabled, true if enabled
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getContactLinksOption(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Keep retrying when public key pinning fails
@@ -10137,6 +10324,25 @@ class MegaApi
         bool httpServerIsFolderServerEnabled();
 
         /**
+         * @brief Stablish FILE_ATTRIBUTE_OFFLINE attribute
+         *
+         * By default, it is not enabled
+         *
+         * This is used when serving files in WEBDAV, it will cause windows clients to not load a file
+         * when it is selected. It is intended to reduce unnecessary traffic.
+         *
+         * @param enable true to enable the FILE_ATTRIBUTE_OFFLINE attribute, false to disable it
+         */
+        void httpServerEnableOfflineAttribute(bool enable);
+
+        /**
+         * @brief Check if FILE_ATTRIBUTE_OFFLINE it's enabled
+         *
+         * @return true if the FILE_ATTRIBUTE_OFFLINE attribute is enabled, otherwise false
+         */
+        bool httpServerIsOfflineAttributeEnabled();
+
+        /**
          * @brief Enable/disable the restricted mode of the HTTP server
          *
          * This function allows to restrict the nodes that are allowed to be served.
@@ -10281,6 +10487,53 @@ class MegaApi
          * @return URL to the node in the local HTTP proxy server, otherwise NULL
          */
         char *httpServerGetLocalLink(MegaNode *node);
+
+        /**
+         * @brief Returns a WEBDAV valid URL to a node in the local HTTP proxy server
+         *
+         * The HTTP proxy server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local HTTP link
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        char *httpServerGetLocalWebDavLink(MegaNode *node);
+
+        /**
+         * @brief Returns the list with the links of locations served via WEBDAV
+         *
+         * The HTTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local HTTP server, otherwise NULL
+         */
+        MegaStringList *httpServerGetWebDavLinks();
+
+        /**
+         * @brief Returns the list of nodes served via WEBDAV
+         *
+         * The HTTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local HTTP server, otherwise NULL
+         */
+        MegaNodeList *httpServerGetWebDavAllowedNodes();
+
+        /**
+         * @brief Stops serving a node via webdav.
+         * The webdav link will no longer be valid.
+         *
+         * @param handle Handle of the node to stop serving
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
+
 
         /**
          * @brief Set the maximum buffer size for the internal buffer

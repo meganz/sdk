@@ -1606,7 +1606,7 @@ class MegaApiImpl : public MegaApp
         void updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool mkExported, bool dontShowAgain, bool lastLogin, MegaRequestListener *listener = NULL);
 
         void changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener = NULL);
-        void inviteContact(const char* email, const char* message, int action, MegaRequestListener* listener = NULL);
+        void inviteContact(const char* email, const char* message, int action, MegaHandle contactLink, MegaRequestListener* listener = NULL);
         void replyContactRequest(MegaContactRequest *request, int action, MegaRequestListener* listener = NULL);
         void respondContactRequest();
 
@@ -1697,8 +1697,8 @@ class MegaApiImpl : public MegaApp
 #endif
 
         void update();
-        bool isWaiting();
-        bool areServersBusy();
+        int isWaiting();
+        int areServersBusy();
 
         //Statistics
         int getNumPendingUploads();
@@ -1807,6 +1807,10 @@ class MegaApiImpl : public MegaApp
         const char *getUserAgent();
         const char *getBasePath();
 
+        void contactLinkCreate(bool renew = false, MegaRequestListener *listener = NULL);
+        void contactLinkQuery(MegaHandle handle, MegaRequestListener *listener = NULL);
+        void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
+
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
@@ -1816,6 +1820,9 @@ class MegaApiImpl : public MegaApp
 
         void setFileVersionsOption(bool disable, MegaRequestListener *listener = NULL);
         void getFileVersionsOption(MegaRequestListener *listener = NULL);
+
+        void setContactLinksOption(bool disable, MegaRequestListener *listener = NULL);
+        void getContactLinksOption(MegaRequestListener *listener = NULL);
 
         void retrySSLerrors(bool enable);
         void setPublicKeyPinning(bool enable);
@@ -1851,6 +1858,10 @@ class MegaApiImpl : public MegaApp
 
         // management
         char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalWebDavLink(MegaNode *node);
+        MegaStringList *httpServerGetWebDavLinks();
+        MegaNodeList *httpServerGetWebDavAllowedNodes();
+        void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
         void httpServerSetMaxBufferSize(int bufferSize);
         int httpServerGetMaxBufferSize();
         void httpServerSetMaxOutputSize(int outputSize);
@@ -1861,11 +1872,13 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsFileServerEnabled();
         void httpServerEnableFolderServer(bool enable);
         bool httpServerIsFolderServerEnabled();
+        bool httpServerIsOfflineAttributeEnabled();
         void httpServerSetRestrictedMode(int mode);
         int httpServerGetRestrictedMode();
         void httpServerEnableSubtitlesSupport(bool enable);
         bool httpServerIsSubtitlesSupportEnabled();
         bool httpServerIsLocalOnly();
+        void httpServerEnableOfflineAttribute(bool enable);
 
         void httpServerAddListener(MegaTransferListener *listener);
         void httpServerRemoveListener(MegaTransferListener *listener);
@@ -1966,6 +1979,7 @@ protected:
         int httpServerMaxOutputSize;
         bool httpServerEnableFiles;
         bool httpServerEnableFolders;
+        bool httpServerOfflineAttributeEnabled;
         int httpServerRestrictedMode;
         bool httpServerSubtitlesSupportEnabled;
         set<MegaTransferListener *> httpServerListeners;
@@ -1998,7 +2012,7 @@ protected:
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         bool waiting;
-        bool waitingRequest;
+        retryreason_t waitingRequest;
         vector<string> excludedNames;
         vector<string> excludedPaths;
         long long syncLowerSizeLimit;
@@ -2034,6 +2048,11 @@ protected:
 
         // check the reason of being blocked
         virtual void whyamiblocked_result(int);
+
+        // contact link management
+        virtual void contactlinkcreate_result(error, handle);
+        virtual void contactlinkquery_result(error, handle, string*, string*, string*);
+        virtual void contactlinkdelete_result(error);
 
         // account creation
         virtual void sendsignuplink_result(error);
@@ -2206,7 +2225,7 @@ protected:
         virtual void clearing();
 
         // failed request retry notification
-        virtual void notify_retry(dstime);
+        virtual void notify_retry(dstime, retryreason_t);
 
         // notify about db commit
         virtual void notify_dbcommit();
@@ -2332,6 +2351,24 @@ public:
     bool failed;
     bool pause;
 
+    // WEBDAV related
+    int depth;
+    std::string lastheader;
+    std::string subpathrelative;
+    const char *messageBody;
+    size_t messageBodySize;
+    std::string host;
+    std::string destination;
+    bool overwrite;
+    FileAccess *tmpFileAccess;
+    std::string tmpFileName;
+    std::string newname; //newname for moved node
+    MegaHandle nodeToMove; //node to be moved after delete
+    MegaHandle newParentNode; //parent node for moved after delete
+
+    uv_mutex_t mutex_responses;
+    std::list<std::string> responses;
+
     //tls stuff:
     evt_tls_t *evt_tls;
     std::list<char*> writePointers;
@@ -2362,6 +2399,7 @@ protected:
     static http_parser_settings parsercfg;
 
     set<handle> allowedHandles;
+    set<handle> allowedWebDavHandles;
     handle lastHandle;
     list<MegaHTTPContext*> connections;
     uv_async_t exit_handle;
@@ -2373,6 +2411,7 @@ protected:
     int maxOutputSize;
     bool fileServerEnabled;
     bool folderServerEnabled;
+    bool offlineAttribute;
     bool subtitlesSupportEnabled;
     int restrictedMode;
     bool localOnly;
@@ -2417,15 +2456,30 @@ protected:
     static int onBody(http_parser* parser, const char* at, size_t length);
     static int onMessageComplete(http_parser* parser);
 
+    static std::string getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx);
+
+    // WEBDAV related
+    static std::string getWebDavPropFindResponseForNode(std::string baseURL, std::string subnodepath, MegaNode *node, MegaHTTPContext* httpctx);
+    static std::string getWebDavProfFindNodeContents(MegaNode *node, std::string baseURL, bool offlineAttribute);
+
+
     void run();
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
     static void sendNextBytes(MegaHTTPContext *httpctx);
     static int streamNode(MegaHTTPContext *httpctx);
 
+    //Utility funcitons
+    static std::string getHTTPMethodName(int httpmethod);
+    static std::string getHTTPErrorString(int errorcode);
+
+
 public:
     bool useTLS;
+    MegaFileSystemAccess *fsAccess;
 
-    MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    std::string basePath;
+
+    MegaHTTPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
     bool start(int port, bool localOnly = true);
     void stop();
@@ -2442,10 +2496,22 @@ public:
     bool isFolderServerEnabled();
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
+    bool isHandleWebDavAllowed(handle h);
+    void enableOfflineAttribute(bool enable);
+    bool isOfflineAttributeEnabled();
     void clearAllowedHandles();
-    char* getLink(MegaNode *node);
+    char* getLink(MegaNode *node, bool enablewebdav = false);
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
+
+    static void returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e, bool synchronous = true);
+    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string(), bool synchronous = true);
+
+    static void returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
+    static void returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
+
+    set<handle> getAllowedWebDavHandles();
+    void removeAllowedWebDavHandle(MegaHandle handle);
 };
 #endif
 

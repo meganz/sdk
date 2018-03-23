@@ -85,18 +85,24 @@ namespace mega
     };
 
     public enum class MUserAttrType{
-        USER_ATTR_AVATAR                = 0,    // public - char array
-        USER_ATTR_FIRSTNAME             = 1,    // public - char array
-        USER_ATTR_LASTNAME              = 2,    // public - char array
-        USER_ATTR_AUTHRING              = 3,    // private - byte array
-        USER_ATTR_LAST_INTERACTION      = 4,    // private - byte array
-        USER_ATTR_ED25519_PUBLIC_KEY    = 5,    // public - byte array
-        USER_ATTR_CU25519_PUBLIC_KEY    = 6,    // public - byte array
-        USER_ATTR_KEYRING               = 7,    // private - byte array
-        USER_ATTR_SIG_RSA_PUBLIC_KEY    = 8,    // public - byte array
-        USER_ATTR_SIG_CU255_PUBLIC_KEY  = 9,    // public - byte array
-        USER_ATTR_LANGUAGE              = 14,   // private - char array
-        USER_ATTR_PWD_REMINDER          = 15    // private - char array
+        USER_ATTR_AVATAR                    = 0,    // public - char array
+        USER_ATTR_FIRSTNAME                 = 1,    // public - char array
+        USER_ATTR_LASTNAME                  = 2,    // public - char array
+        USER_ATTR_AUTHRING                  = 3,    // private - byte array
+        USER_ATTR_LAST_INTERACTION          = 4,    // private - byte array
+        USER_ATTR_ED25519_PUBLIC_KEY        = 5,    // public - byte array
+        USER_ATTR_CU25519_PUBLIC_KEY        = 6,    // public - byte array
+        USER_ATTR_KEYRING                   = 7,    // private - byte array
+        USER_ATTR_SIG_RSA_PUBLIC_KEY        = 8,    // public - byte array
+        USER_ATTR_SIG_CU255_PUBLIC_KEY      = 9,    // public - byte array
+        USER_ATTR_COUNTRY                   = 10,   // public - char array
+        USER_ATTR_BIRTHDAY                  = 11,   // public - char array
+        USER_ATTR_BIRTHMONTH                = 12,   // public - char array
+        USER_ATTR_BIRTHYEAR                 = 13,   // public - char array
+        USER_ATTR_LANGUAGE                  = 14,   // private - char array
+        USER_ATTR_PWD_REMINDER              = 15,   // private - char array
+        USER_ATTR_DISABLE_VERSIONS          = 16,   // private - byte array
+        USER_ATTR_CONTACT_LINK_VERIFICATION = 17    // private - byte array
     };
 
     public enum class MPaymentMethod {
@@ -217,6 +223,129 @@ namespace mega
         void confirmChangeEmail(String^ link, String^ pwd, MRequestListenerInterface^ listener);
         void confirmChangeEmail(String^ link, String^ pwd);
         int isLoggedIn();
+
+        /**
+         * @brief Create a contact link
+         *
+         * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_CREATE.
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getFlag - Returns the value of \c renew parameter
+         *
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
+         * - MRequest::getNodeHandle - Return the handle of the new contact link
+         *
+         * @param renew YES to invalidate the previous contact link (if any).
+         * @param listener MRequestListener to track this request
+         */
+        void contactLinkCreateRenew(bool renew, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Create a contact link
+         *
+         * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_CREATE.
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getFlag - Returns the value of \c renew parameter
+         *
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
+         * - MRequest::getNodeHandle - Return the handle of the new contact link
+         *
+         * @param renew YES to invalidate the previous contact link (if any).
+         */
+        void contactLinkCreateRenew(bool renew);
+
+        /**
+         * @brief Get information about a contact link
+         *
+         * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_QUERY.
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
+         * - MRequest::getParentHandle - Returns the userhandle of the contact
+         * - MRequest::getEmail - Returns the email of the contact
+         * - MRequest::getName - Returns the first name of the contact
+         * - MRequest::getText - Returns the last name of the contact
+         *
+         * @param handle Handle of the contact link to check
+         * @param listener MRequestListener to track this request
+         */
+        void contactLinkQuery(MegaHandle handle, MRequestListenerInterface^ listener);
+        
+        /**
+         * @brief Get information about a contact link
+         *
+         * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_QUERY.
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
+         * - MRequest::getParentHandle - Returns the userhandle of the contact
+         * - MRequest::getEmail - Returns the email of the contact
+         * - MRequest::getName - Returns the first name of the contact
+         * - MRequest::getText - Returns the last name of the contact
+         *
+         * @param handle Handle of the contact link to check
+         */
+        void contactLinkQuery(MegaHandle handle);
+
+        /**
+         * @brief Delete a contact link
+         *
+         * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_DELETE.
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * @param handle Handle of the contact link to delete
+         * If the parameter is INVALID_HANDLE, the active contact link is deleted
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void contactLinkDelete(MegaHandle handle, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Delete a contact link
+         *
+         * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_DELETE.
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getNodeHandle - Returns the handle of the contact link
+         *
+         * @param handle Handle of the contact link to delete
+         * If the parameter is INVALID_HANDLE, the active contact link is deleted
+         */
+        void contactLinkDelete(MegaHandle handle);
+
+        /**
+        * @brief Delete the active contact link
+        *
+        * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_DELETE.
+        *
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the contact link
+        *
+        * @param listener MegaRequestListener to track this request
+        */
+        void contactLinkDeleteActive(MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Delete the active contact link
+        *
+        * The associated request type with this request is MRequestType::TYPE_CONTACT_LINK_DELETE.
+        *
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the contact link
+        */
+        void contactLinkDeleteActive();
+
         String^ getMyEmail();
         String^ getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
@@ -346,6 +475,63 @@ namespace mega
         void changePassword(String^ oldPassword, String^ newPassword);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
+        
+        /**
+         * @brief Invite another person to be your MEGA contact using a contact link handle
+         *
+         * The user doesn't need to be registered on MEGA. If the email isn't associated with
+         * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
+         *
+         * The associated request type with this request is MRequestType::TYPE_INVITE_CONTACT
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getEmail - Returns the email of the contact
+         * - MRequest::getText - Returns the text of the invitation
+         * - MRequest::getNumber - Returns the action
+         * - MRequest::getNodeHandle - Returns the contact link handle
+         *
+         * Sending a reminder within a two week period since you started or your last reminder will
+         * fail the API returning the error code MError::API_EACCESS.
+         *
+         * @param email Email of the new contact
+         * @param message Message for the user (can be NULL)
+         * @param action Action for this contact request. Valid values are:
+         * - MContactRequestInviteActionType::INVITE_ACTION_ADD = 0
+         * - MContactRequestInviteActionType::INVITE_ACTION_DELETE = 1
+         * - MContactRequestInviteActionType::INVITE_ACTION_REMIND = 2
+         * @param contactLink Contact link handle of the other account. This parameter is considered only if the
+         * \c action is MContactRequestInviteActionType::INVITE_ACTION_ADD. Otherwise, it's ignored and it has no effect.
+         *
+         * @param listener MRequestListener to track this request
+         */
+        void inviteContactByLinkHandle(String^ email, String^ message, MContactRequestInviteActionType action, MegaHandle contactLink, MRequestListenerInterface^ listener);
+        
+        /**
+         * @brief Invite another person to be your MEGA contact using a contact link handle
+         *
+         * The user doesn't need to be registered on MEGA. If the email isn't associated with
+         * a MEGA account, an invitation email will be sent with the text in the "message" parameter.
+         *
+         * The associated request type with this request is MRequestType::TYPE_INVITE_CONTACT
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getEmail - Returns the email of the contact
+         * - MRequest::getText - Returns the text of the invitation
+         * - MRequest::getNumber - Returns the action
+         * - MRequest::getNodeHandle - Returns the contact link handle
+         *
+         * Sending a reminder within a two week period since you started or your last reminder will
+         * fail the API returning the error code MError::API_EACCESS.
+         *
+         * @param email Email of the new contact
+         * @param message Message for the user (can be NULL)
+         * @param action Action for this contact request. Valid values are:
+         * - MContactRequestInviteActionType::INVITE_ACTION_ADD = 0
+         * - MContactRequestInviteActionType::INVITE_ACTION_DELETE = 1
+         * - MContactRequestInviteActionType::INVITE_ACTION_REMIND = 2
+         * @param contactLink Contact link handle of the other account. This parameter is considered only if the
+         * \c action is MContactRequestInviteActionType::INVITE_ACTION_ADD. Otherwise, it's ignored and it has no effect.
+         */
+        void inviteContactByLinkHandle(String^ email, String^ message, MContactRequestInviteActionType action, MegaHandle contactLink);
+        
         void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action, MRequestListenerInterface^ listener);
         void replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action);
                 
@@ -548,6 +734,73 @@ namespace mega
         void changeApiUrl(String^ apiURL, bool disablepkp);
         void changeApiUrl(String^ apiURL);
         bool setLanguage(String^ languageCode);
+
+        /**
+         * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+         *
+         * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getParamType - Returns the value MegaSDK::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MRequest object received in onRequestFinish:
+         * - MRequest::getText - "0" for disable, "1" for enable
+         *
+         * @param disable True to disable the automatic approval of incoming contact requests using a contact link
+         * @param listener MRequestListener to track this request
+         */
+        void setContactLinksOption(bool disable, MRequestListenerInterface^ listener);
+        
+        /**
+         * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+         *
+         * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+         *
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getParamType - Returns the value MUserAttrType::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MRequest object received in onRequestFinish:
+         * - MRequest::getText - "0" for disable, "1" for enable
+         *
+         * @param disable True to disable the automatic approval of incoming contact requests using a contact link
+         */
+        void setContactLinksOption(bool disable);
+        
+        /**
+         * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+         *
+         * If the option has never been set, the error code will be MError::API_ENOENT.
+         *
+         * The associated request type with this request is MRequestType::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getParamType - Returns the value MUserAttrType::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MRequest::getText - "0" for disable, "1" for enable
+         * - MRequest::getFlag - false if disabled, true if enabled
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getContactLinksOption(MRequestListenerInterface^ listener);
+        
+        /**
+         * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+         *
+         * If the option has never been set, the error code will be MError::API_ENOENT.
+         *
+         * The associated request type with this request is MRequestType::TYPE_GET_ATTR_USER
+         *
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getParamType - Returns the value MUserAttrType::USER_ATTR_CONTACT_LINK_VERIFICATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MRequest::getText - "0" for disable, "1" for enable
+         * - MRequest::getFlag - false if disabled, true if enabled
+         */
+        void getContactLinksOption();
 
         bool createThumbnail(String^ imagePath, String^ dstPath);
         bool createPreview(String^ imagePath, String^ dstPath);

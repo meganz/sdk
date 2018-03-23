@@ -1318,6 +1318,21 @@ void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
     return pImpl->whyAmIBlocked(false, listener);
 }
 
+void MegaApi::contactLinkCreate(bool renew, MegaRequestListener *listener)
+{
+    pImpl->contactLinkCreate(renew, listener);
+}
+
+void MegaApi::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkQuery(handle, listener);
+}
+
+void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkDelete(handle, listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
@@ -1953,7 +1968,12 @@ bool MegaApi::usingHttpsOnly()
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
 {
-    pImpl->inviteContact(email, message, action, listener);
+    pImpl->inviteContact(email, message, action, UNDEF, listener);
+}
+
+void MegaApi::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
+{
+    pImpl->inviteContact(email, message, action, contactLink, listener);
 }
 
 void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
@@ -2672,9 +2692,19 @@ void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
     pImpl->setFileVersionsOption(disable, listener);
 }
 
+void MegaApi::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    pImpl->setContactLinksOption(disable, listener);
+}
+
 void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
 {
     pImpl->getFileVersionsOption(listener);
+}
+
+void MegaApi::getContactLinksOption(MegaRequestListener *listener)
+{
+    pImpl->getContactLinksOption(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)
@@ -3020,12 +3050,12 @@ void MegaApi::update()
    pImpl->update();
 }
 
-bool MegaApi::isWaiting()
+int MegaApi::isWaiting()
 {
     return pImpl->isWaiting();
 }
 
-bool MegaApi::areServersBusy()
+int MegaApi::areServersBusy()
 {
     return pImpl->areServersBusy();
 }
@@ -3086,6 +3116,16 @@ void MegaApi::httpServerEnableFolderServer(bool enable)
     pImpl->httpServerEnableFolderServer(enable);
 }
 
+void MegaApi::httpServerEnableOfflineAttribute(bool enable)
+{
+    pImpl->httpServerEnableOfflineAttribute(enable);
+}
+
+bool MegaApi::httpServerIsOfflineAttributeEnabled()
+{
+    return pImpl->httpServerIsOfflineAttributeEnabled();
+}
+
 bool MegaApi::httpServerIsFolderServerEnabled()
 {
     return pImpl->httpServerIsFolderServerEnabled();
@@ -3124,6 +3164,26 @@ void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
 char *MegaApi::httpServerGetLocalLink(MegaNode *node)
 {
     return pImpl->httpServerGetLocalLink(node);
+}
+
+char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalWebDavLink(node);
+}
+
+MegaStringList *MegaApi::httpServerGetWebDavLinks()
+{
+    return pImpl->httpServerGetWebDavLinks();
+}
+
+MegaNodeList *MegaApi::httpServerGetWebDavAllowedNodes()
+{
+    return pImpl->httpServerGetWebDavAllowedNodes();
+}
+
+void MegaApi::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
+{
+    return pImpl->httpServerRemoveWebDavAllowedNode(handle);
 }
 
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)

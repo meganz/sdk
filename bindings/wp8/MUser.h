@@ -39,21 +39,23 @@ namespace mega
 
     public enum class MUserChangeType
     {
-        CHANGE_TYPE_AUTHRING            = 0x01,
-        CHANGE_TYPE_LSTINT              = 0x02,
-        CHANGE_TYPE_AVATAR              = 0x04,
-        CHANGE_TYPE_FIRSTNAME           = 0x08,
-        CHANGE_TYPE_LASTNAME            = 0x10,
-        CHANGE_TYPE_EMAIL               = 0x20,
-        CHANGE_TYPE_KEYRING             = 0x40,
-        CHANGE_TYPE_COUNTRY             = 0x80,
-        CHANGE_TYPE_BIRTHDAY            = 0x100,
-        CHANGE_TYPE_PUBKEY_CU255        = 0x200,
-        CHANGE_TYPE_PUBKEY_ED255        = 0x400,
-        CHANGE_TYPE_SIG_PUBKEY_RSA      = 0x800,
-        CHANGE_TYPE_SIG_PUBKEY_CU255    = 0x1000,
-        CHANGE_TYPE_LANGUAGE            = 0x2000,
-        CHANGE_TYPE_PWD_REMINDER        = 0x4000
+        CHANGE_TYPE_AUTHRING                    = 0x01,
+        CHANGE_TYPE_LSTINT                      = 0x02,
+        CHANGE_TYPE_AVATAR                      = 0x04,
+        CHANGE_TYPE_FIRSTNAME                   = 0x08,
+        CHANGE_TYPE_LASTNAME                    = 0x10,
+        CHANGE_TYPE_EMAIL                       = 0x20,
+        CHANGE_TYPE_KEYRING                     = 0x40,
+        CHANGE_TYPE_COUNTRY                     = 0x80,
+        CHANGE_TYPE_BIRTHDAY                    = 0x100,
+        CHANGE_TYPE_PUBKEY_CU255                = 0x200,
+        CHANGE_TYPE_PUBKEY_ED255                = 0x400,
+        CHANGE_TYPE_SIG_PUBKEY_RSA              = 0x800,
+        CHANGE_TYPE_SIG_PUBKEY_CU255            = 0x1000,
+        CHANGE_TYPE_LANGUAGE                    = 0x2000,
+        CHANGE_TYPE_PWD_REMINDER                = 0x4000,
+        CHANGE_TYPE_DISABLE_VERSIONS            = 0x8000,
+        CHANGE_TYPE_CONTACT_LINK_VERIFICATION   = 0x10000
     };
 
 	public ref class MUser sealed
