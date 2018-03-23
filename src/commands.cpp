@@ -5393,36 +5393,61 @@ void CommandRichLink::procresult()
         return client->app->richlinkrequest_result(NULL, (error)client->json.getint());
     }
 
-    error e = API_EINTERNAL;
 
     string res;
-    if (client->json.storeobject(&res))
+    int errCode = 0;
+    string metadata;
+    for (;;)
     {
-        if (res.find("error") != string::npos)
+        switch (client->json.getnameid())
         {
-            int code = client->json.getint();
-            if (code == 403)
-            {
-                e = API_EACCESS;
-            }
-            else if (code == 404)
-            {
-                e = API_ENOENT;
-            }
-        }
-        else if (res.find("result") != string::npos)
-        {
-            client->json.pos++; //discard ':'
+            case MAKENAMEID5('e', 'r', 'r', 'o', 'r'):
+                errCode = client->json.getint();
+                break;
 
-            string metadata;
-            if (client->json.storeobject(&metadata))
-            {
-                return client->app->richlinkrequest_result(&metadata, API_OK);
-            }
+            case MAKENAMEID6('r', 'e', 's', 'u', 'l', 't'):
+                client->json.storeobject(&metadata);
+                break;
+
+
+
+            case EOO:
+                if (errCode)
+                {
+                    error e;
+                    switch(errCode)
+                    {
+                        case 403:
+                            e = API_EACCESS;
+                            break;
+
+                        case 404:
+                            e = API_ENOENT;
+                            break;
+
+                        default:
+                            e = API_EINTERNAL;
+                            break;
+                    }
+
+                    return client->app->richlinkrequest_result(NULL, e);
+                }
+                else if (!metadata.empty())
+                {
+                    return client->app->richlinkrequest_result(&metadata, API_OK);
+                }
+                else
+                {
+                    return client->app->richlinkrequest_result(NULL, API_EINTERNAL);
+                }
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->richlinkrequest_result(NULL, API_EINTERNAL);
+                }
         }
     }
-
-    client->app->richlinkrequest_result(NULL, e);
 }
 
 #endif
