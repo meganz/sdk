@@ -97,5 +97,6 @@
 #endif
 
 #include <conio.h>
+#include <stdexcept>
 
 #endif
