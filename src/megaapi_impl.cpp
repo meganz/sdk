@@ -18929,9 +18929,13 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTL
     this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     this->lastHandle = INVALID_HANDLE;
     this->subtitlesSupportEnabled = false;
+#ifdef ENABLE_EVT_TLS
     this->useTLS = useTLS;
     this->certificatepath = certificatepath;
     this->keypath = keypath;
+#else
+    this->useTLS = false;
+#endif
     fsAccess = new MegaFileSystemAccess();
 
     if (basePath.size())
@@ -18971,6 +18975,7 @@ bool MegaHTTPServer::start(int port, bool localOnly)
     return started;
 }
 
+#ifdef ENABLE_EVT_TLS
 int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 {
     int rv = 0;
@@ -19010,6 +19015,7 @@ int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 
     return rv;
 }
+#endif
 
 void MegaHTTPServer::run()
 {
@@ -19022,6 +19028,7 @@ void MegaHTTPServer::run()
     parsercfg.on_header_value = onHeaderValue;
     parsercfg.on_body = onBody;
 
+#ifdef ENABLE_EVT_TLS
     if (useTLS)
     {
         if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
@@ -19033,7 +19040,7 @@ void MegaHTTPServer::run()
         }
         evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
     }
-
+#endif
     uv_loop_t *uv_loop = uv_default_loop();
 
     uv_async_init(uv_loop, &exit_handle, onCloseRequested);
@@ -19054,14 +19061,18 @@ void MegaHTTPServer::run()
         uv_ip4_addr("0.0.0.0", port, &address);
     }
     uv_connection_cb onNewClientCB;
+#ifdef ENABLE_EVT_TLS
     if (useTLS)
     {
          onNewClientCB = onNewClient_tls;
     }
     else
     {
+#endif
         onNewClientCB = onNewClient;
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 
     if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
         || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
@@ -19075,11 +19086,12 @@ void MegaHTTPServer::run()
     started = true;
     uv_sem_post(&semaphore);
     uv_run(uv_loop, UV_RUN_DEFAULT);
+#ifdef ENABLE_EVT_TLS
     if (useTLS)
     {
         evt_ctx_free(&evtctx);
     }
-
+#endif
     uv_loop_close(uv_loop);
     started = false;
     port = 0;
@@ -19274,6 +19286,7 @@ void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
     allowedWebDavHandles.erase(handle);
 }
 
+#ifdef ENABLE_EVT_TLS
 void MegaHTTPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
@@ -19362,6 +19375,7 @@ void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
     // Start reading
     uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
 }
+#endif
 
 void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
 {
@@ -19445,6 +19459,7 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
     delete [] buf->base;
 }
 
+#ifdef ENABLE_EVT_TLS
 void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *data)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
@@ -19495,7 +19510,7 @@ void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread,
         evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
     }
 }
-
+#endif
 void MegaHTTPServer::onClose(uv_handle_t* handle)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
@@ -21059,6 +21074,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
         httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
     }
 
+#ifdef ENABLE_EVT_TLS
     if (httpctx->server->useTLS)
     {
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
@@ -21070,6 +21086,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     }
     else
     {
+#endif
         uv_write_t *req = new uv_write_t();
         req->data = httpctx;
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
@@ -21082,7 +21099,9 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
                 uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
             }
         }
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 }
 
 void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
@@ -21097,18 +21116,22 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
     if (httpctx->failed)
     {
         LOG_warn << "Streaming transfer failed. Closing connection.";
+#ifdef ENABLE_EVT_TLS
         if (httpctx->server->useTLS)
         {
             evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
         }
         else
         {
+#endif
             httpctx->finished = true;
             if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
             {
                 uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
             }
+#ifdef ENABLE_EVT_TLS
         }
+#endif
         return;
     }
 
@@ -21208,6 +21231,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
 
+#ifdef ENABLE_EVT_TLS
     if (httpctx->server->useTLS)
     {
         //notice this, contrary to !useTLS is synchronous
@@ -21220,6 +21244,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
     }
     else
     {
+#endif
         uv_write_t *req = new uv_write_t();
         req->data = httpctx;
 
@@ -21233,9 +21258,12 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
                 uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
             }
         }
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 }
 
+#ifdef ENABLE_EVT_TLS
 void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
@@ -21333,7 +21361,7 @@ void MegaHTTPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
     LOG_debug << "Async TLS write finished";
     uv_async_send(&httpctx->asynchandle);
 }
-
+#endif
 void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) req->data;
@@ -21431,7 +21459,9 @@ MegaHTTPContext::MegaHTTPContext()
     node = NULL;
     transfer = NULL;
     nodesize = -1;
+#ifdef ENABLE_EVT_TLS
     evt_tls = NULL;
+#endif
     messageBody = NULL;
     messageBodySize = 0;
     tmpFileAccess = NULL;
@@ -21448,11 +21478,12 @@ MegaHTTPContext::MegaHTTPContext()
 
 MegaHTTPContext::~MegaHTTPContext()
 {
+#ifdef ENABLE_EVT_TLS
     if (evt_tls)
     {
         evt_tls_free(evt_tls);
     }
-
+#endif
     if (tmpFileAccess)
     {
         delete tmpFileAccess;
