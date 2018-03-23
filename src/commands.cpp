@@ -5409,12 +5409,15 @@ void CommandRichLink::procresult()
                 client->json.storeobject(&metadata);
                 break;
 
-
-
             case EOO:
-                if (errCode)
+            {
+                error e = API_EINTERNAL;
+                if (!metadata.empty())
                 {
-                    error e;
+                    return client->app->richlinkrequest_result(&metadata, API_OK);
+                }
+                else if (errCode)
+                {
                     switch(errCode)
                     {
                         case 403:
@@ -5429,17 +5432,10 @@ void CommandRichLink::procresult()
                             e = API_EINTERNAL;
                             break;
                     }
+                }
 
-                    return client->app->richlinkrequest_result(NULL, e);
-                }
-                else if (!metadata.empty())
-                {
-                    return client->app->richlinkrequest_result(&metadata, API_OK);
-                }
-                else
-                {
-                    return client->app->richlinkrequest_result(NULL, API_EINTERNAL);
-                }
+                return client->app->richlinkrequest_result(NULL, e);
+            }
 
             default:
                 if (!client->json.storeobject())
