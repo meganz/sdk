@@ -6901,6 +6901,14 @@ bool MegaApiImpl::isOnline()
 #ifdef HAVE_LIBUV
 bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
 {
+    #ifndef ENABLE_EVT_TLS
+    if (useTLS)
+    {
+        LOG_err << "Could not start HTTP server: TLS is not supported in current compilation";
+        return false;
+    }
+    #endif
+
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
     {
