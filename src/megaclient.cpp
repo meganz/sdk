@@ -3374,13 +3374,6 @@ void MegaClient::sendchatlogs(const char *json, const char *aid)
     req->post(this);
 }
 
-void MegaClient::richlinkrequest(const char *url)
-{
-#ifdef ENABLE_CHAT
-    reqs.add(new CommandRichLink(this, url));
-#endif
-}
-
 void MegaClient::httprequest(const char *url, int method, bool binary, const char *json, int retries)
 {
     GenericHttpReq *req = new GenericHttpReq(binary);
@@ -12307,6 +12300,10 @@ void MegaClient::archiveChat(handle chatid, bool archived)
     reqs.add(new CommandArchiveChat(this, chatid, archived));
 }
 
+void MegaClient::richlinkrequest(const char *url)
+{
+    reqs.add(new CommandRichLink(this, url));
+}
 #endif
 
 void MegaClient::getaccountachievements(AchievementsDetails *details)
