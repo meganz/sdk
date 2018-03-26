@@ -2962,14 +2962,9 @@ MTransferList^ MegaSDK::getChildTransfers(int transferTag)
     return ref new MTransferList(megaApi->getChildTransfers(transferTag), true);
 }
 
-bool MegaSDK::isWaiting()
+int MegaSDK::isWaiting()
 {
     return megaApi->isWaiting();
-}
-
-bool MegaSDK::areServersBusy()
-{
-    return megaApi->areServersBusy();
 }
 
 int MegaSDK::getNumPendingUploads()

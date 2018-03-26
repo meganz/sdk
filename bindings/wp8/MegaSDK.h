@@ -126,6 +126,16 @@ namespace mega
         PASSWORD_STRENGTH_STRONG    = 4
     };
 
+    public enum class MRetryReason {
+        RETRY_NONE          = 0,
+        RETRY_CONNECTIVITY  = 1,
+        RETRY_SERVERS_BUSY  = 2,
+        RETRY_API_LOCK      = 3,
+        RETRY_RATE_LIMIT    = 4,
+        RETRY_LOCAL_LOCK    = 5,
+        RETRY_UNKNOWN       = 6
+    };
+
     public ref class MegaSDK sealed
     {
         friend class DelegateMRequestListener;
@@ -633,8 +643,34 @@ namespace mega
         MTransferList^ getTransfers(MTransferType type);
         MTransferList^ getChildTransfers(int transferTag);
         
-        bool isWaiting();
-        bool areServersBusy();
+        /**
+        * @brief Check if the SDK is waiting to complete a request and get the reason
+        * @return State of SDK.
+        *
+        * Valid values are:
+        * - MRetryReason::RETRY_NONE = 0
+        * SDK is not waiting for the server to complete a request
+        *
+        * - MRetryReason::RETRY_CONNECTIVITY = 1
+        * SDK is waiting for the server to complete a request due to connectivity issues
+        *
+        * - MRetryReason::RETRY_SERVERS_BUSY = 2
+        * SDK is waiting for the server to complete a request due to a HTTP error 500
+        *
+        * - MRetryReason::RETRY_API_LOCK = 3
+        * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+        *
+        * - MRetryReason::RETRY_RATE_LIMIT = 4,
+        * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+        *
+        * - MRetryReason::RETRY_LOCAL_LOCK = 5
+        * SDK is waiting for a local locked file
+        *
+        * - MRetryReason::RETRY_UNKNOWN = 6
+        * SDK is waiting for the server to complete a request with unknown reason
+        *
+        */
+        int isWaiting();
 
         //Statistics
         int getNumPendingUploads();
