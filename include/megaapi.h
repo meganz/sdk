@@ -2077,7 +2077,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -10812,7 +10812,9 @@ class MegaApi
          *
          * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
          * @param port Port in which the server must accept connections
-         * @param useTLS Use TLS (default false)
+         * @param useTLS Use TLS (default false).
+         * If the SDK compilation does not support TLS,
+         * enabling this flag will cause the function to return false.
          * @param certificatepath path to certificate (PEM format)
          * @param keypath path to certificate key
          * @return True is the server is ready, false if the initialization failed
@@ -11507,6 +11509,22 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Request rich preview information for specified URL
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RICH_LINK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the requested URL
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns a JSON containing metadata from the URL
+         *
+         * @param url URL to request metadata (format: http://servername.domain)
+         * @param listener MegaRequestListener to track this request
+         */
+        void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 
 #endif
 

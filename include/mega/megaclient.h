@@ -548,6 +548,9 @@ public:
     void registerPushNotification(int deviceType, const char *token = NULL);
 
     void archiveChat(handle chatid, bool archived);
+
+    // request meta information from an url (title, description, icon)
+    void richlinkrequest(const char*);
 #endif
 
     // get mega achievements

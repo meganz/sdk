@@ -2075,6 +2075,7 @@ class MegaApiImpl : public MegaApp
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+        void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
@@ -2366,6 +2367,7 @@ protected:
         virtual void archivechat_result(error);
 
         virtual void chats_updated(textchat_map *, int);
+        virtual void richlinkrequest_result(string*, error);
 #endif
 
 #ifdef ENABLE_SYNC
@@ -2549,8 +2551,10 @@ public:
     uv_mutex_t mutex_responses;
     std::list<std::string> responses;
 
+#ifdef ENABLE_EVT_TLS
     //tls stuff:
     evt_tls_t *evt_tls;
+#endif
     std::list<char*> writePointers;
 
     // Request information
@@ -2598,10 +2602,12 @@ protected:
     bool started;
     int port;
 
+#ifdef ENABLE_EVT_TLS
     // TLS
     evt_ctx_t evtctx;
     std::string certificatepath;
     std::string keypath;
+#endif
 
     // libuv callbacks
     static void onNewClient(uv_stream_t* server_handle, int status);
@@ -2609,6 +2615,7 @@ protected:
     static void allocBuffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf);
     static void onClose(uv_handle_t* handle);
 
+#ifdef ENABLE_EVT_TLS
     //libuv tls
     static void onNewClient_tls(uv_stream_t* server_handle, int status);
     static void onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
@@ -2619,7 +2626,7 @@ protected:
     static void on_evt_tls_close(evt_tls_t *evt_tls, int status);
     static void on_hd_complete( evt_tls_t *evt_tls, int status);
     static void evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz);
-
+#endif
 
 
     static void onAsyncEventClose(uv_handle_t* handle);

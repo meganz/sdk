@@ -51,7 +51,7 @@ enable_cryptopp=0
 disable_mediainfo=0
 incremental=0
 no_optimisation=0
-extra_openssl_params=""
+extra_openssl_params="-ldl"
 cross_compiling=0
 configure_cross_options=""
 openssl_cross_option=""
@@ -87,7 +87,7 @@ print_distro_help()
     type apt-get >/dev/null 2>&1
     local exit_code=$?
     if [ $exit_code -eq 0 ]; then
-        echo "Please execute the following command:  sudo apt-get install gcc c++ libtool-bin unzip autoconf m4 make wget"
+        echo "Please execute the following command:  sudo apt-get install gcc g++ libtool-bin unzip autoconf m4 make wget"
         echo " (or 'libtool' on older Debian / Ubuntu distro versions)"
         return
     fi
@@ -419,9 +419,9 @@ sodium_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Sodium"
-    local sodium_ver="1.0.12"
+    local sodium_ver="1.0.16"
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
-    local sodium_md5="c308e3faa724b630b86cc0aaf887a5d4"
+    local sodium_md5="37b18839e57e7a62834231395c8e962b"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -1111,6 +1111,7 @@ display_help() {
     echo ""
     echo "Options:"
     echo " -a : Enable MegaApi"
+    echo " -b : Only build dependencies"
     echo " -c : Configure MEGA SDK and exit, do not build it"
     echo " -d : Enable debug build"
     echo " -e : Enable cares"

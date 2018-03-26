@@ -4423,7 +4423,7 @@ public class MegaApiJava {
      * 
      * @return true if the SDK is waiting for the server to complete a request.
      */
-    public boolean isWaiting() {
+    public int isWaiting() {
         return megaApi.isWaiting();
     }
 
@@ -4431,7 +4431,7 @@ public class MegaApiJava {
      * Check if the SDK is waiting for the server
      * @return true if the SDK is waiting for the server to complete a request
      */
-    public boolean areServersBusy(){
+    public int areServersBusy(){
         return megaApi.areServersBusy();
     }
 

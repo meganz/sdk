@@ -17,11 +17,12 @@
 #endif
 #endif
 
-#ifdef HAVE_LIBUV
+#if defined(HAVE_LIBUV)
 
 #include <assert.h>
 #include <string.h>
 #include "mega/mega_evt_tls.h"
+#ifdef ENABLE_EVT_TLS
 
 /*
  *All the asserts used in the code are possible targets for error
@@ -462,4 +463,5 @@ int evt_is_tls_stream(const char *bfr, const ssize_t nrd)
     return is_tls;
 }
 
+#endif
 #endif
