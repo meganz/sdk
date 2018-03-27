@@ -3259,6 +3259,7 @@ void MegaClient::locallogout()
     auth.clear();
     sessionkey.clear();
     sid.clear();
+    k.clear();
 
     init();
 

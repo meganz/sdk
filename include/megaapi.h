@@ -5958,6 +5958,13 @@ class MegaApi
          */
         bool isAchievementsEnabled();
 
+        /**
+         * @brief Check if the password is correct for the current account
+         * @param password Password to check
+         * @return True if the password is correct for the current account, otherwise false.
+         */
+        bool checkPassword(const char *password);
+
 #ifdef ENABLE_CHAT
         /**
          * @brief Returns the fingerprint of the signing key of the currently open account

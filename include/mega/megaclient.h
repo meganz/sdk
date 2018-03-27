@@ -191,6 +191,9 @@ public:
     // all users
     user_map users;
 
+    // encrypted master key
+    string k;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;

@@ -4044,6 +4044,27 @@ bool MegaApiImpl::isAchievementsEnabled()
     return client->achievements_enabled;
 }
 
+bool MegaApiImpl::checkPassword(const char *password)
+{
+    byte pwkey[SymmCipher::KEYLENGTH];
+
+    sdkMutex.lock();
+    if (!password || !password[0]
+            || client->k.size() < SymmCipher::KEYLENGTH
+            || client->pw_key(password, pwkey))
+    {
+        sdkMutex.unlock();
+        return false;
+    }
+
+    string k = client->k;
+    SymmCipher cipher(pwkey);
+    cipher.ecb_decrypt((byte *)k.data());
+    bool result = !memcmp(k.data(), client->key.key, SymmCipher::KEYLENGTH);
+    sdkMutex.unlock();
+    return result;
+}
+
 #ifdef ENABLE_CHAT
 char *MegaApiImpl::getMyFingerprint()
 {

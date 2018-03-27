@@ -1362,6 +1362,11 @@ bool MegaApi::isAchievementsEnabled()
     return pImpl->isAchievementsEnabled();
 }
 
+bool MegaApi::checkPassword(const char *password)
+{
+    return pImpl->checkPassword(password);
+}
+
 #ifdef ENABLE_CHAT
 char *MegaApi::getMyFingerprint()
 {
