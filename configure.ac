@@ -660,7 +660,20 @@ AC_ARG_WITH(libuv,
     ;;
    esac
   ],
-  [AC_MSG_RESULT([--with-libuv not specified])]
+  [
+      AC_MSG_RESULT([--with-libuv not specified])
+      libuv=false
+      AC_CHECK_HEADERS([uv.h],
+        AC_CHECK_LIB(uv, [uv_run], [
+          LIBUV_LIBS="-luv"
+          libuv=true
+          ],[
+            AC_MSG_RESULT([Could not find libuv])
+            libuv=false
+           ]
+        )
+      ,)
+   ]
   )
 AC_SUBST(LIBUV_CXXFLAGS)
 AC_SUBST(LIBUV_CPPFLAGS)
