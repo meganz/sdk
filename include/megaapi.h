@@ -6838,7 +6838,7 @@ class MegaApi
         /**
          * @brief Set the GPS coordinates of image files as a node attribute.
          *
-         * To remove the existing coordinates, set both the latitude and longitud to
+         * To remove the existing coordinates, set both the latitude and longitude to
          * the value MegaNode::INVALID_COORDINATE.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
@@ -6854,7 +6854,7 @@ class MegaApi
          * @param longitude Longitude in signed decimal degrees notation
          * @param listener MegaRequestListener to track this request
          */
-        void setNodeCoordinates(MegaNode *node, double latitude, double longitude,  MegaRequestListener *listener = NULL);
+        void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
