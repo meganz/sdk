@@ -1921,6 +1921,21 @@ void MegaApi::masterKeyExported(MegaRequestListener *listener)
     pImpl->updatePwdReminderData(false, false, true, false, false, listener);
 }
 
+void MegaApi::passwordReminderDialogSucceeded(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(true, false, false, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogSkipped(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, true, false, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogBlocked(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, false, false, true, false, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
