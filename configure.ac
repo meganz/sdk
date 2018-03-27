@@ -614,12 +614,17 @@ AC_ARG_WITH(libuv,
      ;;
    *)
 
+    if test -f  "$with_libuv/lib/pkgconfig/libuv.pc"; then
+        UV_LIBS=`cat $with_libuv/lib/pkgconfig/libuv.pc | grep "Libs:" | awk '{$1=""; $2=""; print $0}'`
+    fi
+
+    SAVE_LIBS=$LIBS
     # determine if library is installed
     if test -d "$with_libuv/lib"; then
-        LDFLAGS="-L$with_libuv/lib $LDFLAGS"
-        CXXFLAGS="-I$with_libuv/include $CXXFLAGS"
-        CPPFLAGS="-I$with_libuv/include $CPPFLAGS"
-
+        LIBS="-L$with_libuv/lib $UV_LIBS $LIBS" #TODO: These are actually lost: let's assume these library dependencies are included somewhere else
+        LDFLAGS="-L$with_libuv/lib $UV_LDFLAGS $LDFLAGS"
+        CXXFLAGS="-I$with_libuv/include $UV_CXXFLAGS $CXXFLAGS"
+        CPPFLAGS="-I$with_libuv/include $UV_CPPFLAGS $CPPFLAGS"
         AC_CHECK_HEADERS(uv.h,
          LIBUV_CXXFLAGS="-I$with_libuv/include"
          LIBUV_CPPFLAGS="-I$with_libuv/include"
@@ -628,9 +633,10 @@ AC_ARG_WITH(libuv,
          )
     # assume we are using libuv source directory
     else
-        LDFLAGS="-L$with_libuv/uv $LDFLAGS"
-        CXXFLAGS="-I$with_libuv $CXXFLAGS"
-        CPPFLAGS="-I$with_libuv $CPPFLAGS"
+        LIBS="-L$with_libuv/uv $UV_LIBS $LIBS"
+        LDFLAGS="-L$with_libuv/uv $UV_LDFLAGS $LDFLAGS"
+        CXXFLAGS="-I$with_libuv $UV_CXXFLAGS $CXXFLAGS"
+        CPPFLAGS="-I$with_libuv $UV_CPPFLAGS $CPPFLAGS"
 
         AC_CHECK_HEADERS(uv.h,
          LIBUV_CXXFLAGS="-I$with_libuv"
@@ -647,6 +653,7 @@ AC_ARG_WITH(libuv,
     libuv=true
 
     #restore
+    LIBS=$SAVE_LIBS
     LDFLAGS=$SAVE_LDFLAGS
     CXXFLAGS=$SAVE_CXXFLAGS
     CPPFLAGS=$SAVE_CPPFLAGS
