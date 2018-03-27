@@ -4280,6 +4280,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
             attrname = "clv";
             break;
+
+        case MegaApi::USER_ATTR_RICH_PREVIEW:
+            attrname = "*!richprevs";
+            break;
     }
 
     return attrname;
@@ -4307,6 +4311,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_AUTHRING:
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
+        case MegaApi::USER_ATTR_RICH_PREVIEW:
             scope = '*';
             break;
 
