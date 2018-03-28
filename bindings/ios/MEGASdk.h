@@ -95,6 +95,11 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeContactLinkVerification = 17  // private - byte array
 };
 
+typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
+    MEGANodeAttributeDuration       = 0,
+    MEGANodeAttributeCoordinates    = 1
+};
+
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
     MEGAPaymentMethodBalance      = 0,
     MEGAPaymentMethodPaypal       = 1,
@@ -2017,6 +2022,45 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @param megaFileLink Public link to a file in MEGA.
  */
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink;
+
+/**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ * @param delegate Delegate to track this request.
+ */
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ */
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.

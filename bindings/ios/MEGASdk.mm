@@ -771,6 +771,18 @@ using namespace mega;
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
 
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
+    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
+    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
+    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude {
+    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
+    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
+    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon);
+}
+
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
