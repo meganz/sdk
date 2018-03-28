@@ -5042,12 +5042,12 @@ void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaReq
     {
         email = user->getEmail();
     }
-    getUserAttr(email, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
+    getUserAttr(email, MegaApi::USER_ATTR_AVATAR, dstFilePath, 0, listener);
 }
 
 void MegaApiImpl::getUserAvatar(const char* email_or_handle, const char *dstFilePath, MegaRequestListener *listener)
 {
-    getUserAttr(email_or_handle, MegaApi::USER_ATTR_AVATAR, dstFilePath, listener);
+    getUserAttr(email_or_handle, MegaApi::USER_ATTR_AVATAR, dstFilePath, 0, listener);
 }
 
 char *MegaApiImpl::getUserAvatarColor(MegaUser *user)
@@ -5072,12 +5072,12 @@ void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener
     {
         email = user->getEmail();
     }
-    getUserAttr(email, type ? type : -1, NULL, listener);
+    getUserAttr(email, type ? type : -1, NULL, 0, listener);
 }
 
 void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener)
 {
-    getUserAttr(email_or_handle, type ? type : -1, NULL, listener);
+    getUserAttr(email_or_handle, type ? type : -1, NULL, 0, listener);
 }
 
 void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
@@ -5566,7 +5566,7 @@ void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFile
     waiter->notify();
 }
 
-void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char *dstFilePath, MegaRequestListener *listener)
+void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char *dstFilePath, int number, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
 
@@ -5590,10 +5590,12 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
     }
 
     request->setParamType(type);
+    request->setNumber(number);
     if(email_or_handle)
     {
         request->setEmail(email_or_handle);
     }
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8246,7 +8248,7 @@ void MegaApiImpl::setLanguagePreference(const char *languageCode, MegaRequestLis
 
 void MegaApiImpl::getLanguagePreference(MegaRequestListener *listener)
 {
-    getUserAttr(NULL, MegaApi::USER_ATTR_LANGUAGE, NULL, listener);
+    getUserAttr(NULL, MegaApi::USER_ATTR_LANGUAGE, NULL, 0, listener);
 }
 
 bool MegaApiImpl::getLanguageCode(const char *languageCode, string *code)
@@ -8387,7 +8389,7 @@ void MegaApiImpl::setFileVersionsOption(bool disable, MegaRequestListener *liste
 
 void MegaApiImpl::getFileVersionsOption(MegaRequestListener *listener)
 {
-    getUserAttr(NULL, MegaApi::USER_ATTR_DISABLE_VERSIONS, NULL, listener);
+    getUserAttr(NULL, MegaApi::USER_ATTR_DISABLE_VERSIONS, NULL, 0, listener);
 }
 
 void MegaApiImpl::setContactLinksOption(bool disable, MegaRequestListener *listener)
@@ -8398,7 +8400,7 @@ void MegaApiImpl::setContactLinksOption(bool disable, MegaRequestListener *liste
 
 void MegaApiImpl::getContactLinksOption(MegaRequestListener *listener)
 {
-    getUserAttr(NULL, MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, NULL, listener);
+    getUserAttr(NULL, MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION, NULL, 0, listener);
 }
 
 void MegaApiImpl::retrySSLerrors(bool enable)
@@ -11445,17 +11447,23 @@ void MegaApiImpl::getua_result(error e)
                     (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
     // if attempted to get ^!prd attribute but not exists yet...
-    if (e == API_ENOENT &&
-            (request->getType() == MegaRequest::TYPE_SET_ATTR_USER &&
-            request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER) )
+    if (e == API_ENOENT && request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER)
     {
-        string newValue;
-        User::mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
-        request->setText(newValue.c_str());
+        if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        {
+            string newValue;
+            User::mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
+            request->setText(newValue.c_str());
 
-        // set the attribute using same request tag
-        client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
-        return;
+            // set the attribute using same request tag
+            client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
+            return;
+        }
+        else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
+                 && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+        {
+            request->setFlag(true); // the password reminder dialog should be shown
+        }
     }
 
     fireOnRequestFinish(request, megaError);
@@ -11546,6 +11554,19 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                         || attrType == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
                 {
                     request->setFlag(str == "1");
+                }
+                else if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
+                {
+                    time_t currenttime = time(NULL);
+                    if (!User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len)
+                            && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
+                            && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
+                            && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
+                            && (currenttime - User::getPwdReminderData(User::PWD_LAST_LOGIN, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTLOGIN
+                            && (currenttime - User::getPwdReminderData(User::PWD_LAST_SKIPPED, (const char*)data, len)) > request->getNumber() ? User::PWD_SHOW_AFTER_LASTSKIP_LOGOUT : User::PWD_SHOW_AFTER_LASTSKIP)
+                    {
+                        request->setFlag(true); // the password reminder dialog should be shown
+                    }
                 }
             }
             break;
