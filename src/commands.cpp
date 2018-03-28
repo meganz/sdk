@@ -1469,7 +1469,6 @@ void CommandLogin::procresult()
     handle me = UNDEF;
     bool fa = false;
     bool ach = false;
-    string k;
 
     for (;;)
     {
@@ -1517,11 +1516,6 @@ void CommandLogin::procresult()
                 break;
 
             case EOO:
-                if (len_k)
-                {
-                    k.assign((const char *)hash, len_k);
-                }
-
                 if (!checksession)
                 {
                     if (ISUNDEF(me) || len_k != sizeof hash)
@@ -1621,7 +1615,6 @@ void CommandLogin::procresult()
 
                 client->me = me;
                 client->achievements_enabled = ach;
-                client->k.assign(k);
 
                 if (len_sek)
                 {
@@ -3077,6 +3070,11 @@ void CommandGetUserData::procresult()
 
         case 'u':
             jid = client->json.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case 'k':
+            client->k.resize(SymmCipher::KEYLENGTH);
+            client->json.storebinary((byte *)client->k.data(), client->k.size());
             break;
 
         case MAKENAMEID4('p', 'u', 'b', 'k'):
