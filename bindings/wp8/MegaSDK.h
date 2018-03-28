@@ -362,6 +362,13 @@ namespace mega
         MUser^ getMyUser();
         bool isAchievementsEnabled();
 
+        /**
+        * @brief Check if the password is correct for the current account
+        * @param password Password to check
+        * @return True if the password is correct for the current account, otherwise false.
+        */
+        bool checkPassword(String^ password);
+
         //Logging
         static void setLogLevel(MLogLevel logLevel);
         void addLoggerObject(MLoggerInterface^ logger);
@@ -480,6 +487,114 @@ namespace mega
         String^ exportMasterKey();
         void masterKeyExported(MRequestListenerInterface^ listener);
         void masterKeyExported();
+
+        /**
+        * @brief Notify the user has successfully checked his password
+        *
+        * This function should be called when the user demonstrates that he remembers
+        * the password to access the account
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not continue asking the user
+        * to remind the password for the account in a short time.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void passwordReminderDialogSucceeded(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Notify the user has successfully checked his password
+        *
+        * This function should be called when the user demonstrates that he remembers
+        * the password to access the account
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not continue asking the user
+        * to remind the password for the account in a short time.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        */
+        void passwordReminderDialogSucceeded();
+
+        /**
+        * @brief Notify the user has successfully skipped the password check
+        *
+        * This function should be called when the user skips the verification of
+        * the password to access the account
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not continue asking the user
+        * to remind the password for the account in a short time.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        *
+        * @param listener MegaRequestListener to track this request
+        */
+        void passwordReminderDialogSkipped(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Notify the user has successfully skipped the password check
+        *
+        * This function should be called when the user skips the verification of
+        * the password to access the account
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not continue asking the user
+        * to remind the password for the account in a short time.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        */
+        void passwordReminderDialogSkipped();
+
+        /**
+        * @brief Notify the user wants to totally disable the password check
+        *
+        * This function should be called when the user rejects to verify that he remembers
+        * the password to access the account and doesn't want to see the reminder again.
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not ask the user
+        * to remind the password for the account again.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        *
+        * @param listener MegaRequestListener to track this request
+        */
+        void passwordReminderDialogBlocked(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Notify the user wants to totally disable the password check
+        *
+        * This function should be called when the user rejects to verify that he remembers
+        * the password to access the account and doesn't want to see the reminder again.
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not ask the user
+        * to remind the password for the account again.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        */
+        void passwordReminderDialogBlocked();
 
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
         void changePassword(String^ oldPassword, String^ newPassword);
