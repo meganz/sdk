@@ -3369,6 +3369,24 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if the app should show the password reminder dialog to the user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if the password reminder dialog should be shown
+     *
+     * @param atLogout True if the check is being done just before a logout
+     * @param listener MegaRequestListener to track this request
+     */
+    public void shouldShowPasswordReminderDialog(boolean atLogout, MegaRequestListenerInterface listener){
+        megaApi.shouldShowPasswordReminderDialog(atLogout, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Change the password of the MEGA account.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_CHANGE_PW
