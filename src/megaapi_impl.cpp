@@ -9448,7 +9448,7 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
         for (int i = 0; data < enddata; i++)
         {
             result = i ? "-----BEGIN CERTIFICATE-----\n"
-                       : "-----BEGIN PRIVATE KEY-----\n";
+                       : "-----BEGIN RSA PRIVATE KEY-----\n";
 
             const char *end = strstr(data, ";");
             if (!end)
@@ -9475,7 +9475,7 @@ void MegaApiImpl::getlocalsslcertificate_result(m_time_t ts, string *certdata, e
             {
                 case 0:
                 {
-                    result.append("-----END PRIVATE KEY-----\n");
+                    result.append("-----END RSA PRIVATE KEY-----\n");
                     datamap->set("key", result.c_str());
                     break;
                 }
