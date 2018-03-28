@@ -839,6 +839,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     achievements_enabled = false;
     tsLogin = false;
     versions_disabled = false;
+    accountsince = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3191,6 +3192,7 @@ void MegaClient::locallogout()
     achievements_enabled = false;
     tsLogin = false;
     versions_disabled = false;
+    accountsince = 0;
 
     freeq(GET);
     freeq(PUT);

@@ -194,6 +194,9 @@ public:
     // encrypted master key
     string k;
 
+    // timestamp of the creation of the account
+    time_t accountsince;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
