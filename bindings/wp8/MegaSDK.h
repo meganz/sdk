@@ -596,6 +596,37 @@ namespace mega
         */
         void passwordReminderDialogBlocked();
 
+        /**
+        * @brief Check if the app should show the password reminder dialog to the user
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getFlag - Returns true if the password reminder dialog should be shown
+        *
+        * @param atLogout True if the check is being done just before a logout
+        * @param listener MegaRequestListener to track this request
+        */
+        void shouldShowPasswordReminderDialog(bool atLogout, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Check if the app should show the password reminder dialog to the user
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getFlag - Returns true if the password reminder dialog should be shown
+        *
+        * @param atLogout True if the check is being done just before a logout
+        */
+        void shouldShowPasswordReminderDialog(bool atLogout);
+
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
         void changePassword(String^ oldPassword, String^ newPassword);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);

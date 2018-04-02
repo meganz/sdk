@@ -2244,6 +2244,16 @@ void MegaSDK::passwordReminderDialogBlocked()
     megaApi->passwordReminderDialogBlocked();
 }
 
+void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout, MRequestListenerInterface^ listener)
+{
+    megaApi->shouldShowPasswordReminderDialog(atLogout, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout)
+{
+    megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
