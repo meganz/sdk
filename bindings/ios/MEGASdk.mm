@@ -999,6 +999,14 @@ using namespace mega;
     self.megaApi->passwordReminderDialogBlocked();
 }
 
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->shouldShowPasswordReminderDialog(atLogout, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout {
+    self.megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

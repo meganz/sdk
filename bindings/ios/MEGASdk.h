@@ -2925,6 +2925,37 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)passwordReminderDialogBlocked;
 
 /**
+ * @brief Check if the app should show the password reminder dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * @param atLogout YES if the check is being done just before a logout
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the app should show the password reminder dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * @param atLogout YES if the check is being done just before a logout
+ */
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout;
+
+/**
  * @brief Use HTTPS communications only
  *
  * The default behavior is to use HTTP for transfers and the persistent connection
