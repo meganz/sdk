@@ -84,7 +84,7 @@ CurlHttpIO::CurlHttpIO()
         if (strstr(curlssl.c_str(), "gskit"))
         {
             LOG_fatal << "Unsupported SSL backend (GSKit). Aborting.";
-            exit(EXIT_FAILURE);
+            throw std::runtime_error("Unsupported SSL backend (GSKit). Aborting.");
         }
 
         if (data->version_num < 0x072c00 // At least cURL 7.44.0
@@ -95,7 +95,7 @@ CurlHttpIO::CurlHttpIO()
             )
         {
             LOG_fatal << "cURL built without public key pinning support. Aborting.";
-            exit(EXIT_FAILURE);
+            throw std::runtime_error("cURL built without public key pinning support. Aborting.");
         }
     }
 
@@ -116,7 +116,7 @@ CurlHttpIO::CurlHttpIO()
     if (!data->protocols[i] || !(data->features & CURL_VERSION_SSL))
     {
         LOG_fatal << "cURL built without HTTP/HTTPS support. Aborting.";
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("cURL built without HTTP/HTTPS support. Aborting.");
     }
 
     curlipv6 = data->features & CURL_VERSION_IPV6;
@@ -1260,7 +1260,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
                 curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1);
             #else
                 LOG_fatal << "cURL built without support for public key pinning. Aborting.";
-                exit(EXIT_FAILURE);
+                throw std::runtime_error("ccURL built without support for public key pinning. Aborting.");
             #endif
             }
         }

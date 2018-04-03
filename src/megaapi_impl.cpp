@@ -3844,7 +3844,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     totalDownloads = 0;
     client = NULL;
     waiting = false;
-    waitingRequest = false;
+    waitingRequest = RETRY_NONE;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
     totalDownloadBytes = 0;
@@ -3864,6 +3864,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpServerMaxOutputSize = 0;
     httpServerEnableFiles = true;
     httpServerEnableFolders = false;
+    httpServerOfflineAttributeEnabled = false;
     httpServerRestrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     httpServerSubtitlesSupportEnabled = false;
 #endif
@@ -6900,6 +6901,14 @@ bool MegaApiImpl::isOnline()
 #ifdef HAVE_LIBUV
 bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
 {
+    #ifndef ENABLE_EVT_TLS
+    if (useTLS)
+    {
+        LOG_err << "Could not start HTTP server: TLS is not supported in current compilation";
+        return false;
+    }
+    #endif
+
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
     {
@@ -6909,10 +6918,11 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     }
 
     httpServerStop();
-    httpServer = new MegaHTTPServer(this, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
+    httpServer = new MegaHTTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
+    httpServer->enableOfflineAttribute(httpServerOfflineAttributeEnabled);
     httpServer->enableFolderServer(httpServerEnableFolders);
     httpServer->setRestrictedMode(httpServerRestrictedMode);
     httpServer->enableSubtitlesSupport(httpServerRestrictedMode);
@@ -6977,6 +6987,99 @@ char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
     char *result = httpServer->getLink(node);
     sdkMutex.unlock();
     return result;
+}
+
+char *MegaApiImpl::httpServerGetLocalWebDavLink(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+    if (!httpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char *result = httpServer->getLink(node, true);
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
+{
+
+    MegaStringListPrivate * links;
+
+    sdkMutex.lock();
+    if (!httpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    set<handle> handles = httpServer->getAllowedWebDavHandles();
+
+    vector<char *> listoflinks;
+
+    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+    {
+        handle h = *it;
+        MegaNode *n = getNodeByHandle(h);
+        if (n)
+        {
+            listoflinks.push_back(httpServer->getLink(n, true));
+
+        }
+    }
+    sdkMutex.unlock();
+
+    links = new MegaStringListPrivate(listoflinks.data(),listoflinks.size());
+
+    return links;
+}
+
+MegaNodeList *MegaApiImpl::httpServerGetWebDavAllowedNodes()
+{
+    MegaNodeListPrivate * nodes;
+
+    sdkMutex.lock();
+    if (!httpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    set<handle> handles = httpServer->getAllowedWebDavHandles();
+
+    vector<Node *> listofnodes;
+
+    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+    {
+        handle h = *it;
+        Node *n = client->nodebyhandle(h);
+        if (n)
+        {
+            listofnodes.push_back(n);
+        }
+    }
+    sdkMutex.unlock();
+
+    nodes = new MegaNodeListPrivate(listofnodes.data(),listofnodes.size());
+
+    return nodes;
+}
+
+void MegaApiImpl::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
+{
+    sdkMutex.lock();
+    if (httpServer)
+    {
+        httpServer->removeAllowedWebDavHandle(handle);
+    }
+    sdkMutex.unlock();
 }
 
 void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
@@ -7060,9 +7163,25 @@ void MegaApiImpl::httpServerEnableFolderServer(bool enable)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::httpServerEnableOfflineAttribute(bool enable)
+{
+    sdkMutex.lock();
+    this->httpServerOfflineAttributeEnabled = enable;
+    if (httpServer)
+    {
+        httpServer->enableOfflineAttribute(enable);
+    }
+    sdkMutex.unlock();
+}
+
 bool MegaApiImpl::httpServerIsFolderServerEnabled()
 {
     return httpServerEnableFolders;
+}
+
+bool MegaApiImpl::httpServerIsOfflineAttributeEnabled()
+{
+    return httpServerOfflineAttributeEnabled;
 }
 
 void MegaApiImpl::httpServerSetRestrictedMode(int mode)
@@ -10621,16 +10740,16 @@ void MegaApiImpl::clearing()
 #endif
 }
 
-void MegaApiImpl::notify_retry(dstime dsdelta)
+void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 {
 #ifdef ENABLE_SYNC
-    bool previousFlag = waitingRequest;
+    retryreason_t previousFlag = waitingRequest;
 #endif
 
     if(!dsdelta)
-        waitingRequest = false;
+        waitingRequest = RETRY_NONE;
     else if(dsdelta > 10)
-        waitingRequest = true;
+        waitingRequest = reason;
 
 #ifdef ENABLE_SYNC
     if(previousFlag != waitingRequest)
@@ -10640,7 +10759,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta)
     if (dsdelta && requestMap.size() == 1)
     {
         MegaRequestPrivate *request = requestMap.begin()->second;
-        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN));
+        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
     }
 }
 
@@ -10827,7 +10946,7 @@ void MegaApiImpl::logout_result(error e)
         totalUploads = 0;
         totalDownloads = 0;
         waiting = false;
-        waitingRequest = false;
+        waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
         syncLowerSizeLimit = 0;
@@ -16779,18 +16898,19 @@ void MegaApiImpl::update()
     waiter->notify();
 }
 
-bool MegaApiImpl::isWaiting()
+int MegaApiImpl::isWaiting()
 {
-    return waiting || waitingRequest 
 #ifdef ENABLE_SYNC
-        || client->syncfslockretry
+    if (waiting || client->syncfslockretry)
+        return RETRY_LOCAL_LOCK;
 #endif
-    ;
+
+    return waitingRequest;
 }
 
-bool MegaApiImpl::areServersBusy()
+int MegaApiImpl::areServersBusy()
 {
-    return waitingRequest;
+    return isWaiting();
 }
 
 TreeProcCopy::TreeProcCopy()
@@ -18803,7 +18923,7 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 // http_parser settings
 http_parser_settings MegaHTTPServer::parsercfg;
 
-MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS, string certificatepath, string keypath)
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
 {
     this->megaApi = megaApi;
     this->localOnly = true;
@@ -18813,17 +18933,37 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS, string certifi
     this->maxOutputSize = 0;
     this->fileServerEnabled = true;
     this->folderServerEnabled = true;
+    this->offlineAttribute = false;
     this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     this->lastHandle = INVALID_HANDLE;
     this->subtitlesSupportEnabled = false;
+#ifdef ENABLE_EVT_TLS
     this->useTLS = useTLS;
     this->certificatepath = certificatepath;
     this->keypath = keypath;
+#else
+    this->useTLS = false;
+#endif
+    fsAccess = new MegaFileSystemAccess();
+
+    if (basePath.size())
+    {
+        string sBasePath = basePath;
+        int lastIndex = sBasePath.size() - 1;
+        if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+        {
+            string utf8Separator;
+            fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
+            sBasePath.append(utf8Separator);
+        }
+        this->basePath = sBasePath;
+    }
 }
 
 MegaHTTPServer::~MegaHTTPServer()
 {
     stop();
+    delete fsAccess;
 }
 
 bool MegaHTTPServer::start(int port, bool localOnly)
@@ -18843,6 +18983,7 @@ bool MegaHTTPServer::start(int port, bool localOnly)
     return started;
 }
 
+#ifdef ENABLE_EVT_TLS
 int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 {
     int rv = 0;
@@ -18882,6 +19023,7 @@ int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 
     return rv;
 }
+#endif
 
 void MegaHTTPServer::run()
 {
@@ -18894,6 +19036,7 @@ void MegaHTTPServer::run()
     parsercfg.on_header_value = onHeaderValue;
     parsercfg.on_body = onBody;
 
+#ifdef ENABLE_EVT_TLS
     if (useTLS)
     {
         if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
@@ -18905,7 +19048,7 @@ void MegaHTTPServer::run()
         }
         evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
     }
-
+#endif
     uv_loop_t *uv_loop = uv_default_loop();
 
     uv_async_init(uv_loop, &exit_handle, onCloseRequested);
@@ -18926,14 +19069,18 @@ void MegaHTTPServer::run()
         uv_ip4_addr("0.0.0.0", port, &address);
     }
     uv_connection_cb onNewClientCB;
+#ifdef ENABLE_EVT_TLS
     if (useTLS)
     {
          onNewClientCB = onNewClient_tls;
     }
     else
     {
+#endif
         onNewClientCB = onNewClient;
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 
     if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
         || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
@@ -18947,11 +19094,12 @@ void MegaHTTPServer::run()
     started = true;
     uv_sem_post(&semaphore);
     uv_run(uv_loop, UV_RUN_DEFAULT);
+#ifdef ENABLE_EVT_TLS
     if (useTLS)
     {
         evt_ctx_free(&evtctx);
     }
-
+#endif
     uv_loop_close(uv_loop);
     started = false;
     port = 0;
@@ -19020,6 +19168,11 @@ void MegaHTTPServer::enableFolderServer(bool enable)
     this->folderServerEnabled = enable;
 }
 
+void MegaHTTPServer::enableOfflineAttribute(bool enable)
+{
+    this->offlineAttribute = enable;
+}
+
 void MegaHTTPServer::setRestrictedMode(int mode)
 {
     this->restrictedMode = mode;
@@ -19035,6 +19188,11 @@ bool MegaHTTPServer::isFolderServerEnabled()
     return folderServerEnabled;
 }
 
+bool MegaHTTPServer::isOfflineAttributeEnabled()
+{
+    return offlineAttribute;
+}
+
 int MegaHTTPServer::getRestrictedMode()
 {
     return restrictedMode;
@@ -19047,13 +19205,20 @@ bool MegaHTTPServer::isHandleAllowed(handle h)
             || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
 }
 
+bool MegaHTTPServer::isHandleWebDavAllowed(handle h)
+{
+    return allowedWebDavHandles.count(h);
+}
+
+
 void MegaHTTPServer::clearAllowedHandles()
 {
     allowedHandles.clear();
+    allowedWebDavHandles.clear();
     lastHandle = INVALID_HANDLE;
 }
 
-char *MegaHTTPServer::getLink(MegaNode *node)
+char *MegaHTTPServer::getLink(MegaNode *node, bool enablewebdav)
 {
     if (!node)
     {
@@ -19062,6 +19227,10 @@ char *MegaHTTPServer::getLink(MegaNode *node)
 
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
+    if (enablewebdav)
+    {
+       allowedWebDavHandles.insert(lastHandle);
+    }
 
     ostringstream oss;
     oss << "http" << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
@@ -19115,6 +19284,17 @@ void *MegaHTTPServer::threadEntryPoint(void *param)
     return NULL;
 }
 
+set<handle> MegaHTTPServer::getAllowedWebDavHandles()
+{
+    return allowedWebDavHandles;
+}
+
+void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
+{
+    allowedWebDavHandles.erase(handle);
+}
+
+#ifdef ENABLE_EVT_TLS
 void MegaHTTPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
@@ -19174,8 +19354,9 @@ void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
     httpctx->server->connections.push_back(httpctx);
     LOG_debug << "Connection received! " << httpctx->server->connections.size();
 
-    // Mutex to protect the data buffer
+    // Mutexes to protect the data buffer and responses
     uv_mutex_init(&httpctx->mutex);
+    uv_mutex_init(&httpctx->mutex_responses);
 
     // Async handle to perform writes
     uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
@@ -19202,6 +19383,7 @@ void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
     // Start reading
     uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
 }
+#endif
 
 void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
 {
@@ -19225,14 +19407,16 @@ void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
     httpctx->server->connections.push_back(httpctx);
     LOG_debug << "Connection received! " << httpctx->server->connections.size();
 
-    // Mutex to protect the data buffer
+    // Mutexes to protect the data buffer and responses
     uv_mutex_init(&httpctx->mutex);
+    uv_mutex_init(&httpctx->mutex_responses);
 
     // Async handle to perform writes
     uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
 
     // Accept the connection
     uv_tcp_init(uv_default_loop(), &httpctx->tcphandle);
+
     if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle))
     {
         LOG_err << "uv_accept failed";
@@ -19258,9 +19442,18 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
     if (nread >= 0)
     {
-        parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+        if (nread == 0 && httpctx->parser.method == HTTP_PUT) //otherwise it will fail for files >65k in GVFS-DAV
+        {
+            LOG_debug << " Skipping parsing 0 length data for HTTP_PUT";
+            parsed = 0;
+        }
+        else
+        {
+            parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+        }
     }
-    delete [] buf->base;
+
+    LOG_verbose << " at onDataReceived, received " << nread << " parsed = " << parsed;
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
@@ -19271,8 +19464,10 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
             uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
         }
     }
+    delete [] buf->base;
 }
 
+#ifdef ENABLE_EVT_TLS
 void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *data)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
@@ -19316,8 +19511,6 @@ void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread,
     {
         parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
     }
-    // delete [] buf->base;
-    // we don't have to delete the buffer here because it's a local array of evt_tls
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
@@ -19325,7 +19518,7 @@ void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread,
         evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
     }
 }
-
+#endif
 void MegaHTTPServer::onClose(uv_handle_t* handle)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
@@ -19358,6 +19551,7 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
 
     delete httpctx->node;
     uv_mutex_destroy(&httpctx->mutex);
+    uv_mutex_destroy(&httpctx->mutex_responses);
     delete httpctx;
     LOG_debug << "Connection deleted";
 }
@@ -19422,6 +19616,17 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
     if (length > index)
     {
         string nodename(url + index, length - index);
+
+        //get subpath (used in webdav)
+        size_t psep = nodename.find("/");
+        if (psep != string::npos)
+        {
+            string subpathrelative = nodename.substr(psep + 1);
+            nodename = nodename.substr(0, psep);
+            URLCodec::unescape(&subpathrelative, &httpctx->subpathrelative);
+            LOG_debug << "subpathrelative: " << httpctx->subpathrelative;
+        }
+
         URLCodec::unescape(&nodename, &httpctx->nodename);
         LOG_debug << "Node name: " << httpctx->nodename;
     }
@@ -19432,12 +19637,15 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
 int MegaHTTPServer::onHeaderField(http_parser *parser, const char *at, size_t length)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
+    httpctx->lastheader = string(at, length);
+    transform(httpctx->lastheader.begin(), httpctx->lastheader.end(), httpctx->lastheader.begin(), ::tolower);
 
     if (length == 5 && !memcmp(at, "Range", 5))
     {
         httpctx->range = true;
         LOG_debug << "Range header detected";
     }
+
     return 0;
 }
 
@@ -19448,7 +19656,24 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     size_t index;
     char *endptr;
 
-    if (httpctx->range)
+    LOG_verbose << " onHeaderValue: " << httpctx->lastheader << " = " << value;
+    if (httpctx->lastheader == "depth")
+    {
+        httpctx->depth = atoi(value.c_str());
+    }
+    else if (httpctx->lastheader == "host")
+    {
+        httpctx->host = value;
+    }
+    else if (httpctx->lastheader == "destination")
+    {
+        httpctx->destination = value;
+    }
+    else if (httpctx->lastheader == "overwrite")
+    {
+        httpctx->overwrite = (value == "T");
+    }
+    else if (httpctx->range)
     {
         LOG_debug << "Range header value: " << value;
         httpctx->range = false;
@@ -19478,9 +19703,473 @@ int MegaHTTPServer::onHeaderValue(http_parser *parser, const char *at, size_t le
     return 0;
 }
 
-int MegaHTTPServer::onBody(http_parser *, const char *, size_t)
+int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
 {
+    MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
+
+    if (parser->method == HTTP_PUT)
+    {
+        //create tmp file with contents in messageBody
+        if (!httpctx->tmpFileAccess)
+        {
+            httpctx->tmpFileName=httpctx->server->basePath;
+            httpctx->tmpFileName.append("httputfile");
+            string suffix, utf8suffix;
+            httpctx->server->fsAccess->tmpnamelocal(&suffix);
+            httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
+            httpctx->tmpFileName.append(utf8suffix);
+            httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
+            string localPath;
+            httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
+            httpctx->server->fsAccess->unlinklocal(&localPath);
+            if (!httpctx->tmpFileAccess->fopen(&localPath, false, true))
+            {
+                returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
+                return 0;
+            }
+        }
+
+        if (!httpctx->tmpFileAccess->fwrite((const byte*)b, n, httpctx->messageBodySize))
+        {
+            returnHttpCode(httpctx, 500);
+            return 0;
+        }
+        httpctx->messageBodySize += n;
+    }
+    else
+    {
+        char *newbody = new char[n + httpctx->messageBodySize];
+        memcpy(newbody, httpctx->messageBody, httpctx->messageBodySize);
+        memcpy(newbody + httpctx->messageBodySize, b, n);
+        httpctx->messageBodySize += n;
+        delete [] httpctx->messageBody;
+        httpctx->messageBody = newbody;
+    }
     return 0;
+}
+
+std::string rfc1123_datetime( time_t time )
+{
+    struct tm * timeinfo;
+    char buffer [80];
+    timeinfo = gmtime(&time);
+    strftime (buffer, 80, "%a, %d %b %Y %H:%M:%S GMT",timeinfo);
+    return buffer;
+}
+
+string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string baseURL, bool offlineAttribute)
+{
+    std::ostringstream web;
+
+    web << "<d:response>\r\n"
+           "<d:href>" << baseURL << "</d:href>\r\n"
+           "<d:propstat>\r\n"
+           "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
+           "<d:prop>\r\n"
+           "<d:displayname>"<< node->getName() << "</d:displayname>\r\n"
+           "<d:creationdate>" << rfc1123_datetime(node->getCreationTime()) << "</d:creationdate>"
+           "<d:getlastmodified>" << rfc1123_datetime(node->getModificationTime()) << "</d:getlastmodified>"
+           ;
+
+    if (offlineAttribute)
+    {
+        //(perhaps this could be based on number of files / or even better: size)
+          web << "<Z:Win32FileAttributes>00001000</Z:Win32FileAttributes> \r\n"; //FILE_ATTRIBUTE_OFFLINE
+//        web << "<Z:Win32FileAttributes>00040000</Z:Win32FileAttributes> \r\n"; // FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS (no actual difference)
+    }
+
+    if (node->isFolder())
+    {
+        web << "<d:resourcetype>\r\n"
+               "<d:collection />\r\n"
+               "</d:resourcetype>\r\n";
+    }
+    else
+    {
+        web << "<d:resourcetype />\r\n";
+        web << "<d:getcontentlength>" << node->getSize() << "</d:getcontentlength>\r\n";
+    }
+    web << "</d:prop>\r\n"
+           "</d:propstat>\r\n";
+    web << "</d:response>\r\n";
+    return web.str();
+}
+
+string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string subnodepath, MegaNode *node, MegaHTTPContext* httpctx)
+{
+    std::ostringstream response;
+    std::ostringstream web;
+
+    web << "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n"
+           "<d:multistatus xmlns:d=\"DAV:\" xmlns:Z=\"urn:schemas-microsoft-com::\">\r\n";
+
+    string subbaseURL = baseURL + subnodepath;
+    if (node->isFolder() && subbaseURL.size() && subbaseURL.at(subbaseURL.size() - 1) != '/')
+    {
+        subbaseURL.append("/");
+    }
+
+    web << getWebDavProfFindNodeContents(node, subbaseURL, httpctx->server->isOfflineAttributeEnabled());
+    if (node->isFolder() && (httpctx->depth != 0))
+    {
+        MegaNodeList *children = httpctx->megaApi->getChildren(node);
+        for (int i = 0; i < children->size(); i++)
+        {
+            MegaNode *child = children->get(i);
+            string childURL = subbaseURL + child->getName();
+            web << getWebDavProfFindNodeContents(child, childURL, httpctx->server->isOfflineAttributeEnabled());
+        }
+        delete children;
+    }
+
+    web << "</d:multistatus>"
+           "\r\n";
+
+    string sweb = web.str();
+    response << "HTTP/1.1 207 Multi-Status\r\n"
+                "content-length: " << sweb.size() << "\r\n"
+                                                     "content-type: application/xml; charset=utf-8\r\n"
+                                                     "server: MEGAsdk\r\n"
+                                                     "\r\n";
+
+    if (httpctx->parser.method != HTTP_HEAD)
+    {
+        response << sweb;
+    }
+    httpctx->resultCode = API_OK;
+    return response.str();
+}
+
+string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx)
+{
+    MegaNode *parent = httpctx->megaApi->getParentNode(node);
+    MegaNodeList *children = httpctx->megaApi->getChildren(node);
+    std::ostringstream response;
+    std::ostringstream web;
+
+    // Title
+    web << "<title>MEGA</title>";
+
+    // Styles
+    web << "<head><meta charset=\"utf-8\" /><style>"
+           ".folder {"
+           "padding: 0;"
+           "width: 24px;"
+           "height: 24px;"
+           "margin: 0 0 0 -2px;"
+           "display: block;"
+           "position: absolute;"
+           "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+           "background-position: -14px -7465px;"
+           "background-repeat: no-repeat;}"
+
+           ".file {"
+           "padding: 0;"
+           "width: 24px;"
+           "height: 24px;"
+           "margin: 0 0 0 -6px;"
+           "display: block;"
+           "position: absolute;"
+           "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+           "background-position: -7px -1494px;"
+           "background-repeat: no-repeat;} "
+
+           ".headerimage {"
+           "padding: 0 8px 0 46px;"
+           "width: 100%;"
+           "height: 24px;"
+           "margin: 0 0 0 -12px;"
+           "display: block;"
+           "position: absolute;"
+           "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
+           "background-position: 5px -1000px;"
+           "line-height: 23px;"
+           "background-repeat: no-repeat;} "
+
+           ".headertext {"
+           "line-height: 23px;"
+           "color: #777777;"
+           "font-size: 18px;"
+           "font-weight: bold;"
+           "display: block;"
+           "position: absolute;"
+           "line-height: 23px;}"
+
+           "a {"
+           "text-decoration: none; }"
+
+           ".text {"
+           "height: 24px;"
+           "padding: 0 10px 0 26px;"
+           "word-break: break-all;"
+           "white-space: pre-wrap;"
+           "overflow: hidden;"
+           "max-width: 100%;"
+           "text-decoration: none;"
+           "-moz-box-sizing: border-box;"
+           "-webkit-box-sizing: border-box;"
+           "box-sizing: border-box;"
+           "font-size: 13px;"
+           "line-height: 23px;"
+           "color: #666666;}"
+           "</style></head>";
+
+    // Folder path
+    web << "<span class=\"headerimage\"><span class=\"headertext\">";
+    char *path = httpctx->megaApi->getNodePath(node);
+    if (path)
+    {
+        web << path;
+        delete [] path;
+    }
+    else
+    {
+        web << node->getName();
+    }
+    web << "</span></span><br /><br />";
+
+    // Child nodes
+    web << "<table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"width: auto;\">";
+    if (parent)
+    {
+        web << "<tr><td>";
+        char *base64Handle = parent->getBase64Handle();
+        web << "<a href=\"/" << base64Handle << "/" << parent->getName()
+            << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
+        delete [] base64Handle;
+        delete parent;
+        web << "</td></tr>";
+    }
+
+    for (int i = 0; i < children->size(); i++)
+    {
+        web << "<tr><td>";
+        MegaNode *child = children->get(i);
+        char *base64Handle = child->getBase64Handle();
+        web << "<a href=\"/" << base64Handle << "/" << child->getName()
+            << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
+            << child->getName() << "</span></a>";
+        delete [] base64Handle;
+
+        if (!child->isFile())
+        {
+            web << "</td><td>";
+        }
+        else
+        {
+            unsigned const long long KB = 1024;
+            unsigned const long long MB = 1024 * KB;
+            unsigned const long long GB = 1024 * MB;
+            unsigned const long long TB = 1024 * GB;
+
+            web << "</td><td><span class=\"text\">";
+            unsigned long long bytes = child->getSize();
+            if (bytes > TB)
+                web << ((unsigned long long)((100 * bytes) / TB))/100.0 << " TB";
+            else if (bytes > GB)
+                web << ((unsigned long long)((100 * bytes) / GB))/100.0 << " GB";
+            else if (bytes > MB)
+                web << ((unsigned long long)((100 * bytes) / MB))/100.0 << " MB";
+            else if (bytes > KB)
+                web << ((unsigned long long)((100 * bytes) / KB))/100.0 << " KB";
+            web << "</span>";
+        }
+        web << "</td></tr>";
+    }
+    web << "</table>";
+    delete children;
+
+    string sweb = web.str();
+    response << "HTTP/1.1 200 OK\r\n"
+        << "Content-Type: text/html; charset=utf-8\r\n"
+        << "Connection: close\r\n"
+        << "Content-Length: " << sweb.size() << "\r\n"
+        << "Access-Control-Allow-Origin: *\r\n"
+        << "\r\n";
+
+    if (httpctx->parser.method != HTTP_HEAD)
+    {
+        response << sweb;
+    }
+    httpctx->resultCode = API_OK;
+
+    return response.str();
+}
+
+string MegaHTTPServer::getHTTPMethodName(int httpmethod)
+{
+    switch (httpmethod)
+    {
+    case HTTP_DELETE:
+        return "HTTP_DELETE";
+    case HTTP_GET:
+        return "HTTP_GET";
+    case HTTP_HEAD:
+        return "HTTP_HEAD";
+    case HTTP_POST:
+        return "HTTP_POST";
+    case HTTP_PUT:
+        return "HTTP_PUT";
+    case HTTP_CONNECT:
+        return "HTTP_CONNECT";
+    case HTTP_OPTIONS:
+        return "HTTP_OPTIONS";
+    case HTTP_TRACE:
+        return "HTTP_TRACE";
+    case HTTP_COPY:
+        return "HTTP_COPY";
+    case HTTP_LOCK:
+        return "HTTP_LOCK";
+    case HTTP_MKCOL:
+        return "HTTP_MKCOL";
+    case HTTP_MOVE:
+        return "HTTP_MOVE";
+    case HTTP_PROPFIND:
+        return "HTTP_PROPFIND";
+    case HTTP_PROPPATCH:
+        return "HTTP_PROPPATCH";
+    case HTTP_SEARCH:
+        return "HTTP_SEARCH";
+    case HTTP_UNLOCK:
+        return "HTTP_UNLOCK";
+    case HTTP_BIND:
+        return "HTTP_BIND";
+    case HTTP_REBIND:
+        return "HTTP_REBIND";
+    case HTTP_UNBIND:
+        return "HTTP_UNBIND";
+    case HTTP_ACL:
+        return "HTTP_ACL";
+    case HTTP_REPORT:
+        return "HTTP_REPORT";
+    case HTTP_MKACTIVITY:
+        return "HTTP_MKACTIVITY";
+    case HTTP_CHECKOUT:
+        return "HTTP_CHECKOUT";
+    case HTTP_MERGE:
+        return "HTTP_MERGE";
+    case HTTP_MSEARCH:
+        return "HTTP_MSEARCH";
+    case HTTP_NOTIFY:
+        return "HTTP_NOTIFY";
+    case HTTP_SUBSCRIBE:
+        return "HTTP_SUBSCRIBE";
+    case HTTP_UNSUBSCRIBE:
+        return "HTTP_UNSUBSCRIBE";
+    case HTTP_PATCH:
+        return "HTTP_PATCH";
+    case HTTP_PURGE:
+        return "HTTP_PURGE";
+    case HTTP_MKCALENDAR:
+        return "HTTP_MKCALENDAR";
+    case HTTP_LINK:
+        return "HTTP_LINK";
+    case HTTP_UNLINK:
+        return "HTTP_UNLINK";
+    default:
+        return "HTTP_UNKOWN";
+    }
+}
+
+string MegaHTTPServer::getHTTPErrorString(int errorcode)
+{
+    switch (errorcode)
+    {
+    case 200:
+        return "OK";
+    case 201:
+        return "Created";
+    case 204:
+        return "No Content";
+    case 403:
+        return "Forbidden";
+    case 404:
+        return "Not Found";
+    case 409:
+        return "Conflict";
+    case 412:
+        return "Precondition Failed";
+    case 423:
+        return "Locked";
+    case 500:
+        return "Internal Server Error";
+    case 502:
+        return "Bad Gateway";
+    case 503:
+        return "Service Unavailable";
+    case 507:
+        return "Insufficient Storage";
+    case 508:
+        return "Loop Detected";
+    default:
+        return "Unknown Error";
+    }
+}
+
+void MegaHTTPServer::returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e, bool synchronous)
+{
+    int reqError = e->getErrorCode();
+    int httpreturncode = 500;
+
+    switch(reqError)
+    {
+    case API_EACCESS:
+        httpreturncode = 403;
+        break;
+    case API_EOVERQUOTA:
+    case API_EGOINGOVERQUOTA:
+        httpreturncode = 507;
+        break;
+    case API_EAGAIN:
+    case API_ERATELIMIT:
+    case API_ETEMPUNAVAIL:
+        httpreturncode = 503;
+        break;
+    case API_ECIRCULAR:
+        httpreturncode = 508;
+        break;
+    default:
+        httpreturncode = 500;
+        break;
+    }
+
+    LOG_debug << "HTTP petition failed. request error = " << reqError << " HTTP status to return = " << httpreturncode;
+    string errorMessage = e->getErrorString(reqError);
+    return returnHttpCode(httpctx, httpreturncode, errorMessage, synchronous);
+}
+
+void MegaHTTPServer::returnHttpCode(MegaHTTPContext* httpctx, int errorCode, string errorMessage, bool synchronous)
+{
+    std::ostringstream response;
+    response << "HTTP/1.1 " << errorCode << " "
+             << (errorMessage.size() ? errorMessage : getHTTPErrorString(errorCode))
+             << "\r\n"
+                "Connection: close\r\n"
+              << "\r\n";
+
+    httpctx->resultCode = errorCode;
+    string resstr = response.str();
+    if (synchronous)
+    {
+        sendHeaders(httpctx, &resstr);
+    }
+    else
+    {
+        uv_mutex_lock(&httpctx->mutex_responses);
+        httpctx->responses.push_back(resstr);
+        uv_mutex_unlock(&httpctx->mutex_responses);
+        uv_async_send(&httpctx->asynchandle);
+    }
+}
+
+void MegaHTTPServer::returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e)
+{
+    return returnHttpCodeBasedOnRequestError(httpctx, e, false);
+}
+
+void MegaHTTPServer::returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, string errorMessage)
+{
+    return returnHttpCode(httpctx, errorCode, errorMessage, false);
 }
 
 int MegaHTTPServer::onMessageComplete(http_parser *parser)
@@ -19494,35 +20183,25 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
     httpctx->streamingBuffer.setMaxOutputSize(httpctx->server->getMaxOutputSize());
 
-    httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
-    httpctx->transfer->setPath(httpctx->path.c_str());
-    if (httpctx->nodename.size())
+    switch (parser->method)
     {
-        httpctx->transfer->setFileName(httpctx->nodename.c_str());
-    }
-    if (httpctx->nodehandle.size())
-    {
-        httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
-    }
-    httpctx->transfer->setStartTime(Waiter::ds);
-
-    if (parser->method == HTTP_OPTIONS)
-    {
-        LOG_debug << "Request method: OPTIONS";
-        response << "HTTP/1.1 200 OK\r\n"
-                    "Allow: GET,POST,HEAD,OPTIONS\r\n"
-                    "Connection: close\r\n"
-                    "\r\n";
-
-        httpctx->resultCode = API_OK;
-        string resstr = response.str();
-        sendHeaders(httpctx, &resstr);
-        return 0;
-    }
-
-    if (parser->method != HTTP_GET && parser->method != HTTP_POST && parser->method != HTTP_HEAD)
-    {
-        LOG_debug << "Method not allowed: " << parser->method;
+    case HTTP_GET:
+    case HTTP_POST:
+    case HTTP_HEAD:
+    case HTTP_OPTIONS:
+    case HTTP_MOVE:
+    case HTTP_PUT:
+    case HTTP_DELETE:
+    case HTTP_MKCOL:
+    case HTTP_COPY:
+    case HTTP_LOCK:
+    case HTTP_UNLOCK:
+    case HTTP_PROPPATCH:
+    case HTTP_PROPFIND:
+        LOG_debug << "Request method: " << getHTTPMethodName(parser->method);
+        break;
+    default:
+        LOG_debug << "Method not allowed: " << getHTTPMethodName(parser->method);
         response << "HTTP/1.1 405 Method not allowed\r\n"
                     "Connection: close\r\n"
                     "\r\n";
@@ -19531,23 +20210,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         string resstr = response.str();
         sendHeaders(httpctx, &resstr);
         return 0;
-    }
-    else
-    {
-        switch (parser->method)
-        {
-        case HTTP_GET:
-            LOG_debug << "Request method: GET";
-            break;
-        case HTTP_POST:
-            LOG_debug << "Request method: POST";
-            break;
-        case HTTP_HEAD:
-            LOG_debug << "Request method: HEAD";
-            break;
-        default:
-            LOG_warn << "Request method: " << parser->method;
-        }
     }
 
     if (httpctx->path == "/favicon.ico")
@@ -19571,7 +20233,6 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         httpctx->nodehandle = base64Handle;
         delete [] base64Handle;
         httpctx->nodename = node->getName();
-        httpctx->transfer->setFileName(httpctx->nodename.c_str());
     }
     else if (httpctx->nodehandle.size())
     {
@@ -19605,12 +20266,48 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         return 0;
     }
 
+    if (parser->method == HTTP_OPTIONS)
+    {
+        LOG_debug << "Returning HTTP_OPTIONS for a " << (httpctx->server->isHandleWebDavAllowed(h) ? "" : "non ") << "WEBDAV URI";
+        response << "HTTP/1.1 200 OK\r\n";
+
+        if (httpctx->server->isHandleWebDavAllowed(h))
+        {
+            response << "Allow: GET, POST, HEAD, OPTIONS, PROPFIND, MOVE, PUT, DELETE, MKCOL, COPY, LOCK, UNLOCK, PROPPATCH\r\n"
+                        "dav: 1 \r\n"; // 2 requires LOCK to be fully functional
+        }
+        else
+        {
+            response << "Allow: GET,POST,HEAD,OPTIONS\r\n";
+        }
+
+        response << "content-length: 0\r\n"
+        "Connection: close\r\n"
+        "\r\n";
+
+        httpctx->resultCode = API_OK;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        return 0;
+    }
+
+    //if webdav method, check is handle is a valid webdav
+    if ((parser->method != HTTP_GET) && (parser->method != HTTP_POST)
+            && (parser->method != HTTP_PUT) && (parser->method != HTTP_HEAD)
+            && !httpctx->server->isHandleWebDavAllowed(h))
+    {
+        LOG_debug << "Forbidden due to not webdav allowed";
+        returnHttpCode(httpctx, 405);
+        delete node;
+        return 0;
+    }
+
     if (!node)
     {
         if (!httpctx->nodehandle.size() || !httpctx->nodekey.size())
         {
             LOG_warn << "URL not found: " << httpctx->path;
-
             response << "HTTP/1.1 404 Not Found\r\n"
                         "Connection: close\r\n"
                       << "\r\n";
@@ -19643,44 +20340,11 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     if (node && httpctx->nodename != node->getName())
     {
-        //Subtitles support
-        bool subtitles = false;
-
-        if (httpctx->server->isSubtitlesSupportEnabled())
+        if (parser->method == HTTP_PROPFIND)
         {
-            string originalname = node->getName();
-            string::size_type dotpos = originalname.find_last_of('.');
-            if (dotpos != string::npos)
-            {
-                originalname.resize(dotpos);
-            }
-
-            if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
-            {
-                LOG_debug << "Possible subtitles file";
-                MegaNode *parent = httpctx->megaApi->getParentNode(node);
-                if (parent)
-                {
-                    MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
-                    if (child)
-                    {
-                        LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
-                        subtitles = true;
-                        delete node;
-                        node = child;
-                    }
-                    delete parent;
-                }
-            }
-        }
-
-        if (!subtitles)
-        {
-            LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
-
             response << "HTTP/1.1 404 Not Found\r\n"
                         "Connection: close\r\n"
-                      << "\r\n";
+                     << "\r\n";
 
             httpctx->resultCode = 404;
             string resstr = response.str();
@@ -19688,11 +20352,598 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             delete node;
             return 0;
         }
+        else
+        {
+            //Subtitles support
+            bool subtitles = false;
+
+            if (httpctx->server->isSubtitlesSupportEnabled())
+            {
+                string originalname = node->getName();
+                string::size_type dotpos = originalname.find_last_of('.');
+                if (dotpos != string::npos)
+                {
+                    originalname.resize(dotpos);
+                }
+
+                if (dotpos == httpctx->nodename.find_last_of('.') && !memcmp(originalname.data(), httpctx->nodename.data(), originalname.size()))
+                {
+                    LOG_debug << "Possible subtitles file";
+                    MegaNode *parent = httpctx->megaApi->getParentNode(node);
+                    if (parent)
+                    {
+                        MegaNode *child = httpctx->megaApi->getChildNode(parent, httpctx->nodename.c_str());
+                        if (child)
+                        {
+                            LOG_debug << "Matching file found: " << httpctx->nodename << " - " << node->getName();
+                            subtitles = true;
+                            delete node;
+                            node = child;
+                        }
+                        delete parent;
+                    }
+                }
+            }
+
+            if (!subtitles)
+            {
+                LOG_warn << "Invalid name: " << httpctx->nodename << " - " << node->getName();
+                response << "HTTP/1.1 404 Not Found\r\n"
+                            "Connection: close\r\n"
+                         << "\r\n";
+
+                httpctx->resultCode = 404;
+                string resstr = response.str();
+                sendHeaders(httpctx, &resstr);
+                delete node;
+                return 0;
+            }
+        }
     }
 
-    if (node->isFolder())
+    MegaNode *baseNode = NULL;
+    if (httpctx->subpathrelative.size())
     {
-        if (!httpctx->server->isFolderServerEnabled())
+        string subnodepath = httpctx->subpathrelative;
+        //remove trailing "/"
+        size_t seppos = subnodepath.find_last_of("/");
+        while ( (seppos != string::npos) && ((seppos + 1) == subnodepath.size()) )
+        {
+            subnodepath = subnodepath.substr(0,seppos);
+            seppos = subnodepath.find_last_of("/");
+        }
+
+        MegaNode *subnode = httpctx->megaApi->getNodeByPath(subnodepath.c_str(), node);
+        if (parser->method != HTTP_PUT && parser->method != HTTP_MKCOL && !subnode)
+        {
+            returnHttpCode(httpctx, 404);
+            delete node;
+            return 0;
+        }
+        else
+        {
+            baseNode = node;
+            node = subnode;
+        }
+    }
+
+    if (parser->method == HTTP_PROPFIND)
+    {
+        string baseURL = string("http") + (httpctx->server->useTLS ? "s" : "") + "://"
+                + httpctx->host + "/" + httpctx->nodehandle + "/" + httpctx->nodename + "/";
+        string resstr = getWebDavPropFindResponseForNode(baseURL, httpctx->subpathrelative, node, httpctx);
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        delete baseNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_UNLOCK)
+    {
+        // let's create a minimum unlock compliant response
+        returnHttpCode(httpctx, 204);
+        delete node;
+        delete baseNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_PROPPATCH)
+    {
+        std::ostringstream web;
+
+//        Typicall Body received: //TODO: actualy update creation and mod times? does not seem to be required (it seems PUT updates them ... with what time: file or PUT time?)
+//        <?xml version="1.0" encoding="utf-8" ?>
+//        <D:propertyupdate xmlns:D="DAV:" xmlns:Z="urn:schemas-microsoft-com:">
+//        <D:set>
+//        <D:prop>
+//        <Z:Win32CreationTime>Tue, 20 Feb 2018 18:00:20 GMT</Z:Win32CreationTime>
+//        <Z:Win32LastAccessTime>Tue, 20 Feb 2018 18:00:21 GMT</Z:Win32LastAccessTime>
+//        <Z:Win32LastModifiedTime>Tue, 20 Feb 2018 18:00:21 GMT</Z:Win32LastModifiedTime>
+//        <Z:Win32FileAttributes>00000020</Z:Win32FileAttributes>
+//        </D:prop>
+//        </D:set>
+//        </D:propertyupdate>
+
+        web << "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\r\n"
+               "<d:multistatus xmlns:d=\"DAV:\">\r\n"
+                  "<d:response>\r\n"
+                  //"<d:href>" << urlelement << "</d:href>\r\n" //this should come from the input but seems to be not required!
+                    "<d:propstat>\r\n"
+                      "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
+                        "<d:prop>\r\n"
+                        // Here we might want to include the updated properties.
+                        //we might want to to do so with original namespace?(not sure if that makes sense). e.g:
+//                                 "<Z:Win32CreationTime/>\r\n"
+                        "</d:prop>\r\n"
+                    "</d:propstat>\r\n"
+                  "</d:response>\r\n"
+                "</d:multistatus>\r\n\r\n";
+
+        string sweb = web.str();
+
+        response << "HTTP/1.1 207 Multi-Status\r\n"
+                    "Content-Type: application/xml; charset=\"utf-8\" \r\n"
+                    "Content-Length: " << sweb.size() << "\r\n\r\n";
+
+        response << sweb;
+        httpctx->resultCode = 207;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        delete baseNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_LOCK)
+    {
+        std::ostringstream web;
+
+        // let's create a minimum lock compliant response //TODO: do actually provide locking functionality based on URL
+        web << "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\r\n"
+          "<D:prop xmlns:D=\"DAV:\">\r\n"
+            "<D:lockdiscovery>\r\n"
+              "<D:activelock>\r\n"
+                "<D:locktype><D:write/></D:locktype>\r\n"
+                "<D:lockscope><D:exclusive/></D:lockscope>\r\n"
+//                "<D:depth>infinity</D:depth>\r\n" // read from req?
+                "<D:owner>\r\n"
+//                  "<D:href>" << owner << "</D:href>\r\n" //TODO: should be read from req body
+                "</D:owner>\r\n"
+//                "<D:timeout>Second-604800</D:timeout>\r\n"
+                "<D:locktoken>\r\n"
+                  //"<D:href>urn:uuid:e71d4fae-5dec-22d6-fea5-00a0c91e6be4</D:href>\r\n" //An unique identifier is required
+               "<D:href>urn:uuid:this-is-a-fake-lock</D:href>\r\n" //An unique identifier is required
+                "</D:locktoken>\r\n"
+                "<D:lockroot>\r\n"
+//                  "<D:href>" << urlelement << "</D:href>\r\n"  //TODO: should be read from req body
+                "</D:lockroot>\r\n"
+              "</D:activelock>\r\n"
+            "</D:lockdiscovery>\r\n"
+          "</D:prop>\r\n\r\n";
+
+        string sweb = web.str();
+        response << "HTTP/1.1 200 OK\r\n"
+          "Lock-Token: <urn:uuid:e71d4fae-5dec-22d6-fea5-00a0c91e6be4> \r\n"
+          "Content-Type: application/xml; charset=\"utf-8\" \r\n"
+          "Content-Length: " << sweb.size() << "\r\n\r\n";
+
+        response << sweb;
+        httpctx->resultCode = 200;
+        string resstr = response.str();
+        sendHeaders(httpctx, &resstr);
+        delete node;
+        delete baseNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_DELETE)
+    {
+        if (!node)
+        {
+            returnHttpCode(httpctx, 404);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        httpctx->megaApi->remove(node, false, httpctx);
+        delete node;
+        delete baseNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_MKCOL)
+    {
+//        201 (Created)	The collection was created.
+//        401 (Access Denied)	Resource requires authorization or authorization was denied.
+//        403 (Forbidden)	The server does not allow collections to be created at the specified location, or the parent collection of the specified request URI exists but cannot accept members.
+//        405 (Method Not Allowed)	The MKCOL method can only be performed on a deleted or non-existent resource.
+//        409 (Conflict)	A resource cannot be created at the destination URI until one or more intermediate collections are created.
+//        415 (Unsupported Media Type)	The request type of the body is not supported by the server.
+//        507 (Insufficient Storage)	The destination resource does not have sufficient storage space.
+        if (node)
+        {
+            returnHttpCode(httpctx, 405);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        MegaNode *newParentNode = NULL;
+        string newname;
+
+        string dest = httpctx->subpathrelative;
+        size_t seppos = dest.find_last_of("/");
+
+        while ( (seppos != string::npos) && ((seppos + 1) == dest.size()) )
+        {
+            dest = dest.substr(0,seppos);
+            seppos = dest.find_last_of("/");
+        }
+        if (seppos == string::npos)
+        {
+            newParentNode = baseNode ? baseNode->copy() : node->copy();
+            newname = dest;
+        }
+        else
+        {
+            if ((seppos + 1) < dest.size())
+            {
+                newname = dest.substr(seppos + 1);
+            }
+            string newparentpath = dest.substr(0, seppos);
+            newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
+        }
+        if (!newParentNode)
+        {
+            returnHttpCode(httpctx, 409);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        httpctx->megaApi->createFolder(newname.c_str(), newParentNode, httpctx);
+        delete newParentNode;
+        delete node;
+        delete baseNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_COPY)
+    {
+//        201 (Created)	The resource was successfully copied.
+//        204 (No Content)	The source resource was successfully copied to a pre-existing destination resource.
+//        403 (Forbidden)	The source URI and the destination URI are the same.
+//        409 (Conflict)	A resource cannot be created at the destination URI until one or more intermediate collections are created.
+//        412 (Precondition Failed)	Either the Overwrite header is "F" and the state of the destination resource is not null, or the method was used in a Depth: 0 transaction.
+//        423 (Locked)	The destination resource is locked.
+//        502 (Bad Gateway)	The COPY destination is located on a different server, which refuses to accept the resource.
+//        507 (Insufficient Storage)	The destination resource does not have sufficient storage space.
+
+        if (!node)
+        {
+            returnHttpCode(httpctx, 404);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        MegaNode *newParentNode = NULL;
+        string newname;
+        string baseURL = string("http") + (httpctx->server->useTLS ? "s" : "") + "://"
+                + httpctx->host + "/" + httpctx->nodehandle + "/" + httpctx->nodename + "/";
+
+        string dest;
+        URLCodec::unescape(&httpctx->destination, &dest);
+        size_t posBase = dest.find(baseURL);
+        if (posBase != 0) // Notice that if 2 WEBDAV locations are enabled we won't be able to copy between the 2
+        {
+            returnHttpCode(httpctx, 502); // The destination URI is located elsewhere
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        dest = dest.substr(baseURL.size());
+        MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        if (destNode)
+        {
+            if (node->getHandle() == destNode->getHandle())
+            {
+                returnHttpCode(httpctx, 403);
+                delete node;
+                delete baseNode;
+                delete destNode;
+                return 0;
+            }
+            else
+            {
+                //overwrite?
+                if (httpctx->overwrite)
+                {
+                    newParentNode = httpctx->megaApi->getNodeByHandle(destNode->getParentHandle());
+                }
+                else
+                {
+                    returnHttpCode(httpctx, 412);
+                    delete node;
+                    delete baseNode;
+                    delete destNode;
+                    return 0;
+                }
+            }
+        }
+
+        if (!newParentNode)
+        {
+            size_t seppos = dest.find_last_of("/");
+            while ( (seppos != string::npos) && ((seppos + 1) == dest.size()) )
+            {
+                dest = dest.substr(0,seppos);
+                seppos = dest.find_last_of("/");
+            }
+            if (seppos == string::npos)
+            {
+                newParentNode = baseNode?baseNode->copy():node->copy();
+                newname = dest;
+            }
+            else
+            {
+                if ((seppos + 1) < dest.size())
+                {
+                    newname = dest.substr(seppos + 1);
+                }
+                string newparentpath = dest.substr(0, seppos);
+                newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(),baseNode?baseNode:node);
+            }
+        }
+        if (!newParentNode)
+        {
+            returnHttpCode(httpctx, 409);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+        if (newname.size())
+        {
+            httpctx->megaApi->copyNode(node, newParentNode, newname.c_str(), httpctx);
+        }
+        else
+        {
+            httpctx->megaApi->copyNode(node, newParentNode, httpctx);
+        }
+
+        delete node;
+        delete baseNode;
+        delete newParentNode;
+        return 0;
+    }
+    else if (parser->method == HTTP_PUT)
+    {
+        if (node && !httpctx->overwrite)
+        {
+            returnHttpCode(httpctx, 412);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+        else
+        {
+            MegaNode *newParentNode = NULL;
+            string newname;
+
+            string dest = httpctx->subpathrelative;
+            size_t seppos = dest.find_last_of("/");
+            while ( (seppos != string::npos) && ((seppos + 1) == dest.size()) )
+            {
+                dest = dest.substr(0,seppos);
+                seppos = dest.find_last_of("/");
+            }
+            if (seppos == string::npos)
+            {
+                newParentNode = baseNode ? baseNode->copy() : node->copy();
+                newname = dest;
+            }
+            else
+            {
+                if ((seppos + 1) < dest.size())
+                {
+                    newname = dest.substr(seppos + 1);
+                }
+                string newparentpath = dest.substr(0, seppos);
+                newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(), baseNode ? baseNode : node);
+            }
+
+            if (!newParentNode)
+            {
+                returnHttpCode(httpctx, 409);
+                delete node;
+                delete baseNode;
+                return 0;
+            }
+
+            if (!httpctx->tmpFileAccess) //put with no body contents
+            {
+                httpctx->tmpFileName=httpctx->server->basePath;
+                httpctx->tmpFileName.append("httputfile");
+                string suffix, utf8suffix;
+                httpctx->server->fsAccess->tmpnamelocal(&suffix);
+                httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
+                httpctx->tmpFileName.append(utf8suffix);
+                httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
+                string localPath;
+                httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
+                httpctx->server->fsAccess->unlinklocal(&localPath);
+                if (!httpctx->tmpFileAccess->fopen(&localPath, false, true))
+                {
+                    returnHttpCode(httpctx, 500);
+                    delete node;
+                    delete baseNode;
+                    delete newParentNode;
+                    return 0;
+                }
+            }
+
+            httpctx->megaApi->startUpload(httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), httpctx);
+
+            delete node;
+            delete baseNode;
+            delete newParentNode;
+            return 0;
+        }
+    }
+    else if (parser->method == HTTP_MOVE)
+    {
+        //        201 (Created)	The resource was moved successfully and a new resource was created at the specified destination URI.
+        //        204 (No Content)	The resource was moved successfully to a pre-existing destination URI.
+        //        403 (Forbidden)	The source URI and the destination URI are the same.
+        //        409 (Conflict)	A resource cannot be created at the destination URI until one or more intermediate collections are created.
+        //        412 (Precondition Failed)	Either the Overwrite header is "F" and the state of the destination resource is not null, or the method was used in a Depth: 0 transaction.
+        //        423 (Locked)	The destination resource is locked.
+        //        502 (Bad Gateway)	The destination URI is located on a different server, which refuses to accept the resource.
+
+        if (!node)
+        {
+            returnHttpCode(httpctx, 404);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        string baseURL = string("http") + (httpctx->server->useTLS ? "s" : "") + "://" + httpctx->host
+                + "/" + httpctx->nodehandle + "/" + httpctx->nodename + "/";
+
+        string dest;
+        URLCodec::unescape(&httpctx->destination, &dest);
+        size_t posBase = dest.find(baseURL);
+        if (posBase != 0) // Notice that if 2 WEBDAV locations are enabled we won't be able to copy between the 2
+        {
+            returnHttpCode(httpctx, 502); // The destination URI is located elsewhere
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+        dest = dest.substr(baseURL.size());
+        MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        if (destNode)
+        {
+            if (node->getHandle() == destNode->getHandle())
+            {
+                returnHttpCode(httpctx, 403);
+                delete node;
+                delete baseNode;
+                delete destNode;
+                return 0;
+            }
+            else
+            {
+                //overwrite?
+                if (httpctx->overwrite)
+                {
+                    httpctx->newParentNode = destNode->getParentHandle();
+                    httpctx->newname = destNode->getName();
+                    httpctx->nodeToMove = node->getHandle();
+                    httpctx->megaApi->remove(destNode, false, httpctx);
+                    delete node;
+                    delete baseNode;
+                    delete destNode;
+                    return 0;
+                }
+                else
+                {
+                    returnHttpCode(httpctx, 412);
+                    delete node;
+                    delete baseNode;
+                    delete destNode;
+                    return 0;
+                }
+            }
+        }
+        else
+        {
+            MegaNode *newParentNode = NULL;
+            size_t seppos = dest.find_last_of("/");
+            httpctx->newname = dest;
+            if (seppos == string::npos)
+            {
+                newParentNode = baseNode ? baseNode->copy() : node->copy();
+            }
+            else
+            {
+                if ((seppos + 1) < httpctx->newname.size())
+                {
+                    httpctx->newname = httpctx->newname.substr(seppos + 1);
+                }
+                string newparentpath = dest.substr(0, seppos);
+                newParentNode = httpctx->megaApi->getNodeByPath(newparentpath.c_str(), baseNode ? baseNode : node);
+            }
+            if (!newParentNode)
+            {
+                returnHttpCode(httpctx, 409);
+                delete node;
+                delete baseNode;
+                return 0;
+            }
+
+            if (newParentNode->getHandle() == node->getHandle())
+            {
+                LOG_warn << "HTTP_MOVE trying to mov a node into itself";
+                returnHttpCode(httpctx, 500);
+                delete node;
+                delete baseNode;
+                delete newParentNode;
+                return 0;
+            }
+
+            if (newParentNode->getHandle() != node->getParentHandle())
+            {
+                httpctx->megaApi->moveNode(node, newParentNode, httpctx);
+            }
+            else
+            {
+                httpctx->megaApi->renameNode(node, httpctx->newname.c_str(), httpctx);
+            }
+            delete newParentNode;
+        }
+
+        delete node;
+        delete baseNode;
+        return 0;
+    }
+    else //GET/POST/HEAD
+    {
+        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+        httpctx->transfer->setPath(httpctx->path.c_str());
+        if (httpctx->nodename.size())
+        {
+            httpctx->transfer->setFileName(httpctx->nodename.c_str());
+        }
+        if (httpctx->nodehandle.size())
+        {
+            httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+        }
+        httpctx->transfer->setStartTime(Waiter::ds);
+
+        if (node->isFolder())
+        {
+            if (!httpctx->server->isFolderServerEnabled())
+            {
+                response << "HTTP/1.1 403 Forbidden\r\n"
+                            "Connection: close\r\n"
+                          << "\r\n";
+
+                httpctx->resultCode = 403;
+                string resstr = response.str();
+                sendHeaders(httpctx, &resstr);
+                delete node;
+                delete baseNode;
+                return 0;
+            }
+
+            string resstr;
+            resstr = getResponseForNode(node, httpctx);
+            sendHeaders(httpctx, &resstr);
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
+        //File node
+        if (!httpctx->server->isFileServerEnabled())
         {
             response << "HTTP/1.1 403 Forbidden\r\n"
                         "Connection: close\r\n"
@@ -19702,181 +20953,14 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             string resstr = response.str();
             sendHeaders(httpctx, &resstr);
             delete node;
+            delete baseNode;
             return 0;
         }
 
-        MegaNode *parent = httpctx->megaApi->getParentNode(node);
-        MegaNodeList *children = httpctx->megaApi->getChildren(node);
-
-        std::ostringstream web;
-
-        // Title
-        web << "<title>MEGA</title>";
-
-        //Styles
-        web << "<head><meta charset=\"utf-8\" /><style>"
-               ".folder {"
-               "padding: 0;"
-               "width: 24px;"
-               "height: 24px;"
-               "margin: 0 0 0 -2px;"
-               "display: block;"
-               "position: absolute;"
-               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
-               "background-position: -14px -7465px;"
-               "background-repeat: no-repeat;}"
-
-               ".file {"
-               "padding: 0;"
-               "width: 24px;"
-               "height: 24px;"
-               "margin: 0 0 0 -6px;"
-               "display: block;"
-               "position: absolute;"
-               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
-               "background-position: -7px -1494px;"
-               "background-repeat: no-repeat;} "
-
-               ".headerimage {"
-               "padding: 0 8px 0 46px;"
-               "width: 100%;"
-               "height: 24px;"
-               "margin: 0 0 0 -12px;"
-               "display: block;"
-               "position: absolute;"
-               "background-image: url(https://eu.static.mega.co.nz/3/images/mega/nw-fm-sprite_v12.svg);"
-               "background-position: 5px -1000px;"
-               "line-height: 23px;"
-               "background-repeat: no-repeat;} "
-
-               ".headertext {"
-               "line-height: 23px;"
-               "color: #777777;"
-               "font-size: 18px;"
-               "font-weight: bold;"
-               "display: block;"
-               "position: absolute;"
-               "line-height: 23px;}"
-
-               "a {"
-               "text-decoration: none; }"
-
-               ".text {"
-               "height: 24px;"
-               "padding: 0 10px 0 26px;"
-               "word-break: break-all;"
-               "white-space: pre-wrap;"
-               "overflow: hidden;"
-               "max-width: 100%;"
-               "text-decoration: none;"
-               "-moz-box-sizing: border-box;"
-               "-webkit-box-sizing: border-box;"
-               "box-sizing: border-box;"
-               "font-size: 13px;"
-               "line-height: 23px;"
-               "color: #666666;}"
-               "</style></head>";
-
-        // Folder path
-        web << "<span class=\"headerimage\"><span class=\"headertext\">";
-        char *path = httpctx->megaApi->getNodePath(node);
-        if (path)
-        {
-            web << path;
-            delete [] path;
-        }
-        else
-        {
-            web << node->getName();
-        }
-        web << "</span></span><br /><br />";
-
-        // Child nodes
-        web << "<table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"width: auto;\">";
-        if (parent)
-        {
-            web << "<tr><td>";
-            char *base64Handle = parent->getBase64Handle();
-            web << "<a href=\"/" << base64Handle << "/" << parent->getName()
-                << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
-            delete [] base64Handle;
-            delete parent;
-            web << "</td></tr>";
-        }
-
-        for (int i = 0; i < children->size(); i++)
-        {
-            web << "<tr><td>";
-            MegaNode *child = children->get(i);
-            char *base64Handle = child->getBase64Handle();
-            web << "<a href=\"/" << base64Handle << "/" << child->getName()
-                << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
-                << child->getName() << "</span></a>";
-            delete [] base64Handle;
-
-            if (!child->isFile())
-            {
-                web << "</td><td>";
-            }
-            else
-            {
-                unsigned const long long KB = 1024;
-                unsigned const long long MB = 1024 * KB;
-                unsigned const long long GB = 1024 * MB;
-                unsigned const long long TB = 1024 * GB;
-
-                web << "</td><td><span class=\"text\">";
-                unsigned long long bytes = child->getSize();
-                if (bytes > TB)
-                    web << ((unsigned long long)((100 * bytes) / TB))/100.0 << " TB";
-                else if (bytes > GB)
-                    web << ((unsigned long long)((100 * bytes) / GB))/100.0 << " GB";
-                else if (bytes > MB)
-                    web << ((unsigned long long)((100 * bytes) / MB))/100.0 << " MB";
-                else if (bytes > KB)
-                    web << ((unsigned long long)((100 * bytes) / KB))/100.0 << " KB";
-                web << "</span>";
-            }
-            web << "</td></tr>";
-        }
-        web << "</table>";
-        delete children;
-
-        string sweb = web.str();
-        response << "HTTP/1.1 200 OK\r\n"
-            << "Content-Type: text/html; charset=utf-8\r\n"
-            << "Connection: close\r\n"
-            << "Content-Length: " << sweb.size() << "\r\n"
-            << "Access-Control-Allow-Origin: *\r\n"
-            << "\r\n";
-
-        if (httpctx->parser.method != HTTP_HEAD)
-        {
-            response << sweb;
-        }
-        httpctx->resultCode = API_OK;
-        string resstr = response.str();
-        sendHeaders(httpctx, &resstr);
-        delete node;
-        return 0;
+        httpctx->node = node;
+        streamNode(httpctx);
     }
-
-    //File node
-    if (!httpctx->server->isFileServerEnabled())
-    {
-        response << "HTTP/1.1 403 Forbidden\r\n"
-                    "Connection: close\r\n"
-                  << "\r\n";
-
-        httpctx->resultCode = 403;
-        string resstr = response.str();
-        sendHeaders(httpctx, &resstr);
-        delete node;
-        return 0;
-    }
-
-    httpctx->node = node;
-    streamNode(httpctx);
+    delete baseNode;
     return 0;
 }
 
@@ -19923,7 +21007,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     bool rangeRequested = (httpctx->rangeEnd - httpctx->rangeStart) != totalSize;
 
     m_off_t len = end - start + 1;
-    if (start < 0 || start >= totalSize || end < 0 || end >= totalSize || len <= 0 || len > totalSize)
+    if (totalSize && (start < 0 || start >= totalSize || end < 0 || end >= totalSize || len <= 0 || len > totalSize) )
     {
         response << "HTTP/1.1 416 Requested Range Not Satisfiable\r\n"
             << "Content-Type: " << mimeType << "\r\n"
@@ -19992,9 +21076,13 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
 
-    httpctx->transfer->setTotalBytes(httpctx->size);
-    httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
+    if (httpctx->transfer)
+    {
+        httpctx->transfer->setTotalBytes(httpctx->size);
+        httpctx->megaApi->fireOnStreamingStart(httpctx->transfer);
+    }
 
+#ifdef ENABLE_EVT_TLS
     if (httpctx->server->useTLS)
     {
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
@@ -20006,6 +21094,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
     }
     else
     {
+#endif
         uv_write_t *req = new uv_write_t();
         req->data = httpctx;
         if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &resbuf, 1, onWriteFinished))
@@ -20018,7 +21107,9 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
                 uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
             }
         }
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 }
 
 void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
@@ -20033,20 +21124,32 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
     if (httpctx->failed)
     {
         LOG_warn << "Streaming transfer failed. Closing connection.";
+#ifdef ENABLE_EVT_TLS
         if (httpctx->server->useTLS)
         {
             evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
         }
         else
         {
+#endif
             httpctx->finished = true;
             if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
             {
                 uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
             }
+#ifdef ENABLE_EVT_TLS
         }
+#endif
         return;
     }
+
+    uv_mutex_lock(&httpctx->mutex_responses);
+    while (httpctx->responses.size())
+    {
+        sendHeaders(httpctx,&httpctx->responses.front());
+        httpctx->responses.pop_front();
+    }
+    uv_mutex_unlock(&httpctx->mutex_responses);
 
     if (httpctx->nodereceived)
     {
@@ -20136,6 +21239,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
 
+#ifdef ENABLE_EVT_TLS
     if (httpctx->server->useTLS)
     {
         //notice this, contrary to !useTLS is synchronous
@@ -20148,6 +21252,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
     }
     else
     {
+#endif
         uv_write_t *req = new uv_write_t();
         req->data = httpctx;
 
@@ -20161,9 +21266,12 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
                 uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
             }
         }
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 }
 
+#ifdef ENABLE_EVT_TLS
 void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 {
     MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
@@ -20261,7 +21369,7 @@ void MegaHTTPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
     LOG_debug << "Async TLS write finished";
     uv_async_send(&httpctx->asynchandle);
 }
-
+#endif
 void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) req->data;
@@ -20291,10 +21399,26 @@ void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
             }
         }
 
-        httpctx->finished = true;
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+        if (false && http_should_keep_alive(&httpctx->parser)) //If we ever want to support Keep-Alive server, this is the place to start
         {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            // Keeop on reading
+            if (httpctx->lastBufferLen)
+            {
+                httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
+                httpctx->lastBufferLen = 0;
+            }
+            // there should be more stuff to clean. maybe we should restart the whole httpctx
+            uv_read_start((uv_stream_t*)&httpctx->tcphandle, allocBuffer, onDataReceived);
+            // tls version of this!?
+            //uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
+        }
+        else
+        {
+            httpctx->finished = true;
+            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+            {
+                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+            }
         }
         return;
     }
@@ -20343,7 +21467,17 @@ MegaHTTPContext::MegaHTTPContext()
     node = NULL;
     transfer = NULL;
     nodesize = -1;
+#ifdef ENABLE_EVT_TLS
     evt_tls = NULL;
+#endif
+    messageBody = NULL;
+    messageBodySize = 0;
+    tmpFileAccess = NULL;
+    newParentNode = UNDEF;
+    nodeToMove = UNDEF;
+    depth = -1;
+    overwrite = true; //GVFS-DAV via command line does not include this header (assumed true)
+
     server = NULL;
     megaApi = NULL;
     lastBuffer = NULL;
@@ -20352,15 +21486,29 @@ MegaHTTPContext::MegaHTTPContext()
 
 MegaHTTPContext::~MegaHTTPContext()
 {
+#ifdef ENABLE_EVT_TLS
     if (evt_tls)
     {
         evt_tls_free(evt_tls);
     }
+#endif
+    if (tmpFileAccess)
+    {
+        delete tmpFileAccess;
+
+        string localPath;
+        server->fsAccess->path2local(&tmpFileName, &localPath);
+        server->fsAccess->unlinklocal(&localPath);
+    }
+    delete [] messageBody;
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
 {
-    this->transfer->setTag(transfer->getTag());
+    if (this->transfer)
+    {
+        this->transfer->setTag(transfer->getTag());
+    }
 }
 
 bool MegaHTTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
@@ -20404,15 +21552,28 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     }
 
     int ecode = e->getErrorCode();
+
+    if (parser.method == HTTP_PUT)
+    {
+        if (ecode == API_OK)
+        {
+            server->returnHttpCodeAsync(this, 201); //TODO actually if resource already existed this should be 200
+        }
+        else
+        {
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+
     if (ecode != API_OK && ecode != API_EINCOMPLETE)
     {
         LOG_warn << "Transfer failed with error code: " << ecode;
         failed = true;
-        uv_async_send(&asynchandle);
     }
+    uv_async_send(&asynchandle);
 }
 
-void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
+void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
     if (finished)
     {
@@ -20420,8 +21581,96 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         return;
     }
 
-    node = request->getPublicMegaNode();
-    nodereceived = true;
+    if (request->getType() == MegaRequest::TYPE_MOVE)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+            if (this->newname.size())
+            {
+                MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
+                if (!nodetoRename || !strcmp(nodetoRename->getName(), newname.c_str()))
+                {
+                    server->returnHttpCodeAsync(this, 204);
+                }
+                else
+                {
+                    this->megaApi->renameNode(nodetoRename, newname.c_str(), this);
+                }
+                delete nodetoRename;
+            }
+            else
+            {
+                server->returnHttpCodeAsync(this, 204);
+            }
+        }
+        else
+        {
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_RENAME)
+    {
+        if (e->getErrorCode() == MegaError::API_OK )
+        {
+            server->returnHttpCodeAsync(this, 204);
+        }
+        else
+        {
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_REMOVE)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+            MegaNode *n = this->megaApi->getNodeByHandle(nodeToMove);
+            MegaNode *p = this->megaApi->getNodeByHandle(newParentNode);
+            if (n && p) //delete + move
+            {
+                this->megaApi->moveNode(n, p, this);
+            }
+            else
+            {
+                server->returnHttpCodeAsync(this, 204); // Standard success response
+            }
+
+            nodeToMove = UNDEF;
+            newParentNode = UNDEF;
+            delete n;
+            delete p;
+        }
+        else
+        {
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+            server->returnHttpCodeAsync(this, 201);
+        }
+        else
+        {
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_COPY)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+            server->returnHttpCodeAsync(this, 201);
+        }
+        else
+        {
+            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE)
+    {
+        node = request->getPublicMegaNode();
+        nodereceived = true;
+    }
     uv_async_send(&asynchandle);
 }
 #endif

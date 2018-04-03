@@ -1697,8 +1697,8 @@ class MegaApiImpl : public MegaApp
 #endif
 
         void update();
-        bool isWaiting();
-        bool areServersBusy();
+        int isWaiting();
+        int areServersBusy();
 
         //Statistics
         int getNumPendingUploads();
@@ -1858,6 +1858,10 @@ class MegaApiImpl : public MegaApp
 
         // management
         char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalWebDavLink(MegaNode *node);
+        MegaStringList *httpServerGetWebDavLinks();
+        MegaNodeList *httpServerGetWebDavAllowedNodes();
+        void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
         void httpServerSetMaxBufferSize(int bufferSize);
         int httpServerGetMaxBufferSize();
         void httpServerSetMaxOutputSize(int outputSize);
@@ -1868,11 +1872,13 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsFileServerEnabled();
         void httpServerEnableFolderServer(bool enable);
         bool httpServerIsFolderServerEnabled();
+        bool httpServerIsOfflineAttributeEnabled();
         void httpServerSetRestrictedMode(int mode);
         int httpServerGetRestrictedMode();
         void httpServerEnableSubtitlesSupport(bool enable);
         bool httpServerIsSubtitlesSupportEnabled();
         bool httpServerIsLocalOnly();
+        void httpServerEnableOfflineAttribute(bool enable);
 
         void httpServerAddListener(MegaTransferListener *listener);
         void httpServerRemoveListener(MegaTransferListener *listener);
@@ -1972,6 +1978,7 @@ protected:
         int httpServerMaxOutputSize;
         bool httpServerEnableFiles;
         bool httpServerEnableFolders;
+        bool httpServerOfflineAttributeEnabled;
         int httpServerRestrictedMode;
         bool httpServerSubtitlesSupportEnabled;
         set<MegaTransferListener *> httpServerListeners;
@@ -2004,7 +2011,7 @@ protected:
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         bool waiting;
-        bool waitingRequest;
+        retryreason_t waitingRequest;
         vector<string> excludedNames;
         vector<string> excludedPaths;
         long long syncLowerSizeLimit;
@@ -2216,7 +2223,7 @@ protected:
         virtual void clearing();
 
         // failed request retry notification
-        virtual void notify_retry(dstime);
+        virtual void notify_retry(dstime, retryreason_t);
 
         // notify about db commit
         virtual void notify_dbcommit();
@@ -2342,8 +2349,28 @@ public:
     bool failed;
     bool pause;
 
+    // WEBDAV related
+    int depth;
+    std::string lastheader;
+    std::string subpathrelative;
+    const char *messageBody;
+    size_t messageBodySize;
+    std::string host;
+    std::string destination;
+    bool overwrite;
+    FileAccess *tmpFileAccess;
+    std::string tmpFileName;
+    std::string newname; //newname for moved node
+    MegaHandle nodeToMove; //node to be moved after delete
+    MegaHandle newParentNode; //parent node for moved after delete
+
+    uv_mutex_t mutex_responses;
+    std::list<std::string> responses;
+
+#ifdef ENABLE_EVT_TLS
     //tls stuff:
     evt_tls_t *evt_tls;
+#endif
     std::list<char*> writePointers;
 
     // Request information
@@ -2372,6 +2399,7 @@ protected:
     static http_parser_settings parsercfg;
 
     set<handle> allowedHandles;
+    set<handle> allowedWebDavHandles;
     handle lastHandle;
     list<MegaHTTPContext*> connections;
     uv_async_t exit_handle;
@@ -2383,16 +2411,19 @@ protected:
     int maxOutputSize;
     bool fileServerEnabled;
     bool folderServerEnabled;
+    bool offlineAttribute;
     bool subtitlesSupportEnabled;
     int restrictedMode;
     bool localOnly;
     bool started;
     int port;
 
+#ifdef ENABLE_EVT_TLS
     // TLS
     evt_ctx_t evtctx;
     std::string certificatepath;
     std::string keypath;
+#endif
 
     // libuv callbacks
     static void onNewClient(uv_stream_t* server_handle, int status);
@@ -2400,6 +2431,7 @@ protected:
     static void allocBuffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf);
     static void onClose(uv_handle_t* handle);
 
+#ifdef ENABLE_EVT_TLS
     //libuv tls
     static void onNewClient_tls(uv_stream_t* server_handle, int status);
     static void onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
@@ -2410,7 +2442,7 @@ protected:
     static void on_evt_tls_close(evt_tls_t *evt_tls, int status);
     static void on_hd_complete( evt_tls_t *evt_tls, int status);
     static void evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz);
-
+#endif
 
 
     static void onAsyncEventClose(uv_handle_t* handle);
@@ -2427,15 +2459,30 @@ protected:
     static int onBody(http_parser* parser, const char* at, size_t length);
     static int onMessageComplete(http_parser* parser);
 
+    static std::string getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx);
+
+    // WEBDAV related
+    static std::string getWebDavPropFindResponseForNode(std::string baseURL, std::string subnodepath, MegaNode *node, MegaHTTPContext* httpctx);
+    static std::string getWebDavProfFindNodeContents(MegaNode *node, std::string baseURL, bool offlineAttribute);
+
+
     void run();
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
     static void sendNextBytes(MegaHTTPContext *httpctx);
     static int streamNode(MegaHTTPContext *httpctx);
 
+    //Utility funcitons
+    static std::string getHTTPMethodName(int httpmethod);
+    static std::string getHTTPErrorString(int errorcode);
+
+
 public:
     bool useTLS;
+    MegaFileSystemAccess *fsAccess;
 
-    MegaHTTPServer(MegaApiImpl *megaApi, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    std::string basePath;
+
+    MegaHTTPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
     bool start(int port, bool localOnly = true);
     void stop();
@@ -2452,10 +2499,22 @@ public:
     bool isFolderServerEnabled();
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
+    bool isHandleWebDavAllowed(handle h);
+    void enableOfflineAttribute(bool enable);
+    bool isOfflineAttributeEnabled();
     void clearAllowedHandles();
-    char* getLink(MegaNode *node);
+    char* getLink(MegaNode *node, bool enablewebdav = false);
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
+
+    static void returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e, bool synchronous = true);
+    static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string(), bool synchronous = true);
+
+    static void returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
+    static void returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
+
+    set<handle> getAllowedWebDavHandles();
+    void removeAllowedWebDavHandle(MegaHandle handle);
 };
 #endif
 

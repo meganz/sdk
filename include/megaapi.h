@@ -4805,6 +4805,16 @@ class MegaApi
             PASSWORD_STRENGTH_STRONG = 4
         };
 
+        enum {
+            RETRY_NONE = 0,
+            RETRY_CONNECTIVITY = 1,
+            RETRY_SERVERS_BUSY = 2,
+            RETRY_API_LOCK = 3,
+            RETRY_RATE_LIMIT = 4,
+            RETRY_LOCAL_LOCK = 5,
+            RETRY_UNKNOWN = 6
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -8606,16 +8616,63 @@ class MegaApi
         void update();
 
         /**
-         * @brief Check if the SDK is waiting for something external (filesystem lock or a server)
-         * @return true if the SDK is waiting for the server to complete a request
+         * @brief Check if the SDK is waiting to complete a request and get the reason
+         * @return State of SDK.
+         *
+         * Valid values are:
+         * - MegaApi::RETRY_NONE = 0
+         * SDK is not waiting for the server to complete a request
+         *
+         * - MegaApi::RETRY_CONNECTIVITY = 1
+         * SDK is waiting for the server to complete a request due to connectivity issues
+         *
+         * - MegaApi::RETRY_SERVERS_BUSY = 2
+         * SDK is waiting for the server to complete a request due to a HTTP error 500
+         *
+         * - MegaApi::RETRY_API_LOCK = 3
+         * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+         *
+         * - MegaApi::RETRY_RATE_LIMIT = 4,
+         * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+         *
+         * - MegaApi::RETRY_LOCAL_LOCK = 5
+         * SDK is waiting for a local locked file
+         *
+         * - MegaApi::RETRY_UNKNOWN = 6
+         * SDK is waiting for the server to complete a request with unknown reason
+         *
          */
-        bool isWaiting();
+        int isWaiting();
 
         /**
-         * @brief Check if the SDK is waiting for the server
-         * @return true if the SDK is waiting for the server to complete a request
+         * @brief Check if the SDK is waiting to complete a request and get the reason
+         * @return State of SDK.
+         *
+         * Valid values are:
+         * - MegaApi::RETRY_NONE = 0
+         * SDK is not waiting for the server to complete a request
+         *
+         * - MegaApi::RETRY_CONNECTIVITY = 1
+         * SDK is waiting for the server to complete a request due to connectivity issues
+         *
+         * - MegaApi::RETRY_SERVERS_BUSY = 2
+         * SDK is waiting for the server to complete a request due to a HTTP error 500
+         *
+         * - MegaApi::RETRY_API_LOCK = 3
+         * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+         *
+         * - MegaApi::RETRY_RATE_LIMIT = 4,
+         * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+         *
+         * - MegaApi::RETRY_LOCAL_LOCK = 5
+         * SDK is waiting for a local locked file
+         *
+         * - MegaApi::RETRY_UNKNOWN = 6
+         * SDK is waiting for the server to complete a request with unknown reason
+         *
+         * @deprecated Use MegaApi::isWaiting instead of this function.
          */
-        bool areServersBusy();
+        int areServersBusy();
 
         /**
          * @brief Get the number of pending uploads
@@ -10190,7 +10247,9 @@ class MegaApi
          *
          * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
          * @param port Port in which the server must accept connections
-         * @param useTLS Use TLS (default false)
+         * @param useTLS Use TLS (default false).
+         * If the SDK compilation does not support TLS,
+         * enabling this flag will cause the function to return false.
          * @param certificatepath path to certificate (PEM format)
          * @param keypath path to certificate key
          * @return True is the server is ready, false if the initialization failed
@@ -10265,6 +10324,25 @@ class MegaApi
          * @return true if it's allowed to serve folders, otherwise false
          */
         bool httpServerIsFolderServerEnabled();
+
+        /**
+         * @brief Stablish FILE_ATTRIBUTE_OFFLINE attribute
+         *
+         * By default, it is not enabled
+         *
+         * This is used when serving files in WEBDAV, it will cause windows clients to not load a file
+         * when it is selected. It is intended to reduce unnecessary traffic.
+         *
+         * @param enable true to enable the FILE_ATTRIBUTE_OFFLINE attribute, false to disable it
+         */
+        void httpServerEnableOfflineAttribute(bool enable);
+
+        /**
+         * @brief Check if FILE_ATTRIBUTE_OFFLINE it's enabled
+         *
+         * @return true if the FILE_ATTRIBUTE_OFFLINE attribute is enabled, otherwise false
+         */
+        bool httpServerIsOfflineAttributeEnabled();
 
         /**
          * @brief Enable/disable the restricted mode of the HTTP server
@@ -10411,6 +10489,53 @@ class MegaApi
          * @return URL to the node in the local HTTP proxy server, otherwise NULL
          */
         char *httpServerGetLocalLink(MegaNode *node);
+
+        /**
+         * @brief Returns a WEBDAV valid URL to a node in the local HTTP proxy server
+         *
+         * The HTTP proxy server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local HTTP link
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        char *httpServerGetLocalWebDavLink(MegaNode *node);
+
+        /**
+         * @brief Returns the list with the links of locations served via WEBDAV
+         *
+         * The HTTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local HTTP server, otherwise NULL
+         */
+        MegaStringList *httpServerGetWebDavLinks();
+
+        /**
+         * @brief Returns the list of nodes served via WEBDAV
+         *
+         * The HTTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local HTTP server, otherwise NULL
+         */
+        MegaNodeList *httpServerGetWebDavAllowedNodes();
+
+        /**
+         * @brief Stops serving a node via webdav.
+         * The webdav link will no longer be valid.
+         *
+         * @param handle Handle of the node to stop serving
+         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         */
+        void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
+
 
         /**
          * @brief Set the maximum buffer size for the internal buffer

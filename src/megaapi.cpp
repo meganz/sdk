@@ -3050,12 +3050,12 @@ void MegaApi::update()
    pImpl->update();
 }
 
-bool MegaApi::isWaiting()
+int MegaApi::isWaiting()
 {
     return pImpl->isWaiting();
 }
 
-bool MegaApi::areServersBusy()
+int MegaApi::areServersBusy()
 {
     return pImpl->areServersBusy();
 }
@@ -3116,6 +3116,16 @@ void MegaApi::httpServerEnableFolderServer(bool enable)
     pImpl->httpServerEnableFolderServer(enable);
 }
 
+void MegaApi::httpServerEnableOfflineAttribute(bool enable)
+{
+    pImpl->httpServerEnableOfflineAttribute(enable);
+}
+
+bool MegaApi::httpServerIsOfflineAttributeEnabled()
+{
+    return pImpl->httpServerIsOfflineAttributeEnabled();
+}
+
 bool MegaApi::httpServerIsFolderServerEnabled()
 {
     return pImpl->httpServerIsFolderServerEnabled();
@@ -3154,6 +3164,26 @@ void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
 char *MegaApi::httpServerGetLocalLink(MegaNode *node)
 {
     return pImpl->httpServerGetLocalLink(node);
+}
+
+char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalWebDavLink(node);
+}
+
+MegaStringList *MegaApi::httpServerGetWebDavLinks()
+{
+    return pImpl->httpServerGetWebDavLinks();
+}
+
+MegaNodeList *MegaApi::httpServerGetWebDavAllowedNodes()
+{
+    return pImpl->httpServerGetWebDavAllowedNodes();
+}
+
+void MegaApi::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
+{
+    return pImpl->httpServerRemoveWebDavAllowedNode(handle);
 }
 
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)

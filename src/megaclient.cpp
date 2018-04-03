@@ -578,7 +578,7 @@ void MegaClient::exportDatabase(string filename)
 
     for (map<uint32_t, string>::iterator it = entries.begin(); it != entries.end(); it++)
     {
-        fprintf(fp, "%8.d\t%s\n", it->first, it->second.c_str());
+        fprintf(fp, "%8." PRIu32 "\t%s\n", it->first, it->second.c_str());
     }
 
     fclose(fp);
@@ -1331,6 +1331,9 @@ void MegaClient::exec()
             // do we have an API request outstanding?
             if (pendingcs)
             {
+                // handle retry reason for requests
+                retryreason_t reason = RETRY_NONE;
+
                 switch (pendingcs->status)
                 {
                     case REQ_READY:
@@ -1371,7 +1374,7 @@ void MegaClient::exec()
 
                                 if (csretrying)
                                 {
-                                    app->notify_retry(0);
+                                    app->notify_retry(0, RETRY_NONE);
                                     csretrying = false;
                                 }
 
@@ -1428,6 +1431,14 @@ void MegaClient::exec()
                         }
                         else
                         {
+                            if (pendingcs->in == "-3")
+                            {
+                                reason = RETRY_API_LOCK;
+                            }
+                            else
+                            {
+                                reason = RETRY_RATE_LIMIT;
+                            }
                             if (fetchingnodes)
                             {
                                 fnstats.eAgainCount++;
@@ -1436,6 +1447,22 @@ void MegaClient::exec()
 
                     // fall through
                     case REQ_FAILURE:
+                        if (!reason && pendingcs->httpstatus != 200)
+                        {
+                            if (pendingcs->httpstatus == 500)
+                            {
+                                reason = RETRY_SERVERS_BUSY;
+                            }
+                            else if (pendingcs->httpstatus == 0)
+                            {
+                                reason = RETRY_CONNECTIVITY;
+                            }
+                            else
+                            {
+                                reason = RETRY_UNKNOWN;
+                            }
+                        }
+
                         if (fetchingnodes && pendingcs->httpstatus != 200)
                         {
                             if (pendingcs->httpstatus == 500)
@@ -1471,7 +1498,7 @@ void MegaClient::exec()
                         pendingcs = NULL;
 
                         btcs.backoff();
-                        app->notify_retry(btcs.retryin());
+                        app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
 
                     default:
@@ -1683,7 +1710,8 @@ void MegaClient::exec()
                 delete badhostcs;
                 badhostcs = NULL;
             }
-            else if(badhostcs->status == REQ_FAILURE)
+            else if(badhostcs->status == REQ_FAILURE
+                    || (badhostcs->status == REQ_INFLIGHT && Waiter::ds >= (badhostcs->lastdata + HttpIO::REQUESTTIMEOUT)))
             {
                 LOG_debug << "Failed badhost report. Retrying...";
                 btbadhost.backoff();
@@ -1724,7 +1752,7 @@ void MegaClient::exec()
                 requestLock = false;
             }
             else if (workinglockcs->status == REQ_FAILURE
-                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT))
+                     || (workinglockcs->status == REQ_INFLIGHT && Waiter::ds >= (workinglockcs->lastdata + HttpIO::REQUESTTIMEOUT)))
             {
                 LOG_warn << "Failed lock request. Retrying...";
                 btworkinglock.backoff();
@@ -2522,6 +2550,21 @@ int MegaClient::preparewait()
                 {
                     nds = 0;
                 }
+            }
+        }
+
+
+        if (badhostcs && EVER(badhostcs->lastdata)
+                && badhostcs->status == REQ_INFLIGHT)
+        {
+            dstime timeout = badhostcs->lastdata + HttpIO::REQUESTTIMEOUT;
+            if (timeout > Waiter::ds && timeout < nds)
+            {
+                nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
             }
         }
     }
@@ -4729,7 +4772,6 @@ void MegaClient::sc_ipc()
     m_time_t uts = 0;
     m_time_t rts = 0;
     m_time_t dts = 0;
-    int ps = 0;
     const char *m = NULL;
     const char *msg = NULL;
     handle p = UNDEF;
@@ -4742,9 +4784,6 @@ void MegaClient::sc_ipc()
         {
             case 'm':
                 m = jsonsc.getvalue();
-                break;
-            case MAKENAMEID2('p', 's'):
-                ps = jsonsc.getint();
                 break;
             case MAKENAMEID2('t', 's'):
                 ts = jsonsc.getint();
@@ -6586,7 +6625,6 @@ void MegaClient::readipc(JSON *j)
         {
             m_time_t ts = 0;
             m_time_t uts = 0;
-            int ps = 0;
             const char *m = NULL;
             const char *msg = NULL;
             handle p = UNDEF;
@@ -6595,9 +6633,6 @@ void MegaClient::readipc(JSON *j)
             while (!done)
             {
                 switch (j->getnameid()) {
-                    case MAKENAMEID2('p', 's'):
-                        ps = j->getint();
-                        break;
                     case 'm':
                         m = j->getvalue();
                         break;
@@ -6668,7 +6703,6 @@ void MegaClient::readopc(JSON *j)
         {
             m_time_t ts = 0;
             m_time_t uts = 0;
-            m_time_t rts = 0;
             const char *e = NULL;
             const char *m = NULL;
             const char *msg = NULL;
@@ -6690,9 +6724,6 @@ void MegaClient::readopc(JSON *j)
                         break;
                     case MAKENAMEID3('u', 't', 's'):
                         uts = j->getint();
-                        break;
-                    case MAKENAMEID3('r', 't', 's'):
-                        rts = j->getint();
                         break;
                     case MAKENAMEID3('m', 's', 'g'):
                         msg = j->getvalue();
