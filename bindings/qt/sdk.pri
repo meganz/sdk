@@ -72,7 +72,7 @@ CONFIG(USE_LIBUV) {
     DEFINES += HAVE_LIBUV
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libuv
     win32 {
-        LIBS += -llibuv -lIphlpapi -lUserenv
+        LIBS += -llibuv -lIphlpapi -lUserenv -lpsapi
     }
 
     unix:!macx {
@@ -314,9 +314,22 @@ CONFIG(qt) {
   SOURCES += src/gfx/qt.cpp src/thread/qtthread.cpp
 }
 else {
-  DEFINES += USE_FREEIMAGE USE_PTHREAD
-  SOURCES += src/gfx/freeimage.cpp src/thread/posixthread.cpp
-  LIBS += -lfreeimage -lpthread
+    DEFINES += USE_FREEIMAGE
+    SOURCES += src/gfx/freeimage.cpp
+    LIBS += -lfreeimage
+
+    win32 {
+        SOURCES += src/thread/win32thread.cpp
+    }
+    else:macx {
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
+    }
+    else {
+        DEFINES += USE_PTHREAD
+        SOURCES += src/thread/posixthread.cpp
+        LIBS += -lpthread
+    }
 }
 
 DEFINES += USE_SQLITE USE_CRYPTOPP ENABLE_SYNC ENABLE_CHAT
@@ -445,7 +458,6 @@ macx {
 
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/curl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libsodium
-   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
@@ -456,9 +468,9 @@ macx {
     LIBS += -lpcre
    }
 
-   DEFINES += _DARWIN_FEATURE_64_BIT_INODE USE_OPENSSL CRYPTOPP_DISABLE_ASM
+   DEFINES += _DARWIN_FEATURE_64_BIT_INODE CRYPTOPP_DISABLE_ASM
 
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
-            -lz -lssl -lcrypto -lcryptopp
+            -lz -lcryptopp
    LIBS += -framework SystemConfiguration
 }

@@ -51,7 +51,7 @@ enable_cryptopp=0
 disable_mediainfo=0
 incremental=0
 no_optimisation=0
-extra_openssl_params="-ldl"
+extra_openssl_params=""
 cross_compiling=0
 configure_cross_options=""
 openssl_cross_option=""
@@ -655,7 +655,7 @@ curl_pkg() {
     fi
 
     package_extract $name $curl_file $curl_dir
-    package_configure $name $curl_dir $install_dir "$curl_params" ""
+    package_configure $name $curl_dir $install_dir "$curl_params" "-ldl"  
     package_build $name $curl_dir
     package_install $name $curl_dir $install_dir
 }

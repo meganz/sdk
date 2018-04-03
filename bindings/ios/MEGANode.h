@@ -96,6 +96,24 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) NSInteger duration;
 
 /**
+ * @brief Attribute of the node representing the latitude coordinate in its decimal
+ * degree notation, or nil if this attribute is not set.
+ *
+ * The purpose of this attribute is to store the latitude coordinate where a photo was taken.
+ *
+ */
+@property (readonly, nonatomic) NSNumber *latitude;
+
+/**
+ * @brief Attribute of the node representing the longitude coordinate in its decimal
+ * degree notation, or nil if this attribute is not set.
+ *
+ * The purpose of this attribute is to store the longitude coordinate where a photo was taken.
+ *
+ */
+@property (readonly, nonatomic) NSNumber *longitude;
+
+/**
  * @brief Handle of this MEGANode in a Base64-encoded string.
  */
 @property (readonly, nonatomic) NSString *base64Handle;
