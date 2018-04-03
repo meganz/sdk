@@ -396,6 +396,10 @@ string User::attr2string(attr_t type)
             attrname = "^clv";
             break;
 
+        case ATTR_RICH_PREVIEWS:
+            attrname = "*!richprevs";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -477,6 +481,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_CONTACT_LINK_VERIFICATION;
     }
+    else if(!strcmp(name, "*!richprevs"))
+    {
+        return ATTR_RICH_PREVIEWS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -497,6 +505,7 @@ bool User::needversioning(attr_t at)
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
+        case ATTR_RICH_PREVIEWS:
             return 0;
 
         case ATTR_AUTHRING:
@@ -521,6 +530,7 @@ char User::scope(attr_t at)
         case ATTR_KEYRING:
         case ATTR_AUTHRING:
         case ATTR_LAST_INT:
+        case ATTR_RICH_PREVIEWS:
             return '*';
 
         case ATTR_AVATAR:
@@ -783,6 +793,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_CONTACT_LINK_VERIFICATION:
             changed.contactLinkVerification = true;
+            break;
+
+        case ATTR_RICH_PREVIEWS:
+            changed.richPreviews = true;
             break;
 
         default:

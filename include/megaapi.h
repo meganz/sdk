@@ -1104,7 +1104,8 @@ class MegaUser
             CHANGE_TYPE_LANGUAGE        = 0x2000,
             CHANGE_TYPE_PWD_REMINDER    = 0x4000,
             CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
-            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
+            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
+            CHANGE_TYPE_RICH_PREVIEWS   = 0x20000
         };
 
         /**
@@ -1168,6 +1169,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
          * Check if option for automatic contact-link verification has changed
          *
+         * - MegaUser::CHANGE_TYPE_RICH_PREVIEWS    = 0x20000
+         * Check if option for rich links has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1230,6 +1234,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
          * Check if option for automatic contact-link verification has changed
+         *
+         * - MegaUser::CHANGE_TYPE_RICH_PREVIEWS    = 0x20000
+         * Check if option for rich links has changed
          */
         virtual int getChanges();
 
@@ -4763,7 +4770,7 @@ class MegaApi
             USER_ATTR_PWD_REMINDER = 15,        // private - char array
             USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
             USER_ATTR_CONTACT_LINK_VERIFICATION = 17,     // private - byte array
-            USER_ATTR_RICH_PREVIEW = 18         // private - byte array
+            USER_ATTR_RICH_PREVIEWS = 18         // private - byte array
         };
 
         enum {

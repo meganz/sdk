@@ -1316,6 +1316,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION;
     }
+    if(user->changed.richPreviews)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RICH_PREVIEWS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -4281,7 +4285,7 @@ string MegaApiImpl::userAttributeToString(int type)
             attrname = "clv";
             break;
 
-        case MegaApi::USER_ATTR_RICH_PREVIEW:
+        case MegaApi::USER_ATTR_RICH_PREVIEWS:
             attrname = "*!richprevs";
             break;
     }
@@ -4311,7 +4315,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_AUTHRING:
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
-        case MegaApi::USER_ATTR_RICH_PREVIEW:
+        case MegaApi::USER_ATTR_RICH_PREVIEWS:
             scope = '*';
             break;
 
