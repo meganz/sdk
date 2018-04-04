@@ -11161,7 +11161,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 }
 
 
-void MegaApiImpl::bttimedpassed_result(error e)
+void MegaApiImpl::timer_result(error e)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {

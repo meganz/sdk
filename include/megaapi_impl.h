@@ -2423,7 +2423,7 @@ protected:
         virtual void http_result(error, int, byte *, int);
 
         // notify about a finished timer
-        virtual void bttimedpassed_result(error);
+        virtual void timer_result(error);
 
         void sendPendingRequests();
         void sendPendingTransfers();

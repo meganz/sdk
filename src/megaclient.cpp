@@ -965,7 +965,7 @@ MegaClient::~MegaClient()
     {
         TimerWithBackoff * bttimer = ((TimerWithBackoff *)*it);
         restag = bttimer->tag; //Does this make sense here?
-        app->bttimedpassed_result(API_EFAILED);
+        app->timer_result(API_EFAILED);
         delete *it;
         it = bttimers.erase(it);
     }
@@ -2355,7 +2355,7 @@ void MegaClient::exec()
             if (bttimer->armed())
             {
                 restag = bttimer->tag; //Does this make sense here?
-                app->bttimedpassed_result(API_OK);
+                app->timer_result(API_OK);
                 delete *it;
                 it = bttimers.erase(it);
             }
