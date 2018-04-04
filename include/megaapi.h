@@ -3549,7 +3549,7 @@ private:
  * Developers can use listeners (MegaListener, MegaSyncListener)
  * to track the progress of each synchronization. MegaSync objects are provided in callbacks sent
  * to these listeners and allow developers to know the state of the synchronizations and their parameters
- * and
+ * and their results.
  *
  * The implementation will receive callbacks from an internal worker thread.
  *
@@ -3696,7 +3696,7 @@ public:
  * Developers can use listeners (MegaListener, MegaBackupListener)
  * to track the progress of each backup. MegaBackup objects are provided in callbacks sent
  * to these listeners and allow developers to know the state of the backups and their parameters
- * and
+ * and their results.
  *
  * The implementation will receive callbacks from an internal worker thread.
  *
@@ -3815,7 +3815,7 @@ public:
      *
      * You are the owner of the returned object
      *
-     * @return Copy of the MegaError object
+     * @return Copy of the MegaBackup object
      */
     virtual MegaBackup *copy();
 
@@ -8823,7 +8823,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
         */
-        void startTimer( int64_t period, MegaRequestListener *listener = NULL);
+        void startTimer(int64_t period, MegaRequestListener *listener = NULL);
 
 
 #ifdef ENABLE_SYNC
