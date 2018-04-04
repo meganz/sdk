@@ -1479,7 +1479,7 @@ public class MegaApiJava {
      * @return True if the password is correct for the current account, otherwise false.
      */
     public boolean checkPassword(String password){
-        return checkPassword(password);
+        return megaApi.checkPassword(password);
     }
 
     /**
