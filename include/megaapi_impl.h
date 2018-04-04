@@ -236,7 +236,7 @@ public:
     MegaHandle getMegaHandle() const;
     int getTag() const;
     int64_t getPeriod() const;
-    std::string getPeriodString() const;
+    const char *getPeriodString() const;
     int getMaxBackups() const;
     int getState() const;
     long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;

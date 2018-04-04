@@ -3878,7 +3878,7 @@ public:
      *
      * @return The period string of the backup
      */
-    virtual std::string getPeriodString() const;
+    virtual const char *getPeriodString() const;
 
     /**
      * @brief Returns the next absolute timestamp of the next backup.
@@ -8774,7 +8774,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          *
          */
-        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, std::string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, const char *periodstring, int numBackups, MegaRequestListener *listener=NULL);
 
         /**
          * @brief Remove a backup

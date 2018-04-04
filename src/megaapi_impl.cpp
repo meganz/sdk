@@ -20208,9 +20208,9 @@ int64_t MegaBackupController::getPeriod() const
     return period;
 }
 
-string MegaBackupController::getPeriodString() const
+const char *MegaBackupController::getPeriodString() const
 {
-    return periodstring;
+    return periodstring.c_str();
 }
 
 void MegaBackupController::setPeriod(const int64_t &value)
