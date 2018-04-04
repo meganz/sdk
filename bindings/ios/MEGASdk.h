@@ -95,6 +95,11 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeContactLinkVerification = 17  // private - byte array
 };
 
+typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
+    MEGANodeAttributeDuration       = 0,
+    MEGANodeAttributeCoordinates    = 1
+};
+
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
     MEGAPaymentMethodBalance      = 0,
     MEGAPaymentMethodPaypal       = 1,
@@ -685,6 +690,13 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @return Estimated strength of the password
  */
 - (PasswordStrength)passwordStrength:(NSString *)password;
+
+/**
+ * @brief Check if the password is correct for the current account
+ * @param password Password to check
+ * @return YES if the password is correct for the current account, otherwise NO.
+ */
+- (BOOL)checkPassword:(NSString *)password;
 
 #pragma mark - Create account and confirm account Requests
 
@@ -2019,6 +2031,45 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink;
 
 /**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ * @param delegate Delegate to track this request.
+ */
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ */
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude;
+
+/**
  * @brief Generate a public link of a file/folder in MEGA.
  *
  * The associated request type with this request is MEGARequestTypeExport.
@@ -2805,9 +2856,148 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
- * - [MEGARequest: text] - Returns the new value for the attribute
+ * - [MEGARequest text] - Returns the new value for the attribute
  */
 - (void)masterKeyExported;
+
+/**
+ * @brief Notify the user has successfully checked his password
+ *
+ * This function should be called when the user demonstrates that he remembers
+ * the password to access the account
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not continue asking the user
+ * to remind the password for the account in a short time.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)passwordReminderDialogSucceededWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify the user has successfully checked his password
+ *
+ * This function should be called when the user demonstrates that he remembers
+ * the password to access the account
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not continue asking the user
+ * to remind the password for the account in a short time.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ */
+- (void)passwordReminderDialogSucceeded;
+
+/**
+ * @brief Notify the user has successfully skipped the password check
+ *
+ * This function should be called when the user skips the verification of
+ * the password to access the account
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not continue asking the user
+ * to remind the password for the account in a short time.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)passwordReminderDialogSkippedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify the user has successfully skipped the password check
+ *
+ * This function should be called when the user skips the verification of
+ * the password to access the account
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not continue asking the user
+ * to remind the password for the account in a short time.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ */
+- (void)passwordReminderDialogSkipped;
+
+/**
+ * @brief Notify the user wants to totally disable the password check
+ *
+ * This function should be called when the user rejects to verify that he remembers
+ * the password to access the account and doesn't want to see the reminder again.
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not ask the user
+ * to remind the password for the account again.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)passwordReminderDialogBlockedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify the user wants to totally disable the password check
+ *
+ * This function should be called when the user rejects to verify that he remembers
+ * the password to access the account and doesn't want to see the reminder again.
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not ask the user
+ * to remind the password for the account again.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ */
+- (void)passwordReminderDialogBlocked;
+
+/**
+ * @brief Check if the app should show the password reminder dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * @param atLogout YES if the check is being done just before a logout
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the app should show the password reminder dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * @param atLogout YES if the check is being done just before a logout
+ */
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout;
 
 /**
  * @brief Use HTTPS communications only

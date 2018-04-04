@@ -839,6 +839,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     achievements_enabled = false;
     tsLogin = false;
     versions_disabled = false;
+    accountsince = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3191,6 +3192,7 @@ void MegaClient::locallogout()
     achievements_enabled = false;
     tsLogin = false;
     versions_disabled = false;
+    accountsince = 0;
 
     freeq(GET);
     freeq(PUT);
@@ -3259,6 +3261,7 @@ void MegaClient::locallogout()
     auth.clear();
     sessionkey.clear();
     sid.clear();
+    k.clear();
 
     init();
 
@@ -7015,6 +7018,7 @@ void MegaClient::login(const char* email, const byte* pwkey)
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, emailhash, sek));
+    getuserdata();
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
@@ -7027,6 +7031,7 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, emailhash, sek));
+    getuserdata();
 }
 
 void MegaClient::getuserdata()
@@ -7078,6 +7083,7 @@ void MegaClient::login(const byte* session, int size)
         PrnGen::genblock(sek, sizeof sek);
 
         reqs.add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
+        getuserdata();
     }
     else
     {

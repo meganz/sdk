@@ -1474,6 +1474,15 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if the password is correct for the current account
+     * @param password Password to check
+     * @return True if the password is correct for the current account, otherwise false.
+     */
+    public boolean checkPassword(String password){
+        return checkPassword(password);
+    }
+
+    /**
      * Returns the fingerprint of the signing key of the currently open account
      *
      * If the MegaApi object isn't logged in or there's no signing key available,
@@ -3294,6 +3303,87 @@ public class MegaApiJava {
      */
     public void masterKeyExported(MegaRequestListenerInterface listener){
         megaApi.masterKeyExported(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Notify the user has successfully checked his password
+     *
+     * This function should be called when the user demonstrates that he remembers
+     * the password to access the account
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not continue asking the user
+     * to remind the password for the account in a short time.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogSucceeded(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogSucceeded(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Notify the user has successfully skipped the password check
+     *
+     * This function should be called when the user skips the verification of
+     * the password to access the account
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not continue asking the user
+     * to remind the password for the account in a short time.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogSkipped(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogSkipped(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Notify the user wants to totally disable the password check
+     *
+     * This function should be called when the user rejects to verify that he remembers
+     * the password to access the account and doesn't want to see the reminder again.
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not ask the user
+     * to remind the password for the account again.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogBlocked(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogBlocked(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the app should show the password reminder dialog to the user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if the password reminder dialog should be shown
+     *
+     * @param atLogout True if the check is being done just before a logout
+     * @param listener MegaRequestListener to track this request
+     */
+    public void shouldShowPasswordReminderDialog(boolean atLogout, MegaRequestListenerInterface listener){
+        megaApi.shouldShowPasswordReminderDialog(atLogout, createDelegateRequestListener(listener));
     }
 
     /**
