@@ -1198,6 +1198,15 @@ bool MegaSDK::isAchievementsEnabled()
     return megaApi->isAchievementsEnabled();
 }
 
+bool MegaSDK::checkPassword(String^ password)
+{
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    return megaApi->checkPassword((password != nullptr) ? utf8password.c_str() : NULL);
+}
+
 void MegaSDK::setLogLevel(MLogLevel logLevel)
 {
     MegaApi::setLogLevel((int)logLevel);
@@ -2203,6 +2212,46 @@ void MegaSDK::masterKeyExported(MRequestListenerInterface^ listener)
 void MegaSDK::masterKeyExported()
 {
     megaApi->masterKeyExported();
+}
+
+void MegaSDK::passwordReminderDialogSucceeded(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogSucceeded(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogSucceeded()
+{
+    megaApi->passwordReminderDialogSucceeded();
+}
+
+void MegaSDK::passwordReminderDialogSkipped(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogSkipped(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogSkipped()
+{
+    megaApi->passwordReminderDialogSkipped();
+}
+
+void MegaSDK::passwordReminderDialogBlocked(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogBlocked(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogBlocked()
+{
+    megaApi->passwordReminderDialogBlocked();
+}
+
+void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout, MRequestListenerInterface^ listener)
+{
+    megaApi->shouldShowPasswordReminderDialog(atLogout, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout)
+{
+    megaApi->shouldShowPasswordReminderDialog(atLogout);
 }
 
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)

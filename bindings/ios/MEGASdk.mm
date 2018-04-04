@@ -459,6 +459,10 @@ using namespace mega;
     return (PasswordStrength) self.megaApi->getPasswordStrength(password ? [password UTF8String] : NULL);
 }
 
+- (BOOL)checkPassword:(NSString *)password {
+    return self.megaApi->checkPassword(password ? [password UTF8String] : NULL);
+}
+
 - (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -981,6 +985,38 @@ using namespace mega;
 
 - (void)masterKeyExported {
     self.megaApi->masterKeyExported();
+}
+
+- (void)passwordReminderDialogSucceededWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->passwordReminderDialogSucceeded([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)passwordReminderDialogSucceeded {
+    self.megaApi->passwordReminderDialogSucceeded();
+}
+
+- (void)passwordReminderDialogSkippedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->passwordReminderDialogSkipped([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)passwordReminderDialogSkipped {
+    self.megaApi->passwordReminderDialogSkipped();
+}
+
+- (void)passwordReminderDialogBlockedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->passwordReminderDialogBlocked([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)passwordReminderDialogBlocked {
+    self.megaApi->passwordReminderDialogBlocked();
+}
+
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->shouldShowPasswordReminderDialog(atLogout, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout {
+    self.megaApi->shouldShowPasswordReminderDialog(atLogout);
 }
 
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
