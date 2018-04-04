@@ -1373,6 +1373,11 @@ bool MegaApi::isAchievementsEnabled()
     return pImpl->isAchievementsEnabled();
 }
 
+bool MegaApi::checkPassword(const char *password)
+{
+    return pImpl->checkPassword(password);
+}
+
 #ifdef ENABLE_CHAT
 char *MegaApi::getMyFingerprint()
 {
@@ -1925,6 +1930,26 @@ char *MegaApi::exportMasterKey()
 void MegaApi::masterKeyExported(MegaRequestListener *listener)
 {
     pImpl->updatePwdReminderData(false, false, true, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogSucceeded(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(true, false, false, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogSkipped(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, true, false, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogBlocked(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, false, false, true, false, listener);
+}
+
+void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener)
+{
+    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, atLogout, listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)

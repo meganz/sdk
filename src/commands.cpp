@@ -3072,6 +3072,15 @@ void CommandGetUserData::procresult()
             jid = client->json.gethandle(MegaClient::USERHANDLE);
             break;
 
+        case 'k':
+            client->k.resize(SymmCipher::KEYLENGTH);
+            client->json.storebinary((byte *)client->k.data(), client->k.size());
+            break;
+
+        case MAKENAMEID5('s', 'i', 'n', 'c', 'e'):
+            client->accountsince = client->json.getint();
+            break;
+
         case MAKENAMEID4('p', 'u', 'b', 'k'):
             client->json.storeobject(&pubk);
             break;

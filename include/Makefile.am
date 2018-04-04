@@ -62,6 +62,10 @@ if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
 endif
 
+if USE_LIBUV
+nobase_libmegainclude_HEADERS += mega/mega_http_parser.h
+endif
+
 if ANDROID
 nobase_libmegainclude_HEADERS += \
 	mega/config-android.h \

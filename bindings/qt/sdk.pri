@@ -96,7 +96,7 @@ CONFIG(USE_MEDIAINFO) {
         LIBS += -lMediaInfo -lZenLib -lzlibstat
     }
 
-    mac {
+    macx {
         LIBS += -lmediainfo -lzen -lz
     }
 
@@ -472,5 +472,14 @@ macx {
 
    LIBS += -L$$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/ $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcares.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libcurl.a $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libsodium.a \
             -lz -lcryptopp
+
+
+   CONFIG(USE_OPENSSL) {
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/openssl
+    LIBS += -lssl -lcrypto
+   }
+
+
+
    LIBS += -framework SystemConfiguration
 }
