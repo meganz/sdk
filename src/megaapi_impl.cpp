@@ -4271,18 +4271,18 @@ string MegaApiImpl::userAttributeToString(int type)
             break;
 
         case MegaApi::USER_ATTR_LANGUAGE:
-            attrname = "!lang";
+            attrname = "^!lang";
 
         case MegaApi::USER_ATTR_PWD_REMINDER:
-            attrname = "!pwd";
+            attrname = "^!prd";
             break;
 
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-            attrname = "!dv";
+            attrname = "^!dv";
             break;
 
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "clv";
+            attrname = "^clv";
             break;
 
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
