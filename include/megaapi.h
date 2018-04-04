@@ -7249,10 +7249,46 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getFlag - Returns true if the password reminder dialog should be shown
          *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT but the value of MegaRequest::getFlag will still
+         * be valid.
+         *
          * @param atLogout True if the check is being done just before a logout
          * @param listener MegaRequestListener to track this request
          */
         void shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable or disable the generation of rich previews
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+         *
+         * @param enable True to enable the generation of rich previews
+         * @param listener MegaRequestListener to track this request
+         */
+        void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the generation of rich previews is enabled
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if the generation of rich previews is enabled
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT but the value of MegaRequest::getFlag will still
+         * be valid.
+         *
+         * @param listener MegaRequestListener to track this request
+         *
+         */
+        void areRichPreviewsEnabled(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account

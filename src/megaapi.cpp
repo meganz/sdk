@@ -1941,6 +1941,16 @@ void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListene
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, atLogout, listener);
 }
 
+void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    pImpl->enableRichPreviews(enable, listener);
+}
+
+void MegaApi::areRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_RICH_PREVIEWS, NULL, 0, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);

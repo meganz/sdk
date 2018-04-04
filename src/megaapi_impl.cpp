@@ -5104,6 +5104,17 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
     waiter->notify();
 }
 
+void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string rawvalue = enable ? "1" : "0";
+    string base64value;
+    Base64::btoa(rawvalue, base64value);
+    stringMap->set("num", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_EMAIL, listener);
@@ -11610,6 +11621,19 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         // must be converted into Base64 strings to avoid problems
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
+
+        if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
+        {
+            const char *value = stringMap->get("num");
+            if (value)
+            {
+                string sValue = value;
+                string bValue;
+                Base64::atob(sValue, bValue);
+                request->setFlag(bValue == "1");
+            }
+        }
+
         delete stringMap;
     }
 
