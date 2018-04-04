@@ -22059,7 +22059,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         if (httpctx->server->isHandleWebDavAllowed(h))
         {
             response << "Allow: GET, POST, HEAD, OPTIONS, PROPFIND, MOVE, PUT, DELETE, MKCOL, COPY, LOCK, UNLOCK, PROPPATCH\r\n"
-                        "dav: 1 \r\n"; // 2 requires LOCK to be fully functional
+                        "dav: 1, 2 \r\n"; // 2 requires LOCK to be fully functional
         }
         else
         {
