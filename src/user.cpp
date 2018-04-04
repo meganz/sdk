@@ -397,7 +397,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_RICH_PREVIEWS:
-            attrname = "*!richprevs";
+            attrname = "*!rp";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -481,7 +481,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_CONTACT_LINK_VERIFICATION;
     }
-    else if(!strcmp(name, "*!richprevs"))
+    else if(!strcmp(name, "*!rp"))
     {
         return ATTR_RICH_PREVIEWS;
     }

@@ -4286,7 +4286,7 @@ string MegaApiImpl::userAttributeToString(int type)
             break;
 
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
-            attrname = "*!richprevs";
+            attrname = "*!rp";
             break;
     }
 
