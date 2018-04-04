@@ -50,6 +50,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/gfx/qt.h \
 	mega/mega_utf8proc.h \
 	mega/mega_evt_tls.h \
+	mega/mega_evt_queue.h \
 	mega/mega_zxcvbn.h \
 	mega/mega_dict-src.h \
 	mega/gfx/freeimage.h \
@@ -58,6 +59,10 @@ nobase_libmegainclude_HEADERS = \
 
 if BUILD_MEGAAPI
 nobase_libmegainclude_HEADERS += megaapi.h megaapi_impl.h
+endif
+
+if USE_LIBUV
+nobase_libmegainclude_HEADERS += mega/mega_http_parser.h
 endif
 
 if ANDROID
