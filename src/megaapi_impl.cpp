@@ -3015,8 +3015,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
         case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
-        case TYPE_ADD_BACKUP: return "ADD_BACKUP";
-        case TYPE_TIMER: return "STABLISH_TIMER";
         case TYPE_REMOVE_VERSIONS: return "REMOVE_VERSIONS";
         case TYPE_CHAT_ARCHIVE: return "CHAT_ARCHIVE";
         case TYPE_WHY_AM_I_BLOCKED: return "WHY_AM_I_BLOCKED";
@@ -3025,6 +3023,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
+        case TYPE_ADD_BACKUP: return "ADD_BACKUP";
+        case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
+        case TYPE_TIMER: return "SET_TIMER";
+        case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
     }
     return "UNKNOWN";
 }
