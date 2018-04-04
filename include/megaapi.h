@@ -6555,6 +6555,8 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * Get whether user generates rich-link messages or not (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6654,6 +6656,8 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * Get whether user generates rich-link messages or not (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6793,6 +6797,8 @@ class MegaApi
          * Get the last interaction of the contacts of the user (private)
          * MegaApi::USER_ATTR_KEYRING = 7
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * Get whether user generates rich-link messages or not (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
