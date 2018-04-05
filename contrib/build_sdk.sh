@@ -752,6 +752,9 @@ freeimage_pkg() {
 
     package_extract $name $freeimage_file $freeimage_dir_extract
     
+    #Fix issue with powf64 redefined in mathcalls.h in glibc 2.27
+    find $freeimage_dir_extract/FreeImage/ -type f -print0 | xargs -0 sed -i "s#powf64#powf64freeimage#g"
+
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
     
