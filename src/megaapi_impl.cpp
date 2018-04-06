@@ -19802,6 +19802,13 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->server->fsAccess->tmpnamelocal(&suffix);
             httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
             httpctx->tmpFileName.append(utf8suffix);
+
+            char ext[8];
+            if (httpctx->server->fsAccess->getextension(&httpctx->path, ext, sizeof ext))
+            {
+                httpctx->tmpFileName.append(ext);
+            }
+
             httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             string localPath;
             httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
@@ -20848,6 +20855,11 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->server->fsAccess->tmpnamelocal(&suffix);
                 httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
                 httpctx->tmpFileName.append(utf8suffix);
+                char ext[8];
+                if (httpctx->server->fsAccess->getextension(&httpctx->path, ext, sizeof ext))
+                {
+                    httpctx->tmpFileName.append(ext);
+                }
                 httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 string localPath;
                 httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
