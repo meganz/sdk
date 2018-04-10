@@ -7271,7 +7271,7 @@ class MegaApi
         void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Check if the generation of rich previews is enabled
+         * @brief Check if the app should show the rich link warning dialog to the user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -7280,15 +7280,26 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getFlag - Returns true if the generation of rich previews is enabled
+         * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
+         * modify the message with a rich link. If number is bigger than tree and extra option "Never"
+         * has be added to the warning dialog
          *
          * If the corresponding user attribute is not set yet, the request will fail with the
-         * error code MegaError::API_ENOENT but the value of MegaRequest::getFlag will still
-         * be valid.
+         * error code MegaError::API_ENOENT but the value of MegaRequest::getFlag and
+         * MegaRequest::getNumber will still be valid.
          *
          * @param listener MegaRequestListener to track this request
          *
          */
-        void areRichPreviewsEnabled(MegaRequestListener *listener = NULL);
+        void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the number of times "Not now" option has been selected
+         *
+         * @param value Number of times "Not now" option has been selected
+         * @param listener MegaRequestListener to track this request
+         */
+        void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account

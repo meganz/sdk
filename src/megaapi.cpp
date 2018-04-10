@@ -1946,9 +1946,14 @@ void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
     pImpl->enableRichPreviews(enable, listener);
 }
 
-void MegaApi::areRichPreviewsEnabled(MegaRequestListener *listener)
+void MegaApi::shouldShowRichLinkWarning(MegaRequestListener *listener)
 {
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_RICH_PREVIEWS, NULL, 0, listener);
+}
+
+void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
+{
+    pImpl->setRichLinkWarningCounterValue(value, listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
