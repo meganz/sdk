@@ -20425,6 +20425,11 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             link.append(httpctx->nodekey);
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
+            httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+            httpctx->transfer->setPath(httpctx->path.c_str());
+            httpctx->transfer->setFileName(httpctx->nodename.c_str());
+            httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+            httpctx->transfer->setStartTime(Waiter::ds);
             return 0;
         }
     }
