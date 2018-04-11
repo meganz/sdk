@@ -5118,9 +5118,10 @@ void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
 void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
 {
     MegaStringMap *stringMap = new MegaStringMapPrivate();
-    string rawvalue = to_string(value);
+    std::ostringstream oss;
+    oss << value;
     string base64value;
-    Base64::btoa(rawvalue, base64value);
+    Base64::btoa(oss.str(), base64value);
     stringMap->set("c", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
