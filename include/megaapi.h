@@ -7281,8 +7281,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getFlag - Returns true if the generation of rich previews is enabled
          * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
-         * modify the message with a rich link. If number is bigger than tree and extra option "Never"
-         * has be added to the warning dialog
+         * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+         * must be added to the warning dialog
          *
          * If the corresponding user attribute is not set yet, the request will fail with the
          * error code MegaError::API_ENOENT but the value of MegaRequest::getFlag and
