@@ -21503,6 +21503,13 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->server->fsAccess->tmpnamelocal(&suffix);
             httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
             httpctx->tmpFileName.append(utf8suffix);
+
+            char ext[8];
+            if (httpctx->server->fsAccess->getextension(&httpctx->path, ext, sizeof ext))
+            {
+                httpctx->tmpFileName.append(ext);
+            }
+
             httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             string localPath;
             httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
@@ -22059,7 +22066,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         if (httpctx->server->isHandleWebDavAllowed(h))
         {
             response << "Allow: GET, POST, HEAD, OPTIONS, PROPFIND, MOVE, PUT, DELETE, MKCOL, COPY, LOCK, UNLOCK, PROPPATCH\r\n"
-                        "dav: 1 \r\n"; // 2 requires LOCK to be fully functional
+                        "dav: 1, 2 \r\n"; // 2 requires LOCK to be fully functional
         }
         else
         {
@@ -22119,6 +22126,11 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             link.append(httpctx->nodekey);
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
+            httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+            httpctx->transfer->setPath(httpctx->path.c_str());
+            httpctx->transfer->setFileName(httpctx->nodename.c_str());
+            httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
+            httpctx->transfer->setStartTime(Waiter::ds);
             return 0;
         }
     }
@@ -22549,6 +22561,11 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->server->fsAccess->tmpnamelocal(&suffix);
                 httpctx->server->fsAccess->local2path(&suffix, &utf8suffix);
                 httpctx->tmpFileName.append(utf8suffix);
+                char ext[8];
+                if (httpctx->server->fsAccess->getextension(&httpctx->path, ext, sizeof ext))
+                {
+                    httpctx->tmpFileName.append(ext);
+                }
                 httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 string localPath;
                 httpctx->server->fsAccess->path2local(&httpctx->tmpFileName, &localPath);
