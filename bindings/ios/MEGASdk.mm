@@ -106,6 +106,10 @@ using namespace mega;
     return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers(MegaTransfer::TYPE_UPLOAD) cMemoryOwn:YES];
 }
 
+- (Retry)waiting {
+    return (Retry) self.megaApi->isWaiting();
+}
+
 - (NSNumber *)totalsDownloadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
 }

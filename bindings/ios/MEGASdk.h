@@ -133,6 +133,16 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
     PasswordStrengthStrong = 4
 };
 
+typedef NS_ENUM(NSUInteger, Retry) {
+    RetryNone = 0,
+    RetryConnectivity = 1,
+    RetryServersBusy = 2,
+    RetryApiLock = 3,
+    RetryRateLimit = 4,
+    RetryLocalLock = 5,
+    RetryUnknown = 6
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -208,6 +218,35 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @brief Upload active transfers.
  */
 @property (readonly, nonatomic) MEGATransferList *uploadTransfers;
+
+/**
+ * @brief Check if the SDK is waiting to complete a request and get the reason
+ * @return State of SDK.
+ *
+ * Valid values are:
+ * - RetryNone = 0
+ * SDK is not waiting for the server to complete a request
+ *
+ * - RetryConnectivity = 1
+ * SDK is waiting for the server to complete a request due to connectivity issues
+ *
+ * - RetryServersBusy = 2
+ * SDK is waiting for the server to complete a request due to a HTTP error 500
+ *
+ * - RetryApiLock = 3
+ * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+ *
+ * - RetryRateLimit = 4,
+ * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+ *
+ * - RetryLocalLock = 5
+ * SDK is waiting for a local locked file
+ *
+ * - RetryUnknown = 6
+ * SDK is waiting for the server to complete a request with unknown reason
+ *
+ */
+@property (readonly, nonatomic) Retry waiting;
 
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
