@@ -2198,12 +2198,14 @@ void MegaClient::exec()
                                                     && (sync->dirnotify->failed || fsaccess->notifyfailed
                                                         || sync->dirnotify->error || fsaccess->notifyerr))
                                             {
-                                                LOG_warn << "Sync scan failed";
-                                                syncscanfailed = true;
+                                                LOG_warn << "Sync scan failed " << sync->dirnotify->failed
+                                                         << " " << fsaccess->notifyfailed
+                                                         << " " << sync->dirnotify->error
+                                                         << " " << fsaccess->notifyerr;
                                                 scanfailed = true;
 
                                                 sync->scan(&sync->localroot.localname, NULL);
-                                                sync->dirnotify->error = false;
+                                                sync->dirnotify->error = 0;
                                                 sync->fullscan = true;
                                                 sync->scanseqno++;
                                             }
@@ -2215,7 +2217,10 @@ void MegaClient::exec()
                             if (scanfailed)
                             {
                                 fsaccess->notifyerr = false;
-                                syncscanbt.backoff(50 + totalnodes / 128);
+                                dstime backoff = 50 + totalnodes / 128;
+                                syncscanbt.backoff(backoff);
+                                syncscanfailed = true;
+                                LOG_warn << "Next full scan in " << backoff << " ds";
                             }
 
                             // clear pending global notification error flag if all syncs were marked

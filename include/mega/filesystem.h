@@ -182,10 +182,10 @@ struct MEGA_API DirNotify
 
     // set if no notification available on this platform or a permanent failure
     // occurred
-    bool failed;
+    int failed;
 
     // set if a temporary error occurred
-    bool error;
+    int error;
 
     // base path
     string localbasepath;

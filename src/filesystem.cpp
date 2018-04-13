@@ -141,8 +141,8 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
     localbasepath = *clocalbasepath;
     ignore = *cignore;
 
-    failed = true;
-    error = false;
+    failed = 1;
+    error = 0;
     sync = NULL;
 }
 
