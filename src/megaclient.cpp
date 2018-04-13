@@ -2022,6 +2022,7 @@ void MegaClient::exec()
                         else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].size())
                         {
                             syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
+                            fsaccess->local2path(&sync->dirnotify->notifyq[DirNotify::RETRY].front().path, &blockedfile);
                             syncfslockretry = true;
                         }
                     }
@@ -2287,7 +2288,6 @@ void MegaClient::exec()
                         if (syncfsopsfailed)
                         {
                             syncfsopsfailed = false;
-                            blockedfile.clear();
                             app->syncupdate_local_lockretry(false);
                         }
                     }
@@ -10664,6 +10664,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else
                 {
                     fsaccess->local2path(localpath, &blockedfile);
+                    LOG_warn << "Transient error deleting " << blockedfile;
                     success = false;
                     lit++;
                 }
@@ -10729,7 +10730,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 {
                     // schedule retry
                     fsaccess->local2path(&curpath, &blockedfile);
-                    LOG_debug << "Transient error moving localnode";
+                    LOG_debug << "Transient error moving localnode " << blockedfile;
                     success = false;
                 }
             }
@@ -10800,7 +10801,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else if (success && fsaccess->transient_error)
                 {
                     fsaccess->local2path(localpath, &blockedfile);
-                    LOG_debug << "Transient error creating folder";
+                    LOG_debug << "Transient error creating folder " << blockedfile;
                     success = false;
                 }
                 else if (!fsaccess->transient_error)
