@@ -10565,8 +10565,13 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 
                 ll->setnode(rit->second);
 
+                if (*ll == *(FileFingerprint*)rit->second)
+                {
+                    // both files are identical
+                    nchildren.erase(rit);
+                }
                 // file exists on both sides - do not overwrite if local version newer or same
-                if (ll->mtime > rit->second->mtime)
+                else if (ll->mtime > rit->second->mtime)
                 {
                     // local version is newer
                     LOG_debug << "LocalNode is newer: " << ll->name << " LNmtime: " << ll->mtime << " Nmtime: " << rit->second->mtime;
@@ -10585,15 +10590,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                     }
                     else
                     {
-                        LOG_warn << "Syncdown. Same mtime and size, but lower CRC: " << ll->name
+                        LOG_warn << "Syncdown. Same mtime and size, but bigger CRC: " << ll->name
                                  << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
                     }
 
-                    nchildren.erase(rit);
-                }
-                else if (*ll == *(FileFingerprint*)rit->second)
-                {
-                    // both files are identical
                     nchildren.erase(rit);
                 }
                 else
@@ -10955,6 +10955,72 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 // file on both sides - do not overwrite if local version older or identical
                 if (ll->type == FILENODE)
                 {
+                    if (ll->node != rit->second)
+                    {
+                        ll->sync->statecacheadd(ll);
+                    }
+                    ll->setnode(rit->second);
+
+                    // check if file is likely to be identical
+                    if (*ll == *(FileFingerprint*)rit->second)
+                    {
+                        // files have the same size and the same mtime (or the
+                        // same fingerprint, if available): no action needed
+                        if (!ll->checked)
+                        {
+                            if (gfx && gfx->isgfx(&ll->localname))
+                            {
+                                int missingattr = 0;
+
+                                // check for missing imagery
+                                if (!ll->node->hasfileattribute(GfxProc::THUMBNAIL))
+                                {
+                                    missingattr |= 1 << GfxProc::THUMBNAIL;
+                                }
+
+                                if (!ll->node->hasfileattribute(GfxProc::PREVIEW))
+                                {
+                                    missingattr |= 1 << GfxProc::PREVIEW;
+                                }
+
+                                if (missingattr && checkaccess(ll->node, OWNER)
+                                        && !gfx->isvideo(&ll->localname))
+                                {
+                                    char me64[12];
+                                    Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+                                    if (ll->node->attrs.map.find('f') == ll->node->attrs.map.end() || ll->node->attrs.map['f'] != me64)
+                                    {
+                                        LOG_debug << "Restoring missing attributes: " << ll->name;
+                                        string localpath;
+                                        ll->getlocalpath(&localpath);
+                                        SymmCipher *symmcipher = ll->node->nodecipher();
+                                        gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
+                                    }
+                                }
+                            }
+
+                            ll->checked = true;
+                        }
+
+                        // if this node is being fetched, but it's already synced
+                        if (rit->second->syncget)
+                        {
+                            LOG_debug << "Stopping unneeded download";
+                            delete rit->second->syncget;
+                            rit->second->syncget = NULL;
+                        }
+
+                        // if this localnode is being uploaded, but it's already synced
+                        if (ll->transfer)
+                        {
+                            LOG_debug << "Stopping unneeded upload";
+                            stopxfer(ll);
+                        }
+
+                        ll->treestate(TREESTATE_SYNCED);
+                        continue;
+                    }
+
                     // skip if remote file is newer
                     if (ll->mtime < rit->second->mtime)
                     {
@@ -10978,78 +11044,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             LOG_warn << "Syncup. Same mtime and size, but lower CRC: " << ll->name
                                      << " mtime: " << ll->mtime << " size: " << ll->size << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
 
-                            continue;
-                        }
-                    }
-
-                    if (ll->node != rit->second)
-                    {
-                        ll->sync->statecacheadd(ll);
-                    }
-
-                    ll->setnode(rit->second);
-
-                    if (ll->size == rit->second->size)
-                    {
-                        // check if file is likely to be identical
-                        if (rit->second->isvalid
-                          ? *ll == *(FileFingerprint*)rit->second
-                          : (ll->mtime == rit->second->mtime))
-                        {
-                            // files have the same size and the same mtime (or the
-                            // same fingerprint, if available): no action needed
-                            if (!ll->checked)
-                            {                                
-                                if (gfx && gfx->isgfx(&ll->localname))
-                                {
-                                    int missingattr = 0;
-
-                                    // check for missing imagery
-                                    if (!ll->node->hasfileattribute(GfxProc::THUMBNAIL))
-                                    {
-                                        missingattr |= 1 << GfxProc::THUMBNAIL;
-                                    }
-
-                                    if (!ll->node->hasfileattribute(GfxProc::PREVIEW))
-                                    {
-                                        missingattr |= 1 << GfxProc::PREVIEW;
-                                    }
-
-                                    if (missingattr && checkaccess(ll->node, OWNER)
-                                            && !gfx->isvideo(&ll->localname))
-                                    {
-                                        char me64[12];
-                                        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-                                        if (ll->node->attrs.map.find('f') == ll->node->attrs.map.end() || ll->node->attrs.map['f'] != me64)
-                                        {
-                                            LOG_debug << "Restoring missing attributes: " << ll->name;
-                                            string localpath;
-                                            ll->getlocalpath(&localpath);
-                                            SymmCipher *symmcipher = ll->node->nodecipher();
-                                            gfx->gendimensionsputfa(NULL, &localpath, ll->node->nodehandle, symmcipher, missingattr);
-                                        }
-                                    }
-                                }
-
-                                ll->checked = true;
-                            }
-
-                            // if this node is being fetched, but it's already synced
-                            if (rit->second->syncget)
-                            {
-                                LOG_debug << "Stopping unneeded download";
-                                delete rit->second->syncget;
-                                rit->second->syncget = NULL;
-                            }
-
-                            // if this localnode is being uploaded, but it's already synced
-                            if (ll->transfer)
-                            {
-                                LOG_debug << "Stopping unneeded upload";
-                                stopxfer(ll);
-                            }
-
-                            ll->treestate(TREESTATE_SYNCED);
                             continue;
                         }
                     }
