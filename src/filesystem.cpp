@@ -153,7 +153,8 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     path.assign(localpath, len);
 
 #ifdef ENABLE_SYNC
-    if (notifyq[q].size()
+    if ((q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
+            && notifyq[q].size()
             && notifyq[q].back().localnode == l
             && notifyq[q].back().path == path)
     {
