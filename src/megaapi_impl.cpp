@@ -926,10 +926,16 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, string *localpath)
     }
 #endif
 
+    string utf8path;
+    fsAccess->local2path(localpath, &utf8path);
+    if (!utf8path.size())
+    {
+        LOG_err << " invalid utf8 path, excluded: " << *localpath;
+        return false;
+    }
+
     if (regExp || excludedPaths.size())
     {             
-        string utf8path;
-        fsAccess->local2path(localpath, &utf8path);
         const char* path = utf8path.c_str();
 
         for (unsigned int i = 0; i < excludedPaths.size(); i++)
