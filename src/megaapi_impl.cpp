@@ -1316,6 +1316,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION;
     }
+    if(user->changed.richPreviews)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RICH_PREVIEWS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -4288,18 +4292,22 @@ string MegaApiImpl::userAttributeToString(int type)
             break;
 
         case MegaApi::USER_ATTR_LANGUAGE:
-            attrname = "!lang";
+            attrname = "^!lang";
 
         case MegaApi::USER_ATTR_PWD_REMINDER:
-            attrname = "!pwd";
+            attrname = "^!prd";
             break;
 
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-            attrname = "!dv";
+            attrname = "^!dv";
             break;
 
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "clv";
+            attrname = "^clv";
+            break;
+
+        case MegaApi::USER_ATTR_RICH_PREVIEWS:
+            attrname = "*!rp";
             break;
     }
 
@@ -4328,6 +4336,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_AUTHRING:
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
+        case MegaApi::USER_ATTR_RICH_PREVIEWS:
             scope = '*';
             break;
 
@@ -5093,6 +5102,29 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
     request->setParamType(type);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string rawvalue = enable ? "1" : "0";
+    string base64value;
+    Base64::btoa(rawvalue, base64value);
+    stringMap->set("num", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    std::ostringstream oss;
+    oss << value;
+    string base64value;
+    Base64::btoa(oss.str(), base64value);
+    stringMap->set("c", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
 }
 
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
@@ -11601,6 +11633,28 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         // must be converted into Base64 strings to avoid problems
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
+
+        if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
+        {
+            const char *value = stringMap->get("num");
+            if (value)
+            {
+                string sValue = value;
+                string bValue;
+                Base64::atob(sValue, bValue);
+                request->setFlag(bValue == "1");
+            }
+
+            value = stringMap->get("c");
+            if (value)
+            {
+                string sValue = value;
+                string bValue;
+                Base64::atob(sValue, bValue);
+                request->setNumber(atoi(bValue.c_str()));
+            }
+        }
+
         delete stringMap;
     }
 
