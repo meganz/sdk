@@ -521,6 +521,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         l = NULL;
 
         client->fsaccess->local2path(localpath, &path);
+        assert(path.size());
     }
     else
     {
@@ -566,7 +567,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         client->fsaccess->local2path(&tmppath, &path);
 
         // path invalid?
-        if (!l && !newname.size())
+        if ( ( !l && !newname.size() ) || !path.size())
         {
             LOG_warn << "Invalid path: " << path;
             return NULL;
