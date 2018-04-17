@@ -176,6 +176,7 @@ struct MEGA_API DirNotify
 {
     typedef enum { EXTRA, DIREVENTS, RETRY, NUMQUEUES } notifyqueue;
 
+    // notifyq[EXTRA] is like DIREVENTS, but delays its processing (for network filesystems)
     // notifyq[DIREVENTS] is fed with filesystem changes
     // notifyq[RETRY] receives transient errors that need to be retried
     notify_deque notifyq[NUMQUEUES];
