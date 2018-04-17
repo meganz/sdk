@@ -24,6 +24,11 @@
 
 namespace mega {
 
+GfxProcExternal::GfxProcExternal()
+{
+    processor = NULL;
+}
+
 void GfxProcExternal::setProcessor(MegaGfxProcessor *processor)
 {
 	this->processor = processor;
