@@ -2204,6 +2204,10 @@ void MegaClient::exec()
                                                          << " " << fsaccess->notifyfailed
                                                          << " " << sync->dirnotify->error
                                                          << " " << fsaccess->notifyerr;
+                                                if (sync->dirnotify->failed)
+                                                {
+                                                    LOG_warn << "The cause was: " << sync->dirnotify->failreason;
+                                                }
                                                 scanfailed = true;
 
                                                 sync->scan(&sync->localroot.localname, NULL);

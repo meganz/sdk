@@ -142,6 +142,7 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
     ignore = *cignore;
 
     failed = 1;
+    failreason = "Not initialized";
     error = 0;
     sync = NULL;
 }

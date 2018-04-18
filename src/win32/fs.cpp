@@ -1354,6 +1354,7 @@ void WinDirNotify::readchanges()
         {
             // permanent failure - switch to scanning mode
             failed = e;
+            failreason = "Fatal error returned by ReadDirectoryChangesW";
         }
     }
 #endif
@@ -1388,6 +1389,7 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
     else
     {
         failed = GetLastError();
+        failreason = "CreateFileW was unable to open the folder";
         LOG_err << "Unable to initialize filesystem notifications. Error: " << failed;
     }
 

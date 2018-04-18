@@ -185,6 +185,9 @@ struct MEGA_API DirNotify
     // occurred
     int failed;
 
+    // reason of the permanent failure of filesystem notifications
+    string failreason;
+
     // set if a temporary error occurred
     int error;
 
