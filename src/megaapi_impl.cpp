@@ -3848,7 +3848,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     totalUploads = 0;
     totalDownloads = 0;
     client = NULL;
-    waiting = false;
     waitingRequest = RETRY_NONE;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
@@ -10097,7 +10096,6 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
         client->abortbackoff(false);
     }
 
-    this->waiting = waiting;
     this->fireOnGlobalSyncStateChanged();
 }
 #endif
@@ -11029,7 +11027,6 @@ void MegaApiImpl::logout_result(error e)
         pendingDownloads = 0;
         totalUploads = 0;
         totalDownloads = 0;
-        waiting = false;
         waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
@@ -17039,10 +17036,17 @@ void MegaApiImpl::update()
 int MegaApiImpl::isWaiting()
 {
 #ifdef ENABLE_SYNC
-    if (waiting || client->syncfslockretry)
+    if (client->syncfslockretry || client->syncfsopsfailed)
+    {
+        LOG_debug << "SDK waiting for a blocked file: " << client->blockedfile;
         return RETRY_LOCAL_LOCK;
+    }
 #endif
 
+    if (waitingRequest)
+    {
+        LOG_debug << "SDK waiting for a request. Reason: " << waitingRequest;
+    }
     return waitingRequest;
 }
 

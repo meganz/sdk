@@ -2015,7 +2015,6 @@ protected:
 
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
-        bool waiting;
         retryreason_t waitingRequest;
         vector<string> excludedNames;
         vector<string> excludedPaths;
