@@ -5447,11 +5447,10 @@ void MegaClient::sc_chatnode()
 void MegaClient::sc_chatflags()
 {
     bool done = false;
+    handle chatid = UNDEF;
+    byte flags = 0;
     while(!done)
     {
-        handle chatid = UNDEF;
-        byte flags = 0;
-
         switch (jsonsc.getnameid())
         {
             case MAKENAMEID2('i','d'):
