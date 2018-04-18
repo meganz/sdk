@@ -1219,6 +1219,22 @@ using namespace mega;
     self.megaApi->pauseTransfers(pause, (int)direction);
 }
 
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->pauseTransfer((transfer != nil) ? [transfer getCPtr] : NULL, pause, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause {
+    self.megaApi->pauseTransfer((transfer != nil) ? [transfer getCPtr] : NULL, pause);
+}
+
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->pauseTransferByTag((int)transferTag, pause, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause {
+    self.megaApi->pauseTransferByTag((int)transferTag, pause);
+}
+
 - (void)enableTransferResumption:(NSString *)loggedOutId {
     self.megaApi->enableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
 }

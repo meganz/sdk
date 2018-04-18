@@ -3758,6 +3758,60 @@ typedef NS_ENUM(NSUInteger, Retry) {
 - (void)pauseTransfers:(BOOL)pause;
 
 /**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transfer Transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transfer Transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ */
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transferTag Tag of the transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transferTag Tag of the transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ */
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause;
+
+/**
  * @brief Enable the resumption of transfers
  *
  * This function enables the cache of transfers, so they can be resumed later.
