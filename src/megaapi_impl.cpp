@@ -2147,6 +2147,7 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(PendingContactRequest *requ
     targetEmail = request->targetemail.size() ? MegaApi::strdup(request->targetemail.c_str()) : NULL;
     creationTime = request->ts;
     modificationTime = request->uts;
+    autoaccepted = request->autoaccepted;
 
     if(request->changed.accepted)
     {
@@ -2186,6 +2187,7 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(const MegaContactRequest *r
     modificationTime = request->getModificationTime();
     status = request->getStatus();
     outgoing = request->isOutgoing();
+    autoaccepted = request->isAutoAccepted();
 }
 
 MegaContactRequestPrivate::~MegaContactRequestPrivate()
@@ -2245,6 +2247,10 @@ bool MegaContactRequestPrivate::isOutgoing() const
     return outgoing;
 }
 
+bool MegaContactRequestPrivate::isAutoAccepted() const
+{
+    return autoaccepted;
+}
 
 MegaAccountDetails *MegaAccountDetailsPrivate::fromAccountDetails(AccountDetails *details)
 {

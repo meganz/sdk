@@ -1061,6 +1061,11 @@ bool MegaContactRequest::isOutgoing() const
     return true;
 }
 
+bool MegaContactRequest::isAutoAccepted() const
+{
+    return false;
+}
+
 //Request callbacks
 void MegaRequestListener::onRequestStart(MegaApi *, MegaRequest *)
 { }

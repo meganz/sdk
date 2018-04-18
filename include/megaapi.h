@@ -3367,6 +3367,12 @@ public:
      * @return True if the request is outgoing and false if it's incoming
      */
     virtual bool isOutgoing() const;
+
+    /**
+     * @brief Returns true is the incoming contact request is being automatically accepted
+     * @return True if the incoming contact request is being automatically accepted
+     */
+    virtual bool isAutoAccepted() const;
 };
 
 

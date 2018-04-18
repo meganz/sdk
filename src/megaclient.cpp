@@ -4775,6 +4775,7 @@ void MegaClient::sc_ipc()
     m_time_t uts = 0;
     m_time_t rts = 0;
     m_time_t dts = 0;
+    m_off_t clv = 0;
     const char *m = NULL;
     const char *msg = NULL;
     handle p = UNDEF;
@@ -4802,6 +4803,9 @@ void MegaClient::sc_ipc()
                 break;
             case MAKENAMEID3('m', 's', 'g'):
                 msg = jsonsc.getvalue();
+                break;
+            case MAKENAMEID3('c', 'l', 'v'):
+                clv = jsonsc.getint();
                 break;
             case 'p':
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
@@ -4859,6 +4863,7 @@ void MegaClient::sc_ipc()
 
                     pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
                     mappcr(p, pcr);
+                    pcr->autoaccepted = clv;
                 }
                 notifypcr(pcr);
 
