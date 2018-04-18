@@ -2131,6 +2131,7 @@ void MegaClient::exec()
                             // FIXME: only syncup for subtrees that were actually
                             // updated to reduce CPU load
                             bool repeatsyncup = false;
+                            bool syncupdone = false;
                             for (it = syncs.begin(); it != syncs.end(); it++)
                             {
                                 if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
@@ -2138,10 +2139,11 @@ void MegaClient::exec()
                                 {
                                     LOG_debug << "Running syncup on demand";
                                     repeatsyncup |= !syncup(&(*it)->localroot, &nds);
+                                    syncupdone = true;
                                     (*it)->cachenodes();
                                 }
                             }
-                            syncuprequired = repeatsyncup;
+                            syncuprequired = !syncupdone || repeatsyncup;
 
                             if (EVER(nds))
                             {
