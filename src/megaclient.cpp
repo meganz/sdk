@@ -7483,6 +7483,7 @@ PendingContactRequest* MegaClient::findpcr(handle p)
     {
         pcr = new PendingContactRequest(p);
         pcrindex[p] = pcr;
+        assert(false);
     }
 
     return pcrindex[p];
