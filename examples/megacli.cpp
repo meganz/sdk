@@ -2043,7 +2043,7 @@ static void process_line(char* l)
 #endif
                 cout << "      export remotepath [expireTime|del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
-                cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                cout << "      invite dstemail [origemail|del|rmd|clink <link>]" << endl;
                 cout << "      clink [renew|query handle|del [handle]]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
@@ -3875,7 +3875,8 @@ static void process_line(char* l)
                             {
                                 int del = words.size() == 3 && words[2] == "del";
                                 int rmd = words.size() == 3 && words[2] == "rmd";
-                                if (words.size() == 2 || words.size() == 3)
+                                int clink = words.size() == 4 && words[2] == "clink";
+                                if (words.size() == 2 || words.size() == 3 || words.size() == 4)
                                 {
                                     if (del || rmd)
                                     {
@@ -3883,14 +3884,20 @@ static void process_line(char* l)
                                     }
                                     else
                                     {
+                                        handle contactLink = UNDEF;
+                                        if (clink)
+                                        {
+                                            Base64::atob(words[3].c_str(), (byte*) &contactLink, sizeof contactLink);
+                                        }
+
                                         // Original email is not required, but can be used if this account has multiple email addresses associated,
                                         // to have the invite come from a specific email
-                                        client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                        client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL, contactLink);
                                     }
                                 }
                                 else
                                 {
-                                    cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                                    cout << "      invite dstemail [origemail|del|rmd|clink <link>]" << endl;
                                 }
                             }
                             else
