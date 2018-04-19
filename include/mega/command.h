@@ -110,6 +110,14 @@ public:
     CommandGetFA(MegaClient *client, int, handle);
 };
 
+class MEGA_API CommandPrelogin : public Command
+{
+public:
+    void procresult();
+
+    CommandPrelogin(MegaClient*, const char*);
+};
+
 class MEGA_API CommandLogin : public Command
 {
     bool checksession;

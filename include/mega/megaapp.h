@@ -34,6 +34,9 @@ struct MEGA_API MegaApp
     // request response progress
     virtual void request_response_progress(m_off_t, m_off_t) { }
 
+    // prelogin result
+    virtual void prelogin_result(int, string*, error) { }
+
     // login result
     virtual void login_result(error) { }
 

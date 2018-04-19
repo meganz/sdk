@@ -1391,6 +1391,50 @@ void CommandLogout::procresult()
     app->logout_result(e);
 }
 
+CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
+{
+    cmd("us0");
+    arg("user", email);
+
+    tag = client->reqtag;
+}
+
+void CommandPrelogin::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->prelogin_result(0, NULL, (error)client->json.getint());
+    }
+
+    int v = 0;
+    string salt;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'v':
+                v = client->json.getint();
+                break;
+            case 's':
+                client->json.storeobject(&salt);
+                break;
+            case EOO:
+                if (v == 2 && !salt.size())
+                {
+                    LOG_err << "No salt returned";
+                    return client->app->prelogin_result(0, NULL, API_EINTERNAL);
+                }
+                client->app->prelogin_result(v, &salt, API_OK);
+                return;
+            default:
+                if (!client->json.storeobject())
+                {
+                    return;
+                }
+        }
+    }
+}
+
 // login request with user e-mail address and user hash
 CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, const byte *sessionkey, int csessionversion)
 {
