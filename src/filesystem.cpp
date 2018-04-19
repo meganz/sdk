@@ -141,8 +141,9 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
     localbasepath = *clocalbasepath;
     ignore = *cignore;
 
-    failed = true;
-    error = false;
+    failed = 1;
+    failreason = "Not initialized";
+    error = 0;
     sync = NULL;
 }
 
@@ -153,7 +154,8 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     path.assign(localpath, len);
 
 #ifdef ENABLE_SYNC
-    if (notifyq[q].size()
+    if ((q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
+            && notifyq[q].size()
             && notifyq[q].back().localnode == l
             && notifyq[q].back().path == path)
     {

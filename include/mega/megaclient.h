@@ -191,6 +191,12 @@ public:
     // all users
     user_map users;
 
+    // encrypted master key
+    string k;
+
+    // timestamp of the creation of the account
+    time_t accountsince;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
@@ -402,7 +408,7 @@ public:
     void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
 
     // Add/delete/remind outgoing pending contact request
-    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL);
+    void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
@@ -543,6 +549,9 @@ public:
     void registerPushNotification(int deviceType, const char *token = NULL);
 
     void archiveChat(handle chatid, bool archived);
+
+    // request meta information from an url (title, description, icon)
+    void richlinkrequest(const char*);
 #endif
 
     // get mega achievements
@@ -1156,6 +1165,7 @@ public:
     static const int CHATHANDLE = 8;
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
+    static const int CONTACTLINKHANDLE = 6;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;
@@ -1278,6 +1288,15 @@ public:
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
+
+    // create contact link
+    void contactlinkcreate(bool renew);
+
+    // query contact link
+    void contactlinkquery(handle);
+
+    // delete contact link
+    void contactlinkdelete(handle);
 
     // achievements enabled for the account
     bool achievements_enabled;

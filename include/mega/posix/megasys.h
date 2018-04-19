@@ -26,7 +26,10 @@
 #ifdef __ANDROID__
 #include "mega/config-android.h"
 #else
+#ifndef MEGA_GENERATED_CONFIG_H
 #include "mega/config.h"
+#define MEGA_GENERATED_CONFIG_H
+#endif
 #endif
 
 #ifdef __APPLE__
@@ -109,6 +112,7 @@
 #include <sys/select.h>
 
 #include <curl/curl.h>
+#include <stdexcept>
 
 #ifndef FD_COPY
 #define FD_COPY(s, d) ( memcpy(( d ), ( s ), sizeof( fd_set )))

@@ -392,6 +392,14 @@ string User::attr2string(attr_t type)
             attrname = "^!dv";
             break;
 
+        case ATTR_CONTACT_LINK_VERIFICATION:
+            attrname = "^clv";
+            break;
+
+        case ATTR_RICH_PREVIEWS:
+            attrname = "*!rp";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -469,6 +477,14 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_DISABLE_VERSIONS;
     }
+    else if(!strcmp(name, "^clv"))
+    {
+        return ATTR_CONTACT_LINK_VERIFICATION;
+    }
+    else if(!strcmp(name, "*!rp"))
+    {
+        return ATTR_RICH_PREVIEWS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -489,6 +505,7 @@ bool User::needversioning(attr_t at)
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
+        case ATTR_RICH_PREVIEWS:
             return 0;
 
         case ATTR_AUTHRING:
@@ -498,6 +515,7 @@ bool User::needversioning(attr_t at)
         case ATTR_SIG_RSA_PUBK:
         case ATTR_SIG_CU255_PUBK:
         case ATTR_KEYRING:
+        case ATTR_CONTACT_LINK_VERIFICATION:
             return 1;
 
         default:
@@ -512,6 +530,7 @@ char User::scope(attr_t at)
         case ATTR_KEYRING:
         case ATTR_AUTHRING:
         case ATTR_LAST_INT:
+        case ATTR_RICH_PREVIEWS:
             return '*';
 
         case ATTR_AVATAR:
@@ -524,6 +543,7 @@ char User::scope(attr_t at)
         case ATTR_LANGUAGE:
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
+        case ATTR_CONTACT_LINK_VERIFICATION:
             return '^';
 
         default:
@@ -556,11 +576,11 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
         oldValue = "0:0:0:0:0";
     }
 
-    bool lastSuccess = (numDetails & 0x01) != 0;
-    bool lastSkipped = (numDetails & 0x02) != 0;
-    bool mkExported = (numDetails & 0x04) != 0;
-    bool dontShowAgain = (numDetails & 0x08) != 0;
-    bool lastLogin = (numDetails & 0x10) != 0;
+    bool lastSuccess = (numDetails & PWD_LAST_SUCCESS) != 0;
+    bool lastSkipped = (numDetails & PWD_LAST_SKIPPED) != 0;
+    bool mkExported = (numDetails & PWD_MK_EXPORTED) != 0;
+    bool dontShowAgain = (numDetails & PWD_DONT_SHOW) != 0;
+    bool lastLogin = (numDetails & PWD_LAST_LOGIN) != 0;
 
     bool changed = false;
 
@@ -694,6 +714,122 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     return changed;
 }
 
+time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int size)
+{
+    if (!numDetail || !data || !size)
+    {
+        return 0;
+    }
+
+    // format: <lastSuccess>:<lastSkipped>:<mkExported>:<dontShowAgain>:<lastLogin>
+    string value;
+    value.assign(data, size);
+
+    // ensure the value has a valid format
+    if (std::count(value.begin(), value.end(), ':') != 4
+            || value.length() < 9)
+    {
+        return 0;
+    }
+
+    bool lastSuccess = (numDetail & PWD_LAST_SUCCESS) != 0;
+    bool lastSkipped = (numDetail & PWD_LAST_SKIPPED) != 0;
+    bool mkExported = (numDetail & PWD_MK_EXPORTED) != 0;
+    bool dontShowAgain = (numDetail & PWD_DONT_SHOW) != 0;
+    bool lastLogin = (numDetail & PWD_LAST_LOGIN) != 0;
+
+    // Timestamp for last successful validation of password in PRD
+    time_t tsLastSuccess;
+    size_t len = value.find(":");
+    string buf = value.substr(0, len) + "#"; // add character control '#' for conversion
+    value = value.substr(len + 1);    // skip ':'
+    if (lastSuccess)
+    {
+        char *pEnd = NULL;
+        tsLastSuccess = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSuccess == LONG_MAX || tsLastSuccess == LONG_MIN)
+        {
+            tsLastSuccess = 0;
+        }
+        return tsLastSuccess;
+    }
+
+    // Timestamp for last time the PRD was skipped
+    time_t tsLastSkipped;
+    len = value.find(":");
+    buf = value.substr(0, len) + "#";
+    value = value.substr(len + 1);
+    if (lastSkipped)
+    {
+        char *pEnd = NULL;
+        tsLastSkipped = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSkipped == LONG_MAX || tsLastSkipped == LONG_MIN)
+        {
+            tsLastSkipped = 0;
+        }
+        return tsLastSkipped;
+    }
+
+    // Flag for Recovery Key exported
+    bool flagMkExported;
+    len = value.find(":");
+    buf = value.substr(0, len) + "#";
+    value = value.substr(len + 1);
+    if (mkExported)
+    {
+        char *pEnd = NULL;
+        int tmp = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || (tmp != 0 && tmp != 1))
+        {
+            flagMkExported = false;
+        }
+        else
+        {
+            flagMkExported = tmp;
+        }
+
+        return flagMkExported;
+    }
+
+    // Flag for "Don't show again" the PRD
+    bool flagDontShowAgain;
+    len = value.find(":");
+    buf = value.substr(0, len) + "#";
+    value = value.substr(len + 1);
+    if (dontShowAgain)
+    {
+        char *pEnd = NULL;
+        int tmp = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || (tmp != 0 && tmp != 1))
+        {
+            flagDontShowAgain = false;
+        }
+        else
+        {
+            flagDontShowAgain = tmp;
+        }
+        return flagDontShowAgain;
+    }
+
+    // Timestamp for last time user logged in
+    time_t tsLastLogin = 0;
+    len = value.length();
+    if (lastLogin)
+    {
+        buf = value.substr(0, len) + "#";
+
+        char *pEnd = NULL;
+        tsLastLogin = strtol(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastLogin == LONG_MAX || tsLastLogin == LONG_MIN)
+        {
+            tsLastLogin = 0;
+        }
+        return tsLastLogin;
+    }
+
+    return 0;
+}
+
 const string *User::getattrversion(attr_t at)
 {
     userattr_map::iterator it = attrsv.find(at);
@@ -769,6 +905,14 @@ bool User::setChanged(attr_t at)
 
         case ATTR_DISABLE_VERSIONS:
             changed.disableVersions = true;
+            break;
+
+        case ATTR_CONTACT_LINK_VERIFICATION:
+            changed.contactLinkVerification = true;
+            break;
+
+        case ATTR_RICH_PREVIEWS:
+            changed.richPreviews = true;
             break;
 
         default:

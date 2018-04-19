@@ -11,9 +11,16 @@
 #ifndef EVT_TLS_H
 #define EVT_TLS_H
 
+#ifdef USE_OPENSSL
+#define ENABLE_EVT_TLS 1
+#endif
+
+#ifdef ENABLE_EVT_TLS
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -203,9 +210,10 @@ return 1 if the stream is TLS and 0 otherwise
 */
 int evt_is_tls_stream(const char *bfr, const ssize_t nrd);
 
-
 #ifdef __cplusplus 
 }
+#endif
+
 #endif
 
 #endif //define EVT_TLS_H

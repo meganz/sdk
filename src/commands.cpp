@@ -1873,7 +1873,7 @@ void CommandSetShare::procresult()
 }
 
 
-CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail)
+CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
 {
     cmd("upc");
 
@@ -1893,6 +1893,10 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
             break;
         case OPCA_ADD:
             arg("aa", "a");
+            if (!ISUNDEF(contactLink))
+            {
+                arg("cl", (byte*)&contactLink, MegaClient::CONTACTLINKHANDLE);
+            }
             break;
     }
 
@@ -1966,8 +1970,6 @@ void CommandSetPendingContact::procresult()
     handle p = UNDEF;    
     m_time_t ts = 0;
     m_time_t uts = 0;
-    m_time_t rts = 0;
-    m_time_t dts = 0;
     const char *e = NULL;
     const char *m = NULL;
     const char *msg = NULL;
@@ -1993,12 +1995,6 @@ void CommandSetPendingContact::procresult()
                 break;
             case MAKENAMEID3('u', 't', 's'):
                 uts = client->json.getint();
-                break;
-            case MAKENAMEID3('r', 't', 's'):
-                rts = client->json.getint();
-                break;
-            case MAKENAMEID3('d', 't', 's'):
-                dts = client->json.getint();
                 break;
             case EOO:
                 if (ISUNDEF(p))
@@ -3074,6 +3070,15 @@ void CommandGetUserData::procresult()
 
         case 'u':
             jid = client->json.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case 'k':
+            client->k.resize(SymmCipher::KEYLENGTH);
+            client->json.storebinary((byte *)client->k.data(), client->k.size());
+            break;
+
+        case MAKENAMEID5('s', 'i', 'n', 'c', 'e'):
+            client->accountsince = client->json.getint();
             break;
 
         case MAKENAMEID4('p', 'u', 'b', 'k'):
@@ -4641,6 +4646,7 @@ CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
 {
     this->client = client;
     cmd("lc");
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -5365,6 +5371,83 @@ void CommandArchiveChat::procresult()
     }
 }
 
+CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
+{
+    cmd("erlsd");
+
+    arg("url", url);
+
+    tag = client->reqtag;
+}
+
+void CommandRichLink::procresult()
+{
+    // error format: [{"error":<code>}]
+    // result format: [{"result":{
+    //                      "url":"<url>",
+    //                      "t":"<title>",
+    //                      "d":"<description>",
+    //                      "ic":"<format>:<icon_B64>",
+    //                      "i":"<format>:<image>"}}]
+
+    if (client->json.isnumeric())
+    {
+        return client->app->richlinkrequest_result(NULL, (error)client->json.getint());
+    }
+
+
+    string res;
+    int errCode = 0;
+    string metadata;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID5('e', 'r', 'r', 'o', 'r'):
+                errCode = client->json.getint();
+                break;
+
+            case MAKENAMEID6('r', 'e', 's', 'u', 'l', 't'):
+                client->json.storeobject(&metadata);
+                break;
+
+            case EOO:
+            {
+                error e = API_EINTERNAL;
+                if (!metadata.empty())
+                {
+                    return client->app->richlinkrequest_result(&metadata, API_OK);
+                }
+                else if (errCode)
+                {
+                    switch(errCode)
+                    {
+                        case 403:
+                            e = API_EACCESS;
+                            break;
+
+                        case 404:
+                            e = API_ENOENT;
+                            break;
+
+                        default:
+                            e = API_EINTERNAL;
+                            break;
+                    }
+                }
+
+                return client->app->richlinkrequest_result(NULL, e);
+            }
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->richlinkrequest_result(NULL, API_EINTERNAL);
+                }
+        }
+    }
+}
+
 #endif
 
 CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)
@@ -5657,6 +5740,105 @@ void CommandMediaCodecs::procresult()
         version = int(result);
     }
     callback(client, version);
+}
+
+CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
+{
+    if (renew)
+    {
+        cmd("clr");
+    }
+    else
+    {
+        cmd("clc");
+    }
+    
+    tag = client->reqtag;
+}
+
+void CommandContactLinkCreate::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->contactlinkcreate_result((error)client->json.getint(), UNDEF);
+    }
+    else
+    {
+        handle h = client->json.gethandle(MegaClient::CONTACTLINKHANDLE);
+        client->app->contactlinkcreate_result(API_OK, h);                
+    }
+}
+
+CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
+{
+    cmd("clg");
+    arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+    
+    tag = client->reqtag;
+}
+
+void CommandContactLinkQuery::procresult()
+{    
+    handle h = UNDEF;
+    string email;
+    string firstname;
+    string lastname;
+
+    if (client->json.isnumeric())
+    {
+        return client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname);
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'h':
+                h = client->json.gethandle(MegaClient::USERHANDLE);
+                break;
+            case 'e':
+                client->json.storeobject(&email);
+                break;
+            case MAKENAMEID2('f', 'n'):
+                client->json.storeobject(&firstname);
+                break;
+            case MAKENAMEID2('l', 'n'):
+                client->json.storeobject(&lastname);
+                break;
+            case EOO:
+                return client->app->contactlinkquery_result(API_OK, h, &email, &firstname, &lastname);
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse query contact link response";
+                    return client->app->contactlinkquery_result(API_EINTERNAL, h, &email, &firstname, &lastname);
+                }
+                break;
+        }
+    }
+}
+
+CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
+{
+    cmd("cld");
+    if (!ISUNDEF(h))
+    {
+        arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
+    }
+    tag = client->reqtag;    
+}
+
+void CommandContactLinkDelete::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->contactlinkdelete_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->contactlinkdelete_result(API_EINTERNAL);
+    }
 }
 
 } // namespace

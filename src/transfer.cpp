@@ -28,8 +28,10 @@
 #include "mega/base64.h"
 #include "mega/mediafileattribute.h"
 #include "megawaiter.h"
+#include "mega/utils.h"
 
 namespace mega {
+
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 {
     type = ctype;
@@ -438,15 +440,17 @@ void Transfer::failed(error e, dstime timeleft)
     }
 }
 
+#ifdef USE_MEDIAINFO
 static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
 {
     // returns the last half, beyond the actual key, ie the nonce+crc
     return (uint32_t*)(filekey + FILENODEKEYLENGTH / 2);
 }
+#endif
 
 void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::string& localpath)
 {
-    assert(type == PUT || node && node->type == FILENODE);
+    assert(type == PUT || (node && node->type == FILENODE));
 
 #ifdef USE_MEDIAINFO
     char ext[8];
@@ -477,9 +481,6 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ std::strin
             }
         }
     }
-#else
-    node;
-    localpath;
 #endif
 }
 

@@ -1309,6 +1309,112 @@ public class MegaApiJava {
     }
 
     /**
+     * Create a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_CREATE.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getFlag - Returns the value of \c renew parameter
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Return the handle of the new contact link
+     *
+     * @param renew True to invalidate the previous contact link (if any).
+     * @param listener MegaRequestListener to track this request
+     */
+    public void contactLinkCreate(boolean renew, MegaRequestListenerInterface listener){
+        megaApi.contactLinkCreate(renew, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Create a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_CREATE.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNodeHandle - Return the handle of the new contact link
+     *
+     */
+    public void contactLinkCreate(){
+        megaApi.contactLinkCreate();
+    }
+
+    /**
+     * Get information about a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_QUERY.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Returns the email of the contact
+     * - MegaRequest::getName - Returns the first name of the contact
+     * - MegaRequest::getText - Returns the last name of the contact
+     *
+     * @param handle Handle of the contact link to check
+     * @param listener MegaRequestListener to track this request
+     */
+    public void contactLinkQuery(long handle, MegaRequestListenerInterface listener){
+        megaApi.contactLinkQuery(handle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get information about a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_QUERY.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getEmail - Returns the email of the contact
+     * - MegaRequest::getName - Returns the first name of the contact
+     * - MegaRequest::getText - Returns the last name of the contact
+     *
+     * @param handle Handle of the contact link to check
+     */
+    public void contactLinkQuery(long handle){
+        megaApi.contactLinkQuery(handle);
+    }
+
+    /**
+     * Delete a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_DELETE.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+     *
+     * @param handle Handle of the contact link to delete
+     * If the parameter is INVALID_HANDLE, the active contact link is deleted
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void contactLinkDelete(long handle, MegaRequestListenerInterface listener){
+        megaApi.contactLinkDelete(handle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Delete a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CONTACT_LINK_DELETE.
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+     *
+     * @param handle Handle of the contact link to delete
+     */
+    public void contactLinkDelete(long handle){
+        megaApi.contactLinkDelete(handle);
+    }
+
+
+    /**
      * Returns the email of the currently open account.
      * 
      * If the MegaApi object is not logged in or the email is not available,
@@ -1365,6 +1471,15 @@ public class MegaApiJava {
      */
     public boolean isAchievementsEnabled() {
         return megaApi.isAchievementsEnabled();
+    }
+
+    /**
+     * Check if the password is correct for the current account
+     * @param password Password to check
+     * @return True if the password is correct for the current account, otherwise false.
+     */
+    public boolean checkPassword(String password){
+        return megaApi.checkPassword(password);
     }
 
     /**
@@ -3191,6 +3306,87 @@ public class MegaApiJava {
     }
 
     /**
+     * Notify the user has successfully checked his password
+     *
+     * This function should be called when the user demonstrates that he remembers
+     * the password to access the account
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not continue asking the user
+     * to remind the password for the account in a short time.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogSucceeded(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogSucceeded(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Notify the user has successfully skipped the password check
+     *
+     * This function should be called when the user skips the verification of
+     * the password to access the account
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not continue asking the user
+     * to remind the password for the account in a short time.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogSkipped(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogSkipped(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Notify the user wants to totally disable the password check
+     *
+     * This function should be called when the user rejects to verify that he remembers
+     * the password to access the account and doesn't want to see the reminder again.
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not ask the user
+     * to remind the password for the account again.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogBlocked(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogBlocked(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the app should show the password reminder dialog to the user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if the password reminder dialog should be shown
+     *
+     * @param atLogout True if the check is being done just before a logout
+     * @param listener MegaRequestListener to track this request
+     */
+    public void shouldShowPasswordReminderDialog(boolean atLogout, MegaRequestListenerInterface listener){
+        megaApi.shouldShowPasswordReminderDialog(atLogout, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Change the password of the MEGA account.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_CHANGE_PW
@@ -3260,6 +3456,34 @@ public class MegaApiJava {
      */
     public void inviteContact(String email, String message, int action) {
         megaApi.inviteContact(email, message, action);
+    }
+
+    /**
+     * Invite another person to be your MEGA contact using a contact link handle
+     *
+     * The associated request type with this request is MegaRequest::TYPE_INVITE_CONTACT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email of the contact
+     * - MegaRequest::getText - Returns the text of the invitation
+     * - MegaRequest::getNumber - Returns the action
+     * - MegaRequest::getNodeHandle - Returns the contact link handle
+     *
+     * Sending a reminder within a two week period since you started or your last reminder will
+     * fail the API returning the error code MegaError::API_EACCESS.
+     *
+     * @param email Email of the new contact
+     * @param message Message for the user (can be NULL)
+     * @param action Action for this contact request. Valid values are:
+     * - MegaContactRequest::INVITE_ACTION_ADD = 0
+     * - MegaContactRequest::INVITE_ACTION_DELETE = 1
+     * - MegaContactRequest::INVITE_ACTION_REMIND = 2
+     * @param contactLink Contact link handle of the other account. This parameter is considered only if the
+     * \c action is MegaContactRequest::INVITE_ACTION_ADD. Otherwise, it's ignored and it has no effect.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void inviteContact(String email, String message, int action, long contactLink, MegaRequestListenerInterface listener){
+        megaApi.inviteContact(email, message, action, contactLink, createDelegateRequestListener(listener));
     }
 
     /**
@@ -4289,7 +4513,7 @@ public class MegaApiJava {
      * 
      * @return true if the SDK is waiting for the server to complete a request.
      */
-    public boolean isWaiting() {
+    public int isWaiting() {
         return megaApi.isWaiting();
     }
 
@@ -4297,7 +4521,7 @@ public class MegaApiJava {
      * Check if the SDK is waiting for the server
      * @return true if the SDK is waiting for the server to complete a request
      */
-    public boolean areServersBusy(){
+    public int areServersBusy(){
         return megaApi.areServersBusy();
     }
 
@@ -4596,6 +4820,21 @@ public class MegaApiJava {
      */
     public boolean hasVersions(MegaNode node){
         return megaApi.hasVersions(node);
+    }
+
+    /**
+     * Get information about the contents of a folder
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FOLDER_INFO
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaFolderInfo - MegaFolderInfo object with the information related to the folder
+     *
+     * @param node Folder node to inspect
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getFolderInfo(MegaNode node, MegaRequestListenerInterface listener){
+        megaApi.getFolderInfo(node, createDelegateRequestListener(listener));
     }
 
     /**
@@ -5527,6 +5766,24 @@ public class MegaApiJava {
     }
 
     /**
+     * Enable or disable the automatic approval of incoming contact requests using a contact link
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish:
+     * - MegaRequest::getText - "0" for disable, "1" for enable
+     *
+     * @param disable True to disable the automatic approval of incoming contact requests using a contact link
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setContactLinksOption(boolean disable, MegaRequestListenerInterface listener){
+        megaApi.setContactLinksOption(disable, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Check if file versioning is enabled or disabled
      *
      * If the option has never been set, the error code will be MegaError::API_ENOENT.
@@ -5545,6 +5802,27 @@ public class MegaApiJava {
      */
     public void getFileVersionsOption(MegaRequestListenerInterface listener){
         megaApi.getFileVersionsOption(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+     *
+     * If the option has never been set, the error code will be MegaError::API_ENOENT.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - "0" for disable, "1" for enable
+     * - MegaRequest::getFlag - false if disabled, true if enabled
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getContactLinksOption(MegaRequestListenerInterface listener){
+        megaApi.getContactLinksOption(createDelegateRequestListener(listener));
     }
     
     /**

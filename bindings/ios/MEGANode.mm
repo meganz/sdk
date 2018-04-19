@@ -71,6 +71,18 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getDuration() : -1;
 }
 
+- (NSNumber *)latitude {
+    if (!self.megaNode) return nil;
+    double latitude = self.megaNode->getLatitude();
+    return latitude != MegaNode::INVALID_COORDINATE ? [NSNumber numberWithDouble:latitude] : nil;
+}
+
+- (NSNumber *)longitude {
+    if (!self.megaNode) return nil;
+    double longitude = self.megaNode->getLongitude();
+    return longitude != MegaNode::INVALID_COORDINATE ? [NSNumber numberWithDouble:longitude] : nil;
+}
+
 - (NSString *)base64Handle {
     if (!self.megaNode) return nil;
     

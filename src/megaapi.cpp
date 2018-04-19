@@ -702,6 +702,11 @@ MegaStringMap *MegaRequest::getMegaStringMap() const
     return NULL;
 }
 
+MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1313,6 +1318,21 @@ void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
     return pImpl->whyAmIBlocked(false, listener);
 }
 
+void MegaApi::contactLinkCreate(bool renew, MegaRequestListener *listener)
+{
+    pImpl->contactLinkCreate(renew, listener);
+}
+
+void MegaApi::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkQuery(handle, listener);
+}
+
+void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->contactLinkDelete(handle, listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
@@ -1340,6 +1360,11 @@ char *MegaApi::getMyXMPPJid()
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
+}
+
+bool MegaApi::checkPassword(const char *password)
+{
+    return pImpl->checkPassword(password);
 }
 
 #ifdef ENABLE_CHAT
@@ -1896,6 +1921,41 @@ void MegaApi::masterKeyExported(MegaRequestListener *listener)
     pImpl->updatePwdReminderData(false, false, true, false, false, listener);
 }
 
+void MegaApi::passwordReminderDialogSucceeded(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(true, false, false, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogSkipped(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, true, false, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogBlocked(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, false, false, true, false, listener);
+}
+
+void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener)
+{
+    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, atLogout, listener);
+}
+
+void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    pImpl->enableRichPreviews(enable, listener);
+}
+
+void MegaApi::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_RICH_PREVIEWS, NULL, 0, listener);
+}
+
+void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
+{
+    pImpl->setRichLinkWarningCounterValue(value, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
@@ -1948,7 +2008,12 @@ bool MegaApi::usingHttpsOnly()
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
 {
-    pImpl->inviteContact(email, message, action, listener);
+    pImpl->inviteContact(email, message, action, UNDEF, listener);
+}
+
+void MegaApi::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
+{
+    pImpl->inviteContact(email, message, action, contactLink, listener);
 }
 
 void MegaApi::replyContactRequest(MegaContactRequest *r, int action, MegaRequestListener *listener)
@@ -2667,9 +2732,19 @@ void MegaApi::setFileVersionsOption(bool disable, MegaRequestListener *listener)
     pImpl->setFileVersionsOption(disable, listener);
 }
 
+void MegaApi::setContactLinksOption(bool disable, MegaRequestListener *listener)
+{
+    pImpl->setContactLinksOption(disable, listener);
+}
+
 void MegaApi::getFileVersionsOption(MegaRequestListener *listener)
 {
     pImpl->getFileVersionsOption(listener);
+}
+
+void MegaApi::getContactLinksOption(MegaRequestListener *listener)
+{
+    pImpl->getContactLinksOption(listener);
 }
 
 void MegaApi::retrySSLerrors(bool enable)
@@ -2930,6 +3005,11 @@ bool MegaApi::hasVersions(MegaNode *node)
     return pImpl->hasVersions(node);
 }
 
+void MegaApi::getFolderInfo(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->getFolderInfo(node, listener);
+}
+
 MegaChildrenLists *MegaApi::getFileFolderChildren(MegaNode *p, int order)
 {
     return pImpl->getFileFolderChildren(p, order);
@@ -3010,12 +3090,12 @@ void MegaApi::update()
    pImpl->update();
 }
 
-bool MegaApi::isWaiting()
+int MegaApi::isWaiting()
 {
     return pImpl->isWaiting();
 }
 
-bool MegaApi::areServersBusy()
+int MegaApi::areServersBusy()
 {
     return pImpl->areServersBusy();
 }
@@ -3066,7 +3146,6 @@ void MegaApi::ftpServerStop()
     pImpl->ftpServerStop();
 }
 
-
 int MegaApi::ftpServerIsRunning()
 {
     return pImpl->ftpServerIsRunning();
@@ -3090,6 +3169,16 @@ bool MegaApi::httpServerIsFileServerEnabled()
 void MegaApi::httpServerEnableFolderServer(bool enable)
 {
     pImpl->httpServerEnableFolderServer(enable);
+}
+
+void MegaApi::httpServerEnableOfflineAttribute(bool enable)
+{
+    pImpl->httpServerEnableOfflineAttribute(enable);
+}
+
+bool MegaApi::httpServerIsOfflineAttributeEnabled()
+{
+    return pImpl->httpServerIsOfflineAttributeEnabled();
 }
 
 bool MegaApi::httpServerIsFolderServerEnabled()
@@ -3130,6 +3219,26 @@ void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
 char *MegaApi::httpServerGetLocalLink(MegaNode *node)
 {
     return pImpl->httpServerGetLocalLink(node);
+}
+
+char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)
+{
+    return pImpl->httpServerGetLocalWebDavLink(node);
+}
+
+MegaStringList *MegaApi::httpServerGetWebDavLinks()
+{
+    return pImpl->httpServerGetWebDavLinks();
+}
+
+MegaNodeList *MegaApi::httpServerGetWebDavAllowedNodes()
+{
+    return pImpl->httpServerGetWebDavAllowedNodes();
+}
+
+void MegaApi::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
+{
+    return pImpl->httpServerRemoveWebDavAllowedNode(handle);
 }
 
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
@@ -3831,6 +3940,11 @@ const char* MegaApi::getFileAttribute(MegaHandle h)
 void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
 {
     pImpl->archiveChat(chatid, archive, listener);
+}
+
+void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)
+{
+    pImpl->requestRichPreview(url, listener);
 }
 
 #endif
@@ -4838,6 +4952,41 @@ long long MegaAchievementsDetails::currentStorageReferrals()
 }
 
 long long MegaAchievementsDetails::currentTransferReferrals()
+{
+    return 0;
+}
+
+MegaFolderInfo::~MegaFolderInfo()
+{
+
+}
+
+MegaFolderInfo *MegaFolderInfo::copy() const
+{
+    return NULL;
+}
+
+int MegaFolderInfo::getNumVersions() const
+{
+    return 0;
+}
+
+int MegaFolderInfo::getNumFiles() const
+{
+    return 0;
+}
+
+int MegaFolderInfo::getNumFolders() const
+{
+    return 0;
+}
+
+long long MegaFolderInfo::getCurrentSize() const
+{
+    return 0;
+}
+
+long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
 }
