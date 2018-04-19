@@ -174,6 +174,14 @@ public:
     CommandSendSignupLink(MegaClient*, const char*, const char*, byte*);
 };
 
+class MEGA_API CommandSendSignupLinkV2 : public Command
+{
+public:
+    void procresult();
+
+    CommandSendSignupLinkV2(MegaClient*, const char*, const char*, byte *, byte*, byte*);
+};
+
 class MEGA_API CommandQuerySignupLink : public Command
 {
     string confirmcode;

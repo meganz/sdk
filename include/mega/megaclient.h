@@ -228,6 +228,10 @@ public:
 
     // full account confirmation/creation support
     void sendsignuplink(const char*, const char*, const byte*);
+
+    void sendsignuplinkv2(const char* email, const char *password, const char* name);
+
+
     void querysignuplink(const byte*, unsigned);
     void confirmsignuplink(const byte*, unsigned, uint64_t);
     void setkeypair();

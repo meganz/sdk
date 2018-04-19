@@ -3824,6 +3824,31 @@ void CommandSendSignupLink::procresult()
     client->app->sendsignuplink_result(API_EINTERNAL);
 }
 
+CommandSendSignupLinkV2::CommandSendSignupLinkV2(MegaClient* client, const char* email, const char* name, byte *clientkey, byte *enck, byte *uh)
+{
+    cmd("uc2");
+    arg("n", (byte*)name, strlen(name));
+    arg("m", (byte*)email, strlen(email));
+    arg("crv", clientkey, SymmCipher::KEYLENGTH);
+    arg("hak", uh, SymmCipher::KEYLENGTH);
+    arg("k", enck, SymmCipher::KEYLENGTH);
+    arg("v", 2);
+
+    tag = client->reqtag;
+}
+
+void CommandSendSignupLinkV2::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->sendsignuplink_result((error)client->json.getint());
+    }
+
+    client->json.storeobject();
+
+    client->app->sendsignuplink_result(API_EINTERNAL);
+}
+
 CommandQuerySignupLink::CommandQuerySignupLink(MegaClient* client, const byte* code, unsigned len)
 {
     confirmcode.assign((char*)code, len);

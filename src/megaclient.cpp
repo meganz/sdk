@@ -9277,6 +9277,38 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
     reqs.add(new CommandSendSignupLink(this, email, name, c));
 }
 
+void MegaClient::sendsignuplinkv2(const char *email, const char *password, const char* name)
+{
+    byte clientkey[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(clientkey, sizeof(clientkey));
+
+    string salt;
+    HashSHA256 hasher;
+    string buffer = "mega.nz";
+    buffer.resize(100, 'P');
+    buffer.append((char *)clientkey, sizeof(clientkey));
+    hasher.add((const byte*)buffer.data(), buffer.size());
+    hasher.get(&salt);
+
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)salt.data(), salt.size(), 100000);
+
+    byte encmasterkey[SymmCipher::KEYLENGTH];
+    SymmCipher cipher;
+    cipher.setkey(derivedKey);
+    cipher.ecb_encrypt(key.key, encmasterkey);
+
+    string hashedauthkey;
+    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    hasher.add(authkey, SymmCipher::KEYLENGTH);
+    hasher.get(&hashedauthkey);
+    hashedauthkey.resize(SymmCipher::KEYLENGTH);
+
+    reqs.add(new CommandSendSignupLinkV2(this, email, name, clientkey, encmasterkey, (byte*)hashedauthkey.data()));
+}
+
 // if query is 0, actually confirm account; just decode/query signup link
 // details otherwise
 void MegaClient::querysignuplink(const byte* code, unsigned len)
