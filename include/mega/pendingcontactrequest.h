@@ -50,6 +50,9 @@ struct MEGA_API PendingContactRequest : public Cachable
     // flag for ease of use identifying direction
     bool isoutgoing;
 
+    // flag to notify that an incoming contact request is being autoaccepted
+    bool autoaccepted;
+
     struct {
         bool accepted : 1;
         bool denied : 1;

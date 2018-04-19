@@ -608,6 +608,7 @@ public:
     virtual int64_t getModificationTime() const;
     virtual int getStatus() const;
     virtual bool isOutgoing() const;
+    virtual bool isAutoAccepted() const;
 
 protected:
     MegaHandle handle;
@@ -618,6 +619,7 @@ protected:
     int64_t modificationTime;
     int status;
     bool outgoing;
+    bool autoaccepted;
 };
 
 #ifdef ENABLE_SYNC
