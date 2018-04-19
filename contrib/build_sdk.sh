@@ -87,7 +87,7 @@ print_distro_help()
     type apt-get >/dev/null 2>&1
     local exit_code=$?
     if [ $exit_code -eq 0 ]; then
-        echo "Please execute the following command:  sudo apt-get install gcc c++ libtool-bin unzip autoconf m4 make wget"
+        echo "Please execute the following command:  sudo apt-get install gcc g++ libtool-bin unzip autoconf m4 make wget"
         echo " (or 'libtool' on older Debian / Ubuntu distro versions)"
         return
     fi
@@ -419,9 +419,9 @@ sodium_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Sodium"
-    local sodium_ver="1.0.12"
+    local sodium_ver="1.0.16"
     local sodium_url="https://download.libsodium.org/libsodium/releases/libsodium-$sodium_ver.tar.gz"
-    local sodium_md5="c308e3faa724b630b86cc0aaf887a5d4"
+    local sodium_md5="37b18839e57e7a62834231395c8e962b"
     local sodium_file="sodium-$sodium_ver.tar.gz"
     local sodium_dir="libsodium-$sodium_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -453,7 +453,7 @@ libuv_pkg() {
     local install_dir=$2
     local name="libuv"
     local libuv_ver="v1.8.0"
-    local libuv_url="http://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
+    local libuv_url="https://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
     local libuv_md5="f4229c4360625e973ae933cb92e1faf7"
     local libuv_file="libuv-$libuv_ver.tar.gz"
     local libuv_dir="libuv-$libuv_ver"
@@ -655,7 +655,7 @@ curl_pkg() {
     fi
 
     package_extract $name $curl_file $curl_dir
-    package_configure $name $curl_dir $install_dir "$curl_params" ""
+    package_configure $name $curl_dir $install_dir "$curl_params" "-ldl"  
     package_build $name $curl_dir
     package_install $name $curl_dir $install_dir
 }
@@ -752,6 +752,9 @@ freeimage_pkg() {
 
     package_extract $name $freeimage_file $freeimage_dir_extract
     
+    #Fix issue with powf64 redefined in mathcalls.h in glibc 2.27
+    find $freeimage_dir_extract/FreeImage/ -type f -print0 | xargs -0 sed -i "s#powf64#powf64freeimage#g"
+
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
     
@@ -1111,6 +1114,7 @@ display_help() {
     echo ""
     echo "Options:"
     echo " -a : Enable MegaApi"
+    echo " -b : Only build dependencies"
     echo " -c : Configure MEGA SDK and exit, do not build it"
     echo " -d : Enable debug build"
     echo " -e : Enable cares"

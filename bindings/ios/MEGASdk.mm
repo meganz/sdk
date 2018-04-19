@@ -106,6 +106,10 @@ using namespace mega;
     return [[MEGATransferList alloc] initWithTransferList:self.megaApi->getTransfers(MegaTransfer::TYPE_UPLOAD) cMemoryOwn:YES];
 }
 
+- (Retry)waiting {
+    return (Retry) self.megaApi->isWaiting();
+}
+
 - (NSNumber *)totalsDownloadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
 }
@@ -459,6 +463,10 @@ using namespace mega;
     return (PasswordStrength) self.megaApi->getPasswordStrength(password ? [password UTF8String] : NULL);
 }
 
+- (BOOL)checkPassword:(NSString *)password {
+    return self.megaApi->checkPassword(password ? [password UTF8String] : NULL);
+}
+
 - (void)fetchNodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fetchNodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -614,6 +622,30 @@ using namespace mega;
     self.megaApi->confirmChangeEmail((link != nil) ? [link UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }
 
+- (void)contactLinkCreateRenew:(BOOL)renew delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkCreate(renew, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkCreateRenew:(BOOL)renew {
+    self.megaApi->contactLinkCreate(renew);
+}
+
+- (void)contactLinkQueryWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkQuery(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkQueryWithHandle:(uint64_t)handle {
+    self.megaApi->contactLinkQuery(handle);
+}
+
+- (void)contactLinkDeleteWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->contactLinkDelete(INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)contactLinkDeleteWithHandle:(uint64_t)handle {
+    self.megaApi->contactLinkDelete();
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -745,6 +777,18 @@ using namespace mega;
 
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink {
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
+}
+
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
+    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
+    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
+    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude {
+    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
+    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
+    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon);
 }
 
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
@@ -947,6 +991,38 @@ using namespace mega;
     self.megaApi->masterKeyExported();
 }
 
+- (void)passwordReminderDialogSucceededWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->passwordReminderDialogSucceeded([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)passwordReminderDialogSucceeded {
+    self.megaApi->passwordReminderDialogSucceeded();
+}
+
+- (void)passwordReminderDialogSkippedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->passwordReminderDialogSkipped([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)passwordReminderDialogSkipped {
+    self.megaApi->passwordReminderDialogSkipped();
+}
+
+- (void)passwordReminderDialogBlockedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->passwordReminderDialogBlocked([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)passwordReminderDialogBlocked {
+    self.megaApi->passwordReminderDialogBlocked();
+}
+
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->shouldShowPasswordReminderDialog(atLogout, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout {
+    self.megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -965,6 +1041,14 @@ using namespace mega;
 
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action {
     self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action);
+}
+
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle {
+    self.megaApi->inviteContact((email != nil) ? [email UTF8String] : NULL, (message != nil) ? [message UTF8String] : NULL, (int)action, handle);
 }
 
 - (void)replyContactRequest:(MEGAContactRequest *)request action:(MEGAReplyAction)action delegate:(id<MEGARequestDelegate>)delegate {
@@ -1135,6 +1219,22 @@ using namespace mega;
     self.megaApi->pauseTransfers(pause, (int)direction);
 }
 
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->pauseTransfer((transfer != nil) ? [transfer getCPtr] : NULL, pause, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause {
+    self.megaApi->pauseTransfer((transfer != nil) ? [transfer getCPtr] : NULL, pause);
+}
+
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->pauseTransferByTag((int)transferTag, pause, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause {
+    self.megaApi->pauseTransferByTag((int)transferTag, pause);
+}
+
 - (void)enableTransferResumption:(NSString *)loggedOutId {
     self.megaApi->enableTransferResumption((loggedOutId != nil) ? [loggedOutId UTF8String] : NULL);
 }
@@ -1191,6 +1291,14 @@ using namespace mega;
 
 - (BOOL)hasVersionsForNode:(MEGANode *)node {
     return self.megaApi->hasVersions(node ? [node getCPtr] : NULL);
+}
+
+- (void)getFolderInfoForNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFolderInfo(node ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getFolderInfoForNode:(MEGANode *)node {
+    self.megaApi->getFolderInfo(node ? [node getCPtr] : NULL);
 }
 
 - (MEGAChildrenLists *)fileFolderChildrenForParent:(MEGANode *)parent order:(NSInteger)order {
@@ -1504,6 +1612,22 @@ using namespace mega;
 
 - (void)getLanguagePreference {
     self.megaApi->getLanguagePreference();
+}
+
+- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setContactLinksOption(disable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setContactLinksOptionDisable:(BOOL)disable {
+    self.megaApi->setContactLinksOption(disable);
+}
+
+- (void)getContactLinksOptionWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getContactLinksOption([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getContactLinksOption {
+    self.megaApi->getContactLinksOption();
 }
 
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {

@@ -8,9 +8,21 @@
 //
 //%///////////////////////////////////////////////////////////////////////////
 
+#if defined(HAVE_CONFIG_H) || !(defined _WIN32)
+// platform dependent constants
+#ifdef __ANDROID__
+#include "mega/config-android.h"
+#else
+#include "mega/config.h"
+#endif
+#endif
+
+#if defined(HAVE_LIBUV)
+
 #include <assert.h>
 #include <string.h>
 #include "mega/mega_evt_tls.h"
+#ifdef ENABLE_EVT_TLS
 
 /*
  *All the asserts used in the code are possible targets for error
@@ -450,3 +462,6 @@ int evt_is_tls_stream(const char *bfr, const ssize_t nrd)
     }
     return is_tls;
 }
+
+#endif
+#endif

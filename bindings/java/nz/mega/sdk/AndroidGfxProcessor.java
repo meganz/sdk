@@ -5,50 +5,107 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URLConnection;
 
+import android.content.ContentResolver;
+import android.content.Context;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.media.ExifInterface;
+import android.media.MediaMetadataRetriever;
+import android.media.ThumbnailUtils;
+import android.net.Uri;
+import android.provider.BaseColumns;
+import android.provider.MediaStore;
 
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
     int orientation;
     String srcPath;
     Bitmap bitmap;
+    static boolean isVideo;
     byte[] bitmapData;
+    static Context context = null;
 
     protected AndroidGfxProcessor() {
+        if (context == null) {
+            try {
+                context = (Context) Class.forName("android.app.AppGlobals")
+                        .getMethod("getInitialApplication")
+                        .invoke(null, (Object[]) null);
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    public static boolean isVideoFile(String path) {
+        try {
+            String mimeType = URLConnection.guessContentTypeFromName(path);
+            return mimeType != null && mimeType.startsWith("video");
+        }
+        catch(Exception e){
+            return false;
+        }
     }
 
     public static Rect getImageDimensions(String path, int orientation) {
         Rect rect = new Rect();
-        try {
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inJustDecodeBounds = true;
-            BitmapFactory.decodeStream(new FileInputStream(path), null, options);
 
-            if ((options.outWidth > 0) && (options.outHeight > 0)) {
-                if ((orientation < 5) || (orientation > 8)) {
-                    rect.right = options.outWidth;
-                    rect.bottom = options.outHeight;
-                } else {
-                    rect.bottom = options.outWidth;
-                    rect.right = options.outHeight;
-                }
+        if(isVideoFile(path)){
+            try {
+
+                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                retriever.setDataSource(path);
+                int width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                int height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                retriever.release();
+
+                rect.right = width;
+                rect.bottom = height;
+            } catch (Exception e) {
             }
-        } catch (Exception e) {
         }
+        else{
+            try {
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = true;
+                BitmapFactory.decodeStream(new FileInputStream(path), null, options);
+
+                if ((options.outWidth > 0) && (options.outHeight > 0)) {
+                    if ((orientation < 5) || (orientation > 8)) {
+                        rect.right = options.outWidth;
+                        rect.bottom = options.outHeight;
+                    } else {
+                        rect.bottom = options.outWidth;
+                        rect.right = options.outHeight;
+                    }
+                }
+            } catch (Exception e) {
+            }
+        }
+
         return rect;
     }
 
     public boolean readBitmap(String path) {
-        srcPath = path;
-        orientation = getExifOrientation(path);
-        size = getImageDimensions(srcPath, orientation);
-        return (size.right != 0) && (size.bottom != 0);
+
+        if(isVideoFile(path)){
+            isVideo = true;
+            srcPath = path;
+            size = getImageDimensions(srcPath, orientation);
+            return (size.right != 0) && (size.bottom != 0);
+        }
+        else{
+            isVideo = false;
+            srcPath = path;
+            orientation = getExifOrientation(path);
+            size = getImageDimensions(srcPath, orientation);
+            return (size.right != 0) && (size.bottom != 0);
+        }
     }
 
     public int getWidth() {
@@ -63,29 +120,102 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         int width;
         int height;
 
-        if ((orientation < 5) || (orientation > 8)) {
-            width = rect.right;
-            height = rect.bottom;
-        } else {
-            width = rect.bottom;
-            height = rect.right;
+        if(AndroidGfxProcessor.isVideo){
+
+            Bitmap bmThumbnail = null;
+
+            try{
+                bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
+                if(context != null && bmThumbnail == null) {
+
+                    String SELECTION = MediaStore.MediaColumns.DATA + "=?";
+                    String[] PROJECTION = {BaseColumns._ID};
+
+                    Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                    String[] selectionArgs = {path};
+                    ContentResolver cr = context.getContentResolver();
+                    Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                    if (cursor.moveToFirst()) {
+                        long videoId = cursor.getLong(0);
+                        bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
+                    }
+                    cursor.close();
+                }
+            }
+            catch(Exception e){}
+
+            if(bmThumbnail==null){
+
+                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                try{
+                    retriever.setDataSource(path);
+                    bmThumbnail = retriever.getFrameAtTime();
+                }
+                catch(Exception e1){
+                }
+                finally {
+                    try {
+                        retriever.release();
+                    } catch (Exception ex) {}
+                }
+            }
+
+            if(bmThumbnail==null){
+                try{
+                    bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.MINI_KIND);
+                    if(context != null && bmThumbnail == null) {
+
+                        String SELECTION = MediaStore.MediaColumns.DATA + "=?";
+                        String[] PROJECTION = {BaseColumns._ID};
+
+                        Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                        String[] selectionArgs = {path};
+                        ContentResolver cr = context.getContentResolver();
+                        Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                        if (cursor.moveToFirst()) {
+                            long videoId = cursor.getLong(0);
+                            bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.MINI_KIND, null);
+                        }
+                        cursor.close();
+                    }
+                }
+                catch (Exception e2){}
+            }
+
+            try {
+                if (bmThumbnail != null) {
+                    return Bitmap.createScaledBitmap(bmThumbnail, w, h, true);
+                }
+            }catch (Exception e){
+            }
+        }
+        else{
+            if ((orientation < 5) || (orientation > 8)) {
+                width = rect.right;
+                height = rect.bottom;
+            } else {
+                width = rect.bottom;
+                height = rect.right;
+            }
+
+            try {
+                int scale = 1;
+                while (width / scale / 2 >= w && height / scale / 2 >= h)
+                    scale *= 2;
+
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inJustDecodeBounds = false;
+                options.inSampleSize = scale;
+                Bitmap tmp = BitmapFactory.decodeStream(new FileInputStream(path), null, options);
+                tmp = fixExifOrientation(tmp, orientation);
+                return Bitmap.createScaledBitmap(tmp, w, h, true);
+            } catch (Exception e) {
+            }
         }
 
-        try {
-            int scale = 1;
-            while (width / scale / 2 >= w && height / scale / 2 >= h)
-                scale *= 2;
-
-            BitmapFactory.Options options = new BitmapFactory.Options();
-            options.inJustDecodeBounds = false;
-            options.inSampleSize = scale;
-            Bitmap tmp = BitmapFactory.decodeStream(new FileInputStream(path), null, options);
-            tmp = fixExifOrientation(tmp, orientation);
-            return Bitmap.createScaledBitmap(tmp, w, h, true);
-        } catch (Exception e) {
-        }
         return null;
     }
+
 
     public static int getExifOrientation(String srcPath) {
         int orientation = ExifInterface.ORIENTATION_UNDEFINED;

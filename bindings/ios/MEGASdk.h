@@ -80,18 +80,24 @@ typedef NS_ENUM (NSInteger, MEGAAttributeType) {
 };
 
 typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
-    MEGAUserAttributeAvatar            = 0, // public - char array
-    MEGAUserAttributeFirstname         = 1, // public - char array
-    MEGAUserAttributeLastname          = 2, // public - char array
-    MEGAUserAttributeAuthRing          = 3, // private - byte array
-    MEGAUserAttributeLastInteraction   = 4, // private - byte array
-    MEGAUserAttributeED25519PublicKey  = 5, // public - byte array
-    MEGAUserAttributeCU25519PublicKey  = 6, // public - byte array
-    MEGAUserAttributeKeyring           = 7, // private - byte array
-    MEGAUserAttributeSigRsaPublicKey   = 8, // public - byte array
-    MEGAUserAttributeSigCU255PublicKey = 9, // public - byte array
-    MEGAUserAttributeLanguage          = 14, // private - char array
-    MEGAUserAttributePwdReminder       = 15  // private- char array
+    MEGAUserAttributeAvatar                  = 0, // public - char array
+    MEGAUserAttributeFirstname               = 1, // public - char array
+    MEGAUserAttributeLastname                = 2, // public - char array
+    MEGAUserAttributeAuthRing                = 3, // private - byte array
+    MEGAUserAttributeLastInteraction         = 4, // private - byte array
+    MEGAUserAttributeED25519PublicKey        = 5, // public - byte array
+    MEGAUserAttributeCU25519PublicKey        = 6, // public - byte array
+    MEGAUserAttributeKeyring                 = 7, // private - byte array
+    MEGAUserAttributeSigRsaPublicKey         = 8, // public - byte array
+    MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
+    MEGAUserAttributeLanguage                = 14, // private - char array
+    MEGAUserAttributePwdReminder             = 15, // private - char array
+    MEGAUserAttributeContactLinkVerification = 17  // private - byte array
+};
+
+typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
+    MEGANodeAttributeDuration       = 0,
+    MEGANodeAttributeCoordinates    = 1
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -125,6 +131,16 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
     PasswordStrengthMedium = 2,
     PasswordStrengthGood = 3,
     PasswordStrengthStrong = 4
+};
+
+typedef NS_ENUM(NSUInteger, Retry) {
+    RetryNone = 0,
+    RetryConnectivity = 1,
+    RetryServersBusy = 2,
+    RetryApiLock = 3,
+    RetryRateLimit = 4,
+    RetryLocalLock = 5,
+    RetryUnknown = 6
 };
 
 /**
@@ -202,6 +218,35 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @brief Upload active transfers.
  */
 @property (readonly, nonatomic) MEGATransferList *uploadTransfers;
+
+/**
+ * @brief Check if the SDK is waiting to complete a request and get the reason
+ * @return State of SDK.
+ *
+ * Valid values are:
+ * - RetryNone = 0
+ * SDK is not waiting for the server to complete a request
+ *
+ * - RetryConnectivity = 1
+ * SDK is waiting for the server to complete a request due to connectivity issues
+ *
+ * - RetryServersBusy = 2
+ * SDK is waiting for the server to complete a request due to a HTTP error 500
+ *
+ * - RetryApiLock = 3
+ * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+ *
+ * - RetryRateLimit = 4,
+ * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+ *
+ * - RetryLocalLock = 5
+ * SDK is waiting for a local locked file
+ *
+ * - RetryUnknown = 6
+ * SDK is waiting for the server to complete a request with unknown reason
+ *
+ */
+@property (readonly, nonatomic) Retry waiting;
 
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
@@ -684,6 +729,13 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @return Estimated strength of the password
  */
 - (PasswordStrength)passwordStrength:(NSString *)password;
+
+/**
+ * @brief Check if the password is correct for the current account
+ * @param password Password to check
+ * @return YES if the password is correct for the current account, otherwise NO.
+ */
+- (BOOL)checkPassword:(NSString *)password;
 
 #pragma mark - Create account and confirm account Requests
 
@@ -1346,6 +1398,100 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  */
 - (void)confirmChangeEmailWithLink:(NSString *)link password:(NSString *)password;
 
+/**
+ * @brief Create a contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkCreate.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest flag] - Returns the value of \c renew parameter
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Return the handle of the new contact link
+ *
+ * @param renew YES to invalidate the previous contact link (if any).
+ * @param delegate Delegate to track this request
+ */
+- (void)contactLinkCreateRenew:(BOOL)renew delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Create a contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkCreate.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest flag] - Returns the value of \c renew parameter
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Return the handle of the new contact link
+ *
+ * @param renew YES to invalidate the previous contact link (if any).
+ */
+- (void)contactLinkCreateRenew:(BOOL)renew;
+
+/**
+ * @brief Get information about a contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkQuery.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest parentHandle] - Returns the userhandle of the contact
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest name] - Returns the first name of the contact
+ * - [MEGARequest text] - Returns the last name of the contact
+ *
+ * @param handle Handle of the contact link to check
+ * @param delegate Delegate to track this request
+ */
+- (void)contactLinkQueryWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get information about a contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkQuery.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact link
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest parentHandle] - Returns the userhandle of the contact
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest name] - Returns the first name of the contact
+ * - [MEGARequest text] - Returns the last name of the contact
+ *
+ * @param handle Handle of the contact link to check
+ */
+- (void)contactLinkQueryWithHandle:(uint64_t)handle;
+
+/**
+ * @brief Delete the active contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkDelete.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact link
+ *
+ * @param delegate Delegate to track this request
+ */
+- (void)contactLinkDeleteWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Delete the active contact link
+ *
+ * The associated request type with this request is MEGARequestTypeContactLinkDelete.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the contact link
+ */
+- (void)contactLinkDelete;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -1922,6 +2068,45 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @param megaFileLink Public link to a file in MEGA.
  */
 - (void)publicNodeForMegaFileLink:(NSString *)megaFileLink;
+
+/**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ * @param delegate Delegate to track this request.
+ */
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ */
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
@@ -2710,9 +2895,148 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
- * - [MEGARequest: text] - Returns the new value for the attribute
+ * - [MEGARequest text] - Returns the new value for the attribute
  */
 - (void)masterKeyExported;
+
+/**
+ * @brief Notify the user has successfully checked his password
+ *
+ * This function should be called when the user demonstrates that he remembers
+ * the password to access the account
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not continue asking the user
+ * to remind the password for the account in a short time.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)passwordReminderDialogSucceededWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify the user has successfully checked his password
+ *
+ * This function should be called when the user demonstrates that he remembers
+ * the password to access the account
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not continue asking the user
+ * to remind the password for the account in a short time.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ */
+- (void)passwordReminderDialogSucceeded;
+
+/**
+ * @brief Notify the user has successfully skipped the password check
+ *
+ * This function should be called when the user skips the verification of
+ * the password to access the account
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not continue asking the user
+ * to remind the password for the account in a short time.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)passwordReminderDialogSkippedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify the user has successfully skipped the password check
+ *
+ * This function should be called when the user skips the verification of
+ * the password to access the account
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not continue asking the user
+ * to remind the password for the account in a short time.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ */
+- (void)passwordReminderDialogSkipped;
+
+/**
+ * @brief Notify the user wants to totally disable the password check
+ *
+ * This function should be called when the user rejects to verify that he remembers
+ * the password to access the account and doesn't want to see the reminder again.
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not ask the user
+ * to remind the password for the account again.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)passwordReminderDialogBlockedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify the user wants to totally disable the password check
+ *
+ * This function should be called when the user rejects to verify that he remembers
+ * the password to access the account and doesn't want to see the reminder again.
+ *
+ * As result, the user attribute MEGAUserAttributePwdReminder will be updated
+ * to remember this event. In consequence, MEGA will not ask the user
+ * to remind the password for the account again.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ * - [MEGARequest text] - Returns the new value for the attribute
+ */
+- (void)passwordReminderDialogBlocked;
+
+/**
+ * @brief Check if the app should show the password reminder dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * @param atLogout YES if the check is being done just before a logout
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the app should show the password reminder dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * @param atLogout YES if the check is being done just before a logout
+ */
+- (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout;
 
 /**
  * @brief Use HTTPS communications only
@@ -2815,6 +3139,57 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  *
  */
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action;
+
+/**
+ * @brief Invite another person to be your MEGA contact using a contact link handle
+ *
+ * The associated request type with this request is MEGARequestTypeInviteContact
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest text] - Returns the text of the invitation
+ * - [MEGARequest number] - Returns the action
+ * - [MEGARequest nodeHandle] - Returns the contact link handle
+ *
+ * Sending a reminder within a two week period since you started or your last reminder will
+ * fail the API returning the error code MEGAErrorTypeApiEAccess.
+ *
+ * @param email Email of the new contact
+ * @param message Message for the user (can be nil)
+ * @param action Action for this contact request. Valid values are:
+ * - MEGAInviteActionAdd = 0
+ * - MEGAInviteActionDelete = 1
+ * - MEGAInviteActionRemind = 2
+ *
+ * @param handle Contact link handle of the other account. This parameter is considered only if the
+ * \c action is MEGAInviteActionAdd. Otherwise, it's ignored and it has no effect.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Invite another person to be your MEGA contact using a contact link handle
+ *
+ * The associated request type with this request is MEGARequestTypeInviteContact
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email of the contact
+ * - [MEGARequest text] - Returns the text of the invitation
+ * - [MEGARequest number] - Returns the action
+ * - [MEGARequest nodeHandle] - Returns the contact link handle
+ *
+ * Sending a reminder within a two week period since you started or your last reminder will
+ * fail the API returning the error code MEGAErrorTypeApiEAccess.
+ *
+ * @param email Email of the new contact
+ * @param message Message for the user (can be nil)
+ * @param action Action for this contact request. Valid values are:
+ * - MEGAInviteActionAdd = 0
+ * - MEGAInviteActionDelete = 1
+ * - MEGAInviteActionRemind = 2
+ *
+ * @param handle Contact link handle of the other account. This parameter is considered only if the
+ * \c action is MEGAInviteActionAdd. Otherwise, it's ignored and it has no effect.
+ */
+- (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action handle:(uint64_t)handle;
 
 /**
  * @brief Reply to a contact request
@@ -3383,6 +3758,60 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
 - (void)pauseTransfers:(BOOL)pause;
 
 /**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transfer Transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transfer Transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ */
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transferTag Tag of the transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transferTag Tag of the transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ */
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause;
+
+/**
  * @brief Enable the resumption of transfers
  *
  * This function enables the cache of transfers, so they can be resumed later.
@@ -3654,6 +4083,31 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @return YES if the node has any previous version
  */
 - (BOOL)hasVersionsForNode:(MEGANode *)node;
+
+/**
+ * @brief Get information about the contents of a folder
+ *
+ * The associated request type with this request is MEGARequestTypeFolderInfo
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaFolderInfo] - MEGAFolderInfo object with the information related to the folder
+ *
+ * @param node Folder node to inspect
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getFolderInfoForNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get information about the contents of a folder
+ *
+ * The associated request type with this request is MEGARequestTypeFolderInfo
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaFolderInfo] - MEGAFolderInfo object with the information related to the folder
+ *
+ * @param node Folder node to inspect
+ */
+- (void)getFolderInfoForNode:(MEGANode *)node;
 
 /**
  * @brief Get file and folder children of a MEGANode separatedly
@@ -4231,6 +4685,73 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  *
  */
 - (void)getLanguagePreference;
+
+/**
+ * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+ *
+ * The associated request type with this request is MegaRequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "0" for disable, "1" for enable
+ *
+ * @param disable YES to disable the automatic approval of incoming contact requests using a contact link
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
+ *
+ * The associated request type with this request is MegaRequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "0" for disable, "1" for enable
+ *
+ * @param disable YES to disable the automatic approval of incoming contact requests using a contact link
+ */
+- (void)setContactLinksOptionDisable:(BOOL)disable;
+
+/**
+ * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MegaRequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "0" for disable, "1" for enable
+ * - [MEGARequest flag] - NO if disabled, YES if enabled
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getContactLinksOptionWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the automatic approval of incoming contact requests using contact links is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MegaRequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "0" for disable, "1" for enable
+ * - [MEGARequest flag] - NO if disabled, YES if enabled
+ */
+- (void)getContactLinksOption;
 
 /**
  * @brief Create a thumbnail for an image

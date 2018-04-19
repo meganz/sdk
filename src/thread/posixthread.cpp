@@ -28,7 +28,9 @@
 #include <errno.h>
 
 #ifdef USE_PTHREAD
-#if defined (__MINGW32__) && !defined(__struct_timespec_defined)
+// Apparently this is defined by pthread.h, if that header had been included.
+// __struct_timespec_defined is defined in time.h for MinGW on Windows
+#if defined (__MINGW32__) && !defined(_TIMESPEC_DEFINED) && ! __struct_timespec_defined
 struct timespec
 {
   long long	tv_sec; 	/* seconds */

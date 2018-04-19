@@ -46,7 +46,7 @@ PosixWaiter::PosixWaiter()
     if (pipe(m_pipe) < 0)
     {
         LOG_fatal << "Error creating pipe";
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("Error creating pipe");
     }
 
     if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)

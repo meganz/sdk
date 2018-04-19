@@ -28,8 +28,15 @@ namespace mega {
 
 string toNodeHandle(handle nodeHandle)
 {
-    char base64Handle[14];
+    char base64Handle[12];
     Base64::btoa((byte*)&(nodeHandle), MegaClient::NODEHANDLE, base64Handle);
+    return string(base64Handle);
+}
+
+string toHandle(handle h)
+{
+    char base64Handle[14];
+    Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
 }
 

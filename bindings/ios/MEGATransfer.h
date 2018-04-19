@@ -27,6 +27,18 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
     MEGATransferTypeLocalHTTPDownload
 };
 
+typedef NS_ENUM (NSInteger, MEGATransferState) {
+    MEGATransferStateNone,
+    MEGATransferStateQueued,
+    MEGATransferStateActive,
+    MEGATransferStatePaused,
+    MEGATransferStateRetrying,
+    MEGATransferStateCompleting,
+    MEGATransferStateComplete,
+    MEGATransferStateCancelled,
+    MEGATransferStateFailed
+};
+
 /**
  * @brief Provides information about a transfer.
  *
@@ -216,5 +228,10 @@ typedef NS_ENUM (NSInteger, MEGATransferType) {
  * @return Copy of the MEGATransfer object
  */
 - (instancetype)clone;
+
+/**
+ * @brief State of the transfer
+ */
+@property (readonly, nonatomic) MEGATransferState state;
 
 @end

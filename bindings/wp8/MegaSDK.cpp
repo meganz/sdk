@@ -1112,6 +1112,46 @@ int MegaSDK::isLoggedIn()
 	return megaApi->isLoggedIn();
 }
 
+void MegaSDK::contactLinkCreateRenew(bool renew, MRequestListenerInterface^ listener)
+{
+    megaApi->contactLinkCreate(renew, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::contactLinkCreateRenew(bool renew)
+{
+    megaApi->contactLinkCreate(renew);
+}
+
+void MegaSDK::contactLinkQuery(MegaHandle handle, MRequestListenerInterface^ listener)
+{
+    megaApi->contactLinkQuery(handle, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::contactLinkQuery(MegaHandle handle)
+{
+    megaApi->contactLinkQuery(handle);
+}
+
+void MegaSDK::contactLinkDelete(MegaHandle handle, MRequestListenerInterface^ listener)
+{
+    megaApi->contactLinkDelete(handle, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::contactLinkDelete(MegaHandle handle)
+{
+    megaApi->contactLinkDelete(handle);
+}
+
+void MegaSDK::contactLinkDeleteActive(MRequestListenerInterface^ listener)
+{
+    megaApi->contactLinkDelete(mega::INVALID_HANDLE, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::contactLinkDeleteActive()
+{
+    megaApi->contactLinkDelete(mega::INVALID_HANDLE);
+}
+
 String^ MegaSDK::getMyEmail()
 {
 	std::string utf16email;
@@ -1156,6 +1196,15 @@ MUser^ MegaSDK::getMyUser()
 bool MegaSDK::isAchievementsEnabled()
 {
     return megaApi->isAchievementsEnabled();
+}
+
+bool MegaSDK::checkPassword(String^ password)
+{
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    return megaApi->checkPassword((password != nullptr) ? utf8password.c_str() : NULL);
 }
 
 void MegaSDK::setLogLevel(MLogLevel logLevel)
@@ -2165,6 +2214,46 @@ void MegaSDK::masterKeyExported()
     megaApi->masterKeyExported();
 }
 
+void MegaSDK::passwordReminderDialogSucceeded(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogSucceeded(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogSucceeded()
+{
+    megaApi->passwordReminderDialogSucceeded();
+}
+
+void MegaSDK::passwordReminderDialogSkipped(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogSkipped(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogSkipped()
+{
+    megaApi->passwordReminderDialogSkipped();
+}
+
+void MegaSDK::passwordReminderDialogBlocked(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogBlocked(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogBlocked()
+{
+    megaApi->passwordReminderDialogBlocked();
+}
+
+void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout, MRequestListenerInterface^ listener)
+{
+    megaApi->shouldShowPasswordReminderDialog(atLogout, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout)
+{
+    megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
@@ -2221,6 +2310,26 @@ void MegaSDK::inviteContact(String^ email, String^ message, MContactRequestInvit
 
     megaApi->inviteContact((email != nullptr) ? utf8email.c_str() : NULL,
         (message != nullptr) ? utf8message.c_str() : NULL, (int)action);
+}
+
+void MegaSDK::inviteContactByLinkHandle(String^ email, String^ message, MContactRequestInviteActionType action, MegaHandle contactLink, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8message;
+    if (message != nullptr)
+        MegaApi::utf16ToUtf8(message->Data(), message->Length(), &utf8message);
+
+    megaApi->inviteContact((email != nullptr) ? utf8email.c_str() : NULL,
+        (message != nullptr) ? utf8message.c_str() : NULL, (int)action,
+        contactLink, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::inviteContactByLinkHandle(String^ email, String^ message, MContactRequestInviteActionType action, MegaHandle contactLink)
+{
+    this->inviteContactByLinkHandle(email, message, action, contactLink, nullptr);
 }
 
 void MegaSDK::replyContactRequest(MContactRequest^ request, MContactRequestReplyActionType action, MRequestListenerInterface^ listener)
@@ -2902,14 +3011,9 @@ MTransferList^ MegaSDK::getChildTransfers(int transferTag)
     return ref new MTransferList(megaApi->getChildTransfers(transferTag), true);
 }
 
-bool MegaSDK::isWaiting()
+int MegaSDK::isWaiting()
 {
     return megaApi->isWaiting();
-}
-
-bool MegaSDK::areServersBusy()
-{
-    return megaApi->areServersBusy();
 }
 
 int MegaSDK::getNumPendingUploads()
@@ -3509,6 +3613,26 @@ bool MegaSDK::setLanguage(String^ languageCode)
         MegaApi::utf16ToUtf8(languageCode->Data(), languageCode->Length(), &utf8languageCode);
 
     return megaApi->setLanguage((languageCode != nullptr) ? utf8languageCode.c_str() : NULL);
+}
+
+void MegaSDK::setContactLinksOption(bool disable, MRequestListenerInterface^ listener)
+{
+    megaApi->setContactLinksOption(disable, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setContactLinksOption(bool disable)
+{
+    megaApi->setContactLinksOption(disable);
+}
+
+void MegaSDK::getContactLinksOption(MRequestListenerInterface^ listener)
+{
+    megaApi->getContactLinksOption(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getContactLinksOption()
+{
+    megaApi->getContactLinksOption();
 }
 
 bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)

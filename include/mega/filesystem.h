@@ -176,16 +176,20 @@ struct MEGA_API DirNotify
 {
     typedef enum { EXTRA, DIREVENTS, RETRY, NUMQUEUES } notifyqueue;
 
+    // notifyq[EXTRA] is like DIREVENTS, but delays its processing (for network filesystems)
     // notifyq[DIREVENTS] is fed with filesystem changes
     // notifyq[RETRY] receives transient errors that need to be retried
     notify_deque notifyq[NUMQUEUES];
 
     // set if no notification available on this platform or a permanent failure
     // occurred
-    bool failed;
+    int failed;
+
+    // reason of the permanent failure of filesystem notifications
+    string failreason;
 
     // set if a temporary error occurred
-    bool error;
+    int error;
 
     // base path
     string localbasepath;
