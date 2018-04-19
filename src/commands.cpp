@@ -3896,6 +3896,43 @@ void CommandQuerySignupLink::procresult()
     client->app->querysignuplink_result(API_EINTERNAL);
 }
 
+CommandConfirmSignupLinkV2::CommandConfirmSignupLinkV2(MegaClient* client,
+                                                   const byte* code,
+                                                   unsigned len)
+{
+    cmd("ud2");
+    arg("c", code, len);
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmSignupLinkV2::procresult()
+{
+    string name;
+    string email;
+    handle uh;
+
+    if (client->json.isnumeric())
+    {
+        client->app->confirmsignuplink2_result(UNDEF, NULL, NULL, (error)client->json.getint());
+    }
+
+    if (client->json.storebinary(&email) && client->json.storebinary(&name))
+    {
+        uh = client->json.gethandle(MegaClient::USERHANDLE);
+    }
+    while (client->json.storeobject());
+
+    if (!ISUNDEF(uh))
+    {
+        client->app->confirmsignuplink2_result(uh, name.c_str(), email.c_str(), API_OK);
+    }
+    else
+    {
+        client->app->confirmsignuplink2_result(UNDEF, NULL, NULL, API_EINTERNAL);
+    }
+}
+
 CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
                                                    const byte* code,
                                                    unsigned len,

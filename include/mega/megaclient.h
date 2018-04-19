@@ -234,6 +234,7 @@ public:
 
     void querysignuplink(const byte*, unsigned);
     void confirmsignuplink(const byte*, unsigned, uint64_t);
+    void confirmsignuplinkv2(const byte*, unsigned);
     void setkeypair();
 
     // user login: e-mail, pwkey

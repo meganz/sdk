@@ -192,6 +192,14 @@ public:
     CommandQuerySignupLink(MegaClient*, const byte*, unsigned);
 };
 
+class MEGA_API CommandConfirmSignupLinkV2 : public Command
+{
+public:
+    void procresult();
+
+    CommandConfirmSignupLinkV2(MegaClient*, const byte*, unsigned);
+};
+
 class MEGA_API CommandConfirmSignupLink : public Command
 {
 public:

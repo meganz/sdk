@@ -9321,6 +9321,11 @@ void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emai
     reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
 }
 
+void MegaClient::confirmsignuplinkv2(const byte *code, unsigned len)
+{
+    reqs.add(new CommandConfirmSignupLinkV2(this, code, len));
+}
+
 // generate and configure encrypted private key, plaintext public key
 void MegaClient::setkeypair()
 {
