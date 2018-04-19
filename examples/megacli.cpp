@@ -2957,7 +2957,7 @@ static void process_line(char* l)
                             handle uh;
                             byte pw[SymmCipher::KEYLENGTH];
 
-                            if (Base64::atob(words[1].c_str(), (byte*) &uh, sizeof uh) == sizeof uh && Base64::atob(
+                            if (Base64::atob(words[1].c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
                                     words[1].c_str() + 12, pw, sizeof pw) == sizeof pw)
                             {
                                 client->resumeephemeral(uh, pw);
@@ -3602,7 +3602,7 @@ static void process_line(char* l)
                         if (words.size() == 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             string email = words[2];
                             User *u = client->finduser(email.c_str(), 0);
@@ -3648,7 +3648,7 @@ static void process_line(char* l)
                         if (words.size() > 1 && words.size() < 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             if (words.size() == 2)
                             {
@@ -3682,7 +3682,7 @@ static void process_line(char* l)
                         if (words.size() == 2)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             client->getUrlChat(chatid);
                             return;
@@ -3699,7 +3699,7 @@ static void process_line(char* l)
                         if (words.size() == 3)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
                             bool archive = (words[2] == "1");
                             if (!archive && (words[2] != "0"))
                             {
@@ -3731,7 +3731,7 @@ static void process_line(char* l)
                         if (words.size() == 2)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             textchat_map::iterator it = client->chats.find(chatid);
                             if (it == client->chats.end())
@@ -3778,8 +3778,8 @@ static void process_line(char* l)
                         }
                         else if ((words.size() == 3) && (words[1] == "query"))
                         {
-                            handle clink;
-                            Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+                            handle clink = UNDEF;
+                            Base64::atob(words[2].c_str(), (byte*) &clink, MegaClient::CONTACTLINKHANDLE);
 
                             client->contactlinkquery(clink);
 
@@ -3790,7 +3790,7 @@ static void process_line(char* l)
 
                             if (words.size() == 3)
                             {
-                                Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+                                Base64::atob(words[2].c_str(), (byte*) &clink, MegaClient::CONTACTLINKHANDLE);
                             }
 
                             client->contactlinkdelete(clink);
@@ -3887,7 +3887,7 @@ static void process_line(char* l)
                                         handle contactLink = UNDEF;
                                         if (clink)
                                         {
-                                            Base64::atob(words[3].c_str(), (byte*) &contactLink, sizeof contactLink);
+                                            Base64::atob(words[3].c_str(), (byte*) &contactLink, MegaClient::CONTACTLINKHANDLE);
                                         }
 
                                         // Original email is not required, but can be used if this account has multiple email addresses associated,
@@ -4099,10 +4099,10 @@ static void process_line(char* l)
                         if (words.size() == 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             handle nodehandle;
-                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
 
                             const char *uid = words[3].c_str();
 
@@ -4122,10 +4122,10 @@ static void process_line(char* l)
                         if (words.size() == 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             handle nodehandle;
-                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
 
                             const char *uid = words[3].c_str();
 
@@ -4144,7 +4144,7 @@ static void process_line(char* l)
                         if (words.size() == 2 || words.size() == 3)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             if (words.size() == 2)  // empty title / remove title
                             {
@@ -4182,10 +4182,10 @@ static void process_line(char* l)
                         if (words.size() == 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             handle uh;
-                            Base64::atob(words[2].c_str(), (byte*) &uh, sizeof uh);
+                            Base64::atob(words[2].c_str(), (byte*) &uh, MegaClient::USERHANDLE);
 
                             string privstr = words[3];
                             privilege_t priv;
@@ -4769,7 +4769,7 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
 
     cout << "Ephemeral session established, session ID: ";
-    Base64::btoa((byte*) &uh, sizeof uh, buf);
+    Base64::btoa((byte*) &uh, MegaClient::USERHANDLE, buf);
     cout << buf << "#";
     Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
     cout << buf << endl;
