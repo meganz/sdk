@@ -11651,7 +11651,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
             request->setFlag(!stringMap->get("num"));
             // it doesn't matter the value, just if it exists
 
-            value = stringMap->get("c");
+            const char *value = stringMap->get("c");
             if (value)
             {
                 string sValue = value;
