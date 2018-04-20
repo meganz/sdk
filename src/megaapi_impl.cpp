@@ -11505,7 +11505,6 @@ void MegaApiImpl::getua_result(error e)
         else if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS &&
                  request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
         {
-            request->setNumber(0);
             request->setFlag(true);
         }
     }
@@ -11646,16 +11645,11 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
 
+        // prepare request params to know if a warning should show or not
         if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
         {
-            const char *value = stringMap->get("num");
-            if (value)
-            {
-                string sValue = value;
-                string bValue;
-                Base64::atob(sValue, bValue);
-                request->setFlag(false);
-            }
+            request->setFlag(stringMap->get("num"));
+            // it doesn't matter the value, just if it exists
 
             value = stringMap->get("c");
             if (value)
@@ -11664,7 +11658,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
                 string bValue;
                 Base64::atob(sValue, bValue);
                 request->setNumber(atoi(bValue.c_str()));
-                request->setFlag(true);
             }
         }
 
