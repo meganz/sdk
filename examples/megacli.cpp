@@ -1917,7 +1917,7 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    if ((e = client->changepw(pwkey, newpwkey)) == API_OK)
+                    if ((e = client->changepw(newpwkey)) == API_OK)
                     {
                         memcpy(pwkey, newpwkey, sizeof pwkey);
                         cout << endl << "Changing password..." << endl;
@@ -3809,7 +3809,7 @@ static void process_line(char* l)
                     {
                         if (client->loggedin() != NOTLOGGEDIN)
                         {
-                            setprompt(OLDPASSWORD);
+                            setprompt(NEWPASSWORD);
                         }
                         else
                         {

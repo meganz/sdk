@@ -126,7 +126,7 @@ class MEGA_API CommandSetMasterKey : public Command
 public:
     void procresult();
 
-    CommandSetMasterKey(MegaClient*, const byte*, const byte*, uint64_t);
+    CommandSetMasterKey(MegaClient*, const byte*, uint64_t);
 };
 
 class MEGA_API CommandCreateEphemeralSession : public Command

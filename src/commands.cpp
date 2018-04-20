@@ -3624,10 +3624,9 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* oldkey, const byte* newkey, uint64_t hash)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash)
 {
     cmd("up");
-    arg("currk", oldkey, SymmCipher::KEYLENGTH);
     arg("k", newkey, SymmCipher::KEYLENGTH);
     arg("uh", (byte*)&hash, sizeof hash);
 
@@ -3642,6 +3641,7 @@ void CommandSetMasterKey::procresult()
     }
     else
     {
+        client->json.storeobject();
         client->app->changepw_result(API_OK);
     }
 }
