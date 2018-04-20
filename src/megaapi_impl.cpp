@@ -11648,7 +11648,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         // prepare request params to know if a warning should show or not
         if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
         {
-            request->setFlag(stringMap->get("num"));
+            request->setFlag(!stringMap->get("num"));
             // it doesn't matter the value, just if it exists
 
             value = stringMap->get("c");
