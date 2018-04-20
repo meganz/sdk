@@ -10411,60 +10411,6 @@ class MegaApi
          */
         int httpServerIsRunning();
 
-
-        /**
-         * @brief Start an FTP proxy server in specified port
-         *
-         * //TODO: review docs
-         * If this function returns true, that means that the server is
-         * ready to accept connections. The initialization is synchronous.
-         *
-         * The server will serve files using this URL format:
-         * ftp://127.0.0.1/<NodeHandle>/<NodeName>
-         *
-         * The node name must be URL encoded and must match with the node handle.
-         * You can generate a correct link for a MegaNode using MegaApi::ftpServerGetLocalLink
-         *
-         * If the node handle belongs to a folder node, a web with the list of files
-         * inside the folder is returned.
-         *
-         * It's important to know that the FTP proxy server has several configuration options
-         * that can restrict the nodes that will be served and the connections that will be accepted.
-         *
-         * These are the default options:
-         * - The restricted mode of the server is set to MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-         * (see MegaApi::ftpServerSetRestrictedMode)
-         *
-         * - Folder nodes are NOT allowed to be served (see MegaApi::ftpServerEnableFolderServer)
-         * - File nodes are allowed to be served (see MegaApi::ftpServerEnableFileServer)
-         * - Subtitles support is disabled (see MegaApi::ftpServerEnableSubtitlesSupport)
-         *
-         * The FTP server will only stream a node if it's allowed by all configuration options.
-         *
-         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
-         * @param port Port in which the server must accept connections
-         * @param useTLS Use TLS (default false)
-         * @param certificatepath path to certificate (PEM format)
-         * @param keypath path to certificate key
-         * @return True is the server is ready, false if the initialization failed
-         */
-        bool ftpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
-
-        /**
-         * @brief Stop the FTP proxy server
-         *
-         * When this function returns, the server is already shutdown.
-         * If the FTP proxy server isn't running, this functions does nothing
-         */
-        void ftpServerStop();
-
-        /**
-         * @brief Check if the FTP proxy server is running
-         * @return 0 if the server is not running. Otherwise the port in which it's listening to
-         */
-        int ftpServerIsRunning();
-
-
         /**
          * @brief Check if the HTTP proxy server is listening on all network interfaces
          * @return true if the HTTP proxy server is listening on 127.0.0.1 only, or it's not started.
@@ -10731,7 +10677,6 @@ class MegaApi
          */
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
 
-
         /**
          * @brief Set the maximum buffer size for the internal buffer
          *
@@ -10804,6 +10749,393 @@ class MegaApi
          * @return Maximum size of the packets sent to clients (in bytes)
          */
         int httpServerGetMaxOutputSize();
+
+
+        //TODO: figure out which functionality does not make sense (and review this enum)
+        enum {
+            FTP_SERVER_DENY_ALL = -1,
+            FTP_SERVER_ALLOW_ALL = 0,
+            FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
+            FTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+        };
+
+        /**
+         * @brief Start an FTP proxy server in specified port
+         *
+         * //TODO: review docs
+         * If this function returns true, that means that the server is
+         * ready to accept connections. The initialization is synchronous.
+         *
+         * The server will serve files using this URL format:
+         * ftp://127.0.0.1/<NodeHandle>/<NodeName>
+         *
+         * The node name must be URL encoded and must match with the node handle.
+         * You can generate a correct link for a MegaNode using MegaApi::ftpServerGetLocalLink
+         *
+         * If the node handle belongs to a folder node, a web with the list of files
+         * inside the folder is returned.
+         *
+         * It's important to know that the FTP proxy server has several configuration options
+         * that can restrict the nodes that will be served and the connections that will be accepted.
+         *
+         * These are the default options:
+         * - The restricted mode of the server is set to MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * (see MegaApi::ftpServerSetRestrictedMode)
+         *
+         * - Folder nodes are NOT allowed to be served (see MegaApi::ftpServerEnableFolderServer)
+         * - File nodes are allowed to be served (see MegaApi::ftpServerEnableFileServer)
+         * - Subtitles support is disabled (see MegaApi::ftpServerEnableSubtitlesSupport)
+         *
+         * The FTP server will only stream a node if it's allowed by all configuration options.
+         *
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
+         * @param port Port in which the server must accept connections
+         * @param useTLS Use TLS (default false)
+         * @param certificatepath path to certificate (PEM format)
+         * @param keypath path to certificate key
+         * @return True is the server is ready, false if the initialization failed
+         */
+        bool ftpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
+
+        /**
+         * @brief Stop the FTP proxy server
+         *
+         * When this function returns, the server is already shutdown.
+         * If the FTP proxy server isn't running, this functions does nothing
+         */
+        void ftpServerStop();
+
+        /**
+         * @brief Check if the FTP proxy server is running
+         * @return 0 if the server is not running. Otherwise the port in which it's listening to
+         */
+        int ftpServerIsRunning();
+
+         /**
+         * @brief Check if the FTP proxy server is listening on all network interfaces
+         * @return true if the FTP proxy server is listening on 127.0.0.1 only, or it's not started.
+         * If it's started and listening on all network interfaces, this function returns false
+         */
+        bool ftpServerIsLocalOnly();
+
+        /**
+         * @brief Allow/forbid to serve files
+         *
+         * By default, files are served (when the server is running)
+         *
+         * Even if files are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::ftpServerSetRestrictedMode) are still applied.
+         *
+         * @param enable true to allow to server files, false to forbid it
+         */
+        void ftpServerEnableFileServer(bool enable);
+
+        /**
+         * @brief Check if it's allowed to serve files
+         *
+         * This function can return true even if the FTP proxy server is not running
+         *
+         * Even if files are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::ftpServerSetRestrictedMode) are still applied.
+         *
+         * @return true if it's allowed to serve files, otherwise false
+         */
+        bool ftpServerIsFileServerEnabled();
+
+        /**
+         * @brief Allow/forbid to serve folders
+         *
+         * By default, folders are NOT served
+         *
+         * Even if folders are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::ftpServerSetRestrictedMode) are still applied.
+         *
+         * @param enable true to allow to server folders, false to forbid it
+         */
+        void ftpServerEnableFolderServer(bool enable);
+
+        /**
+         * @brief Check if it's allowed to serve folders
+         *
+         * This function can return true even if the FTP proxy server is not running
+         *
+         * Even if folders are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::ftpServerSetRestrictedMode) are still applied.
+         *
+         * @return true if it's allowed to serve folders, otherwise false
+         */
+        bool ftpServerIsFolderServerEnabled();
+
+        /**
+         * @brief Stablish FILE_ATTRIBUTE_OFFLINE attribute
+         *
+         * By default, it is not enabled
+         *
+         * This is used when serving files in WEBDAV, it will cause windows clients to not load a file
+         * when it is selected. It is intended to reduce unnecessary traffic.
+         *
+         * @param enable true to enable the FILE_ATTRIBUTE_OFFLINE attribute, false to disable it
+         */
+        void ftpServerEnableOfflineAttribute(bool enable);
+
+        /**
+         * @brief Check if FILE_ATTRIBUTE_OFFLINE it's enabled
+         *
+         * @return true if the FILE_ATTRIBUTE_OFFLINE attribute is enabled, otherwise false
+         */
+        bool ftpServerIsOfflineAttributeEnabled();
+
+        /**
+         * @brief Enable/disable the restricted mode of the FTP server
+         *
+         * This function allows to restrict the nodes that are allowed to be served.
+         * For not allowed links, the server will return "407 Forbidden".
+         *
+         * Possible values are:
+         * - FTP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - FTP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1 (default)
+         * Only links created with MegaApi::ftpServerGetLocalLink are allowed to be served
+         *
+         * - FTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::ftpServerGetLocalLink is allowed to be served
+         *
+         * If a different value from the list above is passed to this function, it won't have any effect and the previous
+         * state of this option will be preserved.
+         *
+         * The default value of this property is MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * The state of this option is preserved even if the FTP server is restarted, but the
+         * the FTP proxy server only remembers the generated links since the last call to
+         * MegaApi::ftpServerStart
+         *
+         * Even if nodes are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::ftpServerEnableFileServer,
+         * MegaApi::ftpServerEnableFolderServer) are still applied.
+         *
+         * @param Required state for the restricted mode of the FTP proxy server
+         */
+        void ftpServerSetRestrictedMode(int mode);
+
+        /**
+         * @brief Check if the FTP proxy server is working in restricted mode
+         *
+         * Possible return values are:
+         * - FTP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - FTP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1
+         * Only links created with MegaApi::ftpServerGetLocalLink are allowed to be served
+         *
+         * - FTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::ftpServerGetLocalLink is allowed to be served
+         *
+         * The default value of this property is MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * See MegaApi::ftpServerEnableRestrictedMode and MegaApi::ftpServerStart
+         *
+         * Even if nodes are allowed to be served by this function, restrictions related to
+         * other configuration options (MegaApi::ftpServerEnableFileServer,
+         * MegaApi::ftpServerEnableFolderServer) are still applied.
+         *
+         * @return State of the restricted mode of the FTP proxy server
+         */
+        int ftpServerGetRestrictedMode();
+
+        /**
+         * @brief Enable/disable the support for subtitles
+         *
+         * Subtitles support allows to stream some special links that otherwise wouldn't be valid.
+         * For example, let's suppose that the server is streaming this video:
+         * ftp://120.0.0.1:4443/<Base64Handle>/MyHolidays.avi
+         *
+         * Some media players scan FTP servers looking for subtitle files and request links like these ones:
+         * ftp://120.0.0.1:4443/<Base64Handle>/MyHolidays.txt
+         * ftp://120.0.0.1:4443/<Base64Handle>/MyHolidays.srt
+         *
+         * Even if a file with that name is in the same folder of the MEGA account, the node wouldn't be served because
+         * the node handle wouldn't match.
+         *
+         * When this feature is enabled, the FTP proxy server will check if there are files with that name
+         * in the same folder as the node corresponding to the handle in the link.
+         *
+         * If a matching file is found, the name is exactly the same as the the node with the specified handle
+         * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
+         * the FTP proxy server will serve that file.
+         *
+         * This feature is disabled by default.
+         *
+         * @param enable True to enable subtitles support, false to disable it
+         */
+        void ftpServerEnableSubtitlesSupport(bool enable);
+
+        /**
+         * @brief Check if the support for subtitles is enabled
+         *
+         * See MegaApi::ftpServerEnableSubtitlesSupport.
+         *
+         * This feature is disabled by default.
+         *
+         * @return true of the support for subtibles is enables, otherwise false
+         */
+        bool ftpServerIsSubtitlesSupportEnabled();
+
+        /**
+         * @brief Add a listener to receive information about the FTP proxy server
+         *
+         * This is the valid data that will be provided on callbacks:
+         * - MegaTransfer::getType - It will be MegaTransfer::TYPE_LOCAL_FTP_DOWNLOAD
+         * - MegaTransfer::getPath - URL requested to the FTP proxy server
+         * - MegaTransfer::getFileName - Name of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getNodeHandle - Handle of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getTotalBytes - Total bytes of the response (response headers + file, if required)
+         * - MegaTransfer::getStartPos - Start position (for range requests only, otherwise -1)
+         * - MegaTransfer::getEndPos - End position (for range requests only, otherwise -1)
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EINCOMPLETE - If the whole response wasn't sent
+         * (it's normal to get this error code sometimes because media players close connections when they have
+         * the data that they need)
+         *
+         * - MegaError::API_EREAD - If the connection with MEGA storage servers failed
+         * - MegaError::API_EAGAIN - If the download speed is too slow for streaming
+         * - A number > 0 means an FTP error code returned to the client
+         *
+         * @param listener Listener to receive information about the FTP proxy server
+         */
+        void ftpServerAddListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Stop the reception of callbacks related to the FTP proxy server on this listener
+         * @param listener Listener that won't continue receiving information
+         */
+        void ftpServerRemoveListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Returns a URL to a node in the local FTP proxy server
+         *
+         * The FTP proxy server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local FTP link
+         * @return URL to the node in the local FTP proxy server, otherwise NULL
+         */
+        char *ftpServerGetLocalLink(MegaNode *node);
+
+        /**
+         * @brief Returns the list with the links of locations served via FTP
+         *
+         * The FTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local FTP server, otherwise NULL
+         */
+        MegaStringList *ftpServerGetLinks();
+
+        /**
+         * @brief Returns the list of nodes served via FTP
+         *
+         * The FTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local FTP server, otherwise NULL
+         */
+        MegaNodeList *ftpServerGetAllowedNodes();
+
+        /**
+         * @brief Stops serving a node via ftp.
+         * The ftp link will no longer be valid.
+         *
+         * @param handle Handle of the node to stop serving
+         * @return URL to the node in the local FTP proxy server, otherwise NULL
+         */
+        void ftpServerRemoveAllowedNode(MegaHandle handle);
+
+        /**
+         * @brief Set the maximum buffer size for the internal buffer
+         *
+         * The FTP proxy server has an internal buffer to store the data received from MEGA
+         * while it's being sent to clients. When the buffer is full, the connection with
+         * the MEGA storage server is closed, when the buffer has few data, the connection
+         * with the MEGA storage server is started again.
+         *
+         * Even with very fast connections, due to the possible latency starting new connections,
+         * if this buffer is small the streaming can have problems due to the overhead caused by
+         * the excessive number of POST requests.
+         *
+         * It's recommended to set this buffer at least to 1MB
+         *
+         * For connections that request less data than the buffer size, the FTP proxy server
+         * will only allocate the required memory to complete the request to minimize the
+         * memory usage.
+         *
+         * The new value will be taken into account since the next request received by
+         * the FTP proxy server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param bufferSize Maximum buffer size (in bytes) or a number <= 0 to use the
+         * internal default value
+         */
+        void ftpServerSetMaxBufferSize(int bufferSize);
+
+        /**
+         * @brief Get the maximum size of the internal buffer size
+         *
+         * See MegaApi::ftpServerSetMaxBufferSize
+         *
+         * @return Maximum size of the internal buffer size (in bytes)
+         */
+        int ftpServerGetMaxBufferSize();
+
+        /**
+         * @brief Set the maximum size of packets sent to clients
+         *
+         * For each connection, the FTP proxy server only sends one write to the underlying
+         * socket at once. This parameter allows to set the size of that write.
+         *
+         * A small value could cause a lot of writes and would lower the performance.
+         *
+         * A big value could send too much data to the output buffer of the socket. That could
+         * keep the internal buffer full of data that hasn't been sent to the client yet,
+         * preventing the retrieval of additional data from the MEGA storage server. In that
+         * circumstances, the client could read a lot of data at once and the FTP server
+         * could not have enough time to get more data fast enough.
+         *
+         * It's recommended to set this value to at least 8192 and no more than the 25% of
+         * the maximum buffer size (MegaApi::ftpServerSetMaxBufferSize).
+         *
+         * The new value will be takein into account since the next request received by
+         * the FTP proxy server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param outputSize Maximun size of data packets sent to clients (in bytes) or
+         * a number <= 0 to use the internal default value
+         */
+        void ftpServerSetMaxOutputSize(int outputSize);
+
+        /**
+         * @brief Get the maximum size of the packets sent to clients
+         *
+         * See MegaApi::ftpServerSetMaxOutputSize
+         *
+         * @return Maximum size of the packets sent to clients (in bytes)
+         */
+        int ftpServerGetMaxOutputSize();
 
 #endif
     

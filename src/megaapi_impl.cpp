@@ -6998,48 +6998,6 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     return result;
 }
 
-bool MegaApiImpl::ftpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
-{
-    #ifndef ENABLE_EVT_TLS
-    if (useTLS)
-    {
-        LOG_err << "Could not start FTP server: TLS is not supported in current compilation";
-        return false;
-    }
-    #endif
-
-    sdkMutex.lock();
-    if (ftpServer && ftpServer->getPort() == port && ftpServer->isLocalOnly() == localOnly)
-    {
-        ftpServer->clearAllowedHandles();
-        sdkMutex.unlock();
-        return true;
-    }
-
-    ftpServerStop();
-    ftpServer = new MegaFTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
-//    ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
-//    ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
-//    ftpServer->enableFileServer(ftpServerEnableFiles);
-//    ftpServer->enableFolderServer(ftpServerEnableFolders);
-//    ftpServer->setRestrictedMode(ftpServerRestrictedMode);
-//    ftpServer->enableSubtitlesSupport(ftpServerRestrictedMode);
-
-    bool result = ftpServer->start(port, localOnly);
-    if (!result)
-    {
-        MegaFTPServer *server = ftpServer;
-        ftpServer = NULL;
-        sdkMutex.unlock();
-        delete server;
-    }
-    else
-    {
-        sdkMutex.unlock();
-    }
-    return result;
-}
-
 void MegaApiImpl::httpServerStop()
 {
     sdkMutex.lock();
@@ -7056,22 +7014,6 @@ void MegaApiImpl::httpServerStop()
     }
 }
 
-void MegaApiImpl::ftpServerStop()
-{
-    sdkMutex.lock();
-    if (ftpServer)
-    {
-        MegaFTPServer *server = ftpServer;
-        ftpServer = NULL;
-        sdkMutex.unlock();
-        delete server;
-    }
-    else
-    {
-        sdkMutex.unlock();
-    }
-}
-
 int MegaApiImpl::httpServerIsRunning()
 {
     bool result = false;
@@ -7079,17 +7021,6 @@ int MegaApiImpl::httpServerIsRunning()
     if (httpServer)
     {
         result = httpServer->getPort();
-    }
-    sdkMutex.unlock();
-    return result;
-}
-int MegaApiImpl::ftpServerIsRunning()
-{
-    bool result = false;
-    sdkMutex.lock();
-    if (ftpServer)
-    {
-        result = ftpServer->getPort();
     }
     sdkMutex.unlock();
     return result;
@@ -7129,7 +7060,7 @@ char *MegaApiImpl::httpServerGetLocalWebDavLink(MegaNode *node)
         return NULL;
     }
 
-    char *result = httpServer->getLink(node, true);
+    char *result = httpServer->getWebDavLink(node);
     sdkMutex.unlock();
     return result;
 }
@@ -7156,8 +7087,7 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
         MegaNode *n = getNodeByHandle(h);
         if (n)
         {
-            listoflinks.push_back(httpServer->getLink(n, true));
-
+            listoflinks.push_back(httpServer->getWebDavLink(n));
         }
     }
     sdkMutex.unlock();
@@ -7414,6 +7344,378 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 
     delete transfer;
 }
+
+bool MegaApiImpl::ftpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
+{
+    #ifndef ENABLE_EVT_TLS
+    if (useTLS)
+    {
+        LOG_err << "Could not start FTP server: TLS is not supported in current compilation";
+        return false;
+    }
+    #endif
+
+    sdkMutex.lock();
+    if (ftpServer && ftpServer->getPort() == port && ftpServer->isLocalOnly() == localOnly)
+    {
+        ftpServer->clearAllowedHandles();
+        sdkMutex.unlock();
+        return true;
+    }
+
+    ftpServerStop();
+    ftpServer = new MegaFTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
+//    ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
+//    ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
+//    ftpServer->enableFileServer(ftpServerEnableFiles);
+//    ftpServer->enableFolderServer(ftpServerEnableFolders);
+//    ftpServer->setRestrictedMode(ftpServerRestrictedMode);
+//    ftpServer->enableSubtitlesSupport(ftpServerRestrictedMode);
+
+    bool result = ftpServer->start(port, localOnly);
+    if (!result)
+    {
+        MegaFTPServer *server = ftpServer;
+        ftpServer = NULL;
+        sdkMutex.unlock();
+        delete server;
+    }
+    else
+    {
+        sdkMutex.unlock();
+    }
+    return result;
+}
+
+void MegaApiImpl::ftpServerStop()
+{
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        MegaFTPServer *server = ftpServer;
+        ftpServer = NULL;
+        sdkMutex.unlock();
+        delete server;
+    }
+    else
+    {
+        sdkMutex.unlock();
+    }
+}
+
+int MegaApiImpl::ftpServerIsRunning()
+{
+    bool result = false;
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        result = ftpServer->getPort();
+    }
+    sdkMutex.unlock();
+    return result;
+}
+
+char *MegaApiImpl::ftpServerGetLocalLink(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+    if (!ftpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char *result = ftpServer->getLink(node);
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaStringList *MegaApiImpl::ftpServerGetLinks()
+{
+
+    MegaStringListPrivate * links;
+
+    sdkMutex.lock();
+    if (!ftpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    set<handle> handles = ftpServer->getAllowedHandles();
+
+    vector<char *> listoflinks;
+
+    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+    {
+        handle h = *it;
+        MegaNode *n = getNodeByHandle(h);
+        if (n)
+        {
+            listoflinks.push_back(ftpServer->getLink(n));
+
+        }
+    }
+    sdkMutex.unlock();
+
+    links = new MegaStringListPrivate(listoflinks.data(),listoflinks.size());
+
+    return links;
+}
+
+MegaNodeList *MegaApiImpl::ftpServerGetAllowedNodes()
+{
+    MegaNodeListPrivate * nodes;
+
+    sdkMutex.lock();
+    if (!ftpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    set<handle> handles = ftpServer->getAllowedHandles();
+
+    vector<Node *> listofnodes;
+
+    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+    {
+        handle h = *it;
+        Node *n = client->nodebyhandle(h);
+        if (n)
+        {
+            listofnodes.push_back(n);
+        }
+    }
+    sdkMutex.unlock();
+
+    nodes = new MegaNodeListPrivate(listofnodes.data(),listofnodes.size());
+
+    return nodes;
+}
+
+void MegaApiImpl::ftpServerRemoveAllowedNode(MegaHandle handle)
+{
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        ftpServer->removeAllowedHandle(handle);
+    }
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::ftpServerSetMaxBufferSize(int bufferSize)
+{
+    sdkMutex.lock();
+    ftpServerMaxBufferSize = bufferSize <= 0 ? 0 : bufferSize;
+    if (ftpServer)
+    {
+        ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::ftpServerGetMaxBufferSize()
+{
+    int value;
+    sdkMutex.lock();
+    if (ftpServerMaxBufferSize)
+    {
+        value = ftpServerMaxBufferSize;
+    }
+    else
+    {
+        value = StreamingBuffer::MAX_BUFFER_SIZE;
+    }
+    sdkMutex.unlock();
+    return value;
+}
+
+void MegaApiImpl::ftpServerSetMaxOutputSize(int outputSize)
+{
+    sdkMutex.lock();
+    ftpServerMaxOutputSize = outputSize <= 0 ? 0 : outputSize;
+    if (ftpServer)
+    {
+        ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::ftpServerGetMaxOutputSize()
+{
+    int value;
+    sdkMutex.lock();
+    if (ftpServerMaxOutputSize)
+    {
+        value = ftpServerMaxOutputSize;
+    }
+    else
+    {
+        value = StreamingBuffer::MAX_OUTPUT_SIZE;
+    }
+    sdkMutex.unlock();
+    return value;
+}
+
+void MegaApiImpl::ftpServerEnableFileServer(bool enable)
+{
+    sdkMutex.lock();
+    this->ftpServerEnableFiles = enable;
+    if (ftpServer)
+    {
+        ftpServer->enableFileServer(enable);
+    }
+    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::ftpServerIsFileServerEnabled()
+{
+    return ftpServerEnableFiles;
+}
+
+void MegaApiImpl::ftpServerEnableFolderServer(bool enable)
+{
+    sdkMutex.lock();
+    this->ftpServerEnableFolders = enable;
+    if (ftpServer)
+    {
+        ftpServer->enableFolderServer(enable);
+    }
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::ftpServerEnableOfflineAttribute(bool enable)
+{
+    sdkMutex.lock();
+    this->ftpServerOfflineAttributeEnabled = enable;
+    if (ftpServer)
+    {
+        ftpServer->enableOfflineAttribute(enable);
+    }
+    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::ftpServerIsFolderServerEnabled()
+{
+    return ftpServerEnableFolders;
+}
+
+bool MegaApiImpl::ftpServerIsOfflineAttributeEnabled()
+{
+    return ftpServerOfflineAttributeEnabled;
+}
+
+void MegaApiImpl::ftpServerSetRestrictedMode(int mode)
+{
+    if (mode != MegaApi::FTP_SERVER_DENY_ALL
+            && mode != MegaApi::FTP_SERVER_ALLOW_ALL
+            && mode != MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+            && mode != MegaApi::FTP_SERVER_ALLOW_LAST_LOCAL_LINK)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    ftpServerRestrictedMode = mode;
+    if (ftpServer)
+    {
+        ftpServer->setRestrictedMode(ftpServerRestrictedMode);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::ftpServerGetRestrictedMode()
+{
+    return ftpServerRestrictedMode;
+}
+
+void MegaApiImpl::ftpServerEnableSubtitlesSupport(bool enable)
+{
+    sdkMutex.lock();
+    ftpServerSubtitlesSupportEnabled = enable;
+    if (ftpServer)
+    {
+        ftpServer->enableSubtitlesSupport(ftpServerSubtitlesSupportEnabled);
+    }
+    sdkMutex.unlock();
+}
+
+bool MegaApiImpl::ftpServerIsSubtitlesSupportEnabled()
+{
+    return ftpServerSubtitlesSupportEnabled;
+}
+
+bool MegaApiImpl::ftpServerIsLocalOnly()
+{
+    bool localOnly = true;
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        localOnly = ftpServer->isLocalOnly();
+    }
+    sdkMutex.unlock();
+    return localOnly;
+}
+
+void MegaApiImpl::ftpServerAddListener(MegaTransferListener *listener)
+{
+    if (!listener)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    ftpServerListeners.insert(listener);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::ftpServerRemoveListener(MegaTransferListener *listener)
+{
+    if (!listener)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    ftpServerListeners.erase(listener);
+    sdkMutex.unlock();
+}
+
+//TODO: figure where to use these
+void MegaApiImpl::fireOnFtpStreamingStart(MegaTransferPrivate *transfer)
+{
+    for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
+        (*it)->onTransferStart(api, transfer);
+}
+
+void MegaApiImpl::fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e)
+{
+    for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
+        (*it)->onTransferTemporaryError(api, transfer, &e);
+}
+
+void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaError e)
+{
+    if(e.getErrorCode())
+    {
+        LOG_warn << "Streaming request finished with error: " << e.getErrorString();
+    }
+    else
+    {
+        LOG_info << "Streaming request finished";
+    }
+
+    for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
+        (*it)->onTransferFinish(api, transfer, &e);
+
+    delete transfer;
+}
+
 #endif
 
 #ifdef ENABLE_CHAT
@@ -19298,14 +19600,14 @@ void MegaTCPServer::run()
     started = true;
     uv_sem_post(&semaphore);
 
-    static bool serverinitiated = false;
-    if (!serverinitiated) //TODO: This could be surrounded by mutex in case 2 servers try to initiate at once
+    static bool uvloopinitiated = false; //even though we can have several servers, only one uv_loop must exist
+    if (!uvloopinitiated) //TODO: This could be surrounded by mutex in case 2 servers try to initiate at once
     {
         LOG_info << "Starting uv loop ...";
 
-        serverinitiated = true;
+        uvloopinitiated = true;
         uv_run(uv_loop, UV_RUN_DEFAULT);
-        serverinitiated = false;
+        uvloopinitiated = false;
 
         LOG_info << "UV loop ended";
 #ifdef ENABLE_EVT_TLS
@@ -19426,19 +19728,23 @@ bool MegaTCPServer::isHandleAllowed(handle h)
             || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
 }
 
-bool MegaTCPServer::isHandleWebDavAllowed(handle h)
-{
-    return allowedWebDavHandles.count(h);
-}
-
 void MegaTCPServer::clearAllowedHandles()
 {
     allowedHandles.clear();
-    allowedWebDavHandles.clear();
     lastHandle = INVALID_HANDLE;
 }
 
-char *MegaTCPServer::getLink(MegaNode *node, bool enablewebdav)
+set<handle> MegaHTTPServer::getAllowedWebDavHandles()
+{
+    return allowedWebDavHandles;
+}
+
+void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
+{
+    allowedWebDavHandles.erase(handle);
+}
+
+char *MegaTCPServer::getLink(MegaNode *node)
 {
     if (!node)
     {
@@ -19447,10 +19753,6 @@ char *MegaTCPServer::getLink(MegaNode *node, bool enablewebdav)
 
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
-    if (enablewebdav)
-    {
-       allowedWebDavHandles.insert(lastHandle);
-    }
 
     ostringstream oss;
     oss << "http" << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
@@ -19490,6 +19792,16 @@ void MegaTCPServer::enableSubtitlesSupport(bool enable)
     this->subtitlesSupportEnabled = enable;
 }
 
+set<handle> MegaTCPServer::getAllowedHandles()
+{
+    return allowedHandles;
+}
+
+void MegaTCPServer::removeAllowedHandle(MegaHandle handle)
+{
+    allowedHandles.erase(handle);
+}
+
 void *MegaTCPServer::threadEntryPoint(void *param)
 {
 #ifndef _WIN32
@@ -19502,16 +19814,6 @@ void *MegaTCPServer::threadEntryPoint(void *param)
     MegaTCPServer *tcpServer = (MegaTCPServer *)param;
     tcpServer->run();
     return NULL;
-}
-
-set<handle> MegaTCPServer::getAllowedWebDavHandles()
-{
-    return allowedWebDavHandles;
-}
-
-void MegaTCPServer::removeAllowedWebDavHandle(MegaHandle handle)
-{
-    allowedWebDavHandles.erase(handle);
 }
 
 #ifdef ENABLE_EVT_TLS
@@ -20040,6 +20342,22 @@ MegaHTTPServer::~MegaHTTPServer()
     stop();
 }
 
+bool MegaHTTPServer::isHandleWebDavAllowed(handle h)
+{
+    return allowedWebDavHandles.count(h);
+}
+
+void MegaHTTPServer::clearAllowedHandles()
+{
+    allowedWebDavHandles.clear();
+    MegaTCPServer::clearAllowedHandles();
+}
+
+char *MegaHTTPServer::getWebDavLink(MegaNode *node)
+{
+    allowedWebDavHandles.insert(node->getHandle());
+    return getLink(node);
+}
 
 int MegaHTTPServer::onMessageBegin(http_parser *)
 {
@@ -20675,6 +20993,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
     httpctx->streamingBuffer.setMaxOutputSize(httpctx->server->getMaxOutputSize());
 
+    MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(httpctx->server);
+
     switch (parser->method)
     {
     case HTTP_GET:
@@ -20760,10 +21080,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     if (parser->method == HTTP_OPTIONS)
     {
-        LOG_debug << "Returning HTTP_OPTIONS for a " << (httpctx->server->isHandleWebDavAllowed(h) ? "" : "non ") << "WEBDAV URI";
+        LOG_debug << "Returning HTTP_OPTIONS for a " << (httpserver->isHandleWebDavAllowed(h) ? "" : "non ") << "WEBDAV URI";
         response << "HTTP/1.1 200 OK\r\n";
 
-        if (httpctx->server->isHandleWebDavAllowed(h))
+        if (httpserver->isHandleWebDavAllowed(h))
         {
             response << "Allow: GET, POST, HEAD, OPTIONS, PROPFIND, MOVE, PUT, DELETE, MKCOL, COPY, LOCK, UNLOCK, PROPPATCH\r\n"
                         "dav: 1, 2 \r\n"; // 2 requires LOCK to be fully functional
@@ -20787,7 +21107,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     //if webdav method, check is handle is a valid webdav
     if ((parser->method != HTTP_GET) && (parser->method != HTTP_POST)
             && (parser->method != HTTP_PUT) && (parser->method != HTTP_HEAD)
-            && !httpctx->server->isHandleWebDavAllowed(h))
+            && !httpserver->isHandleWebDavAllowed(h))
     {
         LOG_debug << "Forbidden due to not webdav allowed";
         returnHttpCode(httpctx, 405);

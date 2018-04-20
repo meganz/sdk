@@ -1859,11 +1859,8 @@ class MegaApiImpl : public MegaApp
 #ifdef HAVE_LIBUV
         // start/stop
         bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
-        bool ftpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
         void httpServerStop();
-        void ftpServerStop();
         int httpServerIsRunning();
-        int ftpServerIsRunning();
 
         // management
         char *httpServerGetLocalLink(MegaNode *node);
@@ -1895,6 +1892,43 @@ class MegaApiImpl : public MegaApp
         void fireOnStreamingStart(MegaTransferPrivate *transfer);
         void fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
         void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
+
+        //FTP
+        bool ftpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
+        void ftpServerStop();
+        int ftpServerIsRunning();
+
+        // management
+        char *ftpServerGetLocalLink(MegaNode *node);
+        MegaStringList *ftpServerGetLinks();
+        MegaNodeList *ftpServerGetAllowedNodes();
+        void ftpServerRemoveAllowedNode(MegaHandle handle);
+        void ftpServerSetMaxBufferSize(int bufferSize);
+        int ftpServerGetMaxBufferSize();
+        void ftpServerSetMaxOutputSize(int outputSize);
+        int ftpServerGetMaxOutputSize();
+
+        // permissions
+        void ftpServerEnableFileServer(bool enable);
+        bool ftpServerIsFileServerEnabled();
+        void ftpServerEnableFolderServer(bool enable);
+        bool ftpServerIsFolderServerEnabled();
+        bool ftpServerIsOfflineAttributeEnabled();
+        void ftpServerSetRestrictedMode(int mode);
+        int ftpServerGetRestrictedMode();
+        void ftpServerEnableSubtitlesSupport(bool enable);
+        bool ftpServerIsSubtitlesSupportEnabled();
+        bool ftpServerIsLocalOnly();
+        void ftpServerEnableOfflineAttribute(bool enable);
+
+        void ftpServerAddListener(MegaTransferListener *listener);
+        void ftpServerRemoveListener(MegaTransferListener *listener);
+
+        void fireOnFtpStreamingStart(MegaTransferPrivate *transfer);
+        void fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
+
+
 #endif
 
 #ifdef ENABLE_CHAT
@@ -1984,7 +2018,6 @@ protected:
 
 #ifdef HAVE_LIBUV
         MegaHTTPServer *httpServer;
-        MegaFTPServer *ftpServer;
         int httpServerMaxBufferSize;
         int httpServerMaxOutputSize;
         bool httpServerEnableFiles;
@@ -1993,6 +2026,17 @@ protected:
         int httpServerRestrictedMode;
         bool httpServerSubtitlesSupportEnabled;
         set<MegaTransferListener *> httpServerListeners;
+
+        MegaFTPServer *ftpServer;
+        int ftpServerMaxBufferSize;
+        int ftpServerMaxOutputSize;
+        bool ftpServerEnableFiles;
+        bool ftpServerEnableFolders;
+        bool ftpServerOfflineAttributeEnabled;
+        int ftpServerRestrictedMode;
+        bool ftpServerSubtitlesSupportEnabled;
+        set<MegaTransferListener *> ftpServerListeners;
+
 #endif
 		
         RequestQueue requestQueue;
@@ -2384,7 +2428,6 @@ protected:
     static http_parser_settings parsercfg;
 
     set<handle> allowedHandles;
-    set<handle> allowedWebDavHandles;
     handle lastHandle;
     list<MegaTCPContext*> connections;
     uv_async_t exit_handle;
@@ -2479,16 +2522,15 @@ public:
     bool isFolderServerEnabled();
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
-    bool isHandleWebDavAllowed(handle h);
     void enableOfflineAttribute(bool enable);
     bool isOfflineAttributeEnabled();
     void clearAllowedHandles();
-    char* getLink(MegaNode *node, bool enablewebdav = false);
+    char* getLink(MegaNode *node);
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
 
-    set<handle> getAllowedWebDavHandles();
-    void removeAllowedWebDavHandle(MegaHandle handle);
+    set<handle> getAllowedHandles();
+    void removeAllowedHandle(MegaHandle handle);
 
     void readData(MegaTCPContext* tcpctx);
 };
@@ -2554,6 +2596,8 @@ public:
 class MegaHTTPServer: public MegaTCPServer
 {
 protected:
+    set<handle> allowedWebDavHandles;
+
     //virtual methods:
     virtual void processReceivedData(MegaTCPContext *ftpctx, ssize_t nread, const uv_buf_t * buf);
     virtual void processAsyncEvent(MegaTCPContext *ftpctx);
@@ -2596,6 +2640,13 @@ public:
 
     MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaHTTPServer();
+    char *getWebDavLink(MegaNode *node);
+
+    void clearAllowedHandles();
+    bool isHandleWebDavAllowed(handle h);
+    set<handle> getAllowedWebDavHandles();
+    void removeAllowedWebDavHandle(MegaHandle handle);
+
 };
 
 
@@ -2724,7 +2775,6 @@ public:
 
     static void returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
     static void returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
-
 };
 
 class MegaFTPDataContext;

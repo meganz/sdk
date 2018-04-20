@@ -3136,21 +3136,6 @@ int MegaApi::httpServerIsRunning()
     return pImpl->httpServerIsRunning();
 }
 
-bool MegaApi::ftpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
-{
-    return pImpl->ftpServerStart(localOnly, port, useTLS, certificatepath, keypath);
-}
-
-void MegaApi::ftpServerStop()
-{
-    pImpl->ftpServerStop();
-}
-
-int MegaApi::ftpServerIsRunning()
-{
-    return pImpl->ftpServerIsRunning();
-}
-
 bool MegaApi::httpServerIsLocalOnly()
 {
     return pImpl->httpServerIsLocalOnly();
@@ -3260,6 +3245,128 @@ int MegaApi::httpServerGetMaxOutputSize()
 {
     return pImpl->httpServerGetMaxOutputSize();
 }
+
+//FTP Server:
+bool MegaApi::ftpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
+{
+    return pImpl->ftpServerStart(localOnly, port, useTLS, certificatepath, keypath);
+}
+
+void MegaApi::ftpServerStop()
+{
+    pImpl->ftpServerStop();
+}
+
+int MegaApi::ftpServerIsRunning()
+{
+    return pImpl->ftpServerIsRunning();
+}
+
+bool MegaApi::ftpServerIsLocalOnly()
+{
+    return pImpl->ftpServerIsLocalOnly();
+}
+
+void MegaApi::ftpServerEnableFileServer(bool enable)
+{
+    pImpl->ftpServerEnableFileServer(enable);
+}
+
+bool MegaApi::ftpServerIsFileServerEnabled()
+{
+    return pImpl->ftpServerIsFileServerEnabled();
+}
+
+void MegaApi::ftpServerEnableFolderServer(bool enable)
+{
+    pImpl->ftpServerEnableFolderServer(enable);
+}
+
+void MegaApi::ftpServerEnableOfflineAttribute(bool enable)
+{
+    pImpl->ftpServerEnableOfflineAttribute(enable);
+}
+
+bool MegaApi::ftpServerIsOfflineAttributeEnabled()
+{
+    return pImpl->ftpServerIsOfflineAttributeEnabled();
+}
+
+bool MegaApi::ftpServerIsFolderServerEnabled()
+{
+    return pImpl->ftpServerIsFolderServerEnabled();
+}
+
+void MegaApi::ftpServerSetRestrictedMode(int mode)
+{
+    pImpl->ftpServerSetRestrictedMode(mode);
+}
+
+int MegaApi::ftpServerGetRestrictedMode()
+{
+    return pImpl->ftpServerGetRestrictedMode();
+}
+
+void MegaApi::ftpServerEnableSubtitlesSupport(bool enable)
+{
+    pImpl->ftpServerEnableSubtitlesSupport(enable);
+}
+
+bool MegaApi::ftpServerIsSubtitlesSupportEnabled()
+{
+    return pImpl->ftpServerIsSubtitlesSupportEnabled();
+}
+
+void MegaApi::ftpServerAddListener(MegaTransferListener *listener)
+{
+    pImpl->ftpServerAddListener(listener);
+}
+
+void MegaApi::ftpServerRemoveListener(MegaTransferListener *listener)
+{
+    pImpl->ftpServerRemoveListener(listener);
+}
+
+char *MegaApi::ftpServerGetLocalLink(MegaNode *node)
+{
+    return pImpl->ftpServerGetLocalLink(node);
+}
+
+MegaStringList *MegaApi::ftpServerGetLinks()
+{
+    return pImpl->ftpServerGetLinks();
+}
+
+MegaNodeList *MegaApi::ftpServerGetAllowedNodes()
+{
+    return pImpl->ftpServerGetAllowedNodes();
+}
+
+void MegaApi::ftpServerRemoveAllowedNode(MegaHandle handle)
+{
+    return pImpl->ftpServerRemoveAllowedNode(handle);
+}
+
+void MegaApi::ftpServerSetMaxBufferSize(int bufferSize)
+{
+    pImpl->ftpServerSetMaxBufferSize(bufferSize);
+}
+
+int MegaApi::ftpServerGetMaxBufferSize()
+{
+    return pImpl->ftpServerGetMaxBufferSize();
+}
+
+void MegaApi::ftpServerSetMaxOutputSize(int outputSize)
+{
+    pImpl->ftpServerSetMaxOutputSize(outputSize);
+}
+
+int MegaApi::ftpServerGetMaxOutputSize()
+{
+    return pImpl->ftpServerGetMaxOutputSize();
+}
+
 #endif
 
 char *MegaApi::getMimeType(const char *extension)
