@@ -508,7 +508,22 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 // POST request to URL
 void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 {
-    LOG_debug << "POST target URL: " << req->posturl;
+    if (SimpleLogger::logCurrentLevel >= logDebug)
+    {
+        string safeurl = req->posturl;
+        size_t sid = safeurl.find("sid=");
+        if (sid != string::npos)
+        {
+            sid += 4;
+            size_t end = safeurl.find("&", sid);
+            if (end == string::npos)
+            {
+                end = safeurl.size();
+            }
+            memset((char *)safeurl.data() + sid, 'X', end - sid);
+        }
+        LOG_debug << "POST target URL: " << safeurl;
+    }
 
     if (req->binary)
     {

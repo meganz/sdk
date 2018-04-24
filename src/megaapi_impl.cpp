@@ -11482,22 +11482,30 @@ void MegaApiImpl::getua_result(error e)
                     (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
     // if attempted to get ^!prd attribute but not exists yet...
-    if (e == API_ENOENT && request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER)
+    if (e == API_ENOENT)
     {
-        if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        if (request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER)
         {
-            string newValue;
-            User::mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
-            request->setText(newValue.c_str());
+            if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+            {
+                string newValue;
+                User::mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
+                request->setText(newValue.c_str());
 
-            // set the attribute using same request tag
-            client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
-            return;
+                // set the attribute using same request tag
+                client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
+                return;
+            }
+            else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
+                     && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+            {
+                request->setFlag(true); // the password reminder dialog should be shown
+            }
         }
-        else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
-                 && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+        else if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS &&
+                 request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
         {
-            request->setFlag(true); // the password reminder dialog should be shown
+            request->setFlag(true);
         }
     }
 
@@ -11637,18 +11645,13 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
 
+        // prepare request params to know if a warning should show or not
         if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
         {
-            const char *value = stringMap->get("num");
-            if (value)
-            {
-                string sValue = value;
-                string bValue;
-                Base64::atob(sValue, bValue);
-                request->setFlag(bValue == "1");
-            }
+            request->setFlag(!stringMap->get("num"));
+            // it doesn't matter the value, just if it exists
 
-            value = stringMap->get("c");
+            const char *value = stringMap->get("c");
             if (value)
             {
                 string sValue = value;

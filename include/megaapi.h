@@ -7285,14 +7285,14 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Returns true if the generation of rich previews is enabled
+         * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
          * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
          * modify the message with a rich link. If number is bigger than three, the extra option "Never"
-         * must be added to the warning dialog
+         * must be added to the warning dialog.
+         * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
          *
          * If the corresponding user attribute is not set yet, the request will fail with the
-         * error code MegaError::API_ENOENT but the value of MegaRequest::getFlag and
-         * MegaRequest::getNumber will still be valid.
+         * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid.
          *
          * @param listener MegaRequestListener to track this request
          *
