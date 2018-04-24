@@ -627,8 +627,33 @@ namespace mega
         */
         void shouldShowPasswordReminderDialog(bool atLogout);
 
+        /**
+        * @brief Change the password of the MEGA account
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getPassword - Returns the old password (if it was passed as parameter)
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+        * @param newPassword New password
+        * @param listener MRequestListener to track this request
+        */
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Change the password of the MEGA account
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getPassword - Returns the old password (if it was passed as parameter)
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+        * @param newPassword New password
+        */
         void changePassword(String^ oldPassword, String^ newPassword);
+        
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
         
