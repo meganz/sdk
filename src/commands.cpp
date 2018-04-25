@@ -3626,6 +3626,8 @@ void CommandGetPH::procresult()
 
 CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash)
 {
+    memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
+
     cmd("up");
     arg("k", newkey, SymmCipher::KEYLENGTH);
     arg("uh", (byte*)&hash, sizeof hash);
@@ -3641,6 +3643,9 @@ void CommandSetMasterKey::procresult()
     }
     else
     {
+        // update encrypted MK for further checkups
+        client->k.assign((const char *) newkey, SymmCipher::KEYLENGTH);
+
         client->json.storeobject();
         client->app->changepw_result(API_OK);
     }

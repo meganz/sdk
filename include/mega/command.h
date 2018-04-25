@@ -123,6 +123,8 @@ public:
 
 class MEGA_API CommandSetMasterKey : public Command
 {
+    byte newkey[SymmCipher::KEYLENGTH];
+
 public:
     void procresult();
 
