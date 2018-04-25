@@ -2844,7 +2844,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * - [MEGARequest password] - Returns the old password
  * - [MEGARequest newPassword] - Returns the new password
  *
- * @param oldPassword Old password.
+ * @param oldPassword Old password (optional, it can be nil to not check the old password).
  * @param newPassword New password.
  * @param delegate Delegate to track this request.
  */
@@ -2858,7 +2858,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * - [MEGARequest password] - Returns the old password
  * - [MEGARequest newPassword] - Returns the new password
  *
- * @param oldPassword Old password.
+ * @param oldPassword Old password (optional, it can be nil to not check the old password).
  * @param newPassword New password.
  */
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
