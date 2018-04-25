@@ -3387,31 +3387,31 @@ public class MegaApiJava {
     }
 
     /**
-     * Change the password of the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_CHANGE_PW
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getPassword - Returns the old password. <br>
-     * - MegaRequest.getNewPassword - Returns the new password.
-     * 
-     * @param oldPassword
-     *            Old password.
-     * @param newPassword
-     *            New password.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Change the password of the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
+     * - MegaRequest::getNewPassword - Returns the new password
+     *
+     * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+     * @param newPassword New password
+     * @param listener MegaRequestListener to track this request
      */
     public void changePassword(String oldPassword, String newPassword, MegaRequestListenerInterface listener) {
         megaApi.changePassword(oldPassword, newPassword, createDelegateRequestListener(listener));
     }
 
     /**
-     * Change the password of the MEGA account.
-     * 
-     * @param oldPassword
-     *            Old password.
-     * @param newPassword
-     *            New password.
+     * Change the password of the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
+     * - MegaRequest::getNewPassword - Returns the new password
+     *
+     * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+     * @param newPassword New password
      */
     public void changePassword(String oldPassword, String newPassword) {
         megaApi.changePassword(oldPassword, newPassword);
