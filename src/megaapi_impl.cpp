@@ -16760,10 +16760,30 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_DELETE:
         {
 #ifdef HAVE_LIBUV
+            sdkMutex.unlock();
+            if (httpServer && httpServer->uvstartedbyother)
+            {
+                httpServer->stop();
+            }
+            if (ftpServer && ftpServer->uvstartedbyother)
+            {
+                ftpServer->stop();
+            }
+            sdkMutex.lock();
+
             if (httpServer)
             {
                 MegaHTTPServer *server = httpServer;
                 httpServer = NULL;
+                sdkMutex.unlock();
+                delete server;
+                sdkMutex.lock();
+            }
+
+            if (ftpServer)
+            {
+                MegaFTPServer *server = ftpServer;
+                ftpServer = NULL;
                 sdkMutex.unlock();
                 delete server;
                 sdkMutex.lock();
@@ -19443,6 +19463,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
     this->megaApi = megaApi;
     this->localOnly = true;
     this->started = false;
+    this->uvstartedbyother = false;
     this->port = 0;
     this->maxBufferSize = 0;
     this->maxOutputSize = 0;
@@ -19487,6 +19508,7 @@ bool MegaTCPServer::start(int port, bool localOnly)
 {
     if (started && this->port == port && this->localOnly == localOnly)
     {
+        LOG_debug << " at MegaTCPServer::start 01, returning " << started;
         return true;
     }
     stop();
@@ -19497,6 +19519,7 @@ bool MegaTCPServer::start(int port, bool localOnly)
     thread.start(threadEntryPoint, this);
     uv_sem_wait(&semaphore);
     uv_sem_destroy(&semaphore);
+    LOG_debug << " at MegaTCPServer::start, returning " << started;
     return started;
 }
 
@@ -19554,6 +19577,10 @@ void MegaTCPServer::run()
         evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
     }
 #endif
+
+
+    static uv_mutex_t mutexinitializeuvloop;
+    uv_mutex_lock(&mutexinitializeuvloop);
     uv_loop_t *uv_loop = uv_default_loop();
 
     uv_async_init(uv_loop, &exit_handle, onCloseRequested);
@@ -19587,25 +19614,37 @@ void MegaTCPServer::run()
     }
 #endif
 
+    static bool uvloopinitiated = false; //even though we can have several servers, only one uv_loop must exist
+
     if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
         || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
     {
         LOG_err << "TCP failed to bind/listen port = " << port;
         port = 0;
-        uv_sem_post(&semaphore);
+        if (uvloopinitiated)
+        {
+            uv_async_send(&exit_handle);
+            //This is required in case uv_loop was already running so as to free references to "this".
+            // a uv_sem_post will be required there, so that we can delete the server accordingly
+        }
+        else
+        {
+            uv_sem_post(&semaphore);
+        }
+        uv_mutex_unlock(&mutexinitializeuvloop);
         return;
     }
 
-    LOG_info << "HTTP" << (useTLS ? "S" : "") << " server started on port " << port; //TODO: HTTP? TCP with/out TLS
+    LOG_info << "TCP" << (useTLS ? "(tls)" : "") << " server started on port " << port;
     started = true;
     uv_sem_post(&semaphore);
 
-    static bool uvloopinitiated = false; //even though we can have several servers, only one uv_loop must exist
-    if (!uvloopinitiated) //TODO: This could be surrounded by mutex in case 2 servers try to initiate at once
+    if (!uvloopinitiated)
     {
         LOG_info << "Starting uv loop ...";
 
         uvloopinitiated = true;
+        uv_mutex_unlock(&mutexinitializeuvloop);
         uv_run(uv_loop, UV_RUN_DEFAULT);
         uvloopinitiated = false;
 
@@ -19623,7 +19662,9 @@ void MegaTCPServer::run()
     }
     else
     {
+        uvstartedbyother = true;
         LOG_debug << "UV loop already alive!";
+        uv_mutex_unlock(&mutexinitializeuvloop);
     }
 
 }
@@ -19632,6 +19673,7 @@ void MegaTCPServer::stop()
 {
     if (!started)
     {
+        thread.join();
         return;
     }
 
@@ -20022,7 +20064,7 @@ void MegaTCPServer::onAsyncEventClose(uv_handle_t *handle)
 
 //TODO: get updates on  void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle) into process
 
-
+#ifdef ENABLE_EVT_TLS
 //TODO: ideally this should  be on HTTPServer, and have the connection close code called using a function like: closeTCPConnection (different if useTLS or not)
 void MegaTCPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 {
@@ -20075,6 +20117,7 @@ void MegaTCPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
     LOG_debug << "Async TLS write finished";
 //    uv_async_send(&tcpctx->asynchandle); //TODO: consecuences on commenting this? review HTTP streaming!
 }
+#endif
 
 void MegaTCPServer::onWriteFinished(uv_write_t* req, int status)
 {
@@ -20096,28 +20139,34 @@ MegaTCPContext::MegaTCPContext()
     size = -1;
     finished = false;
     bytesWritten = 0;
+#ifdef ENABLE_EVT_TLS
     evt_tls = NULL;
+#endif
     server = NULL;
     megaApi = NULL;
 }
 
 MegaTCPContext::~MegaTCPContext()
 {
+#ifdef ENABLE_EVT_TLS
     if (evt_tls)
     {
         evt_tls_free(evt_tls);
     }
+#endif
 }
 
 void MegaTCPServer::onAsyncEvent(uv_async_t* handle)
 {
     MegaTCPContext* tcpctx = (MegaTCPContext*) handle->data;
 
+#ifdef ENABLE_EVT_TLS
     if (tcpctx->server->useTLS && !evt_tls_is_handshake_over(tcpctx->evt_tls))
     {
         LOG_debug << " skipping processAsyncEvent due to handshake not over on port = " << tcpctx->server->port;
         return;
     }
+#endif
     tcpctx->server->processAsyncEvent(tcpctx);
 }
 
@@ -20126,7 +20175,13 @@ void MegaTCPServer::onExitHandleClose(uv_handle_t *handle)
     MegaTCPServer *tcpServer = (MegaTCPServer*) handle->data;
     assert(tcpServer != NULL);
 
+    tcpServer->remainingcloseevents--;
     tcpServer->processOnExitHandleClose(tcpServer);
+
+    if (!tcpServer->remainingcloseevents)
+    {
+        uv_sem_post(&tcpServer->semaphore);
+    }
 }
 
 void MegaTCPServer::onCloseRequested(uv_async_t *handle)
@@ -20151,15 +20206,19 @@ void MegaTCPServer::onCloseRequested(uv_async_t *handle)
 void MegaTCPServer::closeConnection(MegaTCPContext *tcpctx)
 {
     LOG_debug << "At closeConnection port=" << tcpctx->server->port;
+#ifdef ENABLE_EVT_TLS
     if (tcpctx->server->useTLS)
     {
         evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
     }
     else
     {
+#endif
         closeTCPConnection(tcpctx);
         return;
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 }
 
 void MegaTCPServer::closeTCPConnection(MegaTCPContext *tcpctx)
@@ -22918,7 +22977,11 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 ftpctx->pasiveport = pport++;
 
                 LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
+#ifdef ENABLE_EVT_TLS
                 MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, certificatepath, keypath);
+#else
+                MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, string(), string());
+#endif
                 bool result = fds->start(ftpctx->pasiveport, localOnly);
                 //TODO: handle result
 
@@ -23602,6 +23665,7 @@ void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
     LOG_verbose << " answering in port " << tcpctx->server->port << " : " << string(rsp,rlen);
 
     uv_buf_t resbuf = uv_buf_init((char *)rsp, rlen);
+#ifdef ENABLE_EVT_TLS
     if (tcpctx->server->useTLS)
     {
         //int err = evt_tls_write(tcpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls); //TODO: recover this (controls failure) one and add all the size stuff
@@ -23614,6 +23678,7 @@ void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
     }
     else
     {
+#endif
         uv_write_t *req = new uv_write_t();
         req->data = tcpctx;
         if (int err = uv_write(req, (uv_stream_t*)&tcpctx->tcphandle, &resbuf, 1, onWriteFinished))
@@ -23622,7 +23687,9 @@ void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
             LOG_warn << "Finishing due to an error sending the response: " << err;
             closeTCPConnection(tcpctx);
         }
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 }
 
 bool MegaFTPServer::respondNewConnection(MegaTCPContext* tcpctx)
@@ -23921,14 +23988,18 @@ void MegaFTPDataServer::sendData()
     if (tcpctx)
     {
         LOG_debug << " at sendData. triggering asyncsend for tcpctx=" << tcpctx;
+#ifdef ENABLE_EVT_TLS
         if (useTLS && !evt_tls_is_handshake_over(tcpctx->evt_tls))
         {
             this->notifyNewConnectionRequired = true;
         }
         else
         {
+#endif
             uv_async_send(&tcpctx->asynchandle);
+#ifdef ENABLE_EVT_TLS
         }
+#endif
     }
     else
     {
@@ -24164,7 +24235,7 @@ void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
 
     LOG_debug << " at processOnExitHandleClose remaining = " << ftpServer->remainingcloseevents << " port = " << ftpServer->port;;
 
-    if (!--ftpServer->remainingcloseevents && ftpServer->closing) // do other than !=4443
+    if (!ftpServer->remainingcloseevents && ftpServer->closing)
     {
         LOG_debug << " deleting MEGATCPServer due to zero remaining close events at exit handle port= " << ftpServer->port;
         delete ftpServer;
@@ -24213,6 +24284,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
     ftpdatactx->lastBuffer = resbuf.base;
     ftpdatactx->lastBufferLen = resbuf.len;
 
+#ifdef ENABLE_EVT_TLS
     if (ftpdatactx->server->useTLS)
     {
         //notice this, contrary to !useTLS is synchronous
@@ -24225,6 +24297,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
     }
     else
     {
+#endif
         uv_write_t *req = new uv_write_t();
         req->data = ftpdatactx;
 
@@ -24234,7 +24307,9 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
             LOG_warn << "Finishing due to an error in uv_write: " << err;
             closeTCPConnection(ftpdatactx);
         }
+#ifdef ENABLE_EVT_TLS
     }
+#endif
 }
 
 

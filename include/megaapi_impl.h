@@ -2480,8 +2480,9 @@ protected:
     static void onCloseRequested(uv_async_t* handle);
 
     static void onWriteFinished(uv_write_t* req, int status); //This might need to go to HTTPServer
+#ifdef ENABLE_EVT_TLS
     static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
-
+#endif
     static void closeConnection(MegaTCPContext *tcpctx);
     static void closeTCPConnection(MegaTCPContext *tcpctx);
 
@@ -2504,6 +2505,7 @@ public:
     MegaFileSystemAccess *fsAccess;
 
     std::string basePath;
+    bool uvstartedbyother;
 
     MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaTCPServer();
