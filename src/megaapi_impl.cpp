@@ -5120,6 +5120,24 @@ void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
     delete stringMap;
 }
 
+void MegaApiImpl::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(0);  // 0 --> flag should indicate whether rich-links are enabled or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(1);  // 1 --> flag should indicate whether to show the warning or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
 {
     MegaStringMap *stringMap = new MegaStringMapPrivate();
@@ -11505,7 +11523,14 @@ void MegaApiImpl::getua_result(error e)
         else if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS &&
                  request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
         {
-            request->setFlag(true);
+            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+            {
+                request->setFlag(false);
+            }
+            else if (request->getNumDetails() == 1) // used to check if should show warning
+            {
+                request->setFlag(true);
+            }
         }
     }
 
@@ -11648,16 +11673,25 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         // prepare request params to know if a warning should show or not
         if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
         {
-            request->setFlag(!stringMap->get("num"));
-            // it doesn't matter the value, just if it exists
+            const char *num = stringMap->get("num");
 
-            const char *value = stringMap->get("c");
-            if (value)
+            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
             {
-                string sValue = value;
-                string bValue;
-                Base64::atob(sValue, bValue);
-                request->setNumber(atoi(bValue.c_str()));
+                request->setFlag(num ? (*num == '1') : false);
+            }
+            else if (request->getNumDetails() == 1) // used to check if should show warning
+            {
+                request->setFlag(!num);
+                // it doesn't matter the value, just if it exists
+
+                const char *value = stringMap->get("c");
+                if (value)
+                {
+                    string sValue = value;
+                    string bValue;
+                    Base64::atob(sValue, bValue);
+                    request->setNumber(atoi(bValue.c_str()));
+                }
             }
         }
 
