@@ -7433,7 +7433,7 @@ char *MegaApiImpl::ftpServerGetLocalLink(MegaNode *node)
         return NULL;
     }
 
-    char *result = ftpServer->getLink(node);
+    char *result = ftpServer->getLink(node, "ftp");
     sdkMutex.unlock();
     return result;
 }
@@ -19517,6 +19517,7 @@ MegaTCPServer::~MegaTCPServer()
     stop();
     uv_sem_destroy(&semaphoreStartup);
     delete fsAccess;
+    LOG_verbose << " at ~MegaTCPServer port=" << port;
 }
 
 bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
@@ -19526,7 +19527,10 @@ bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
         LOG_debug << " at MegaTCPServer::start 01, returning " << started;
         return true;
     }
-    stop();
+    if (started)
+    {
+        stop();
+    }
 
     this->port = port;
     this->localOnly = localOnly;
@@ -19775,6 +19779,7 @@ void MegaTCPServer::stop(bool doNotWait)
 {
     if (!started)
     {
+        LOG_verbose << "Stopping non started MegaTCPServer port=" << port;
         return;
     }
 
@@ -19892,7 +19897,7 @@ void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
     allowedWebDavHandles.erase(handle);
 }
 
-char *MegaTCPServer::getLink(MegaNode *node)
+char *MegaTCPServer::getLink(MegaNode *node, string protocol)
 {
     if (!node)
     {
@@ -19903,7 +19908,7 @@ char *MegaTCPServer::getLink(MegaNode *node)
     allowedHandles.insert(lastHandle);
 
     ostringstream oss;
-    oss << "http" << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
+    oss << protocol << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
     char *base64handle = node->getBase64Handle();
     oss << base64handle;
     delete [] base64handle;
@@ -20150,7 +20155,6 @@ void MegaTCPServer::onClose(uv_handle_t* handle)
 
     tcpctx->server->connections.remove(tcpctx);
     LOG_debug << "Connection closed: " << tcpctx->server->connections.size() << " port = " << tcpctx->server->port << " closing async handle";
-
     uv_close((uv_handle_t *)&tcpctx->asynchandle, onAsyncEventClose);
 }
 
@@ -22519,7 +22523,7 @@ void MegaFTPServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
     //TODO: deal with this
 }
 
-string MegaFTPServer::getListingLineFromNode(MegaNode *child)
+string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
 {
     char perms[10];
     memset(perms,0,10);
@@ -22543,10 +22547,11 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child)
             1000, //gid
              (child->isFolder())?4:child->getSize(),
             timebuff,
-            child->getName());
+            nameToShow.size()?nameToShow.c_str():child->getName());
 
     return toprint;
 }
+
 
 string MegaFTPServer::getFTPErrorString(int errorcode)
 {
@@ -22716,6 +22721,203 @@ void MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx
 void MegaFTPServer::returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, string errorMessage)
 {
     return returnFtpCode(ftpctx, errorCode, errorMessage, false);
+}
+
+// you get the ownership
+MegaNode *MegaFTPServer::getBaseFolderNode(string path)
+{
+    if (path.size() && path.at(0) == '/')
+    {
+        string rest = path.substr(1);
+        size_t possep = rest.find('/');
+        handle h = megaApi->base64ToHandle(rest.substr(0,possep).c_str());
+        MegaNode *n = megaApi->getNodeByHandle(h);
+        if (possep != string::npos)
+        {
+            if (n)
+            {
+                if (rest.size() > possep)
+                {
+                    rest = rest.substr(possep + 1);
+                    if (rest == n->getName())
+                    {
+                        return n;
+                    }
+                    if (rest.size() > strlen(n->getName()) && (rest.at(strlen(n->getName())) == '/' ) && (rest.find(n->getName()) == 0) )
+                    {
+                        return n;
+                    }
+                }
+                delete n;
+            }
+        }
+        else
+        {
+            return n;
+        }
+    }
+    return NULL;
+}
+
+// you get the ownership
+MegaNode *MegaFTPServer::getNodeByFullFtpPath(string path)
+{
+    if (path.size() && path.at(0) == '/')
+    {
+        string rest = path.substr(1);
+        size_t possep = rest.find('/');
+        handle h = megaApi->base64ToHandle(rest.substr(0,possep).c_str());
+        MegaNode *n = megaApi->getNodeByHandle(h);
+        if (possep != string::npos)
+        {
+            if (n)
+            {
+                if (rest.size() > possep)
+                {
+                    rest = rest.substr(possep + 1);
+                    if (rest == n->getName())
+                    {
+                        return n;
+                    }
+                    if (rest.size() > strlen(n->getName()) && (rest.at(strlen(n->getName())) == '/' ) && (rest.find(n->getName()) == 0) )
+                    {
+                        string relpath = rest.substr(strlen(n->getName())+1);
+                        MegaNode *toret = megaApi->getNodeByPath(relpath.c_str(), n);
+                        delete n;
+                        return toret;
+                    }
+                }
+                delete n;
+            }
+        }
+        else
+        {
+            return n;
+        }
+    }
+    return NULL;
+}
+
+
+MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
+{
+    if (ftpctx->atroot && path.size() && path.at(0) != '/')
+    {
+        path="/"+path;
+    }
+    else if (ftpctx->athandle && path.size() && path.at(0) != '/')
+    {
+        string handle = ftpctx->megaApi->handleToBase64(ftpctx->cwd);
+        path="/"+handle+"/"+path;
+    }
+
+
+    if (path.find("..") == 0)
+    {
+        string fullpath = ftpctx->cwdpath+"/"+path;
+        size_t seppos = fullpath.find("/");
+        int count = 0;
+        while (seppos != string::npos && fullpath.size() > (seppos +1) )
+        {
+            string part = fullpath.substr(0,seppos);
+            if (part.size() && part != "..")
+            {
+                count++;
+            }
+            if (part == "..")
+            {
+                count--;
+                if (count < 2)
+                {
+                    return NULL; // do not allow to escalate in the path
+                }
+            }
+
+            fullpath = fullpath.substr(seppos+1);
+            if (fullpath == ".." && count == 2)
+            {
+                return NULL; // do not allow to escalate in the path
+            }
+            seppos = fullpath.find("/");
+        }
+    }
+
+
+    if (path.size() && path.at(0) == '/')
+    {
+        MegaNode *baseFolderNode = getBaseFolderNode(path);
+        if (!baseFolderNode)
+        {
+            return NULL;
+        }
+        if (!isHandleAllowed(baseFolderNode->getHandle()) )
+        {
+            return NULL;
+        }
+        delete baseFolderNode;
+
+        return getNodeByFullFtpPath(path);
+    }
+    else //relative path
+    {
+        MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+        if (!n)
+        {
+            return NULL;
+        }
+        MegaNode *toret = ftpctx->megaApi->getNodeByPath(path.c_str(), n); //TODO: if this allows "..", could be insecure
+        delete n;
+        return toret;
+    }
+}
+
+std::string MegaFTPServer::shortenpath(std::string path)
+{
+    list<string> parts;
+    size_t seppos = path.find("/");
+    while (seppos != string::npos && path.size() > (seppos +1) )
+    {
+        string part = path.substr(0,seppos);
+        if (part.size() && part != "..")
+        {
+            parts.push_back(part);
+        }
+        if (part == "..")
+        {
+            if (!parts.size())
+            {
+                return "INVALIDPATH"; // FAILURE!
+            }
+            parts.pop_back();
+        }
+
+        path = path.substr(seppos+1);
+        if (path == "..")
+        {
+            if (!parts.size())
+            {
+                return "INVALIDPATH"; // FAILURE!
+            }
+            parts.pop_back();
+            path = "";
+        }
+        seppos = path.find("/");
+    }
+    if (path.size() && path != "..")
+    {
+        parts.push_back(path);
+    }
+
+
+    string toret;
+    while (parts.size())
+    {
+        toret.append("/");
+        toret.append(parts.front());
+        parts.pop_front();
+    }
+
+    return toret;
 }
 
 void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf)
@@ -23069,6 +23271,9 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             if (n)
             {
                 ftpctx->cwd = n->getHandle();
+                ftpctx->cwdpath = "/";
+                ftpctx->atroot = true;
+                ftpctx->athandle = false;
                 delete n;
             }
             break;
@@ -23135,11 +23340,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             if (n)
             {
                 response = "257 ";
-                char *path = ftpctx->megaApi->getNodePath(n);
+//                char *path = ftpctx->megaApi->getNodePath(n);
                 response.append("\"");
-                response.append(path);
+//                response.append(path);
+                response.append(ftpctx->cwdpath);
                 response.append("\"");
-                delete []path;
+//                delete []path;
                 delete n;
             }
             else
@@ -23152,54 +23358,113 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_CWD:
         {
-            MegaNode *n = NULL;
-            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+            if (ftpctx->arg1 == "/")
             {
-                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
+                MegaNode *rootNode = megaApi->getRootNode();
                 if (rootNode)
                 {
                     ftpctx->cwd = rootNode->getHandle();
-                    n = rootNode;
+                    ftpctx->cwdpath = "/";
+                    ftpctx->atroot = true;
+                    ftpctx->athandle = false;
+                    response = "250 Directory successfully changed";
+                    break;
                 }
-            }
-            else
-            {
-                n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+                response = "530 CWD not Found.";
+                break;
             }
 
-            if (n)
-            {
-                MegaNode *newcwd = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
-                if (newcwd)
-                {
-
-                    if (newcwd->isFolder() && newcwd->getHandle() != UNDEF)
-                    {
-                        ftpctx->cwd = newcwd->getHandle();
-                        ftpctx->parentcwd = newcwd->getParentHandle();
-
-                        response = "250 Directory successfully changed";
-                    }
-                    else
-                    {
-                        response = "550 CWD failed."; //chrome requires this
-                    }
-
-                    delete newcwd;
-                }
-                else
-                {
-                    response = "530 Not Found";
-                }
-                delete n;
-            }
-            else
+            MegaNode *newcwd = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+            if (!newcwd)
             {
                 response = "530 CWD not Found.";
+                break;
             }
+
+            ftpctx->cwd = newcwd->getHandle();
+            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+            {
+                ftpctx->cwdpath = ftpctx->arg1;
+            }
+            else // relative paths!
+            {
+                ftpctx->cwdpath = (ftpctx->cwdpath == "/"?"":ftpctx->cwdpath) + "/" + ftpctx->arg1;
+            }
+            ftpctx->cwdpath = shortenpath(ftpctx->cwdpath);
+            ftpctx->athandle = false;
+            string handlepath = "/";
+            string shandle = megaApi->handleToBase64(newcwd->getHandle());
+            handlepath.append(shandle);
+            if (ftpctx->arg1 == handlepath || ftpctx->arg1 == shandle )
+            {
+                ftpctx->cwdpath = handlepath;
+                ftpctx->athandle = true;
+            }
+            ftpctx->atroot = false;
+            //                ftpctx->cwdpath = //TODO: asign cwdpath if required to use // else delete variable
+            ftpctx->parentcwd = newcwd->getParentHandle(); //TODO: review security after: delete basePath! I might get access to parent!
+            response = "250 Directory successfully changed";
+
+
+
+
+//            MegaNode *n = NULL;
+//                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
+//                if (rootNode)
+//                {
+//                    ftpctx->cwd = rootNode->getHandle();
+//                    n = rootNode;
+//                }
+//            else
+//            {
+//                n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+//            }
+
+//            if (n)
+//            {
+//                MegaNode *newcwd = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
+//                if (newcwd)
+//                {
+//                    if (newcwd->isFolder() && newcwd->getHandle() != UNDEF)
+//                    {
+//                        ftpctx->cwd = newcwd->getHandle();
+//                        ftpctx->parentcwd = newcwd->getParentHandle();
+
+//                        response = "250 Directory successfully changed";
+//                    }
+//                    else
+//                    {
+//                        response = "550 CWD failed."; //chrome requires this
+//                    }
+
+//                    delete newcwd;
+//                }
+//                else
+//                {
+//                    if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+//                    {
+//                        handle h = ftpctx->megaApi->base64ToHandle(ftpctx->arg1.c_str()+1);
+//                        if (ftpctx->server->isHandleAllowed(h) )
+//                        {
+//                            newcwd = ftpctx->megaApi->getNodeByHandle(h);
+//                            response = "250 Directory successfully changed";
+//                        }
+//                    }
+//                }
+
+//                if (!newcwd)
+//                {
+//                    response = "530 Not Found";
+//                }
+//                delete n;
+//            }
+//            else
+//            {
+//                response = "530 CWD not Found.";
+//            }
             break;
         }
-        case FTP_CMD_CDUP:
+        case FTP_CMD_CDUP: //TODO: secure not goind up base handle ?
         {
             MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
             if (n)
@@ -23237,7 +23502,50 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_LIST:
         case FTP_CMD_NLST:
         {
-            MegaNode *node = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            MegaNode *node = NULL;
+            if (ftpctx->arg1.size())
+            {
+                node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+            }
+            else
+            {
+                if (ftpctx->atroot)
+                {
+                    set<handle> handles = getAllowedHandles();
+                    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+                    {
+                        string name = megaApi->handleToBase64(*it);
+                        MegaNode *n = megaApi->getNodeByHandle(*it);
+                        if (n)
+                        {
+                            string toret = getListingLineFromNode(n, name);
+                            toret.append(crlfout);
+                            ftpctx->ftpDataServer->resultmsj.append(toret);
+                        }
+                    }
+
+                    ftpctx->ftpDataServer->resultmsj.append(crlfout);
+
+                    response = "150 Here comes the directory listing";
+                    break;
+                }
+                else if (ftpctx->athandle)
+                {
+                    MegaNode *n = megaApi->getNodeByHandle(ftpctx->cwd);
+                    if (n)
+                    {
+                        string toret = getListingLineFromNode(n);
+                        toret.append(crlfout);
+                        ftpctx->ftpDataServer->resultmsj.append(toret);
+                    }
+                    ftpctx->ftpDataServer->resultmsj.append(crlfout);
+
+                    response = "150 Here comes the directory listing";
+                    break;
+                }
+
+                node = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            }
             if (node)
             {
                 if (node->isFolder() )
@@ -23290,25 +23598,26 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_RETR:
         {
-            //TODO: deal with foreign node / public link and so on ?
-            MegaNode *nodecwd = NULL;
-            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
-            {
-                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
-                if (rootNode)
-                {
-                    ftpctx->cwd = rootNode->getHandle();
-                    nodecwd = rootNode;
-                }
-            }
-            else
-            {
-                nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-            }
+//            //TODO: deal with foreign node / public link and so on ?
+//            MegaNode *nodecwd = NULL;
+//            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+//            {
+//                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
+//                if (rootNode)
+//                {
+//                    ftpctx->cwd = rootNode->getHandle();
+//                    nodecwd = rootNode;
+//                }
+//            }
+//            else
+//            {
+//                nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+//            }
 
-            if (nodecwd)
-            {
-                MegaNode *node = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), nodecwd);
+//            if (nodecwd)
+//            {
+                //MegaNode *node = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), nodecwd);
+                MegaNode *node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
 
                 if (node)
                 {
@@ -23329,34 +23638,34 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     response = "530 Not Found"; //TODO: review error code
                 }
-                delete nodecwd;
-            }
-            else
-            {
-                response = "530 Not Found"; //TODO: review error code
-            }
+//                delete nodecwd;
+//            }
+//            else
+//            {
+//                response = "530 Not Found"; //TODO: review error code
+//            }
             break;
         }
 //        case FTP_CMD_STOU: //do create random unique name
         case FTP_CMD_STOR:
         {
             //TODO: deal with foreign node / public link and so on ?
-            MegaNode *nodecwd = NULL;
-            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
-            {
-                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
-                if (rootNode)
-                {
-                    ftpctx->cwd = rootNode->getHandle();
-                    nodecwd = rootNode;
-                }
-            }
-            else
-            {
-                nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-            }
-            if (nodecwd)
-            {
+//            MegaNode *nodecwd = NULL;
+//            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+//            {
+//                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
+//                if (rootNode)
+//                {
+//                    ftpctx->cwd = rootNode->getHandle();
+//                    nodecwd = rootNode;
+//                }
+//            }
+//            else
+//            {
+//                nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+//            }
+//            if (nodecwd)
+//            {
                 MegaNode *newParentNode = NULL;
                 size_t seppos = ftpctx->arg1.find_last_of("/");
                 ftpctx->ftpDataServer->newNameToUpload = ftpctx->arg1;
@@ -23370,8 +23679,9 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     {
                         ftpctx->ftpDataServer->newNameToUpload = ftpctx->ftpDataServer->newNameToUpload.substr(seppos + 1);
                     }
-                    string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/";
-                    newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                    string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/"; //TODO: review this for new paths!!!
+//                    newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                    newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
                     if (newParentNode)
                     {
                         ftpctx->ftpDataServer->newParentNodeHandle = newParentNode->getHandle();
@@ -23393,20 +23703,21 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     response = "530 Not Found"; //TODO: review error code // this could actually be separated invalid_destiny/not found/...
                 }
-                delete nodecwd;
-            }
-            else
-            {
-                response = "530 Not Found"; //TODO: review error code
-            }
+//                delete nodecwd;
+//            }
+//            else
+//            {
+//                response = "530 Not Found"; //TODO: review error code
+//            }
             break;
         }
         case FTP_CMD_RNFR:
         {
-            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-            if (n)
-            {
-                MegaNode *nodetoRename = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
+//            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+//            if (n)
+//            {
+//                MegaNode *nodetoRename = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
+                MegaNode *nodetoRename = getNodeByFtpPath(ftpctx, ftpctx->arg1);
                 if (nodetoRename)
                 {
                     this->nodeHandleToRename = nodetoRename->getHandle();
@@ -23418,34 +23729,35 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     response = "530 Not Found";
                 }
-                delete n;
-            }
-            else
-            {
-                response = "530 Not Found";
-            }
+//                delete n;
+//            }
+//            else
+//            {
+//                response = "530 Not Found";
+//            }
             break;
         }
         case FTP_CMD_RMD:
         case FTP_CMD_DELE:
         {
-            MegaNode *nodecwd = NULL;
-            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
-            {
-                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
-                if (rootNode)
-                {
-                    ftpctx->cwd = rootNode->getHandle();
-                    nodecwd = rootNode;
-                }
-            }
-            else
-            {
-                nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-            }
-            if (nodecwd)
-            {
-                MegaNode *nodeToDelete = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), nodecwd);
+//            MegaNode *nodecwd = NULL;
+//            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+//            {
+//                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
+//                if (rootNode)
+//                {
+//                    ftpctx->cwd = rootNode->getHandle();
+//                    nodecwd = rootNode;
+//                }
+//            }
+//            else
+//            {
+//                nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+//            }
+//            if (nodecwd)
+//            {
+//                MegaNode *nodeToDelete = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), nodecwd);
+                MegaNode *nodeToDelete = getNodeByFtpPath(ftpctx, ftpctx->arg1);
 
                 if (nodeToDelete)
                 {
@@ -23465,15 +23777,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     response = "530 Not Found"; //TODO: review error code
                 }
-                delete nodecwd;
-            }
-            else
-            {
-                response = "530 Not Found"; //TODO: review error code
-            }
+//                delete nodecwd;
+//            }
+//            else
+//            {
+//                response = "530 Not Found"; //TODO: review error code
+//            }
             break;
         }
-        case FTP_CMD_RNTO:
+        case FTP_CMD_RNTO: //TODO: review use case with new paths
         {
             if (this->nodeHandleToRename == UNDEF)
             {
@@ -23481,29 +23793,31 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             else
             {
-                MegaNode *nodecwd = NULL;
-                if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
-                {
-                    MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
-                    if (rootNode)
-                    {
-                        ftpctx->cwd = rootNode->getHandle();
-                        nodecwd = rootNode;
-                    }
-                }
-                else
-                {
-                    nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-                }
-                if (nodecwd)
-                {
+//                MegaNode *nodecwd = NULL;
+//                if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+//                {
+//                    MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
+//                    if (rootNode)
+//                    {
+//                        ftpctx->cwd = rootNode->getHandle();
+//                        nodecwd = rootNode;
+//                    }
+//                }
+//                else
+//                {
+//                    nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+//                }
+//                if (nodecwd)
+//                {
                     MegaNode *nodeToRename = ftpctx->megaApi->getNodeByHandle(this->nodeHandleToRename);
                     if (nodeToRename)
                     {
                         MegaNode *newParentNode = NULL;
                         size_t seppos = ftpctx->arg1.find_last_of("/");
                         string newName = ftpctx->arg1;
-                        MegaNode *n = ftpctx->megaApi->getNodeByPath(newName.c_str(), nodecwd); //TODO: do we need this?
+//                        MegaNode *n = ftpctx->megaApi->getNodeByPath(newName.c_str(), nodecwd); //TODO: do we need this?
+                        MegaNode *n = getNodeByFtpPath(ftpctx, newName); //TODO: do we need this?
+
                         if (n)
                         {
                             response = "450 already existing!"; //TODO: review error code
@@ -23517,8 +23831,9 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                                 {
                                     newName = newName.substr(seppos + 1);
                                 }
-                                string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/";
-                                newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                                string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/"; //TODO: review this: either "." or arg1 directly
+//                                newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                                newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
                                 if (!newParentNode)
                                 {
                                     newName = ""; //empty
@@ -23551,12 +23866,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     {
                         response = "530 Not Found";
                     }
-                    delete nodecwd;
-                }
-                else
-                {
-                    response = "530 Not Found";
-                }
+//                    delete nodecwd;
+//                }
+//                else
+//                {
+//                    response = "530 Not Found";
+//                }
 
                 nodeHandleToRename = UNDEF; //TODO: perhaps we want to do this if previous command != RNFR
             }
@@ -23564,26 +23879,27 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_MKD:
         {
-            MegaNode *nodecwd = NULL;
-            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
-            {
-                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
-                if (rootNode)
-                {
-                    ftpctx->cwd = rootNode->getHandle();
-                    nodecwd = rootNode;
-                }
-            }
-            else
-            {
-                nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-            }
-            if (nodecwd)
-            {
+//            MegaNode *nodecwd = NULL;
+//            if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
+//            {
+//                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
+//                if (rootNode)
+//                {
+//                    ftpctx->cwd = rootNode->getHandle();
+//                    nodecwd = rootNode;
+//                }
+//            }
+//            else
+//            {
+//                nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+//            }
+//            if (nodecwd)
+//            {
                 MegaNode *newParentNode = NULL;
                 size_t seppos = ftpctx->arg1.find_last_of("/");
                 string newNameFolder = ftpctx->arg1;
-                MegaNode *n = ftpctx->megaApi->getNodeByPath(newNameFolder.c_str(), nodecwd);
+//                MegaNode *n = ftpctx->megaApi->getNodeByPath(newNameFolder.c_str(), nodecwd);
+                MegaNode *n = getNodeByFtpPath(ftpctx, newNameFolder);
                 if (n)
                 {
                     response = "530 already existing!"; //TODO: review error code
@@ -23597,8 +23913,9 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                         {
                             newNameFolder = newNameFolder.substr(seppos + 1);
                         }
-                        string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/";
-                        newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                        string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/"; //TODO: review this. probably we want ./
+//                        newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                        newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
                         if (!newParentNode)
                         {
                             newNameFolder = ""; //empty
@@ -23607,8 +23924,9 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 
                     if (newNameFolder.size())
                     {
-                        //ftpctx->ftpDataServer->remotePathToUpload = ftpctx->arg1;
+                        MegaNode *nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
                         ftpctx->megaApi->createFolder(newNameFolder.c_str(),newParentNode ? newParentNode : nodecwd, ftpctx);
+                        delete nodecwd;
                         delayresponse = true;
                     }
                     else
@@ -23617,12 +23935,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     }
                     delete newParentNode;
                 }
-                delete nodecwd;
-            }
-            else
-            {
-                response = "530 Not Found"; //TODO: review error code
-            }
+//                delete nodecwd;
+//            }
+//            else
+//            {
+//                response = "530 Not Found"; //TODO: review error code
+//            }
             break;
         }
         case FTP_CMD_REST:
@@ -23661,10 +23979,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_SIZE: //TODO: this has to be exact, and depends ond STRU, MODE & TYPE!!
         {
-            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-            if (n)
-            {
-                MegaNode *nodeToGetSize = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
+//            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+//            if (n)
+//            {
+//                MegaNode *nodeToGetSize = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
+                MegaNode *nodeToGetSize = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+
                 if (nodeToGetSize)
                 {
                     if (nodeToGetSize->isFile())
@@ -23686,12 +24006,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     response = "530 Not Found";
                 }
-                delete n;
-            }
-            else
-            {
-                response = "530 Not Found";
-            }
+//                delete n;
+//            }
+//            else
+//            {
+//                response = "530 Not Found";
+//            }
             break;
         }
         case FTP_CMD_INVALID:
@@ -23835,6 +24155,8 @@ MegaFTPContext::MegaFTPContext()
     resultcode = 0;
 
     cwd = UNDEF;
+    atroot = false;
+    athandle = false;
     parentcwd = UNDEF;
     pasiveport = -1;
     ftpDataServer = NULL;

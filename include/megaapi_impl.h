@@ -2534,7 +2534,7 @@ public:
     void enableOfflineAttribute(bool enable);
     bool isOfflineAttributeEnabled();
     void clearAllowedHandles();
-    char* getLink(MegaNode *node);
+    char* getLink(MegaNode *node, std::string protocol = "http");
     bool isSubtitlesSupportEnabled();
     void enableSubtitlesSupport(bool enable);
 
@@ -2697,7 +2697,11 @@ public:
 
     //status
     MegaHandle cwd;
+    bool atroot;
+    bool athandle;
     MegaHandle parentcwd;
+
+    std::string cwdpath;
 
     MegaFTPContext();
     ~MegaFTPContext();
@@ -2759,7 +2763,12 @@ protected:
 
     MegaHandle nodeHandleToRename;
 
-    std::string getListingLineFromNode(MegaNode *child);
+    std::string getListingLineFromNode(MegaNode *child, std::string nameToShow = string());
+
+    MegaNode *getBaseFolderNode(std::string path);
+    MegaNode *getNodeByFullFtpPath(std::string path);
+    std::string shortenpath(std::string path);
+
 
     //virtual methods:
     virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
@@ -2784,6 +2793,7 @@ public:
 
     static void returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
     static void returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
+    MegaNode * getNodeByFtpPath(MegaFTPContext* ftpctx, std::string path);
 };
 
 class MegaFTPDataContext;
