@@ -11677,7 +11677,17 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
 
             if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
             {
-                request->setFlag(num ? (*num == '1') : false);
+                if (num)
+                {
+                    string sValue = num;
+                    string bValue;
+                    Base64::atob(sValue, bValue);
+                    request->setFlag(bValue == "1");
+                }
+                else
+                {
+                    request->setFlag(false);
+                }
             }
             else if (request->getNumDetails() == 1) // used to check if should show warning
             {
