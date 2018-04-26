@@ -2427,12 +2427,17 @@ protected:
     static void *threadEntryPoint(void *param);
     static http_parser_settings parsercfg;
 
+    static uv_mutex_t mutexinitializeuvloop;
+    static bool uvloopinitiated;
+    static uv_async_s asynchandleoflibuvinitializer;
+
     set<handle> allowedHandles;
     handle lastHandle;
     list<MegaTCPContext*> connections;
     uv_async_t exit_handle;
     MegaApiImpl *megaApi;
-    uv_sem_t semaphore;
+    uv_sem_t semaphoreStartup;
+    uv_sem_t semaphoreEnd;
     MegaThread thread;
     uv_tcp_t server;
     int maxBufferSize;
@@ -2478,6 +2483,7 @@ protected:
     static void onExitHandleClose(uv_handle_t* handle);
 
     static void onCloseRequested(uv_async_t* handle);
+    static void onInitializeRequest(uv_async_t* handle);
 
     static void onWriteFinished(uv_write_t* req, int status); //This might need to go to HTTPServer
 #ifdef ENABLE_EVT_TLS
@@ -2487,6 +2493,7 @@ protected:
     static void closeTCPConnection(MegaTCPContext *tcpctx);
 
     void run();
+    void initializeAndStartListenig();
 
     void answer(MegaTCPContext* tcpctx, const char *rsp, int rlen);
 
@@ -2509,8 +2516,8 @@ public:
 
     MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaTCPServer();
-    bool start(int port, bool localOnly = true);
-    void stop();
+    bool start(int port, bool localOnly = true, bool alreadyinuvthread = false);
+    void stop(bool doNotWait = false);
     int getPort();
     bool isLocalOnly();
     void setMaxBufferSize(int bufferSize);
