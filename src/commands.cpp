@@ -851,10 +851,12 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (userhandle)
     {
         arg("t", userhandle);
+        targethandle = UNDEF;
     }
     else
     {
         arg("t", (byte*)&th, MegaClient::NODEHANDLE);
+        targethandle = th;
     }
 
     arg("sm",1);
@@ -1087,6 +1089,19 @@ void CommandPutNodes::procresult()
 #endif
     if (source == PUTNODES_APP)
     {
+#ifdef ENABLE_SYNC
+        if (!ISUNDEF(targethandle))
+        {
+            Node *parent = client->nodebyhandle(targethandle);
+            if (parent && parent->localnode)
+            {
+                // A node has been added by a regular (non sync) putnodes
+                // inside a synced folder, so force a syncdown to detect
+                // and sync the changes.
+                client->syncdownrequired = true;
+            }
+        }
+#endif
         client->app->putnodes_result(e, type, nn);
     }
 #ifdef ENABLE_SYNC
