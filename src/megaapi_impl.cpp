@@ -15001,13 +15001,23 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char* oldPassword = request->getPassword();
 			const char* newPassword = request->getNewPassword();
-			if(!oldPassword || !newPassword) { e = API_EARGS; break; }
+            if (!newPassword)
+            {
+                e = API_EARGS;
+                break;
+            }
 
-			byte pwkey[SymmCipher::KEYLENGTH];
 			byte newpwkey[SymmCipher::KEYLENGTH];
-			if((e = client->pw_key(oldPassword, pwkey))) { e = API_EARGS; break; }
-			if((e = client->pw_key(newPassword, newpwkey))) { e = API_EARGS; break; }
-			e = client->changepw(pwkey, newpwkey);
+            if (oldPassword && !checkPassword(oldPassword))
+            {
+                e = API_EARGS;
+                break;
+            }
+            if ((e = client->pw_key(newPassword, newpwkey)))
+            {
+                break;
+            }
+            e = client->changepw(newpwkey);
 			break;
 		}
 		case MegaRequest::TYPE_LOGOUT:

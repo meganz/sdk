@@ -7312,10 +7312,10 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getPassword - Returns the old password
+         * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
          * - MegaRequest::getNewPassword - Returns the new password
          *
-         * @param oldPassword Old password
+         * @param oldPassword Old password (optional, it can be NULL to not check the old password)
          * @param newPassword New password
          * @param listener MegaRequestListener to track this request
          */
