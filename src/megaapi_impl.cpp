@@ -23093,7 +23093,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             if(!ftpctx->ftpDataServer)
             {
                 static int pport = port+1;
-                if (pport == (port+100)) pport = port; //TODO: use range defined by user
+                if (pport == (port+100)) pport = port+1; //TODO: use range defined by user (and check != port)
                 ftpctx->pasiveport = pport++;
 
                 LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
@@ -24032,7 +24032,6 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
         {
             LOG_verbose << "Avoiding waking controlftp aync handle, ftpctx already closed";
         }
-        this->controlftpctx->ftpDataServer = NULL;
         closeConnection(tcpctx);
     }
     else // transfering node //TODO: check node != NULL?
