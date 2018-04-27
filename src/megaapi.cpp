@@ -1951,9 +1951,14 @@ void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
     pImpl->enableRichPreviews(enable, listener);
 }
 
+void MegaApi::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    pImpl->isRichPreviewsEnabled(listener);
+}
+
 void MegaApi::shouldShowRichLinkWarning(MegaRequestListener *listener)
 {
-    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_RICH_PREVIEWS, NULL, 0, listener);
+    pImpl->shouldShowRichLinkWarning(listener);
 }
 
 void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
