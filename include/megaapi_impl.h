@@ -1894,7 +1894,7 @@ class MegaApiImpl : public MegaApp
         void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
 
         //FTP
-        bool ftpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
+        bool ftpServerStart(bool localOnly = true, int port = 4443, int dataportBegin = 1500, int dataPortEnd = 1600, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
         void ftpServerStop();
         int ftpServerIsRunning();
 
@@ -2762,6 +2762,10 @@ protected:
 
     MegaHandle nodeHandleToRename;
 
+    int pport;
+    int dataportBegin;
+    int dataPortEnd;
+
     std::string getListingLineFromNode(MegaNode *child, std::string nameToShow = string());
 
     MegaNode *getBaseFolderNode(std::string path);
@@ -2782,7 +2786,7 @@ public:
 
     std::string newNameAfterMove;
 
-    MegaFTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaFTPServer(MegaApiImpl *megaApi, string basePath, int dataportBegin, int dataPortEnd, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaFTPServer();
 
     static std::string getFTPErrorString(int errorcode);

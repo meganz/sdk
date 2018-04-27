@@ -3247,9 +3247,9 @@ int MegaApi::httpServerGetMaxOutputSize()
 }
 
 //FTP Server:
-bool MegaApi::ftpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
+bool MegaApi::ftpServerStart(bool localOnly, int port, int dataportBegin, int dataPortEnd, bool useTLS, const char * certificatepath, const char * keypath)
 {
-    return pImpl->ftpServerStart(localOnly, port, useTLS, certificatepath, keypath);
+    return pImpl->ftpServerStart(localOnly, port, dataportBegin, dataPortEnd, useTLS, certificatepath, keypath);
 }
 
 void MegaApi::ftpServerStop()

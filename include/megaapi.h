@@ -10790,12 +10790,14 @@ class MegaApi
          *
          * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
          * @param port Port in which the server must accept connections
+         * @param dataportBegin Initial port for FTP data channel
+         * @param dataPortEnd Final port for FTP data channel (included)
          * @param useTLS Use TLS (default false)
          * @param certificatepath path to certificate (PEM format)
          * @param keypath path to certificate key
          * @return True is the server is ready, false if the initialization failed
          */
-        bool ftpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
+        bool ftpServerStart(bool localOnly = true, int port = 22, int dataportBegin = 1500, int dataPortEnd = 1600, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
 
         /**
          * @brief Stop the FTP proxy server

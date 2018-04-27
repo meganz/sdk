@@ -7347,7 +7347,7 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
     delete transfer;
 }
 
-bool MegaApiImpl::ftpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
+bool MegaApiImpl::ftpServerStart(bool localOnly, int port, int dataportBegin, int dataPortEnd, bool useTLS, const char *certificatepath, const char *keypath)
 {
     #ifndef ENABLE_EVT_TLS
     if (useTLS)
@@ -7366,7 +7366,7 @@ bool MegaApiImpl::ftpServerStart(bool localOnly, int port, bool useTLS, const ch
     }
 
     ftpServerStop();
-    ftpServer = new MegaFTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
+    ftpServer = new MegaFTPServer(this, basePath, dataportBegin, dataPortEnd, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
 //    ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
 //    ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
 //    ftpServer->enableFileServer(ftpServerEnableFiles);
@@ -22488,10 +22488,13 @@ void getPermissionsString(int permissions, char *permsString)
 }
 
 //ftp_parser_settings MegaTCPServer::parsercfg;
-MegaFTPServer::MegaFTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
+MegaFTPServer::MegaFTPServer(MegaApiImpl *megaApi, string basePath, int dataportBegin, int dataPortEnd, bool useTLS, string certificatepath, string keypath)
 : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath)
 {
     nodeHandleToRename = UNDEF;
+    this->pport = dataportBegin;
+    this->dataportBegin = dataportBegin;
+    this->dataPortEnd = dataPortEnd;
 }
 
 MegaFTPServer::~MegaFTPServer()
@@ -23303,8 +23306,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             if(!ftpctx->ftpDataServer)
             {
-                static int pport = port+1;
-                if (pport == (port+100)) pport = port+1; //TODO: use range defined by user (and check != port)
+                if (pport > (dataPortEnd)) pport = dataportBegin;
                 ftpctx->pasiveport = pport++;
 
                 LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
