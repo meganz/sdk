@@ -23027,7 +23027,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             ftpctx->command = FTP_CMD_PORT;
         }
-        else if(command == "PASV" || command == "EPSV")
+        else if(command == "PASV")
         {
             ftpctx->command = FTP_CMD_PASV;
         }
@@ -23135,6 +23135,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             ftpctx->command = FTP_CMD_NOOP;
         }
+        else if(command == "EPSV")
+        {
+            ftpctx->command = FTP_CMD_EPSV;
+        }
         else
         {
             LOG_warn << " Could not match command: " << command;
@@ -23154,6 +23158,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_REIN:
         case FTP_CMD_CDUP:
         case FTP_CMD_PASV:
+        case FTP_CMD_EPSV:
         case FTP_CMD_PWD:
         case FTP_CMD_SYST:
         case FTP_CMD_FEAT:
@@ -23294,6 +23299,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             break;
         }
         case FTP_CMD_PASV:
+        case FTP_CMD_EPSV:
         {
             if(!ftpctx->ftpDataServer)
             {
@@ -23327,11 +23333,22 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             string sIPtoPASV = strIP;
             replace( sIPtoPASV.begin(), sIPtoPASV.end(), '.', ',');
 
-            char url[30];
-            sprintf(url, "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
-            response = "227 Entering Passive Mode (";
-            response.append(url);
-            response.append(")");
+            if (ftpctx->command == FTP_CMD_PASV)
+            {
+                char url[30];
+                sprintf(url, "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
+                response = "227 Entering Passive Mode (";
+                response.append(url);
+                response.append(")");
+            }
+            else // FTP_CMD_EPSV
+            {
+                char url[30];
+                sprintf(url, "%d", ftpctx->pasiveport);
+                response = "229 Entering Extended Passive Mode (|||";
+                response.append(url);
+                response.append("|)");
+            }
             break;
         }
         case FTP_CMD_PWD:
@@ -23403,9 +23420,17 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             ftpctx->atroot = false;
             //                ftpctx->cwdpath = //TODO: asign cwdpath if required to use // else delete variable
             ftpctx->parentcwd = newcwd->getParentHandle(); //TODO: review security after: delete basePath! I might get access to parent!
-            response = "250 Directory successfully changed";
 
 
+            if (ftpctx->athandle || newcwd->isFolder())
+            {
+                response = "250 Directory successfully changed";
+            }
+            else
+            {
+                response = "550 CWD failed."; //chrome requires this
+            }
+            delete newcwd;
 
 
 //            MegaNode *n = NULL;
@@ -23503,7 +23528,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_NLST:
         {
             MegaNode *node = NULL;
-            if (ftpctx->arg1.size())
+            if (ftpctx->arg1.size() && ftpctx->arg1 != "-l")
             {
                 node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
             }
