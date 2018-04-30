@@ -10382,10 +10382,18 @@ class MegaApi
 #ifdef HAVE_LIBUV
 
         enum {
-            HTTP_SERVER_DENY_ALL = -1,
-            HTTP_SERVER_ALLOW_ALL = 0,
-            HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
-            HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+            TCP_SERVER_DENY_ALL = -1,
+            TCP_SERVER_ALLOW_ALL = 0,
+            TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
+            TCP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+        };
+
+        //kept for backwards compatibility
+        enum {
+            HTTP_SERVER_DENY_ALL = TCP_SERVER_DENY_ALL,
+            HTTP_SERVER_ALLOW_ALL = TCP_SERVER_ALLOW_ALL,
+            HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS,
+            HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = TCP_SERVER_ALLOW_LAST_LOCAL_LINK
         };
 
         /**
@@ -10407,7 +10415,7 @@ class MegaApi
          * that can restrict the nodes that will be served and the connections that will be accepted.
          *
          * These are the default options:
-         * - The restricted mode of the server is set to MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * - The restricted mode of the server is set to MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS
          * (see MegaApi::httpServerSetRestrictedMode)
          *
          * - Folder nodes are NOT allowed to be served (see MegaApi::httpServerEnableFolderServer)
@@ -10539,7 +10547,7 @@ class MegaApi
          *
          * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
          *
-         * The state of this option is preserved even if the HTTP server is restarted, but the
+         * The state of this option is preserved even if the HTTP server is restarted, but
          * the HTTP proxy server only remembers the generated links since the last call to
          * MegaApi::httpServerStart
          *
@@ -10780,30 +10788,17 @@ class MegaApi
          */
         int httpServerGetMaxOutputSize();
 
-
-        //TODO: figure out which functionality does not make sense (and review this enum)
-        enum {
-            FTP_SERVER_DENY_ALL = -1,
-            FTP_SERVER_ALLOW_ALL = 0,
-            FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
-            FTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
-        };
-
         /**
          * @brief Start an FTP proxy server in specified port
          *
-         * //TODO: review docs
          * If this function returns true, that means that the server is
          * ready to accept connections. The initialization is synchronous.
          *
          * The server will serve files using this URL format:
-         * ftp://127.0.0.1/<NodeHandle>/<NodeName>
+         * ftp://127.0.0.1:PORT/<NodeHandle>/<NodeName>
          *
          * The node name must be URL encoded and must match with the node handle.
          * You can generate a correct link for a MegaNode using MegaApi::ftpServerGetLocalLink
-         *
-         * If the node handle belongs to a folder node, a web with the list of files
-         * inside the folder is returned.
          *
          * It's important to know that the FTP proxy server has several configuration options
          * that can restrict the nodes that will be served and the connections that will be accepted.
@@ -10811,10 +10806,6 @@ class MegaApi
          * These are the default options:
          * - The restricted mode of the server is set to MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
          * (see MegaApi::ftpServerSetRestrictedMode)
-         *
-         * - Folder nodes are NOT allowed to be served (see MegaApi::ftpServerEnableFolderServer)
-         * - File nodes are allowed to be served (see MegaApi::ftpServerEnableFileServer)
-         * - Subtitles support is disabled (see MegaApi::ftpServerEnableSubtitlesSupport)
          *
          * The FTP server will only stream a node if it's allowed by all configuration options.
          *
@@ -10851,73 +10842,6 @@ class MegaApi
         bool ftpServerIsLocalOnly();
 
         /**
-         * @brief Allow/forbid to serve files
-         *
-         * By default, files are served (when the server is running)
-         *
-         * Even if files are allowed to be served by this function, restrictions related to
-         * other configuration options (MegaApi::ftpServerSetRestrictedMode) are still applied.
-         *
-         * @param enable true to allow to server files, false to forbid it
-         */
-        void ftpServerEnableFileServer(bool enable);
-
-        /**
-         * @brief Check if it's allowed to serve files
-         *
-         * This function can return true even if the FTP proxy server is not running
-         *
-         * Even if files are allowed to be served by this function, restrictions related to
-         * other configuration options (MegaApi::ftpServerSetRestrictedMode) are still applied.
-         *
-         * @return true if it's allowed to serve files, otherwise false
-         */
-        bool ftpServerIsFileServerEnabled();
-
-        /**
-         * @brief Allow/forbid to serve folders
-         *
-         * By default, folders are NOT served
-         *
-         * Even if folders are allowed to be served by this function, restrictions related to
-         * other configuration options (MegaApi::ftpServerSetRestrictedMode) are still applied.
-         *
-         * @param enable true to allow to server folders, false to forbid it
-         */
-        void ftpServerEnableFolderServer(bool enable);
-
-        /**
-         * @brief Check if it's allowed to serve folders
-         *
-         * This function can return true even if the FTP proxy server is not running
-         *
-         * Even if folders are allowed to be served by this function, restrictions related to
-         * other configuration options (MegaApi::ftpServerSetRestrictedMode) are still applied.
-         *
-         * @return true if it's allowed to serve folders, otherwise false
-         */
-        bool ftpServerIsFolderServerEnabled();
-
-        /**
-         * @brief Stablish FILE_ATTRIBUTE_OFFLINE attribute
-         *
-         * By default, it is not enabled
-         *
-         * This is used when serving files in WEBDAV, it will cause windows clients to not load a file
-         * when it is selected. It is intended to reduce unnecessary traffic.
-         *
-         * @param enable true to enable the FILE_ATTRIBUTE_OFFLINE attribute, false to disable it
-         */
-        void ftpServerEnableOfflineAttribute(bool enable);
-
-        /**
-         * @brief Check if FILE_ATTRIBUTE_OFFLINE it's enabled
-         *
-         * @return true if the FILE_ATTRIBUTE_OFFLINE attribute is enabled, otherwise false
-         */
-        bool ftpServerIsOfflineAttributeEnabled();
-
-        /**
          * @brief Enable/disable the restricted mode of the FTP server
          *
          * This function allows to restrict the nodes that are allowed to be served.
@@ -10945,10 +10869,6 @@ class MegaApi
          * the FTP proxy server only remembers the generated links since the last call to
          * MegaApi::ftpServerStart
          *
-         * Even if nodes are allowed to be served by this function, restrictions related to
-         * other configuration options (MegaApi::ftpServerEnableFileServer,
-         * MegaApi::ftpServerEnableFolderServer) are still applied.
-         *
          * @param Required state for the restricted mode of the FTP proxy server
          */
         void ftpServerSetRestrictedMode(int mode);
@@ -10973,51 +10893,9 @@ class MegaApi
          *
          * See MegaApi::ftpServerEnableRestrictedMode and MegaApi::ftpServerStart
          *
-         * Even if nodes are allowed to be served by this function, restrictions related to
-         * other configuration options (MegaApi::ftpServerEnableFileServer,
-         * MegaApi::ftpServerEnableFolderServer) are still applied.
-         *
          * @return State of the restricted mode of the FTP proxy server
          */
         int ftpServerGetRestrictedMode();
-
-        /**
-         * @brief Enable/disable the support for subtitles
-         *
-         * Subtitles support allows to stream some special links that otherwise wouldn't be valid.
-         * For example, let's suppose that the server is streaming this video:
-         * ftp://120.0.0.1:4443/<Base64Handle>/MyHolidays.avi
-         *
-         * Some media players scan FTP servers looking for subtitle files and request links like these ones:
-         * ftp://120.0.0.1:4443/<Base64Handle>/MyHolidays.txt
-         * ftp://120.0.0.1:4443/<Base64Handle>/MyHolidays.srt
-         *
-         * Even if a file with that name is in the same folder of the MEGA account, the node wouldn't be served because
-         * the node handle wouldn't match.
-         *
-         * When this feature is enabled, the FTP proxy server will check if there are files with that name
-         * in the same folder as the node corresponding to the handle in the link.
-         *
-         * If a matching file is found, the name is exactly the same as the the node with the specified handle
-         * (except the extension), the node with that handle is allowed to be streamed and this feature is enabled
-         * the FTP proxy server will serve that file.
-         *
-         * This feature is disabled by default.
-         *
-         * @param enable True to enable subtitles support, false to disable it
-         */
-        void ftpServerEnableSubtitlesSupport(bool enable);
-
-        /**
-         * @brief Check if the support for subtitles is enabled
-         *
-         * See MegaApi::ftpServerEnableSubtitlesSupport.
-         *
-         * This feature is disabled by default.
-         *
-         * @return true of the support for subtibles is enables, otherwise false
-         */
-        bool ftpServerIsSubtitlesSupportEnabled();
 
         /**
          * @brief Add a listener to receive information about the FTP proxy server

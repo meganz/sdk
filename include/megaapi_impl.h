@@ -2664,7 +2664,6 @@ public:
     int pasiveport;
     MegaFTPDataServer * ftpDataServer;
 
-    bool return226; //TODO: sth more versatile. probably include here some msj or queque of messages to control channel
     uv_mutex_t mutex_responses;
     std::list<std::string> responses;
 
