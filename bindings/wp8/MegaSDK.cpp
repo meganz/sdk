@@ -2271,16 +2271,17 @@ void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestL
 
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword)
 {
-	std::string utf8oldPassword;
-	if (oldPassword != nullptr)
-		MegaApi::utf16ToUtf8(oldPassword->Data(), oldPassword->Length(), &utf8oldPassword);
+    this->changePassword(oldPassword, newPassword, nullptr);
+}
 
-	std::string utf8newPassword;
-	if (newPassword != nullptr)
-		MegaApi::utf16ToUtf8(newPassword->Data(), newPassword->Length(), &utf8newPassword);
+void MegaSDK::changePasswordWithoutOld(String^ newPassword, MRequestListenerInterface^ listener)
+{
+    this->changePassword(nullptr, newPassword, listener);
+}
 
-	megaApi->changePassword((oldPassword != nullptr) ? utf8oldPassword.c_str() : NULL,
-		(newPassword != nullptr) ? utf8newPassword.c_str() : NULL);
+void MegaSDK::changePasswordWithoutOld(String^ newPassword)
+{
+    this->changePassword(nullptr, newPassword);
 }
 
 void MegaSDK::inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener)

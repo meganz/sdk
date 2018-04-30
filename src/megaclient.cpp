@@ -4788,6 +4788,7 @@ void MegaClient::sc_ipc()
     m_time_t uts = 0;
     m_time_t rts = 0;
     m_time_t dts = 0;
+    m_off_t clv = 0;
     const char *m = NULL;
     const char *msg = NULL;
     handle p = UNDEF;
@@ -4815,6 +4816,9 @@ void MegaClient::sc_ipc()
                 break;
             case MAKENAMEID3('m', 's', 'g'):
                 msg = jsonsc.getvalue();
+                break;
+            case MAKENAMEID3('c', 'l', 'v'):
+                clv = jsonsc.getint();
                 break;
             case 'p':
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
@@ -4872,6 +4876,7 @@ void MegaClient::sc_ipc()
 
                     pcr = new PendingContactRequest(p, m, NULL, ts, uts, msg, false);
                     mappcr(p, pcr);
+                    pcr->autoaccepted = clv;
                 }
                 notifypcr(pcr);
 
@@ -7491,6 +7496,7 @@ PendingContactRequest* MegaClient::findpcr(handle p)
     {
         pcr = new PendingContactRequest(p);
         pcrindex[p] = pcr;
+        assert(false);
     }
 
     return pcrindex[p];
@@ -9199,7 +9205,7 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-error MegaClient::changepw(const byte* oldpwkey, const byte* newpwkey)
+error MegaClient::changepw(const byte* newpwkey)
 {
     User* u;
 
@@ -9208,24 +9214,14 @@ error MegaClient::changepw(const byte* oldpwkey, const byte* newpwkey)
         return API_EACCESS;
     }
 
-    byte oldkey[SymmCipher::KEYLENGTH];
     byte newkey[SymmCipher::KEYLENGTH];
-
     SymmCipher pwcipher;
-
-    memcpy(oldkey, key.key, sizeof oldkey);
-    memcpy(newkey, oldkey,  sizeof newkey);
-
-    pwcipher.setkey(oldpwkey);
-    pwcipher.ecb_encrypt(oldkey);
-
+    memcpy(newkey, key.key,  sizeof newkey);
     pwcipher.setkey(newpwkey);
     pwcipher.ecb_encrypt(newkey);
 
     string email = u->email;
-
-    reqs.add(new CommandSetMasterKey(this, oldkey, newkey, stringhash64(&email, &pwcipher)));
-
+    reqs.add(new CommandSetMasterKey(this, newkey, stringhash64(&email, &pwcipher)));
     return API_OK;
 }
 

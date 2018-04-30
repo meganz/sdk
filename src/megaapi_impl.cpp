@@ -2147,6 +2147,7 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(PendingContactRequest *requ
     targetEmail = request->targetemail.size() ? MegaApi::strdup(request->targetemail.c_str()) : NULL;
     creationTime = request->ts;
     modificationTime = request->uts;
+    autoaccepted = request->autoaccepted;
 
     if(request->changed.accepted)
     {
@@ -2186,6 +2187,7 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(const MegaContactRequest *r
     modificationTime = request->getModificationTime();
     status = request->getStatus();
     outgoing = request->isOutgoing();
+    autoaccepted = request->isAutoAccepted();
 }
 
 MegaContactRequestPrivate::~MegaContactRequestPrivate()
@@ -2245,6 +2247,10 @@ bool MegaContactRequestPrivate::isOutgoing() const
     return outgoing;
 }
 
+bool MegaContactRequestPrivate::isAutoAccepted() const
+{
+    return autoaccepted;
+}
 
 MegaAccountDetails *MegaAccountDetailsPrivate::fromAccountDetails(AccountDetails *details)
 {
@@ -5113,6 +5119,24 @@ void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
     stringMap->set("num", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
+}
+
+void MegaApiImpl::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(0);  // 0 --> flag should indicate whether rich-links are enabled or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(1);  // 1 --> flag should indicate whether to show the warning or not
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
@@ -11853,22 +11877,37 @@ void MegaApiImpl::getua_result(error e)
                     (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
     // if attempted to get ^!prd attribute but not exists yet...
-    if (e == API_ENOENT && request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER)
+    if (e == API_ENOENT)
     {
-        if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        if (request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER)
         {
-            string newValue;
-            User::mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
-            request->setText(newValue.c_str());
+            if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+            {
+                string newValue;
+                User::mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
+                request->setText(newValue.c_str());
 
-            // set the attribute using same request tag
-            client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
-            return;
+                // set the attribute using same request tag
+                client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
+                return;
+            }
+            else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
+                     && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+            {
+                request->setFlag(true); // the password reminder dialog should be shown
+            }
         }
-        else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
-                 && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+        else if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS &&
+                 request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
         {
-            request->setFlag(true); // the password reminder dialog should be shown
+            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+            {
+                request->setFlag(false);
+            }
+            else if (request->getNumDetails() == 1) // used to check if should show warning
+            {
+                request->setFlag(true);
+            }
         }
     }
 
@@ -12008,24 +12047,38 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
 
+        // prepare request params to know if a warning should show or not
         if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
         {
-            const char *value = stringMap->get("num");
-            if (value)
-            {
-                string sValue = value;
-                string bValue;
-                Base64::atob(sValue, bValue);
-                request->setFlag(bValue == "1");
-            }
+            const char *num = stringMap->get("num");
 
-            value = stringMap->get("c");
-            if (value)
+            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
             {
-                string sValue = value;
-                string bValue;
-                Base64::atob(sValue, bValue);
-                request->setNumber(atoi(bValue.c_str()));
+                if (num)
+                {
+                    string sValue = num;
+                    string bValue;
+                    Base64::atob(sValue, bValue);
+                    request->setFlag(bValue == "1");
+                }
+                else
+                {
+                    request->setFlag(false);
+                }
+            }
+            else if (request->getNumDetails() == 1) // used to check if should show warning
+            {
+                request->setFlag(!num);
+                // it doesn't matter the value, just if it exists
+
+                const char *value = stringMap->get("c");
+                if (value)
+                {
+                    string sValue = value;
+                    string bValue;
+                    Base64::atob(sValue, bValue);
+                    request->setNumber(atoi(bValue.c_str()));
+                }
             }
         }
 
@@ -15369,13 +15422,23 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char* oldPassword = request->getPassword();
 			const char* newPassword = request->getNewPassword();
-			if(!oldPassword || !newPassword) { e = API_EARGS; break; }
+            if (!newPassword)
+            {
+                e = API_EARGS;
+                break;
+            }
 
-			byte pwkey[SymmCipher::KEYLENGTH];
 			byte newpwkey[SymmCipher::KEYLENGTH];
-			if((e = client->pw_key(oldPassword, pwkey))) { e = API_EARGS; break; }
-			if((e = client->pw_key(newPassword, newpwkey))) { e = API_EARGS; break; }
-			e = client->changepw(pwkey, newpwkey);
+            if (oldPassword && !checkPassword(oldPassword))
+            {
+                e = API_EARGS;
+                break;
+            }
+            if ((e = client->pw_key(newPassword, newpwkey)))
+            {
+                break;
+            }
+            e = client->changepw(newpwkey);
 			break;
 		}
 		case MegaRequest::TYPE_LOGOUT:

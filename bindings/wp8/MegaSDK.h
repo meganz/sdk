@@ -627,8 +627,56 @@ namespace mega
         */
         void shouldShowPasswordReminderDialog(bool atLogout);
 
+        /**
+        * @brief Change the password of the MEGA account
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getPassword - Returns the old password
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param oldPassword Old password
+        * @param newPassword New password
+        * @param listener MRequestListener to track this request
+        */
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Change the password of the MEGA account
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getPassword - Returns the old password
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param oldPassword Old password
+        * @param newPassword New password
+        */
         void changePassword(String^ oldPassword, String^ newPassword);
+
+        /**
+        * @brief Change the password of the MEGA account without check the old password
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param newPassword New password
+        * @param listener MRequestListener to track this request
+        */
+        void changePasswordWithoutOld(String^ newPassword, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Change the password of the MEGA account without check the old password
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param newPassword New password
+        */
+        void changePasswordWithoutOld(String^ newPassword);
+        
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
         
