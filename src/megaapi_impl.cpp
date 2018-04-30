@@ -24558,6 +24558,13 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             fds->fsAccess->tmpnamelocal(&suffix);
             fds->fsAccess->local2path(&suffix, &utf8suffix);
             ftpdatactx->tmpFileName.append(utf8suffix);
+
+            char ext[8];
+            if (ftpdatactx->server->fsAccess->getextension(&fds->controlftpctx->arg1, ext, sizeof ext))
+            {
+                ftpdatactx->tmpFileName.append(ext);
+            }
+
             ftpdatactx->tmpFileAccess = fds->fsAccess->newfileaccess();
             string localPath;
             fds->fsAccess->path2local(&ftpdatactx->tmpFileName, &localPath);
