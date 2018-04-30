@@ -92,7 +92,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
     MEGAUserAttributeLanguage                = 14, // private - char array
     MEGAUserAttributePwdReminder             = 15, // private - char array
-    MEGAUserAttributeContactLinkVerification = 17  // private - byte array
+    MEGAUserAttributeContactLinkVerification = 17, // private - byte array
+    MEGAUserAttributeRichPreviews            = 18  // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -3037,6 +3038,95 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @param atLogout YES if the check is being done just before a logout
  */
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout;
+
+/**
+ * @brief Enable or disable the generation of rich previews
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param enable YES to enable the generation of rich previews
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable or disable the generation of rich previews
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param enable YES to enable the generation of rich previews
+ */
+- (void)enableRichPreviews:(BOOL)enable;
+
+/**
+ * @brief Check if the app should show the rich link warning dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns one
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
+ * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+ * must be added to the warning dialog.
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (YES).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)shouldShowRichLinkWarningWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the app should show the rich link warning dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns one
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
+ * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+ * must be added to the warning dialog.
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (YES).
+ *
+ */
+- (void)shouldShowRichLinkWarning;
+
+/**
+ * @brief Set the number of times "Not now" option has been selected in the rich link warning dialog
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param value Number of times "Not now" option has been selected
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the number of times "Not now" option has been selected in the rich link warning dialog
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param value Number of times "Not now" option has been selected
+ */
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value;
 
 /**
  * @brief Use HTTPS communications only
