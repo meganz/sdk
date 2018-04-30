@@ -3191,16 +3191,6 @@ int MegaApi::httpServerGetRestrictedMode()
     return pImpl->httpServerGetRestrictedMode();
 }
 
-void MegaApi::httpServerEnableSubtitlesSupport(bool enable)
-{
-    pImpl->httpServerEnableSubtitlesSupport(enable);
-}
-
-bool MegaApi::httpServerIsSubtitlesSupportEnabled()
-{
-    return pImpl->httpServerIsSubtitlesSupportEnabled();
-}
-
 void MegaApi::httpServerAddListener(MegaTransferListener *listener)
 {
     pImpl->httpServerAddListener(listener);
@@ -3277,36 +3267,6 @@ bool MegaApi::ftpServerIsLocalOnly()
     return pImpl->ftpServerIsLocalOnly();
 }
 
-void MegaApi::ftpServerEnableFileServer(bool enable)
-{
-    pImpl->ftpServerEnableFileServer(enable);
-}
-
-bool MegaApi::ftpServerIsFileServerEnabled()
-{
-    return pImpl->ftpServerIsFileServerEnabled();
-}
-
-void MegaApi::ftpServerEnableFolderServer(bool enable)
-{
-    pImpl->ftpServerEnableFolderServer(enable);
-}
-
-void MegaApi::ftpServerEnableOfflineAttribute(bool enable)
-{
-    pImpl->ftpServerEnableOfflineAttribute(enable);
-}
-
-bool MegaApi::ftpServerIsOfflineAttributeEnabled()
-{
-    return pImpl->ftpServerIsOfflineAttributeEnabled();
-}
-
-bool MegaApi::ftpServerIsFolderServerEnabled()
-{
-    return pImpl->ftpServerIsFolderServerEnabled();
-}
-
 void MegaApi::ftpServerSetRestrictedMode(int mode)
 {
     pImpl->ftpServerSetRestrictedMode(mode);
@@ -3315,16 +3275,6 @@ void MegaApi::ftpServerSetRestrictedMode(int mode)
 int MegaApi::ftpServerGetRestrictedMode()
 {
     return pImpl->ftpServerGetRestrictedMode();
-}
-
-void MegaApi::ftpServerEnableSubtitlesSupport(bool enable)
-{
-    pImpl->ftpServerEnableSubtitlesSupport(enable);
-}
-
-bool MegaApi::ftpServerIsSubtitlesSupportEnabled()
-{
-    return pImpl->ftpServerIsSubtitlesSupportEnabled();
 }
 
 void MegaApi::ftpServerAddListener(MegaTransferListener *listener)

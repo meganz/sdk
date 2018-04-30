@@ -3870,14 +3870,18 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
 #ifdef HAVE_LIBUV
     httpServer = NULL;
-    ftpServer = NULL;
     httpServerMaxBufferSize = 0;
     httpServerMaxOutputSize = 0;
     httpServerEnableFiles = true;
     httpServerEnableFolders = false;
     httpServerOfflineAttributeEnabled = false;
-    httpServerRestrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    httpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     httpServerSubtitlesSupportEnabled = false;
+
+    ftpServer = NULL;
+    ftpServerMaxBufferSize = 0;
+    ftpServerMaxOutputSize = 0;
+    ftpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
 #endif
 
     httpio = new MegaHttpIO();
@@ -7268,10 +7272,10 @@ bool MegaApiImpl::httpServerIsOfflineAttributeEnabled()
 
 void MegaApiImpl::httpServerSetRestrictedMode(int mode)
 {
-    if (mode != MegaApi::HTTP_SERVER_DENY_ALL
-            && mode != MegaApi::HTTP_SERVER_ALLOW_ALL
-            && mode != MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-            && mode != MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK)
+    if (mode != MegaApi::TCP_SERVER_DENY_ALL
+            && mode != MegaApi::TCP_SERVER_ALLOW_ALL
+            && mode != MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+            && mode != MegaApi::TCP_SERVER_ALLOW_LAST_LOCAL_LINK)
     {
         return;
     }
@@ -7391,12 +7395,10 @@ bool MegaApiImpl::ftpServerStart(bool localOnly, int port, int dataportBegin, in
 
     ftpServerStop();
     ftpServer = new MegaFTPServer(this, basePath, dataportBegin, dataPortEnd, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
-//    ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
+    ftpServer->setRestrictedMode(MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS);
+    ftpServer->setRestrictedMode(ftpServerRestrictedMode);
+//    ftpServer->setMaxBufferSize(ftpServerMaxBufferSize); //TODO: review these 2
 //    ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
-//    ftpServer->enableFileServer(ftpServerEnableFiles);
-//    ftpServer->enableFolderServer(ftpServerEnableFolders);
-//    ftpServer->setRestrictedMode(ftpServerRestrictedMode);
-//    ftpServer->enableSubtitlesSupport(ftpServerRestrictedMode);
 
     sdkMutex.unlock();
     bool result = ftpServer->start(port, localOnly);
@@ -7590,60 +7592,12 @@ int MegaApiImpl::ftpServerGetMaxOutputSize()
     return value;
 }
 
-void MegaApiImpl::ftpServerEnableFileServer(bool enable)
-{
-    sdkMutex.lock();
-    this->ftpServerEnableFiles = enable;
-    if (ftpServer)
-    {
-        ftpServer->enableFileServer(enable);
-    }
-    sdkMutex.unlock();
-}
-
-bool MegaApiImpl::ftpServerIsFileServerEnabled()
-{
-    return ftpServerEnableFiles;
-}
-
-void MegaApiImpl::ftpServerEnableFolderServer(bool enable)
-{
-    sdkMutex.lock();
-    this->ftpServerEnableFolders = enable;
-    if (ftpServer)
-    {
-        ftpServer->enableFolderServer(enable);
-    }
-    sdkMutex.unlock();
-}
-
-void MegaApiImpl::ftpServerEnableOfflineAttribute(bool enable)
-{
-    sdkMutex.lock();
-    this->ftpServerOfflineAttributeEnabled = enable;
-    if (ftpServer)
-    {
-        ftpServer->enableOfflineAttribute(enable);
-    }
-    sdkMutex.unlock();
-}
-
-bool MegaApiImpl::ftpServerIsFolderServerEnabled()
-{
-    return ftpServerEnableFolders;
-}
-
-bool MegaApiImpl::ftpServerIsOfflineAttributeEnabled()
-{
-    return ftpServerOfflineAttributeEnabled;
-}
-
 void MegaApiImpl::ftpServerSetRestrictedMode(int mode)
 {
-    if (mode != MegaApi::FTP_SERVER_DENY_ALL
-            && mode != MegaApi::FTP_SERVER_ALLOW_ALL
-            && mode != MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-            && mode != MegaApi::FTP_SERVER_ALLOW_LAST_LOCAL_LINK)
+    if (mode != MegaApi::TCP_SERVER_DENY_ALL
+            && mode != MegaApi::TCP_SERVER_ALLOW_ALL
+            && mode != MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+            && mode != MegaApi::TCP_SERVER_ALLOW_LAST_LOCAL_LINK)
     {
         return;
     }
@@ -7660,22 +7614,6 @@ void MegaApiImpl::ftpServerSetRestrictedMode(int mode)
 int MegaApiImpl::ftpServerGetRestrictedMode()
 {
     return ftpServerRestrictedMode;
-}
-
-void MegaApiImpl::ftpServerEnableSubtitlesSupport(bool enable)
-{
-    sdkMutex.lock();
-    ftpServerSubtitlesSupportEnabled = enable;
-    if (ftpServer)
-    {
-        ftpServer->enableSubtitlesSupport(ftpServerSubtitlesSupportEnabled);
-    }
-    sdkMutex.unlock();
-}
-
-bool MegaApiImpl::ftpServerIsSubtitlesSupportEnabled()
-{
-    return ftpServerSubtitlesSupportEnabled;
 }
 
 bool MegaApiImpl::ftpServerIsLocalOnly()
@@ -19539,12 +19477,8 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
     this->port = 0;
     this->maxBufferSize = 0;
     this->maxOutputSize = 0;
-    this->fileServerEnabled = true;
-    this->folderServerEnabled = true;
-    this->offlineAttribute = false;
-    this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    this->restrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     this->lastHandle = INVALID_HANDLE;
-    this->subtitlesSupportEnabled = false;
     this->remainingcloseevents = 0;
     this->closing = false;
 #ifdef ENABLE_EVT_TLS
@@ -19897,39 +19831,9 @@ int MegaTCPServer::getMaxOutputSize()
     return StreamingBuffer::MAX_OUTPUT_SIZE;
 }
 
-void MegaTCPServer::enableFileServer(bool enable)
-{
-    this->fileServerEnabled = enable;
-}
-
-void MegaTCPServer::enableFolderServer(bool enable)
-{
-    this->folderServerEnabled = enable;
-}
-
-void MegaTCPServer::enableOfflineAttribute(bool enable)
-{
-    this->offlineAttribute = enable;
-}
-
 void MegaTCPServer::setRestrictedMode(int mode)
 {
     this->restrictedMode = mode;
-}
-
-bool MegaTCPServer::isFileServerEnabled()
-{
-    return fileServerEnabled;
-}
-
-bool MegaTCPServer::isFolderServerEnabled()
-{
-    return folderServerEnabled;
-}
-
-bool MegaTCPServer::isOfflineAttributeEnabled()
-{
-    return offlineAttribute;
 }
 
 int MegaTCPServer::getRestrictedMode()
@@ -19939,9 +19843,9 @@ int MegaTCPServer::getRestrictedMode()
 
 bool MegaTCPServer::isHandleAllowed(handle h)
 {
-    return restrictedMode == MegaApi::HTTP_SERVER_ALLOW_ALL
-            || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS && allowedHandles.count(h))
-            || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
+    return restrictedMode == MegaApi::TCP_SERVER_ALLOW_ALL
+            || (restrictedMode == MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS && allowedHandles.count(h))
+            || (restrictedMode == MegaApi::TCP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
 }
 
 void MegaTCPServer::clearAllowedHandles()
@@ -19949,17 +19853,6 @@ void MegaTCPServer::clearAllowedHandles()
     allowedHandles.clear();
     lastHandle = INVALID_HANDLE;
 }
-
-set<handle> MegaHTTPServer::getAllowedWebDavHandles()
-{
-    return allowedWebDavHandles;
-}
-
-void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
-{
-    allowedWebDavHandles.erase(handle);
-}
-
 char *MegaTCPServer::getLink(MegaNode *node, string protocol)
 {
     if (!node)
@@ -19996,16 +19889,6 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
     oss << escapedName;
     string link = oss.str();
     return MegaApi::strdup(link.c_str());
-}
-
-bool MegaTCPServer::isSubtitlesSupportEnabled()
-{
-    return subtitlesSupportEnabled;
-}
-
-void MegaTCPServer::enableSubtitlesSupport(bool enable)
-{
-    this->subtitlesSupportEnabled = enable;
 }
 
 set<handle> MegaTCPServer::getAllowedHandles()
@@ -20243,8 +20126,6 @@ void MegaTCPServer::onAsyncEventClose(uv_handle_t *handle)
     LOG_debug << "Connection deleted, port = " << port;
 }
 
-//TODO: get updates on  void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle) into process
-
 #ifdef ENABLE_EVT_TLS
 //TODO: ideally this should  be on HTTPServer, and have the connection close code called using a function like: closeTCPConnection (different if useTLS or not)
 void MegaTCPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
@@ -20446,6 +20327,11 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTL
     parsercfg.on_header_field = onHeaderField;
     parsercfg.on_header_value = onHeaderValue;
     parsercfg.on_body = onBody;
+
+    this->fileServerEnabled = true;
+    this->folderServerEnabled = true;
+    this->offlineAttribute = false;
+    this->subtitlesSupportEnabled = false;
 }
 
 MegaTCPContext * MegaHTTPServer::initializeContext(uv_stream_t *server_handle)
@@ -20597,6 +20483,56 @@ void MegaHTTPServer::clearAllowedHandles()
 {
     allowedWebDavHandles.clear();
     MegaTCPServer::clearAllowedHandles();
+}
+
+set<handle> MegaHTTPServer::getAllowedWebDavHandles()
+{
+    return allowedWebDavHandles;
+}
+
+void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
+{
+    allowedWebDavHandles.erase(handle);
+}
+
+void MegaHTTPServer::enableFileServer(bool enable)
+{
+    this->fileServerEnabled = enable;
+}
+
+void MegaHTTPServer::enableFolderServer(bool enable)
+{
+    this->folderServerEnabled = enable;
+}
+
+void MegaHTTPServer::enableOfflineAttribute(bool enable)
+{
+    this->offlineAttribute = enable;
+}
+
+bool MegaHTTPServer::isFileServerEnabled()
+{
+    return fileServerEnabled;
+}
+
+bool MegaHTTPServer::isFolderServerEnabled()
+{
+    return folderServerEnabled;
+}
+
+bool MegaHTTPServer::isOfflineAttributeEnabled()
+{
+    return offlineAttribute;
+}
+
+bool MegaHTTPServer::isSubtitlesSupportEnabled()
+{
+    return subtitlesSupportEnabled;
+}
+
+void MegaHTTPServer::enableSubtitlesSupport(bool enable)
+{
+    this->subtitlesSupportEnabled = enable;
 }
 
 char *MegaHTTPServer::getWebDavLink(MegaNode *node)
@@ -20864,8 +20800,9 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
     {
         subbaseURL.append("/");
     }
+    MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(httpctx->server);
 
-    web << getWebDavProfFindNodeContents(node, subbaseURL, httpctx->server->isOfflineAttributeEnabled());
+    web << getWebDavProfFindNodeContents(node, subbaseURL, httpserver->isOfflineAttributeEnabled());
     if (node->isFolder() && (httpctx->depth != 0))
     {
         MegaNodeList *children = httpctx->megaApi->getChildren(node);
@@ -20873,7 +20810,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
         {
             MegaNode *child = children->get(i);
             string childURL = subbaseURL + child->getName();
-            web << getWebDavProfFindNodeContents(child, childURL, httpctx->server->isOfflineAttributeEnabled());
+            web << getWebDavProfFindNodeContents(child, childURL, httpserver->isOfflineAttributeEnabled());
         }
         delete children;
     }
@@ -20895,6 +20832,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
     httpctx->resultCode = API_OK;
     return response.str();
 }
+
 
 string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx)
 {
@@ -20990,7 +20928,7 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
     {
         web << "<tr><td>";
         char *base64Handle = parent->getBase64Handle();
-        if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::HTTP_SERVER_ALLOW_ALL)
+        if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::TCP_SERVER_ALLOW_ALL)
         {
             web << "<a href=\"/" << base64Handle << "/" << parent->getName();
         }
@@ -21010,7 +20948,7 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
         web << "<tr><td>";
         MegaNode *child = children->get(i);
         char *base64Handle = child->getBase64Handle();
-        if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::HTTP_SERVER_ALLOW_ALL)
+        if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::TCP_SERVER_ALLOW_ALL)
         {
             web << "<a href=\"/" << base64Handle << "/" << child->getName();
         }
@@ -21435,7 +21373,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             //Subtitles support
             bool subtitles = false;
 
-            if (httpctx->server->isSubtitlesSupportEnabled())
+            if (httpserver->isSubtitlesSupportEnabled())
             {
                 string originalname = node->getName();
                 string::size_type dotpos = originalname.find_last_of('.');
@@ -22003,7 +21941,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
         if (node->isFolder())
         {
-            if (!httpctx->server->isFolderServerEnabled())
+            if (!httpserver->isFolderServerEnabled())
             {
                 response << "HTTP/1.1 403 Forbidden\r\n"
                             "Connection: close\r\n"
@@ -22026,7 +21964,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
 
         //File node
-        if (!httpctx->server->isFileServerEnabled())
+        if (!httpserver->isFileServerEnabled())
         {
             response << "HTTP/1.1 403 Forbidden\r\n"
                         "Connection: close\r\n"
@@ -22528,24 +22466,12 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
 //  MegaFTPServer specifics //
 //////////////////////////////
 
-//ftp parser: move elsewhere
-void mega::ftp_parser_init(mega::ftp_parser *parser)
-{
-  void *data = parser->data; /* preserve application data */
-  memset(parser, 0, sizeof(*parser));
-  parser->data = data;
-//  parser->type = t;
-//  parser->state = (t == FTP_REQUEST ? s_start_req : (t == FTP_RESPONSE ? s_start_res : s_start_req_or_res));
-//  parser->ftp_errno = HPE_OK;
-}
-
-
 /**
  * Gets permissions string: e.g: 777 -> rwxrwxrwx
  * @param perm numeric permissions
  * @param str_perm out permission string buffer
  */
-void getPermissionsString(int permissions, char *permsString)
+void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
 {
     string ps = "";
     for(int i = 0; i<3; i++) // user, group, others
@@ -22582,14 +22508,10 @@ MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
 {
     MegaFTPContext* ftpctx = new MegaFTPContext();
 
-    // Initialize the parser
-    ftp_parser_init(&ftpctx->parser);
-
     // Set connection data
     MegaFTPServer *server = (MegaFTPServer *)(server_handle->data);
     ftpctx->server = server;
     ftpctx->megaApi = server->megaApi;
-    ftpctx->parser.data = ftpctx;
     ftpctx->tcphandle.data = ftpctx;
     ftpctx->asynchandle.data = ftpctx;
     server->connections.push_back(ftpctx);
@@ -24939,14 +24861,12 @@ void MegaFTPDataContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaEr
 {
     if (finished)
     {
-        LOG_debug << "HTTP link closed, ignoring the result of the request";
+        LOG_debug << "FTP data link closed, ignoring the result of the request";
         return;
     }
 
-    // TODO: fill contents
     uv_async_send(&asynchandle);
 }
-
 
 #endif
 
