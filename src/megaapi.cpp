@@ -519,6 +519,11 @@ int64_t MegaShare::getTimestamp()
     return 0;
 }
 
+bool MegaShare::isPending()
+{
+    return false;
+}
+
 MegaRequest::~MegaRequest() { }
 MegaRequest *MegaRequest::copy()
 {
