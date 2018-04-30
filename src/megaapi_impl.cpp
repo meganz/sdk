@@ -20990,8 +20990,16 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
     {
         web << "<tr><td>";
         char *base64Handle = parent->getBase64Handle();
-        web << "<a href=\"/" << base64Handle << "/" << parent->getName()
-            << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
+        if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::HTTP_SERVER_ALLOW_ALL)
+        {
+            web << "<a href=\"/" << base64Handle << "/" << parent->getName();
+        }
+        else
+        {
+            web << "<a href=\"" << "../" << parent->getName();
+        }
+
+        web << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
         delete [] base64Handle;
         delete parent;
         web << "</td></tr>";
@@ -21002,8 +21010,15 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
         web << "<tr><td>";
         MegaNode *child = children->get(i);
         char *base64Handle = child->getBase64Handle();
-        web << "<a href=\"/" << base64Handle << "/" << child->getName()
-            << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
+        if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::HTTP_SERVER_ALLOW_ALL)
+        {
+            web << "<a href=\"/" << base64Handle << "/" << child->getName();
+        }
+        else
+        {
+            web << "<a href=\"" << node->getName() << "/" << child->getName();
+        }
+        web << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
             << child->getName() << "</span></a>";
         delete [] base64Handle;
 
@@ -22002,8 +22017,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 return 0;
             }
 
-            string resstr;
-            resstr = getResponseForNode(node, httpctx);
+            string resstr = getResponseForNode(node, httpctx);
+
             sendHeaders(httpctx, &resstr);
             delete node;
             delete baseNode;
@@ -22514,7 +22529,6 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
 //////////////////////////////
 
 //ftp parser: move elsewhere
-
 void mega::ftp_parser_init(mega::ftp_parser *parser)
 {
   void *data = parser->data; /* preserve application data */
@@ -22907,7 +22921,6 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
             seppos = fullpath.find("/");
         }
     }
-
 
     if (path.size() && path.at(0) == '/')
     {
@@ -24542,8 +24555,6 @@ void MegaFTPDataServer::sendData()
 
 void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf)
 {
-
-
     MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
     MegaFTPDataServer* fds = dynamic_cast<MegaFTPDataServer *>(ftpdatactx->server);
 
