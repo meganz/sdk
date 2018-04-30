@@ -1390,6 +1390,16 @@ class MegaShare
          * @return The timestamp when the sharing was created (in seconds since the epoch)
          */
         virtual int64_t getTimestamp();
+
+        /**
+         * @brief Returns true if the sharing is pending
+         *
+         * A sharing is pending when the folder has been shared with a user (or email) that
+         * is not still a contact of this account.
+         *
+         * @return True if the sharing is pending, otherwise false.
+         */
+        virtual bool isPending();
 };
 
 #ifdef ENABLE_CHAT

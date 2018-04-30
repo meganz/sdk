@@ -397,22 +397,24 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-		static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool pending = false);
 		virtual MegaShare *copy();
 		virtual ~MegaSharePrivate();
 		virtual const char *getUser();
 		virtual MegaHandle getNodeHandle();
 		virtual int getAccess();
 		virtual int64_t getTimestamp();
+        virtual bool isPending();
 
 	protected:
-		MegaSharePrivate(MegaHandle nodehandle, Share *share);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool pending = false);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
 		const char *user;
 		int access;
 		int64_t ts;
+        bool pending;
 };
 
 class MegaTransferPrivate : public MegaTransfer, public Cachable
@@ -1243,7 +1245,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size, bool pending = false);
         virtual ~MegaShareListPrivate();
 		virtual MegaShare* get(int i);
 		virtual int size();
