@@ -455,6 +455,14 @@ using namespace mega;
     self.megaApi->logout();
 }
 
+- (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:self]);
+}
+
+- (void)localLogout {
+    self.megaApi->localLogout();
+}
+
 - (void)invalidateCache {
     self.megaApi->invalidateCache();
 }
@@ -1628,6 +1636,14 @@ using namespace mega;
 
 - (void)getContactLinksOption {
     self.megaApi->getContactLinksOption();
+}
+
+- (void)retrySSLErrors:(BOOL)enable {
+    self.megaApi->retrySSLerrors(enable);
+}
+
+- (void)setPublicKeyPinning:(BOOL)enable {
+    self.megaApi->setPublicKeyPinning(enable);
 }
 
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
