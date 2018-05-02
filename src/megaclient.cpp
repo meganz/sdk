@@ -4722,13 +4722,12 @@ void MegaClient::sc_userattr()
                 else if (ualist.size() == uavlist.size())
                 {
                     // invalidate only out-of-date attributes
-                    const string *cacheduav;
                     for (itua = ualist.begin(), ituav = uavlist.begin();
                          itua != ualist.end();
                          itua++, ituav++)
                     {
                         attr_t type = User::string2attr(itua->c_str());
-                        cacheduav = u->getattrversion(type);
+                        const string *cacheduav = u->getattrversion(type);
                         if (cacheduav)
                         {
                             if (*cacheduav != *ituav)
@@ -4740,6 +4739,11 @@ void MegaClient::sc_userattr()
                                     resetKeyring();
                                 }
 #endif
+                            }
+                            else
+                            {
+                                LOG_info << "User attribute already up to date";
+                                return;
                             }
                         }
                         else

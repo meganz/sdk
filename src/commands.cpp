@@ -2337,8 +2337,6 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
         endarray();
     }
 
-    notself(client);
-
     tag = ctag;
 }
 
@@ -2467,8 +2465,6 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
 
     endarray();
 
-    notself(client);
-
     tag = ctag;
 }
 
@@ -2532,8 +2528,6 @@ CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsign
     {
         arg(an.c_str(), av, avl);
     }
-
-    notself(client);
 
     tag = ctag;
 }
