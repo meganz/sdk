@@ -291,7 +291,7 @@ public:
     error encryptlink(const char* link, const char* pwd, string *encryptedLink);
 
     // change login password
-    error changepw(const byte*, const byte*);
+    error changepw(const byte*);
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);
