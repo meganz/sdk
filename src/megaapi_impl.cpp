@@ -1601,6 +1601,11 @@ bool MegaTransferPrivate::isStreamingTransfer() const
     return streamingTransfer;
 }
 
+bool MegaTransferPrivate::isFinished() const
+{
+    return state == STATE_COMPLETED || state == STATE_CANCELLED || state == STATE_FAILED;
+}
+
 bool MegaTransferPrivate::isSourceFileTemporary() const
 {
     return temporarySourceFile;

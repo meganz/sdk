@@ -3013,6 +3013,12 @@ class MegaTransfer
         virtual bool isStreamingTransfer() const;
 
         /**
+         * @brief Returns true is the transfer is at finished state (COMPLETED, CANCELLED OR FAILED)
+         * @return true if this transfer is finished, false otherwise
+         */
+        virtual bool isFinished() const;
+
+        /**
          * @brief Returns the received bytes since the last callback
          *
          * The returned value is only valid for streaming transfers (MegaApi::startStreaming).
