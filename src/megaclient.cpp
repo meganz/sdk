@@ -7496,7 +7496,8 @@ PendingContactRequest* MegaClient::findpcr(handle p)
     {
         pcr = new PendingContactRequest(p);
         pcrindex[p] = pcr;
-        assert(false);
+        assert(fetchingnodes);
+        // while fetchingnodes, outgoing shares reference an "empty" PCR that is completed when `opc` is parsed
     }
 
     return pcrindex[p];
