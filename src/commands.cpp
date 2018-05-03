@@ -5453,6 +5453,51 @@ void CommandRichLink::procresult()
     }
 }
 
+CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del)
+{
+    mChatid = chatid;
+    mDelete = del;
+
+    cmd("mcph");
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    if (del)
+    {
+        arg("d", 1);
+    }
+
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        if (e == API_OK && !mDelete)
+        {
+            LOG_err << "Unexpected response for create/get chatlink";
+            client->app->chatlink_result(UNDEF, API_EINTERNAL);
+            return;
+        }
+
+        client->app->chatlink_result(UNDEF, e);
+    }
+    else
+    {
+        handle h = client->json.gethandle(MegaClient::CHATLINKHANDLE);
+        if (ISUNDEF(h))
+        {
+            client->app->chatlink_result(UNDEF, API_EINTERNAL);
+        }
+        else
+        {
+            client->app->chatlink_result(h, API_OK);
+        }
+    }
+}
+
 #endif
 
 CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)

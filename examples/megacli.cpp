@@ -655,6 +655,27 @@ void DemoApp::chatpresenceurl_result(string *url, error e)
     }
 }
 
+void DemoApp::chatlink_result(handle h, error e)
+{
+    if (e)
+    {
+        cout << "Chat link failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        if (ISUNDEF(h))
+        {
+            cout << "Chat link deleted successfully" << endl;
+        }
+        else
+        {
+            char hstr[sizeof(handle) * 4 / 3 + 4];
+            Base64::btoa((const byte *)&h, MegaClient::CHATLINKHANDLE, hstr);
+            cout << "Chat link: " << hstr << endl;
+        }
+    }
+}
+
 void DemoApp::chats_updated(textchat_map *chats, int count)
 {
     if (count == 1)
@@ -2082,6 +2103,7 @@ static void process_line(char* l)
                 cout << "      chatra chatid nodehandle uid" << endl;
                 cout << "      chatst chatid title64" << endl;
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
+                cout << "      chatl chatid [del]" << endl;
 #endif
                 cout << "      quit" << endl;
 
@@ -3747,6 +3769,24 @@ static void process_line(char* l)
                         {
                             cout << "Invalid syntax to list chatrooms" << endl;
                             cout << "      chats" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatl")
+                    {
+                        if (words.size() == 2 || words.size() == 3)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
+                            bool del = (words.size() == 3 && words[2] == "del") ? true : false;
+
+                            client->chatlink(chatid, del);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax for chat link" << endl;
+                            cout << "      chatl chatid [del]" << endl;
                             return;
                         }
                     }

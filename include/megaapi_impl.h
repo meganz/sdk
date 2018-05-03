@@ -1919,6 +1919,8 @@ class MegaApiImpl : public MegaApp
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
+        void chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
@@ -2200,6 +2202,7 @@ protected:
 
         virtual void chats_updated(textchat_map *, int);
         virtual void richlinkrequest_result(string*, error);
+        virtual void chatlink_result(handle, error);
 #endif
 
 #ifdef ENABLE_SYNC

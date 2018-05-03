@@ -2054,7 +2054,7 @@ class MegaRequest
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_CHAT_LINK, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -11148,6 +11148,43 @@ class MegaApi
          */
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Create a chat link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the public handle of the chat link
+         *
+         * If caller is not operator or the chat is not an openchat or it's a 1on1 room, this request
+         * will return API_EACCESS.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Delete a chat link
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+         * - MegaRequest::getFlag - Returns true
+         *
+         * If caller is not operator or the chat is not an openchat or it's a 1on1 room, this request
+         * will return MegaError::API_EACCESS.
+         * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener = NULL);
 #endif
 
         /**

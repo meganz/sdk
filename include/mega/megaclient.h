@@ -552,6 +552,9 @@ public:
 
     // request meta information from an url (title, description, icon)
     void richlinkrequest(const char*);
+
+    // create/get or delete chat-link
+    void chatlink(handle chatid, bool del);
 #endif
 
     // get mega achievements
@@ -1166,6 +1169,7 @@ public:
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
+    static const int CHATLINKHANDLE = 6;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;

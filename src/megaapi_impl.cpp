@@ -2969,6 +2969,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
+        case TYPE_CHAT_LINK: return "CHAT_LINK";
     }
     return "UNKNOWN";
 }
@@ -7617,6 +7618,23 @@ void MegaApiImpl::requestRichPreview(const char *url, MegaRequestListener *liste
     waiter->notify();
 }
 
+void MegaApiImpl::chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK, listener);
+    request->setNodeHandle(chatid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK, listener);
+    request->setNodeHandle(chatid);
+    request->setFlag(true);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 #endif
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
@@ -9829,6 +9847,25 @@ void MegaApiImpl::richlinkrequest_result(string *richLink, error e)
     if (!e)
     {
         request->setText(richLink->c_str());
+    }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatlink_result(handle h, error e)
+{
+    MegaError megaError(e);
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_LINK)
+    {
+        return;
+    }
+
+    if (!e && !request->getFlag())
+    {
+        request->setParentHandle(h);
     }
     fireOnRequestFinish(request, megaError);
 }
@@ -16942,6 +16979,19 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->richlinkrequest(url);
+            break;
+        }
+
+        case MegaRequest::TYPE_CHAT_LINK:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            bool del = request->getFlag();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->chatlink(chatid, del);
             break;
         }
 #endif

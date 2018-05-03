@@ -12314,6 +12314,11 @@ void MegaClient::richlinkrequest(const char *url)
 {
     reqs.add(new CommandRichLink(this, url));
 }
+
+void MegaClient::chatlink(handle chatid, bool del)
+{
+    reqs.add(new CommandChatLink(this, chatid, del));
+}
 #endif
 
 void MegaClient::getaccountachievements(AchievementsDetails *details)

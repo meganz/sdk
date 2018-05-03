@@ -898,6 +898,18 @@ public:
     CommandRichLink(MegaClient *client, const char *url);
 };
 
+class MEGA_API CommandChatLink : public Command
+{
+public:
+    void procresult();
+
+    CommandChatLink(MegaClient*, handle chatid, bool del);
+
+protected:
+    handle mChatid;
+    bool mDelete;
+};
+
 #endif
 
 class MEGA_API CommandGetMegaAchievements : public Command

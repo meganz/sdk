@@ -3952,6 +3952,16 @@ void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)
     pImpl->requestRichPreview(url, listener);
 }
 
+void MegaApi::chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->chatLinkCreate(chatid, listener);
+}
+
+void MegaApi::chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->chatLinkDelete(chatid, listener);
+}
+
 #endif
 
 char* MegaApi::strdup(const char* buffer)
