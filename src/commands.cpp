@@ -1436,7 +1436,7 @@ void CommandPrelogin::procresult()
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, const byte *sessionkey, int csessionversion)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion)
 {
     cmd("us");
 
@@ -1447,7 +1447,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
     if (!checksession)
     {
         arg("user", email);
-        arg("uh", (byte*)&emailhash, sizeof emailhash);
+        arg("uh", emailhash, emailhashsize);
     }
     else
     {

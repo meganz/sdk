@@ -7020,6 +7020,11 @@ error MegaClient::folderaccess(const char *folderlink)
     return API_OK;
 }
 
+void MegaClient::prelogin(const char *email)
+{
+    reqs.add(new CommandPrelogin(this, email));
+}
+
 // create new session
 void MegaClient::login(const char* email, const byte* pwkey)
 {
@@ -7034,8 +7039,32 @@ void MegaClient::login(const char* email, const byte* pwkey)
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, emailhash, sek));
+    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
     getuserdata();
+}
+
+// create new session (v2)
+void MegaClient::loginv2(const char *email, const char *password, string *salt)
+{
+    string bsalt;
+    Base64::atob(*salt, bsalt);
+
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)bsalt.data(), bsalt.size(), 100000);
+
+    key.setkey((byte*)derivedKey);
+    byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
+
+    char* authString = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
+    Base64::btoa(authKey, SymmCipher::KEYLENGTH, authString);
+
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
+
+    reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek));
+    delete [] authString;
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
@@ -7047,7 +7076,7 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, emailhash, sek));
+    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
     getuserdata();
 }
 
@@ -7099,7 +7128,7 @@ void MegaClient::login(const byte* session, int size)
         byte sek[SymmCipher::KEYLENGTH];
         PrnGen::genblock(sek, sizeof sek);
 
-        reqs.add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
+        reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
         getuserdata();
     }
     else

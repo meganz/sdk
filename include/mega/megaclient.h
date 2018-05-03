@@ -237,8 +237,14 @@ public:
     void confirmsignuplinkv2(const byte*, unsigned);
     void setkeypair();
 
+    // prelogin: e-mail
+    void prelogin(const char*);
+
     // user login: e-mail, pwkey
     void login(const char*, const byte*);
+
+    // user login: e-mail, password, salt
+    void loginv2(const char*, const char*, string *);
 
     // user login: e-mail, pwkey, emailhash
     void fastlogin(const char*, const byte*, uint64_t);
