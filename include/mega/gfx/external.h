@@ -39,6 +39,7 @@ class GfxProcExternal : public GfxProc
     void freebitmap();
 
 public:
+    GfxProcExternal();
     bool isgfx(string*);
     void setProcessor(MegaGfxProcessor *processor);
 };

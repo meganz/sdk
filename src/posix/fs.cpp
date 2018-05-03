@@ -1684,11 +1684,11 @@ void PosixFileSystemAccess::statsid(string *id) const
 PosixDirNotify::PosixDirNotify(string* localbasepath, string* ignore) : DirNotify(localbasepath, ignore)
 {
 #ifdef USE_INOTIFY
-    failed = false;
+    failed = 0;
 #endif
 
 #ifdef __MACH__
-    failed = false;
+    failed = 0;
 #endif
 
     fsaccess = NULL;

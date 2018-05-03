@@ -191,6 +191,12 @@ public:
     // all users
     user_map users;
 
+    // encrypted master key
+    string k;
+
+    // timestamp of the creation of the account
+    time_t accountsince;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
@@ -280,7 +286,7 @@ public:
     error encryptlink(const char* link, const char* pwd, string *encryptedLink);
 
     // change login password
-    error changepw(const byte*, const byte*);
+    error changepw(const byte*);
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);
@@ -543,6 +549,9 @@ public:
     void registerPushNotification(int deviceType, const char *token = NULL);
 
     void archiveChat(handle chatid, bool archived);
+
+    // request meta information from an url (title, description, icon)
+    void richlinkrequest(const char*);
 #endif
 
     // get mega achievements

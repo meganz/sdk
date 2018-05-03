@@ -126,6 +126,16 @@ namespace mega
         PASSWORD_STRENGTH_STRONG    = 4
     };
 
+    public enum class MRetryReason {
+        RETRY_NONE          = 0,
+        RETRY_CONNECTIVITY  = 1,
+        RETRY_SERVERS_BUSY  = 2,
+        RETRY_API_LOCK      = 3,
+        RETRY_RATE_LIMIT    = 4,
+        RETRY_LOCAL_LOCK    = 5,
+        RETRY_UNKNOWN       = 6
+    };
+
     public ref class MegaSDK sealed
     {
         friend class DelegateMRequestListener;
@@ -352,6 +362,13 @@ namespace mega
         MUser^ getMyUser();
         bool isAchievementsEnabled();
 
+        /**
+        * @brief Check if the password is correct for the current account
+        * @param password Password to check
+        * @return True if the password is correct for the current account, otherwise false.
+        */
+        bool checkPassword(String^ password);
+
         //Logging
         static void setLogLevel(MLogLevel logLevel);
         void addLoggerObject(MLoggerInterface^ logger);
@@ -471,8 +488,195 @@ namespace mega
         void masterKeyExported(MRequestListenerInterface^ listener);
         void masterKeyExported();
 
+        /**
+        * @brief Notify the user has successfully checked his password
+        *
+        * This function should be called when the user demonstrates that he remembers
+        * the password to access the account
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not continue asking the user
+        * to remind the password for the account in a short time.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void passwordReminderDialogSucceeded(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Notify the user has successfully checked his password
+        *
+        * This function should be called when the user demonstrates that he remembers
+        * the password to access the account
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not continue asking the user
+        * to remind the password for the account in a short time.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        */
+        void passwordReminderDialogSucceeded();
+
+        /**
+        * @brief Notify the user has successfully skipped the password check
+        *
+        * This function should be called when the user skips the verification of
+        * the password to access the account
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not continue asking the user
+        * to remind the password for the account in a short time.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        *
+        * @param listener MegaRequestListener to track this request
+        */
+        void passwordReminderDialogSkipped(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Notify the user has successfully skipped the password check
+        *
+        * This function should be called when the user skips the verification of
+        * the password to access the account
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not continue asking the user
+        * to remind the password for the account in a short time.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        */
+        void passwordReminderDialogSkipped();
+
+        /**
+        * @brief Notify the user wants to totally disable the password check
+        *
+        * This function should be called when the user rejects to verify that he remembers
+        * the password to access the account and doesn't want to see the reminder again.
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not ask the user
+        * to remind the password for the account again.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        *
+        * @param listener MegaRequestListener to track this request
+        */
+        void passwordReminderDialogBlocked(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Notify the user wants to totally disable the password check
+        *
+        * This function should be called when the user rejects to verify that he remembers
+        * the password to access the account and doesn't want to see the reminder again.
+        *
+        * As result, the user attribute MUserAttrType::USER_ATTR_PWD_REMINDER will be updated
+        * to remember this event. In consequence, MEGA will not ask the user
+        * to remind the password for the account again.
+        *
+        * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        * - MRequest::getText - Returns the new value for the attribute
+        */
+        void passwordReminderDialogBlocked();
+
+        /**
+        * @brief Check if the app should show the password reminder dialog to the user
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getFlag - Returns true if the password reminder dialog should be shown
+        *
+        * @param atLogout True if the check is being done just before a logout
+        * @param listener MegaRequestListener to track this request
+        */
+        void shouldShowPasswordReminderDialog(bool atLogout, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Check if the app should show the password reminder dialog to the user
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getFlag - Returns true if the password reminder dialog should be shown
+        *
+        * @param atLogout True if the check is being done just before a logout
+        */
+        void shouldShowPasswordReminderDialog(bool atLogout);
+
+        /**
+        * @brief Change the password of the MEGA account
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getPassword - Returns the old password
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param oldPassword Old password
+        * @param newPassword New password
+        * @param listener MRequestListener to track this request
+        */
         void changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Change the password of the MEGA account
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getPassword - Returns the old password
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param oldPassword Old password
+        * @param newPassword New password
+        */
         void changePassword(String^ oldPassword, String^ newPassword);
+
+        /**
+        * @brief Change the password of the MEGA account without check the old password
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param newPassword New password
+        * @param listener MRequestListener to track this request
+        */
+        void changePasswordWithoutOld(String^ newPassword, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Change the password of the MEGA account without check the old password
+        *
+        * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+        * Valid data in the MegaRequest object received on callbacks:
+        * - MRequest::getNewPassword - Returns the new password
+        *
+        * @param newPassword New password
+        */
+        void changePasswordWithoutOld(String^ newPassword);
+        
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener);
         void inviteContact(String^ email, String^ message, MContactRequestInviteActionType action);
         
@@ -633,8 +837,34 @@ namespace mega
         MTransferList^ getTransfers(MTransferType type);
         MTransferList^ getChildTransfers(int transferTag);
         
-        bool isWaiting();
-        bool areServersBusy();
+        /**
+        * @brief Check if the SDK is waiting to complete a request and get the reason
+        * @return State of SDK.
+        *
+        * Valid values are:
+        * - MRetryReason::RETRY_NONE = 0
+        * SDK is not waiting for the server to complete a request
+        *
+        * - MRetryReason::RETRY_CONNECTIVITY = 1
+        * SDK is waiting for the server to complete a request due to connectivity issues
+        *
+        * - MRetryReason::RETRY_SERVERS_BUSY = 2
+        * SDK is waiting for the server to complete a request due to a HTTP error 500
+        *
+        * - MRetryReason::RETRY_API_LOCK = 3
+        * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+        *
+        * - MRetryReason::RETRY_RATE_LIMIT = 4,
+        * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+        *
+        * - MRetryReason::RETRY_LOCAL_LOCK = 5
+        * SDK is waiting for a local locked file
+        *
+        * - MRetryReason::RETRY_UNKNOWN = 6
+        * SDK is waiting for the server to complete a request with unknown reason
+        *
+        */
+        int isWaiting();
 
         //Statistics
         int getNumPendingUploads();

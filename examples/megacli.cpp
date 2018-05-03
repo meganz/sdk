@@ -1917,7 +1917,7 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    if ((e = client->changepw(pwkey, newpwkey)) == API_OK)
+                    if ((e = client->changepw(newpwkey)) == API_OK)
                     {
                         memcpy(pwkey, newpwkey, sizeof pwkey);
                         cout << endl << "Changing password..." << endl;
@@ -2043,7 +2043,7 @@ static void process_line(char* l)
 #endif
                 cout << "      export remotepath [expireTime|del]" << endl;
                 cout << "      share [remotepath [dstemail [r|rw|full] [origemail]]]" << endl;
-                cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                cout << "      invite dstemail [origemail|del|rmd|clink <link>]" << endl;
                 cout << "      clink [renew|query handle|del [handle]]" << endl;
                 cout << "      ipc handle a|d|i" << endl;
                 cout << "      showpcr" << endl;
@@ -2957,7 +2957,7 @@ static void process_line(char* l)
                             handle uh;
                             byte pw[SymmCipher::KEYLENGTH];
 
-                            if (Base64::atob(words[1].c_str(), (byte*) &uh, sizeof uh) == sizeof uh && Base64::atob(
+                            if (Base64::atob(words[1].c_str(), (byte*) &uh, MegaClient::USERHANDLE) == sizeof uh && Base64::atob(
                                     words[1].c_str() + 12, pw, sizeof pw) == sizeof pw)
                             {
                                 client->resumeephemeral(uh, pw);
@@ -3602,7 +3602,7 @@ static void process_line(char* l)
                         if (words.size() == 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             string email = words[2];
                             User *u = client->finduser(email.c_str(), 0);
@@ -3648,7 +3648,7 @@ static void process_line(char* l)
                         if (words.size() > 1 && words.size() < 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             if (words.size() == 2)
                             {
@@ -3682,7 +3682,7 @@ static void process_line(char* l)
                         if (words.size() == 2)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             client->getUrlChat(chatid);
                             return;
@@ -3699,7 +3699,7 @@ static void process_line(char* l)
                         if (words.size() == 3)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
                             bool archive = (words[2] == "1");
                             if (!archive && (words[2] != "0"))
                             {
@@ -3731,7 +3731,7 @@ static void process_line(char* l)
                         if (words.size() == 2)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             textchat_map::iterator it = client->chats.find(chatid);
                             if (it == client->chats.end())
@@ -3778,8 +3778,8 @@ static void process_line(char* l)
                         }
                         else if ((words.size() == 3) && (words[1] == "query"))
                         {
-                            handle clink;
-                            Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+                            handle clink = UNDEF;
+                            Base64::atob(words[2].c_str(), (byte*) &clink, MegaClient::CONTACTLINKHANDLE);
 
                             client->contactlinkquery(clink);
 
@@ -3790,7 +3790,7 @@ static void process_line(char* l)
 
                             if (words.size() == 3)
                             {
-                                Base64::atob(words[2].c_str(), (byte*) &clink, sizeof clink);
+                                Base64::atob(words[2].c_str(), (byte*) &clink, MegaClient::CONTACTLINKHANDLE);
                             }
 
                             client->contactlinkdelete(clink);
@@ -3809,7 +3809,7 @@ static void process_line(char* l)
                     {
                         if (client->loggedin() != NOTLOGGEDIN)
                         {
-                            setprompt(OLDPASSWORD);
+                            setprompt(NEWPASSWORD);
                         }
                         else
                         {
@@ -3875,7 +3875,8 @@ static void process_line(char* l)
                             {
                                 int del = words.size() == 3 && words[2] == "del";
                                 int rmd = words.size() == 3 && words[2] == "rmd";
-                                if (words.size() == 2 || words.size() == 3)
+                                int clink = words.size() == 4 && words[2] == "clink";
+                                if (words.size() == 2 || words.size() == 3 || words.size() == 4)
                                 {
                                     if (del || rmd)
                                     {
@@ -3883,14 +3884,20 @@ static void process_line(char* l)
                                     }
                                     else
                                     {
+                                        handle contactLink = UNDEF;
+                                        if (clink)
+                                        {
+                                            Base64::atob(words[3].c_str(), (byte*) &contactLink, MegaClient::CONTACTLINKHANDLE);
+                                        }
+
                                         // Original email is not required, but can be used if this account has multiple email addresses associated,
                                         // to have the invite come from a specific email
-                                        client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL);
+                                        client->setpcr(words[1].c_str(), OPCA_ADD, "Invite from MEGAcli", words.size() == 3 ? words[2].c_str() : NULL, contactLink);
                                     }
                                 }
                                 else
                                 {
-                                    cout << "      invite dstemail [origemail|del|rmd]" << endl;
+                                    cout << "      invite dstemail [origemail|del|rmd|clink <link>]" << endl;
                                 }
                             }
                             else
@@ -4092,10 +4099,10 @@ static void process_line(char* l)
                         if (words.size() == 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             handle nodehandle;
-                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
 
                             const char *uid = words[3].c_str();
 
@@ -4115,10 +4122,10 @@ static void process_line(char* l)
                         if (words.size() == 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             handle nodehandle;
-                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, sizeof nodehandle);
+                            Base64::atob(words[2].c_str(), (byte*) &nodehandle, MegaClient::NODEHANDLE);
 
                             const char *uid = words[3].c_str();
 
@@ -4137,7 +4144,7 @@ static void process_line(char* l)
                         if (words.size() == 2 || words.size() == 3)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             if (words.size() == 2)  // empty title / remove title
                             {
@@ -4175,10 +4182,10 @@ static void process_line(char* l)
                         if (words.size() == 4)
                         {
                             handle chatid;
-                            Base64::atob(words[1].c_str(), (byte*) &chatid, sizeof chatid);
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
 
                             handle uh;
-                            Base64::atob(words[2].c_str(), (byte*) &uh, sizeof uh);
+                            Base64::atob(words[2].c_str(), (byte*) &uh, MegaClient::USERHANDLE);
 
                             string privstr = words[3];
                             privilege_t priv;
@@ -4762,7 +4769,7 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
 
     cout << "Ephemeral session established, session ID: ";
-    Base64::btoa((byte*) &uh, sizeof uh, buf);
+    Base64::btoa((byte*) &uh, MegaClient::USERHANDLE, buf);
     cout << buf << "#";
     Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
     cout << buf << endl;
@@ -5179,6 +5186,19 @@ void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
     {
         cout << "Importing Welcome PDF file. Public handle: " << LOG_NODEHANDLE(ph) << endl;
         client->reqs.add(new CommandGetPH(client, ph, (const byte *)k->data(), 1));
+    }
+}
+
+void DemoApp::richlinkrequest_result(string *json, error e)
+{
+    if (!e)
+    {
+        cout << "Result:" << endl << *json << endl;
+    }
+    else
+    {
+        cout << "Failed to request rich link. Error: " << e << endl;
+
     }
 }
 

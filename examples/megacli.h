@@ -231,6 +231,7 @@ struct DemoApp : public MegaApp
 
     void getmegaachievements_result(AchievementsDetails*, error);
     void getwelcomepdf_result(handle, string*, error);
+    void richlinkrequest_result(string*, error);
 
     void contactlinkcreate_result(error, handle);
     void contactlinkquery_result(error, handle, string*, string*, string*);

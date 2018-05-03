@@ -62,19 +62,18 @@ public class MegaApiJava {
     static Set<DelegateMegaTreeProcessor> activeMegaTreeProcessors = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTreeProcessor>());
     static Set<DelegateMegaTransferListener> activeHttpServerListeners = Collections.synchronizedSet(new LinkedHashSet<DelegateMegaTransferListener>());
 
-    // Order options for getChildren
-    public final static int ORDER_NONE = MegaApi.ORDER_NONE;
-    public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
-    public final static int ORDER_DEFAULT_DESC = MegaApi.ORDER_DEFAULT_DESC;
-    public final static int ORDER_SIZE_ASC = MegaApi.ORDER_SIZE_ASC;
-    public final static int ORDER_SIZE_DESC = MegaApi.ORDER_SIZE_DESC;
-    public final static int ORDER_CREATION_ASC = MegaApi.ORDER_CREATION_ASC;
-    public final static int ORDER_CREATION_DESC = MegaApi.ORDER_CREATION_DESC;
-    public final static int ORDER_MODIFICATION_ASC = MegaApi.ORDER_MODIFICATION_ASC;
-    public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
-    public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
-    public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
-    
+    // Very severe error event that will presumably lead the application to abort.
+    public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
+    // Error information but application will continue run.
+    public final static int LOG_LEVEL_ERROR = MegaApi.LOG_LEVEL_ERROR;
+    // Information representing errors in application but application will keep running
+    public final static int LOG_LEVEL_WARNING = MegaApi.LOG_LEVEL_WARNING;
+    // Mainly useful to represent current progress of application.
+    public final static int LOG_LEVEL_INFO = MegaApi.LOG_LEVEL_INFO;
+    // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
+    public final static int LOG_LEVEL_DEBUG = MegaApi.LOG_LEVEL_DEBUG;
+    public final static int LOG_LEVEL_MAX = MegaApi.LOG_LEVEL_MAX;
+
     public final static int ATTR_TYPE_THUMBNAIL = MegaApi.ATTR_TYPE_THUMBNAIL;
     public final static int ATTR_TYPE_PREVIEW = MegaApi.ATTR_TYPE_PREVIEW;
     
@@ -90,25 +89,12 @@ public class MegaApiJava {
     public final static int USER_ATTR_SIG_CU255_PUBLIC_KEY = MegaApi.USER_ATTR_SIG_CU255_PUBLIC_KEY;
     public final static int USER_ATTR_LANGUAGE = MegaApi.USER_ATTR_LANGUAGE;
     public final static int USER_ATTR_PWD_REMINDER = MegaApi.USER_ATTR_PWD_REMINDER;
+    public final static int USER_ATTR_DISABLE_VERSIONS = MegaApi.USER_ATTR_DISABLE_VERSIONS;
+    public final static int USER_ATTR_CONTACT_LINK_VERIFICATION = MegaApi.USER_ATTR_CONTACT_LINK_VERIFICATION;
+    public final static int USER_ATTR_RICH_PREVIEWS = MegaApi.USER_ATTR_RICH_PREVIEWS;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
-
-    // Very severe error event that will presumably lead the application to abort.
-    public final static int LOG_LEVEL_FATAL = MegaApi.LOG_LEVEL_FATAL;
-    // Error information but application will continue run.
-    public final static int LOG_LEVEL_ERROR = MegaApi.LOG_LEVEL_ERROR;
-    // Information representing errors in application but application will keep running
-    public final static int LOG_LEVEL_WARNING = MegaApi.LOG_LEVEL_WARNING;
-    // Mainly useful to represent current progress of application.
-    public final static int LOG_LEVEL_INFO = MegaApi.LOG_LEVEL_INFO;
-    // Informational logs, that are useful for developers. Only applicable if DEBUG is defined.
-    public final static int LOG_LEVEL_DEBUG = MegaApi.LOG_LEVEL_DEBUG;
-    public final static int LOG_LEVEL_MAX = MegaApi.LOG_LEVEL_MAX;
-
-    public final static int EVENT_FEEDBACK = 0;
-    public final static int EVENT_DEBUG = EVENT_FEEDBACK + 1;
-    public final static int EVENT_INVALID = EVENT_DEBUG + 1;
 
     public final static int PAYMENT_METHOD_BALANCE = MegaApi.PAYMENT_METHOD_BALANCE;
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
@@ -119,6 +105,7 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
     public final static int PAYMENT_METHOD_CREDIT_CARD = MegaApi.PAYMENT_METHOD_CREDIT_CARD;
     public final static int PAYMENT_METHOD_CENTILI = MegaApi.PAYMENT_METHOD_CENTILI;
+    public final static int PAYMENT_METHOD_WINDOWS_STORE = MegaApi.PAYMENT_METHOD_WINDOWS_STORE;
 	
     public final static int TRANSFER_METHOD_NORMAL = MegaApi.TRANSFER_METHOD_NORMAL;
     public final static int TRANSFER_METHOD_ALTERNATIVE_PORT = MegaApi.TRANSFER_METHOD_ALTERNATIVE_PORT;
@@ -132,10 +119,32 @@ public class MegaApiJava {
     public final static int PASSWORD_STRENGTH_GOOD = MegaApi.PASSWORD_STRENGTH_GOOD;
     public final static int PASSWORD_STRENGTH_STRONG = MegaApi.PASSWORD_STRENGTH_STRONG;
 
+    public final static int RETRY_NONE = MegaApi.RETRY_NONE;
+    public final static int RETRY_CONNECTIVITY = MegaApi.RETRY_CONNECTIVITY;
+    public final static int RETRY_SERVERS_BUSY = MegaApi.RETRY_SERVERS_BUSY;
+    public final static int RETRY_API_LOCK = MegaApi.RETRY_API_LOCK;
+    public final static int RETRY_RATE_LIMIT = MegaApi.RETRY_RATE_LIMIT;
+    public final static int RETRY_LOCAL_LOCK = MegaApi.RETRY_LOCAL_LOCK;
+    public final static int RETRY_UNKNOWN = MegaApi.RETRY_UNKNOWN;
+
+    public final static int ORDER_NONE = MegaApi.ORDER_NONE;
+    public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
+    public final static int ORDER_DEFAULT_DESC = MegaApi.ORDER_DEFAULT_DESC;
+    public final static int ORDER_SIZE_ASC = MegaApi.ORDER_SIZE_ASC;
+    public final static int ORDER_SIZE_DESC = MegaApi.ORDER_SIZE_DESC;
+    public final static int ORDER_CREATION_ASC = MegaApi.ORDER_CREATION_ASC;
+    public final static int ORDER_CREATION_DESC = MegaApi.ORDER_CREATION_DESC;
+    public final static int ORDER_MODIFICATION_ASC = MegaApi.ORDER_MODIFICATION_ASC;
+    public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
+    public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
+    public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
+
     public final static int HTTP_SERVER_DENY_ALL = MegaApi.HTTP_SERVER_DENY_ALL;
     public final static int HTTP_SERVER_ALLOW_ALL = MegaApi.HTTP_SERVER_ALLOW_ALL;
     public final static int HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = MegaApi.HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     public final static int HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = MegaApi.HTTP_SERVER_ALLOW_LAST_LOCAL_LINK;
+
+
 
     MegaApi getMegaApi()
     {
@@ -1471,6 +1480,15 @@ public class MegaApiJava {
      */
     public boolean isAchievementsEnabled() {
         return megaApi.isAchievementsEnabled();
+    }
+
+    /**
+     * Check if the password is correct for the current account
+     * @param password Password to check
+     * @return True if the password is correct for the current account, otherwise false.
+     */
+    public boolean checkPassword(String password){
+        return megaApi.checkPassword(password);
     }
 
     /**
@@ -3297,31 +3315,112 @@ public class MegaApiJava {
     }
 
     /**
-     * Change the password of the MEGA account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_CHANGE_PW
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getPassword - Returns the old password. <br>
-     * - MegaRequest.getNewPassword - Returns the new password.
-     * 
-     * @param oldPassword
-     *            Old password.
-     * @param newPassword
-     *            New password.
-     * @param listener
-     *            MegaRequestListener to track this request.
+     * Notify the user has successfully checked his password
+     *
+     * This function should be called when the user demonstrates that he remembers
+     * the password to access the account
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not continue asking the user
+     * to remind the password for the account in a short time.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogSucceeded(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogSucceeded(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Notify the user has successfully skipped the password check
+     *
+     * This function should be called when the user skips the verification of
+     * the password to access the account
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not continue asking the user
+     * to remind the password for the account in a short time.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogSkipped(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogSkipped(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Notify the user wants to totally disable the password check
+     *
+     * This function should be called when the user rejects to verify that he remembers
+     * the password to access the account and doesn't want to see the reminder again.
+     *
+     * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+     * to remember this event. In consequence, MEGA will not ask the user
+     * to remind the password for the account again.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     * - MegaRequest::getText - Returns the new value for the attribute
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void passwordReminderDialogBlocked(MegaRequestListenerInterface listener){
+        megaApi.passwordReminderDialogBlocked(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the app should show the password reminder dialog to the user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if the password reminder dialog should be shown
+     *
+     * @param atLogout True if the check is being done just before a logout
+     * @param listener MegaRequestListener to track this request
+     */
+    public void shouldShowPasswordReminderDialog(boolean atLogout, MegaRequestListenerInterface listener){
+        megaApi.shouldShowPasswordReminderDialog(atLogout, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Change the password of the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
+     * - MegaRequest::getNewPassword - Returns the new password
+     *
+     * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+     * @param newPassword New password
+     * @param listener MegaRequestListener to track this request
      */
     public void changePassword(String oldPassword, String newPassword, MegaRequestListenerInterface listener) {
         megaApi.changePassword(oldPassword, newPassword, createDelegateRequestListener(listener));
     }
 
     /**
-     * Change the password of the MEGA account.
-     * 
-     * @param oldPassword
-     *            Old password.
-     * @param newPassword
-     *            New password.
+     * Change the password of the MEGA account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
+     * - MegaRequest::getNewPassword - Returns the new password
+     *
+     * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+     * @param newPassword New password
      */
     public void changePassword(String oldPassword, String newPassword) {
         megaApi.changePassword(oldPassword, newPassword);

@@ -17,7 +17,7 @@ BuildRequires: zlib-devel
 
 BuildRequires: cmake
 
-%if 0%{?fedora_version}>=21 || 0%{?suse_version} >= 1310
+%if 0%{?fedora_version}>=21 || 0%{?suse_version} > 1310
 BuildRequires: extra-cmake-modules
 %endif
 

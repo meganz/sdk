@@ -38,7 +38,7 @@ const int SpeedController::SPEED_MEAN_INTERVAL_DS = 50;
 const int SpeedController::SPEED_MAX_VALUES = 10000;
 
 // data receive timeout (ds)
-const int HttpIO::NETWORKTIMEOUT = 6000;
+const int HttpIO::NETWORKTIMEOUT = 180000;
 
 // request timeout (ds)
 const int HttpIO::REQUESTTIMEOUT = 1200;
@@ -560,7 +560,7 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
                         chunkmac_map* /*macs*/, uint64_t /*ctriv*/, m_off_t pos,
                         m_off_t npos)
 {
-    char urlbuf[256];
+    char urlbuf[512];
 
     snprintf(urlbuf, sizeof urlbuf, "%s/%" PRIu64 "-%" PRIu64, tempurl, pos, npos ? npos - 1 : 0);
     setreq(urlbuf, REQ_BINARY);
@@ -676,7 +676,7 @@ void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
     }
 
     char crc[32];
-    char buf[256];
+    char buf[512];
     Base64::btoa(c, CRCSIZE, crc);
     snprintf(buf, sizeof buf, "%s/%" PRIu64 "?c=%s", tempurl, pos, crc);
     setreq(buf, REQ_BINARY);

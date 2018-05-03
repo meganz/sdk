@@ -1104,7 +1104,8 @@ class MegaUser
             CHANGE_TYPE_LANGUAGE        = 0x2000,
             CHANGE_TYPE_PWD_REMINDER    = 0x4000,
             CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
-            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
+            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
+            CHANGE_TYPE_RICH_PREVIEWS   = 0x20000
         };
 
         /**
@@ -1168,6 +1169,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
          * Check if option for automatic contact-link verification has changed
          *
+         * - MegaUser::CHANGE_TYPE_RICH_PREVIEWS    = 0x20000
+         * Check if option for rich links has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1230,6 +1234,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000
          * Check if option for automatic contact-link verification has changed
+         *
+         * - MegaUser::CHANGE_TYPE_RICH_PREVIEWS    = 0x20000
+         * Check if option for rich links has changed
          */
         virtual int getChanges();
 
@@ -2037,7 +2044,7 @@ class MegaRequest
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -3360,6 +3367,12 @@ public:
      * @return True if the request is outgoing and false if it's incoming
      */
     virtual bool isOutgoing() const;
+
+    /**
+     * @brief Returns true is the incoming contact request is being automatically accepted
+     * @return True if the incoming contact request is being automatically accepted
+     */
+    virtual bool isAutoAccepted() const;
 };
 
 
@@ -4762,7 +4775,8 @@ class MegaApi
             USER_ATTR_LANGUAGE = 14,            // private - char array
             USER_ATTR_PWD_REMINDER = 15,        // private - char array
             USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
-            USER_ATTR_CONTACT_LINK_VERIFICATION = 17     // private - byte array
+            USER_ATTR_CONTACT_LINK_VERIFICATION = 17,     // private - byte array
+            USER_ATTR_RICH_PREVIEWS = 18         // private - byte array
         };
 
         enum {
@@ -5958,6 +5972,13 @@ class MegaApi
          */
         bool isAchievementsEnabled();
 
+        /**
+         * @brief Check if the password is correct for the current account
+         * @param password Password to check
+         * @return True if the password is correct for the current account, otherwise false.
+         */
+        bool checkPassword(const char *password);
+
 #ifdef ENABLE_CHAT
         /**
          * @brief Returns the fingerprint of the signing key of the currently open account
@@ -6547,6 +6568,8 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * Get whether user generates rich-link messages or not (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6646,6 +6669,8 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * Get whether user generates rich-link messages or not (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -6785,6 +6810,8 @@ class MegaApi
          * Get the last interaction of the contacts of the user (private)
          * MegaApi::USER_ATTR_KEYRING = 7
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * Get whether user generates rich-link messages or not (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -6838,7 +6865,7 @@ class MegaApi
         /**
          * @brief Set the GPS coordinates of image files as a node attribute.
          *
-         * To remove the existing coordinates, set both the latitude and longitud to
+         * To remove the existing coordinates, set both the latitude and longitude to
          * the value MegaNode::INVALID_COORDINATE.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
@@ -6854,7 +6881,7 @@ class MegaApi
          * @param longitude Longitude in signed decimal degrees notation
          * @param listener MegaRequestListener to track this request
          */
-        void setNodeCoordinates(MegaNode *node, double latitude, double longitude,  MegaRequestListener *listener = NULL);
+        void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -7161,14 +7188,134 @@ class MegaApi
         void masterKeyExported(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Notify the user has successfully checked his password
+         *
+         * This function should be called when the user demonstrates that he remembers
+         * the password to access the account
+         *
+         * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+         * to remember this event. In consequence, MEGA will not continue asking the user
+         * to remind the password for the account in a short time.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         * - MegaRequest::getText - Returns the new value for the attribute
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void passwordReminderDialogSucceeded(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Notify the user has successfully skipped the password check
+         *
+         * This function should be called when the user skips the verification of
+         * the password to access the account
+         *
+         * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+         * to remember this event. In consequence, MEGA will not continue asking the user
+         * to remind the password for the account in a short time.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         * - MegaRequest::getText - Returns the new value for the attribute
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void passwordReminderDialogSkipped(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Notify the user wants to totally disable the password check
+         *
+         * This function should be called when the user rejects to verify that he remembers
+         * the password to access the account and doesn't want to see the reminder again.
+         *
+         * As result, the user attribute MegaApi::USER_ATTR_PWD_REMINDER will be updated
+         * to remember this event. In consequence, MEGA will not ask the user
+         * to remind the password for the account again.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         * - MegaRequest::getText - Returns the new value for the attribute
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void passwordReminderDialogBlocked(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the app should show the password reminder dialog to the user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if the password reminder dialog should be shown
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT but the value of MegaRequest::getFlag will still
+         * be valid.
+         *
+         * @param atLogout True if the check is being done just before a logout
+         * @param listener MegaRequestListener to track this request
+         */
+        void shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable or disable the generation of rich previews
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+         *
+         * @param enable True to enable the generation of rich previews
+         * @param listener MegaRequestListener to track this request
+         */
+        void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the app should show the rich link warning dialog to the user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
+         * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
+         * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+         * must be added to the warning dialog.
+         * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid.
+         *
+         * @param listener MegaRequestListener to track this request
+         *
+         */
+        void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the number of times "Not now" option has been selected
+         *
+         * @param value Number of times "Not now" option has been selected
+         * @param listener MegaRequestListener to track this request
+         */
+        void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Change the password of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getPassword - Returns the old password
+         * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
          * - MegaRequest::getNewPassword - Returns the new password
          *
-         * @param oldPassword Old password
+         * @param oldPassword Old password (optional, it can be NULL to not check the old password)
          * @param newPassword New password
          * @param listener MegaRequestListener to track this request
          */
@@ -10944,6 +11091,22 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Request rich preview information for specified URL
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RICH_LINK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getLink - Returns the requested URL
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns a JSON containing metadata from the URL
+         *
+         * @param url URL to request metadata (format: http://servername.domain)
+         * @param listener MegaRequestListener to track this request
+         */
+        void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 
 #endif
 

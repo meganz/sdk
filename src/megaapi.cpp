@@ -1061,6 +1061,11 @@ bool MegaContactRequest::isOutgoing() const
     return true;
 }
 
+bool MegaContactRequest::isAutoAccepted() const
+{
+    return false;
+}
+
 //Request callbacks
 void MegaRequestListener::onRequestStart(MegaApi *, MegaRequest *)
 { }
@@ -1360,6 +1365,11 @@ char *MegaApi::getMyXMPPJid()
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
+}
+
+bool MegaApi::checkPassword(const char *password)
+{
+    return pImpl->checkPassword(password);
 }
 
 #ifdef ENABLE_CHAT
@@ -1914,6 +1924,41 @@ char *MegaApi::exportMasterKey()
 void MegaApi::masterKeyExported(MegaRequestListener *listener)
 {
     pImpl->updatePwdReminderData(false, false, true, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogSucceeded(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(true, false, false, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogSkipped(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, true, false, false, false, listener);
+}
+
+void MegaApi::passwordReminderDialogBlocked(MegaRequestListener *listener)
+{
+    pImpl->updatePwdReminderData(false, false, false, true, false, listener);
+}
+
+void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener)
+{
+    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, atLogout, listener);
+}
+
+void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    pImpl->enableRichPreviews(enable, listener);
+}
+
+void MegaApi::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_RICH_PREVIEWS, NULL, 0, listener);
+}
+
+void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
+{
+    pImpl->setRichLinkWarningCounterValue(value, listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
@@ -3885,6 +3930,11 @@ const char* MegaApi::getFileAttribute(MegaHandle h)
 void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener)
 {
     pImpl->archiveChat(chatid, archive, listener);
+}
+
+void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)
+{
+    pImpl->requestRichPreview(url, listener);
 }
 
 #endif

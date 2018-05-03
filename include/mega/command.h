@@ -123,10 +123,12 @@ public:
 
 class MEGA_API CommandSetMasterKey : public Command
 {
+    byte newkey[SymmCipher::KEYLENGTH];
+
 public:
     void procresult();
 
-    CommandSetMasterKey(MegaClient*, const byte*, const byte*, uint64_t);
+    CommandSetMasterKey(MegaClient*, const byte*, uint64_t);
 };
 
 class MEGA_API CommandCreateEphemeralSession : public Command
@@ -427,6 +429,7 @@ class MEGA_API CommandPutNodes : public Command
     int nnsize;
     targettype_t type;
     putsource_t source;
+    handle targethandle;
 
 public:
     void procresult();
@@ -886,6 +889,14 @@ public:
 protected:
     handle mChatid;
     bool mArchive;
+};
+
+class MEGA_API CommandRichLink : public Command
+{
+public:
+    void procresult();
+
+    CommandRichLink(MegaClient *client, const char *url);
 };
 
 #endif

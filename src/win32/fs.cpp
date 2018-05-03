@@ -1252,9 +1252,11 @@ void WinDirNotify::process(DWORD dwBytes)
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
-        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL");
+        LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
+                << " errors: " << error;
+        error++;
         readchanges();
-        error = true;
+        notify(DIREVENTS, localrootnode, NULL, 0);
     }
     else
     {
@@ -1334,24 +1336,26 @@ void WinDirNotify::readchanges()
                             | FILE_NOTIFY_CHANGE_CREATION,
                               &dwBytes, &overlapped, completion))
     {
-        failed = false;
+        failed = 0;
         enabled = true;
     }
     else
-    {        
+    {
+        enabled = false;
         DWORD e = GetLastError();
-        LOG_warn << "ReadDirectoryChanges not available. Error code: " << e;
-        if (e == ERROR_NOTIFY_ENUM_DIR)
+        LOG_warn << "ReadDirectoryChanges not available. Error code: " << e << " errors: " << error;
+        if (e == ERROR_NOTIFY_ENUM_DIR && error < 10)
         {
             // notification buffer overflow
-            error = true;
+            error++;
+            readchanges();
         }
         else
         {
             // permanent failure - switch to scanning mode
-            failed = true;
+            failed = e;
+            failreason = "Fatal error returned by ReadDirectoryChangesW";
         }
-        enabled = false;
     }
 #endif
 }
@@ -1379,12 +1383,14 @@ WinDirNotify::WinDirNotify(string* localbasepath, string* ignore) : DirNotify(lo
                                   FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
                                   NULL)) != INVALID_HANDLE_VALUE)
     {
-        failed = false;
+        failed = 0;
         readchanges();
     }
     else
     {
-        failed = true;
+        failed = GetLastError();
+        failreason = "CreateFileW was unable to open the folder";
+        LOG_err << "Unable to initialize filesystem notifications. Error: " << failed;
     }
 
     localbasepath->resize(localbasepath->size() - added - 1);

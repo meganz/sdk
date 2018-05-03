@@ -66,6 +66,7 @@ struct MEGA_API User : public Cachable
         bool pwdReminder : 1;   // password-reminder-dialog information
         bool disableVersions : 1;   // disable fileversioning
         bool contactLinkVerification : 1; // Verify contact requests with contact links
+        bool richPreviews : 1;  // enable messages with rich previews
     } changed;
 
     // user's public key
@@ -107,7 +108,23 @@ public:
     static attr_t string2attr(const char *name);
     static bool needversioning(attr_t at);
     static char scope(attr_t at);
+
+    enum {
+        PWD_LAST_SUCCESS = 0x01,
+        PWD_LAST_SKIPPED = 0x02,
+        PWD_MK_EXPORTED = 0x04,
+        PWD_DONT_SHOW = 0x08,
+        PWD_LAST_LOGIN = 0x10
+    };
+
+    static const int PWD_SHOW_AFTER_ACCOUNT_AGE = 7 * 24 * 60 * 60;
+    static const int PWD_SHOW_AFTER_LASTSUCCESS = 3 * 30 * 24 * 60 * 60;
+    static const int PWD_SHOW_AFTER_LASTLOGIN = 14 * 24 * 60 * 60;
+    static const int PWD_SHOW_AFTER_LASTSKIP = 3 * 30 * 24 * 60 * 60;
+    static const int PWD_SHOW_AFTER_LASTSKIP_LOGOUT = 1 * 30 * 24 * 60 * 60;
+
     static bool mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue);
+    static time_t getPwdReminderData(int numDetail, const char *data, unsigned int size);
 
     bool setChanged(attr_t at);
 

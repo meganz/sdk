@@ -1198,6 +1198,15 @@ bool MegaSDK::isAchievementsEnabled()
     return megaApi->isAchievementsEnabled();
 }
 
+bool MegaSDK::checkPassword(String^ password)
+{
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    return megaApi->checkPassword((password != nullptr) ? utf8password.c_str() : NULL);
+}
+
 void MegaSDK::setLogLevel(MLogLevel logLevel)
 {
     MegaApi::setLogLevel((int)logLevel);
@@ -2205,6 +2214,46 @@ void MegaSDK::masterKeyExported()
     megaApi->masterKeyExported();
 }
 
+void MegaSDK::passwordReminderDialogSucceeded(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogSucceeded(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogSucceeded()
+{
+    megaApi->passwordReminderDialogSucceeded();
+}
+
+void MegaSDK::passwordReminderDialogSkipped(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogSkipped(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogSkipped()
+{
+    megaApi->passwordReminderDialogSkipped();
+}
+
+void MegaSDK::passwordReminderDialogBlocked(MRequestListenerInterface^ listener)
+{
+    megaApi->passwordReminderDialogBlocked(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::passwordReminderDialogBlocked()
+{
+    megaApi->passwordReminderDialogBlocked();
+}
+
+void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout, MRequestListenerInterface^ listener)
+{
+    megaApi->shouldShowPasswordReminderDialog(atLogout, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout)
+{
+    megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
@@ -2222,16 +2271,17 @@ void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestL
 
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword)
 {
-	std::string utf8oldPassword;
-	if (oldPassword != nullptr)
-		MegaApi::utf16ToUtf8(oldPassword->Data(), oldPassword->Length(), &utf8oldPassword);
+    this->changePassword(oldPassword, newPassword, nullptr);
+}
 
-	std::string utf8newPassword;
-	if (newPassword != nullptr)
-		MegaApi::utf16ToUtf8(newPassword->Data(), newPassword->Length(), &utf8newPassword);
+void MegaSDK::changePasswordWithoutOld(String^ newPassword, MRequestListenerInterface^ listener)
+{
+    this->changePassword(nullptr, newPassword, listener);
+}
 
-	megaApi->changePassword((oldPassword != nullptr) ? utf8oldPassword.c_str() : NULL,
-		(newPassword != nullptr) ? utf8newPassword.c_str() : NULL);
+void MegaSDK::changePasswordWithoutOld(String^ newPassword)
+{
+    this->changePassword(nullptr, newPassword);
 }
 
 void MegaSDK::inviteContact(String^ email, String^ message, MContactRequestInviteActionType action, MRequestListenerInterface^ listener)
@@ -2962,14 +3012,9 @@ MTransferList^ MegaSDK::getChildTransfers(int transferTag)
     return ref new MTransferList(megaApi->getChildTransfers(transferTag), true);
 }
 
-bool MegaSDK::isWaiting()
+int MegaSDK::isWaiting()
 {
     return megaApi->isWaiting();
-}
-
-bool MegaSDK::areServersBusy()
-{
-    return megaApi->areServersBusy();
 }
 
 int MegaSDK::getNumPendingUploads()

@@ -851,10 +851,12 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (userhandle)
     {
         arg("t", userhandle);
+        targethandle = UNDEF;
     }
     else
     {
         arg("t", (byte*)&th, MegaClient::NODEHANDLE);
+        targethandle = th;
     }
 
     arg("sm",1);
@@ -1087,6 +1089,19 @@ void CommandPutNodes::procresult()
 #endif
     if (source == PUTNODES_APP)
     {
+#ifdef ENABLE_SYNC
+        if (!ISUNDEF(targethandle))
+        {
+            Node *parent = client->nodebyhandle(targethandle);
+            if (parent && parent->localnode)
+            {
+                // A node has been added by a regular (non sync) putnodes
+                // inside a synced folder, so force a syncdown to detect
+                // and sync the changes.
+                client->syncdownrequired = true;
+            }
+        }
+#endif
         client->app->putnodes_result(e, type, nn);
     }
 #ifdef ENABLE_SYNC
@@ -3072,6 +3087,15 @@ void CommandGetUserData::procresult()
             jid = client->json.gethandle(MegaClient::USERHANDLE);
             break;
 
+        case 'k':
+            client->k.resize(SymmCipher::KEYLENGTH);
+            client->json.storebinary((byte *)client->k.data(), client->k.size());
+            break;
+
+        case MAKENAMEID5('s', 'i', 'n', 'c', 'e'):
+            client->accountsince = client->json.getint();
+            break;
+
         case MAKENAMEID4('p', 'u', 'b', 'k'):
             client->json.storeobject(&pubk);
             break;
@@ -3615,10 +3639,11 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* oldkey, const byte* newkey, uint64_t hash)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash)
 {
+    memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
+
     cmd("up");
-    arg("currk", oldkey, SymmCipher::KEYLENGTH);
     arg("k", newkey, SymmCipher::KEYLENGTH);
     arg("uh", (byte*)&hash, sizeof hash);
 
@@ -3633,6 +3658,10 @@ void CommandSetMasterKey::procresult()
     }
     else
     {
+        // update encrypted MK for further checkups
+        client->k.assign((const char *) newkey, SymmCipher::KEYLENGTH);
+
+        client->json.storeobject();
         client->app->changepw_result(API_OK);
     }
 }
@@ -4637,6 +4666,7 @@ CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
 {
     this->client = client;
     cmd("lc");
+    arg("v", 1);
 
     tag = client->reqtag;
 }
@@ -5358,6 +5388,83 @@ void CommandArchiveChat::procresult()
     {
         client->json.storeobject();
         client->app->archivechat_result(API_EINTERNAL);
+    }
+}
+
+CommandRichLink::CommandRichLink(MegaClient *client, const char *url)
+{
+    cmd("erlsd");
+
+    arg("url", url);
+
+    tag = client->reqtag;
+}
+
+void CommandRichLink::procresult()
+{
+    // error format: [{"error":<code>}]
+    // result format: [{"result":{
+    //                      "url":"<url>",
+    //                      "t":"<title>",
+    //                      "d":"<description>",
+    //                      "ic":"<format>:<icon_B64>",
+    //                      "i":"<format>:<image>"}}]
+
+    if (client->json.isnumeric())
+    {
+        return client->app->richlinkrequest_result(NULL, (error)client->json.getint());
+    }
+
+
+    string res;
+    int errCode = 0;
+    string metadata;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID5('e', 'r', 'r', 'o', 'r'):
+                errCode = client->json.getint();
+                break;
+
+            case MAKENAMEID6('r', 'e', 's', 'u', 'l', 't'):
+                client->json.storeobject(&metadata);
+                break;
+
+            case EOO:
+            {
+                error e = API_EINTERNAL;
+                if (!metadata.empty())
+                {
+                    return client->app->richlinkrequest_result(&metadata, API_OK);
+                }
+                else if (errCode)
+                {
+                    switch(errCode)
+                    {
+                        case 403:
+                            e = API_EACCESS;
+                            break;
+
+                        case 404:
+                            e = API_ENOENT;
+                            break;
+
+                        default:
+                            e = API_EINTERNAL;
+                            break;
+                    }
+                }
+
+                return client->app->richlinkrequest_result(NULL, e);
+            }
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->richlinkrequest_result(NULL, API_EINTERNAL);
+                }
+        }
     }
 }
 

@@ -30,6 +30,7 @@ PendingContactRequest::PendingContactRequest(const handle id)
     this->ts = 0;
     this->uts = 0;
     this->isoutgoing = true;
+    this->autoaccepted = false;
 
     memset(&changed, 0, sizeof changed);
 }
@@ -38,7 +39,9 @@ PendingContactRequest::PendingContactRequest(const handle id,const char *oemail,
 {
     this->id = id;
     this->targetemail = "";
+    this->autoaccepted = false;
     this->update(oemail, temail, ts, uts, msg, outgoing);
+
     memset(&changed, 0, sizeof changed);
 }
 

@@ -51,7 +51,7 @@ enable_cryptopp=0
 disable_mediainfo=0
 incremental=0
 no_optimisation=0
-extra_openssl_params="-ldl"
+extra_openssl_params=""
 cross_compiling=0
 configure_cross_options=""
 openssl_cross_option=""
@@ -655,7 +655,7 @@ curl_pkg() {
     fi
 
     package_extract $name $curl_file $curl_dir
-    package_configure $name $curl_dir $install_dir "$curl_params" ""
+    package_configure $name $curl_dir $install_dir "$curl_params" "-ldl"  
     package_build $name $curl_dir
     package_install $name $curl_dir $install_dir
 }
@@ -752,6 +752,9 @@ freeimage_pkg() {
 
     package_extract $name $freeimage_file $freeimage_dir_extract
     
+    #Fix issue with powf64 redefined in mathcalls.h in glibc 2.27
+    find $freeimage_dir_extract/FreeImage/ -type f -print0 | xargs -0 sed -i "s#powf64#powf64freeimage#g"
+
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
     
