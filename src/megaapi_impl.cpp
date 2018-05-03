@@ -19609,7 +19609,8 @@ void MegaTCPServer::run()
         {
             LOG_err << "Unable to init evt ctx";
             port = 0;
-            uv_sem_post(&semaphore);
+            uv_sem_post(&semaphoreStartup);
+            uv_sem_post(&semaphoreEnd);
             return;
         }
         evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
@@ -19715,7 +19716,8 @@ void MegaTCPServer::initializeAndStartListenig()
         {
             LOG_err << "Unable to init evt ctx";
             port = 0;
-            uv_sem_post(&semaphore);
+            uv_sem_post(&semaphoreStartup);
+            uv_sem_post(&semaphoreEnd);
             return;
         }
         evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
@@ -19944,9 +19946,10 @@ void MegaTCPServer::on_hd_complete( evt_tls_t *evt_tls, int status)
 
     if (status)
     {
+        evt_tls_read(evt_tls, evt_on_rd); //this only stablish callback
         if ( tcpctx->server->respondNewConnection(tcpctx) )
         {
-            evt_tls_read(evt_tls, evt_on_rd);
+            // we dont need to explicitally start reading. on_tcp_read will be called
         }
     }
     else
@@ -22092,7 +22095,7 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     else
     {
         MegaHTTPServer *httpserver = ((MegaHTTPServer *)httpctx->server);
-        LOG_debug << "Skipping startStreaming call since empty file is 0";
+        LOG_debug << "Skipping startStreaming call since empty file";
         httpserver->processWriteFinished(httpctx, 0);
     }
     return 0;
@@ -24642,7 +24645,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             }
             else
             {
-                LOG_debug << "Skipping startStreaming call since empty file is 0";
+                LOG_debug << "Skipping startStreaming call since empty file";
                 fds->processWriteFinished(ftpdatactx, 0);
             }
 
@@ -24673,6 +24676,8 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
         {
             LOG_debug << "Starting upload of file " << fds->newNameToUpload;
             ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(), fds->controlftpctx);
+            fds->newNameToUpload = "";
+            fds->remotePathToUpload = "";
         }
         else
         {
