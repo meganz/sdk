@@ -1031,6 +1031,30 @@ using namespace mega;
     self.megaApi->shouldShowPasswordReminderDialog(atLogout);
 }
 
+- (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->enableRichPreviews(enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)enableRichPreviews:(BOOL)enable {
+    self.megaApi->enableRichPreviews(enable);
+}
+
+- (void)shouldShowRichLinkWarningWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->shouldShowRichLinkWarning([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)shouldShowRichLinkWarning {
+    self.megaApi->shouldShowRichLinkWarning();
+}
+
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setRichLinkWarningCounterValue((int)value, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value {
+    self.megaApi->setRichLinkWarningCounterValue((int)value);
+}
+
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
