@@ -188,6 +188,11 @@ bool MTransfer::isStreamingTransfer()
     return megaTransfer ? megaTransfer->isStreamingTransfer() : false;
 }
 
+bool MTransfer::isFinished()
+{
+    return megaTransfer ? megaTransfer->isFinished() : false;
+}
+
 bool MTransfer::isFolderTransfer()
 {
     return megaTransfer ? megaTransfer->isFolderTransfer() : false;
