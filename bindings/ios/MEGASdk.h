@@ -711,6 +711,23 @@ typedef NS_ENUM(NSUInteger, Retry) {
 - (void)logout;
 
 /**
+ * @brief Logout of the MEGA account without invalidating the session
+ *
+ * The associated request type with this request is MEGARequestTypeLogout
+ *
+ * @param delegate Delegate to track this request.
+ */
+- (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Logout of the MEGA account without invalidating the session
+ *
+ * The associated request type with this request is MEGARequestTypeLogout
+ *
+ */
+- (void)localLogout;
+
+/**
  * @brief Invalidate the existing cache and create a fresh one
  */
 - (void)invalidateCache;
@@ -4752,6 +4769,33 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * - [MEGARequest flag] - NO if disabled, YES if enabled
  */
 - (void)getContactLinksOption;
+
+/**
+ * @brief Keep retrying when public key pinning fails
+ *
+ * By default, when the check of the MEGA public key fails, it causes an automatic
+ * logout. Pass NO to this function to disable that automatic logout and
+ * keep the SDK retrying the request.
+ *
+ * Even if the automatic logout is disabled, a request of the type MEGARequestTypeLogout
+ * will be automatically created and callbacks (onRequestStart, onRequestFinish) will
+ * be sent. However, logout won't be really executed and in onRequestFinish the error code
+ * for the request will be MEGAErrorTypeApiEIncomplete
+ *
+ * @param enable YES to keep retrying failed requests due to a fail checking the MEGA public key
+ * or NO to perform an automatic logout in that case
+ */
+- (void)retrySSLErrors:(BOOL)enable;
+
+/**
+ * @brief Enable / disable the public key pinning
+ *
+ * Public key pinning is enabled by default for all sensible communications.
+ * It is strongly discouraged to disable this feature.
+ *
+ * @param enable YES to keep public key pinning enabled, NO to disable it
+ */
+- (void)setPublicKeyPinning:(BOOL)enable;
 
 /**
  * @brief Create a thumbnail for an image
