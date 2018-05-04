@@ -5296,6 +5296,9 @@ class MegaApi
          * @param stringHash Hash of the email returned by MegaApi::getStringHash
          * @param base64pwkey Private key calculated using MegaApi::getBase64PwKey
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function can only be used with old accounts and will be removed soon.
+         * Please use MegaApi::login (with email and password) or MegaApi::fastLogin (with session) instead.
          */
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
@@ -5563,8 +5566,8 @@ class MegaApi
          * @param name Name of the user
          * @param listener MegaRequestListener to track this request
          *
-         * @deprecated This function is deprecated and will eventually be removed. Instead,
-         * use the new version of MegaApi::createAccount with firstname and lastname.
+         * @deprecated This function creates account using the old registration method and will be removed soon.
+         * Please use MegaApi::createAccount (with email and password) instead.
          */
         void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
 
@@ -5591,6 +5594,9 @@ class MegaApi
          * @param name Firstname of the user
          * @param base64pwkey Private key calculated with MegaApi::getBase64PwKey
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function only works using the old registration method and will be removed soon.
+         * Please use MegaApi::sendSignupLink (with email and password) instead.
          */
         void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
 
@@ -5656,6 +5662,9 @@ class MegaApi
          * @param link Confirmation link
          * @param base64pwkey Private key precomputed with MegaApi::getBase64PwKey
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function only works using the old registration method and will be removed soon.
+         * Please use MegaApi::confirmAccount instead.
          */
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
