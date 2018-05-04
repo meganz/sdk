@@ -10337,15 +10337,18 @@ void MegaApiImpl::fetchnodes_result(error e)
                 client->putua(ATTR_LASTNAME, (const byte*) request->getText(), strlen(request->getText()));
             }
 
-            byte pwkey[SymmCipher::KEYLENGTH];
-            if(!request->getPrivateKey())
-                client->pw_key(request->getPassword(),pwkey);
-            else
-                Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
-
             // ...and finally send confirmation link
             client->reqtag = client->restag;
-            client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
+            byte pwkey[SymmCipher::KEYLENGTH];
+            if (!request->getPrivateKey())
+            {
+                client->sendsignuplinkv2(request->getEmail(), request->getPassword(), request->getName());
+            }
+            else
+            {
+                Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
+                client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
+            }
             client->reqtag = creqtag;
         }
     }
