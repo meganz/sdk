@@ -7022,14 +7022,13 @@ error MegaClient::folderaccess(const char *folderlink)
 
 void MegaClient::prelogin(const char *email)
 {
+    locallogout();
     reqs.add(new CommandPrelogin(this, email));
 }
 
 // create new session
 void MegaClient::login(const char* email, const byte* pwkey)
 {
-    locallogout();
-
     string lcemail(email);
 
     key.setkey((byte*)pwkey);
