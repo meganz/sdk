@@ -23525,6 +23525,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             {
                 if (ftpctx->atroot)
                 {
+                    assert(!ftpctx->ftpDataServer->resultmsj.size());
                     set<handle> handles = getAllowedHandles();
                     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
                     {
@@ -23550,6 +23551,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     {
                         string toret = getListingLineFromNode(n);
                         toret.append(crlfout);
+                        assert(!ftpctx->ftpDataServer->resultmsj.size());
                         ftpctx->ftpDataServer->resultmsj.append(toret);
                     }
                     ftpctx->ftpDataServer->resultmsj.append(crlfout);
@@ -23565,6 +23567,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 if (node->isFolder() )
                 {
                     MegaNodeList *children = ftpctx->megaApi->getChildren(node);
+                    assert(!ftpctx->ftpDataServer->resultmsj.size());
                     for (int i = 0; i < children->size(); i++)
                     {
                         MegaNode *child = children->get(i);
@@ -23599,6 +23602,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                         toret = node->getName();
                     }
                     toret.append(crlfout);
+                    assert(!ftpctx->ftpDataServer->resultmsj.size());
                     ftpctx->ftpDataServer->resultmsj.append(toret);
                     response = "150 Here comes the file listing";
                 }
@@ -24279,7 +24283,7 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
                 MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
                 if (!nodetoRename || !strcmp(nodetoRename->getName(), ftpserver->newNameAfterMove.c_str()))
                 {
-                    MegaFTPServer::returnFtpCodeAsync(this, 250); //TODO: review error code
+                    MegaFTPServer::returnFtpCodeAsync(this, 553);
                 }
                 else
                 {
@@ -24289,7 +24293,7 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
             }
             else
             {
-                MegaFTPServer::returnFtpCodeAsync(this, 250); //TODO: review error code
+                MegaFTPServer::returnFtpCodeAsync(this, 250);
             }
         }
         else
@@ -24306,7 +24310,6 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
 MegaFTPDataServer::MegaFTPDataServer(MegaApiImpl *megaApi, string basePath, MegaFTPContext * controlftpctx, bool useTLS, string certificatepath, string keypath)
 : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath)
 {
-    LOG_debug << " at MEGAFTPDataServer constructor" ; //TODO: delete
     this->controlftpctx = controlftpctx;
     this->nodeToDownload = NULL;
     this->rangeStartREST = 0;
@@ -24350,13 +24353,10 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
     LOG_debug << " processWriteFinished on MegaFTPDataServer. status = " << status;
     if (resultmsj.size())
     {
-        LOG_verbose << " processWriteFinished on MegaFTPDataServer. sending result message. status = " << status; // TODO: delete?
-
-        resultmsj = ""; // empty result msj //TODO: review in case of partial messages
+        resultmsj = ""; // empty result msj // this would be incorrect if we used partial writes (does not seem to be required)
 
         if (this->controlftpctx)
         {
-            LOG_verbose << "waking controlftpctx to respone 226 due to resultmsj"; // TODO: delete?
             MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(this->controlftpctx->server);
             ftpControlServer->returnFtpCode(this->controlftpctx, 226);
         }
@@ -24366,10 +24366,8 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
         }
         closeConnection(tcpctx);
     }
-    else // transfering node //TODO: check node != NULL?
+    else // transfering node (download)
     {
-        LOG_verbose << " processWriteFinished on MegaFTPDataServer. transfering node. status = " << status; //TODO: delete
-
         ftpctx->bytesWritten += ftpctx->lastBufferLen;
         LOG_verbose << "Bytes written: " << ftpctx->lastBufferLen << " Remaining: " << (ftpctx->size - ftpctx->bytesWritten);
         ftpctx->lastBuffer = NULL;
@@ -24383,10 +24381,6 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
             else
             {
                 LOG_debug << "Finishing request. All data sent";
-//                if (ftpctx->resultCode == API_EINTERNAL)
-//                {
-//                    ftpctx->resultCode = API_OK;
-//                }
             }
 
             if (this->controlftpctx)
@@ -24430,9 +24424,8 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 
 void MegaFTPDataServer::sendData()
 {
-    MegaTCPContext * tcpctx = connections.back(); //TODO: here we are assuming only one connections is there. mutex protection required??
-    //TODO: wee webdav branch to mimic data sending schedule?
-    // perhaps we might want to async_send all of them.
+    assert(connections.size()<=1); //here we are assuming only one connections is there. mutex protection required??// perhaps we might want to handle all of them.
+    MegaTCPContext * tcpctx = connections.back();
 
     if (tcpctx)
     {
