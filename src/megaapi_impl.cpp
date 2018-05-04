@@ -12050,7 +12050,17 @@ void MegaApiImpl::confirmsignuplink_result(error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT)) return;
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::confirmsignuplink2_result(handle, const char *, const char *, error e)
+{
+    MegaError megaError(e);
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT)) return;
 
     fireOnRequestFinish(request, megaError);
 }

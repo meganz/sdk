@@ -2070,6 +2070,7 @@ protected:
         virtual void querysignuplink_result(error);
         virtual void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t);
         virtual void confirmsignuplink_result(error);
+        virtual void confirmsignuplink2_result(handle, const char*, const char*, error);
         virtual void setkeypair_result(error);
 
         // account credentials, properties and history
