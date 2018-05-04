@@ -15928,7 +15928,7 @@ void MegaApiImpl::sendPendingRequests()
 			const char *password = request->getPassword();
 			const char *pwkey = request->getPrivateKey();
 
-            if(!link || (request->getType() == MegaRequest::TYPE_CONFIRM_ACCOUNT && !password && !pwkey))
+            if (!link)
 			{
 				e = API_EARGS;
 				break;
@@ -15944,7 +15944,18 @@ void MegaApiImpl::sendPendingRequests()
             len = Base64::atob(ptr,c,len);
             if (len)
             {
-                client->querysignuplink(c,len);
+                if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                {
+                    client->confirmsignuplinkv2(c, len);
+                }
+                else if (!password && !pwkey)
+                {
+                    e = API_EARGS;
+                }
+                else
+                {
+                    client->querysignuplink(c, len);
+                }
             }
             else
             {
