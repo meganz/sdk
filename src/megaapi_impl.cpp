@@ -15836,7 +15836,7 @@ void MegaApiImpl::sendPendingRequests()
             byte pwkey[SymmCipher::KEYLENGTH];
             if (password)
             {
-                e = client->pw_key(password, pwkey);
+                client->sendsignuplinkv2(email, name, password);
             }
             else    // pwcipher provided
             {
