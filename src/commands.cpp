@@ -1396,6 +1396,7 @@ CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
     cmd("us0");
     arg("user", email);
 
+    this->email = email;
     tag = client->reqtag;
 }
 
@@ -1403,7 +1404,7 @@ void CommandPrelogin::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->prelogin_result(0, NULL, (error)client->json.getint());
+        return client->app->prelogin_result(0, NULL, NULL, (error)client->json.getint());
     }
 
     int v = 0;
@@ -1422,9 +1423,9 @@ void CommandPrelogin::procresult()
                 if (v == 2 && !salt.size())
                 {
                     LOG_err << "No salt returned";
-                    return client->app->prelogin_result(0, NULL, API_EINTERNAL);
+                    return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
                 }
-                client->app->prelogin_result(v, &salt, API_OK);
+                client->app->prelogin_result(v, &email, &salt, API_OK);
                 return;
             default:
                 if (!client->json.storeobject())

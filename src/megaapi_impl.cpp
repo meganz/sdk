@@ -11012,6 +11012,67 @@ void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t tot
     }
 }
 
+void MegaApiImpl::prelogin_result(int version, string* email, string *salt, error result)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_LOGIN)) return;
+
+    if (result)
+    {
+        fireOnRequestFinish(request, MegaError(result));
+        return;
+    }
+
+    if (version == 1)
+    {
+        const char *password = request->getPassword();
+        const char* base64pwkey = request->getPrivateKey();
+        if (base64pwkey)
+        {
+            byte pwkey[SymmCipher::KEYLENGTH];
+            Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
+            if (password)
+            {
+                uint64_t emailhash;
+                Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
+                client->fastlogin(email->c_str(), pwkey, emailhash);
+            }
+            else
+            {
+                client->login(email->c_str(), pwkey);
+            }
+        }
+        else
+        {
+            error e;
+            byte pwkey[SymmCipher::KEYLENGTH];
+            if ((e = client->pw_key(password, pwkey)))
+            {
+                fireOnRequestFinish(request, MegaError(e));
+                return;
+            }
+            client->login(email->c_str(), pwkey);
+        }
+    }
+    else if (version == 2 && salt)
+    {
+        const char *password = request->getPassword();
+        if (password)
+        {
+            client->loginv2(email->c_str(), password, salt);
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+        }
+    }
+    else
+    {
+        fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+    }
+}
+
 // login result
 void MegaApiImpl::login_result(error result)
 {
@@ -14459,33 +14520,15 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            if(sessionKey)
+            if (sessionKey)
             {
                 byte session[MAX_SESSION_LENGTH];
                 int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
                 client->login(session, size);
             }
-            else if(login && base64pwkey)
+            else if (login && (base64pwkey || password))
             {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-
-                if(password)
-                {
-                    uint64_t emailhash;
-                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
-                    client->fastlogin(slogin.c_str(), pwkey, emailhash);
-                }
-                else
-                {
-                    client->login(slogin.c_str(), pwkey);
-                }
-            }
-            else if(login && password)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                if((e = client->pw_key(password,pwkey))) break;
-                client->login(slogin.c_str(), pwkey);
+                client->prelogin(slogin.c_str());
             }
             else
             {

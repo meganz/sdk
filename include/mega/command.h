@@ -112,6 +112,8 @@ public:
 
 class MEGA_API CommandPrelogin : public Command
 {
+    string email;
+
 public:
     void procresult();
 

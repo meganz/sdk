@@ -2047,7 +2047,7 @@ protected:
         virtual void request_response_progress(m_off_t, m_off_t);
 
         // login result
-        virtual void prelogin_result(int, string*, error);
+        virtual void prelogin_result(int, string*, string*, error);
         virtual void login_result(error);
         virtual void logout_result(error);
         virtual void userdata_result(string*, string*, string*, handle, error);
