@@ -1039,6 +1039,14 @@ using namespace mega;
     self.megaApi->enableRichPreviews(enable);
 }
 
+- (void)isRichPreviewsEnabledWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->isRichPreviewsEnabled([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)isRichPreviewsEnabled {
+    self.megaApi->isRichPreviewsEnabled();
+}
+
 - (void)shouldShowRichLinkWarningWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->shouldShowRichLinkWarning([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
