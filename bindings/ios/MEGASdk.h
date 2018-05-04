@@ -3080,6 +3080,43 @@ typedef NS_ENUM(NSUInteger, Retry) {
 - (void)enableRichPreviews:(BOOL)enable;
 
 /**
+ * @brief Check if rich previews are automatically generated
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns zero
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (NO).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)isRichPreviewsEnabledWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if rich previews are automatically generated
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns zero
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (NO).
+ *
+ */
+- (void)isRichPreviewsEnabled;
+
+/**
  * @brief Check if the app should show the rich link warning dialog to the user
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
@@ -3089,7 +3126,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ * - [MEGARequest flag] - Returns YES if it is necessary to show the rich link warning
  * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
  * modify the message with a rich link. If number is bigger than three, the extra option "Never"
  * must be added to the warning dialog.
@@ -3111,7 +3148,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ * - [MEGARequest flag] - Returns YES if it is necessary to show the rich link warning
  * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
  * modify the message with a rich link. If number is bigger than three, the extra option "Never"
  * must be added to the warning dialog.
