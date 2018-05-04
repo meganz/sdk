@@ -23448,62 +23448,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 response = "550 CWD failed."; //chrome requires this
             }
             delete newcwd;
-
-
-//            MegaNode *n = NULL;
-//                MegaNode *rootNode =  ftpctx->megaApi->getRootNode();
-//                if (rootNode)
-//                {
-//                    ftpctx->cwd = rootNode->getHandle();
-//                    n = rootNode;
-//                }
-//            else
-//            {
-//                n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-//            }
-
-//            if (n)
-//            {
-//                MegaNode *newcwd = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), n);
-//                if (newcwd)
-//                {
-//                    if (newcwd->isFolder() && newcwd->getHandle() != UNDEF)
-//                    {
-//                        ftpctx->cwd = newcwd->getHandle();
-//                        ftpctx->parentcwd = newcwd->getParentHandle();
-
-//                        response = "250 Directory successfully changed";
-//                    }
-//                    else
-//                    {
-//                        response = "550 CWD failed."; //chrome requires this
-//                    }
-
-//                    delete newcwd;
-//                }
-//                else
-//                {
-//                    if (ftpctx->arg1.size() && ftpctx->arg1.at(0) == '/')
-//                    {
-//                        handle h = ftpctx->megaApi->base64ToHandle(ftpctx->arg1.c_str()+1);
-//                        if (ftpctx->server->isHandleAllowed(h) )
-//                        {
-//                            newcwd = ftpctx->megaApi->getNodeByHandle(h);
-//                            response = "250 Directory successfully changed";
-//                        }
-//                    }
-//                }
-
-//                if (!newcwd)
-//                {
-//                    response = "530 Not Found";
-//                }
-//                delete n;
-//            }
-//            else
-//            {
-//                response = "530 CWD not Found.";
-//            }
             break;
         }
         case FTP_CMD_CDUP: //TODO: secure not goind up base handle ?
@@ -23514,17 +23458,45 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 MegaNode *newcwd = ftpctx->megaApi->getNodeByHandle(n->getParentHandle());
                 if (newcwd)
                 {
+                    bool allowed = isHandleAllowed(newcwd->getHandle()) || isHandleAllowed(newcwd->getParentHandle());
+                    MegaNode *pn = ftpctx->megaApi->getNodeByHandle(newcwd->getParentHandle());;
+                    while (!allowed && pn)
+                    {
+                        MegaNode *aux = pn;
+                        pn = ftpctx->megaApi->getNodeByHandle(pn->getParentHandle());
+                        delete aux;
+                        if (pn)
+                        {
+                            allowed = isHandleAllowed(newcwd->getParentHandle());
+                            delete pn;
+                        }
+                    }
+                    delete pn;
 
-                    if (newcwd->isFolder() && newcwd->getHandle() != UNDEF)
+                    if (!allowed)
+                    {
+                        LOG_warn << "Ftp client trying to access not allowed path";
+                        response = "550 Path not allowed";
+                    }
+                    else if (newcwd->isFolder() && newcwd->getHandle() != UNDEF)
                     {
                         ftpctx->cwd = newcwd->getHandle();
+                        ftpctx->cwdpath = ftpctx->cwdpath + "/..";
+                        ftpctx->cwdpath = shortenpath(ftpctx->cwdpath);
+                        ftpctx->athandle = false;
+                        ftpctx->atroot = false;
+                        size_t seps = std::count(ftpctx->cwdpath.begin(), ftpctx->cwdpath.end(), '/');
+                        if (seps < 2)
+                        {
+                            ftpctx->cwdpath = string("/") + megaApi->handleToBase64(newcwd->getHandle()) + "/" + newcwd->getName();
+                        }
                         ftpctx->parentcwd = newcwd->getParentHandle();
 
                         response = "250 Directory successfully changed";
                     }
                     else
                     {
-                        response = "550 CWD failed."; //chrome requires this
+                        response = "550 CDUP failed.";
                     }
 
                     delete newcwd;
