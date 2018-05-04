@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file mega/logging.h
  * @brief Logging class
  *

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file megaapi_impl.cpp
  * @brief Private implementation of the intermediate layer for the MEGA C++ SDK.
  *

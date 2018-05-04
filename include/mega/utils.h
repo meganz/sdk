@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file mega/utils.h
  * @brief Mega SDK various utilities and helper classes
  *
