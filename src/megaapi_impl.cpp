@@ -22758,11 +22758,11 @@ MegaNode *MegaFTPServer::getBaseFolderNode(string path)
         size_t possep = rest.find('/');
         handle h = megaApi->base64ToHandle(rest.substr(0,possep).c_str());
         MegaNode *n = megaApi->getNodeByHandle(h);
-        if (possep != string::npos)
+        if (possep != string::npos && possep != (rest.size() - 1) )
         {
             if (n)
             {
-                if (rest.size() > possep)
+                if (rest.size() > (possep + 1))
                 {
                     rest = rest.substr(possep + 1);
                     if (rest == n->getName())
@@ -22794,7 +22794,7 @@ MegaNode *MegaFTPServer::getNodeByFullFtpPath(string path)
         size_t possep = rest.find('/');
         handle h = megaApi->base64ToHandle(rest.substr(0,possep).c_str());
         MegaNode *n = megaApi->getNodeByHandle(h);
-        if (possep != string::npos)
+        if (possep != string::npos && possep != (rest.size() - 1) )
         {
             if (n)
             {
@@ -23040,7 +23040,7 @@ std::string MegaFTPServer::cd(string newpath, MegaFTPContext* ftpctx)
     string handlepath = "/";
     string shandle = megaApi->handleToBase64(newcwd->getHandle());
     handlepath.append(shandle);
-    if (newpath == handlepath || newpath == shandle )
+    if (newpath == handlepath || newpath == shandle || newpath == (handlepath +"/") )
     {
         ftpctx->cwdpath = handlepath;
         ftpctx->athandle = true;
@@ -23114,7 +23114,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             petition = petition.substr(0,psepend);
             command = petition.substr(0,psep);
             transform(command.begin(), command.end(), command.begin(), ::toupper);
-
         }
 
         if (failed)
@@ -23269,6 +23268,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             ftpctx->command = FTP_CMD_EPSV;
         }
+        else if(command == "OPTS")
+        {
+            ftpctx->command = FTP_CMD_OPTS;
+        }
         else
         {
             LOG_warn << " Could not match command: " << command;
@@ -23323,7 +23326,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             if (psep != string::npos && ( (psep + 1)< petition.size()) )
             {
                 string rest = petition.substr(psep+1);
-                //TODO: is it allowed to have more separators? and escaped?
                 ftpctx->arg1 = rest;
             }
             else
@@ -23341,7 +23343,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             {
                 string rest = petition.substr(psep+1);
                 ftpctx->arg1 = rest;
-                //TODO: is it allowed to have more separators? and escaped?
             }
             break;
 
@@ -23375,6 +23376,22 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 parsed = -1;
             }
             break;
+        case FTP_CMD_OPTS:
+            if (psep != string::npos)
+            {
+                string rest = petition.substr(psep+1);
+                psep = rest.find_first_of(separators);
+                ftpctx->arg1 = rest.substr(0,psep);
+                if (psep != string::npos && ( (psep + 1)< rest.size()) )
+                {
+                    ftpctx->arg2 = rest.substr(psep+1);
+                }
+                else
+                {
+                    parsed = -1;
+                }
+            }
+            break;
         default:
             parsed = -1;
             break;
@@ -23384,18 +23401,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
         case FTP_CMD_USER:
         {
-//            if (ftpctx->arg1.size() && ftpctx->arg1 == "anonymous") //TODO: case sensitive?
-//            {
-//                response = "230 User logged in, proceed";
-//                response.append(crlfout);
-//            }
-//            else
-//            {
-                response = "331 User name okay, need password";
-//            }
-            //TODO: check for anonymous (return 331 I believe)
-
-
+            response = "331 User name okay, need password";
             break;
         }
         case FTP_CMD_PASS:
@@ -23421,7 +23427,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_TYPE:
         case FTP_CMD_PROT: // we might want to require that arg1 = "P". or disable useTLS in data channel otherwise
         {
-            response = "200 OK"; //TODO: implement
+            response = "200 OK";
             break;
         }
         case FTP_CMD_PASV:
@@ -23439,9 +23445,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, string(), string());
 #endif
                 bool result = fds->start(ftpctx->pasiveport, localOnly, true);
-                //TODO: handle result
-
-                ftpctx->ftpDataServer = fds;
+                if (result)
+                {
+                    ftpctx->ftpDataServer = fds;
+                }
+                else
+                {
+                    response = "421 Failed to initialize data channel";
+                    break;
+                }
             }
             else
             {
@@ -23476,6 +23488,20 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             break;
         }
+        case FTP_CMD_OPTS:
+        {
+            transform(ftpctx->arg1.begin(), ftpctx->arg1.end(), ftpctx->arg1.begin(), ::toupper);
+            transform(ftpctx->arg2.begin(), ftpctx->arg2.end(), ftpctx->arg2.begin(), ::toupper);
+            if (ftpctx->arg1 == "UTF8" && ftpctx->arg2 == "ON")
+            {
+                response = "200 All good"; //TODO: only if utf8 on?
+            }
+            else
+            {
+                response = "501 Unrecognized OPTS " + ftpctx->arg1 + " " + ftpctx->arg2;
+            }
+            break;
+        }
         case FTP_CMD_PWD:
         {
             MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
@@ -23491,8 +23517,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             {
                 response = "550 Not Found";
             }
-
-            //TODO: check for anonymous (return 331 I believe)
             break;
         }
         case FTP_CMD_CWD:
@@ -23518,6 +23542,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_LIST:
         case FTP_CMD_NLST:
         {
+            if (!ftpctx->ftpDataServer)
+            {
+                response = "425 No Data Connection available";
+                break;
+            }
+
             MegaNode *node = NULL;
             if (ftpctx->arg1.size() && ftpctx->arg1 != "-l")
             {
@@ -23618,6 +23648,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_RETR:
         {
+            if (!ftpctx->ftpDataServer)
+            {
+                response = "425 No Data Connection available";
+                break;
+            }
+
             //MegaNode *node = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), nodecwd);
             MegaNode *node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
 
@@ -23626,7 +23662,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 if (node->isFile())
                 {
                     MegaNode *oldNodeToDownload = ftpctx->ftpDataServer->nodeToDownload;
-                    ftpctx->ftpDataServer->nodeToDownload = node; //TODO: check ftpctx->ftpDataServer exists
+                    ftpctx->ftpDataServer->nodeToDownload = node;
                     delete oldNodeToDownload;
                     response = "150 Here comes the file: ";
                     response.append(node->getName());
@@ -23646,6 +23682,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_STOR:
         {
             //TODO: deal with foreign node / public link and so on ?
+
+            if (!ftpctx->ftpDataServer)
+            {
+                response = "425 No Data Connection available";
+                break;
+            }
 
             MegaNode *newParentNode = NULL;
             size_t seppos = ftpctx->arg1.find_last_of("/");
@@ -23682,7 +23724,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             if (ftpctx->ftpDataServer->newNameToUpload.size())
             {
                 ftpctx->ftpDataServer->remotePathToUpload = ftpctx->arg1;
-                response = "150 Opening data connection for storing "; //TODO: maybe we should ensure theres a ftpDataServer running?
+                response = "150 Opening data connection for storing ";
                 response.append(ftpctx->arg1);
             }
             else
@@ -23732,7 +23774,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             break;
         }
-        case FTP_CMD_RNTO: //TODO: review use case with new paths
+        case FTP_CMD_RNTO:
         {
             if (this->nodeHandleToRename == UNDEF)
             {
@@ -23746,10 +23788,11 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     MegaNode *newParentNode = NULL;
                     size_t seppos = ftpctx->arg1.find_last_of("/");
                     string newName = ftpctx->arg1;
-                    MegaNode *n = getNodeByFtpPath(ftpctx, newName); //TODO: do we need this?
+                    MegaNode *n = getNodeByFtpPath(ftpctx, newName);
                     if (n)
                     {
-                        response = "553 Requested action not taken. Destiny already existing!"; //TODO: override???
+                        response = "503 File already exists"; //with 503 gvfsd-ftp will reupload after this (553 simply blocks). hence a new version will be created
+                        // TODO: if ever available use moveNodeCreatingVersionIfExisting in this case
                         delete n;
                     }
                     else
@@ -23801,7 +23844,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     response = "553 Requested action not taken. Origin not found: no longer available";
                 }
 
-                nodeHandleToRename = UNDEF; //TODO: perhaps we want to do this if previous command != RNFR
+                nodeHandleToRename = UNDEF;
             }
             break;
         }
@@ -23877,13 +23920,18 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
         case FTP_CMD_FEAT:
         {
-            char *lineseparator = "\r\n";
             response = "211-Features:";
-            response.append(lineseparator);
+            response.append(crlfout);
             response.append(" SIZE");
-            response.append(lineseparator);
+            response.append(crlfout);
             response.append(" PROT");
-            response.append(lineseparator);
+            response.append(crlfout);
+            response.append(" EPSV");
+            response.append(crlfout);
+//            response.append(" OPTS"); // This is actually compulsory when FEAT exists (no need to return it)
+//            response.append(crlfout);
+            response.append(" UTF8 ON"); // This is actually compulsory when FEAT exists (no need to return it)
+            response.append(crlfout);
             response.append("211 End");
             break;
         }
@@ -23927,9 +23975,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         response+=crlfout;
     }
 
-//    if (parsed < 0 || nread < 0 || parsed < nread /*|| ftpctx->parser.upgrade*/)
-//    {
-    if ( nread < 0  /*|| ftpctx->parser.upgrade*/)
+    if ( nread < 0 )
     {
         LOG_debug << "FTP Control Server received invalid read size. Closing connection";
         closeConnection(ftpctx);
@@ -23991,7 +24037,6 @@ void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 
 void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
 {
-
     LOG_verbose << " answering in port " << tcpctx->server->port << " : " << string(rsp,rlen);
 
     uv_buf_t resbuf = uv_buf_init((char *)rsp, rlen);
