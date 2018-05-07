@@ -1437,7 +1437,7 @@ void CommandPrelogin::procresult()
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion)
 {
     cmd("us");
 
@@ -3828,6 +3828,15 @@ void CommandSendSignupLink::procresult()
     client->json.storeobject();
 
     client->app->sendsignuplink_result(API_EINTERNAL);
+}
+
+CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name)
+{
+    cmd("uc2");
+    arg("n", (byte*)name, strlen(name));
+    arg("m", (byte*)email, strlen(email));
+    arg("v", 2);
+    tag = client->reqtag;
 }
 
 CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientkey, byte *enck, byte *uh)

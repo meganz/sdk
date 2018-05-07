@@ -7053,8 +7053,13 @@ void MegaClient::login2(const char *email, const char *password, string *salt)
     pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
                      (const byte *)bsalt.data(), bsalt.size(), 100000);
 
+    login2(email, derivedKey);
+}
+
+void MegaClient::login2(const char *email, const byte *derivedKey)
+{
     key.setkey((byte*)derivedKey);
-    byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
+    const byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
 
     char* authString = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
     Base64::btoa(authKey, SymmCipher::KEYLENGTH, authString);
@@ -9296,7 +9301,7 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
     reqs.add(new CommandSendSignupLink(this, email, name, c));
 }
 
-void MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
+string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
     byte clientkey[SymmCipher::KEYLENGTH];
     PrnGen::genblock(clientkey, sizeof(clientkey));
@@ -9326,6 +9331,12 @@ void MegaClient::sendsignuplink2(const char *email, const char *password, const 
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
     reqs.add(new CommandSendSignupLink2(this, email, name, clientkey, encmasterkey, (byte*)hashedauthkey.data()));
+    return string((const char*)derivedKey, 2 * SymmCipher::KEYLENGTH);
+}
+
+void MegaClient::resendsignuplink2(const char *email, const char *name)
+{
+    reqs.add(new CommandSendSignupLink2(this, email, name));
 }
 
 // if query is 0, actually confirm account; just decode/query signup link

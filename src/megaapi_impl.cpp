@@ -10342,7 +10342,19 @@ void MegaApiImpl::fetchnodes_result(error e)
             byte pwkey[SymmCipher::KEYLENGTH];
             if (!request->getPrivateKey())
             {
-                client->sendsignuplink2(request->getEmail(), request->getPassword(), request->getName());
+                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), request->getName());
+                string b64derivedKey;
+                Base64::btoa(derivedKey, b64derivedKey);
+                request->setPrivateKey(b64derivedKey.c_str());
+
+                char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+                Base64::btoa((byte*) &client->me, sizeof client->me, buf);
+                string sid;
+                sid.append(buf);
+                sid.append("#");
+                Base64::btoa((byte *)derivedKey.data(), SymmCipher::KEYLENGTH, buf);
+                sid.append(buf);
+                request->setSessionKey(sid.c_str());
             }
             else
             {
@@ -11061,13 +11073,16 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
     else if (version == 2 && salt)
     {
         const char *password = request->getPassword();
-        if (password)
+        const char* base64pwkey = request->getPrivateKey();
+        if (base64pwkey)
         {
-            client->login2(email->c_str(), password, salt);
+            byte derivedKey[2 * SymmCipher::KEYLENGTH];
+            Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
+            client->login2(email->c_str(), derivedKey);
         }
         else
         {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
+            client->login2(email->c_str(), password, salt);
         }
     }
     else
@@ -15843,25 +15858,25 @@ void MegaApiImpl::sendPendingRequests()
             }
 
 
-            byte pwkey[SymmCipher::KEYLENGTH];
             if (password)
             {
-                client->sendsignuplink2(email, name, password);
-            }
-            else    // pwcipher provided
-            {
-                if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != sizeof pwkey)
-                {
-                    e = API_EARGS;
-                }
-            }
-
-            if (e)
-            {
+                client->resendsignuplink2(email, name);
                 break;
             }
 
-            client->sendsignuplink(email, name, pwkey);
+            // pwcipher provided
+            byte pwkey[2 * SymmCipher::KEYLENGTH];
+            switch(Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey))
+            {
+                case SymmCipher::KEYLENGTH:
+                    client->sendsignuplink(email, name, pwkey);
+                    break;
+                case 2 * SymmCipher::KEYLENGTH:
+                    client->resendsignuplink2(email, name);
+                    break;
+                default:
+                    e = API_EARGS;
+            }
             break;
         }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
