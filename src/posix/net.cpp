@@ -1079,6 +1079,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         return;
     }
 
+    bool ares_pending = httpctx->ares_pending;
     if (httpctx->hostip.size())
     {
         LOG_verbose << "Name resolution finished";
@@ -1110,7 +1111,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         }
     }
 
-    if (httpctx->ares_pending)
+    if (ares_pending)
     {
         LOG_verbose << "Waiting for the completion of the c-ares request";
     }
