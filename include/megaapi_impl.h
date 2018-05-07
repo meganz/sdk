@@ -2441,6 +2441,8 @@ protected:
     bool closing;
     int remainingcloseevents;
 
+    string crlfout;
+
 #ifdef ENABLE_EVT_TLS
     // TLS
     evt_ctx_t evtctx;

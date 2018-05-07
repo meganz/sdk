@@ -19507,6 +19507,14 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
 
     uv_sem_init(&semaphoreEnd, 0);
 
+#ifdef _WIN32
+        crlfout = "\r\n";
+#elif defined(__MACH__)
+        crlfout = "\r";
+#else
+        //crlfout = "\n";
+#endif
+        crlfout = "\r\n";
 }
 
 MegaTCPServer::~MegaTCPServer()
@@ -22715,7 +22723,7 @@ void MegaFTPServer::returnFtpCode(MegaFTPContext* ftpctx, int errorCode, string 
 
     std::ostringstream response;
     response << errorCode << " " << (errorMessage.size() ? errorMessage : getFTPErrorString(errorCode))
-             << "\r\n"; //TODO: crflout?
+             << ftpserver->crlfout;
 
     string resstr = response.str();
     if (synchronous)
@@ -22816,7 +22824,6 @@ MegaNode *MegaFTPServer::getNodeByFullFtpPath(string path)
     return NULL;
 }
 
-
 MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
 {
     if (ftpctx->atroot && path.size() && path.at(0) != '/')
@@ -22828,7 +22835,6 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
         string handle = ftpctx->megaApi->handleToBase64(ftpctx->cwd);
         path="/"+handle+"/"+path;
     }
-
 
     if (path.find("..") == 0)
     {
@@ -23063,16 +23069,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
     std::string command;
     string response;
     bool delayresponse = false;
-
-#ifdef _WIN32
-        const char *crlfout = "\r\n";
-#elif defined(__MACH__)
-        const char *crlfout = "\r";
-#else
-        //const char *crlfout = "\n";
-#endif
-        //const char *crlfout = "\r\n";
-        const char *crlfout = "\r\n";
 
     if (!nread)
     {
@@ -23660,12 +23656,17 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             else
             {
+                if (!seppos) //new folder structure does not allow this
+                {
+                    response = "550 Not Found";
+                    break;
+                }
+
                 if ((seppos + 1) < ftpctx->ftpDataServer->newNameToUpload.size())
                 {
                     ftpctx->ftpDataServer->newNameToUpload = ftpctx->ftpDataServer->newNameToUpload.substr(seppos + 1);
                 }
-                string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/"; //TODO: review this for new paths!!!
-                //                    newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                string newparentpath = ftpctx->arg1.substr(0, seppos);
                 newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
                 if (newParentNode)
                 {
@@ -23755,12 +23756,17 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     {
                         if (seppos != string::npos)
                         {
+                            if (!seppos) //new folder structure does not allow this
+                            {
+                                response = "553 Requested action not taken: Invalid destiny";
+                                break;
+                            }
+
                             if ((seppos + 1) < newName.size())
                             {
                                 newName = newName.substr(seppos + 1);
                             }
-                            string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/"; //TODO: review this: either "." or arg1 directly
-                            //                                newParentNode = ftpctx->megaApi->getNodeByPath(newparentpath.c_str(), nodecwd);
+                            string newparentpath = ftpctx->arg1.substr(0, seppos);
                             newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
                             if (!newParentNode)
                             {
@@ -23812,13 +23818,19 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             else
             {
+                if (!seppos) //new folder structure does not allow this
+                {
+                    response = "550 Not Found";
+                    break;
+                }
+
                 if (seppos != string::npos)
                 {
                     if ((seppos + 1) < newNameFolder.size())
                     {
                         newNameFolder = newNameFolder.substr(seppos + 1);
                     }
-                    string newparentpath = seppos ? ftpctx->arg1.substr(0, seppos) : "/"; //TODO: review this. probably we want ./
+                    string newparentpath = ftpctx->arg1.substr(0, seppos);
                     newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
                     if (!newParentNode)
                     {
@@ -23848,7 +23860,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 unsigned long long number = strtoull(ftpctx->arg1.c_str(), NULL, 10);
                 if (number != ULLONG_MAX)
                 {
-                    ftpctx->ftpDataServer->rangeStartREST = number; //TODO: what if start >= size?
+                    ftpctx->ftpDataServer->rangeStartREST = number;
                     response = "150 Here comes the file: ";
                     response.append(ftpctx->ftpDataServer->nodeToDownload->getName());
                 }
@@ -23986,7 +23998,7 @@ void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
 #ifdef ENABLE_EVT_TLS
     if (tcpctx->server->useTLS)
     {
-        //int err = evt_tls_write(tcpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls); //TODO: recover this (controls failure) one and add all the size stuff
+        // we are sending the response as a whole
         int err = evt_tls_write(tcpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
@@ -24014,8 +24026,8 @@ bool MegaFTPServer::respondNewConnection(MegaTCPContext* tcpctx)
 {
     MegaFTPContext* ftpctx = dynamic_cast<MegaFTPContext *>(tcpctx);
 
-    string response = "220 Wellcome to FTP MEGA Server\r\n";
-    const char *crlfout = "\r\n"; //TODO: use this
+    string response = "220 Wellcome to FTP MEGA Server";
+    response.append(crlfout);
 
     answer(ftpctx, response.c_str(), response.size());
     return true;
@@ -24050,23 +24062,20 @@ MegaFTPContext::~MegaFTPContext()
     uv_mutex_destroy(&mutex_responses);
 }
 
-
-// TODO: perhaps all these are not required!
 void MegaFTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
 {
-    //TODO: fill this
 }
 
 bool MegaFTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
 {
-   // TODO: fill this
+    return true;
 }
 
 void MegaFTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 {
     if (finished)
     {
-        LOG_debug << "HTTP link closed, ignoring the result of the transfer";
+        LOG_debug << "FTP link closed, ignoring the result of the transfer";
         return;
     }
 
@@ -24145,16 +24154,20 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
             MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
         }
     }
-    else  if (request->getType() == MegaRequest::TYPE_MOVE) //TODO: this has not been tested, (no client found doing that?)
+    else  if (request->getType() == MegaRequest::TYPE_MOVE)
     {
         if (e->getErrorCode() == MegaError::API_OK)
         {
             if (ftpserver->newNameAfterMove.size())
             {
                 MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
-                if (!nodetoRename || !strcmp(nodetoRename->getName(), ftpserver->newNameAfterMove.c_str()))
+                if (!nodetoRename)
                 {
-                    MegaFTPServer::returnFtpCodeAsync(this, 553);
+                    MegaFTPServer::returnFtpCodeAsync(this, 550, "Moved node not found");
+                }
+                else if (!strcmp(nodetoRename->getName(), ftpserver->newNameAfterMove.c_str()))
+                {
+                    MegaFTPServer::returnFtpCodeAsync(this, 250);
                 }
                 else
                 {
