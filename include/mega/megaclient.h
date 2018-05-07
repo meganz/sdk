@@ -513,7 +513,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, const userpriv_vector *userpriv);
+    void createChat(bool group, bool openchat, const userpriv_vector *userpriv);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *title = NULL);
@@ -555,6 +555,15 @@ public:
 
     // create/get or delete chat-link
     void chatlink(handle chatid, bool del);
+
+    // get the URL for chat-link
+    void chatlinkurl(handle publichandle);
+
+    // convert open/public chat into closed/private chat
+    void chatlinkclose(handle chatid);
+
+    // auto-join openchat
+    void chatlinkjoin(handle publichandle);
 #endif
 
     // get mega achievements

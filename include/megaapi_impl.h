@@ -1900,7 +1900,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool openchat, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
@@ -1921,6 +1921,9 @@ class MegaApiImpl : public MegaApp
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
         void chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
+        void chatLinkClose(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void chatLinkJoin(MegaHandle publichandle, MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
@@ -2203,6 +2206,9 @@ protected:
         virtual void chats_updated(textchat_map *, int);
         virtual void richlinkrequest_result(string*, error);
         virtual void chatlink_result(handle, error);
+        virtual void chatlinkurl_result(string*, error);
+        virtual void chatlinkclose_result(error);
+        virtual void chatlinkjoin_result(error);
 #endif
 
 #ifdef ENABLE_SYNC

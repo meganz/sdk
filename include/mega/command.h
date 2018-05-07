@@ -765,11 +765,12 @@ public:
 class MEGA_API CommandChatCreate : public Command
 {
     userpriv_vector *chatPeers;
+    bool mOpenchat;
 
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, bool group, const userpriv_vector*);
+    CommandChatCreate(MegaClient*, bool group, bool openchat, const userpriv_vector*);
 };
 
 class MEGA_API CommandChatInvite : public Command
@@ -908,6 +909,33 @@ public:
 protected:
     handle mChatid;
     bool mDelete;
+};
+
+class MEGA_API CommandChatLinkURL : public Command
+{
+public:
+    void procresult();
+
+    CommandChatLinkURL(MegaClient*, handle publichandle);
+};
+
+class MEGA_API CommandChatLinkClose : public Command
+{
+public:
+    void procresult();
+
+    CommandChatLinkClose(MegaClient*, handle chatid);
+
+protected:
+    handle mChatid;
+};
+
+class MEGA_API CommandChatLinkJoin : public Command
+{
+public:
+    void procresult();
+
+    CommandChatLinkJoin(MegaClient*, handle publichandle);
 };
 
 #endif

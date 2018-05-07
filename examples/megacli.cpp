@@ -676,6 +676,42 @@ void DemoApp::chatlink_result(handle h, error e)
     }
 }
 
+void DemoApp::chatlinkclose_result(error e)
+{
+    if (e)
+    {
+        cout << "Set private mode for chat failed  (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Private mode successfully set" << endl;
+    }
+}
+
+void DemoApp::chatlinkurl_result(string *url, error e)
+{
+    if (e)
+    {
+        cout << "URL request for chat-link failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "URL for chat-link: " << url->c_str() << endl;
+    }
+}
+
+void DemoApp::chatlinkjoin_result(error e)
+{
+    if (e)
+    {
+        cout << "Join to openchat failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Joined to openchat successfully." << endl;
+    }
+}
+
 void DemoApp::chats_updated(textchat_map *chats, int count)
 {
     if (count == 1)
@@ -726,6 +762,14 @@ void DemoApp::printChatInformation(TextChat *chat)
     else
     {
         cout << "\tArchived chat: no" << endl;
+    }
+    if (chat->openchat)
+    {
+        cout << "\tOpen chat: yes" << endl;
+    }
+    else
+    {
+        cout << "\tOpen chat: no" << endl;
     }
     cout << "\tPeers:";
 
@@ -2093,7 +2137,7 @@ static void process_line(char* l)
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
-                cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
+                cout << "      chatc group openchat [email ro|sta|mod]*" << endl;    // group/openchat can be 1 or 0
                 cout << "      chati chatid email ro|sta|mod" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
@@ -2104,6 +2148,8 @@ static void process_line(char* l)
                 cout << "      chatst chatid title64" << endl;
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
                 cout << "      chatl chatid [del]" << endl;
+                cout << "      chatsm chatid" << endl;      // set private mode
+                cout << "      chatlu publichandle" << endl;
 #endif
                 cout << "      quit" << endl;
 
@@ -3553,12 +3599,19 @@ static void process_line(char* l)
                     else if (words[0] == "chatc")
                     {
                         unsigned wordscount = words.size();
-                        if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
+                        if (wordscount > 2 && ((wordscount - 3) % 2) == 0)
                         {
                             int group = atoi(words[1].c_str());
                             if (!group && (wordscount - 2) != 2)
                             {
                                 cout << "Only group chats can have more than one peer" << endl;
+                                return;
+                            }
+
+                            int openchat = atoi(words[2].c_str());
+                            if (!group && openchat)
+                            {
+                                cout << "Only group chats can operate in openchat mode" << endl;
                                 return;
                             }
 
@@ -3608,14 +3661,14 @@ static void process_line(char* l)
                                 numUsers++;
                             }
 
-                            client->createChat(group, userpriv);
+                            client->createChat(group, openchat, userpriv);
                             delete userpriv;
                             return;
                         }
                         else
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "       chatc group [email ro|sta|mod]*" << endl;
+                            cout << "       chatc group openchat [email ro|sta|mod]*" << endl;
                             return;
                         }
                     }
@@ -4256,6 +4309,40 @@ static void process_line(char* l)
                             cout << "       chatpu chatid userhandle ro|sta|mod" << endl;
                             return;
 
+                        }
+                    }
+                    else if (words[0] == "chatlu")
+                    {
+                        if (words.size() == 2)
+                        {
+                            handle publichandle;
+                            Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
+
+                            client->chatlinkurl(publichandle);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to get URL to connect to openchat" << endl;
+                            cout << "       chatlu publichandle" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatsm")
+                    {
+                        if (words.size() == 2)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
+
+                            client->chatlinkclose(chatid);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to set private/close mode" << endl;
+                            cout << "       chatsm chatid" << endl;
+                            return;
                         }
                     }
 #endif

@@ -5253,6 +5253,7 @@ void MegaClient::sc_chatupdate()
     handle ou = UNDEF;
     string title;
     m_time_t ts = -1;
+    bool openchat = false;
 
     bool done = false;
     while (!done)
@@ -5291,6 +5292,10 @@ void MegaClient::sc_chatupdate()
                 ts = jsonsc.getint();
                 break;
 
+            case 'm':
+                openchat = jsonsc.getint();
+                break;
+
             case EOO:
                 done = true;
 
@@ -5320,6 +5325,7 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->ou = ou;
                     chat->title = title;
+                    chat->setMode(openchat);
                     // chat->flags = ?; --> flags are received in other AP: mcfc
                     if (ts != -1)
                     {
@@ -8391,6 +8397,7 @@ void MegaClient::procmcf(JSON *j)
                         bool group = false;
                         string title;
                         m_time_t ts = -1;
+                        bool openchat = false;
 
                         bool readingChat = true;
                         while(readingChat) // read the chat information
@@ -8425,6 +8432,10 @@ void MegaClient::procmcf(JSON *j)
                                 ts = j->getint();
                                 break;
 
+                            case 'm':   // operation mode: 1 -> open/public chat; 0 -> close/private chat
+                                openchat = j->getint();
+                                break;
+
                             case EOO:
                                 if (chatid != UNDEF && priv != PRIV_UNKNOWN && shard != -1)
                                 {
@@ -8440,6 +8451,7 @@ void MegaClient::procmcf(JSON *j)
                                     chat->group = group;
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
+                                    chat->openchat = openchat;
 
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
@@ -12193,9 +12205,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
+void MegaClient::createChat(bool group, bool openchat, const userpriv_vector *userpriv)
 {
-    reqs.add(new CommandChatCreate(this, group, userpriv));
+    reqs.add(new CommandChatCreate(this, group, openchat, userpriv));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *title)
@@ -12318,6 +12330,21 @@ void MegaClient::richlinkrequest(const char *url)
 void MegaClient::chatlink(handle chatid, bool del)
 {
     reqs.add(new CommandChatLink(this, chatid, del));
+}
+
+void MegaClient::chatlinkurl(handle publichandle)
+{
+    reqs.add(new CommandChatLinkURL(this, publichandle));
+}
+
+void MegaClient::chatlinkclose(handle chatid)
+{
+    reqs.add(new CommandChatLinkClose(this, chatid));
+}
+
+void MegaClient::chatlinkjoin(handle publichandle)
+{
+    reqs.add(new CommandChatLinkJoin(this, publichandle));
 }
 #endif
 

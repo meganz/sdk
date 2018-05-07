@@ -4712,13 +4712,19 @@ void CommandGetLocalSSLCertificate::procresult()
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool openchat, const userpriv_vector *upl)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
+    this->mOpenchat = openchat;
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
+
+    if (openchat)
+    {
+        arg("m", (openchat) ? 1 : 0);
+    }
 
     beginarray("u");
 
@@ -4761,6 +4767,7 @@ void CommandChatCreate::procresult()
         int shard = -1;
         bool group = false;
         m_time_t ts = -1;
+        bool openchat = false;
 
         for (;;)
         {
@@ -4798,6 +4805,7 @@ void CommandChatCreate::procresult()
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
+                        chat->openchat = mOpenchat;
 
                         chat->setTag(tag ? tag : -1);
                         client->notifychat(chat);
@@ -5495,6 +5503,100 @@ void CommandChatLink::procresult()
         {
             client->app->chatlink_result(h, API_OK);
         }
+    }
+}
+
+CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
+{
+    cmd("mcphurl");
+    arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
+
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatLinkURL::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatlinkurl_result(NULL, (error)client->json.getint());
+    }
+    else
+    {
+        string url;
+        if (!client->json.storeobject(&url))
+        {
+            client->app->chatlinkurl_result(NULL, API_EINTERNAL);
+        }
+        else
+        {
+            client->app->chatlinkurl_result(&url, API_OK);
+        }
+    }
+}
+
+CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid)
+{
+    mChatid = chatid;
+
+    cmd("mcscm");
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatLinkClose::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            textchat_map::iterator it = client->chats.find(mChatid);
+            if (it == client->chats.end())
+            {
+                LOG_err << "Archive chat succeeded for a non-existing chatroom";
+                client->app->chatlinkclose_result(API_ENOENT);
+                return;
+            }
+
+            TextChat *chat = it->second;
+            chat->setMode(false);
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatlinkclose_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatlinkclose_result(API_EINTERNAL);
+    }
+}
+
+CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle)
+{
+    cmd("mciph");
+    arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
+
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatLinkJoin::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        client->app->chatlinkjoin_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatlinkjoin_result(API_EINTERNAL);
     }
 }
 

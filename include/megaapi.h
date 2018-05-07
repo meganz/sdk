@@ -1492,7 +1492,9 @@ public:
 
     enum
     {
-        CHANGE_TYPE_ATTACHMENT        = 0x01
+        CHANGE_TYPE_ATTACHMENT      = 0x01,
+        CHANGE_TYPE_FLAGS           = 0x02,
+        CHANGE_TYPE_MODE            = 0x04
     };
 
     virtual ~MegaTextChat();
@@ -1587,8 +1589,14 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT      = 0x01
+     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
+     *
+     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * Check if flags have changed (like archive flag)
+     *
+     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * Check if operation mode has changed to private/closed mode (from open/public mode)
      *
      * @return true if this chat has an specific change
      */
@@ -1602,8 +1610,14 @@ public:
      *
      * @return The returned value is an OR combination of these flags:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT      = 0x01
+     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
+     *
+     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * Check if flags have changed (like archive flag)
+     *
+     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * Check if operation mode has changed to private/closed mode (from open/public mode)
      */
     virtual int getChanges() const;
 
@@ -2054,7 +2068,8 @@ class MegaRequest
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_CHAT_LINK, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_CHAT_LINK,
+            TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -10826,6 +10841,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getFlag - Returns if the new chat is a group chat or permanent chat
+         * - MegaRequest::getAccess - Returns zero (private mode)
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -10844,6 +10860,37 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Creates an open / public chatroom for multiple participants (groupchat)
+         *
+         * This function allows to create open chats, where the moderator can create chat links to share
+         * the access to the chatroom via a URL (chat-link). In order to create a public chat-link, the
+         * moderator needs to create / get a public handle for the chatroom by using \c MegaApi::chatLinkCreate.
+         *
+         * The resulting chat-link allows anyone (even users without an account in MEGA) to review the
+         * history of the chatroom. The \c MegaApi::getChatLinkURL provides the chatd URL to connect.
+         *
+         * Users with an account in MEGA can freely join the room by themselves (the privilege
+         * upon join will be standard / read-write) by using \c MegaApi::chatLinkJoin.
+         *
+         * The creator of the chat will have moderator level privilege and should not be included in the
+         * list of peers.
+         *
+         * The associated request type with this request is MegaChatRequest::TYPE_CREATE_CHATROOM
+         * Valid data in the MegaChatRequest object received on callbacks:
+         * - MegaChatRequest::getFlag - Returns if the new chat is a group chat or permanent chat
+         * - MegaRequest::getAccess - Returns one (public mode)
+         * - MegaChatRequest::getMegaChatPeerList - List of participants and their privilege level
+         *
+         * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
+         * is MegaError::ERROR_OK:
+         * - MegaChatRequest::getChatHandle - Returns the handle of the new chatroom
+         *
+         * @param peers MegaChatPeerList including other users and their privilege level
+         * @param listener MegaChatRequestListener to track this request
+         */
+        void createOpenChat(MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -11149,12 +11196,16 @@ class MegaApi
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Create a chat link
+         * @brief Create or retrieve the public handle of a chat link
+         *
+         * This function can be called by a chat operator to create or retrieve the current
+         * public handle for the specified chat. It will create a management message.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK.
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getFlag - Returns false
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11169,12 +11220,15 @@ class MegaApi
         void chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Delete a chat link
+         * @brief Delete the public handle of a chat link
+         *
+         * This function can be called by a chat operator to remove the current public handle
+         * for the specified chat. It will create a management message.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK.
          *
          * Valid data in the MegaRequest object received on all callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the contact link
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getFlag - Returns true
          *
          * If caller is not operator or the chat is not an openchat or it's a 1on1 room, this request
@@ -11185,6 +11239,63 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the URL to connect to chatd for a chat link
+         *
+         * This function can be used by anonymous users to request the URL to connect to chatd, for
+         * a given public handle. @see \c MegaApi::chatLinkCreate
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_URL
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
+         *
+         * @param publichandle MegaHandle that represents the public handle of the chat link
+         * @param listener MegaRequestListener to track this request
+         */
+        void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Convert an openchat into a private closed mode chat
+         *
+         * This function allows a chat operator to convert an existing openchat into a private
+         * chat (closed mode, key rotation enabled). It will create a management message.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_CLOSE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * If caller is not operator or the chat is not an openchat or it's a 1on1 room, this request
+         * will return MegaError::API_EACCESS.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkClose(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allows to join to an openchat
+         *
+         * This function allows any user with a MEGA account to join an open chat that has the
+         * specified public handle. It will create a management message like any new user join.
+         *
+         * @see \c MegaApi::chatLinkCreate
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_JOIN
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
+         *
+         * @param publichandle MegaHandle that represents the public handle of the chat link
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkJoin(MegaHandle publichandle, MegaRequestListener *listener = NULL);
 #endif
 
         /**

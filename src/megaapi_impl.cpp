@@ -2970,6 +2970,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
         case TYPE_CHAT_LINK: return "CHAT_LINK";
+        case TYPE_CHAT_LINK_URL: return "CHAT_LINK_URL";
+        case TYPE_CHAT_LINK_CLOSE: return "CHAT_LINK_CLOSE";
+        case TYPE_CHAT_LINK_JOIN: return "CHAT_LINK_JOIN";
     }
     return "UNKNOWN";
 }
@@ -7383,10 +7386,11 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 #endif
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool openchat, MegaTextChatPeerList *peers, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
+    request->setAccess(openchat ? 1 : 0);
     request->setMegaTextChatPeerList(peers);
     requestQueue.push(request);
     waiter->notify();
@@ -7631,6 +7635,30 @@ void MegaApiImpl::chatLinkDelete(MegaHandle chatid, MegaRequestListener *listene
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK, listener);
     request->setNodeHandle(chatid);
     request->setFlag(true);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_URL, listener);
+    request->setNodeHandle(publichandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkClose(MegaHandle chatid, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_CLOSE, listener);
+    request->setNodeHandle(chatid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_JOIN, listener);
+    request->setNodeHandle(publichandle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9867,6 +9895,55 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     {
         request->setParentHandle(h);
     }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatlinkurl_result(string *link, error e)
+{
+    MegaError megaError(e);
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_LINK_URL)
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setLink(link->c_str());
+    }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatlinkclose_result(error e)
+{
+    MegaError megaError(e);
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_LINK_CLOSE)
+    {
+        return;
+    }
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatlinkjoin_result(error e)
+{
+    MegaError megaError(e);
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_LINK_JOIN)
+    {
+        return;
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -16764,6 +16841,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             bool group = request->getFlag();
+            bool openchat = (request->getAccess() == 1);
             const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
             if (!userpriv || (!group && chatPeers->size() > 1))
             {
@@ -16777,7 +16855,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, userpriv);
+            client->createChat(group, openchat, userpriv);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -16992,6 +17070,42 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             client->chatlink(chatid, del);
+            break;
+        }
+
+        case MegaRequest::TYPE_CHAT_LINK_URL:
+        {
+            MegaHandle publichandle = request->getNodeHandle();
+            if (publichandle == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->chatlinkurl(publichandle);
+            break;
+        }
+
+        case MegaRequest::TYPE_CHAT_LINK_CLOSE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->chatlinkclose(chatid);
+            break;
+        }
+
+        case MegaRequest::TYPE_CHAT_LINK_JOIN:
+        {
+            MegaHandle publichandle = request->getNodeHandle();
+            if (publichandle == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->chatlinkjoin(publichandle);
             break;
         }
 #endif
@@ -22081,6 +22195,14 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     if (chat->changed.attachments)
     {
         changed |= MegaTextChat::CHANGE_TYPE_ATTACHMENT;
+    }
+    if (chat->changed.flags)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_FLAGS;
+    }
+    if (chat->changed.mode)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_MODE;
     }
 }
 

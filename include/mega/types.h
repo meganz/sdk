@@ -456,8 +456,12 @@ struct TextChat : public Cachable
     handle ou;
     m_time_t ts;     // creation time
     attachments_map attachedNodes;
-    byte flags; // currently only used for "archive" flag at first bit
+    bool openchat;  // whether the chat is open/public or closed/private
 
+private:        // use setter to modify these members
+    byte flags;     // currently only used for "archive" flag at first bit
+
+public:
     int tag;    // source tag, to identify own changes
 
     TextChat();
@@ -474,6 +478,7 @@ struct TextChat : public Cachable
     {
         bool attachments : 1;
         bool flags : 1;
+        bool mode : 1;
     } changed;
 
     // return false if failed
@@ -481,6 +486,7 @@ struct TextChat : public Cachable
     bool setFlag(bool value, uint8_t offset = 0xFF);
     bool setFlags(byte newFlags);
     bool isFlagSet(uint8_t offset) const;
+    bool setMode(bool openchat);
 
 };
 typedef vector<TextChat*> textchat_vector;
