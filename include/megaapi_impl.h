@@ -2740,7 +2740,6 @@ protected:
 
     MegaNode *getBaseFolderNode(std::string path);
     MegaNode *getNodeByFullFtpPath(std::string path);
-    std::string shortenpath(std::string path);
     void getPermissionsString(int permissions, char *permsString);
 
 
@@ -2768,6 +2767,9 @@ public:
     static void returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
     static void returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
     MegaNode * getNodeByFtpPath(MegaFTPContext* ftpctx, std::string path);
+    std::string cdup(handle parentHandle, MegaFTPContext* ftpctx);
+    std::string cd(string newpath, MegaFTPContext* ftpctx);
+    std::string shortenpath(std::string path);
 };
 
 class MegaFTPDataContext;
