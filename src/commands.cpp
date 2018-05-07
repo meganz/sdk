@@ -3830,7 +3830,7 @@ void CommandSendSignupLink::procresult()
     client->app->sendsignuplink_result(API_EINTERNAL);
 }
 
-CommandSendSignupLinkV2::CommandSendSignupLinkV2(MegaClient* client, const char* email, const char* name, byte *clientkey, byte *enck, byte *uh)
+CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientkey, byte *enck, byte *uh)
 {
     cmd("uc2");
     arg("n", (byte*)name, strlen(name));
@@ -3843,7 +3843,7 @@ CommandSendSignupLinkV2::CommandSendSignupLinkV2(MegaClient* client, const char*
     tag = client->reqtag;
 }
 
-void CommandSendSignupLinkV2::procresult()
+void CommandSendSignupLink2::procresult()
 {
     if (client->json.isnumeric())
     {
@@ -3902,7 +3902,7 @@ void CommandQuerySignupLink::procresult()
     client->app->querysignuplink_result(API_EINTERNAL);
 }
 
-CommandConfirmSignupLinkV2::CommandConfirmSignupLinkV2(MegaClient* client,
+CommandConfirmSignupLink2::CommandConfirmSignupLink2(MegaClient* client,
                                                    const byte* code,
                                                    unsigned len)
 {
@@ -3912,7 +3912,7 @@ CommandConfirmSignupLinkV2::CommandConfirmSignupLinkV2(MegaClient* client,
     tag = client->reqtag;
 }
 
-void CommandConfirmSignupLinkV2::procresult()
+void CommandConfirmSignupLink2::procresult()
 {
     string name;
     string email;

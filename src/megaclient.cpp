@@ -7043,7 +7043,7 @@ void MegaClient::login(const char* email, const byte* pwkey)
 }
 
 // create new session (v2)
-void MegaClient::loginv2(const char *email, const char *password, string *salt)
+void MegaClient::login2(const char *email, const char *password, string *salt)
 {
     string bsalt;
     Base64::atob(*salt, bsalt);
@@ -9296,7 +9296,7 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
     reqs.add(new CommandSendSignupLink(this, email, name, c));
 }
 
-void MegaClient::sendsignuplinkv2(const char *email, const char *password, const char* name)
+void MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
     byte clientkey[SymmCipher::KEYLENGTH];
     PrnGen::genblock(clientkey, sizeof(clientkey));
@@ -9325,7 +9325,7 @@ void MegaClient::sendsignuplinkv2(const char *email, const char *password, const
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
-    reqs.add(new CommandSendSignupLinkV2(this, email, name, clientkey, encmasterkey, (byte*)hashedauthkey.data()));
+    reqs.add(new CommandSendSignupLink2(this, email, name, clientkey, encmasterkey, (byte*)hashedauthkey.data()));
 }
 
 // if query is 0, actually confirm account; just decode/query signup link
@@ -9340,9 +9340,9 @@ void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emai
     reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
 }
 
-void MegaClient::confirmsignuplinkv2(const byte *code, unsigned len)
+void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
 {
-    reqs.add(new CommandConfirmSignupLinkV2(this, code, len));
+    reqs.add(new CommandConfirmSignupLink2(this, code, len));
 }
 
 // generate and configure encrypted private key, plaintext public key

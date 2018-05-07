@@ -229,12 +229,12 @@ public:
     // full account confirmation/creation support
     void sendsignuplink(const char*, const char*, const byte*);
 
-    void sendsignuplinkv2(const char* email, const char *password, const char* name);
+    void sendsignuplink2(const char* email, const char *password, const char* name);
 
 
     void querysignuplink(const byte*, unsigned);
     void confirmsignuplink(const byte*, unsigned, uint64_t);
-    void confirmsignuplinkv2(const byte*, unsigned);
+    void confirmsignuplink2(const byte*, unsigned);
     void setkeypair();
 
     // prelogin: e-mail
@@ -244,7 +244,7 @@ public:
     void login(const char*, const byte*);
 
     // user login: e-mail, password, salt
-    void loginv2(const char*, const char*, string *);
+    void login2(const char*, const char*, string *);
 
     // user login: e-mail, pwkey, emailhash
     void fastlogin(const char*, const byte*, uint64_t);

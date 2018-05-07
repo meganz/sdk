@@ -178,12 +178,12 @@ public:
     CommandSendSignupLink(MegaClient*, const char*, const char*, byte*);
 };
 
-class MEGA_API CommandSendSignupLinkV2 : public Command
+class MEGA_API CommandSendSignupLink2 : public Command
 {
 public:
     void procresult();
 
-    CommandSendSignupLinkV2(MegaClient*, const char*, const char*, byte *, byte*, byte*);
+    CommandSendSignupLink2(MegaClient*, const char*, const char*, byte *, byte*, byte*);
 };
 
 class MEGA_API CommandQuerySignupLink : public Command
@@ -196,12 +196,12 @@ public:
     CommandQuerySignupLink(MegaClient*, const byte*, unsigned);
 };
 
-class MEGA_API CommandConfirmSignupLinkV2 : public Command
+class MEGA_API CommandConfirmSignupLink2 : public Command
 {
 public:
     void procresult();
 
-    CommandConfirmSignupLinkV2(MegaClient*, const byte*, unsigned);
+    CommandConfirmSignupLink2(MegaClient*, const byte*, unsigned);
 };
 
 class MEGA_API CommandConfirmSignupLink : public Command

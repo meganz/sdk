@@ -10342,7 +10342,7 @@ void MegaApiImpl::fetchnodes_result(error e)
             byte pwkey[SymmCipher::KEYLENGTH];
             if (!request->getPrivateKey())
             {
-                client->sendsignuplinkv2(request->getEmail(), request->getPassword(), request->getName());
+                client->sendsignuplink2(request->getEmail(), request->getPassword(), request->getName());
             }
             else
             {
@@ -11063,7 +11063,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         const char *password = request->getPassword();
         if (password)
         {
-            client->loginv2(email->c_str(), password, salt);
+            client->login2(email->c_str(), password, salt);
         }
         else
         {
@@ -15846,7 +15846,7 @@ void MegaApiImpl::sendPendingRequests()
             byte pwkey[SymmCipher::KEYLENGTH];
             if (password)
             {
-                client->sendsignuplinkv2(email, name, password);
+                client->sendsignuplink2(email, name, password);
             }
             else    // pwcipher provided
             {
@@ -15956,7 +15956,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
                 {
-                    client->confirmsignuplinkv2(c, len);
+                    client->confirmsignuplink2(c, len);
                 }
                 else if (!password && !pwkey)
                 {
