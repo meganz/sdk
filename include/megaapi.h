@@ -5089,6 +5089,9 @@ class MegaApi
          *
          * @param password Access password
          * @return Base64-encoded private key
+         *
+         * @deprecated The registration and login procedure will be changed soon. When that happens, this function will stop being
+         * compatible and will be deleted, so please stop using it as soon as possible.
          */
         char* getBase64PwKey(const char *password);
 

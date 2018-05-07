@@ -10338,14 +10338,23 @@ void MegaApiImpl::fetchnodes_result(error e)
             }
 
             byte pwkey[SymmCipher::KEYLENGTH];
-            if(!request->getPrivateKey())
-                client->pw_key(request->getPassword(),pwkey);
+            if (!request->getPrivateKey())
+            {
+                client->pw_key(request->getPassword(), pwkey);
+
+                char* buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
+                Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
+                request->setPrivateKey(buf);
+                delete [] buf;
+            }
             else
+            {
                 Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
+            }
 
             // ...and finally send confirmation link
             client->reqtag = client->restag;
-            client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
+            client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
             client->reqtag = creqtag;
         }
     }
