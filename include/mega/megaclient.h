@@ -194,6 +194,9 @@ public:
     // encrypted master key
     string k;
 
+    // version of the account
+    int accountversion;
+
     // timestamp of the creation of the account
     time_t accountsince;
 
@@ -300,7 +303,7 @@ public:
     error encryptlink(const char* link, const char* pwd, string *encryptedLink);
 
     // change login password
-    error changepw(const byte*);
+    error changepw(const char *password);
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);

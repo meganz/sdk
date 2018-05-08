@@ -1440,6 +1440,7 @@ void CommandPrelogin::procresult()
                     LOG_err << "No salt returned";
                     return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
                 }
+                client->accountversion = v;
                 client->app->prelogin_result(v, &email, &salt, API_OK);
                 return;
             default:
@@ -3684,13 +3685,17 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientkey)
 {
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
     cmd("up");
     arg("k", newkey, SymmCipher::KEYLENGTH);
-    arg("uh", (byte*)&hash, sizeof hash);
+    if (clientkey)
+    {
+        arg("crv", clientkey, SymmCipher::KEYLENGTH);
+    }
+    arg("uh", hash, hashsize);
 
     tag = client->reqtag;
 }

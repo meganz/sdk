@@ -15134,17 +15134,13 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-			byte newpwkey[SymmCipher::KEYLENGTH];
             if (oldPassword && !checkPassword(oldPassword))
             {
                 e = API_EARGS;
                 break;
             }
-            if ((e = client->pw_key(newPassword, newpwkey)))
-            {
-                break;
-            }
-            e = client->changepw(newpwkey);
+
+            e = client->changepw(newPassword);
 			break;
 		}
 		case MegaRequest::TYPE_LOGOUT:

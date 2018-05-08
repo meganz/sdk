@@ -840,6 +840,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tsLogin = false;
     versions_disabled = false;
     accountsince = 0;
+    accountversion = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3273,6 +3274,7 @@ void MegaClient::locallogout()
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
+    accountversion = 0;
     sid.clear();
     k.clear();
 
@@ -9241,7 +9243,7 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-error MegaClient::changepw(const byte* newpwkey)
+error MegaClient::changepw(const char* password)
 {
     User* u;
 
@@ -9250,15 +9252,60 @@ error MegaClient::changepw(const byte* newpwkey)
         return API_EACCESS;
     }
 
-    byte newkey[SymmCipher::KEYLENGTH];
-    SymmCipher pwcipher;
-    memcpy(newkey, key.key,  sizeof newkey);
-    pwcipher.setkey(newpwkey);
-    pwcipher.ecb_encrypt(newkey);
+    if (accountversion == 1)
+    {
+        error e;
+        byte newpwkey[SymmCipher::KEYLENGTH];
+        if ((e = pw_key(password, newpwkey)))
+        {
+            return e;
+        }
 
-    string email = u->email;
-    reqs.add(new CommandSetMasterKey(this, newkey, stringhash64(&email, &pwcipher)));
-    return API_OK;
+        byte newkey[SymmCipher::KEYLENGTH];
+        SymmCipher pwcipher;
+        memcpy(newkey, key.key,  sizeof newkey);
+        pwcipher.setkey(newpwkey);
+        pwcipher.ecb_encrypt(newkey);
+
+        string email = u->email;
+        uint64_t stringhash = stringhash64(&email, &pwcipher);
+        reqs.add(new CommandSetMasterKey(this, newkey, (const byte *)&stringhash, sizeof(stringhash)));
+        return API_OK;
+    }
+
+    if (accountversion == 2)
+    {
+        byte clientkey[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(clientkey, sizeof(clientkey));
+
+        string salt;
+        HashSHA256 hasher;
+        string buffer = "mega.nz";
+        buffer.resize(100, 'P');
+        buffer.append((char *)clientkey, sizeof(clientkey));
+        hasher.add((const byte*)buffer.data(), buffer.size());
+        hasher.get(&salt);
+
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                         (const byte *)salt.data(), salt.size(), 100000);
+
+        byte encmasterkey[SymmCipher::KEYLENGTH];
+        SymmCipher cipher;
+        cipher.setkey(derivedKey);
+        cipher.ecb_encrypt(key.key, encmasterkey);
+
+        string hashedauthkey;
+        byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+        hasher.add(authkey, SymmCipher::KEYLENGTH);
+        hasher.get(&hashedauthkey);
+        hashedauthkey.resize(SymmCipher::KEYLENGTH);
+        reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey));
+        return API_OK;
+    }
+
+    return API_EINTERNAL;
 }
 
 // create ephemeral session
