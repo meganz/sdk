@@ -2763,7 +2763,7 @@ public:
     MegaFTPServer(MegaApiImpl *megaApi, string basePath, int dataportBegin, int dataPortEnd, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaFTPServer();
 
-    static std::string getFTPErrorString(int errorcode);
+    static std::string getFTPErrorString(int errorcode, std::string argument = string());
 
     static void returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e, bool synchronous = true);
     static void returnFtpCode(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string(), bool synchronous = true);

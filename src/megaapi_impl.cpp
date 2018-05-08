@@ -7012,6 +7012,12 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     }
     #endif
 
+    if (useTLS && (!certificatepath || !keypath || !strlen(certificatepath) || !strlen(keypath)))
+    {
+        LOG_err << "Could not start HTTP server: No certificate/key provided";
+        return false;
+    }
+
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
     {
@@ -19596,12 +19602,12 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
         uv_write_t *req = new uv_write_t();
         tcpctx->writePointers.push_back((char*)bfr);
         req->data = tcpctx;
-        LOG_debug << "Sending " << sz << " bytes of TLS data on port = " << tcpctx->server->port;
+        LOG_verbose << "Sending " << sz << " bytes of TLS data on port = " << tcpctx->server->port;
         if (int err = uv_write(req, (uv_stream_t*)&tcpctx->tcphandle, &b, 1, onWriteFinished_tls_async))
         {
             LOG_warn << "At uv_tls_writer: Finishing due to an error sending the response: " << err;
             tcpctx->writePointers.pop_back();
-            delete [] bfr;
+            delete [] (char*)bfr;
             delete req;
 
             closeTCPConnection(tcpctx);
@@ -19610,7 +19616,7 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
     }
     else
     {
-        delete [] bfr;
+        delete [] (char*)bfr;
         LOG_debug << " uv_is_writable returned false";
     }
 
@@ -19627,7 +19633,7 @@ void MegaTCPServer::run()
     {
         uvstartedbyother = true;
 
-        LOG_debug << " Delegating initialization to existing uv thread, port=" << port << " TLS=" << useTLS << " handle=" << &asynchandleoflibuvinitializer;
+        LOG_debug << " Delegating initialization to existing uv thread, port = " << port << " TLS=" << useTLS << " handle=" << &asynchandleoflibuvinitializer;
 
         asynchandleoflibuvinitializer.data = this;
         uv_async_send(&asynchandleoflibuvinitializer);
@@ -19816,14 +19822,14 @@ void MegaTCPServer::stop(bool doNotWait)
         return;
     }
 
-    LOG_debug << "Stopping MegaTCPServer port=" << port;
+    LOG_debug << "Stopping MegaTCPServer port = " << port;
     uv_async_send(&exit_handle);
     if (!doNotWait)
     {
-        LOG_verbose << "Waiting for sempahoreEnd to conclude server stop port=" << port;
+        LOG_verbose << "Waiting for sempahoreEnd to conclude server stop port = " << port;
         uv_sem_wait(&semaphoreEnd); //this is signaled when closed my last connection
     }
-    LOG_debug << "Stopped MegaTCPServer port=" << port;
+    LOG_debug << "Stopped MegaTCPServer port = " << port;
     started = false;
 }
 
@@ -20152,6 +20158,7 @@ void MegaTCPServer::onAsyncEventClose(uv_handle_t *handle)
     tcpctx->server->remainingcloseevents--;
     tcpctx->server->processOnAsyncEventClose(tcpctx);
 
+    LOG_verbose << "At onAsyncEventClose port = " << tcpctx->server->port << " remaining=" << tcpctx->server->remainingcloseevents;
 
     if (!tcpctx->server->remainingcloseevents && tcpctx->server->closing)
     {
@@ -20165,7 +20172,6 @@ void MegaTCPServer::onAsyncEventClose(uv_handle_t *handle)
 }
 
 #ifdef ENABLE_EVT_TLS
-//TODO: ideally this should  be on HTTPServer, and have the connection close code called using a function like: closeTCPConnection (different if useTLS or not)
 void MegaTCPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
 {
     MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
@@ -20214,8 +20220,7 @@ void MegaTCPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
         return;
     }
 
-    LOG_debug << "Async TLS write finished";
-//    uv_async_send(&tcpctx->asynchandle); //TODO: consecuences on commenting this? review HTTP streaming!
+    LOG_verbose << "Async TLS write finished";
 }
 #endif
 
@@ -20276,6 +20281,7 @@ void MegaTCPServer::onExitHandleClose(uv_handle_t *handle)
     assert(tcpServer != NULL);
 
     tcpServer->remainingcloseevents--;
+    LOG_verbose << "At onExitHandleClose port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
     tcpServer->processOnExitHandleClose(tcpServer);
 
     if (!tcpServer->remainingcloseevents)
@@ -20299,8 +20305,10 @@ void MegaTCPServer::onCloseRequested(uv_async_t *handle)
     }
 
     tcpServer->remainingcloseevents++;
-    uv_close((uv_handle_t *)&tcpServer->server, onExitHandleClose); //TODO: use another cb?
+    LOG_verbose << "At onCloseRequested: closing server port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
+    uv_close((uv_handle_t *)&tcpServer->server, onExitHandleClose);
     tcpServer->remainingcloseevents++;
+    LOG_verbose << "At onCloseRequested: closing exit_handle port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
     uv_close((uv_handle_t *)&tcpServer->exit_handle, onExitHandleClose);
 }
 
@@ -20322,7 +20330,7 @@ void MegaTCPServer::onInitializeRequest(uv_async_t *handle)
 
 void MegaTCPServer::closeConnection(MegaTCPContext *tcpctx)
 {
-    LOG_debug << "At closeConnection port=" << tcpctx->server->port;
+    LOG_verbose << "At closeConnection port = " << tcpctx->server->port;
 #ifdef ENABLE_EVT_TLS
     if (tcpctx->server->useTLS)
     {
@@ -20344,7 +20352,7 @@ void MegaTCPServer::closeTCPConnection(MegaTCPContext *tcpctx)
     if (!uv_is_closing((uv_handle_t*)&tcpctx->tcphandle))
     {
         tcpctx->server->remainingcloseevents++;
-        LOG_verbose << " At closeTCPConnection port=" << tcpctx->server->port << " remainingcloseevent = " << tcpctx->server->remainingcloseevents;
+        LOG_verbose << "At closeTCPConnection port = " << tcpctx->server->port << " remainingcloseevent = " << tcpctx->server->remainingcloseevents;
         uv_close((uv_handle_t*)&tcpctx->tcphandle, onClose);
     }
 }
@@ -22582,7 +22590,6 @@ MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
 void MegaFTPServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 {
     LOG_debug << " at processWriteFinished on FTP Server. status=" << status;
-    //TODO: deal with this
 }
 
 string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
@@ -22591,7 +22598,6 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
     memset(perms,0,10);
     //str_perm((statbuf.st_mode & ALLPERMS), perms);
     getPermissionsString(child->isFolder() ? 777 : 664, perms);
-
 
     //TODO: cross-platform this code
     char timebuff[80];
@@ -22615,7 +22621,7 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
 }
 
 
-string MegaFTPServer::getFTPErrorString(int errorcode)
+string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
 {
     switch (errorcode)
     {
@@ -22628,7 +22634,7 @@ string MegaFTPServer::getFTPErrorString(int errorcode)
         //         server's equivalent marker (note the spaces between markers
         //         and "=").
     case 120:
-        return "Service ready in nnn minutes."; //TODO: arg required
+        return "Service ready in " + argument + " minutes.";
     case 125:
         return "Data connection already open; transfer starting.";
     case 150:
@@ -22668,7 +22674,7 @@ string MegaFTPServer::getFTPErrorString(int errorcode)
     case 250:
         return "Requested file action okay, completed.";
     case 257:
-        return "path created.";
+        return argument + " created.";
     case 331:
         return "User name okay, need password.";
     case 332:
@@ -22873,6 +22879,11 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
         string handle = ftpctx->megaApi->handleToBase64(ftpctx->cwd);
         path="/"+handle+"/"+path;
     }
+    else if (path.size() && path.at(0) != '/')
+    {
+        path = ftpctx->cwdpath+"/"+path;
+        path = shortenpath(path);
+    }
 
     if (path.find("..") == 0)
     {
@@ -22919,14 +22930,14 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
 
         return getNodeByFullFtpPath(path);
     }
-    else //relative path
+    else //it should only enter here if path == ""
     {
         MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
         if (!n)
         {
             return NULL;
         }
-        MegaNode *toret = ftpctx->megaApi->getNodeByPath(path.c_str(), n); //TODO: if this allows "..", could be insecure
+        MegaNode *toret = ftpctx->megaApi->getNodeByPath(path.c_str(), n);
         delete n;
         return toret;
     }
@@ -22934,6 +22945,12 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
 
 std::string MegaFTPServer::shortenpath(std::string path)
 {
+    string orig = path;
+
+    while ( (path.size()>1) && path.at(path.size()-1) == '/') // remove trailing /
+    {
+        path = path.substr(0,path.size()-1);
+    }
     list<string> parts;
     size_t seppos = path.find("/");
     while (seppos != string::npos && path.size() > (seppos +1) )
@@ -22971,12 +22988,20 @@ std::string MegaFTPServer::shortenpath(std::string path)
 
 
     string toret;
-    while (parts.size())
+    if (!parts.size() && orig.size() && orig.at(0) == '/')
     {
-        toret.append("/");
-        toret.append(parts.front());
-        parts.pop_front();
+        toret = "/";
     }
+    else
+    {
+        while (parts.size())
+        {
+            toret.append("/");
+            toret.append(parts.front());
+            parts.pop_front();
+        }
+    }
+
 
     return toret;
 }
@@ -23078,7 +23103,7 @@ std::string MegaFTPServer::cd(string newpath, MegaFTPContext* ftpctx)
     string handlepath = "/";
     string shandle = megaApi->handleToBase64(newcwd->getHandle());
     handlepath.append(shandle);
-    if (newpath == handlepath || newpath == shandle || newpath == (handlepath +"/") )
+    if (ftpctx->cwdpath == handlepath || ftpctx->cwdpath == shandle || ftpctx->cwdpath == (handlepath +"/") )
     {
         ftpctx->cwdpath = handlepath;
         ftpctx->athandle = true;
@@ -23114,7 +23139,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         return;
     }
 
-    uv_mutex_lock(&tcpctx->mutex); //TODO: figure how to reduce the scope of this lock
+    uv_mutex_lock(&tcpctx->mutex);
 
     if (nread >= 0)
     {
@@ -23124,7 +23149,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         const char *separators = " ";
 
 //#ifdef _WIN32
-        const char *crlf = "\r\n";
+        const char *crlf = "\r\n"; //Apparently this works for most common clients
 //#elif defined(__MACH__)
 //        const char *crlf = "\r";
 //#else
@@ -23133,10 +23158,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 
         petition = string(buf->base, nread);
 
-        LOG_verbose << "Received: " << petition << " tcpctx = " << tcpctx; //TODO: delete
+        LOG_verbose << "FTP Server received: " << petition << " at port = " << port;
 
         size_t psep = petition.find_first_of(separators);
-        size_t psepend = petition.find(crlf); //CLRF //TODO: windows? unix?
+        size_t psepend = petition.find(crlf);
 
         if (psepend != petition.size()-strlen(crlf))
         {
@@ -23532,7 +23557,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             transform(ftpctx->arg2.begin(), ftpctx->arg2.end(), ftpctx->arg2.begin(), ::toupper);
             if (ftpctx->arg1 == "UTF8" && ftpctx->arg2 == "ON")
             {
-                response = "200 All good"; //TODO: only if utf8 on?
+                response = "200 All good";
             }
             else
             {
@@ -24219,7 +24244,7 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
     {
         if (e->getErrorCode() == MegaError::API_OK)
         {
-            MegaFTPServer::returnFtpCodeAsync(this, 257, request->getName() + string(" created"));
+            MegaFTPServer::returnFtpCodeAsync(this, 257, request->getName());
         }
         else
         {
