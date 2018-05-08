@@ -3945,6 +3945,14 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
 MegaApiImpl::~MegaApiImpl()
 {
+#ifdef HAVE_LIBUV
+    if (MegaTCPServer::uvloopinitiated)
+    {
+        MegaTCPServer::asynchandleoflibuvinitializer.data = NULL;
+        uv_async_send(&MegaTCPServer::asynchandleoflibuvinitializer);
+    }
+#endif
+
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DELETE);
     requestQueue.push(request);
     waiter->notify();
@@ -3970,6 +3978,17 @@ MegaApiImpl::~MegaApiImpl()
 #endif
 
     fireOnRequestFinish(request, MegaError(API_OK));
+
+#ifdef HAVE_LIBUV
+    if (MegaTCPServer::uvthread)
+    {
+        MegaTCPServer::uvthread->join();
+        delete MegaTCPServer::uvthread;
+        MegaTCPServer::uvthread = NULL;
+    }
+#endif
+
+
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -19467,6 +19486,7 @@ http_parser_settings MegaTCPServer::parsercfg;
 uv_mutex_t MegaTCPServer::mutexinitializeuvloop;
 uv_async_s MegaTCPServer::asynchandleoflibuvinitializer;
 bool MegaTCPServer::uvloopinitiated = false;
+MegaThread *MegaTCPServer::uvthread = NULL;
 
 MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
 {
@@ -19481,6 +19501,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
     this->lastHandle = INVALID_HANDLE;
     this->remainingcloseevents = 0;
     this->closing = false;
+    this->thread = new MegaThread();
 #ifdef ENABLE_EVT_TLS
     this->useTLS = useTLS;
     this->certificatepath = certificatepath;
@@ -19522,7 +19543,11 @@ MegaTCPServer::~MegaTCPServer()
     stop();
     uv_sem_destroy(&semaphoreStartup);
     delete fsAccess;
-    LOG_verbose << " at ~MegaTCPServer port=" << port;
+    if (uvstartedbyother)
+    {
+        thread->join();
+        delete thread;
+    }
 }
 
 bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
@@ -19547,7 +19572,7 @@ bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
     else
     {
         uv_sem_init(&semaphoreStartup, 0);
-        thread.start(threadEntryPoint, this);
+        thread->start(threadEntryPoint, this);
         uv_sem_wait(&semaphoreStartup);
         uv_sem_destroy(&semaphoreStartup);
     }
@@ -19691,6 +19716,7 @@ void MegaTCPServer::run()
 
         uv_async_init(uv_loop, &asynchandleoflibuvinitializer, onInitializeRequest);
         uvloopinitiated = true;
+        uvthread = thread;
         uv_mutex_unlock(&mutexinitializeuvloop);
         uv_run(uv_loop, UV_RUN_DEFAULT);
         uvloopinitiated = false;
@@ -20281,9 +20307,17 @@ void MegaTCPServer::onCloseRequested(uv_async_t *handle)
 void MegaTCPServer::onInitializeRequest(uv_async_t *handle)
 {
     MegaTCPServer *tcpServer = (MegaTCPServer*) handle->data;
-    LOG_debug << " at onInitializeRequest for port = " << tcpServer->port;
-    tcpServer->initializeAndStartListenig();
-    handle->data = NULL;
+    if (!tcpServer) //close requested
+    {
+        LOG_verbose << "Closing libuv initializer async handle";
+        uv_close((uv_handle_t *)handle, NULL);
+    }
+    else
+    {
+        LOG_debug << " at onInitializeRequest for port = " << tcpServer->port;
+        tcpServer->initializeAndStartListenig();
+        handle->data = NULL;
+    }
 }
 
 void MegaTCPServer::closeConnection(MegaTCPContext *tcpctx)
@@ -20468,9 +20502,11 @@ void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     {
         httpctx->megaApi->cancelTransfer(httpctx->transfer);
         httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
+        httpctx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
     }
 
     delete httpctx->node;
+    httpctx->node = NULL;
 }
 
 bool MegaHTTPServer::respondNewConnection(MegaTCPContext* tcpctx)
@@ -21990,7 +22026,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             delete baseNode;
             return 0;
         }
-
+        delete httpctx->node;
         httpctx->node = node;
         streamNode(httpctx);
     }
@@ -22306,6 +22342,8 @@ MegaHTTPContext::MegaHTTPContext()
 
 MegaHTTPContext::~MegaHTTPContext()
 {
+    delete transfer;
+    delete node;
     uv_mutex_destroy(&mutex_responses);
 }
 

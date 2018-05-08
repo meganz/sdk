@@ -2420,8 +2420,6 @@ protected:
     static http_parser_settings parsercfg;
 
     static uv_mutex_t mutexinitializeuvloop;
-    static bool uvloopinitiated;
-    static uv_async_s asynchandleoflibuvinitializer;
 
     set<handle> allowedHandles;
     handle lastHandle;
@@ -2430,7 +2428,7 @@ protected:
     MegaApiImpl *megaApi;
     uv_sem_t semaphoreStartup;
     uv_sem_t semaphoreEnd;
-    MegaThread thread;
+    MegaThread *thread;
     uv_tcp_t server;
     int maxBufferSize;
     int maxOutputSize;
@@ -2500,6 +2498,9 @@ protected:
 public:
     bool useTLS;
     MegaFileSystemAccess *fsAccess;
+    static bool uvloopinitiated;
+    static uv_async_s asynchandleoflibuvinitializer;
+    static MegaThread *uvthread;
 
     std::string basePath;
     bool uvstartedbyother;
