@@ -1117,6 +1117,7 @@ public:
     virtual const char *getTitle() const;
     virtual int64_t getCreationTime() const;
     virtual bool isArchived() const;
+    virtual bool isOpenChat() const;
 
     virtual bool hasChanged(int changeType) const;
     virtual int getChanges() const;
@@ -1134,6 +1135,7 @@ private:
     int changed;
     int tag;
     bool archived;
+    bool openchat;
     int64_t ts;
 };
 

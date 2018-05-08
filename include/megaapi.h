@@ -1647,6 +1647,12 @@ public:
      * @return True if this chat is archived.
      */
     virtual bool isArchived() const;
+
+    /**
+     * @brief Returns whether this chat is open/public or closed/private
+     * @return True if this chat is open/public
+     */
+    virtual bool isOpenChat() const;
 };
 
 /**

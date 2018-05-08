@@ -4707,6 +4707,11 @@ bool MegaTextChat::isArchived() const
     return false;
 }
 
+bool MegaTextChat::isOpenChat() const
+{
+    return false;
+}
+
 MegaTextChatList::~MegaTextChatList()
 {
 
