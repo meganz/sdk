@@ -3624,9 +3624,9 @@ static void process_line(char* l)
                             userpriv_vector *userpriv = new userpriv_vector;
 
                             unsigned numUsers = 0;
-                            while ((numUsers+1)*2 + 2 <= wordscount)
+                            while ((numUsers+1)*2 + 3 <= wordscount)
                             {
-                                string email = words[numUsers*2 + 2];
+                                string email = words[numUsers*2 + 3];
                                 User *u = client->finduser(email.c_str(), 0);
                                 if (!u)
                                 {
@@ -3635,7 +3635,7 @@ static void process_line(char* l)
                                     return;
                                 }
 
-                                string privstr = words[numUsers*2 + 2 + 1];
+                                string privstr = words[numUsers*2 + 3 + 1];
                                 privilege_t priv;
                                 if (!group) // 1:1 chats enforce peer to be moderator
                                 {
