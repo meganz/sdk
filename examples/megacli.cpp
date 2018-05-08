@@ -2150,9 +2150,10 @@ static void process_line(char* l)
                 cout << "      chatra chatid nodehandle uid" << endl;
                 cout << "      chatst chatid title64" << endl;
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
-                cout << "      chatl chatid [del]" << endl;
-                cout << "      chatsm chatid" << endl;      // set private mode
-                cout << "      chatlu publichandle" << endl;
+                cout << "      chatl chatid [del]" << endl;     // get public handle
+                cout << "      chatsm chatid" << endl;          // set private mode
+                cout << "      chatlu publichandle" << endl;    // get chat-link URL
+                cout << "      chatlj publichandle" << endl;    // join chat-link
 #endif
                 cout << "      quit" << endl;
 
@@ -4347,6 +4348,23 @@ static void process_line(char* l)
                         {
                             cout << "Invalid syntax to set private/close mode" << endl;
                             cout << "       chatsm chatid" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatlj")
+                    {
+                        if (words.size() == 2)
+                        {
+                            handle publichandle;
+                            Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
+
+                            client->chatlinkjoin(publichandle);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to join an openchat" << endl;
+                            cout << "      chatlj publichandle" << endl;
                             return;
                         }
                     }
