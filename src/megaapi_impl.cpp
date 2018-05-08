@@ -7422,8 +7422,8 @@ bool MegaApiImpl::ftpServerStart(bool localOnly, int port, int dataportBegin, in
     ftpServer = new MegaFTPServer(this, basePath, dataportBegin, dataPortEnd, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
     ftpServer->setRestrictedMode(MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS);
     ftpServer->setRestrictedMode(ftpServerRestrictedMode);
-//    ftpServer->setMaxBufferSize(ftpServerMaxBufferSize); //TODO: review these 2
-//    ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
+    ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
+    ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
 
     sdkMutex.unlock();
     bool result = ftpServer->start(port, localOnly);
@@ -21571,7 +21571,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         std::ostringstream web;
 
-        // let's create a minimum lock compliant response //TODO: do actually provide locking functionality based on URL
+        // let's create a minimum lock compliant response. we should actually provide locking functionality based on URL
         web << "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\r\n"
           "<D:prop xmlns:D=\"DAV:\">\r\n"
             "<D:lockdiscovery>\r\n"
@@ -21580,7 +21580,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 "<D:lockscope><D:exclusive/></D:lockscope>\r\n"
 //                "<D:depth>infinity</D:depth>\r\n" // read from req?
                 "<D:owner>\r\n"
-//                  "<D:href>" << owner << "</D:href>\r\n" //TODO: should be read from req body
+//                  "<D:href>" << owner << "</D:href>\r\n" // should be read from req body
                 "</D:owner>\r\n"
 //                "<D:timeout>Second-604800</D:timeout>\r\n"
                 "<D:locktoken>\r\n"
@@ -21588,7 +21588,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                "<D:href>urn:uuid:this-is-a-fake-lock</D:href>\r\n" //An unique identifier is required
                 "</D:locktoken>\r\n"
                 "<D:lockroot>\r\n"
-//                  "<D:href>" << urlelement << "</D:href>\r\n"  //TODO: should be read from req body
+//                  "<D:href>" << urlelement << "</D:href>\r\n"  // should be read from req body
                 "</D:lockroot>\r\n"
               "</D:activelock>\r\n"
             "</D:lockdiscovery>\r\n"
@@ -23757,8 +23757,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 //        case FTP_CMD_STOU: //do create random unique name
         case FTP_CMD_STOR:
         {
-            //TODO: deal with foreign node / public link and so on ?
-
+            //We might want to deal with foreign node / public link and so on ?
             if (!ftpctx->ftpDataServer)
             {
                 response = "425 No Data Connection available";
@@ -24008,12 +24007,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             response.append(crlfout);
 //            response.append(" OPTS"); // This is actually compulsory when FEAT exists (no need to return it)
 //            response.append(crlfout);
-            response.append(" UTF8 ON"); // This is actually compulsory when FEAT exists (no need to return it)
+            response.append(" UTF8 ON");
             response.append(crlfout);
             response.append("211 End");
             break;
         }
-        case FTP_CMD_SIZE: //TODO: this has to be exact, and depends ond STRU, MODE & TYPE!!
+        case FTP_CMD_SIZE: //This has to be exact, and depends ond STRU, MODE & TYPE!! (since assumed TYPE I, it's ok)
         {
             MegaNode *nodeToGetSize = getNodeByFtpPath(ftpctx, ftpctx->arg1);
 
