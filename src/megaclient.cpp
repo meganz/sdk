@@ -7068,6 +7068,8 @@ void MegaClient::login2(const char *email, const byte *derivedKey)
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek));
+    getuserdata();
+
     delete [] authString;
 }
 
