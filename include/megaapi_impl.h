@@ -1924,7 +1924,6 @@ class MegaApiImpl : public MegaApp
         void fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
         void fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
 
-
 #endif
 
 #ifdef ENABLE_CHAT
@@ -2730,6 +2729,7 @@ protected:
         FTP_CMD_PROT,
         //        FTP_CMD_MDTM, //TODO: add this one
         FTP_CMD_EPSV, //rfc2428
+        FTP_CMD_PBSZ, //rfc2228
         FTP_CMD_OPTS, //rfc2389
         FTP_CMD_NOOP
     };
@@ -2824,6 +2824,7 @@ public:
     char *lastBuffer;
     int lastBufferLen;
     bool failed;
+    int ecode;
     bool pause;
     MegaNode *node;
 

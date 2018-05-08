@@ -7677,7 +7677,6 @@ void MegaApiImpl::ftpServerRemoveListener(MegaTransferListener *listener)
     sdkMutex.unlock();
 }
 
-//TODO: figure where to use these
 void MegaApiImpl::fireOnFtpStreamingStart(MegaTransferPrivate *transfer)
 {
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
@@ -19981,8 +19980,8 @@ void MegaTCPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
 
 void MegaTCPServer::on_hd_complete( evt_tls_t *evt_tls, int status)
 {
-    LOG_debug << "TLS handshake finished. Status: " << status;
     MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
+    LOG_debug << "TLS handshake finished in port = " << tcpctx->server->port << ". Status: " << status;
 
     if (status)
     {
@@ -20182,6 +20181,11 @@ void MegaTCPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
         LOG_warn << " error received at onWriteFinished_tls: " << status;
     }
 
+    if (tcpctx->finished)
+    {
+        LOG_debug << "At onWriteFinished_tls; TCP link closed, ignoring the result of the write";
+        return;
+    }
     tcpctx->server->processWriteFinished(tcpctx, status);
 }
 
@@ -20441,7 +20445,7 @@ void MegaHTTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, 
 void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
 {
     MegaHTTPContext* httpctx = dynamic_cast<MegaHTTPContext *>(tcpctx);
-    if (httpctx->finished) //TODO: this might go in the TCP class
+    if (httpctx->finished)
     {
         LOG_debug << "HTTP link closed, ignoring the result of the write";
         return;
@@ -20467,10 +20471,9 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
         }
 
         closeConnection(httpctx);
-        return; //TODO: review: this was missing in TCP+HTTP version (probably a bug)
+        return;
     }
 
-    httpctx->lastBuffer = NULL; //TODO: review: this was missing in TCP+HTTP version (probably a bug)
     uv_mutex_lock(&httpctx->mutex);
     if (httpctx->lastBufferLen)
     {
@@ -23331,6 +23334,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             ftpctx->command = FTP_CMD_EPSV;
         }
+        else if(command == "PBSZ")
+        {
+            ftpctx->command = FTP_CMD_PBSZ;
+        }
         else if(command == "OPTS")
         {
             ftpctx->command = FTP_CMD_OPTS;
@@ -23385,6 +23392,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_RNTO:
         case FTP_CMD_SITE:
         case FTP_CMD_SIZE:
+        case FTP_CMD_PBSZ:
         case FTP_CMD_PROT:
             if (psep != string::npos && ( (psep + 1)< petition.size()) )
             {
@@ -23491,6 +23499,11 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_PROT: // we might want to require that arg1 = "P". or disable useTLS in data channel otherwise
         {
             response = "200 OK";
+            break;
+        }
+        case FTP_CMD_PBSZ: //we don't use received buffer size (some client might fail)
+        {
+            response = "200 PBSZ=0";
             break;
         }
         case FTP_CMD_PASV:
@@ -23991,6 +24004,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             response.append(crlfout);
             response.append(" EPSV");
             response.append(crlfout);
+            response.append(" PBSZ");
+            response.append(crlfout);
 //            response.append(" OPTS"); // This is actually compulsory when FEAT exists (no need to return it)
 //            response.append(crlfout);
             response.append(" UTF8 ON"); // This is actually compulsory when FEAT exists (no need to return it)
@@ -24385,6 +24400,7 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
                 LOG_verbose << "Avoiding waking controlftp aync handle, ftpctx already closed";
             }
             closeConnection(ftpctx);
+            return;
         }
 
         uv_mutex_lock(&ftpctx->mutex);
@@ -24623,7 +24639,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->streamingBuffer.init(len/* + resstr.size()*/);
             ftpdatactx->size = len;
 
-    //        sendHeaders(ftpctx, &resstr);
+            ftpdatactx->megaApi->fireOnFtpStreamingStart(ftpdatactx->transfer);
 
             LOG_debug << "Requesting range. From " << start << "  size " << len;
             ftpdatactx->rangeWritten = 0;
@@ -24634,6 +24650,8 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             else
             {
                 LOG_debug << "Skipping startStreaming call since empty file";
+                ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaError(API_OK));
+                ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
                 fds->processWriteFinished(ftpdatactx, 0);
             }
 
@@ -24659,6 +24677,14 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     LOG_debug << " at processOnAsyncEventClose on MegaFTPDataServer tcpctx=" << tcpctx << " port = " << fds->port << " remaining = " << fds->remainingcloseevents;
 
     fds->remotePathToUpload = "";
+
+    if (ftpdatactx->transfer)
+    {
+        ftpdatactx->megaApi->cancelTransfer(ftpdatactx->transfer);
+        ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaError(ftpdatactx->ecode));
+        ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
+    }
+
 
     if (!fds->remainingcloseevents && fds->closing)
     {
@@ -24769,6 +24795,7 @@ MegaFTPDataContext::MegaFTPDataContext()
     lastBuffer = NULL;
     lastBufferLen = 0;
     failed = false;
+    ecode = API_OK;
     pause = false;
     node = NULL;
     rangeWritten = 0;
@@ -24828,7 +24855,7 @@ void MegaFTPDataContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *
         LOG_debug << "FTP Data link closed";
         return;
     }
-    int ecode = e->getErrorCode();
+    ecode = e->getErrorCode();
     if (ecode != API_OK && ecode != API_EINCOMPLETE)
     {
         LOG_warn << "Transfer failed with error code: " << ecode;
