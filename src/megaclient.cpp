@@ -723,6 +723,21 @@ void MegaClient::contactlinkdelete(handle h)
     reqs.add(new CommandContactLinkDelete(this, h));
 }
 
+void MegaClient::multifactorauthsetup(const char *pin)
+{
+    reqs.add(new CommandMultiFactorAuthSetup(this, pin));
+}
+
+void MegaClient::multifactorauthget(const char *email)
+{
+    reqs.add(new CommandMultiFactorAuthGet(this, email));
+}
+
+void MegaClient::multifactorauthdisable(const char *pin)
+{
+    reqs.add(new CommandMultiFactorAuthDisable(this, pin));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

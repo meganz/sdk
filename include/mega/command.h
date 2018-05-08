@@ -955,6 +955,30 @@ public:
     CommandContactLinkDelete(MegaClient*, handle);
 };
 
+class MEGA_API CommandMultiFactorAuthSetup : public Command
+{
+public:
+    void procresult();
+
+    CommandMultiFactorAuthSetup(MegaClient*, const char* = NULL);
+};
+
+class MEGA_API CommandMultiFactorAuthGet : public Command
+{
+public:
+    void procresult();
+
+    CommandMultiFactorAuthGet(MegaClient*, const char*);
+};
+
+class MEGA_API CommandMultiFactorAuthDisable : public Command
+{
+public:
+    void procresult();
+
+    CommandMultiFactorAuthDisable(MegaClient*, const char*);
+};
+
 } // namespace
 
 #endif

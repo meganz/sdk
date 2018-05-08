@@ -5861,4 +5861,71 @@ void CommandContactLinkDelete::procresult()
     }
 }
 
+CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, const char *pin)
+{
+    cmd("mfas");
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthSetup::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->multifactorauthsetup_result(NULL, (error)client->json.getint());
+    }
+
+    string code;
+    if (!client->json.storeobject(&code))
+    {
+        return client->app->multifactorauthsetup_result(NULL, API_EINTERNAL);
+    }
+    client->app->multifactorauthsetup_result(&code, API_OK);
+}
+
+CommandMultiFactorAuthGet::CommandMultiFactorAuthGet(MegaClient *client, const char *email)
+{
+    cmd("mfag");
+    arg("e", email);
+
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthGet::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->multifactorauthget_result((int)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        client->app->multifactorauthget_result(API_EINTERNAL);
+    }
+}
+
+CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client, const char *pin)
+{
+    cmd("mfad");
+    arg("mfa", pin);
+
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthDisable::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->multifactorauthdisable_result((error)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        client->app->multifactorauthdisable_result(API_EINTERNAL);
+    }
+}
+
 } // namespace

@@ -1298,6 +1298,15 @@ public:
     // delete contact link
     void contactlinkdelete(handle);
 
+    // multi-factor authentication setup
+    void multifactorauthsetup(const char* = NULL);
+
+    // multi-factor authentication get
+    void multifactorauthget(const char*);
+
+    // multi-factor authentication disable
+    void multifactorauthdisable(const char*);
+
     // achievements enabled for the account
     bool achievements_enabled;
 
