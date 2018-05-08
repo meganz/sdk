@@ -456,6 +456,7 @@ class MEGA_API CommandPutNodes : public Command
     int nnsize;
     targettype_t type;
     putsource_t source;
+    handle targethandle;
 
 public:
     void procresult();

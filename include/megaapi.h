@@ -5089,6 +5089,9 @@ class MegaApi
          *
          * @param password Access password
          * @return Base64-encoded private key
+         *
+         * @deprecated The registration and login procedure will be changed soon. When that happens, this function will stop being
+         * compatible and will be deleted, so please stop using it as soon as possible.
          */
         char* getBase64PwKey(const char *password);
 
@@ -7311,7 +7314,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
+         * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
          * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
          *
          * If the corresponding user attribute is not set yet, the request will fail with the
@@ -7331,7 +7334,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
+         * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
          * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
          * modify the message with a rich link. If number is bigger than three, the extra option "Never"
          * must be added to the warning dialog.

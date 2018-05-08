@@ -455,6 +455,14 @@ using namespace mega;
     self.megaApi->logout();
 }
 
+- (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:self]);
+}
+
+- (void)localLogout {
+    self.megaApi->localLogout();
+}
+
 - (void)invalidateCache {
     self.megaApi->invalidateCache();
 }
@@ -1021,6 +1029,38 @@ using namespace mega;
 
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout {
     self.megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
+- (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->enableRichPreviews(enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)enableRichPreviews:(BOOL)enable {
+    self.megaApi->enableRichPreviews(enable);
+}
+
+- (void)isRichPreviewsEnabledWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->isRichPreviewsEnabled([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)isRichPreviewsEnabled {
+    self.megaApi->isRichPreviewsEnabled();
+}
+
+- (void)shouldShowRichLinkWarningWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->shouldShowRichLinkWarning([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)shouldShowRichLinkWarning {
+    self.megaApi->shouldShowRichLinkWarning();
+}
+
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setRichLinkWarningCounterValue((int)value, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value {
+    self.megaApi->setRichLinkWarningCounterValue((int)value);
 }
 
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
@@ -1628,6 +1668,14 @@ using namespace mega;
 
 - (void)getContactLinksOption {
     self.megaApi->getContactLinksOption();
+}
+
+- (void)retrySSLErrors:(BOOL)enable {
+    self.megaApi->retrySSLerrors(enable);
+}
+
+- (void)setPublicKeyPinning:(BOOL)enable {
+    self.megaApi->setPublicKeyPinning(enable);
 }
 
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {
