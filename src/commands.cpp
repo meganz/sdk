@@ -5519,18 +5519,48 @@ void CommandChatLinkURL::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatlinkurl_result(NULL, (error)client->json.getint());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, (error)client->json.getint());
     }
     else
     {
+        handle chatid = UNDEF;
+        int shard = -1;
         string url;
-        if (!client->json.storeobject(&url))
+
+        for (;;)
         {
-            client->app->chatlinkurl_result(NULL, API_EINTERNAL);
-        }
-        else
-        {
-            client->app->chatlinkurl_result(&url, API_OK);
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID2('i','d'):
+                    chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case MAKENAMEID2('c','s'):
+                    shard = client->json.getint();
+                    break;
+
+                case MAKENAMEID3('u','r','l'):
+                    client->json.storeobject(&url);
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && shard != -1 && !url.empty())
+                    {
+                        client->app->chatlinkurl_result(chatid, shard, &url, API_OK);
+                    }
+                    else
+                    {
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, API_EINTERNAL);
+                    }
+                    return;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, API_EINTERNAL);
+                        return;
+                    }
+            }
         }
     }
 }

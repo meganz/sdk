@@ -688,7 +688,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(string *url, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, error e)
 {
     if (e)
     {
@@ -696,6 +696,9 @@ void DemoApp::chatlinkurl_result(string *url, error e)
     }
     else
     {
+        char idstr[sizeof(handle) * 4 / 3 + 4];
+        Base64::btoa((const byte *)&chatid, MegaClient::CHATHANDLE, idstr);
+        cout << "Chatid: " << idstr << " (shard " << shard << ")" << endl;
         cout << "URL for chat-link: " << url->c_str() << endl;
     }
 }
@@ -2945,6 +2948,8 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "test")
                     {
+                        if (words.size() == 2)
+                            client->richlinkrequest(words[1].c_str());
                         return;
                     }
                     break;

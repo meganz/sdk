@@ -2206,7 +2206,7 @@ protected:
         virtual void chats_updated(textchat_map *, int);
         virtual void richlinkrequest_result(string*, error);
         virtual void chatlink_result(handle, error);
-        virtual void chatlinkurl_result(string*, error);
+        virtual void chatlinkurl_result(handle, int, string*, error);
         virtual void chatlinkclose_result(error);
         virtual void chatlinkjoin_result(error);
 #endif

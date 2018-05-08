@@ -133,7 +133,7 @@ struct DemoApp : public MegaApp
     virtual void chatpresenceurl_result(string *, error);
     void chatlink_result(handle, error);
     void chatlinkclose_result(error);
-    void chatlinkurl_result(string*, error);
+    void chatlinkurl_result(handle, int, string*, error);
     void chatlinkjoin_result(error);
 
     void chats_updated(textchat_map*, int);

@@ -11254,6 +11254,11 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
+         * - MegaRequest::getParentHandle - Returns the chat identifier
+         * - MegaRequest::getAccess - Returns the shard
+         *
+         * @note This function can be called without being logged in. In that case, the returned
+         * URL will be different than for logged in users, so chatd knows whether user has a session.
          *
          * @param publichandle MegaHandle that represents the public handle of the chat link
          * @param listener MegaRequestListener to track this request
