@@ -239,7 +239,7 @@ public:
     std::string getPeriodString() const;
     int getMaxBackups() const;
     int getState() const;
-    long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
+    long long getNextStartTime(long long oldStartTimeAbsolute = -1);
     bool getAttendPastBackups() const;
 
     // MegaBackup setters
@@ -318,7 +318,7 @@ protected:
     bool checkCompletion();
     bool isBusy() const;
     int64_t getLastBackupTime();
-    long long getNextStartTimeDs(long long oldStartTimeds = -1) const;
+    long long getNextStartTimeDs(long long oldStartTimeds = -1);
 
     std::string epochdsToString(const int64_t rawtimeds) const;
     int64_t stringTimeTods(string stime) const;

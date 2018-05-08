@@ -19384,7 +19384,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
 }
 
 
-long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute) const
+long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute)
 {
     if (oldStartTimeAbsolute == -1)
     {
@@ -19396,7 +19396,7 @@ long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute)
     }
 }
 
-long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) const
+long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds)
 {
     if (oldStartTimeds == -1)
     {
@@ -19412,10 +19412,10 @@ long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) con
         {
             return oldStartTimeds;
         }
-        time_t current = (oldStartTimeds + this->offsetds)/10;
+        long long current_ds = oldStartTimeds + this->offsetds;  // 64 bit
 
-        time_t newt = cron_next((cron_expr *)&ccronexpr, current);
-        long long newStarTimeds = newt*10-offsetds;
+        long long newt = cron_next(&ccronexpr, time_t(current_ds/10));  // time_t is 32 bit still on many systems
+        long long newStarTimeds = newt*10-offsetds;  // 64 bit again
         return newStarTimeds;
     }
 }
