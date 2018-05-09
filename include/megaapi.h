@@ -5362,6 +5362,25 @@ class MegaApi
          */
         void multiFactorAuthChangeEmail(const char *email, const char* pin, MegaRequestListener *listener = NULL);
 
+
+        /**
+         * @brief Initialize the cancellation of an account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
+         *
+         * If this request succeeds, a cancellation link will be sent to the email address of the user.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @see MegaApi::confirmCancelAccount
+         *
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
+
         /**
          * @brief Log in to a MEGA account
          *

@@ -4351,11 +4351,16 @@ void CommandCleanRubbishBin::procresult()
     }
 }
 
-CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type)
+CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type, const char *pin)
 {
     cmd("erm");
     arg("m", email);
     arg("t", type);
+
+    if (type == CANCEL_ACCOUNT && pin)
+    {
+        arg("mfa", pin);
+    }
 
     tag = client->reqtag;
 }

@@ -4448,6 +4448,14 @@ void MegaApiImpl::multiFactorAuthChangeEmail(const char *email, const char *pin,
     waiter->notify();
 }
 
+void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
+    request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -16157,7 +16165,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->getcancellink(u->email.c_str());
+            const char *pin = request->getText();
+            client->getcancellink(u->email.c_str(), pin);
             break;
         }
         case MegaRequest::TYPE_CONFIRM_CANCEL_LINK:

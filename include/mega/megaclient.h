@@ -1278,7 +1278,7 @@ public:
     void confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
 
     // request a link to cancel the account
-    void getcancellink(const char *email);
+    void getcancellink(const char *email, const char* = NULL);
 
     // confirm a link to cancel the account
     void confirmcancellink(const char *code);

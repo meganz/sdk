@@ -685,7 +685,7 @@ class MEGA_API CommandGetRecoveryLink : public Command
 public:
     void procresult();
 
-    CommandGetRecoveryLink(MegaClient*, const char *, int);
+    CommandGetRecoveryLink(MegaClient*, const char *, int, const char* = NULL);
 };
 
 class MEGA_API CommandQueryRecoveryLink : public Command

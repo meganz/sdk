@@ -1499,6 +1499,11 @@ void MegaApi::multiFactorAuthChangeEmail(const char *email, const char *pin, Meg
     pImpl->multiFactorAuthChangeEmail(email, pin, listener);
 }
 
+void MegaApi::multiFactorAuthCancelAccount(const char *pin, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthCancelAccount(pin, listener);
+}
+
 void MegaApi::addEntropy(char *data, unsigned int size)
 {
     MegaApiImpl::addEntropy(data, size);

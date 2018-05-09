@@ -683,9 +683,9 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
     }
 }
 
-void MegaClient::getcancellink(const char *email)
+void MegaClient::getcancellink(const char *email, const char *pin)
 {
-    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT));
+    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT, pin));
 }
 
 void MegaClient::confirmcancellink(const char *code)
