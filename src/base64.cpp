@@ -391,9 +391,9 @@ bool URLCodec::issafe(char c)
     return false;
 }
 
-char URLCodec::hexval(char c)
+unsigned char URLCodec::hexval(char c)
 {
-    return c > '9' ? (c > 'a' ? c - 'a' + 10 : c - 'A' + 10) : c - '0';
+    return c > '9' ? (c >= 'a' ? c - 'a' + 10 : c - 'A' + 10) : c - '0';
 }
 
 bool URLCodec::ishexdigit(char c)
@@ -442,9 +442,9 @@ void URLCodec::unescape(string *escaped, string *plain)
     {
         if (escaped->at(i) == '%' && ishexdigit(escaped->at(i + 1)) && ishexdigit(escaped->at(i + 2)))
         {
-            char c1 = hexval(escaped->at(i + 1));
-            char c2 = hexval(escaped->at(i + 2));
-            char c = 0xFF & ((c1 << 4) | c2);
+            unsigned char c1 = hexval(escaped->at(i + 1));
+            unsigned char c2 = hexval(escaped->at(i + 2));
+            unsigned char c = 0xFF & ((c1 << 4) | c2);
 
             plain->push_back(c);
             i += 2;
