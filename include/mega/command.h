@@ -733,7 +733,7 @@ class MEGA_API CommandGetEmailLink : public Command
 public:
     void procresult();
 
-    CommandGetEmailLink(MegaClient*, const char*, int);
+    CommandGetEmailLink(MegaClient*, const char*, int, const char *pin = NULL);
 };
 
 class MEGA_API CommandConfirmEmailLink : public Command

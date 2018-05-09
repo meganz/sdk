@@ -4547,7 +4547,7 @@ void CommandValidatePassword::procresult()
     }
 }
 
-CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add)
+CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add, const char *pin)
 {
     cmd("se");
 
@@ -4559,7 +4559,12 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
     {
         arg("aa", "r");     // remove
     }
-    arg("e", email);    
+    arg("e", email);
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
+
     notself(client);
 
     tag = client->reqtag;

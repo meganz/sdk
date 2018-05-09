@@ -4439,6 +4439,15 @@ void MegaApiImpl::multiFactorAuthChangePassword(const char *oldPassword, const c
     waiter->notify();
 }
 
+void MegaApiImpl::multiFactorAuthChangeEmail(const char *email, const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK, listener);
+    request->setEmail(email);
+    request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -16184,13 +16193,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             const char *email = request->getEmail();
+            const char *pin = request->getText();
             if (!email)
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->getemaillink(email);
+            client->getemaillink(email, pin);
             break;
         }
         case MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK:

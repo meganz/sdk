@@ -693,9 +693,9 @@ void MegaClient::confirmcancellink(const char *code)
     reqs.add(new CommandConfirmCancelLink(this, code));
 }
 
-void MegaClient::getemaillink(const char *email)
+void MegaClient::getemaillink(const char *email, const char *pin = NULL)
 {
-    reqs.add(new CommandGetEmailLink(this, email, 1));
+    reqs.add(new CommandGetEmailLink(this, email, 1, pin));
 }
 
 void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)

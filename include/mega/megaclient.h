@@ -1284,7 +1284,7 @@ public:
     void confirmcancellink(const char *code);
 
     // get a link to change the email address
-    void getemaillink(const char *email);
+    void getemaillink(const char *email, const char *pin);
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
