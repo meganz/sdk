@@ -728,9 +728,9 @@ void MegaClient::multifactorauthsetup(const char *pin)
     reqs.add(new CommandMultiFactorAuthSetup(this, pin));
 }
 
-void MegaClient::multifactorauthget(const char *email)
+void MegaClient::multifactorauthcheck(const char *email)
 {
-    reqs.add(new CommandMultiFactorAuthGet(this, email));
+    reqs.add(new CommandMultiFactorAuthCheck(this, email));
 }
 
 void MegaClient::multifactorauthdisable(const char *pin)

@@ -2071,7 +2071,7 @@ protected:
 
         // multi-factor authentication
         virtual void multifactorauthsetup_result(string*, error);
-        virtual void multifactorauthget_result(int);
+        virtual void multifactorauthcheck_result(int);
         virtual void multifactorauthdisable_result(error);
 
         // account creation

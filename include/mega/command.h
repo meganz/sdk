@@ -963,12 +963,12 @@ public:
     CommandMultiFactorAuthSetup(MegaClient*, const char* = NULL);
 };
 
-class MEGA_API CommandMultiFactorAuthGet : public Command
+class MEGA_API CommandMultiFactorAuthCheck : public Command
 {
 public:
     void procresult();
 
-    CommandMultiFactorAuthGet(MegaClient*, const char*);
+    CommandMultiFactorAuthCheck(MegaClient*, const char*);
 };
 
 class MEGA_API CommandMultiFactorAuthDisable : public Command

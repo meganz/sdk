@@ -315,7 +315,7 @@ struct MEGA_API MegaApp
     virtual void multifactorauthsetup_result(string*, error) { }
 
     // multi-factor authentication get
-    virtual void multifactorauthget_result(int) { }
+    virtual void multifactorauthcheck_result(int) { }
 
     // multi-factor authentication disable
     virtual void multifactorauthdisable_result(error) { }

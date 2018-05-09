@@ -1302,7 +1302,7 @@ public:
     void multifactorauthsetup(const char* = NULL);
 
     // multi-factor authentication get
-    void multifactorauthget(const char*);
+    void multifactorauthcheck(const char*);
 
     // multi-factor authentication disable
     void multifactorauthdisable(const char*);

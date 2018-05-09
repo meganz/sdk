@@ -5886,7 +5886,7 @@ void CommandMultiFactorAuthSetup::procresult()
     client->app->multifactorauthsetup_result(&code, API_OK);
 }
 
-CommandMultiFactorAuthGet::CommandMultiFactorAuthGet(MegaClient *client, const char *email)
+CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, const char *email)
 {
     cmd("mfag");
     arg("e", email);
@@ -5894,16 +5894,16 @@ CommandMultiFactorAuthGet::CommandMultiFactorAuthGet(MegaClient *client, const c
     tag = client->reqtag;
 }
 
-void CommandMultiFactorAuthGet::procresult()
+void CommandMultiFactorAuthCheck::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->multifactorauthget_result((int)client->json.getint());
+        client->app->multifactorauthcheck_result((int)client->json.getint());
     }
     else    // error
     {
         client->json.storeobject();
-        client->app->multifactorauthget_result(API_EINTERNAL);
+        client->app->multifactorauthcheck_result(API_EINTERNAL);
     }
 }
 

@@ -11969,7 +11969,7 @@ void MegaApiImpl::multifactorauthsetup_result(string *code, error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::multifactorauthget_result(int enabled)
+void MegaApiImpl::multifactorauthcheck_result(int enabled)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -14614,7 +14614,7 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
                 break;
             }
-            client->multifactorauthget(email);
+            client->multifactorauthcheck(email);
             break;
         }
         case MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET:
