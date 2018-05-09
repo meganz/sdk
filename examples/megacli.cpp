@@ -688,7 +688,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, error e)
 {
     if (e)
     {
@@ -700,6 +700,7 @@ void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, error e)
         Base64::btoa((const byte *)&chatid, MegaClient::CHATHANDLE, idstr);
         cout << "Chatid: " << idstr << " (shard " << shard << ")" << endl;
         cout << "URL for chat-link: " << url->c_str() << endl;
+        cout << "Chat-topic: " << ct->c_str() << endl;
     }
 }
 

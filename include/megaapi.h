@@ -11249,8 +11249,11 @@ class MegaApi
         /**
          * @brief Get the URL to connect to chatd for a chat link
          *
-         * This function can be used by anonymous users to request the URL to connect to chatd, for
-         * a given public handle. @see \c MegaApi::chatLinkCreate
+         * This function can be used by anonymous and registered users to request the URL to connect
+         * to chatd, for a given public handle. @see \c MegaApi::chatLinkCreate.
+         * It also returns the shard hosting the chatroom, the real chatid and the title (if any).
+         * The chat-topic, for openchats, also includes the global chat-key set by the creator of
+         * the chatroom, despite such key is already encoded in the chat-link for previewers.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_URL
          *
@@ -11262,6 +11265,7 @@ class MegaApi
          * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the shard
+         * - MegaRequest::getText - Returns the chat-topic (if any) plus chat-key (in B64url)
          *
          * @note This function can be called without being logged in. In that case, the returned
          * URL will be different than for logged in users, so chatd knows whether user has a session.

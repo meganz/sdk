@@ -5519,13 +5519,14 @@ void CommandChatLinkURL::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, (error)client->json.getint());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, (error)client->json.getint());
     }
     else
     {
         handle chatid = UNDEF;
         int shard = -1;
         string url;
+        string ct;
 
         for (;;)
         {
@@ -5539,25 +5540,29 @@ void CommandChatLinkURL::procresult()
                     shard = client->json.getint();
                     break;
 
+                case MAKENAMEID2('c','t'):  // chat-title + chat-key
+                    client->json.storeobject(&ct);
+                    break;
+
                 case MAKENAMEID3('u','r','l'):
                     client->json.storeobject(&url);
                     break;
 
                 case EOO:
-                    if (chatid != UNDEF && shard != -1 && !url.empty())
+                    if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty())
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, API_EINTERNAL);
                     }
                     return;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, API_EINTERNAL);
                         return;
                     }
             }
