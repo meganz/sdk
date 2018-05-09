@@ -24484,7 +24484,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         if (!ftpdatactx->tmpFileAccess)
         {
             ftpdatactx->tmpFileName = fds->basePath;
-            ftpdatactx->tmpFileName="ftpstorfile";
+            ftpdatactx->tmpFileName.append("ftpstorfile");
             string suffix, utf8suffix;
             fds->fsAccess->tmpnamelocal(&suffix);
             fds->fsAccess->local2path(&suffix, &utf8suffix);
