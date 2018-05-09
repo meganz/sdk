@@ -19532,6 +19532,13 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
     }
 
     uv_sem_init(&semaphoreEnd, 0);
+    uv_sem_init(&semaphoreStartup, 0);
+    static bool mutexuvloop_initialized = false;
+    if (!mutexuvloop_initialized)
+    {
+        uv_mutex_init(&MegaTCPServer::mutexinitializeuvloop);
+        mutexuvloop_initialized = true;
+    }
 
 #ifdef _WIN32
         crlfout = "\r\n";
@@ -19547,6 +19554,7 @@ MegaTCPServer::~MegaTCPServer()
 {
     stop();
     uv_sem_destroy(&semaphoreStartup);
+    uv_sem_destroy(&semaphoreEnd);
     delete fsAccess;
     if (uvstartedbyother)
     {
@@ -19571,15 +19579,12 @@ bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
     this->localOnly = localOnly;
     if (alreadyinuvthread)
     {
-        uv_sem_init(&semaphoreStartup, 0);
         initializeAndStartListenig();
     }
     else
     {
-        uv_sem_init(&semaphoreStartup, 0);
         thread->start(threadEntryPoint, this);
         uv_sem_wait(&semaphoreStartup);
-        uv_sem_destroy(&semaphoreStartup);
     }
     LOG_debug << " at MegaTCPServer::start, returning " << started;
     return started;
@@ -22610,7 +22615,9 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
 
     char toprint[3000];
     sprintf(toprint,
-            "%c%s %5d %4d %4d %8"PRId64" %s %s",
+            "%c%s %5d %4d %4d %8"
+            PRId64
+            " %s %s",
             (child->isFolder())?'d':'-',
             perms,
             1,//number of contents for folders
@@ -23540,10 +23547,13 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             struct sockaddr_in addr;
             int sadrlen = sizeof (struct sockaddr_in);
             uv_tcp_getsockname(&ftpctx->tcphandle,(struct sockaddr*)&addr, &sadrlen);
+#ifdef WIN32
+            string sIPtoPASV = inet_ntoa(addr.sin_addr);
+#else
             char strIP[INET_ADDRSTRLEN];
             inet_ntop( AF_INET, &addr.sin_addr.s_addr, strIP, INET_ADDRSTRLEN);
-            if (addr.sin_family == AF_INET) printf( "AF_INET ");
             string sIPtoPASV = strIP;
+#endif
             replace( sIPtoPASV.begin(), sIPtoPASV.end(), '.', ',');
 
             if (ftpctx->command == FTP_CMD_PASV)
@@ -24431,7 +24441,11 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 
 void MegaFTPDataServer::sendData()
 {
-    MegaTCPContext * tcpctx = connections.back(); //only interested in the last connection received (the one that needs response)
+    MegaTCPContext * tcpctx = NULL;
+    if (connections.size())
+    {
+        tcpctx = connections.back(); //only interested in the last connection received (the one that needs response)
+    }
     //Some client might create connections before receiving a 150 in the control channel (e.g: ftp linux command)
     // This could cause never answered / never closed connections.
     //assert(connections.size()<=1); //This might not be true due to that
