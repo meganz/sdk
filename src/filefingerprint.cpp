@@ -299,8 +299,9 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
                         size = -1;
                         return true;
                     }
-                    fullstep -= step;
+                    fullstep -= (uint64_t)step;
                 }
+
                 current += (offset - current);
 
                 if (!is->read(block, sizeof block))
