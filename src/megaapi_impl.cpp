@@ -2969,6 +2969,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
+        case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
+        case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
+        case TYPE_MULTI_FACTOR_AUTH_SET: return "MULTI_FACTOR_AUTH_SET";
     }
     return "UNKNOWN";
 }
@@ -4381,6 +4384,39 @@ void MegaApiImpl::setStatsID(const char *id)
     }
 
     MegaClient::statsid = MegaApi::strdup(id);
+}
+
+void MegaApiImpl::multiFactorAuthCheck(const char *email, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK, listener);
+    request->setEmail(email);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthGetCode(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthEnable(const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET, listener);
+    request->setFlag(true);
+    request->setPassword(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthDisable(const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET, listener);
+    request->setFlag(false);
+    request->setPassword(pin);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
@@ -11907,6 +11943,69 @@ void MegaApiImpl::contactlinkdelete_result(error e)
     fireOnRequestFinish(request, e);
 }
 
+void MegaApiImpl::multifactorauthsetup_result(string *code, error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET) &&
+                    (request->getType() != MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET)))
+    {
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET && !e)
+    {
+        if (!code)
+        {
+            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+            return;
+        }
+        request->setText(code->c_str());
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::multifactorauthget_result(int enabled)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK)))
+    {
+        return;
+    }
+
+    if (enabled < 0)
+    {
+        fireOnRequestFinish(request, MegaError(enabled));
+        return;
+    }
+
+    request->setFlag(enabled);
+    fireOnRequestFinish(request, MegaError(API_OK));
+}
+
+void MegaApiImpl::multifactorauthdisable_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET)))
+    {
+        return;
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::sendsignuplink_result(error e)
 {
 	MegaError megaError(e);
@@ -14507,6 +14606,42 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
 		}
+        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK:
+        {
+            const char *email = request->getEmail();
+            if (!email)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->multifactorauthget(email);
+            break;
+        }
+        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET:
+        {
+            client->multifactorauthsetup();
+            break;
+        }
+        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET:
+        {
+            bool flag = request->getFlag();
+            const char *pin = request->getPassword();
+            if (!pin)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (flag)
+            {
+                client->multifactorauthsetup(pin);
+            }
+            else
+            {
+                client->multifactorauthdisable(pin);
+            }
+            break;
+        }
         case MegaRequest::TYPE_CREATE_FOLDER:
 		{
 			Node *parent = client->nodebyhandle(request->getParentHandle());

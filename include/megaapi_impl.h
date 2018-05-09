@@ -1501,6 +1501,11 @@ class MegaApiImpl : public MegaApp
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
 
+        void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
+        void multiFactorAuthGetCode(MegaRequestListener *listener = NULL);
+        void multiFactorAuthEnable(const char *pin, MegaRequestListener *listener = NULL);
+        void multiFactorAuthDisable(const char *pin, MegaRequestListener *listener = NULL);
+
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
@@ -2063,6 +2068,11 @@ protected:
         virtual void contactlinkcreate_result(error, handle);
         virtual void contactlinkquery_result(error, handle, string*, string*, string*);
         virtual void contactlinkdelete_result(error);
+
+        // multi-factor authentication
+        virtual void multifactorauthsetup_result(string*, error);
+        virtual void multifactorauthget_result(int);
+        virtual void multifactorauthdisable_result(error);
 
         // account creation
         virtual void sendsignuplink_result(error);

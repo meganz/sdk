@@ -2054,7 +2054,9 @@ class MegaRequest
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_MULTI_FACTOR_AUTH_CHECK, TYPE_MULTI_FACTOR_AUTH_GET,
+            TYPE_MULTI_FACTOR_AUTH_SET,
+            TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -5249,6 +5251,65 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Check if multi-factor authentication is enabled for an account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email sent in the first parameter
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if multi-factor authentication is enabled or false if it's disabled.
+         *
+         * @param email Email to check
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the secret code of the account to enable multi-factor authentication
+         * The MegaApi object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the Base32 secret code needed to configure multi-factor authentication.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthGetCode(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable multi-factor authentication for the account
+         * The MegaApi object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns true
+         * - MegaRequest::getPassword - Returns the pin sent in the first parameter
+         *
+         * @param pin Valid pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthEnable(const char *pin, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Disable multi-factor authentication for the account
+         * The MegaApi object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getPassword - Returns the pin sent in the first parameter
+         *
+         * @param pin Valid pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthDisable(const char *pin, MegaRequestListener *listener = NULL);
+
 
         /**
          * @brief Log in to a MEGA account
