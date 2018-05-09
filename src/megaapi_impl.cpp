@@ -19854,6 +19854,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
         }
 
         URLCodec::unescape(&nodename, &httpctx->nodename);
+        httpctx->server->fsAccess->normalize(&httpctx->nodename);
         LOG_debug << "Node name: " << httpctx->nodename;
     }
 
