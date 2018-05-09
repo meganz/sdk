@@ -244,7 +244,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                if (node->type == FILENODE)
                {
-                   duration = Base64::atoi(&it->second);
+                   duration = int(Base64::atoi(&it->second));
                }
             }
             else if (it->first == AttrMap::string2nameid("l"))
@@ -408,11 +408,11 @@ bool MegaNodePrivate::serialize(string *d)
     unsigned short ll;
     bool flag;
 
-    ll = name ? strlen(name) + 1 : 0;
+    ll = (unsigned short)(name ? strlen(name) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(name, ll);
 
-    ll = fingerprint ? strlen(fingerprint) + 1 : 0;
+    ll = (unsigned short)(fingerprint ? strlen(fingerprint) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(fingerprint, ll);
 
@@ -1794,22 +1794,22 @@ bool MegaTransferPrivate::serialize(string *d)
     d->append((const char*)&parentHandle, sizeof(parentHandle));
 
     unsigned short ll;
-    ll = path ? strlen(path) + 1 : 0;
+    ll = (unsigned short)(path ? strlen(path) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(path, ll);
 
-    ll = parentPath ? strlen(parentPath) + 1 : 0;
+    ll = (unsigned short)(parentPath ? strlen(parentPath) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(parentPath, ll);
 
-    ll = fileName ? strlen(fileName) + 1 : 0;
+    ll = (unsigned short)(fileName ? strlen(fileName) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(fileName, ll);
 
     d->append((const char*)&folderTransferTag, sizeof(folderTransferTag));
     d->append("\0\0\0\0\0\0", 7);
 
-    ll = appData ? strlen(appData) + 1 : 0;
+    ll = (unsigned short)(appData ? strlen(appData) + 1 : 0);
     if (ll)
     {
         char hasAppData = 1;
@@ -5265,16 +5265,16 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, double latitude, double lon
         request->setNodeHandle(node->getHandle());
     }
 
-    int lat = latitude;
+    int lat = int(latitude);
     if (latitude != MegaNode::INVALID_COORDINATE)
     {
-        lat = ((latitude + 90) / 180) * 0xFFFFFF;
+        lat = int(((latitude + 90) / 180) * 0xFFFFFF);
     }
 
-    int lon = longitude;
+    int lon = int(longitude);
     if (longitude != MegaNode::INVALID_COORDINATE)
     {
-        lon = (longitude == 180) ? 0 : ((longitude + 180) / 360) * 0x01000000;
+        lon = int((longitude == 180) ? 0 : ((longitude + 180) / 360) * 0x01000000);
     }
 
     request->setParamType(MegaApi::NODE_ATTR_COORDINATES);
@@ -6001,22 +6001,22 @@ bool MegaApiImpl::setMaxUploadSpeed(m_off_t bpslimit)
 
 int MegaApiImpl::getMaxDownloadSpeed()
 {
-    return client->getmaxdownloadspeed();
+    return int(client->getmaxdownloadspeed());
 }
 
 int MegaApiImpl::getMaxUploadSpeed()
 {
-    return client->getmaxuploadspeed();
+    return int(client->getmaxuploadspeed());
 }
 
 int MegaApiImpl::getCurrentDownloadSpeed()
 {
-    return httpio->downloadSpeed;
+    return int(httpio->downloadSpeed);
 }
 
 int MegaApiImpl::getCurrentUploadSpeed()
 {
-    return httpio->uploadSpeed;
+    return int(httpio->uploadSpeed);
 }
 
 int MegaApiImpl::getCurrentSpeed(int type)
@@ -6024,9 +6024,9 @@ int MegaApiImpl::getCurrentSpeed(int type)
     switch (type)
     {
     case MegaTransfer::TYPE_DOWNLOAD:
-        return httpio->downloadSpeed;
+        return int(httpio->downloadSpeed);
     case MegaTransfer::TYPE_UPLOAD:
-        return httpio->uploadSpeed;
+        return int(httpio->uploadSpeed);
     default:
         return 0;
     }
@@ -10766,7 +10766,7 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
         MegaRequestPrivate* request = requestMap.at(tag);
         if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)) return;
 
-        tag = request->getNumber();
+        tag = int(request->getNumber());
 
         FileAccess *f = client->fsaccess->newfileaccess();
         string filePath(request->getFile());
@@ -10803,7 +10803,7 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries, error e)
         if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE))
             return 1;
 
-        tag = request->getNumber();
+        tag = int(request->getNumber());
         if(retries >= 2)
         {
             fireOnRequestFinish(request, MegaError(e));
@@ -10919,7 +10919,7 @@ void MegaApiImpl::additem_result(error e)
     }
 
     //MegaRequest::TYPE_UPGRADE_ACCOUNT
-    int method = request->getNumber();
+    int method = int(request->getNumber());
     client->purchase_checkout(method);
 }
 
@@ -13204,10 +13204,9 @@ int naturalsorting_compare (const char *i, const char *j)
                 return difference;
             }
 
-            difference = number_i - number_j;
-            if (difference)
+            if (number_i != number_j)
             {
-                return difference;
+                return number_i > number_j ? 1 : -1;
             }
 
             stringMode = true;
@@ -14698,7 +14697,7 @@ void MegaApiImpl::removeRecursively(const char *path)
 
 error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error e)
 {
-    int tag = request->getNumber();
+    int tag = int(request->getNumber());
     bool found = false;
 
     map<int, MegaBackupController *>::iterator itr = backupsMap.find(tag) ;
@@ -15504,7 +15503,7 @@ void MegaApiImpl::sendPendingRequests()
                         break;
                     }
 
-                    prevtag = req->getNumber();
+                    prevtag = int(req->getNumber());
                 }
 
                 if(req)
@@ -15799,7 +15798,7 @@ void MegaApiImpl::sendPendingRequests()
                 int type = request->getParamType();
                 if (type == MegaApi::NODE_ATTR_DURATION)
                 {
-                    int secs = request->getNumber();
+                    int secs = int(request->getNumber());
                     if (node->type != FILENODE || secs < MegaNode::INVALID_DURATION)
                     {
                         e = API_EARGS;
@@ -16008,7 +16007,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char *email = request->getEmail();
             const char *message = request->getText();
-            int action = request->getNumber();
+            int action = int(request->getNumber());
             MegaHandle contactLink = request->getNodeHandle();
 
             if(client->loggedin() != FULLACCOUNT)
@@ -16035,7 +16034,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:
         {
             handle h = request->getNodeHandle();
-            int action = request->getNumber();
+            int action = int(request->getNumber());
 
             if(h == INVALID_HANDLE || action < 0 || action > MegaContactRequest::REPLY_ACTION_IGNORE)
             {
@@ -16403,7 +16402,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_PAUSE_TRANSFERS:
         {
             bool pause = request->getFlag();
-            int direction = request->getNumber();
+            int direction = int(request->getNumber());
             if(direction != -1
                     && direction != MegaTransfer::TYPE_DOWNLOAD
                     && direction != MegaTransfer::TYPE_UPLOAD)
@@ -16451,7 +16450,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             bool automove = request->getFlag();
             int transferTag = request->getTransferTag();
-            int number = request->getNumber();
+            int number = int(request->getNumber());
 
             if (!transferTag || !number)
             {
@@ -16531,7 +16530,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SET_MAX_CONNECTIONS:
         {
             int direction = request->getParamType();
-            int connections = request->getNumber();
+            int connections = int(request->getNumber());
 
             if (connections <= 0 || (direction != -1
                     && direction != MegaTransfer::TYPE_DOWNLOAD
@@ -16756,7 +16755,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_BACKUP:
         {
-            int backuptag = request->getNumber();
+            int backuptag = int(request->getNumber());
             bool found = false;
             bool flag = request->getFlag();
 
@@ -16814,7 +16813,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_TIMER:
         {
-            long long delta = request->getNumber();
+            int delta = int(request->getNumber());
             TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
             twb->backoff(delta);
             e = client->addtimer(twb);
@@ -16960,7 +16959,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_ID:
         case MegaRequest::TYPE_UPGRADE_ACCOUNT:
         {
-            int method = request->getNumber();
+            int method = int(request->getNumber());
             if(method != MegaApi::PAYMENT_METHOD_BALANCE && method != MegaApi::PAYMENT_METHOD_CREDIT_CARD)
             {
                 e = API_EARGS;
@@ -16973,7 +16972,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT:
         {
             const char* receipt = request->getText();
-            int type = request->getNumber();
+            int type = int(request->getNumber());
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                             && type != MegaApi::PAYMENT_METHOD_ITUNES
@@ -17029,7 +17028,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SUBMIT_FEEDBACK:
         {
-            int rating = request->getNumber();
+            int rating = int(request->getNumber());
             const char *message = request->getText();
 
             if(rating < 1 || rating > 5)
@@ -17060,7 +17059,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SEND_EVENT:
         {
-            int number = request->getNumber();
+            int number = int(request->getNumber());
             const char *text = request->getText();
 
             if(number < 99500 || number >= 99600 || !text)
@@ -17174,7 +17173,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_QUERY_GELB:
         {
             const char *service = request->getName();
-            int timeoutds = request->getNumber();
+            int timeoutds = int(request->getNumber());
             int maxretries = request->getNumRetry();
             if (!service)
             {
@@ -17354,7 +17353,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION:
         {
-            int deviceType = request->getNumber();
+            int deviceType = int(request->getNumber());
             const char *token = request->getText();
 
             if ((deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID &&
@@ -19384,7 +19383,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
 }
 
 
-long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute)
+long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute) const
 {
     if (oldStartTimeAbsolute == -1)
     {
@@ -19396,7 +19395,7 @@ long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute)
     }
 }
 
-long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds)
+long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) const
 {
     if (oldStartTimeds == -1)
     {
@@ -19767,7 +19766,7 @@ std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
 {
     struct tm dt;
     char buffer [40];
-    time_t rawtime = rawtimeds/10;
+    time_t rawtime = time_t(rawtimeds/10);
     megaApi->fillLocalTimeStruct(&rawtime, &dt); //Notice this is not thread safe
 
     strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", &dt);

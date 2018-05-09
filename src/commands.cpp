@@ -443,7 +443,7 @@ void CommandDirectRead::procresult()
                     break;
 
                 case MAKENAMEID2('t', 'l'):
-                    tl = client->json.getint();
+                    tl = dstime(client->json.getint());
                     break;
 
                 case EOO:
@@ -544,7 +544,7 @@ void CommandGetFile::procresult()
     dstime tl = 0;
     int d = 0;
     byte* buf;
-    time_t ts = 0, tm = 0;
+    m_time_t ts = 0, tm = 0;
 
     // credentials relevant to a non-TransferSlot scenario (node query)
     string fileattrstring;
@@ -603,7 +603,7 @@ void CommandGetFile::procresult()
                 break;
 
             case MAKENAMEID2('t', 'l'):
-                tl = client->json.getint();
+                tl = dstime(client->json.getint());
                 break;
 
             case EOO:
@@ -2096,10 +2096,10 @@ void CommandEnumerateQuotaItems::procresult()
     while (client->json.enterarray())
     {
         if (ISUNDEF((product = client->json.gethandle(8)))
-                || ((prolevel = client->json.getint()) < 0)
-                || ((gbstorage = client->json.getint()) < 0)
-                || ((gbtransfer = client->json.getint()) < 0)
-                || ((months = client->json.getint()) < 0)
+                || ((prolevel = int(client->json.getint())) < 0)
+                || ((gbstorage = int(client->json.getint())) < 0)
+                || ((gbtransfer = int(client->json.getint())) < 0)
+                || ((months = int(client->json.getint())) < 0)
                 || !(a = client->json.getvalue())
                 || !(c = client->json.getvalue())
                 || !(d = client->json.getvalue())
@@ -3236,8 +3236,8 @@ void CommandGetUserQuota::procresult()
                         ns = &details->storage[h];
 
                         ns->bytes = client->json.getint();
-                        ns->files = client->json.getint();
-                        ns->folders = client->json.getint();
+                        ns->files = uint32_t(client->json.getint());
+                        ns->folders = uint32_t(client->json.getint());
                         ns->version_bytes = client->json.getint();
                         ns->version_files = client->json.getint();
 
@@ -3390,7 +3390,7 @@ void CommandQueryTransferQuota::procresult()
         return client->app->querytransferquota_result(0);
     }
 
-    return client->app->querytransferquota_result(client->json.getint());
+    return client->app->querytransferquota_result(int(client->json.getint()));
 }
 
 CommandGetUserTransactions::CommandGetUserTransactions(MegaClient* client, AccountDetails* ad)
@@ -3408,7 +3408,7 @@ void CommandGetUserTransactions::procresult()
     while (client->json.enterarray())
     {
         const char* handle = client->json.getvalue();
-        time_t ts = client->json.getint();
+        m_time_t ts = client->json.getint();
         const char* delta = client->json.getvalue();
         const char* cur = client->json.getvalue();
 
@@ -3447,7 +3447,7 @@ void CommandGetUserPurchases::procresult()
     while (client->json.enterarray())
     {
         const char* handle = client->json.getvalue();
-        const time_t ts = client->json.getint();
+        const m_time_t ts = client->json.getint();
         const char* amount = client->json.getvalue();
         const char* cur = client->json.getvalue();
         int method = (int)client->json.getint();
@@ -3750,7 +3750,7 @@ void CommandWhyAmIblocked::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->whyamiblocked_result(client->json.getint());
+        return client->app->whyamiblocked_result(int(client->json.getint()));
     }
 
     client->json.storeobject();
@@ -4118,7 +4118,7 @@ void CommandCreditCardQuerySubscriptions::procresult()
     int number = 0;
     if (client->json.isnumeric())
     {
-        number = client->json.getint();
+        number = int(client->json.getint());
         if(number >= 0)
         {
             client->app->creditcardquerysubscriptions_result(number, API_OK);
@@ -4230,7 +4230,7 @@ void CommandGetPaymentMethods::procresult()
 
     do
     {
-        int value = client->json.getint();
+        int value = int(client->json.getint());
         if(value < 0)
         {
             client->app->getpaymentmethods_result(methods, (error)value);
@@ -4362,10 +4362,10 @@ void CommandQueryRecoveryLink::procresult()
     int type = API_EINTERNAL;
     string email;
     string ip;
-    time_t ts;
+    m_time_t ts;
     handle uh;
 
-    if (!client->json.isnumeric() || ((type = client->json.getint()) < 0))   // error
+    if (!client->json.isnumeric() || ((type = int(client->json.getint())) < 0))   // error
     {
         return client->app->queryrecoverylink_result((error)type);
     }
@@ -4399,7 +4399,7 @@ void CommandQueryRecoveryLink::procresult()
         return client->app->queryrecoverylink_result(API_EINTERNAL);
     }
 
-    return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), ts, uh, &emails);
+    return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), time_t(ts), uh, &emails);
 }
 
 CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
@@ -4623,7 +4623,7 @@ void CommandGetVersion::procresult()
         switch (client->json.getnameid())
         {
             case 'c':
-                versioncode = client->json.getint();
+                versioncode = int(client->json.getint());
                 break;
 
             case 's':
@@ -4766,7 +4766,7 @@ void CommandChatCreate::procresult()
                     break;
 
                 case MAKENAMEID2('c','s'):
-                    shard = client->json.getint();
+                    shard = int(client->json.getint());
                     break;
 
                 case 'g':
@@ -5404,7 +5404,7 @@ void CommandRichLink::procresult()
         switch (client->json.getnameid())
         {
             case MAKENAMEID5('e', 'r', 'r', 'o', 'r'):
-                errCode = client->json.getint();
+                errCode = int(client->json.getint());
                 break;
 
             case MAKENAMEID6('r', 'e', 's', 'u', 'l', 't'):
@@ -5494,7 +5494,7 @@ void CommandGetMegaAchievements::procresult()
                 {
                     for (;;)
                     {
-                        achievement_class_id id = client->json.getnameid();
+                        achievement_class_id id = achievement_class_id(client->json.getnameid());
                         if (id == EOO)
                         {
                             break;
@@ -5553,10 +5553,10 @@ void CommandGetMegaAchievements::procresult()
                             switch (client->json.getnameid())
                             {
                             case 'a':
-                                award.achievement_class = client->json.getint();
+                                award.achievement_class = achievement_class_id(client->json.getint());
                                 break;
                             case 'r':
-                                award.award_id = client->json.getint();
+                                award.award_id = int(client->json.getint());
                                 break;
                             case MAKENAMEID2('t', 's'):
                                 award.ts = client->json.getint();
@@ -5613,7 +5613,7 @@ void CommandGetMegaAchievements::procresult()
                         }
 
                         Reward reward;
-                        reward.award_id = id - '0';   // convert to number
+                        reward.award_id = int(id - '0');   // convert to number
 
                         client->json.enterarray();
 

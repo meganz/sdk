@@ -1876,7 +1876,7 @@ void MegaClient::exec()
                     for (it = syncs.begin(); it != syncs.end(); )
                     {
                         Sync* sync = *it++;
-                        prevpending |= sync->dirnotify->notifyq[q].size();
+                        prevpending = prevpending || sync->dirnotify->notifyq[q].size();
                         if (prevpending)
                         {
                             break;
@@ -5024,7 +5024,7 @@ void MegaClient::sc_upc()
                 uts = jsonsc.getint();
                 break; 
             case 's':
-                s = jsonsc.getint();
+                s = int(jsonsc.getint());
                 break;
             case 'p':
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
@@ -5202,7 +5202,7 @@ void MegaClient::sc_se()
             uh = jsonsc.gethandle(USERHANDLE);
             break;
         case 's':
-            status = jsonsc.getint();
+            status = int(jsonsc.getint());
             break;
         case EOO:
             done = true;
@@ -5282,7 +5282,7 @@ void MegaClient::sc_chatupdate()
                 break;
 
             case MAKENAMEID2('c','s'):
-                shard = jsonsc.getint();
+                shard = int(jsonsc.getint());
                 break;
 
             case 'n':   // the new user, for notification purposes (not used)
@@ -5484,7 +5484,7 @@ void MegaClient::sc_chatflags()
                 break;
 
             case 'f':
-                flags = jsonsc.getint();
+                flags = byte(jsonsc.getint());
                 break;
 
             case EOO:
@@ -6235,7 +6235,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     break;
 
                 case 'i':   // related source NewNode index
-                    nni = j->getint();
+                    nni = int(j->getint());
                     break;
 
                 case MAKENAMEID2('t', 's'):  // actual creation timestamp
@@ -8419,7 +8419,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case MAKENAMEID2('c','s'):
-                                shard = j->getint();
+                                shard = int(j->getint());
                                 break;
 
                             case 'u':   // list of users participating in the chat (+privileges)
@@ -8507,7 +8507,7 @@ void MegaClient::procmcf(JSON *j)
                     while(j->enterobject()) // while there are more chatid/flag tuples to read...
                     {
                         handle chatid = UNDEF;
-                        int flags = 0xFF;
+                        byte flags = 0xFF;
 
                         bool readingFlags = true;
                         while (readingFlags)
@@ -8520,7 +8520,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case 'f':
-                                flags = j->getint();
+                                flags = byte(j->getint());
                                 break;
 
                             case EOO:
@@ -10160,7 +10160,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
 
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
-            dstime timeleft = overquotauntil - Waiter::ds;
+            dstime timeleft = dstime(overquotauntil - Waiter::ds);
             app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
             it->second->schedule(timeleft);
         }
@@ -10174,7 +10174,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
         it->second->enqueue(offset, count, reqtag, appdata);
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
-            dstime timeleft = overquotauntil - Waiter::ds;
+            dstime timeleft = dstime(overquotauntil - Waiter::ds);
             app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
             it->second->schedule(timeleft);
         }
@@ -11243,7 +11243,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         m_time_t next = currentVersion->ctime + delay;
                         if (next > currentTime)
                         {
-                            dstime backoffds = (next - currentTime) * 10;
+                            dstime backoffds = dstime((next - currentTime) * 10);
                             ll->nagleds = waiter->ds + backoffds;
                             LOG_debug << "Waiting for the version rate limit delay during " << backoffds << " ds";
 
@@ -11894,7 +11894,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
-                dstime timeleft = overquotauntil - Waiter::ds;
+                dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
             }
         }
@@ -11994,7 +11994,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
-                dstime timeleft = overquotauntil - Waiter::ds;
+                dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
             }
         }

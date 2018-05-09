@@ -80,7 +80,7 @@ void cron_parse_expr(const char* expression, cron_expr* target, const char** err
  * @param date start date to start calculation from
  * @return next 'fire' date in case of success, '((time_t) -1)' in case of error.
  */
-time_t cron_next(cron_expr* expr, time_t date);
+time_t cron_next(const cron_expr* expr, time_t date);
 
 
 #if defined(__cplusplus) && !defined(CRON_COMPILE_AS_CXX)

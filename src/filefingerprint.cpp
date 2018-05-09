@@ -162,7 +162,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
         for (unsigned i = 0; i < sizeof crc / sizeof *crc; i++)
         {
-            int begin = i * size / (sizeof crc / sizeof *crc);
+            int begin = int(i * size / (sizeof crc / sizeof *crc));
             int end = (i + 1) * size / (sizeof crc / sizeof *crc);
 
             crc32.add(buf + begin, end - begin);
@@ -257,7 +257,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         HashCRC32 crc32;
         byte buf[MAXFULL];
 
-        if (!is->read(buf, size))
+        if (!is->read(buf, int(size)))
         {
             size = -1;
             return true;
@@ -265,8 +265,8 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
 
         for (unsigned i = 0; i < sizeof crc / sizeof *crc; i++)
         {
-            int begin = i * size / (sizeof crc / sizeof *crc);
-            int end = (i + 1) * size / (sizeof crc / sizeof *crc);
+            int begin = int(i * size / (sizeof crc / sizeof *crc));
+            int end = int((i + 1) * size / (sizeof crc / sizeof *crc));
 
             crc32.add(buf + begin, end - begin);
             crc32.get((byte*)&crcval);
@@ -291,10 +291,15 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
                         / (sizeof crc / sizeof *crc * blocks - 1);
 
                 //Seek
-                if (!is->read(NULL, offset - current))
+                for (m_off_t fullstep = offset - current; fullstep > 0; )  // 500G or more and the step doesn't fit in 32 bits
                 {
-                    size = -1;
-                    return true;
+                    unsigned step = fullstep > UINT_MAX ? UINT_MAX : unsigned(fullstep);
+                    if (!is->read(NULL, step))
+                    {
+                        size = -1;
+                        return true;
+                    }
+                    fullstep -= step;
                 }
                 current += (offset - current);
 
