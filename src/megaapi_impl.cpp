@@ -20123,6 +20123,7 @@ void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *d
     {
         if (evt_tls_is_handshake_over(tcpctx->evt_tls))
         {
+            tcpctx->server->processReceivedData(tcpctx, nrd, data);
             evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
         }
         else
@@ -24697,7 +24698,6 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
         ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaError(ftpdatactx->ecode));
         ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
     }
-
 
     if (!fds->remainingcloseevents && fds->closing)
     {
