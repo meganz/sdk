@@ -5330,6 +5330,22 @@ class MegaApi
         void multiFactorAuthLogin(const char* email, const char* password, const char* pin, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Change the password of a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
+         * - MegaRequest::getNewPassword - Returns the new password
+         * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+         * @param newPassword New password
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthChangePassword(const char *oldPassword, const char *newPassword, const char* pin, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Log in to a MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGIN.

@@ -9221,7 +9221,7 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-error MegaClient::changepw(const byte* newpwkey)
+error MegaClient::changepw(const byte* newpwkey, const char *pin)
 {
     User* u;
 
@@ -9237,7 +9237,7 @@ error MegaClient::changepw(const byte* newpwkey)
     pwcipher.ecb_encrypt(newkey);
 
     string email = u->email;
-    reqs.add(new CommandSetMasterKey(this, newkey, stringhash64(&email, &pwcipher)));
+    reqs.add(new CommandSetMasterKey(this, newkey, stringhash64(&email, &pwcipher), pin));
     return API_OK;
 }
 

@@ -4429,6 +4429,16 @@ void MegaApiImpl::multiFactorAuthLogin(const char *email, const char *password, 
     waiter->notify();
 }
 
+void MegaApiImpl::multiFactorAuthChangePassword(const char *oldPassword, const char *newPassword, const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHANGE_PW, listener);
+    request->setPassword(oldPassword);
+    request->setNewPassword(newPassword);
+    request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -15212,6 +15222,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char* oldPassword = request->getPassword();
 			const char* newPassword = request->getNewPassword();
+            const char* pin = request->getText();
             if (!newPassword)
             {
                 e = API_EARGS;
@@ -15228,7 +15239,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 break;
             }
-            e = client->changepw(newpwkey);
+            e = client->changepw(newpwkey, pin);
 			break;
 		}
 		case MegaRequest::TYPE_LOGOUT:

@@ -3643,13 +3643,17 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash, const char *pin)
 {
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
     cmd("up");
     arg("k", newkey, SymmCipher::KEYLENGTH);
     arg("uh", (byte*)&hash, sizeof hash);
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
 
     tag = client->reqtag;
 }

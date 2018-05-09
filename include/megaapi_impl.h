@@ -1506,6 +1506,7 @@ class MegaApiImpl : public MegaApp
         void multiFactorAuthEnable(const char *pin, MegaRequestListener *listener = NULL);
         void multiFactorAuthDisable(const char *pin, MegaRequestListener *listener = NULL);
         void multiFactorAuthLogin(const char* email, const char* password, const char* pin, MegaRequestListener *listener = NULL);
+        void multiFactorAuthChangePassword(const char *oldPassword, const char *newPassword, const char* pin, MegaRequestListener *listener = NULL);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
