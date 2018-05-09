@@ -5310,6 +5310,24 @@ class MegaApi
          */
         void multiFactorAuthDisable(const char *pin, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Log in to a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the first parameter
+         * - MegaRequest::getPassword - Returns the second parameter
+         * - MegaRequest::getText - Returns the third parameter
+         *
+         * If the email/password aren't valid the error code provided in onRequestFinish is
+         * MegaError::API_ENOENT.
+         *
+         * @param email Email of the user
+         * @param password Password
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthLogin(const char* email, const char* password, const char* pin, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a MEGA account

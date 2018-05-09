@@ -1484,6 +1484,11 @@ void MegaApi::multiFactorAuthDisable(const char *pin, MegaRequestListener *liste
     pImpl->multiFactorAuthDisable(pin, listener);
 }
 
+void MegaApi::multiFactorAuthLogin(const char *email, const char *password, const char *pin, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthLogin(email, password, pin, listener);
+}
+
 void MegaApi::addEntropy(char *data, unsigned int size)
 {
     MegaApiImpl::addEntropy(data, size);

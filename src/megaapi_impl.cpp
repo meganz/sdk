@@ -4419,6 +4419,16 @@ void MegaApiImpl::multiFactorAuthDisable(const char *pin, MegaRequestListener *l
     waiter->notify();
 }
 
+void MegaApiImpl::multiFactorAuthLogin(const char *email, const char *password, const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setEmail(email);
+    request->setPassword(password);
+    request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -14531,6 +14541,7 @@ void MegaApiImpl::sendPendingRequests()
             const char* megaFolderLink = request->getLink();
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
+            const char* pin = request->getText();
 
             if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
             {
@@ -14593,7 +14604,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 byte pwkey[SymmCipher::KEYLENGTH];
                 if((e = client->pw_key(password,pwkey))) break;
-                client->login(slogin.c_str(), pwkey);
+                client->login(slogin.c_str(), pwkey, pin);
             }
             else
             {

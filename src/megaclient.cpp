@@ -7036,7 +7036,7 @@ error MegaClient::folderaccess(const char *folderlink)
 }
 
 // create new session
-void MegaClient::login(const char* email, const byte* pwkey)
+void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
 {
     locallogout();
 
@@ -7049,7 +7049,7 @@ void MegaClient::login(const char* email, const byte* pwkey)
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, emailhash, sek));
+    reqs.add(new CommandLogin(this, email, emailhash, sek, 0, pin));
     getuserdata();
 }
 

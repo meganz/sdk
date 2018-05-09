@@ -233,7 +233,7 @@ public:
     void setkeypair();
 
     // user login: e-mail, pwkey
-    void login(const char*, const byte*);
+    void login(const char*, const byte*, const char* = NULL);
 
     // user login: e-mail, pwkey, emailhash
     void fastlogin(const char*, const byte*, uint64_t);
