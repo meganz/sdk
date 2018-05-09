@@ -286,7 +286,7 @@ public:
     error encryptlink(const char* link, const char* pwd, string *encryptedLink);
 
     // change login password
-    error changepw(const byte*, const char *pin);
+    error changepw(const byte*, const char *pin = NULL);
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);
@@ -1284,7 +1284,7 @@ public:
     void confirmcancellink(const char *code);
 
     // get a link to change the email address
-    void getemaillink(const char *email, const char *pin);
+    void getemaillink(const char *email, const char *pin = NULL);
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
