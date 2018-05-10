@@ -2666,6 +2666,8 @@ public:
     int pasiveport;
     MegaFTPDataServer * ftpDataServer;
 
+    MegaNode *nodeToDeleteAfterMove;
+
     uv_mutex_t mutex_responses;
     std::list<std::string> responses;
 

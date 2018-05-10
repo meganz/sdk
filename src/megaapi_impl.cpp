@@ -23871,59 +23871,60 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 MegaNode *nodeToRename = ftpctx->megaApi->getNodeByHandle(this->nodeHandleToRename);
                 if (nodeToRename)
                 {
+                    MegaNode *n = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+                    if (n)
+                    {
+                        ftpctx->nodeToDeleteAfterMove = n;
+                    }
+
                     MegaNode *newParentNode = NULL;
                     size_t seppos = ftpctx->arg1.find_last_of("/");
                     string newName = ftpctx->arg1;
-                    MegaNode *n = getNodeByFtpPath(ftpctx, newName);
-                    if (n)
-                    {
-                        response = "503 File already exists"; //with 503 gvfsd-ftp will reupload after this (553 simply blocks). hence a new version will be created
-                        // TODO: if ever available use moveNodeCreatingVersionIfExisting in this case
-                        delete n;
-                    }
-                    else
-                    {
-                        if (seppos != string::npos)
-                        {
-                            if (!seppos) //new folder structure does not allow this
-                            {
-                                response = "553 Requested action not taken: Invalid destiny";
-                                break;
-                            }
 
-                            if ((seppos + 1) < newName.size())
-                            {
-                                newName = newName.substr(seppos + 1);
-                            }
-                            string newparentpath = ftpctx->arg1.substr(0, seppos);
-                            newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
-                            if (!newParentNode)
-                            {
-                                newName = ""; //empty
-                            }
+                    if (seppos != string::npos)
+                    {
+                        if (!seppos) //new folder structure does not allow this
+                        {
+                            response = "553 Requested action not taken: Invalid destiny";
+                            delete n;
+                            ftpctx->nodeToDeleteAfterMove = NULL;
+                            break;
                         }
 
-                        if (newName.size())
+                        if ((seppos + 1) < newName.size())
                         {
-                            if (newParentNode && newParentNode->getHandle() != nodeToRename->getParentHandle())
-                            {
-                                newNameAfterMove = newName;
-                                ftpctx->megaApi->moveNode(nodeToRename, newParentNode, ftpctx);
-                                delayresponse = true;
-                            }
-                            else
-                            {
-                                ftpctx->megaApi->renameNode(nodeToRename, newName.c_str(), ftpctx);
-                                delayresponse = true;
-                            }
-                            delete nodeToRename;
+                            newName = newName.substr(seppos + 1);
+                        }
+                        string newparentpath = ftpctx->arg1.substr(0, seppos);
+                        newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
+                        if (!newParentNode)
+                        {
+                            newName = ""; //empty
+                        }
+                    }
+
+                    if (newName.size())
+                    {
+                        if (newParentNode && newParentNode->getHandle() != nodeToRename->getParentHandle())
+                        {
+                            newNameAfterMove = newName;
+                            ftpctx->megaApi->moveNode(nodeToRename, newParentNode, ftpctx);
+                            delayresponse = true;
                         }
                         else
                         {
-                            response = "553 Requested action not taken. Invalid destiny";
+                            ftpctx->megaApi->renameNode(nodeToRename, newName.c_str(), ftpctx);
+                            delayresponse = true;
                         }
-                        delete newParentNode;
+                        delete nodeToRename;
                     }
+                    else
+                    {
+                        response = "553 Requested action not taken. Invalid destiny";
+                        delete n;
+                        ftpctx->nodeToDeleteAfterMove = NULL;
+                    }
+                    delete newParentNode;
                 }
                 else
                 {
@@ -24183,6 +24184,7 @@ MegaFTPContext::MegaFTPContext()
     parentcwd = UNDEF;
     pasiveport = -1;
     ftpDataServer = NULL;
+    nodeToDeleteAfterMove = NULL;
     uv_mutex_init(&mutex_responses);
 }
 
@@ -24280,7 +24282,16 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            MegaFTPServer::returnFtpCodeAsync(this, 250);
+            if (nodeToDeleteAfterMove)
+            {
+                this->megaApi->remove(nodeToDeleteAfterMove, false, this);
+                nodeToDeleteAfterMove = NULL;
+                delete nodeToDeleteAfterMove;
+            }
+            else
+            {
+                MegaFTPServer::returnFtpCodeAsync(this, 250);
+            }
         }
         else
         {
@@ -24300,7 +24311,16 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
                 }
                 else if (!strcmp(nodetoRename->getName(), ftpserver->newNameAfterMove.c_str()))
                 {
-                    MegaFTPServer::returnFtpCodeAsync(this, 250);
+                    if (nodeToDeleteAfterMove)
+                    {
+                        this->megaApi->remove(nodeToDeleteAfterMove, false, this);
+                        nodeToDeleteAfterMove = NULL;
+                        delete nodeToDeleteAfterMove;
+                    }
+                    else
+                    {
+                        MegaFTPServer::returnFtpCodeAsync(this, 250);
+                    }
                 }
                 else
                 {
@@ -24310,7 +24330,16 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
             }
             else
             {
-                MegaFTPServer::returnFtpCodeAsync(this, 250);
+                if (nodeToDeleteAfterMove)
+                {
+                    this->megaApi->remove(nodeToDeleteAfterMove, false, this);
+                    nodeToDeleteAfterMove = NULL;
+                    delete nodeToDeleteAfterMove;
+                }
+                else
+                {
+                    MegaFTPServer::returnFtpCodeAsync(this, 250);
+                }
             }
         }
         else
