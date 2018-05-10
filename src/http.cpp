@@ -38,7 +38,7 @@ const int SpeedController::SPEED_MEAN_INTERVAL_DS = 50;
 const int SpeedController::SPEED_MAX_VALUES = 10000;
 
 // data receive timeout (ds)
-const int HttpIO::NETWORKTIMEOUT = 6000;
+const int HttpIO::NETWORKTIMEOUT = 180000;
 
 // request timeout (ds)
 const int HttpIO::REQUESTTIMEOUT = 1200;

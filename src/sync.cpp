@@ -521,6 +521,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         l = NULL;
 
         client->fsaccess->local2path(localpath, &path);
+        assert(path.size());
     }
     else
     {
@@ -566,7 +567,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         client->fsaccess->local2path(&tmppath, &path);
 
         // path invalid?
-        if (!l && !newname.size())
+        if ( ( !l && !newname.size() ) || !path.size())
         {
             LOG_warn << "Invalid path: " << path;
             return NULL;
@@ -598,19 +599,28 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
     if (initializing || fullscan)
     {
+        // find corresponding LocalNode by file-/foldername
+        int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
+
+        string fname(localname ? *localpath : tmppath,
+                     lastpart,
+                     (localname ? *localpath : tmppath).size() - lastpart);
+
+        LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
+        if (initializing && cl)
+        {
+            // the file seems to be still in the folder
+            // mark as present to prevent deletions if the file is not accesible
+            // in that case, the file would be checked again after the initialization
+            cl->deleted = false;
+            cl->setnotseen(0);
+            l->scanseqno = scanseqno;
+        }
+
         // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
         // (just compare the fsids, sizes and mtimes to detect changes)
         if (fa->fopen(localname ? localpath : &tmppath, false, false))
         {
-            // find corresponding LocalNode by file-/foldername
-            int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
-
-            string fname(localname ? *localpath : tmppath,
-                         lastpart,
-                         (localname ? *localpath : tmppath).size() - lastpart);
-
-            LocalNode* cl = (parent ? parent : &localroot)->childbyname(&fname);
-
             if (cl && fa->fsidvalid && fa->fsid == cl->fsid)
             {
                 // node found and same file
@@ -636,6 +646,10 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     return l;
                 }
             }
+        }
+        else
+        {
+            LOG_warn << "Error opening file during the initialization: " << path;
         }
 
         if (initializing)

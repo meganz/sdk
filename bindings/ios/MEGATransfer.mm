@@ -159,4 +159,8 @@ using namespace mega;
     return self.megaTransfer->getAppData() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getAppData()] : nil;
 }
 
+- (MEGATransferState)state {
+    return (MEGATransferState) (self.megaTransfer ? self.megaTransfer->getState() : 0);
+}
+
 @end

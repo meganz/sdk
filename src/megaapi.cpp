@@ -519,6 +519,11 @@ int64_t MegaShare::getTimestamp()
     return 0;
 }
 
+bool MegaShare::isPending()
+{
+    return false;
+}
+
 MegaRequest::~MegaRequest() { }
 MegaRequest *MegaRequest::copy()
 {
@@ -844,6 +849,11 @@ bool MegaTransfer::isStreamingTransfer() const
 	return false;
 }
 
+bool MegaTransfer::isFinished() const
+{
+    return false;
+}
+
 char *MegaTransfer::getLastBytes() const
 {
     return NULL;
@@ -1059,6 +1069,11 @@ int MegaContactRequest::getStatus() const
 bool MegaContactRequest::isOutgoing() const
 {
     return true;
+}
+
+bool MegaContactRequest::isAutoAccepted() const
+{
+    return false;
 }
 
 //Request callbacks
@@ -1950,6 +1965,26 @@ void MegaApi::passwordReminderDialogBlocked(MegaRequestListener *listener)
 void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener)
 {
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, atLogout, listener);
+}
+
+void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    pImpl->enableRichPreviews(enable, listener);
+}
+
+void MegaApi::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    pImpl->isRichPreviewsEnabled(listener);
+}
+
+void MegaApi::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    pImpl->shouldShowRichLinkWarning(listener);
+}
+
+void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
+{
+    pImpl->setRichLinkWarningCounterValue(value, listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)

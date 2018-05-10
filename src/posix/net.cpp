@@ -1079,6 +1079,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         return;
     }
 
+    bool ares_pending = httpctx->ares_pending;
     if (httpctx->hostip.size())
     {
         LOG_verbose << "Name resolution finished";
@@ -1110,7 +1111,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         }
     }
 
-    if (httpctx->ares_pending)
+    if (ares_pending)
     {
         LOG_verbose << "Waiting for the completion of the c-ares request";
     }
@@ -1145,7 +1146,22 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     int len = httpctx->len;
     const char* data = httpctx->data;
 
-    LOG_debug << "POST target URL: " << req->posturl;
+    if (SimpleLogger::logCurrentLevel >= logDebug)
+    {
+        string safeurl = req->posturl;
+        size_t sid = safeurl.find("sid=");
+        if (sid != string::npos)
+        {
+            sid += 4;
+            size_t end = safeurl.find("&", sid);
+            if (end == string::npos)
+            {
+                end = safeurl.size();
+            }
+            memset((char *)safeurl.data() + sid, 'X', end - sid);
+        }
+        LOG_debug << "POST target URL: " << safeurl;
+    }
 
     if (req->binary)
     {

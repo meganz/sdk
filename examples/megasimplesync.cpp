@@ -27,7 +27,7 @@
 
 using namespace mega;
 
-class SyncApp : public MegaApp
+class SyncApp : public MegaApp, public Logger
 {
     string local_folder;
     string remote_folder;
@@ -63,6 +63,10 @@ class SyncApp : public MegaApp
     Node* nodebypath(const char* ptr, string* user, string* namepart);
 public:
     SyncApp(string local_folder_, string remote_folder_);
+
+    // Logger interface
+public:
+    void log(const char *time, int loglevel, const char *source, const char *message);
 };
 
 // globals
@@ -292,6 +296,26 @@ SyncApp:: SyncApp(string local_folder_, string remote_folder_) :
     local_folder(local_folder_), remote_folder(remote_folder_), cwd(UNDEF), initial_fetch(true)
 {}
 
+void SyncApp::log(const char *time, int loglevel, const char *source, const char *message)
+{
+    if (!time)
+    {
+        time = "";
+    }
+
+    if (!source)
+    {
+        source = "";
+    }
+
+    if (!message)
+    {
+        message = "";
+    }
+
+    cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+}
+
 // this callback function is called when we have login result (success or
 // error)
 // TODO: check for errors
@@ -497,16 +521,18 @@ int main(int argc, char *argv[])
     // use logInfo level
     SimpleLogger::setLogLevel(logInfo);
     // set output to stdout
-    SimpleLogger::setAllOutputs(&std::cout);
+//    SimpleLogger::setAllOutputs(&std::cout);
+
 
     if (argc < 3)
     {
-        LOG_info << "Usage: " << argv[0] << " [local folder] [remote folder]";
-        LOG_info << "   (set MEGA_DEBUG to 1 or 2 to see debug output.";
+        cerr << "Usage: " << argv[0] << " [local folder] [remote folder]" << endl;
+        cerr << "   (set MEGA_DEBUG to 1 or 2 to see debug output." << endl;
         return 1;
     }
 
     app = new SyncApp(argv[1], argv[2]);
+    SimpleLogger::setOutputClass(app);
 
     if (!getenv("MEGA_EMAIL") || !getenv("MEGA_PWD"))
     {

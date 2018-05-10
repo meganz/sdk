@@ -92,7 +92,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
     MEGAUserAttributeLanguage                = 14, // private - char array
     MEGAUserAttributePwdReminder             = 15, // private - char array
-    MEGAUserAttributeContactLinkVerification = 17  // private - byte array
+    MEGAUserAttributeContactLinkVerification = 17, // private - byte array
+    MEGAUserAttributeRichPreviews            = 18  // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -131,6 +132,16 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
     PasswordStrengthMedium = 2,
     PasswordStrengthGood = 3,
     PasswordStrengthStrong = 4
+};
+
+typedef NS_ENUM(NSUInteger, Retry) {
+    RetryNone = 0,
+    RetryConnectivity = 1,
+    RetryServersBusy = 2,
+    RetryApiLock = 3,
+    RetryRateLimit = 4,
+    RetryLocalLock = 5,
+    RetryUnknown = 6
 };
 
 /**
@@ -208,6 +219,35 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @brief Upload active transfers.
  */
 @property (readonly, nonatomic) MEGATransferList *uploadTransfers;
+
+/**
+ * @brief Check if the SDK is waiting to complete a request and get the reason
+ * @return State of SDK.
+ *
+ * Valid values are:
+ * - RetryNone = 0
+ * SDK is not waiting for the server to complete a request
+ *
+ * - RetryConnectivity = 1
+ * SDK is waiting for the server to complete a request due to connectivity issues
+ *
+ * - RetryServersBusy = 2
+ * SDK is waiting for the server to complete a request due to a HTTP error 500
+ *
+ * - RetryApiLock = 3
+ * SDK is waiting for the server to complete a request due to an API lock (API error -3)
+ *
+ * - RetryRateLimit = 4,
+ * SDK is waiting for the server to complete a request due to a rate limit (API error -4)
+ *
+ * - RetryLocalLock = 5
+ * SDK is waiting for a local locked file
+ *
+ * - RetryUnknown = 6
+ * SDK is waiting for the server to complete a request with unknown reason
+ *
+ */
+@property (readonly, nonatomic) Retry waiting;
 
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
@@ -670,6 +710,23 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  *
  */
 - (void)logout;
+
+/**
+ * @brief Logout of the MEGA account without invalidating the session
+ *
+ * The associated request type with this request is MEGARequestTypeLogout
+ *
+ * @param delegate Delegate to track this request.
+ */
+- (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Logout of the MEGA account without invalidating the session
+ *
+ * The associated request type with this request is MEGARequestTypeLogout
+ *
+ */
+- (void)localLogout;
 
 /**
  * @brief Invalidate the existing cache and create a fresh one
@@ -2805,7 +2862,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * - [MEGARequest password] - Returns the old password
  * - [MEGARequest newPassword] - Returns the new password
  *
- * @param oldPassword Old password.
+ * @param oldPassword Old password (optional, it can be nil to not check the old password).
  * @param newPassword New password.
  * @param delegate Delegate to track this request.
  */
@@ -2819,7 +2876,7 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * - [MEGARequest password] - Returns the old password
  * - [MEGARequest newPassword] - Returns the new password
  *
- * @param oldPassword Old password.
+ * @param oldPassword Old password (optional, it can be nil to not check the old password).
  * @param newPassword New password.
  */
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword;
@@ -2998,6 +3055,132 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @param atLogout YES if the check is being done just before a logout
  */
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout;
+
+/**
+ * @brief Enable or disable the generation of rich previews
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param enable YES to enable the generation of rich previews
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable or disable the generation of rich previews
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param enable YES to enable the generation of rich previews
+ */
+- (void)enableRichPreviews:(BOOL)enable;
+
+/**
+ * @brief Check if rich previews are automatically generated
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns zero
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (NO).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)isRichPreviewsEnabledWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if rich previews are automatically generated
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns zero
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (NO).
+ *
+ */
+- (void)isRichPreviewsEnabled;
+
+/**
+ * @brief Check if the app should show the rich link warning dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns one
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if it is necessary to show the rich link warning
+ * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
+ * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+ * must be added to the warning dialog.
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (YES).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)shouldShowRichLinkWarningWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the app should show the rich link warning dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns one
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if it is necessary to show the rich link warning
+ * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
+ * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+ * must be added to the warning dialog.
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (YES).
+ *
+ */
+- (void)shouldShowRichLinkWarning;
+
+/**
+ * @brief Set the number of times "Not now" option has been selected in the rich link warning dialog
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param value Number of times "Not now" option has been selected
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the number of times "Not now" option has been selected in the rich link warning dialog
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param value Number of times "Not now" option has been selected
+ */
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value;
 
 /**
  * @brief Use HTTPS communications only
@@ -3717,6 +3900,60 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * @param pause YES to pause all transfers / NO to resume all transfers.
  */
 - (void)pauseTransfers:(BOOL)pause;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transfer Transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transfer Transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ */
+- (void)pauseTransfer:(MEGATransfer *)transfer pause:(BOOL)pause;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transferTag Tag of the transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Pause/resume a transfer
+ *
+ * The associated request type with this request is MEGARequestTypePauseTransfer
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
+ * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ *
+ * @param transferTag Tag of the transfer to pause or resume
+ * @param pause YES to pause the transfer or NO to resume it
+ */
+- (void)pauseTransferByTag:(NSInteger)transferTag pause:(BOOL)pause;
 
 /**
  * @brief Enable the resumption of transfers
@@ -4659,6 +4896,33 @@ typedef NS_ENUM(NSUInteger, PasswordStrength) {
  * - [MEGARequest flag] - NO if disabled, YES if enabled
  */
 - (void)getContactLinksOption;
+
+/**
+ * @brief Keep retrying when public key pinning fails
+ *
+ * By default, when the check of the MEGA public key fails, it causes an automatic
+ * logout. Pass NO to this function to disable that automatic logout and
+ * keep the SDK retrying the request.
+ *
+ * Even if the automatic logout is disabled, a request of the type MEGARequestTypeLogout
+ * will be automatically created and callbacks (onRequestStart, onRequestFinish) will
+ * be sent. However, logout won't be really executed and in onRequestFinish the error code
+ * for the request will be MEGAErrorTypeApiEIncomplete
+ *
+ * @param enable YES to keep retrying failed requests due to a fail checking the MEGA public key
+ * or NO to perform an automatic logout in that case
+ */
+- (void)retrySSLErrors:(BOOL)enable;
+
+/**
+ * @brief Enable / disable the public key pinning
+ *
+ * Public key pinning is enabled by default for all sensible communications.
+ * It is strongly discouraged to disable this feature.
+ *
+ * @param enable YES to keep public key pinning enabled, NO to disable it
+ */
+- (void)setPublicKeyPinning:(BOOL)enable;
 
 /**
  * @brief Create a thumbnail for an image

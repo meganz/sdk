@@ -540,22 +540,24 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-		static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool pending = false);
 		virtual MegaShare *copy();
 		virtual ~MegaSharePrivate();
 		virtual const char *getUser();
 		virtual MegaHandle getNodeHandle();
 		virtual int getAccess();
 		virtual int64_t getTimestamp();
+        virtual bool isPending();
 
 	protected:
-		MegaSharePrivate(MegaHandle nodehandle, Share *share);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool pending = false);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
 		const char *user;
 		int access;
 		int64_t ts;
+        bool pending;
 };
 
 class MegaTransferPrivate : public MegaTransfer, public Cachable
@@ -626,6 +628,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual MegaNode *getPublicMegaNode() const;
         virtual bool isSyncTransfer() const;
         virtual bool isStreamingTransfer() const;
+        virtual bool isFinished() const;
         virtual bool isSourceFileTemporary() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
@@ -751,6 +754,7 @@ public:
     virtual int64_t getModificationTime() const;
     virtual int getStatus() const;
     virtual bool isOutgoing() const;
+    virtual bool isAutoAccepted() const;
 
 protected:
     MegaHandle handle;
@@ -761,6 +765,7 @@ protected:
     int64_t modificationTime;
     int status;
     bool outgoing;
+    bool autoaccepted;
 };
 
 #ifdef ENABLE_SYNC
@@ -1389,7 +1394,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size, bool pending = false);
         virtual ~MegaShareListPrivate();
 		virtual MegaShare* get(int i);
 		virtual int size();
@@ -1736,6 +1741,10 @@ class MegaApiImpl : public MegaApp
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, int number = 0, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
+        void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
+        void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
+        void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
+        void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -2191,7 +2200,6 @@ protected:
 
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
-        bool waiting;
         retryreason_t waitingRequest;
         vector<string> excludedNames;
         vector<string> excludedPaths;

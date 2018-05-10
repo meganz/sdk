@@ -1379,6 +1379,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_CONTACT_LINK_VERIFICATION;
     }
+    if(user->changed.richPreviews)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RICH_PREVIEWS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -1458,6 +1462,7 @@ MegaSharePrivate::MegaSharePrivate(MegaShare *share) : MegaShare()
 	this->user = MegaApi::strdup(share->getUser());
 	this->access = share->getAccess();
 	this->ts = share->getTimestamp();
+    this->pending = share->isPending();
 }
 
 MegaShare *MegaSharePrivate::copy()
@@ -1465,7 +1470,7 @@ MegaShare *MegaSharePrivate::copy()
 	return new MegaSharePrivate(this);
 }
 
-MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
+MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool pending)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
@@ -1476,11 +1481,12 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
     }
     this->access = share->access;
     this->ts = share->ts;
+    this->pending = pending;
 }
 
-MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
+MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share, bool pending)
 {
-    return new MegaSharePrivate(nodeuint64_t, share);
+    return new MegaSharePrivate(nodeuint64_t, share, pending);
 }
 
 MegaSharePrivate::~MegaSharePrivate()
@@ -1505,7 +1511,12 @@ int MegaSharePrivate::getAccess()
 
 int64_t MegaSharePrivate::getTimestamp()
 {
-	return ts;
+    return ts;
+}
+
+bool MegaSharePrivate::isPending()
+{
+    return pending;
 }
 
 
@@ -1651,6 +1662,11 @@ bool MegaTransferPrivate::isSyncTransfer() const
 bool MegaTransferPrivate::isStreamingTransfer() const
 {
     return streamingTransfer;
+}
+
+bool MegaTransferPrivate::isFinished() const
+{
+    return state == STATE_COMPLETED || state == STATE_CANCELLED || state == STATE_FAILED;
 }
 
 bool MegaTransferPrivate::isSourceFileTemporary() const
@@ -2206,6 +2222,7 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(PendingContactRequest *requ
     targetEmail = request->targetemail.size() ? MegaApi::strdup(request->targetemail.c_str()) : NULL;
     creationTime = request->ts;
     modificationTime = request->uts;
+    autoaccepted = request->autoaccepted;
 
     if(request->changed.accepted)
     {
@@ -2245,6 +2262,7 @@ MegaContactRequestPrivate::MegaContactRequestPrivate(const MegaContactRequest *r
     modificationTime = request->getModificationTime();
     status = request->getStatus();
     outgoing = request->isOutgoing();
+    autoaccepted = request->isAutoAccepted();
 }
 
 MegaContactRequestPrivate::~MegaContactRequestPrivate()
@@ -2304,6 +2322,10 @@ bool MegaContactRequestPrivate::isOutgoing() const
     return outgoing;
 }
 
+bool MegaContactRequestPrivate::isAutoAccepted() const
+{
+    return autoaccepted;
+}
 
 MegaAccountDetails *MegaAccountDetailsPrivate::fromAccountDetails(AccountDetails *details)
 {
@@ -3360,14 +3382,14 @@ MegaShareListPrivate::MegaShareListPrivate()
 	s = 0;
 }
 
-MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size)
+MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size, bool pending)
 {
 	list = NULL; s = size;
 	if(!size) return;
 
 	list = new MegaShare*[size];
 	for(int i=0; i<size; i++)
-        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i]);
+        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i], pending);
 }
 
 MegaShareListPrivate::~MegaShareListPrivate()
@@ -3924,7 +3946,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     totalUploads = 0;
     totalDownloads = 0;
     client = NULL;
-    waiting = false;
     waitingRequest = RETRY_NONE;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
@@ -4375,18 +4396,22 @@ string MegaApiImpl::userAttributeToString(int type)
             break;
 
         case MegaApi::USER_ATTR_LANGUAGE:
-            attrname = "!lang";
+            attrname = "^!lang";
 
         case MegaApi::USER_ATTR_PWD_REMINDER:
-            attrname = "!pwd";
+            attrname = "^!prd";
             break;
 
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-            attrname = "!dv";
+            attrname = "^!dv";
             break;
 
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "clv";
+            attrname = "^clv";
+            break;
+
+        case MegaApi::USER_ATTR_RICH_PREVIEWS:
+            attrname = "*!rp";
             break;
     }
 
@@ -4415,6 +4440,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_AUTHRING:
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
+        case MegaApi::USER_ATTR_RICH_PREVIEWS:
             scope = '*';
             break;
 
@@ -5224,6 +5250,47 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
     request->setParamType(type);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string rawvalue = enable ? "1" : "0";
+    string base64value;
+    Base64::btoa(rawvalue, base64value);
+    stringMap->set("num", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(0);  // 0 --> flag should indicate whether rich-links are enabled or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(1);  // 1 --> flag should indicate whether to show the warning or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    std::ostringstream oss;
+    oss << value;
+    string base64value;
+    Base64::btoa(oss.str(), base64value);
+    stringMap->set("c", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
 }
 
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
@@ -8050,7 +8117,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
-    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
+    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size(), true);
 
     sdkMutex.unlock();
     return shareList;
@@ -8080,7 +8147,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
         vHandles.push_back(node->nodehandle);
     }
 
-    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
+    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size(), true);
     sdkMutex.unlock();
     return shareList;
 }
@@ -10327,7 +10394,6 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
         client->abortbackoff(false);
     }
 
-    this->waiting = waiting;
     this->fireOnGlobalSyncStateChanged();
 }
 #endif
@@ -10534,14 +10600,23 @@ void MegaApiImpl::fetchnodes_result(error e)
             }
 
             byte pwkey[SymmCipher::KEYLENGTH];
-            if(!request->getPrivateKey())
-                client->pw_key(request->getPassword(),pwkey);
+            if (!request->getPrivateKey())
+            {
+                client->pw_key(request->getPassword(), pwkey);
+
+                char* buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
+                Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
+                request->setPrivateKey(buf);
+                delete [] buf;
+            }
             else
+            {
                 Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
+            }
 
             // ...and finally send confirmation link
             client->reqtag = client->restag;
-            client->sendsignuplink(request->getEmail(),request->getName(),pwkey);
+            client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
             client->reqtag = creqtag;
         }
     }
@@ -11276,7 +11351,6 @@ void MegaApiImpl::logout_result(error e)
         pendingDownloads = 0;
         totalUploads = 0;
         totalDownloads = 0;
-        waiting = false;
         waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
@@ -11726,22 +11800,37 @@ void MegaApiImpl::getua_result(error e)
                     (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
 
     // if attempted to get ^!prd attribute but not exists yet...
-    if (e == API_ENOENT && request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER)
+    if (e == API_ENOENT)
     {
-        if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        if (request->getParamType() == MegaApi::USER_ATTR_PWD_REMINDER)
         {
-            string newValue;
-            User::mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
-            request->setText(newValue.c_str());
+            if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+            {
+                string newValue;
+                User::mergePwdReminderData(request->getNumDetails(), NULL, 0, &newValue);
+                request->setText(newValue.c_str());
 
-            // set the attribute using same request tag
-            client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
-            return;
+                // set the attribute using same request tag
+                client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
+                return;
+            }
+            else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
+                     && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+            {
+                request->setFlag(true); // the password reminder dialog should be shown
+            }
         }
-        else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
-                 && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+        else if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS &&
+                 request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
         {
-            request->setFlag(true); // the password reminder dialog should be shown
+            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+            {
+                request->setFlag(false);
+            }
+            else if (request->getNumDetails() == 1) // used to check if should show warning
+            {
+                request->setFlag(true);
+            }
         }
     }
 
@@ -11880,6 +11969,42 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         // must be converted into Base64 strings to avoid problems
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
+
+        // prepare request params to know if a warning should show or not
+        if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
+        {
+            const char *num = stringMap->get("num");
+
+            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+            {
+                if (num)
+                {
+                    string sValue = num;
+                    string bValue;
+                    Base64::atob(sValue, bValue);
+                    request->setFlag(bValue == "1");
+                }
+                else
+                {
+                    request->setFlag(false);
+                }
+            }
+            else if (request->getNumDetails() == 1) // used to check if should show warning
+            {
+                request->setFlag(!num);
+                // it doesn't matter the value, just if it exists
+
+                const char *value = stringMap->get("c");
+                if (value)
+                {
+                    string sValue = value;
+                    string bValue;
+                    Base64::atob(sValue, bValue);
+                    request->setNumber(atoi(bValue.c_str()));
+                }
+            }
+        }
+
         delete stringMap;
     }
 
@@ -15415,13 +15540,23 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char* oldPassword = request->getPassword();
 			const char* newPassword = request->getNewPassword();
-			if(!oldPassword || !newPassword) { e = API_EARGS; break; }
+            if (!newPassword)
+            {
+                e = API_EARGS;
+                break;
+            }
 
-			byte pwkey[SymmCipher::KEYLENGTH];
 			byte newpwkey[SymmCipher::KEYLENGTH];
-			if((e = client->pw_key(oldPassword, pwkey))) { e = API_EARGS; break; }
-			if((e = client->pw_key(newPassword, newpwkey))) { e = API_EARGS; break; }
-			e = client->changepw(pwkey, newpwkey);
+            if (oldPassword && !checkPassword(oldPassword))
+            {
+                e = API_EARGS;
+                break;
+            }
+            if ((e = client->pw_key(newPassword, newpwkey)))
+            {
+                break;
+            }
+            e = client->changepw(newpwkey);
 			break;
 		}
 		case MegaRequest::TYPE_LOGOUT:
@@ -17593,10 +17728,17 @@ void MegaApiImpl::update()
 int MegaApiImpl::isWaiting()
 {
 #ifdef ENABLE_SYNC
-    if (waiting || client->syncfslockretry)
+    if (client->syncfslockretry || client->syncfsopsfailed)
+    {
+        LOG_debug << "SDK waiting for a blocked file: " << client->blockedfile;
         return RETRY_LOCAL_LOCK;
+    }
 #endif
 
+    if (waitingRequest)
+    {
+        LOG_debug << "SDK waiting for a request. Reason: " << waitingRequest;
+    }
     return waitingRequest;
 }
 
@@ -21413,6 +21555,7 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
         }
 
         URLCodec::unescape(&nodename, &httpctx->nodename);
+        httpctx->server->fsAccess->normalize(&httpctx->nodename);
         LOG_debug << "Node name: " << httpctx->nodename;
     }
 
