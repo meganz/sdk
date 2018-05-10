@@ -23033,7 +23033,7 @@ std::string MegaFTPServer::cdup(handle parentHandle, MegaFTPContext* ftpctx)
             if (pn)
             {
                 allowed = isHandleAllowed(newcwd->getParentHandle());
-                delete pn;
+                pn = NULL;
             }
         }
         delete pn;
