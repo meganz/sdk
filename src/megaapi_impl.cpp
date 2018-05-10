@@ -4444,19 +4444,23 @@ void MegaApiImpl::setStatsID(const char *id)
     MegaClient::statsid = MegaApi::strdup(id);
 }
 
-void MegaApiImpl::fillLocalTimeStruct(const time_t *ttime, struct tm *dt)
+namespace mega {
+
+struct tm* m_localtime(m_time_t ttime, struct tm *dt)
 {
+    // works for 32 or 64 bit time_t
+    time_t t = time_t(ttime);
 #if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    localtime_s(ttime, dt);
+    localtime_s(&t, dt);
 #elif _MSC_VER >= 1400 // MSVCRT (2005+): std::localtime is threadsafe
-    struct tm *newtm = localtime(ttime);
+    struct tm *newtm = localtime(&t);
     if (newtm)
     {
-        memcpy(dt,newtm,sizeof(struct tm));
+        memcpy(dt, newtm, sizeof(struct tm));
     }
     else
     {
-        memset(dt,0,sizeof(struct tm));
+        memset(dt, 0, sizeof(struct tm));
     }
 #elif _WIN32
     static MegaMutex * mtx = new MegaMutex();
@@ -4467,20 +4471,40 @@ void MegaApiImpl::fillLocalTimeStruct(const time_t *ttime, struct tm *dt)
         initiated = true;
     }
     mtx->lock();
-    struct tm *newtm = localtime(ttime);
+    struct tm *newtm = localtime(&t);
     if (newtm)
     {
-        memcpy(dt,newtm,sizeof(struct tm));
+        memcpy(dt, newtm, sizeof(struct tm));
     }
     else
     {
-        memset(dt,0,sizeof(struct tm));
+        memset(dt, 0, sizeof(struct tm));
     }
     mtx->unlock();
 #else //POSIX
-    localtime_r(ttime, dt);
+    localtime_r(&t, dt);
 #endif
+    return dt;
 }
+
+m_time_t m_time(m_time_t* tt)
+{
+    // works for 32 or 64 bit time_t
+    time_t t = time(NULL);
+    if (tt)
+    {
+        *tt = t;
+    }
+    return t;
+}
+
+m_time_t m_mktime(struct tm* stm)
+{
+    // works for 32 or 64 bit time_t
+    return mktime(stm);
+}
+
+};
 
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
@@ -6320,7 +6344,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
 
     for(map<int64_t, string>::iterator itr = backupTimesPaths.begin(); itr != backupTimesPaths.end(); itr++)
     {
-        listofpaths.push_back(strdup(itr->second.c_str()));
+        listofpaths.push_back(MegaApi::strdup(itr->second.c_str()));
     }
     backupFolders = new MegaStringListPrivate(listofpaths.data(),listofpaths.size());
 
@@ -11739,7 +11763,7 @@ void MegaApiImpl::getua_result(error e)
             return;
         }
         else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
-                 && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+                 && (m_time() - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
         {
             request->setFlag(true); // the password reminder dialog should be shown
         }
@@ -11836,7 +11860,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 }
                 else if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
                 {
-                    time_t currenttime = time(NULL);
+                    m_time_t currenttime = m_time();
                     if (!User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len)
                             && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
@@ -19762,12 +19786,12 @@ bool MegaBackupController::isBusy() const
     return (state == BACKUP_ONGOING) || (state == BACKUP_REMOVING_EXCEEDING || (state == BACKUP_SKIPPING));
 }
 
-std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
+std::string MegaBackupController::epochdsToString(int64_t rawtimeds) const
 {
     struct tm dt;
     char buffer [40];
-    time_t rawtime = time_t(rawtimeds/10);
-    megaApi->fillLocalTimeStruct(&rawtime, &dt); //Notice this is not thread safe
+    m_time_t rawtime = rawtimeds / 10;
+    m_localtime(rawtime, &dt); 
 
     strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", &dt);
 
@@ -19802,7 +19826,7 @@ int64_t MegaBackupController::stringTimeTods(string stime) const
 #endif
     dt.tm_isdst = -1; //let mktime interprete if time has Daylight Saving Time flag correction
                         //TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
-    return (mktime(&dt))*10;
+    return m_mktime(&dt) * 10;
 }
 
 void MegaBackupController::clearCurrentBackupData()
@@ -20217,7 +20241,7 @@ void MegaBackupController::setPeriod(const int64_t &value)
     period = value;
     if (value != -1)
     {
-        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+        this->offsetds = m_time() * 10 - Waiter::ds;
         this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
         if (this->startTime < Waiter::ds)
             this->startTime = Waiter::ds;
@@ -20240,7 +20264,7 @@ void MegaBackupController::setPeriodstring(const string &value)
             return;
         }
 
-        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+        this->offsetds = m_time() * 10 - Waiter::ds;
 
         if (!lastbackuptime)
         {
@@ -24199,7 +24223,7 @@ int MegaAchievementsDetailsPrivate::getRewardExpire(unsigned int index)
 long long MegaAchievementsDetailsPrivate::currentStorage()
 {
     long long total = 0;
-    m_time_t ts = time(NULL);
+    m_time_t ts = m_time();
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {
@@ -24221,7 +24245,7 @@ long long MegaAchievementsDetailsPrivate::currentStorage()
 long long MegaAchievementsDetailsPrivate::currentTransfer()
 {
     long long total = 0;
-    m_time_t ts = time(NULL);
+    m_time_t ts = m_time();
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {
@@ -24243,7 +24267,7 @@ long long MegaAchievementsDetailsPrivate::currentTransfer()
 long long MegaAchievementsDetailsPrivate::currentStorageReferrals()
 {
     long long total = 0;
-    m_time_t ts = time(NULL);
+    m_time_t ts = m_time();
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {
@@ -24265,7 +24289,7 @@ long long MegaAchievementsDetailsPrivate::currentStorageReferrals()
 long long MegaAchievementsDetailsPrivate::currentTransferReferrals()
 {
     long long total = 0;
-    m_time_t ts = time(NULL);
+    m_time_t ts = m_time();
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {

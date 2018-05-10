@@ -3173,7 +3173,7 @@ void CommandGetUserQuota::procresult()
                 td = client->json.getint();
                 if (td != -1)
                 {
-                    details->transfer_hist_starttime = time(NULL) - td;
+                    details->transfer_hist_starttime = m_time() - td;
                 }
                 break;
 

@@ -5267,7 +5267,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
         if (ad->transfer_hist_starttime)
         {
-            time_t t = time(NULL) - ad->transfer_hist_starttime;
+            m_time_t t = m_time() - ad->transfer_hist_starttime;
 
             cout << "\tTransfer history:\n";
 

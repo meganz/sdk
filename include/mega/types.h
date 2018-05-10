@@ -103,7 +103,17 @@ struct Achievement;
 
 #define EOO 0
 
-typedef int64_t m_time_t;
+// Our own version of time_t which we can be sure is 64 bit.  
+// And functions to match - these help us to avoid arithmetic overflow when working with time_t on systems where it's 32-bit
+typedef int64_t m_time_t; 
+extern m_time_t m_time(m_time_t* tt = NULL);
+extern struct tm* m_localtime(m_time_t, struct tm *dt);
+extern m_time_t m_mktime(struct tm*);
+
+//#define time(a) replace_thsi_time
+//#define mktime(a) replace_thsi_mktime
+//#define localtime(a) replace_thsi_localtime
+
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;

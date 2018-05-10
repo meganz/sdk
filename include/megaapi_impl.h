@@ -290,7 +290,7 @@ protected:
     cron_expr ccronexpr;
     bool valid;
     int64_t offsetds; //times offset with epoch time?
-    int64_t startTime; // when shalll the next backup begin
+    int64_t startTime; // when shall the next backup begin
     bool attendPastBackups;
 
     // backup instance related
@@ -320,7 +320,7 @@ protected:
     int64_t getLastBackupTime();
     long long getNextStartTimeDs(long long oldStartTimeds = -1) const;
 
-    std::string epochdsToString(const int64_t rawtimeds) const;
+    std::string epochdsToString(int64_t rawtimeds) const;
     int64_t stringTimeTods(string stime) const;
 
     void clearCurrentBackupData();
@@ -1646,7 +1646,6 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToString(int);
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
-        static void fillLocalTimeStruct(const time_t *ttime, struct tm *dt);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
