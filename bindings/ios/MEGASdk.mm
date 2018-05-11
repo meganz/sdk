@@ -456,7 +456,7 @@ using namespace mega;
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:self]);
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)localLogout {
