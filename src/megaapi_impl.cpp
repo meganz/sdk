@@ -11917,6 +11917,20 @@ void MegaApiImpl::contactlinkdelete_result(error e)
     fireOnRequestFinish(request, e);
 }
 
+void MegaApiImpl::keepmealive_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_KEEP_ME_ALIVE)))
+    {
+        return;
+    }
+    fireOnRequestFinish(request, e);
+}
+
 void MegaApiImpl::sendsignuplink_result(error e)
 {
 	MegaError megaError(e);

@@ -2066,6 +2066,9 @@ protected:
         virtual void contactlinkquery_result(error, handle, string*, string*, string*);
         virtual void contactlinkdelete_result(error);
 
+        // keep me alive feature
+        virtual void keepmealive_result (error);
+
         // account creation
         virtual void sendsignuplink_result(error);
         virtual void querysignuplink_result(error);

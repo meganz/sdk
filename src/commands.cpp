@@ -5885,7 +5885,7 @@ void CommandKeepMeAlive::procresult()
     else
     {
         client->json.storeobject();
-        client->app->contactlinkdelete_result(API_EINTERNAL);
+        client->app->keepmealive_result(API_EINTERNAL);
     }
 }
 
