@@ -723,9 +723,9 @@ void MegaClient::contactlinkdelete(handle h)
     reqs.add(new CommandContactLinkDelete(this, h));
 }
 
-void MegaClient::keepmealive(int type, bool cancel)
+void MegaClient::keepmealive(int type, bool enable)
 {
-    reqs.add(new CommandKeepMeAlive(this, type, cancel));
+    reqs.add(new CommandKeepMeAlive(this, type, enable));
 }
 
 // set warn level

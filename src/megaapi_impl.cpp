@@ -2969,6 +2969,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
+        case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
     }
     return "UNKNOWN";
 }
@@ -8265,6 +8266,15 @@ void MegaApiImpl::contactLinkDelete(MegaHandle handle, MegaRequestListener *list
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CONTACT_LINK_DELETE, listener);
     request->setNodeHandle(handle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_KEEP_ME_ALIVE, listener);
+    request->setParamType(type);
+    request->setFlag(enable);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -16981,6 +16991,19 @@ void MegaApiImpl::sendPendingRequests()
             handle h = request->getNodeHandle();
             client->contactlinkdelete(h);
             break;
+        }
+        case MegaRequest::TYPE_KEEP_ME_ALIVE:
+        {
+            int type = request->getParamType();
+            bool enable = request->getFlag();
+
+            if (type != MegaApi::KEEP_ALIVE_CAMERA_UPLOADS)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->keepmealive(type, enable);
         }
         case MegaRequest::TYPE_FOLDER_INFO:
         {

@@ -1348,6 +1348,11 @@ void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener
     pImpl->contactLinkDelete(handle, listener);
 }
 
+void MegaApi::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
+{
+    pImpl->keepMeAlive(type, enable, listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();

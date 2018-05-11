@@ -1822,6 +1822,8 @@ class MegaApiImpl : public MegaApp
         void contactLinkQuery(MegaHandle handle, MegaRequestListener *listener = NULL);
         void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
 
+        void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
+
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);

@@ -5861,9 +5861,9 @@ void CommandContactLinkDelete::procresult()
     }
 }
 
-CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *, int type, bool cancel)
+CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable)
 {
-    if (!cancel)
+    if (enable)
     {
         cmd("kma");
     }

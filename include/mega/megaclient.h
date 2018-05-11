@@ -1298,7 +1298,7 @@ public:
     // delete contact link
     void contactlinkdelete(handle);
 
-    void keepmealive(int, bool = false);
+    void keepmealive(int, bool enable = true);
 
     // achievements enabled for the account
     bool achievements_enabled;
