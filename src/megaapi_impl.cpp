@@ -7193,6 +7193,16 @@ void MegaApiImpl::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::httpServerRemoveWebDavAllowedNodes()
+{
+    sdkMutex.lock();
+    if (httpServer)
+    {
+        httpServer->clearAllowedHandles();
+    }
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::httpServerSetMaxBufferSize(int bufferSize)
 {
     sdkMutex.lock();
@@ -7559,6 +7569,16 @@ void MegaApiImpl::ftpServerRemoveAllowedNode(MegaHandle handle)
     if (ftpServer)
     {
         ftpServer->removeAllowedHandle(handle);
+    }
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::ftpServerRemoveAllowedNodes()
+{
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        ftpServer->clearAllowedHandles();
     }
     sdkMutex.unlock();
 }

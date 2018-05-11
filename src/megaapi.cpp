@@ -3226,6 +3226,11 @@ void MegaApi::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
     return pImpl->httpServerRemoveWebDavAllowedNode(handle);
 }
 
+void MegaApi::httpServerRemoveWebDavAllowedNodes()
+{
+    return pImpl->httpServerRemoveWebDavAllowedNodes();
+}
+
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
 {
     pImpl->httpServerSetMaxBufferSize(bufferSize);
@@ -3305,6 +3310,11 @@ MegaNodeList *MegaApi::ftpServerGetAllowedNodes()
 void MegaApi::ftpServerRemoveAllowedNode(MegaHandle handle)
 {
     return pImpl->ftpServerRemoveAllowedNode(handle);
+}
+
+void MegaApi::ftpServerRemoveAllowedNodes()
+{
+    return pImpl->ftpServerRemoveAllowedNodes();
 }
 
 void MegaApi::ftpServerSetMaxBufferSize(int bufferSize)

@@ -10716,6 +10716,13 @@ class MegaApi
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
 
         /**
+         * @brief Stops serving all nodes served via webdav.
+         * The webdav links will no longer be valid.
+         *
+         */
+        void httpServerRemoveWebDavAllowedNodes();
+
+        /**
          * @brief Set the maximum buffer size for the internal buffer
          *
          * The HTTP proxy server has an internal buffer to store the data received from MEGA
@@ -10973,6 +10980,13 @@ class MegaApi
          * @return URL to the node in the local FTP proxy server, otherwise NULL
          */
         void ftpServerRemoveAllowedNode(MegaHandle handle);
+
+        /**
+         * @brief Stops serving all nodes served via ftp.
+         * The ftp links will no longer be valid.
+         *
+         */
+        void ftpServerRemoveAllowedNodes();
 
         /**
          * @brief Set the maximum buffer size for the internal buffer

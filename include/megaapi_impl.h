@@ -1872,6 +1872,7 @@ class MegaApiImpl : public MegaApp
         MegaStringList *httpServerGetWebDavLinks();
         MegaNodeList *httpServerGetWebDavAllowedNodes();
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
+        void httpServerRemoveWebDavAllowedNodes();
         void httpServerSetMaxBufferSize(int bufferSize);
         int httpServerGetMaxBufferSize();
         void httpServerSetMaxOutputSize(int outputSize);
@@ -1907,6 +1908,7 @@ class MegaApiImpl : public MegaApp
         MegaStringList *ftpServerGetLinks();
         MegaNodeList *ftpServerGetAllowedNodes();
         void ftpServerRemoveAllowedNode(MegaHandle handle);
+        void ftpServerRemoveAllowedNodes();
         void ftpServerSetMaxBufferSize(int bufferSize);
         int ftpServerGetMaxBufferSize();
         void ftpServerSetMaxOutputSize(int outputSize);
