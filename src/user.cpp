@@ -72,13 +72,13 @@ bool User::serialize(string* d)
     {
         d->append((char*)&it->first, sizeof it->first);
 
-        ll = it->second.size();
+        ll = (unsigned short)it->second.size();
         d->append((char*)&ll, sizeof ll);
         d->append(it->second.data(), ll);
 
         if (attrsv.find(it->first) != attrsv.end())
         {
-            ll = attrsv[it->first].size();
+            ll = (unsigned short)attrsv[it->first].size();
             d->append((char*)&ll, sizeof ll);
             d->append(attrsv[it->first].data(), ll);
         }
@@ -585,14 +585,14 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     bool changed = false;
 
     // Timestamp for last successful validation of password in PRD
-    time_t tsLastSuccess;
+    long tsLastSuccess;
     size_t len = oldValue.find(":");
     string buf = oldValue.substr(0, len) + "#"; // add character control '#' for conversion
     oldValue = oldValue.substr(len + 1);    // skip ':'
     if (lastSuccess)
     {
         changed = true;
-        tsLastSuccess = time(NULL);
+        tsLastSuccess = (long)m_time();
     }
     else
     {
@@ -606,13 +606,13 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
 
     // Timestamp for last time the PRD was skipped
-    time_t tsLastSkipped;
+    long tsLastSkipped;
     len = oldValue.find(":");
     buf = oldValue.substr(0, len) + "#";
     oldValue = oldValue.substr(len + 1);
     if (lastSkipped)
     {
-        tsLastSkipped = time(NULL);
+        tsLastSkipped = (long)m_time();
         changed = true;
     }
     else
@@ -685,11 +685,11 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
 
     // Timestamp for last time user logged in
-    time_t tsLastLogin = 0;
+    long tsLastLogin = 0;
     len = oldValue.length();
     if (lastLogin)
     {
-        tsLastLogin = time(NULL);
+        tsLastLogin = (long)m_time();
         changed = true;
     }
     else
