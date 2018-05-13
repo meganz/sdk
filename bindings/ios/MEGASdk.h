@@ -144,6 +144,10 @@ typedef NS_ENUM(NSUInteger, Retry) {
     RetryUnknown = 6
 };
 
+typedef NS_ENUM(NSInteger, KeepMeAlive) {
+    KeepMeAliveCameraUploads = 0
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -1509,6 +1513,53 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * - [MEGARequest nodeHandle] - Returns the handle of the contact link
  */
 - (void)contactLinkDelete;
+
+/**
+ * @brief Command to keep mobile apps alive when needed
+ *
+ * When this feature is enabled, API servers will regularly send push notifications
+ * to keep the application running. Before using this function, it's needed to register
+ * a notification token using [MEGASdk registeriOSdeviceToken:]
+ *
+ * The associated request type with this request is MEGARequestTypeKeepMeAlive.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - MEGARequest.paramType - Returns the type send in the first parameter
+ * - MEGARequest.flag - Returns YES when the feature is being enabled, otherwise NO
+ *
+ * @param type Type of keep alive desired
+ * Valid values for this parameter:
+ * - KeepMeAliveCameraUploads = 0
+ *
+ * @param enable YES to enable this feature, NO to disable it
+ * @param delegate MEGARequestDelegate to track this request
+ *
+ * @see [MEGASdk registeriOSdeviceToken:]
+ */
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Command to keep mobile apps alive when needed
+ *
+ * When this feature is enabled, API servers will regularly send push notifications
+ * to keep the application running. Before using this function, it's needed to register
+ * a notification token using [MEGASdk registeriOSdeviceToken:]
+ *
+ * The associated request type with this request is MEGARequestTypeKeepMeAlive.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - MEGARequest.paramType - Returns the type send in the first parameter
+ * - MEGARequest.flag - Returns YES when the feature is being enabled, otherwise NO
+ *
+ * @param type Type of keep alive desired
+ * Valid values for this parameter:
+ * - KeepMeAliveCameraUploads = 0
+ *
+ * @param enable YES to enable this feature, NO to disable it
+ *
+ * @see [MEGASdk registeriOSdeviceToken:]
+ */
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable;
 
 #pragma mark - Filesystem changes Requests
 
