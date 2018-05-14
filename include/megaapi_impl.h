@@ -2427,6 +2427,7 @@ protected:
     list<MegaTCPContext*> connections;
     uv_async_t exit_handle;
     MegaApiImpl *megaApi;
+    bool semaphoresdestroyed;
     uv_sem_t semaphoreStartup;
     uv_sem_t semaphoreEnd;
     MegaThread *thread;

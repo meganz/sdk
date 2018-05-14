@@ -19550,7 +19550,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
         }
         this->basePath = sBasePath;
     }
-
+    semaphoresdestroyed = false;
     uv_sem_init(&semaphoreEnd, 0);
     uv_sem_init(&semaphoreStartup, 0);
     static bool mutexuvloop_initialized = false;
@@ -19573,6 +19573,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
 MegaTCPServer::~MegaTCPServer()
 {
     stop();
+    semaphoresdestroyed = true;
     uv_sem_destroy(&semaphoreStartup);
     uv_sem_destroy(&semaphoreEnd);
     delete fsAccess;
@@ -20185,7 +20186,7 @@ void MegaTCPServer::onAsyncEventClose(uv_handle_t *handle)
 
     LOG_verbose << "At onAsyncEventClose port = " << tcpctx->server->port << " remaining=" << tcpctx->server->remainingcloseevents;
 
-    if (!tcpctx->server->remainingcloseevents && tcpctx->server->closing)
+    if (!tcpctx->server->remainingcloseevents && tcpctx->server->closing && !tcpctx->server->semaphoresdestroyed)
     {
         uv_sem_post(&tcpctx->server->semaphoreStartup);
         uv_sem_post(&tcpctx->server->semaphoreEnd);
@@ -20314,7 +20315,7 @@ void MegaTCPServer::onExitHandleClose(uv_handle_t *handle)
     LOG_verbose << "At onExitHandleClose port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
     tcpServer->processOnExitHandleClose(tcpServer);
 
-    if (!tcpServer->remainingcloseevents)
+    if (!tcpServer->remainingcloseevents && !tcpServer->semaphoresdestroyed)
     {
         uv_sem_post(&tcpServer->semaphoreStartup);
         uv_sem_post(&tcpServer->semaphoreEnd);
