@@ -17018,6 +17018,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->keepmealive(type, enable);
+            break;
         }
         case MegaRequest::TYPE_FOLDER_INFO:
         {
