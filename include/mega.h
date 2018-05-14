@@ -72,11 +72,11 @@
 #include "mega/thread/win32thread.h"
 #include "mega/thread/cppthread.h"
 
-#include <megawaiter.h>
-#include <meganet.h>
-#include <megafs.h>
-#include <megaconsole.h>
-#include <megaconsolewaiter.h>
+#include "megawaiter.h"
+#include "meganet.h"
+#include "megafs.h"
+#include "megaconsole.h"
+#include "megaconsolewaiter.h"
 
 #include "mega/db/sqlite.h"
 #include "mega/db/bdb.h"
