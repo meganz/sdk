@@ -3859,12 +3859,12 @@ char *MegaApi::getMimeType(const char *extension)
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
 {
-    pImpl->createChat(group, false, peers, listener);
+    pImpl->createChat(group, false, peers, NULL, listener);
 }
 
-void MegaApi::createOpenChat(MegaTextChatPeerList *peers, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
 {
-    pImpl->createChat(true, true, peers, listener);
+    pImpl->createChat(true, true, peers, title, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)

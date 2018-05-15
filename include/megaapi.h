@@ -31,7 +31,7 @@
 #endif
 
 namespace mega
-{   		
+{
 typedef uint64_t MegaHandle;
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -10868,9 +10868,9 @@ class MegaApi
         void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Creates an open / public chatroom for multiple participants (groupchat)
+         * @brief Creates an public chatroom for multiple participants (groupchat)
          *
-         * This function allows to create open chats, where the moderator can create chat links to share
+         * This function allows to create public chats, where the moderator can create chat links to share
          * the access to the chatroom via a URL (chat-link). In order to create a public chat-link, the
          * moderator needs to create / get a public handle for the chatroom by using \c MegaApi::chatLinkCreate.
          *
@@ -10894,9 +10894,10 @@ class MegaApi
          * - MegaChatRequest::getChatHandle - Returns the handle of the new chatroom
          *
          * @param peers MegaChatPeerList including other users and their privilege level
+         * @param title Byte array that contains the unified chat key converted to Base64url encoding.
          * @param listener MegaChatRequestListener to track this request
          */
-        void createOpenChat(MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

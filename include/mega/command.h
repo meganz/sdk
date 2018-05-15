@@ -766,11 +766,11 @@ class MEGA_API CommandChatCreate : public Command
 {
     userpriv_vector *chatPeers;
     bool mOpenchat;
-
+    string mTitle;
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, bool group, bool openchat, const userpriv_vector*);
+    CommandChatCreate(MegaClient*, bool group, bool openchat, const userpriv_vector*, const char *title = NULL);
 };
 
 class MEGA_API CommandChatInvite : public Command
