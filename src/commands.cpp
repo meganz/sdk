@@ -4725,10 +4725,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool opench
     if (openchat)
     {
         arg("m", (openchat) ? 1 : 0);
-        if (title != NULL)
-        {
-            arg("ct", title);
-        }
+        arg("ct", title);
     }
 
     beginarray("u");
@@ -4812,7 +4809,7 @@ void CommandChatCreate::procresult()
                         chat->ts = (ts != -1) ? ts : 0;
                         chat->openchat = mOpenchat;
                         chat->setTag(tag ? tag : -1);
-                        if (mOpenchat && !mTitle.empty())
+                        if (mOpenchat)
                         {
                             chat->title = mTitle;
                         }
