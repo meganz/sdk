@@ -4707,7 +4707,7 @@ bool MegaTextChat::isArchived() const
     return false;
 }
 
-bool MegaTextChat::isOpenChat() const
+bool MegaTextChat::isPublicChat() const
 {
     return false;
 }

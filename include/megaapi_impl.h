@@ -1117,7 +1117,7 @@ public:
     virtual const char *getTitle() const;
     virtual int64_t getCreationTime() const;
     virtual bool isArchived() const;
-    virtual bool isOpenChat() const;
+    virtual bool isPublicChat() const;
 
     virtual bool hasChanged(int changeType) const;
     virtual int getChanges() const;
@@ -1135,7 +1135,7 @@ private:
     int changed;
     int tag;
     bool archived;
-    bool openchat;
+    bool publicchat;
     int64_t ts;
 };
 
@@ -1902,7 +1902,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool openchat, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);

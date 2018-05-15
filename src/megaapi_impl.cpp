@@ -7386,11 +7386,11 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 #endif
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(bool group, bool openchat, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
-    request->setAccess(openchat ? 1 : 0);
+    request->setAccess(publicchat ? 1 : 0);
     request->setMegaTextChatPeerList(peers);
     request->setPrivateKey(title);
     requestQueue.push(request);
@@ -16847,8 +16847,8 @@ void MegaApiImpl::sendPendingRequests()
             bool group = request->getFlag();
 
             const char *title = request->getPrivateKey();
-            bool openchat = (request->getAccess() == 1);
-            if (openchat && title == NULL)
+            bool publicchat = (request->getAccess() == 1);
+            if (publicchat && title == NULL)
             {
                 e = API_EARGS;
                 break;
@@ -16866,7 +16866,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, openchat, userpriv, title);
+            client->createChat(group, publicchat, userpriv, title);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -22186,7 +22186,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
     this->archived = chat->isArchived();
-    this->openchat = chat->isOpenChat();
+    this->publicchat = chat->isPublicChat();
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
 }
@@ -22203,7 +22203,7 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->tag = chat->tag;
     this->ts = chat->ts;
     this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
-    this->openchat = chat->openchat;
+    this->publicchat = chat->publicchat;
     this->changed = 0;
     if (chat->changed.attachments)
     {
@@ -22288,9 +22288,9 @@ bool MegaTextChatPrivate::isArchived() const
     return archived;
 }
 
-bool MegaTextChatPrivate::isOpenChat() const
+bool MegaTextChatPrivate::isPublicChat() const
 {
-    return openchat;
+    return publicchat;
 }
 
 bool MegaTextChatPrivate::hasChanged(int changeType) const

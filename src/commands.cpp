@@ -4712,19 +4712,19 @@ void CommandGetLocalSSLCertificate::procresult()
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool openchat, const userpriv_vector *upl, const char *title)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const char *title)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
-    this->mOpenchat = openchat;
+    this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
 
-    if (openchat)
+    if (publicchat)
     {
-        arg("m", (openchat) ? 1 : 0);
+        arg("m", (publicchat) ? 1 : 0);
         arg("ct", title);
     }
 
@@ -4769,7 +4769,6 @@ void CommandChatCreate::procresult()
         int shard = -1;
         bool group = false;
         m_time_t ts = -1;
-        bool openchat = false;
 
         for (;;)
         {
@@ -4807,9 +4806,9 @@ void CommandChatCreate::procresult()
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
-                        chat->openchat = mOpenchat;
+                        chat->publicchat = mPublicChat;
                         chat->setTag(tag ? tag : -1);
-                        if (mOpenchat)
+                        if (mPublicChat)
                         {
                             chat->title = mTitle;
                         }

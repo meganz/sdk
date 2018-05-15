@@ -1596,7 +1596,7 @@ public:
      * Check if flags have changed (like archive flag)
      *
      * - MegaUser::CHANGE_TYPE_MODE             = 0x04
-     * Check if operation mode has changed to private/closed mode (from open/public mode)
+     * Check if operation mode has changed to private mode (from public mode)
      *
      * @return true if this chat has an specific change
      */
@@ -1617,7 +1617,7 @@ public:
      * Check if flags have changed (like archive flag)
      *
      * - MegaUser::CHANGE_TYPE_MODE             = 0x04
-     * Check if operation mode has changed to private/closed mode (from open/public mode)
+     * Check if operation mode has changed to private mode (from public mode)
      */
     virtual int getChanges() const;
 
@@ -1649,10 +1649,10 @@ public:
     virtual bool isArchived() const;
 
     /**
-     * @brief Returns whether this chat is open/public or closed/private
-     * @return True if this chat is open/public
+     * @brief Returns whether this chat is public or private
+     * @return True if this chat is public
      */
-    virtual bool isOpenChat() const;
+    virtual bool isPublicChat() const;
 };
 
 /**
@@ -10888,6 +10888,8 @@ class MegaApi
          * - MegaChatRequest::getFlag - Returns if the new chat is a group chat or permanent chat
          * - MegaRequest::getAccess - Returns one (public mode)
          * - MegaChatRequest::getMegaChatPeerList - List of participants and their privilege level
+         * - MegaChatRequest::getPrivateKey - Byte array that contains the unified chat key converted
+         * to Base64url encoding
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -11218,7 +11220,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the public handle of the chat link
          *
-         * If caller is not operator or the chat is not an openchat or it's a 1on1 room, this request
+         * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
          * will return API_EACCESS.
          *
          * @param chatid MegaHandle that identifies the chat room
@@ -11238,7 +11240,7 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getFlag - Returns true
          *
-         * If caller is not operator or the chat is not an openchat or it's a 1on1 room, this request
+         * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
          * will return MegaError::API_EACCESS.
          * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
          *
@@ -11253,7 +11255,7 @@ class MegaApi
          * This function can be used by anonymous and registered users to request the URL to connect
          * to chatd, for a given public handle. @see \c MegaApi::chatLinkCreate.
          * It also returns the shard hosting the chatroom, the real chatid and the title (if any).
-         * The chat-topic, for openchats, also includes the global chat-key set by the creator of
+         * The chat-topic, for public chats, also includes the global chat-key set by the creator of
          * the chatroom, despite such key is already encoded in the chat-link for previewers.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_URL
@@ -11277,9 +11279,9 @@ class MegaApi
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Convert an openchat into a private closed mode chat
+         * @brief Convert an public chat into a private private mode chat
          *
-         * This function allows a chat operator to convert an existing openchat into a private
+         * This function allows a chat operator to convert an existing public chat into a private
          * chat (closed mode, key rotation enabled). It will create a management message.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_CLOSE.
@@ -11287,7 +11289,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          *
-         * If caller is not operator or the chat is not an openchat or it's a 1on1 room, this request
+         * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
          * will return MegaError::API_EACCESS.
          *
          * @param chatid MegaHandle that identifies the chat room
@@ -11296,7 +11298,7 @@ class MegaApi
         void chatLinkClose(MegaHandle chatid, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Allows to join to an openchat
+         * @brief Allows to join to an public chat
          *
          * This function allows any user with a MEGA account to join an open chat that has the
          * specified public handle. It will create a management message like any new user join.
