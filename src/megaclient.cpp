@@ -1557,12 +1557,102 @@ void MegaClient::exec()
             if (scnotifyurl.size())
             {
                 // pendingsc is a scnotifyurl connection
-                if (pendingsc->status == REQ_SUCCESS || pendingsc->status == REQ_FAILURE)
+                switch (pendingsc->status)
                 {
+                case REQ_SUCCESS:
+                    if (pendingsc->contenttype.find("text/html") != string::npos
+                        && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
+                    {
+                        LOG_warn << "Invalid Content-Type detected in connection to waitd: " << pendingsc->contenttype;
+                        usehttps = true;
+                        app->notify_change_to_https();
+
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99436, "Automatic change to HTTPS");
+                        reqtag = creqtag;
+
+                        // go to API
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        scnotifyurl.clear();
+                        btsc.reset();
+                        break;
+                    }
+
+                    if (pendingsc->contentlength == 1
+                            && pendingsc->in.size()
+                            && !pendingsc->in[0])
+                    {
+                        // go to API after HttpIO::NETWORKTIMEOUT
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
+                        {
+                            scnotifyurl.clear();
+                        }
+                        btsc.reset();
+                        break;
+                    }
+
+                    if (pendingsc->contentlength == 0)
+                    {
+                        // go to API
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        scnotifyurl.clear();
+                        btsc.reset();
+                        break;
+                    }
+
+                    LOG_err << "Unexpected response from waitd";
+                    // fall through
+                case REQ_FAILURE:
+                    if (pendingsc->contenttype.find("text/html") != string::npos
+                        && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
+                    {
+                        LOG_warn << "Invalid Content-Type detected in failed connection to waitd: " << pendingsc->contenttype;
+                        usehttps = true;
+                        app->notify_change_to_https();
+
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99436, "Automatic change to HTTPS");
+                        reqtag = creqtag;
+
+                        // go to API
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        scnotifyurl.clear();
+                        btsc.reset();
+                        break;
+                    }
+
                     delete pendingsc;
                     pendingsc = NULL;
+                    if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
+                    {
+                        // timeout, go to API
+                        scnotifyurl.clear();
+                        btsc.reset();
+                    }
+                    else
+                    {
+                        // retry
+                        btsc.backoff();
+                    }
+                    break;
 
-                    scnotifyurl.clear();
+                case REQ_INFLIGHT:
+                    if (Waiter::ds >= (pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT))
+                    {
+                        // timeout, go to API
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        scnotifyurl.clear();
+                        btsc.reset();
+                    }
+                    break;
                 }
             }
             else
@@ -3518,6 +3608,8 @@ bool MegaClient::procsc()
                     }
                 
                     jsonsc.storeobject(&scnotifyurl);
+                    scnotifyurlts = Waiter::ds;
+                    scnotifyurl.append("/1");
                     break;
 
                 case MAKENAMEID2('s', 'n'):
