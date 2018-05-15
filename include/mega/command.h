@@ -935,7 +935,7 @@ class MEGA_API CommandChatLinkJoin : public Command
 public:
     void procresult();
 
-    CommandChatLinkJoin(MegaClient*, handle publichandle);
+    CommandChatLinkJoin(MegaClient*, handle publichandle, const char *title);
 };
 
 #endif

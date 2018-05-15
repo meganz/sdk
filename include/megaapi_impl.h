@@ -1925,7 +1925,7 @@ class MegaApiImpl : public MegaApp
         void chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
         void chatLinkClose(MegaHandle chatid, MegaRequestListener *listener = NULL);
-        void chatLinkJoin(MegaHandle publichandle, MegaRequestListener *listener = NULL);
+        void chatLinkJoin(MegaHandle publichandle, const char *title, MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);

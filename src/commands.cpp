@@ -5616,11 +5616,11 @@ void CommandChatLinkClose::procresult()
     }
 }
 
-CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle)
+CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle, const char *title)
 {
     cmd("mciph");
     arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
-
+    arg("ct", title);
     notself(client);
     tag = client->reqtag;
 }

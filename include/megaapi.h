@@ -11311,9 +11311,11 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
          *
          * @param publichandle MegaHandle that represents the public handle of the chat link
+         * @param Byte array that contains chat topic in case that it exists, and the unified
+         * chat key converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
-        void chatLinkJoin(MegaHandle publichandle, MegaRequestListener *listener = NULL);
+        void chatLinkJoin(MegaHandle publichandle, const char *title, MegaRequestListener *listener = NULL);
 #endif
 
         /**

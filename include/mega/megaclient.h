@@ -563,7 +563,7 @@ public:
     void chatlinkclose(handle chatid);
 
     // auto-join publicchat
-    void chatlinkjoin(handle publichandle);
+    void chatlinkjoin(handle publichandle, const char *title);
 #endif
 
     // get mega achievements
