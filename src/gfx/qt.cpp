@@ -40,6 +40,10 @@ extern "C" {
 }
 #endif
 
+#ifdef HAVE_LIBRAW
+#include <libraw.h>
+#endif
+
 namespace mega {
 
 QByteArray *GfxProcQT::formatstring = NULL;
@@ -479,6 +483,13 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, bool &is
     }
 #endif
 
+#ifdef HAVE_LIBRAW
+    if (strstr(GfxProcQT::supportedformatsLibraw(), ext.toUtf8().constData()))
+    {
+        return readbitmapLibraw(w, h, orientation, imagePath);
+    }
+#endif
+
     isVideo = false;
     QImageReader* image = new QImageReader(imagePath);
     QSize s = image->size();
@@ -586,9 +597,166 @@ const char *GfxProcQT::supportedformatsQT()
         formatstring->resize(formatstring->size() - 1);
         formatstring->append(supportedformatsFfmpeg());
 #endif
+
+#ifdef HAVE_LIBRAW
+        formatstring->resize(formatstring->size() - 1);
+        formatstring->append(supportedformatsLibraw());
+#endif
     }
     return formatstring->constData();
 }
+
+#ifdef HAVE_LIBRAW
+
+const char *GfxProcQT::supportedformatsLibraw()
+{
+    return ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.tif.tiff.x3f.";
+}
+
+QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QString imagePath)
+{
+    LibRaw iProcessor;
+    int ret = iProcessor.open_file(imagePath.toUtf8().constData());
+    if (ret > 0 || LIBRAW_FATAL_ERROR(ret)
+            || iProcessor.imgdata.sizes.width <= 0
+            || iProcessor.imgdata.sizes.height <= 0)
+    {
+        LOG_debug << "Unreadable RAW image";
+        return NULL;
+    }
+
+    const libraw_data_t &imgdata = iProcessor.imgdata;
+    libraw_processed_image_t *output = NULL;
+
+    if (imgdata.thumbnail.twidth >= GfxProc::dimensions[GfxProc::PREVIEW][0]
+            || imgdata.thumbnail.theight >= GfxProc::dimensions[GfxProc::PREVIEW][0])
+    {
+        ret = iProcessor.unpack_thumb();
+        if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
+        {
+            LOG_debug << "Extracting thumbnail from RAW image";
+            output = iProcessor.dcraw_make_mem_thumb();
+        }
+    }
+
+    if (!output)
+    {
+        ret = iProcessor.unpack();
+        if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
+        {
+            LOG_debug << "Extracting full RAW image";
+            iProcessor.dcraw_process();
+            output = iProcessor.dcraw_make_mem_image();
+        }
+    }
+
+    if (!output)
+    {
+        LOG_warn << "Unable to extract RAW image";
+        return NULL;
+    }
+
+    QImage unscaled;
+    if (output->type == LIBRAW_IMAGE_JPEG)
+    {
+        LOG_debug << "Converting RAW image in JPG format";
+
+        unscaled.loadFromData(output->data, output->data_size, "JPEG");
+        if (imgdata.sizes.flip != 0)
+        {
+            int angle = 0;
+            QTransform rotation;
+            if (imgdata.sizes.flip == 3)
+            {
+                angle = 180;
+            }
+            else if (imgdata.sizes.flip == 5)
+            {
+                angle = -90;
+            }
+            else if (imgdata.sizes.flip == 6)
+            {
+                angle = 90;
+            }
+
+            if (angle != 0)
+            {
+                rotation.rotate(angle);
+                unscaled = unscaled.transformed(rotation);
+            }
+        }
+    }
+    else if (output->type == LIBRAW_IMAGE_BITMAP)
+    {
+        LOG_debug << "Converting RAW image in BITMAP format";
+
+        int numPixels = output->width * output->height;
+        int colorSize = output->bits / 8;
+        int pixelSize = output->colors * colorSize;
+
+        if (pixelSize == 3 && output->colors == 3)
+        {
+            LOG_debug << "RAW image is BGR888";
+            unscaled = QImage(output->width, output->height, QImage::Format_RGB888);
+            memcpy(unscaled.bits(), output->data, numPixels * pixelSize);
+            unscaled = unscaled.rgbSwapped();
+        }
+        else if (pixelSize == 1 && output->colors == 1)
+        {
+            LOG_debug << "RAW image is Grayscale8";
+            unscaled = QImage(output->width, output->height, QImage::Format_Grayscale8);
+            memcpy(unscaled.bits(), output->data, numPixels * pixelSize);
+        }
+        else
+        {
+            LOG_debug << "Converting RAW image to RGB32";
+            unscaled = QImage(output->width, output->height, QImage::Format_RGB32);
+            uchar *pixels = unscaled.bits();
+            uchar *data = output->data;
+            for (int i = 0; i < numPixels; i++, data += pixelSize)
+            {
+                if (output->colors == 3)
+                {
+                    pixels[i * 4] = data[2 * colorSize];
+                    pixels[i * 4 + 1] = data[1 * colorSize];
+                    pixels[i * 4 + 2] = data[0];
+                }
+                else
+                {
+                    pixels[i * 4] = data[0];
+                    pixels[i * 4 + 1] = data[0];
+                    pixels[i * 4 + 2] = data[0];
+                }
+                pixels[i * 4 + 3] = 0xFF;
+            }
+        }
+    }
+
+    LibRaw::dcraw_clear_mem(output);
+    if (unscaled.isNull())
+    {
+        LOG_warn << "Unable to convert RAW image";
+        return NULL;
+    }
+
+    QBuffer *buffer = new QBuffer();
+    if (!buffer->open(QIODevice::ReadWrite) || !unscaled.save(buffer, "JPG", 85))
+    {
+        LOG_warn << "Error saving RAW image to a memory buffer";
+        return NULL;
+    }
+
+    LOG_debug << "RAW image correctly extracted";
+    orientation = ROTATION_UP;
+    w = unscaled.width();
+    h = unscaled.height();
+    buffer->seek(0);
+    QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
+    return imageReader;
+}
+
+#endif
+
 
 #ifdef HAVE_FFMPEG
 

@@ -70,6 +70,11 @@ protected:
     static QByteArray *formatstring;
     static const char* supportedformatsQT();
 
+#ifdef HAVE_LIBRAW
+    static const char* supportedformatsLibraw();
+    static QImageReader *readbitmapLibraw(int &w, int &h, int &orientation, QString imagePath);
+#endif
+
 #ifdef HAVE_FFMPEG
     static MUTEX_CLASS gfxMutex;
     static const char* supportedformatsFfmpeg();
