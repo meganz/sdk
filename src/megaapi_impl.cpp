@@ -2390,7 +2390,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setPrivateKey(request->getPrivateKey());
     this->setAccess(request->getAccess());
     this->setNumRetry(request->getNumRetry());
-	this->numDetails = 0;
+    this->setNumDetails(request->getNumDetails());
     this->setFile(request->getFile());
     this->setParamType(request->getParamType());
     this->setText(request->getText());
