@@ -1582,7 +1582,7 @@ void MegaClient::exec()
 
                     if (pendingsc->contentlength == 1
                             && pendingsc->in.size()
-                            && !pendingsc->in[0])
+                            && pendingsc->in[0] == '0')
                     {
                         // go to API after HttpIO::NETWORKTIMEOUT
                         delete pendingsc;
