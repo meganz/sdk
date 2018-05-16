@@ -2671,6 +2671,19 @@ int MegaClient::preparewait()
                 nds = 0;
             }
         }
+
+        if (!jsonsc.pos && scnotifyurl.size() && pendingsc && pendingsc->status == REQ_INFLIGHT)
+        {
+            dstime timeout = pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT;
+            if (timeout > Waiter::ds && timeout < nds)
+            {
+                nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
+            }
+        }
     }
 
     // immediate action required?
