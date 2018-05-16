@@ -1584,11 +1584,12 @@ void MegaClient::exec()
                             && pendingsc->in.size()
                             && pendingsc->in[0] == '0')
                     {
-                        // go to API after HttpIO::NETWORKTIMEOUT
+                        LOG_debug << "Waitd keep-alive received";
                         delete pendingsc;
                         pendingsc = NULL;
                         if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
                         {
+                            LOG_debug << "Waitd timeout expired after keep-alive";
                             scnotifyurl.clear();
                         }
                         btsc.reset();
@@ -1597,7 +1598,7 @@ void MegaClient::exec()
 
                     if (pendingsc->contentlength == 0)
                     {
-                        // go to API
+                        LOG_debug << "Waitd connection closed";
                         delete pendingsc;
                         pendingsc = NULL;
                         scnotifyurl.clear();
@@ -1632,13 +1633,13 @@ void MegaClient::exec()
                     pendingsc = NULL;
                     if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
                     {
-                        // timeout, go to API
+                        LOG_debug << "Waitd timeout expired after a failed request";
                         scnotifyurl.clear();
                         btsc.reset();
                     }
                     else
                     {
-                        // retry
+                        LOG_debug << "Waitd request error, retrying...";
                         btsc.backoff();
                     }
                     break;
@@ -1646,7 +1647,7 @@ void MegaClient::exec()
                 case REQ_INFLIGHT:
                     if (Waiter::ds >= (pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT))
                     {
-                        // timeout, go to API
+                        LOG_debug << "Waitd timeout expired";
                         delete pendingsc;
                         pendingsc = NULL;
                         scnotifyurl.clear();
