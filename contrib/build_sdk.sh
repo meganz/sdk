@@ -997,6 +997,7 @@ build_sdk() {
     local static_flags=""
     local readline_flags=""
     local freeimage_flags=""
+    local libuv_flags=""
     local megaapi_flags=""
     local openssl_flags=""
     local sodium_flags="--without-sodium"
@@ -1025,6 +1026,13 @@ build_sdk() {
         freeimage_flags="--with-freeimage=$install_dir"
     else
         freeimage_flags="--without-freeimage"
+    fi
+
+    # enable libuv
+    if [ $enable_libuv -eq 1 ]; then
+        libuv_flags="--with-libuv=$install_dir"
+    else
+        libuv_flags="--without-libuv"
     fi
 
     # use local or system MediaInfo
@@ -1069,6 +1077,7 @@ build_sdk() {
             --with-cares=$install_dir \
             --with-curl=$install_dir \
             $freeimage_flags \
+            $libuv_flags \
             $readline_flags \
             $disable_posix_threads \
             $no_examples \
@@ -1093,6 +1102,7 @@ build_sdk() {
             --without-curl \
             --with-winhttp=$cwd \
             $freeimage_flags \
+            $libuv_flags \
             $readline_flags \
             $disable_posix_threads \
             $no_examples \
