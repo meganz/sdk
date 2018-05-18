@@ -96,6 +96,10 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
 
 bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int size)
 {
+#ifndef DEBUG
+    av_log_set_level(AV_LOG_PANIC);
+#endif
+
     // Open video file
     AVFormatContext* formatContext = avformat_alloc_context();
     if (avformat_open_input(&formatContext, imagePath->data(), NULL, NULL))

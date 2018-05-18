@@ -519,6 +519,11 @@ int64_t MegaShare::getTimestamp()
     return 0;
 }
 
+bool MegaShare::isPending()
+{
+    return false;
+}
+
 MegaRequest::~MegaRequest() { }
 MegaRequest *MegaRequest::copy()
 {
@@ -842,6 +847,11 @@ bool MegaTransfer::isSyncTransfer() const
 bool MegaTransfer::isStreamingTransfer() const
 {
 	return false;
+}
+
+bool MegaTransfer::isFinished() const
+{
+    return false;
 }
 
 char *MegaTransfer::getLastBytes() const
@@ -1951,9 +1961,14 @@ void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
     pImpl->enableRichPreviews(enable, listener);
 }
 
+void MegaApi::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    pImpl->isRichPreviewsEnabled(listener);
+}
+
 void MegaApi::shouldShowRichLinkWarning(MegaRequestListener *listener)
 {
-    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_RICH_PREVIEWS, NULL, 0, listener);
+    pImpl->shouldShowRichLinkWarning(listener);
 }
 
 void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)

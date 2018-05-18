@@ -397,22 +397,24 @@ private:
 class MegaSharePrivate : public MegaShare
 {
 	public:
-		static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share);
+        static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool pending = false);
 		virtual MegaShare *copy();
 		virtual ~MegaSharePrivate();
 		virtual const char *getUser();
 		virtual MegaHandle getNodeHandle();
 		virtual int getAccess();
 		virtual int64_t getTimestamp();
+        virtual bool isPending();
 
 	protected:
-		MegaSharePrivate(MegaHandle nodehandle, Share *share);
+        MegaSharePrivate(MegaHandle nodehandle, Share *share, bool pending = false);
 		MegaSharePrivate(MegaShare *share);
 
 		MegaHandle nodehandle;
 		const char *user;
 		int access;
 		int64_t ts;
+        bool pending;
 };
 
 class MegaTransferPrivate : public MegaTransfer, public Cachable
@@ -483,6 +485,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual MegaNode *getPublicMegaNode() const;
         virtual bool isSyncTransfer() const;
         virtual bool isStreamingTransfer() const;
+        virtual bool isFinished() const;
         virtual bool isSourceFileTemporary() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
@@ -1243,7 +1246,7 @@ class MegaShareListPrivate : public MegaShareList
 {
 	public:
         MegaShareListPrivate();
-        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size);
+        MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size, bool pending = false);
         virtual ~MegaShareListPrivate();
 		virtual MegaShare* get(int i);
 		virtual int size();
@@ -1586,6 +1589,8 @@ class MegaApiImpl : public MegaApp
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
+        void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
+        void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);

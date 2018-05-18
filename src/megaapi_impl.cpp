@@ -1399,6 +1399,7 @@ MegaSharePrivate::MegaSharePrivate(MegaShare *share) : MegaShare()
 	this->user = MegaApi::strdup(share->getUser());
 	this->access = share->getAccess();
 	this->ts = share->getTimestamp();
+    this->pending = share->isPending();
 }
 
 MegaShare *MegaSharePrivate::copy()
@@ -1406,7 +1407,7 @@ MegaShare *MegaSharePrivate::copy()
 	return new MegaSharePrivate(this);
 }
 
-MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
+MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share, bool pending)
 {
     this->nodehandle = handle;
     this->user = share->user ? MegaApi::strdup(share->user->email.c_str()) : NULL;
@@ -1417,11 +1418,12 @@ MegaSharePrivate::MegaSharePrivate(uint64_t handle, Share *share)
     }
     this->access = share->access;
     this->ts = share->ts;
+    this->pending = pending;
 }
 
-MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share)
+MegaShare *MegaSharePrivate::fromShare(uint64_t nodeuint64_t, Share *share, bool pending)
 {
-    return new MegaSharePrivate(nodeuint64_t, share);
+    return new MegaSharePrivate(nodeuint64_t, share, pending);
 }
 
 MegaSharePrivate::~MegaSharePrivate()
@@ -1446,7 +1448,12 @@ int MegaSharePrivate::getAccess()
 
 int64_t MegaSharePrivate::getTimestamp()
 {
-	return ts;
+    return ts;
+}
+
+bool MegaSharePrivate::isPending()
+{
+    return pending;
 }
 
 
@@ -1592,6 +1599,11 @@ bool MegaTransferPrivate::isSyncTransfer() const
 bool MegaTransferPrivate::isStreamingTransfer() const
 {
     return streamingTransfer;
+}
+
+bool MegaTransferPrivate::isFinished() const
+{
+    return state == STATE_COMPLETED || state == STATE_CANCELLED || state == STATE_FAILED;
 }
 
 bool MegaTransferPrivate::isSourceFileTemporary() const
@@ -3290,14 +3302,14 @@ MegaShareListPrivate::MegaShareListPrivate()
 	s = 0;
 }
 
-MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size)
+MegaShareListPrivate::MegaShareListPrivate(Share** newlist, uint64_t *uint64_tlist, int size, bool pending)
 {
 	list = NULL; s = size;
 	if(!size) return;
 
 	list = new MegaShare*[size];
 	for(int i=0; i<size; i++)
-        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i]);
+        list[i] = MegaSharePrivate::fromShare(uint64_tlist[i], newlist[i], pending);
 }
 
 MegaShareListPrivate::~MegaShareListPrivate()
@@ -5118,6 +5130,24 @@ void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
     stringMap->set("num", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
+}
+
+void MegaApiImpl::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(0);  // 0 --> flag should indicate whether rich-links are enabled or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(1);  // 1 --> flag should indicate whether to show the warning or not
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
@@ -7825,7 +7855,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares()
 
     PendingOutShareProcessor shareProcessor;
     processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
-    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size());
+    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), shareProcessor.getShares().size(), true);
 
     sdkMutex.unlock();
     return shareList;
@@ -7855,7 +7885,7 @@ MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)
         vHandles.push_back(node->nodehandle);
     }
 
-    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size());
+    MegaShareList *shareList = new MegaShareListPrivate(vShares.data(), vHandles.data(), vShares.size(), true);
     sdkMutex.unlock();
     return shareList;
 }
@@ -11505,7 +11535,14 @@ void MegaApiImpl::getua_result(error e)
         else if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS &&
                  request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
         {
-            request->setFlag(true);
+            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+            {
+                request->setFlag(false);
+            }
+            else if (request->getNumDetails() == 1) // used to check if should show warning
+            {
+                request->setFlag(true);
+            }
         }
     }
 
@@ -11648,16 +11685,35 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         // prepare request params to know if a warning should show or not
         if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
         {
-            request->setFlag(!stringMap->get("num"));
-            // it doesn't matter the value, just if it exists
+            const char *num = stringMap->get("num");
 
-            const char *value = stringMap->get("c");
-            if (value)
+            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
             {
-                string sValue = value;
-                string bValue;
-                Base64::atob(sValue, bValue);
-                request->setNumber(atoi(bValue.c_str()));
+                if (num)
+                {
+                    string sValue = num;
+                    string bValue;
+                    Base64::atob(sValue, bValue);
+                    request->setFlag(bValue == "1");
+                }
+                else
+                {
+                    request->setFlag(false);
+                }
+            }
+            else if (request->getNumDetails() == 1) // used to check if should show warning
+            {
+                request->setFlag(!num);
+                // it doesn't matter the value, just if it exists
+
+                const char *value = stringMap->get("c");
+                if (value)
+                {
+                    string sValue = value;
+                    string bValue;
+                    Base64::atob(sValue, bValue);
+                    request->setNumber(atoi(bValue.c_str()));
+                }
             }
         }
 

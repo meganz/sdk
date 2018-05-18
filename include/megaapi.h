@@ -1390,6 +1390,16 @@ class MegaShare
          * @return The timestamp when the sharing was created (in seconds since the epoch)
          */
         virtual int64_t getTimestamp();
+
+        /**
+         * @brief Returns true if the sharing is pending
+         *
+         * A sharing is pending when the folder has been shared with a user (or email) that
+         * is not still a contact of this account.
+         *
+         * @return True if the sharing is pending, otherwise false.
+         */
+        virtual bool isPending();
 };
 
 #ifdef ENABLE_CHAT
@@ -3001,6 +3011,12 @@ class MegaTransfer
          * @see MegaApi::startStreaming
          */
         virtual bool isStreamingTransfer() const;
+
+        /**
+         * @brief Returns true is the transfer is at finished state (COMPLETED, CANCELLED OR FAILED)
+         * @return true if this transfer is finished, false otherwise
+         */
+        virtual bool isFinished() const;
 
         /**
          * @brief Returns the received bytes since the last callback
@@ -7277,11 +7293,32 @@ class MegaApi
         void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Check if rich previews are automatically generated
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+         * - MegaRequest::getNumDetails - Returns zero
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
+         * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid (false).
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Check if the app should show the rich link warning dialog to the user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+         * - MegaRequest::getNumDetails - Returns one
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -7292,15 +7329,18 @@ class MegaApi
          * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
          *
          * If the corresponding user attribute is not set yet, the request will fail with the
-         * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid.
+         * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid (true).
          *
          * @param listener MegaRequestListener to track this request
-         *
          */
         void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Set the number of times "Not now" option has been selected
+         * @brief Set the number of times "Not now" option has been selected in the rich link warning dialog
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
          *
          * @param value Number of times "Not now" option has been selected
          * @param listener MegaRequestListener to track this request
