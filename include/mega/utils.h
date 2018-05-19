@@ -238,7 +238,6 @@ private:
     /**
      * @brief containerToTLVrecords Builds a TLV object with records from an encrypted container
      * @param data Binary byte array representing the encrypted container
-     * @param datalen Length of the byte array.
      * @param key Master key to decrypt the container
      * @return A new TLVstore object. You take the ownership of the object.
      */
@@ -247,7 +246,6 @@ private:
     /**
      * @brief Builds a TLV object with records from a container
      * @param data Binary byte array representing the TLV records
-     * @param datalen Length of the byte array.
      * @return A new TLVstore object. You take the ownership of the object.
      */
     static TLVstore * containerToTLVrecords(const string *data);
@@ -303,7 +301,6 @@ private:
      * @brief add Adds a new record to the container
      * @param type Type for the new value (without scope nor non-historic modifiers).
      * @param value New value to be set.
-     * @return
      */
     void set(string type, string value);
 
