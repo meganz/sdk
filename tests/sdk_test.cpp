@@ -2190,9 +2190,7 @@ TEST_F(SdkTest, SdkTestFingerprint)
             ofs.write((char*)&value, filesizes[i] % sizeof(value));
         }
 
-        {
-            fsa.setmtimelocal(&localname, 1000000000);
-        }
+        fsa.setmtimelocal(&localname, 1000000000);
 
         string streamfp, filefp;
         {

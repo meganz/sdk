@@ -215,7 +215,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/json.cpp 
             ${MegaDir}/src/logging.cpp 
             ${MegaDir}/src/mediafileattribute.cpp 
-            ${MegaDir}/src/mega_ccronexpr.cpp
+#            ${MegaDir}/src/mega_ccronexpr.cpp
             ${MegaDir}/src/mega_http_parser.cpp 
             ${MegaDir}/src/mega_utf8proc.cpp 
             ${MegaDir}/src/mega_zxcvbn.cpp 

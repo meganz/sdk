@@ -1105,24 +1105,7 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
         memset(dt, 0, sizeof(struct tm));
     }
 #elif _WIN32
-    static MegaMutex * mtx = new MegaMutex();
-    static bool initiated = false;
-    if (!initiated)
-    {
-        mtx->init(true);
-        initiated = true;
-    }
-    mtx->lock();
-    struct tm *newtm = localtime(&t);
-    if (newtm)
-    {
-        memcpy(dt, newtm, sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt, 0, sizeof(struct tm));
-    }
-    mtx->unlock();
+#error "localtime is not thread safe in this compiler; please use a later one"
 #else //POSIX
     localtime_r(&t, dt);
 #endif
