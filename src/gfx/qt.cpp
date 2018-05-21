@@ -615,38 +615,38 @@ const char *GfxProcQT::supportedformatsLibraw()
 
 QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QString imagePath)
 {
-    LibRaw iProcessor;
-    int ret = iProcessor.open_file(imagePath.toUtf8().constData());
+    LibRaw libRaw;
+    int ret = libRaw.open_file(imagePath.toUtf8().constData());
     if (ret > 0 || LIBRAW_FATAL_ERROR(ret)
-            || iProcessor.imgdata.sizes.width <= 0
-            || iProcessor.imgdata.sizes.height <= 0)
+            || libRaw.imgdata.sizes.width <= 0
+            || libRaw.imgdata.sizes.height <= 0)
     {
         LOG_debug << "Unreadable RAW image";
         return NULL;
     }
 
-    const libraw_data_t &imgdata = iProcessor.imgdata;
+    const libraw_data_t &imgdata = libRaw.imgdata;
     libraw_processed_image_t *output = NULL;
 
     if (imgdata.thumbnail.twidth >= GfxProc::dimensions[GfxProc::PREVIEW][0]
             || imgdata.thumbnail.theight >= GfxProc::dimensions[GfxProc::PREVIEW][0])
     {
-        ret = iProcessor.unpack_thumb();
+        ret = libRaw.unpack_thumb();
         if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
         {
             LOG_debug << "Extracting thumbnail from RAW image";
-            output = iProcessor.dcraw_make_mem_thumb();
+            output = libRaw.dcraw_make_mem_thumb();
         }
     }
 
     if (!output)
     {
-        ret = iProcessor.unpack();
+        ret = libRaw.unpack();
         if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
         {
             LOG_debug << "Extracting full RAW image";
-            iProcessor.dcraw_process();
-            output = iProcessor.dcraw_make_mem_image();
+            libRaw.dcraw_process();
+            output = libRaw.dcraw_make_mem_image();
         }
     }
 
