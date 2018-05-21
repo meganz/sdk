@@ -610,7 +610,7 @@ const char *GfxProcQT::supportedformatsQT()
 
 const char *GfxProcQT::supportedformatsLibraw()
 {
-    return ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.tif.tiff.x3f.";
+    return ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
 }
 
 QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QString imagePath)
