@@ -21,6 +21,13 @@
 
 #include "sdk_test.h"
 
+#ifdef WIN32
+void usleep(uint64_t n)
+{
+    Sleep(n / 1000);
+}
+#endif
+
 void SdkTest::SetUp()
 {
     // do some initialization
@@ -2040,7 +2047,7 @@ TEST_F(SdkTest, SdkTestChat)
 
     // --- Check list of available chats --- (fetch is done at SetUp())
 
-    uint numChats = chats.size();      // permanent chats cannot be deleted, so they're kept forever
+    size_t numChats = chats.size();      // permanent chats cannot be deleted, so they're kept forever
 
 
     // --- Create a group chat ---
@@ -2121,5 +2128,90 @@ TEST_F(SdkTest, SdkTestChat)
             << "The peer didn't receive notification of the invitation after " << maxTimeout << " seconds";
 
 }
+
+
+class myMIS : public MegaInputStream
+{
+public:
+    int64_t size;
+    ifstream ifs;
+
+    myMIS(const char* filename)
+        : ifs(filename, ios::binary)
+    {
+        ifs.seekg(0, ios::end);
+        size = ifs.tellg();
+        ifs.seekg(0, ios::beg);
+    }
+    virtual int64_t getSize() { return size; }
+
+    virtual bool read(char *buffer, size_t size) {
+        if (buffer)
+        {
+            ifs.read(buffer, size);
+        }
+        else
+        {
+            ifs.seekg(size, ios::cur);
+        }
+        return !ifs.fail();
+    }
+};
+
+
+TEST_F(SdkTest, SdkTestFingerprint)
+{
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST fingerprint stream/file___");
+
+    int filesizes[] = { 10, 100, 1000, 10000, 100000, 10000000 };
+    string expected[] = {
+        "DAQoBAMCAQQDAgEEAwAAAAAAAAQAypo7",
+        "DAWQjMO2LBXoNwH_agtF8CX73QQAypo7",
+        "EAugDFlhW_VTCMboWWFb9VMIxugQAypo7",
+        "EAhAnWCqOGBx0gGOWe7N6wznWRAQAypo7",
+        "GA6CGAQFLOwb40BGchttx22PvhZ5gQAypo7",
+        "GA4CWmAdW1TwQ-bddEIKTmSDv0b2QQAypo7",
+    };
+
+    FSACCESS_CLASS fsa;
+    string name = "testfile";
+    string localname;
+    fsa.path2local(&name, &localname);
+
+    int value = 0x01020304;
+    for (int i = sizeof filesizes / sizeof filesizes[0]; i--; )
+    {
+
+        {
+            ofstream ofs(name.c_str(), ios::binary);
+            char s[8192];
+            ofs.rdbuf()->pubsetbuf(s, sizeof s);
+            for (int j = filesizes[i] / sizeof(value); j-- ; ) ofs.write((char*)&value, sizeof(value));
+            ofs.write((char*)&value, filesizes[i] % sizeof(value));
+        }
+
+        fsa.setmtimelocal(&localname, 1000000000);
+
+        string streamfp, filefp;
+        {
+            m_time_t mtime = 0;
+            {
+                FileAccess* nfa = fsa.newfileaccess();
+                nfa->fopen(&localname);
+                mtime = nfa->mtime;
+                delete nfa;
+            }
+
+            myMIS mis(name.c_str());
+            streamfp.assign(megaApi[0]->getFingerprint(&mis, mtime));
+        }
+
+        filefp = megaApi[0]->getFingerprint(name.c_str());
+
+        ASSERT_EQ(streamfp, filefp);
+        ASSERT_EQ(streamfp, expected[i]);
+    }
+}
+
 
 #endif

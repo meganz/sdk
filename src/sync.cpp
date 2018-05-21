@@ -839,7 +839,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         // logic to detect files being updated in the local computer moving the original file
                         // to another location as a temporary backup
 
-                        m_time_t currentsecs = time(NULL);
+                        m_time_t currentsecs = m_time();
                         if (!updatedfileinitialts)
                         {
                             updatedfileinitialts = currentsecs;
@@ -1199,10 +1199,10 @@ bool Sync::movetolocaldebris(string* localpath)
 {
     size_t t = localdebris.size();
     char buf[32];
-    time_t ts = time(NULL);
-    struct tm* ptm = localtime(&ts);
+    struct tm tms;
     string day, localday;
     bool havedir = false;
+    struct tm* ptm = m_localtime(m_time(), &tms);
 
     for (int i = -3; i < 100; i++)
     {

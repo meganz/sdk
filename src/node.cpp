@@ -444,10 +444,10 @@ bool Node::serialize(string* d)
     d->append((char*)&owner, MegaClient::USERHANDLE);
 
     // FIXME: use Serialize64
-    time_t ts = 0;
+    time_t ts = 0;  // we don't want to break backward compatibiltiy by changing the size (where m_time_t differs)
     d->append((char*)&ts, sizeof(ts));
 
-    ts = ctime;
+    ts = (time_t)ctime; 
     d->append((char*)&ts, sizeof(ts));
 
     d->append(nodekey);
@@ -917,7 +917,7 @@ bool PublicLink::isExpired()
     if (!ets)       // permanent link: ets=0
         return false;
 
-    m_time_t t = time(NULL);
+    m_time_t t = m_time();
     return ets < t;
 }
 

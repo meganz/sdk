@@ -152,7 +152,7 @@ void Base64::itoa(int64_t val, string *result)
     {
         rest = val % 64;
         val /= 64;
-        c = to64(rest);
+        c = to64(byte(rest));
         result->insert(result->begin(), (char) c);
     }
 }
