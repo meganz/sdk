@@ -1094,7 +1094,7 @@ struct tm* m_localtime(m_time_t ttime, struct tm *dt)
     time_t t = time_t(ttime);
 #if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
     localtime_s(&t, dt);
-#elif _MSC_VER >= 1400 // MSVCRT (2005+): std::localtime is threadsafe
+#elif _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+): std::localtime is threadsafe
     struct tm *newtm = localtime(&t);
     if (newtm)
     {
