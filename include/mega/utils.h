@@ -331,6 +331,10 @@ public:
 // for pre-c++11 where this version is not defined yet.  
 long long abs(long long n);
 
+extern m_time_t m_time(m_time_t* tt = NULL);
+extern struct tm* m_localtime(m_time_t, struct tm *dt);
+extern m_time_t m_mktime(struct tm*);
+
 } // namespace
 
 #endif

@@ -124,7 +124,7 @@ public:
     static const int PWD_SHOW_AFTER_LASTSKIP_LOGOUT = 1 * 30 * 24 * 60 * 60;
 
     static bool mergePwdReminderData(int numDetails, const char *data, unsigned int size, string *newValue);
-    static time_t getPwdReminderData(int numDetail, const char *data, unsigned int size);
+    static m_time_t getPwdReminderData(int numDetail, const char *data, unsigned int size);
 
     bool setChanged(attr_t at);
 
