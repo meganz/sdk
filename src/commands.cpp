@@ -3111,6 +3111,30 @@ void CommandGetUserData::procresult()
             privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
             break;
 
+        case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                    case MAKENAMEID4('m', 'f', 'a', 'e'):
+                        client->gmfa_enabled = bool(client->json.getint());
+                        break;
+                    case EOO:
+                        endobject = true;
+                        break;
+                    default:
+                        if (!client->json.storeobject())
+                        {
+                            return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                        }
+                    }
+                }
+            }
+            break;
+
         case EOO:
             client->app->userdata_result(&name, &pubk, &privk, jid, API_OK);
             return;

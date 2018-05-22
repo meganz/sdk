@@ -855,6 +855,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tsLogin = false;
     versions_disabled = false;
     accountsince = 0;
+    gmfa_enabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3221,6 +3222,7 @@ void MegaClient::locallogout()
     tsLogin = false;
     versions_disabled = false;
     accountsince = 0;
+    gmfa_enabled = false;
 
     freeq(GET);
     freeq(PUT);

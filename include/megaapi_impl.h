@@ -1501,6 +1501,7 @@ class MegaApiImpl : public MegaApp
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
 
+        bool multiFactorAuthAvailable();
         void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
         void multiFactorAuthGetCode(MegaRequestListener *listener = NULL);
         void multiFactorAuthEnable(const char *pin, MegaRequestListener *listener = NULL);

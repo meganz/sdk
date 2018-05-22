@@ -1464,6 +1464,11 @@ void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRe
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
 }
 
+bool MegaApi::multiFactorAuthAvailable()
+{
+    return pImpl->multiFactorAuthAvailable();
+}
+
 void MegaApi::multiFactorAuthCheck(const char *email, MegaRequestListener *listener)
 {
     pImpl->multiFactorAuthCheck(email, listener);

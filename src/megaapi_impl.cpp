@@ -4387,6 +4387,11 @@ void MegaApiImpl::setStatsID(const char *id)
     MegaClient::statsid = MegaApi::strdup(id);
 }
 
+bool MegaApiImpl::multiFactorAuthAvailable()
+{
+    return client->gmfa_enabled;
+}
+
 void MegaApiImpl::multiFactorAuthCheck(const char *email, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK, listener);

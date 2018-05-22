@@ -197,6 +197,9 @@ public:
     // timestamp of the creation of the account
     m_time_t accountsince;
 
+    // multi-factor authentication globally enabled
+    bool gmfa_enabled;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
