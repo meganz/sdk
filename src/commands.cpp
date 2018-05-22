@@ -3132,6 +3132,7 @@ void CommandGetUserData::procresult()
                         }
                     }
                 }
+                client->json.leaveobject();
             }
             break;
 
