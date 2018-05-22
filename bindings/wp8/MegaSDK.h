@@ -1017,10 +1017,49 @@ namespace mega
                 
         void removeContact(MUser^ user, MRequestListenerInterface^ listener);
         void removeContact(MUser^ user);
-        void logout(MRequestListenerInterface^ listener);        
+        
+        /**
+        * @brief Logout of the MEGA account invalidating the session
+        *
+        * The associated request type with this request is MRequestType::TYPE_LOGOUT
+        *
+        * Under certain circumstances, this request might return the error code
+        * MError::API_ESID. It should not be taken as an error, since the reason
+        * is that the logout action has been notified before the reception of the
+        * logout response itself.
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void logout(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Logout of the MEGA account invalidating the session
+        *
+        * The associated request type with this request is MRequestType::TYPE_LOGOUT
+        *
+        * Under certain circumstances, this request might return the error code
+        * MError::API_ESID. It should not be taken as an error, since the reason
+        * is that the logout action has been notified before the reception of the
+        * logout response itself.
+        */
         void logout();
+
+        /**
+        * @brief Logout of the MEGA account without invalidating the session
+        *
+        * The associated request type with this request is MRequestType::TYPE_LOGOUT
+        *
+        * @param listener MRequestListener to track this request
+        */
         void localLogout(MRequestListenerInterface^ listener);
-        void localLogout();
+
+        /**
+        * @brief Logout of the MEGA account without invalidating the session
+        *
+        * The associated request type with this request is MRequestType::TYPE_LOGOUT
+        */
+        void localLogout();        
+        
         int getPasswordStrength(String^ password);
         void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
         void submitFeedback(int rating, String^ comment);
@@ -1307,6 +1346,33 @@ namespace mega
          * - MRequest::getFlag - false if disabled, true if enabled
          */
         void getContactLinksOption();
+
+        /**
+        * @brief Keep retrying when public key pinning fails
+        *
+        * By default, when the check of the MEGA public key fails, it causes an automatic
+        * logout. Pass false to this function to disable that automatic logout and
+        * keep the SDK retrying the request.
+        *
+        * Even if the automatic logout is disabled, a request of the type MegaRequestType::TYPE_LOGOUT
+        * will be automatically created and callbacks (onRequestStart, onRequestFinish) will
+        * be sent. However, logout won't be really executed and in onRequestFinish the error code
+        * for the request will be MError::API_EINCOMPLETE
+        *
+        * @param enable true to keep retrying failed requests due to a fail checking the MEGA public key
+        * or false to perform an automatic logout in that case
+        */
+        void retrySSLerrors(bool enable);
+
+        /**
+        * @brief Enable / disable the public key pinning
+        *
+        * Public key pinning is enabled by default for all sensible communications.
+        * It is strongly discouraged to disable this feature.
+        *
+        * @param enable true to keep public key pinning enabled, false to disable it
+        */
+        void setPublicKeyPinning(bool enable);
 
         bool createThumbnail(String^ imagePath, String^ dstPath);
         bool createPreview(String^ imagePath, String^ dstPath);

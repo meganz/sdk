@@ -991,7 +991,7 @@ class MegaNode
          *
          * You take the ownership of the returned value.
          *
-         * @param Serialization of a MegaNode object obtained from a chat message (in Base64)
+         * @param d Serialization of a MegaNode object obtained from a chat message (in Base64)
          * @return A new MegaNode object, or NULL if error.
          */
         static MegaNode* unserialize(const char *d);
@@ -1819,7 +1819,7 @@ class MegaNodeList
 
         /**
          * @brief Add new node to list
-         * @param MegaNode to be added. The node inserted is a copy from 'node'
+         * @param node MegaNode to be added. The node inserted is a copy from 'node'
          */
         virtual void addNode(MegaNode* node);
 };
@@ -5188,7 +5188,7 @@ class MegaApi
          * You take the ownership of the returned value
          * You can revert this operation using MegaApi::base64ToUserHandle
          *
-         * @param User handle to be converted
+         * @param handle User handle to be converted
          * @return Base64-encoded user handle
          */
         static char* userHandleToBase64(MegaHandle handle);
@@ -5457,7 +5457,7 @@ class MegaApi
          *
          * If you use mega::INVALID_HANDLE, all sessions except the current one will be closed
          *
-         * @param Handle of the session. Use mega::INVALID_HANDLE to cancel all sessions except the current one
+         * @param sessionHandle Handle of the session. Use mega::INVALID_HANDLE to cancel all sessions except the current one
          * @param listener MegaRequestListener to track this request
          */
         void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
@@ -6621,7 +6621,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
          *
-         * @param user email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+         * @param email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
          * set to NULL, the avatar is obtained for the active account
          * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
          * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
@@ -9264,7 +9264,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param parent Parent node
+         * @param p Parent node
          * @param order Order for the returned lists
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -10231,7 +10231,7 @@ class MegaApi
 
         /**
          * @brief Set the language code used by the app
-         * @param Language code used by the app
+         * @param languageCode Language code used by the app
          *
          * @return True if the language code is known for the SDK, otherwise false
          */
@@ -10697,7 +10697,7 @@ class MegaApi
          * other configuration options (MegaApi::httpServerEnableFileServer,
          * MegaApi::httpServerEnableFolderServer) are still applied.
          *
-         * @param Required state for the restricted mode of the HTTP proxy server
+         * @param mode Required state for the restricted mode of the HTTP proxy server
          */
         void httpServerSetRestrictedMode(int mode);
 
@@ -10852,8 +10852,7 @@ class MegaApi
          * @brief Stops serving a node via webdav.
          * The webdav link will no longer be valid.
          *
-         * @param handle Handle of the node to stop serving
-         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         * @param handle Handle of the node to stop serving         
          */
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
 

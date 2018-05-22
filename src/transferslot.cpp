@@ -380,7 +380,7 @@ void TransferSlot::doio(MegaClient* client)
                     }
 
                     lastdata = Waiter::ds;
-                    transfer->lastaccesstime = time(NULL);
+                    transfer->lastaccesstime = m_time();
 
                     LOG_debug << "Chunk finished OK (" << transfer->type << ") Pos: " << transfer->pos
                               << " Completed: " << (transfer->progresscompleted + reqs[i]->size) << " of " << transfer->size;

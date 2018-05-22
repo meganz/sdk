@@ -520,7 +520,7 @@ using namespace mega;
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:self]);
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)localLogout {
@@ -851,16 +851,12 @@ using namespace mega;
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
 
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
-    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude : MegaNode::INVALID_COORDINATE), (longitude ? longitude : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude {
-    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon);
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude {
+    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude : MegaNode::INVALID_COORDINATE), (longitude ? longitude : MegaNode::INVALID_COORDINATE));
 }
 
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {

@@ -103,7 +103,9 @@ struct Achievement;
 
 #define EOO 0
 
-typedef int64_t m_time_t;
+// Our own version of time_t which we can be sure is 64 bit.  
+// Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
+typedef int64_t m_time_t; 
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;

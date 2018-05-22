@@ -3793,6 +3793,16 @@ void MegaSDK::getContactLinksOption()
     megaApi->getContactLinksOption();
 }
 
+void MegaSDK::retrySSLerrors(bool enable)
+{
+    megaApi->retrySSLerrors(enable);
+}
+
+void MegaSDK::setPublicKeyPinning(bool enable)
+{
+    megaApi->setPublicKeyPinning(enable);
+}
+
 bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)
 {
     std::string utf8imagePath;
