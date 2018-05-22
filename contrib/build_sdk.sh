@@ -477,14 +477,15 @@ libuv_pkg() {
 
     package_extract $name $libuv_file $libuv_dir
 
+    export OLD_CFLAGS="$CFLAGS"
+
     # linking with static library requires -fPIC
     if [ $use_dynamic -eq 0 ]; then
-        export CFLAGS="-fPIC"
+        export CFLAGS="$CFLAGS -fPIC"
     fi
     package_configure $name $libuv_dir $install_dir "$libuv_params"
-    if [ $use_dynamic -eq 0 ]; then
-        unset CFLAGS
-    fi
+
+    export CFLAGS="$OLD_CFLAGS"
 
     package_build $name $libuv_dir
     package_install $name $libuv_dir $install_dir
