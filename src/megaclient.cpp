@@ -7050,7 +7050,6 @@ void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, emailhash, sek, 0, pin));
-    getuserdata();
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
@@ -7063,7 +7062,6 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, emailhash, sek));
-    getuserdata();
 }
 
 void MegaClient::getuserdata()
@@ -9722,6 +9720,10 @@ void MegaClient::fetchnodes(bool nocache)
             fetchkeys();
         }
 #endif
+        if (!k.size())
+        {
+            getuserdata();
+        }
         reqs.add(new CommandFetchNodes(this, nocache));
 
         char me64[12];
