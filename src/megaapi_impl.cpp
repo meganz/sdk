@@ -12339,8 +12339,9 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 	activeError = megaError;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
+    transfer->setLastError(e);
 
-    if(e.getErrorCode())
+    if (e.getErrorCode())
     {
         LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e.getErrorString()
                     << " File: " << transfer->getFileName();

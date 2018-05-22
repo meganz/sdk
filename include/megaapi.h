@@ -3028,6 +3028,12 @@ class MegaTransfer
         virtual char *getLastBytes() const;
 
         /**
+         * @brief Returns the last error related to the transfer
+         * @return Last error related to the transfer
+         */
+        virtual MegaError getLastError() const;
+
+        /**
          * @brief Returns true if the transfer is a folder transfer
          * @return true if it's a folder transfer, otherwise (file transfer) it returns false
          */
