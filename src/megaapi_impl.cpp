@@ -11872,7 +11872,7 @@ void MegaApiImpl::contactlinkcreate_result(error e, handle h)
     fireOnRequestFinish(request, e);
 }
 
-void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname)
+void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname, string *avatar)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -11890,6 +11890,7 @@ void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, stri
         request->setEmail(email->c_str());
         request->setName(firstname->c_str());
         request->setText(lastname->c_str());
+        request->setFile(avatar->c_str());
     }
     fireOnRequestFinish(request, e);
 }

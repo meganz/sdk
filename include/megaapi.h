@@ -5912,6 +5912,7 @@ class MegaApi
          * - MegaRequest::getEmail - Returns the email of the contact
          * - MegaRequest::getName - Returns the first name of the contact
          * - MegaRequest::getText - Returns the last name of the contact
+         * - MegaRequest::getFile - Returns the avatar of the contact (JPG with Base64 encoding)
          *
          * @param handle Handle of the contact link to check
          * @param listener MegaRequestListener to track this request
