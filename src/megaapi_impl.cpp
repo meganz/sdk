@@ -16861,13 +16861,21 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            const char *ukey = NULL;
+            const userkey_map *keylist = ((MegaTextChatPeerListPrivate*)chatPeers)->getKeyList();
+            userkey_map::const_iterator ituk = keylist->find(getMyUserHandleBinary());
+            if(ituk != keylist->end())
+            {
+                ukey = (ituk->second).c_str();
+            }
+
             // if 1:1 chat, peer is enforced to be moderator too
             if (!group && userpriv->at(0).second != PRIV_MODERATOR)
             {
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, title);
+            client->createChat(group, publicchat, userpriv, keylist, title, ukey);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -22138,6 +22146,26 @@ int MegaTextChatPeerListPrivate::getPeerPrivilege(int i) const
     }
 }
 
+std::string MegaTextChatPeerListPrivate::getPeerKey(int i) const
+{
+    if (i > size())
+    {
+        return std::string();
+    }
+    else
+    {
+        userkey_map::const_iterator ituk = this->keysList.find(list.at(i).first);
+        if(ituk != this->keysList.end())
+        {
+            return ituk->second;
+        }
+        else
+        {
+            return std::string();
+        }
+    }
+}
+
 int MegaTextChatPeerListPrivate::size() const
 {
     return list.size();
@@ -22146,6 +22174,11 @@ int MegaTextChatPeerListPrivate::size() const
 const userpriv_vector *MegaTextChatPeerListPrivate::getList() const
 {
     return &list;
+}
+
+const userkey_map *MegaTextChatPeerListPrivate::getKeyList() const
+{
+    return &keysList;
 }
 
 void MegaTextChatPeerListPrivate::setPeerPrivilege(handle uh, privilege_t priv)

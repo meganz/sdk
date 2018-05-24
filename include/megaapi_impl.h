@@ -1087,15 +1087,19 @@ public:
     virtual void addPeer(MegaHandle h, int priv);
     virtual MegaHandle getPeerHandle(int i) const;
     virtual int getPeerPrivilege(int i) const;
+    virtual std::string getPeerKey(int i) const;
     virtual int size() const;
 
     // returns the list of user-privilege (this object keeps the ownership)
     const userpriv_vector * getList() const;
+    const userkey_map * getKeyList() const;
 
     void setPeerPrivilege(handle uh, privilege_t priv);
+    void setPeerKey(handle uh, std::string uk);
 
 private:
     userpriv_vector list;
+    userkey_map keysList;
 };
 
 class MegaTextChatPrivate : public MegaTextChat

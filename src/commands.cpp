@@ -4712,20 +4712,28 @@ void CommandGetLocalSSLCertificate::procresult()
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const char *title)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const userkey_map *ukm, const char *title, const char *unifiedkey)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
+    this->mUnifiedKey = unifiedkey ? string(unifiedkey) : "";
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
 
+    if (group && title)
+    {
+       arg("ct", title);
+    }
+
+    //If It's a public chat peersKeys can't be NULL (At least must contain 1 participant unified key)
     if (publicchat)
     {
-        arg("m", (publicchat) ? 1 : 0);
-        arg("ct", title);
+       peersKeys = new userkey_map(*ukm);
+       arg("m", (publicchat) ? 1 : 0);
+       arg("ck", unifiedkey);
     }
 
     beginarray("u");
@@ -4744,7 +4752,14 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
 
         arg("u", uid);
         arg("p", priv);
-
+        if (publicchat)
+        {
+            userkey_map::iterator ituk = this->peersKeys->find(uh);
+            if(ituk != this->peersKeys->end())
+            {
+                arg("ck", (ituk->second).c_str());
+            }
+        }
         endobject();
     }
 
@@ -4762,6 +4777,7 @@ void CommandChatCreate::procresult()
     {
         client->app->chatcreate_result(NULL, (error)client->json.getint());
         delete chatPeers;
+        delete peersKeys;
     }
     else
     {
@@ -4808,9 +4824,14 @@ void CommandChatCreate::procresult()
                         chat->ts = (ts != -1) ? ts : 0;
                         chat->publicchat = mPublicChat;
                         chat->setTag(tag ? tag : -1);
-                        if (mPublicChat)
+                        if (!mTitle.empty())
                         {
                             chat->title = mTitle;
+                        }
+                        if (mPublicChat)
+                        {
+                            chat->unifiedKey = mUnifiedKey;
+                            chat->peersKeys = peersKeys;
                         }
 
                         client->notifychat(chat);
@@ -4820,6 +4841,7 @@ void CommandChatCreate::procresult()
                     {
                         client->app->chatcreate_result(NULL, API_EINTERNAL);
                         delete chatPeers;   // unused, but might be set at creation
+                        delete peersKeys;
                     }
                     return;
 
@@ -4828,6 +4850,7 @@ void CommandChatCreate::procresult()
                     {
                         client->app->chatcreate_result(NULL, API_EINTERNAL);
                         delete chatPeers;   // unused, but might be set at creation
+                        delete peersKeys;
                         return;
                     }
             }

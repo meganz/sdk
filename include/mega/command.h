@@ -765,12 +765,14 @@ public:
 class MEGA_API CommandChatCreate : public Command
 {
     userpriv_vector *chatPeers;
+    userkey_map *peersKeys;
     bool mPublicChat;
     string mTitle;
+    string mUnifiedKey;
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const char *title = NULL);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const userkey_map *ukm = NULL, const char *title = NULL, const char *unifiedkey = NULL);
 };
 
 class MEGA_API CommandChatInvite : public Command
