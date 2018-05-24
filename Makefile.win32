@@ -75,11 +75,13 @@ COMMON_SRC=\
 		src/json.cpp  \
 		src/node.cpp  \
 		src/pubkeyaction.cpp  \
+		src/raid.cpp \
 		src/request.cpp  \
 		src/serialize64.cpp  \
 		src/share.cpp  \
 		src/sharenodekeys.cpp  \
 		src/sync.cpp  \
+		src/testhooks.cpp \
 		src/transfer.cpp  \
 		src/transferslot.cpp  \
 		src/treeproc.cpp  \

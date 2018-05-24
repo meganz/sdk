@@ -2863,7 +2863,7 @@ bool MegaClient::dispatch(direction_t d)
                 nexttransfer->pos = 0;
                 nexttransfer->progresscompleted = 0;
 
-                if (d == GET || nexttransfer->cachedtempurl.size())
+                if (d == GET || nexttransfer->cachedtempurls.size())
                 {
                     m_off_t p = 0;
 
@@ -2951,11 +2951,11 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                if (nexttransfer->cachedtempurl.size())
+                if (!nexttransfer->cachedtempurls.empty())
                 {
                     app->transfer_prepare(nexttransfer);
-                    ts->tempurl =  nexttransfer->cachedtempurl;
-                    nexttransfer->cachedtempurl.clear();
+                    ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->cachedtempurls, nexttransfer->pos, ts->maxDownloadRequestSize);
+                    nexttransfer->cachedtempurls.clear();
                 }
                 else
                 {
@@ -5067,7 +5067,6 @@ void MegaClient::sc_upc()
                     pcr->uts = uts;
                 }
                 notifypcr(pcr);
-
                 break;
             default:
                 if (!jsonsc.storeobject())
@@ -10228,7 +10227,7 @@ bool MegaClient::execdirectreads()
 
     while (!dsdrns.empty() && dsdrns.begin()->first <= Waiter::ds)
     {
-        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurl.size() || dsdrns.begin()->second->pendingcmd))
+        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurls.size() || dsdrns.begin()->second->pendingcmd))
         {
             LOG_warn << "DirectRead scheduled retry";
             dsdrns.begin()->second->retry(API_EAGAIN);
@@ -11871,10 +11870,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             {
                 LOG_debug << "Resumable transfer detected";
                 t = it->second;
+                bool hadAnyData = t->pos > 0;
                 if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
-                    t->cachedtempurl.clear();
+                    t->cachedtempurls.clear();
 
                     if (d == PUT)
                     {
@@ -11897,7 +11897,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                     }
                     else
                     {
-                        LOG_warn << "Temporary file not found";
+                        if (hadAnyData)
+                        {
+                            LOG_warn << "Temporary file not found";
+                        }
                         t->localfilename.clear();
                         t->chunkmacs.clear();
                         t->progresscompleted = 0;
@@ -11911,7 +11914,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                         if (f->genfingerprint(fa))
                         {
                             LOG_warn << "The local file has been modified";
-                            t->cachedtempurl.clear();
+                            t->cachedtempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             delete [] t->ultoken;
@@ -12056,7 +12059,7 @@ void MegaClient::setmaxconnections(direction_t d, int num)
                 {
                     slot->transfer->state = TRANSFERSTATE_QUEUED;
                     slot->transfer->bt.arm();
-                    slot->transfer->cachedtempurl = slot->tempurl;
+                    slot->transfer->cachedtempurls = slot->transferbuf.tempUrlVector();
                     delete slot;
                 }
             }
