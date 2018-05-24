@@ -21,17 +21,12 @@
 
 #include "mega.h"
 #include "megaconsolewaiter.h"
+#include "megaconsole.h"
 
 namespace mega {
-WinConsoleWaiter::WinConsoleWaiter()
+WinConsoleWaiter::WinConsoleWaiter(WinConsole* con)
+    : console(con)
 {
-    DWORD dwMode;
-
-    hInput = GetStdHandle(STD_INPUT_HANDLE);
-
-    GetConsoleMode(hInput, &dwMode);
-    SetConsoleMode(hInput, dwMode & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
-    FlushConsoleInputBuffer(hInput);
 }
 
 // wait for events (socket, I/O completion, timeout + application events)
@@ -41,7 +36,11 @@ int WinConsoleWaiter::wait()
 {
     int r;
 
-    addhandle(hInput, 0);
+    if (console)
+    {
+
+        addhandle(console->inputAvailableHandle(), 0);
+    }
 
     // aggregated wait
     r = WinWaiter::wait();
@@ -52,17 +51,10 @@ int WinConsoleWaiter::wait()
         return r;
     }
 
-    // FIXME: improve this gruesome nonblocking console read-simulating kludge
-    if (_kbhit())
+    if (console && console->consolePeek())
     {
         return HAVESTDIN;
     }
-
-    // this assumes that the user isn't typing too fast
-    INPUT_RECORD ir[1024];
-    DWORD dwNum;
-    ReadConsoleInput(hInput, ir, 1024, &dwNum);
-
     return 0;
 }
 } // namespace

@@ -26,12 +26,12 @@ namespace mega {
 
 class MEGA_API WinConsoleWaiter : public WinWaiter
 {
-    HANDLE hInput;
+    WinConsole* console;
 
 public:
     int wait();
 
-    WinConsoleWaiter();
+    WinConsoleWaiter(WinConsole*);
 };
 
 } // namespace

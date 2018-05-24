@@ -36,6 +36,10 @@ int main (int argc, char *argv[])
 {
     remove("SDK.log");
 
+#if defined(WIN32) && defined(NO_READLINE)
+    WinConsole::setShellConsole();
+#endif
+
     InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

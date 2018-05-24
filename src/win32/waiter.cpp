@@ -61,11 +61,11 @@ WinWaiter::~WinWaiter()
 void Waiter::bumpds()
 {
 #ifdef WINDOWS_PHONE
-	ds = GetTickCount64() / 100;
+	ds = dstime(GetTickCount64() / 100);
 #else
     if (pGTC)
     {
-        ds = pGTC() / 100;
+        ds = dstime(pGTC() / 100);
     }
     else
     {
@@ -79,7 +79,7 @@ void Waiter::bumpds()
 
         prevt = t;
 
-        ds = (t + tickhigh) / 100;
+        ds = dstime((t + tickhigh) / 100);
     }
 #endif
 }

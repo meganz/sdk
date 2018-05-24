@@ -24,8 +24,26 @@
 
 #define USE_VARARGS
 #define PREFER_STDARG
+
+#ifndef NO_READLINE
 #include <readline/readline.h>
 #include <readline/history.h>
+#endif
+
+#ifdef _MSVC_LANG 
+#define USE_FILESYSTEM
+#endif
+
+#ifdef USE_FILESYSTEM
+#include <filesystem>
+namespace fs = std::experimental::filesystem;
+#endif
+
+#ifdef USE_FREEIMAGE
+#include "mega/gfx/freeimage.h"
+#endif
+
+
 #include <iomanip>
 
 using namespace mega;
@@ -1463,6 +1481,8 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
     listnodeshares(n);
 }
 
+bool handles_on = false;
+
 static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NULL)
 {
     if (depth)
@@ -1484,6 +1504,13 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
             case FILENODE:
                 cout << n->size;
 
+                if (handles_on)
+                {
+                    char handlestr[12];
+                    Base64::btoa((byte*)&n->nodehandle, MegaClient::NODEHANDLE, handlestr);
+                    cout << " " << handlestr;
+                }
+
                 const char* p;
                 if ((p = strchr(n->fileattrstring.c_str(), ':')))
                 {
@@ -1503,6 +1530,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
                     }
                     cout << " file link";
                 }
+
                 break;
 
             case FOLDERNODE:
@@ -1573,6 +1601,41 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
     }
 }
 
+#ifdef USE_FILESYSTEM
+static void local_dumptree(const fs::directory_entry& de, int recurse, int depth = 0)
+{
+    if (depth)
+    {
+        for (int i = depth; i--; )
+        {
+            cout << "\t";
+        }
+
+        cout << de.path().filename().u8string() << " (";
+
+        if (fs::is_directory(de.status()))
+        {
+            cout << "folder";
+        }
+
+        cout << ")" << endl;
+
+        if (!recurse)
+        {
+            return;
+        }
+    }
+
+    if (fs::is_directory(de.status()))
+    {
+        for (auto i = fs::directory_iterator(de.path()); i != fs::directory_iterator(); ++i)
+        {
+            local_dumptree(*i, recurse, depth + 1);
+        }
+    }
+}
+#endif
+
 static void nodepath(handle h, string* path)
 {
     path->clear();
@@ -1635,7 +1698,7 @@ static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
-    "MEGA> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):"
+    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):"
 };
 
 enum prompttype
@@ -1645,7 +1708,12 @@ enum prompttype
 
 static prompttype prompt = COMMAND;
 
-static char pw_buf[256];
+#if defined(WIN32) && defined(NO_READLINE)
+static char pw_buf[512];  // double space for unicode
+#else
+static char pw_buf[256];  
+#endif
+
 static int pw_buf_pos;
 
 static void setprompt(prompttype p)
@@ -1659,11 +1727,17 @@ static void setprompt(prompttype p)
     else
     {
         pw_buf_pos = 0;
+#if defined(WIN32) && defined(NO_READLINE)
+        static_cast<WinConsole*>(console)->updateInputPrompt(prompts[p]);
+#else
         cout << prompts[p] << flush;
+#endif
         console->setecho(false);
     }
 }
 
+
+#ifdef THIS_CODE_EXISTS_IN_MEGA_LIB
 TreeProcCopy::TreeProcCopy()
 {
     nn = NULL;
@@ -1718,6 +1792,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
         nc++;
     }
 }
+#endif
 
 int loadfile(string* name, string* data)
 {
@@ -1809,13 +1884,113 @@ static void store_line(char* l)
         exit(0);
     }
 
+#ifndef NO_READLINE
     if (*l && prompt == COMMAND)
     {
         add_history(l);
     }
+#endif
 
     line = l;
 }
+
+#ifdef WIN32
+
+autocomplete::ACN autocompleteTemplate;
+
+autocomplete::ACN autocompleteSyntax()
+{
+    using namespace autocomplete;
+    std::unique_ptr<Either> p(new Either("      "));
+
+    // which is clearer in the help output - one line or 3?
+    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"))));
+    //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
+    //p->Add(sequence(text("login"), param("exportedfolderurl#key")));
+    //p->Add(sequence(text("login"), param("session")));
+    p->Add(sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
+    p->Add(sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
+    p->Add(sequence(text("confirm")));
+    p->Add(sequence(text("session")));
+    p->Add(sequence(text("mount")));
+    p->Add(sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
+    p->Add(sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
+    p->Add(sequence(text("pwd")));
+    p->Add(sequence(text("lcd"), opt(localFSFolder())));
+#ifdef USE_FILESYSTEM
+    p->Add(sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
+    p->Add(sequence(text("lpwd")));
+    p->Add(sequence(text("lmkdir"), localFSFolder()));
+#endif
+    p->Add(sequence(text("import"), param("exportedfilelink#key")));
+    p->Add(sequence(text("open"), param("exportedfolderlink#key")));
+    p->Add(sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
+    p->Add(sequence(text("putq"), opt(param("cancelslot"))));
+    p->Add(sequence(text("get"), remoteFSPath(client , &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+    p->Add(sequence(text("get"), param("exportedfilelink#key"), opt(sequence(param("offset"), opt(param("length"))))));
+    p->Add(sequence(text("getq"), opt(param("cancelslot"))));
+    p->Add(sequence(text("pause"), opt(either(text("get"), text("put"))), opt(text("hard")), opt(text("status"))));
+    p->Add(sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));
+    p->Add(sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
+    p->Add(sequence(text("rm"), remoteFSPath(client, &cwd)));
+    p->Add(sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
+    p->Add(sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"),param("dstemail"))));
+#ifdef ENABLE_SYNC
+    p->Add(sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
+#endif
+    p->Add(sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
+    p->Add(sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(param("dstemail"), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
+    p->Add(sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
+    p->Add(sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i")))); 
+    p->Add(sequence(text("showpcr")));
+    p->Add(sequence(text("users"), opt(sequence(param("email"), text("del")))));
+    p->Add(sequence(text("getua"), param("attrname"), opt(param("email"))));
+    p->Add(sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
+#ifdef DEBUG
+    p->Add(sequence(text("delua"), param("attrname")));
+#endif
+    p->Add(sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify")))));
+    p->Add(sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
+    p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
+    p->Add(sequence(text("whoami")));
+    p->Add(sequence(text("passwd")));
+    p->Add(sequence(text("reset"), param("email"), opt(text("mk"))));
+    p->Add(sequence(text("recover"), param("recoverylink")));
+    p->Add(sequence(text("cancel"), opt(param("cancellink"))));
+    p->Add(sequence(text("email"), opt(either(param("newemail"), param("emaillink")))));
+    p->Add(sequence(text("retry")));
+    p->Add(sequence(text("recon")));
+    p->Add(sequence(text("reload"), opt(text("nocache"))));
+    p->Add(sequence(text("logout")));
+    p->Add(sequence(text("locallogout")));
+    p->Add(sequence(text("symlink")));
+    p->Add(sequence(text("version")));
+    p->Add(sequence(text("debug")));
+#ifdef WIN32
+    p->Add(sequence(text("clear")));
+#endif
+    p->Add(sequence(text("test")));
+#ifdef ENABLE_CHAT
+    p->Add(sequence(text("chats")));
+    p->Add(sequence(text("chatc"), param("group"), repeat(opt(sequence(param("email"), either(text("ro"), text("sta"), text("mod")))))));
+    p->Add(sequence(text("chati"), param("chatid"), param("email"), either(text("ro"), text("sta"), text("mod"))));
+    p->Add(sequence(text("chatr"), param("chatid"), opt(param("email"))));
+    p->Add(sequence(text("chatu"), param("chatid")));
+    p->Add(sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
+    p->Add(sequence(text("chatpu")));
+    p->Add(sequence(text("chatga"), param("chatid"), param("nodehandle"), param("uid")));
+    p->Add(sequence(text("chatra"), param("chatid"), param("nodehandle"), param("uid")));
+    p->Add(sequence(text("chatst"), param("chatid"), param("title64")));
+#endif
+    p->Add(sequence(text("handles"), opt(either(text("on"), text("off")))));
+    p->Add(sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
+    p->Add(sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
+    p->Add(sequence(text("history")));
+    p->Add(sequence(text("quit")));
+
+    return autocompleteTemplate = std::move(p);
+}
+#endif
 
 // execute command
 static void process_line(char* l)
@@ -2013,6 +2188,11 @@ static void process_line(char* l)
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
+#ifdef WIN32
+                std::ostringstream s;
+                s << *autocompleteTemplate;
+                cout << s.str() << flush;
+#else
                 cout << "      login email [password]" << endl;
                 cout << "      login exportedfolderurl#key" << endl;
                 cout << "      login session" << endl;
@@ -2025,6 +2205,11 @@ static void process_line(char* l)
                 cout << "      cd [remotepath]" << endl;
                 cout << "      pwd" << endl;
                 cout << "      lcd [localpath]" << endl;
+#ifdef USE_FILESYSTEM
+                cout << "      lls [-R] [localpath]" << endl;
+                cout << "      lpwd" << endl;
+                cout << "      lmkdir localpath" << endl;
+#endif
                 cout << "      import exportedfilelink#key" << endl;
                 cout << "      open exportedfolderlink#key" << endl;
                 cout << "      put localpattern [dstremotepath|dstemail:]" << endl;
@@ -2069,6 +2254,9 @@ static void process_line(char* l)
                 cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
+#ifdef WIN32
+                cout << "      clear" << endl;
+#endif
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
@@ -2083,8 +2271,9 @@ static void process_line(char* l)
                 cout << "      chatst chatid title64" << endl;
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
 #endif
+                cout << "      httpsonly on | off" << endl;
                 cout << "      quit" << endl;
-
+#endif
                 return;
             }
 
@@ -2693,6 +2882,36 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef USE_FILESYSTEM
+                    else if (words[0] == "lls") // local ls
+                    {
+                        int recursive = words.size() > 1 && words[1] == "-R";
+                        std::string ls_folder = words.size() > recursive + 1 ? words[recursive + 1] : fs::current_path().string();
+                        try
+                        {
+                            fs::path p(ls_folder);
+                            std::error_code ec;
+                            fs::directory_entry de(p, fs::status(p, ec));
+                            if (ec)
+                            {
+                                cerr << ec.message() << endl;
+                            }
+                            else if (!fs::exists(de.status()))
+                            {
+                                cerr << "not found" << endl;
+                            }
+                            else
+                            {
+                                local_dumptree(de, recursive);
+                            }
+                        }
+                        catch (std::exception& e)
+                        {
+                            cerr << "ERROR: " << e.what() << endl;
+                        }
+                        return;
+                    }
+#endif
                     else if (words[0] == "ipc")
                     {
                         // incoming pending contact action
@@ -2747,6 +2966,7 @@ static void process_line(char* l)
                             {
                                 if (!clientFolder)
                                 {
+                                    using namespace mega;
                                     // create a new MegaClient with a different MegaApp to process callbacks
                                     // from the client logged into a folder. Reuse the waiter and httpio
                                     clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
@@ -2872,6 +3092,13 @@ static void process_line(char* l)
                             cout << "      sync [localpath dstremotepath|cancelslot]" << endl;
                         }
 
+                        return;
+                    }
+#endif
+#ifdef USE_FILESYSTEM
+                    else if (words[0] == "lpwd") // local pwd
+                    {
+                        cout << fs::current_path().u8string() << endl;
                         return;
                     }
 #endif
@@ -3464,6 +3691,13 @@ static void process_line(char* l)
 
                         return;
                     }
+#ifdef WIN32
+                    else if (words[0] == "clear")
+                    {
+                        static_cast<WinConsole*>(console)->clearScreen();
+                        return;
+                    }
+#endif
                     else if (words[0] == "retry")
                     {
                         if (client->abortbackoff())
@@ -3869,7 +4103,7 @@ static void process_line(char* l)
                         {
                             cout << "Not logged in." << endl;
                         }
-                        else
+                        else if (words.size() > 1)
                         {
                             if (client->ownuser()->email.compare(words[1]))
                             {
@@ -3904,6 +4138,10 @@ static void process_line(char* l)
                             {
                                 cout << "Cannot send invitation to your own user" << endl;
                             }
+                        }
+                        else
+                        {
+                            cout << "      invite dstemail [origemail|del|rmd]" << endl;
                         }
 
                         return;
@@ -4257,6 +4495,24 @@ static void process_line(char* l)
                         }
                         return;
                     }
+#ifdef USE_FILESYSTEM
+                    else if (words[0] == "lmkdir")
+                    {
+                        if (words.size() > 1)
+                        {
+                            std::error_code ec;
+                            if (!fs::create_directory(words[1].c_str(), ec))
+                            {
+                                cerr << "Create directory failed: " << ec.message() << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      lmkdir localpath" << endl;
+                        }
+                        return;
+                    }
+#endif
                     break;
 
 
@@ -4381,6 +4637,9 @@ static void process_line(char* l)
                         cout << "* sync subsystem" << endl;
 #endif
 
+#ifdef USE_MEDIAINFO
+                        cout << "* MediaInfo" << endl;
+#endif
 
                         cwd = UNDEF;
 
@@ -4431,7 +4690,68 @@ static void process_line(char* l)
                         cout << "Outgoing PCRs:" << endl << outgoing << endl;
                         return;
                     }
+#ifdef WIN32
+                    else if (words[0] == "history")
+                    {
+                        static_cast<WinConsole*>(console)->outputHistory();
+                        return;
+                    }
+                    else if (words[0] == "handles")
+                    {
+                        if (words.size() == 2)
+                        {
+                            if (words[1] == "on")
+                            {
+                                handles_on = true;
+                            }
+                            else if (words[1] == "off")
+                            {
+                                handles_on = false;
+                            }
+                            else
+                            {
+                                cout << "invalid handles setting" << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      handles on|off " << endl;
+                        }
+                        return;
+                    }
+#endif
                     break;
+
+                case 9:
+                    if (words[0] == "httpsonly")
+                    {
+                        if (words.size() == 1)
+                        {
+                            cout << "httpsonly: " << (client->usehttps ? "on" : "off") << endl;
+                        }
+                        else if (words.size() == 2)
+                        {
+                            if (words[1] == "on")
+                            {
+                                client->usehttps = true;
+                            }
+                            else if (words[1] == "off")
+                            {
+                                client->usehttps = false;
+                            }
+                            else
+                            {
+                                cout << "invalid setting" << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      httpsonly on|off" << endl;
+                        }
+                        return;
+                    }
+                    break;
+
 
                 case 11:                    
                     if (words[0] == "killsession")
@@ -4471,6 +4791,34 @@ static void process_line(char* l)
 
                         return;
                     }
+                    break;
+
+                case 12:
+#ifdef WIN32
+                    if (words[0] == "autocomplete")
+                    {
+                        if (words.size() == 2)
+                        {
+                            if (words[1] == "unix")
+                            {
+                                static_cast<WinConsole*>(console)->setAutocompleteStyle(true);
+                            }
+                            else if (words[1] == "dos")
+                            {
+                                static_cast<WinConsole*>(console)->setAutocompleteStyle(false);
+                            }
+                            else
+                            {
+                                cout << "invalid autocomplete style" << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      autocomplete [unix|dos] " << endl;
+                        }
+                        return;
+                    }
+#endif
                     break;
             }
 
@@ -5419,10 +5767,16 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 // main loop
 void megacli()
 {
+#ifndef NO_READLINE
     char *saved_line = NULL;
     int saved_point = 0;
 
     rl_save_prompt();
+#elif defined(WIN32) && defined(NO_READLINE)
+    WinConsole::setShellConsole();
+#else
+    #error non-windows platforms must use the readline library
+#endif
 
     for (;;)
     {
@@ -5479,6 +5833,9 @@ void megacli()
                 *dynamicprompt = 0;
             }
 
+#if defined(WIN32) && defined(NO_READLINE)
+            static_cast<WinConsole*>(console)->updateInputPrompt(*dynamicprompt ? dynamicprompt : prompts[COMMAND]);
+#else
             rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
 
             // display prompt
@@ -5490,6 +5847,7 @@ void megacli()
 
             rl_point = saved_point;
             rl_redisplay();
+#endif
         }
 
         // command editing loop - exits when a line is submitted or the engine requires the CPU
@@ -5499,6 +5857,9 @@ void megacli()
 
             if (w & Waiter::HAVESTDIN)
             {
+#if defined(WIN32)
+                line = static_cast<WinConsole*>(console)->checkForCompletedInputLine();
+#else
                 if (prompt == COMMAND)
                 {
                     rl_callback_read_char();
@@ -5507,6 +5868,7 @@ void megacli()
                 {
                     console->readpwchar(pw_buf, sizeof pw_buf, &pw_buf_pos, &line);
                 }
+#endif
             }
 
             if (w & Waiter::NEEDEXEC || line)
@@ -5515,6 +5877,7 @@ void megacli()
             }
         }
 
+#ifndef NO_READLINE
         // save line
         saved_point = rl_point;
         saved_line = rl_copy_text(0, rl_end);
@@ -5523,6 +5886,7 @@ void megacli()
         rl_save_prompt();
         rl_replace_line("", 0);
         rl_redisplay();
+#endif
 
         if (line)
         {
@@ -5530,6 +5894,17 @@ void megacli()
             process_line(line);
             free(line);
             line = NULL;
+
+            if (!cerr)
+            {
+                cerr.clear();
+                cerr << "Console error output failed, perhaps on a font related utf8 error or on NULL.  It is now reset." << endl;
+            }
+            if (!cout)
+            {
+                cout.clear();
+                cerr << "Console output failed, perhaps on a font related utf8 error or on NULL.  It is now reset." << endl;
+            }
         }
 
         // pass the CPU to the engine (nonblocking)
@@ -5542,13 +5917,44 @@ void megacli()
     }
 }
 
+
+class MegaCLILogger : public ::mega::Logger {
+public:
+    virtual void log(const char *time, int loglevel, const char *source, const char *message)
+    {
+#ifdef _WIN32
+        OutputDebugStringA(message);
+        OutputDebugStringA("\r\n");
+#endif
+
+        if (loglevel <= logWarning)
+        {
+            std::cout << message << std::endl;
+        }
+    }
+};
+
+MegaCLILogger logger;
+
 int main()
 {
+#ifdef _WIN32
+    SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
+    SimpleLogger::setOutputClass(&logger);
+#else
     SimpleLogger::setAllOutputs(&std::cout);
+#endif
+
+    console = new CONSOLE_CLASS;
 
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
-    client = new MegaClient(new DemoApp, new CONSOLE_WAIT_CLASS,
+    client = new MegaClient(new DemoApp, 
+#ifdef WIN32        
+                            new CONSOLE_WAIT_CLASS(static_cast<CONSOLE_CLASS*>(console)),
+#else
+                            new CONSOLE_WAIT_CLASS,
+#endif
                             new HTTPIO_CLASS, new FSACCESS_CLASS,
 #ifdef DBACCESS_CLASS
                             new DBACCESS_CLASS,
@@ -5565,10 +5971,11 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
+#ifdef WIN32
+    static_cast<WinConsole*>(console)->setAutocompleteSyntax(autocompleteSyntax());
+#endif
+
     clientFolder = NULL;    // additional for folder links
-
-    console = new CONSOLE_CLASS;
-
     megacli();
 }
 
