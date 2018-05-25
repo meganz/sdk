@@ -2613,6 +2613,7 @@ int MegaClient::checkevents()
 {
     int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
+    r |= gfx->checkevents(waiter);
     return r;
 }
 
