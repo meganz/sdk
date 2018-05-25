@@ -2132,6 +2132,15 @@ static void process_line(char* l)
 
             vector<string> words;
 
+#ifdef WIN32
+            using namespace ::mega::autocomplete;
+            ACState acs = prepACState(l, strlen(l), autocompleteTemplate, static_cast<WinConsole*>(console)->getAutocompleteStyle());
+            for (int i = 0; i < acs.words.size(); ++i)
+            {
+                // any quotes or partial quoting are stripped out already
+                words.push_back(acs.words[i].s);
+            }
+#else
             char* ptr = l;
             char* wptr;
 
@@ -2187,6 +2196,7 @@ static void process_line(char* l)
                     words.push_back(string(wptr, ptr - wptr));
                 }
             }
+#endif
 
             if (!words.size())
             {

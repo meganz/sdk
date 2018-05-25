@@ -392,7 +392,7 @@ std::ostream& Either::describe(std::ostream& s) const
 {
     if (!describePrefix.empty())
     {
-        for (int i = 0; i < eithers.size(); ++i)
+        for (unsigned i = 0; i < eithers.size(); ++i)
         {
             s << describePrefix << *eithers[i] << std::endl;
         }
@@ -400,7 +400,7 @@ std::ostream& Either::describe(std::ostream& s) const
     else
     {
         std::ostringstream s2;
-        for (int i = 0; i < eithers.size() * 2 - 1; ++i)
+        for (int i = 0; i < int(eithers.size() * 2) - 1; ++i)
         {
             (i & 1 ? s2 << "|" : s2 << *eithers[i / 2]);
         }
@@ -708,12 +708,12 @@ ACState prepACState(const std::string line, size_t insertPos, ACN syntax, bool u
         linepos = identifyNextWord(line, linepos.second);
         std::string word = line.substr(linepos.first, linepos.second - linepos.first);
         last = linepos.first == linepos.second;
-        bool cursorInWord = linepos.first <= insertPos && insertPos <= linepos.second;
+        bool cursorInWord = linepos.first <= int(insertPos) && int(insertPos) <= linepos.second;
         if (cursorInWord)
         {
             last = true;
             word.erase(insertPos - linepos.first, std::string::npos);
-            linepos.second = insertPos;  // keep everything to the right of the cursor
+            linepos.second = int(insertPos);  // keep everything to the right of the cursor
         }
         if (!acs.words.empty() && linepos.first == acs.wordPos.back().second)
         {
@@ -757,7 +757,7 @@ void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
             std::vector<ACN> v;
             Either::ExecFn f;
             std::vector<ACN> firstWordMatches;
-            for (int i = 0; i < e->eithers.size(); ++i)
+            for (unsigned i = 0; i < e->eithers.size(); ++i)
             {
                 acs.i = 0;
                 if (e->eithers[i]->match(acs) && acs.i == acs.words.size())
@@ -851,7 +851,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth)
                 exactChars.replace(0, commonLen, s.originalWord.s.substr(0, commonLen));
                 for (auto& c : s.completions)
                 {
-                    for (int i = 0; i < exactChars.size(); ++i)
+                    for (unsigned i = 0; i < exactChars.size(); ++i)
                     {
                         if (i == c.s.size() || (c.caseInsensitive ? !icmp(exactChars[i], c.s[i]) : exactChars[i] != c.s[i]))
                         {

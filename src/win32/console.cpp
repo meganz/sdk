@@ -341,6 +341,12 @@ void WinConsole::setAutocompleteStyle(bool unix)
     model.unixCompletions = unix;
 }
 
+bool WinConsole::getAutocompleteStyle() const
+{
+    return model.unixCompletions;
+}
+
+
 HANDLE WinConsole::inputAvailableHandle()
 {
     // returns a handle that will be signalled when there is console input to process (ie records available for PeekConsoleInput)
@@ -479,7 +485,7 @@ void WinConsole::redrawInputLine()
         std::string prompt = model.searchingHistory ? ("history-" + std::string(model.searchingHistoryForward ? "F:'" : "R:'") + inputLineAsUtf8String(model.historySearchString) + "'> ")
                                                     : currentPrompt;
 
-        if (prompt.size() + model.buffer.size() + 1 < sbi.dwSize.X || !model.echoOn)
+        if (long(prompt.size() + model.buffer.size() + 1) < sbi.dwSize.X || !model.echoOn)
         {
             inputLineOffset = 0;
         }

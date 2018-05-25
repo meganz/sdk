@@ -118,6 +118,7 @@ struct MEGA_API WinConsole : public Console
     static void setShellConsole();
     void setAutocompleteSyntax(autocomplete::ACN);
     void setAutocompleteStyle(bool unix);
+    bool getAutocompleteStyle() const;
     bool consolePeek();
     bool consoleGetch(wchar_t& c);
     void updateInputPrompt(const std::string& newprompt);

@@ -203,6 +203,9 @@ namespace autocomplete {
         size_t unixListCount = 0;
     };
 
+    // helper function - useful in megacli for now
+    ACState prepACState(const std::string line, size_t insertPos, ACN syntax, bool unixStyle);
+
     // get a list of possible strings at the current cursor position
     CompletionState autoComplete(const std::string line, size_t insertPos, ACN syntax, bool unixStyle);
     
