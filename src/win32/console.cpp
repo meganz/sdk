@@ -313,9 +313,10 @@ void WinConsole::setShellConsole()
     // utf8 output with std::cout (since we already use cout so much and it's compatible with other platforms)
     // unicode input with windows ReadConsoleInput api
     // drag and drop filenames from explorer to the console window
+    // copy and paste unicode filenames from 'ls' output into your next command
     // upload and download unicode/utf-8 filenames to/from Mega
     // input a unicode/utf8 password without displaying anything
-    // normal cmd window type editing (but no autocomplete, as yet - we could add it now though)
+    // normal cmd window type editing, including autocomplete (with runtime selectable unix style or dos style, default to local platform rules)
     // the console must have a suitable font selected for the characters to diplay properly
 
     BOOL ok;
@@ -327,6 +328,7 @@ void WinConsole::setShellConsole()
 
     // Enable buffering to prevent VS from chopping up UTF byte sequences
     setvbuf(stdout, nullptr, _IOFBF, 4096);
+    setvbuf(stderr, nullptr, _IOFBF, 4096);
 }
 
 void WinConsole::setAutocompleteSyntax(autocomplete::ACN a)

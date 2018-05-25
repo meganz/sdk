@@ -751,7 +751,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     if (!chat->title.empty())
     {
         char *tstr = new char[chat->title.size() * 4 / 3 + 4];
-        Base64::btoa((const byte *)chat->title.data(), chat->title.size(), tstr);
+        Base64::btoa((const byte *)chat->title.data(), int(chat->title.size()), tstr);
 
         cout << "\tTitle: " << tstr << endl;
         delete [] tstr;
@@ -1095,7 +1095,7 @@ void DemoApp::getua_result(TLVstore *tlv)
         {
             key = (*it).empty() ? "(no key)" : *it;
             value = tlv->get(*it);
-            valuelen = value.length();
+            valuelen = unsigned(value.length());
 
             buf = new char[valuelen * 4 / 3 + 4];
             Base64::btoa((const byte *) value.data(), valuelen, buf);
@@ -1736,63 +1736,71 @@ static void setprompt(prompttype p)
     }
 }
 
-
-#ifdef THIS_CODE_EXISTS_IN_MEGA_LIB
-TreeProcCopy::TreeProcCopy()
+class TreeProcCopy_mcli : public TreeProc
 {
-    nn = NULL;
-    nc = 0;
-}
+    // This is a duplicate of the TreeProcCopy declared in treeproc.h and defined in megaapi_impl.cpp.  
+    // However some products are built with the megaapi_impl intermediate layer and some without so
+    // we can avoid duplicated symbols in some products this way
+public:
+    NewNode * nn;
+    unsigned nc;
 
-void TreeProcCopy::allocnodes()
-{
-    nn = new NewNode[nc];
-}
 
-TreeProcCopy::~TreeProcCopy()
-{
-    delete[] nn;
-}
-
-// determine node tree size (nn = NULL) or write node tree to new nodes array
-void TreeProcCopy::proc(MegaClient* client, Node* n)
-{
-    if (nn)
+    TreeProcCopy_mcli::TreeProcCopy_mcli()
     {
-        string attrstring;
-        SymmCipher key;
-        NewNode* t = nn + --nc;
+        nn = NULL;
+        nc = 0;
+    }
 
-        // copy node
-        t->source = NEW_NODE;
-        t->type = n->type;
-        t->nodehandle = n->nodehandle;
-        t->parenthandle = n->parent->nodehandle;
+    void TreeProcCopy_mcli::allocnodes()
+    {
+        nn = new NewNode[nc];
+    }
 
-        // copy key (if file) or generate new key (if folder)
-        if (n->type == FILENODE)
+    TreeProcCopy_mcli::~TreeProcCopy_mcli()
+    {
+        delete[] nn;
+    }
+
+    // determine node tree size (nn = NULL) or write node tree to new nodes array
+    void TreeProcCopy_mcli::proc(MegaClient* client, Node* n)
+    {
+        if (nn)
         {
-            t->nodekey = n->nodekey;
+            string attrstring;
+            SymmCipher key;
+            NewNode* t = nn + --nc;
+
+            // copy node
+            t->source = NEW_NODE;
+            t->type = n->type;
+            t->nodehandle = n->nodehandle;
+            t->parenthandle = n->parent->nodehandle;
+
+            // copy key (if file) or generate new key (if folder)
+            if (n->type == FILENODE)
+            {
+                t->nodekey = n->nodekey;
+            }
+            else
+            {
+                byte buf[FOLDERNODEKEYLENGTH];
+                PrnGen::genblock(buf, sizeof buf);
+                t->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
+            }
+
+            key.setkey((const byte*) t->nodekey.data(), n->type);
+
+            n->attrs.getjson(&attrstring);
+            t->attrstring = new string;
+            client->makeattr(&key, t->attrstring, attrstring.c_str());
         }
         else
         {
-            byte buf[FOLDERNODEKEYLENGTH];
-            PrnGen::genblock(buf, sizeof buf);
-            t->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
+            nc++;
         }
-
-        key.setkey((const byte*) t->nodekey.data(), n->type);
-
-        n->attrs.getjson(&attrstring);
-        t->attrstring = new string;
-        client->makeattr(&key, t->attrstring, attrstring.c_str());
     }
-    else
-    {
-        nc++;
-    }
-}
-#endif
+};
 
 int loadfile(string* name, string* data)
 {
@@ -1800,8 +1808,8 @@ int loadfile(string* name, string* data)
 
     if (fa->fopen(name, 1, 0))
     {
-        data->resize(fa->size);
-        fa->fread(data, data->size(), 0, 0);
+        data->resize(size_t(fa->size));
+        fa->fread(data, unsigned(data->size()), 0, 0);
         delete fa;
 
         return 1;
@@ -1934,7 +1942,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
     p->Add(sequence(text("rm"), remoteFSPath(client, &cwd)));
     p->Add(sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
-    p->Add(sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"),param("dstemail"))));
+    p->Add(sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
+    p->Add(sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
     p->Add(sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
 #endif
@@ -2012,7 +2021,7 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    client->confirmsignuplink((const byte*) signupcode.data(), signupcode.size(),
+                    client->confirmsignuplink((const byte*) signupcode.data(), unsigned(signupcode.size()),
                                               MegaClient::stringhash64(&signupemail, &pwcipher));
                 }
 
@@ -2543,7 +2552,7 @@ static void process_line(char* l)
                                     }
                                 }
 
-                                TreeProcCopy tc;
+                                TreeProcCopy_mcli tc;
                                 unsigned nc;
                                 handle ovhandle = UNDEF;
 
@@ -2885,7 +2894,7 @@ static void process_line(char* l)
 #ifdef USE_FILESYSTEM
                     else if (words[0] == "lls") // local ls
                     {
-                        int recursive = words.size() > 1 && words[1] == "-R";
+                        unsigned recursive = words.size() > 1 && words[1] == "-R";
                         std::string ls_folder = words.size() > recursive + 1 ? words[recursive + 1] : fs::current_path().string();
                         try
                         {
@@ -3451,7 +3460,7 @@ static void process_line(char* l)
                                 int c = 0;
                                 fatype type;
 
-                                type = atoi(words[1].c_str());
+                                type = fatype(atoi(words[1].c_str()));
 
                                 if (n->type == FILENODE)
                                 {
@@ -3548,13 +3557,13 @@ static void process_line(char* l)
                             {
                                 if (words[2] == "set")
                                 {
-                                    client->putua(attrtype, (const byte*) words[3].c_str(), words[3].size());
+                                    client->putua(attrtype, (const byte*) words[3].c_str(), unsigned(words[3].size()));
 
                                     return;
                                 }
                                 else if (words[2] == "set64")
                                 {
-                                    int len = words[3].size() * 3 / 4 + 3;
+                                    int len = int(words[3].size() * 3 / 4 + 3);
                                     byte *value = new byte[len];
                                     int valuelen = Base64::atob(words[3].data(), value, len);
                                     client->putua(attrtype, value, valuelen);
@@ -3569,7 +3578,7 @@ static void process_line(char* l)
 
                                     if (loadfile(&localpath, &data))
                                     {
-                                        client->putua(attrtype, (const byte*) data.data(), data.size());
+                                        client->putua(attrtype, (const byte*) data.data(), unsigned(data.size()));
                                     }
                                     else
                                     {
@@ -3603,7 +3612,7 @@ static void process_line(char* l)
                     {
                         bool getarg = false, putarg = false, hardarg = false, statusarg = false;
 
-                        for (int i = words.size(); --i; )
+                        for (size_t i = words.size(); --i; )
                         {
                             if (words[i] == "get")
                             {
@@ -3764,7 +3773,7 @@ static void process_line(char* l)
 #ifdef ENABLE_CHAT
                     else if (words[0] == "chatc")
                     {
-                        unsigned wordscount = words.size();
+                        size_t wordscount = words.size();
                         if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
                         {
                             int group = atoi(words[1].c_str());
@@ -4158,7 +4167,7 @@ static void process_line(char* l)
                                 ptr = tptr + 8;
                             }
 
-                            unsigned len = (words[1].size() - (ptr - words[1].c_str())) * 3 / 4 + 4;
+                            unsigned len = unsigned((words[1].size() - (ptr - words[1].c_str())) * 3 / 4 + 4);
 
                             byte* c = new byte[len];
                             len = Base64::atob(ptr, c, len);
@@ -4861,7 +4870,7 @@ void DemoApp::request_response_progress(m_off_t current, m_off_t total)
 {
     if (total > 0)
     {
-        responseprogress = current * 100 / total;
+        responseprogress = int(current * 100 / total);
     }
     else
     {
@@ -5015,10 +5024,10 @@ void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len
 
         byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
         memcpy(privkbuf, privk, len_privk);
-        key.ecb_decrypt(privkbuf, len_privk);
+        key.ecb_decrypt(privkbuf, unsigned(len_privk));
 
         AsymmCipher uk;
-        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+        if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, unsigned(len_privk)))
         {
             cout << "The master key doesn't seem to be correct." << endl;
 
@@ -5263,13 +5272,13 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     string keystring;
 
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(Base64::btoa((const byte *)a->data(),a->length(), (char *)attrstring.data()));
+    attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
 
     SymmCipher nodeKey;
     keystring.assign((char*)key,FILENODEKEYLENGTH);
     nodeKey.setkey(key, FILENODE);
 
-    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(),attrstring.size());
+    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(), int(attrstring.size()));
     if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
@@ -5396,7 +5405,7 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
 bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* appdata)
 {
     cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
-    fwrite(data, 1, len, stdout);
+    fwrite(data, 1, size_t(len), stdout);
     cout << endl;
 
     return true;
@@ -5793,7 +5802,7 @@ void megacli()
                     if ((*it)->fa)
                     {
                         xferrate[(*it)->transfer->type]
-                            += (*it)->progressreported * 10 / (1024 * (Waiter::ds - (*it)->starttime + 1));
+                            += unsigned( (*it)->progressreported * 10 / (1024 * (Waiter::ds - (*it)->starttime + 1)) );
                     }
                 }
 

@@ -6,6 +6,11 @@
 #  - or set your build options before VS project generation by using the gui, eg:  cmake-gui.exe .
 #  - open this CMakeLists.txt as a 'cmake project' with Visual Studio 2017 or beyond, and you can build and test/debug on windows or on Linux from one IDE (eg. a virtualbox linux instance on the same machine)
 #       (though it seems in order for it to copy the needed build tree, this file must be copied up one level (to the mega root dir) and opened as a CMake project in VS from there
+#  - you can set up to build both 32 bit and 64 bit this way:
+#       make subfolders '32' and '64' of this cmake folder
+#       execute 'cmake-gui  ..' in each.  Select the cmake folder as the 'source code' folder, and the appropriate 32 or 64 folder as 'where to build the binaries' folder
+#       for each cmake-gui configuration, choose the suitable 32/64 bit compiler, and corresponding setting for the build_64_bit variable.
+#       then Configure, Generate, Open Project (all buttons in the gui) for each.
 
 # updated to build mostly against dependent libraries that were built with vcpkg
 # you can very easily build those with commands like this in your 3rdParty folder:
