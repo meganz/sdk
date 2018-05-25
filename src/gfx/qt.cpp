@@ -657,34 +657,28 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
     }
 
     QImage unscaled;
+    orientation = 0;
+    if (imgdata.sizes.flip != 0)
+    {
+        if (imgdata.sizes.flip == 3)
+        {
+            orientation = ROTATION_DOWN;
+        }
+        else if (imgdata.sizes.flip == 5)
+        {
+            orientation = ROTATION_LEFT;
+        }
+        else if (imgdata.sizes.flip == 6)
+        {
+            orientation = ROTATION_RIGHT;
+        }
+    }
+
     if (output->type == LIBRAW_IMAGE_JPEG)
     {
         LOG_debug << "Converting RAW image in JPG format";
 
         unscaled.loadFromData(output->data, output->data_size, "JPEG");
-        if (imgdata.sizes.flip != 0)
-        {
-            int angle = 0;
-            QTransform rotation;
-            if (imgdata.sizes.flip == 3)
-            {
-                angle = 180;
-            }
-            else if (imgdata.sizes.flip == 5)
-            {
-                angle = -90;
-            }
-            else if (imgdata.sizes.flip == 6)
-            {
-                angle = 90;
-            }
-
-            if (angle != 0)
-            {
-                rotation.rotate(angle);
-                unscaled = unscaled.transformed(rotation);
-            }
-        }
     }
     else if (output->type == LIBRAW_IMAGE_BITMAP)
     {
@@ -699,7 +693,6 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
             LOG_debug << "RAW image is BGR888";
             unscaled = QImage(output->width, output->height, QImage::Format_RGB888);
             memcpy(unscaled.bits(), output->data, numPixels * pixelSize);
-            unscaled = unscaled.rgbSwapped();
         }
         else if (pixelSize == 1 && output->colors == 1)
         {
@@ -747,9 +740,19 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
     }
 
     LOG_debug << "RAW image correctly extracted";
-    orientation = ROTATION_UP;
-    w = unscaled.width();
-    h = unscaled.height();
+    if (orientation < ROTATION_LEFT_MIRRORED)
+    {
+        //No rotation or 180º rotation
+        w = unscaled.width();
+        h = unscaled.height();
+    }
+    else
+    {
+        //90º or 270º rotation
+        w = unscaled.height();
+        h = unscaled.width();
+    }
+
     buffer->seek(0);
     QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
     return imageReader;
