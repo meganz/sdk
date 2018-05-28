@@ -2618,7 +2618,7 @@ void CommandGetUA::procresult()
         client->app->getua_result(e);
 
 #ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
         {
             client->initializekeys(); // we have now all the required data
         }
@@ -2646,7 +2646,7 @@ void CommandGetUA::procresult()
                     {
                         client->app->getua_result(API_EINTERNAL);
 #ifdef ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2662,7 +2662,7 @@ void CommandGetUA::procresult()
                     {
                         client->app->getua_result(API_EINTERNAL);
 #ifdef ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2728,7 +2728,7 @@ void CommandGetUA::procresult()
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
 #ifdef  ENABLE_CHAT
-                            if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
                                 client->initializekeys(); // we have now all the required data
                             }
@@ -2790,7 +2790,7 @@ void CommandGetUA::procresult()
                         LOG_err << "Error in CommandPutUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
 #ifdef  ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
