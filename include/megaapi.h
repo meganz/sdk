@@ -2054,7 +2054,8 @@ class MegaRequest
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE,
+            TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -3026,6 +3027,12 @@ class MegaTransfer
          * @return Received bytes since the last callback
          */
         virtual char *getLastBytes() const;
+
+        /**
+         * @brief Returns the last error related to the transfer
+         * @return Last error related to the transfer
+         */
+        virtual MegaError getLastError() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer
@@ -4845,6 +4852,10 @@ class MegaApi
             RETRY_UNKNOWN = 6
         };
 
+        enum {
+            KEEP_ALIVE_CAMERA_UPLOADS = 0
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -5906,6 +5917,7 @@ class MegaApi
          * - MegaRequest::getEmail - Returns the email of the contact
          * - MegaRequest::getName - Returns the first name of the contact
          * - MegaRequest::getText - Returns the last name of the contact
+         * - MegaRequest::getFile - Returns the avatar of the contact (JPG with Base64 encoding)
          *
          * @param handle Handle of the contact link to check
          * @param listener MegaRequestListener to track this request
@@ -5926,6 +5938,30 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void contactLinkDelete(MegaHandle handle = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Command to keep mobile apps alive when needed
+         *
+         * When this feature is enabled, API servers will regularly send push notifications
+         * to keep the application running. Before using this function, it's needed to register
+         * a notification token using MegaApi::registerPushNotifications
+         *
+         * The associated request type with this request is MegaRequest::TYPE_KEEP_ME_ALIVE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getParamType - Returns the type send in the first parameter
+         * - MegaRequest::getFlag - Returns true when the feature is being enabled, otherwise false
+         *
+         * @param type Type of keep alive desired
+         * Valid values for this parameter:
+         * - MegaApi::KEEP_ALIVE_CAMERA_UPLOADS = 0
+         *
+         * @param enable True to enable this feature, false to disable it
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::registerPushNotifications
+         */
+        void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account
