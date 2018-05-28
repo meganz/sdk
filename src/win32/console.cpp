@@ -32,6 +32,7 @@
 
 namespace mega {
 
+
 template<class T>
 static T clamp(T v, T lo, T hi)
 {
@@ -50,24 +51,55 @@ static T clamp(T v, T lo, T hi)
     }
 }
 
-static std::string inputLineAsUtf8String(const std::wstring& ws)
+static std::string toUtf8String(const std::wstring& ws)
 {
     std::string s;
-    ::mega::MegaApi::utf16ToUtf8(ws.data(), (int)ws.size(), &s);
+    s.resize((ws.size() + 1) * 4);
+    int nchars = WideCharToMultiByte(CP_UTF8, 0, ws.data(), int(ws.size()), (LPSTR)s.data(), int(s.size()), NULL, NULL);
+    s.resize(nchars);
     return s;
 }
 
-static std::wstring inputLineFromUtf8String(const std::string& s)
+static std::wstring toUtf16String(const std::string& s)
 {
-    std::string ws;
-    ::mega::MegaApi::utf8ToUtf16(s.c_str(), &ws);
-    return std::wstring((wchar_t*)ws.data(), ws.size() / 2);
+    std::wstring ws;
+    ws.resize(s.size() + 1);
+    int nwchars = MultiByteToWideChar(CP_UTF8, 0, s.data(), int(s.size()), (LPWSTR)ws.data(), int(ws.size()));
+    ws.resize(nwchars);
+    return ws;
 }
 
 inline static bool wicmp(wchar_t a, wchar_t b)
 {
     return(towupper(a) == towupper(b));
 }
+
+struct Utf8Rdbuf : public streambuf
+{
+    HANDLE h;
+
+    Utf8Rdbuf(HANDLE ch) : h(ch) {}
+
+    streamsize xsputn(const char* s, streamsize n)
+    {
+        DWORD bn = DWORD(_Pnavail()), written = 0;
+        string s8(pbase(), bn);
+        pbump(-int(bn));
+        s8.append(s, size_t(n));
+        wstring ws = toUtf16String(s8);
+        BOOL b = WriteConsoleW(h, ws.data(), DWORD(ws.size()), &written, NULL);
+        assert(b);
+        return n;
+    }
+
+    int overflow(int c)
+    {
+        char cc = char(c);
+        xsputn(&cc, 1);
+        return c;
+    }
+
+};
 
 void ConsoleModel::addInputChar(wchar_t c)
 {
@@ -183,14 +215,14 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
     {
         if (!autocompleteState.active)
         {
-            std::string u8line = inputLineAsUtf8String(buffer);
-            size_t u8InsertPos = inputLineAsUtf8String(buffer.substr(0, insertPos)).size();
+            std::string u8line = toUtf8String(buffer);
+            size_t u8InsertPos = toUtf8String(buffer.substr(0, insertPos)).size();
             autocompleteState = autocomplete::autoComplete(u8line, u8InsertPos, autocompleteSyntax, unixCompletions);
             autocompleteState.active = true;
         }
         autocomplete::applyCompletion(autocompleteState, forwards, consoleWidth);
-        buffer = inputLineFromUtf8String(autocompleteState.line);
-        size_t u16InsertPos = inputLineFromUtf8String(autocompleteState.line.substr(0, autocompleteState.wordPos.second)).size();
+        buffer = toUtf16String(autocompleteState.line);
+        size_t u16InsertPos = toUtf16String(autocompleteState.line.substr(0, autocompleteState.wordPos.second)).size();
         insertPos = clamp<size_t>(u16InsertPos, 0, buffer.size());
         redrawInputLineNeeded = true;
     }
@@ -326,9 +358,9 @@ void WinConsole::setShellConsole()
     ok = SetConsoleOutputCP(CP_UTF8);
     assert(ok);
 
-    // Enable buffering to prevent VS from chopping up UTF byte sequences
-    setvbuf(stdout, nullptr, _IOFBF, 4096);
-    setvbuf(stderr, nullptr, _IOFBF, 4096);
+    // skip the historic complexities of output modes etc, our own rdbuf can write direct to console
+    std::cout.rdbuf(new Utf8Rdbuf(hOutput));
+    std::cerr.rdbuf(new Utf8Rdbuf(hOutput));
 }
 
 void WinConsole::setAutocompleteSyntax(autocomplete::ACN a)
@@ -482,7 +514,7 @@ void WinConsole::redrawInputLine()
     assert(ok);
     if (ok)
     {
-        std::string prompt = model.searchingHistory ? ("history-" + std::string(model.searchingHistoryForward ? "F:'" : "R:'") + inputLineAsUtf8String(model.historySearchString) + "'> ")
+        std::string prompt = model.searchingHistory ? ("history-" + std::string(model.searchingHistoryForward ? "F:'" : "R:'") + toUtf8String(model.historySearchString) + "'> ")
                                                     : currentPrompt;
 
         if (long(prompt.size() + model.buffer.size() + 1) < sbi.dwSize.X || !model.echoOn)
@@ -634,7 +666,7 @@ char* WinConsole::checkForCompletedInputLine()
         if (model.checkForCompletedInputLine(ws))
         {
             currentPrompt.clear();
-            return _strdup(inputLineAsUtf8String(ws).c_str());
+            return _strdup(toUtf8String(ws).c_str());
         }
     }
     return NULL;
@@ -665,7 +697,7 @@ void WinConsole::outputHistory()
 {
     for (size_t i = model.inputHistory.size(); i--; )
     {
-        std::cout << inputLineAsUtf8String(model.inputHistory[i]) << std::endl;
+        std::cout << toUtf8String(model.inputHistory[i]) << std::endl;
     }
 }
 

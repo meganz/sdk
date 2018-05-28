@@ -2135,7 +2135,7 @@ static void process_line(char* l)
 #ifdef WIN32
             using namespace ::mega::autocomplete;
             ACState acs = prepACState(l, strlen(l), autocompleteTemplate, static_cast<WinConsole*>(console)->getAutocompleteStyle());
-            for (int i = 0; i < acs.words.size(); ++i)
+            for (unsigned i = 0; i < acs.words.size(); ++i)
             {
                 // any quotes or partial quoting are stripped out already
                 words.push_back(acs.words[i].s);
@@ -5792,7 +5792,7 @@ void megacli()
 
     rl_save_prompt();
 #elif defined(WIN32) && defined(NO_READLINE)
-    WinConsole::setShellConsole();
+    static_cast<WinConsole*>(console)->setShellConsole();
 #else
     #error non-windows platforms must use the readline library
 #endif
@@ -5910,7 +5910,10 @@ void megacli()
         if (line)
         {
             // execute user command
-            process_line(line);
+            if (*line)
+            {
+                process_line(line);
+            }
             free(line);
             line = NULL;
 

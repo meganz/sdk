@@ -115,7 +115,7 @@ struct MEGA_API WinConsole : public Console
     ~WinConsole();
 
     // functions for native command editing (ie not using readline library)
-    static void setShellConsole();
+    void setShellConsole();
     void setAutocompleteSyntax(autocomplete::ACN);
     void setAutocompleteStyle(bool unix);
     bool getAutocompleteStyle() const;
