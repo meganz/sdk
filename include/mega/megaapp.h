@@ -311,6 +311,9 @@ struct MEGA_API MegaApp
     // contact link delete
     virtual void contactlinkdelete_result(error) { }
 
+    // keep me alive command for mobile apps
+    virtual void keepmealive_result (error) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

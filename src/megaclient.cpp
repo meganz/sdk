@@ -723,6 +723,11 @@ void MegaClient::contactlinkdelete(handle h)
     reqs.add(new CommandContactLinkDelete(this, h));
 }
 
+void MegaClient::keepmealive(int type, bool enable)
+{
+    reqs.add(new CommandKeepMeAlive(this, type, enable));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

@@ -5865,4 +5865,32 @@ void CommandContactLinkDelete::procresult()
     }
 }
 
+CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable)
+{
+    if (enable)
+    {
+        cmd("kma");
+    }
+    else
+    {
+        cmd("kmac");
+    }
+    arg("t", type);
+
+    tag = client->reqtag;
+}
+
+void CommandKeepMeAlive::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->keepmealive_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->keepmealive_result(API_EINTERNAL);
+    }
+}
+
 } // namespace

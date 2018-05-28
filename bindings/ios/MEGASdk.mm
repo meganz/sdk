@@ -654,6 +654,14 @@ using namespace mega;
     self.megaApi->contactLinkDelete();
 }
 
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->keepMeAlive((int) type, enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable {
+    self.megaApi->keepMeAlive((int) type, enable);
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
