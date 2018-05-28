@@ -1746,24 +1746,24 @@ public:
     unsigned nc;
 
 
-    TreeProcCopy_mcli::TreeProcCopy_mcli()
+    TreeProcCopy_mcli()
     {
         nn = NULL;
         nc = 0;
     }
 
-    void TreeProcCopy_mcli::allocnodes()
+    void allocnodes()
     {
         nn = new NewNode[nc];
     }
 
-    TreeProcCopy_mcli::~TreeProcCopy_mcli()
+    ~TreeProcCopy_mcli()
     {
         delete[] nn;
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
-    void TreeProcCopy_mcli::proc(MegaClient* client, Node* n)
+    void proc(MegaClient* client, Node* n)
     {
         if (nn)
         {
