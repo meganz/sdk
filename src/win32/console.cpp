@@ -88,7 +88,23 @@ struct Utf8Rdbuf : public streambuf
         s8.append(s, size_t(n));
         wstring ws = toUtf16String(s8);
         BOOL b = WriteConsoleW(h, ws.data(), DWORD(ws.size()), &written, NULL);
-        assert(b);
+        if (!b)
+        {
+            // The font can't display some characters (fails on windows 7 - windows 10 not so much but just in case).  
+            // Output those that we can and indicate the others.  
+            // If the user selects a suitable font then there should not be any failures.
+            for (unsigned i = 0; i < ws.size(); ++i)
+            {
+                b = WriteConsoleW(h, ws.data() + i, 1, &written, NULL);
+                if (!b)
+                {
+                    wostringstream s;
+                    s << L"<FAIL/" << hex << unsigned short(ws.data()[i]) << L">";
+                    wstring str = s.str();
+                    WriteConsoleW(h, str.data(), str.size(), &written, NULL);
+                }
+            }
+        }
         return n;
     }
 
