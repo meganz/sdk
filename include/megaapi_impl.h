@@ -2061,7 +2061,7 @@ protected:
 
         // contact link management
         virtual void contactlinkcreate_result(error, handle);
-        virtual void contactlinkquery_result(error, handle, string*, string*, string*);
+        virtual void contactlinkquery_result(error, handle, string*, string*, string*, string*);
         virtual void contactlinkdelete_result(error);
 
         // account creation

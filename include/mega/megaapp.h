@@ -306,7 +306,7 @@ struct MEGA_API MegaApp
     virtual void contactlinkcreate_result(error, handle) { }
 
     // contact link query
-    virtual void contactlinkquery_result(error, handle, string*, string*, string*) { }
+    virtual void contactlinkquery_result(error, handle, string*, string*, string*, string*) { }
 
     // contact link delete
     virtual void contactlinkdelete_result(error) { }
