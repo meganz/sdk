@@ -8396,6 +8396,7 @@ void MegaClient::procmcf(JSON *j)
                         userpriv_vector *userpriv = NULL;
                         bool group = false;
                         string title;
+                        string unifiedKey;
                         m_time_t ts = -1;
                         bool publicchat = false;
 
@@ -8428,6 +8429,10 @@ void MegaClient::procmcf(JSON *j)
                                 j->storeobject(&title);
                                 break;
 
+                            case MAKENAMEID2('c', 'k'):  // store unified key for public chats
+                                j->storeobject(&unifiedKey);
+                                break;
+
                             case MAKENAMEID2('t', 's'):  // actual creation timestamp
                                 ts = j->getint();
                                 break;
@@ -8452,6 +8457,7 @@ void MegaClient::procmcf(JSON *j)
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
                                     chat->publicchat = publicchat;
+                                    chat->unifiedKey = unifiedKey;
 
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
