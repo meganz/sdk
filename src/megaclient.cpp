@@ -12216,9 +12216,9 @@ void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *
     reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, unifiedkey));
 }
 
-void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *title)
+void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *title, const char *unifiedkey)
 {
-    reqs.add(new CommandChatInvite(this, chatid, uh, (privilege_t) priv, title));
+    reqs.add(new CommandChatInvite(this, chatid, uh, (privilege_t) priv, title, unifiedkey));
 }
 
 void MegaClient::removeFromChat(handle chatid, handle uh)

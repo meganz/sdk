@@ -516,7 +516,7 @@ public:
     void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const userkey_map *userkeymap = NULL, const char *title = NULL, const char *unifiedkey = NULL);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, handle uh, int priv, const char *title = NULL);
+    void inviteToChat(handle chatid, handle uh, int priv, const char *title = NULL, const char *unifiedkey = NULL);
 
     // remove a user from a chat
     void removeFromChat(handle chatid, handle uh);

@@ -4858,13 +4858,14 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char* title)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char* title, const char *unifiedkey)
 {
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
     this->priv = priv;
     this->title = title ? string(title) : "";
+    this->mUnifiedKey = unifiedkey ? string(unifiedkey) : "";
 
     char uid[12];
     Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
@@ -4882,6 +4883,11 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
         arg("ct", title);
     }
     notself(client);
+
+    if (unifiedkey != NULL)
+    {
+        arg("ck", unifiedkey);
+    }
 
     tag = client->reqtag;
 }

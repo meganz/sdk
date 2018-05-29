@@ -781,11 +781,12 @@ class MEGA_API CommandChatInvite : public Command
     handle uh;
     privilege_t priv;
     string title;
+    string mUnifiedKey;
 
 public:
     void procresult();
 
-    CommandChatInvite(MegaClient*, handle, handle uh, privilege_t, const char *);
+    CommandChatInvite(MegaClient*, handle, handle uh, privilege_t, const char *, const char *unifiedkey = NULL);
 };
 
 class MEGA_API CommandChatRemove : public Command
