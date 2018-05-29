@@ -662,28 +662,13 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
     }
 
     QImage unscaled;
-    orientation = 0;
-    if (imgdata.sizes.flip != 0)
-    {
-        if (imgdata.sizes.flip == 3)
-        {
-            orientation = ROTATION_DOWN;
-        }
-        else if (imgdata.sizes.flip == 5)
-        {
-            orientation = ROTATION_LEFT;
-        }
-        else if (imgdata.sizes.flip == 6)
-        {
-            orientation = ROTATION_RIGHT;
-        }
-    }
-
     if (output->type == LIBRAW_IMAGE_JPEG)
     {
         LOG_debug << "Converting RAW image in JPG format";
 
         unscaled.loadFromData(output->data, output->data_size, "JPEG");
+        w = unscaled.width();
+        h = unscaled.height();
     }
     else if (output->type == LIBRAW_IMAGE_BITMAP)
     {
@@ -693,40 +678,54 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
         int colorSize = output->bits / 8;
         int pixelSize = output->colors * colorSize;
 
-        if (pixelSize == 3 && output->colors == 3)
+        unscaled = QImage(output->width, output->height, QImage::Format_RGB32);
+        uchar *pixels = unscaled.bits();
+        uchar *data = output->data;
+        for (int i = 0; i < numPixels; i++, data += pixelSize)
         {
-            LOG_debug << "RAW image is BGR888";
-            unscaled = QImage(output->width, output->height, QImage::Format_RGB888);
-            memcpy(unscaled.bits(), output->data, numPixels * pixelSize);
-        }
-        else if (pixelSize == 1 && output->colors == 1)
-        {
-            LOG_debug << "RAW image is Grayscale8";
-            unscaled = QImage(output->width, output->height, QImage::Format_Grayscale8);
-            memcpy(unscaled.bits(), output->data, numPixels * pixelSize);
-        }
-        else
-        {
-            LOG_debug << "Converting RAW image to RGB32";
-            unscaled = QImage(output->width, output->height, QImage::Format_RGB32);
-            uchar *pixels = unscaled.bits();
-            uchar *data = output->data;
-            for (int i = 0; i < numPixels; i++, data += pixelSize)
+            if (output->colors == 3)
             {
-                if (output->colors == 3)
-                {
-                    pixels[i * 4] = data[2 * colorSize];
-                    pixels[i * 4 + 1] = data[1 * colorSize];
-                    pixels[i * 4 + 2] = data[0];
-                }
-                else
-                {
-                    pixels[i * 4] = data[0];
-                    pixels[i * 4 + 1] = data[0];
-                    pixels[i * 4 + 2] = data[0];
-                }
-                pixels[i * 4 + 3] = 0xFF;
+                pixels[i * 4] = data[2 * colorSize];
+                pixels[i * 4 + 1] = data[1 * colorSize];
+                pixels[i * 4 + 2] = data[0];
             }
+            else
+            {
+                pixels[i * 4] = data[0];
+                pixels[i * 4 + 1] = data[0];
+                pixels[i * 4 + 2] = data[0];
+            }
+            pixels[i * 4 + 3] = 0xFF;
+        }
+        w = output->width;
+        h = output->height;
+    }
+
+    LOG_debug << "Output image size: " << w << " " << h;
+
+    bool rotated = false;
+    if ((imgdata.sizes.width > imgdata.sizes.height && w < h)
+            || (imgdata.sizes.width < imgdata.sizes.height && w > h))
+    {
+        rotated = true;
+        LOG_debug << "RAW image already rotated by libraw";
+    }
+
+    orientation = 0;
+    if (imgdata.sizes.flip != 0 && !rotated)
+    {
+        LOG_debug << "Image rotation needed " << imgdata.sizes.flip;
+        if (imgdata.sizes.flip == 3)
+        {
+            orientation = ROTATION_DOWN;
+        }
+        else if (imgdata.sizes.flip == 5)
+        {
+            orientation = ROTATION_RIGHT;
+        }
+        else if (imgdata.sizes.flip == 6)
+        {
+            orientation = ROTATION_LEFT;
         }
     }
 
