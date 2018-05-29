@@ -102,6 +102,7 @@ void GfxProc::loop()
     GfxJob *job = NULL;
     while (!finished)
     {
+        waiter.init(NEVER);
         waiter.wait();
         if (finished)
         {
@@ -111,6 +112,7 @@ void GfxProc::loop()
         while (job = requests.pop())
         {
             mutex.lock();
+            LOG_debug << "Processing media file: " << job->h;
 
             // (this assumes that the width of the largest dimension is max)
             if (readbitmap(NULL, &job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
@@ -183,7 +185,7 @@ int GfxProc::checkevents(Waiter *)
         {
             if (job->images[i])
             {
-                LOG_debug << "Media file correctly processed. Attaching file attribute.";
+                LOG_debug << "Media file correctly processed. Attaching file attribute: " << job->h;
 
                 // store the file attribute data - it will be attached to the file
                 // immediately if the upload has already completed; otherwise, once
@@ -196,19 +198,36 @@ int GfxProc::checkevents(Waiter *)
             }
             else
             {
-                LOG_debug << "Unable to process media file";
+                LOG_debug << "Unable to process media file: " << job->h;
 
-                // check if the failed attribute belongs to an active upload
-                for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
+                Transfer *transfer = NULL;
+                handletransfer_map::iterator htit = client->faputcompletion.find(job->h);
+                if (htit != client->faputcompletion.end())
                 {
-                    Transfer *transfer = it->second;
-                    if (transfer->uploadhandle == job->h)
+                    transfer = htit->second;
+                }
+                else
+                {
+                    // check if the failed attribute belongs to an active upload
+                    for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
                     {
-                        // reduce the number of required attributes to let the upload continue
-                        transfer->minfa--;
-                        client->checkfacompletion(job->h);
-                        break;
+                        if (it->second->uploadhandle == job->h)
+                        {
+                            transfer = it->second;
+                            break;
+                        }
                     }
+                }
+
+                if (transfer)
+                {
+                    // reduce the number of required attributes to let the upload continue
+                    transfer->minfa--;
+                    client->checkfacompletion(job->h);
+                }
+                else
+                {
+                    LOG_debug << "Transfer related to media file not found: " << job->h;
                 }
             }
             needexec = true;
