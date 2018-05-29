@@ -17160,7 +17160,7 @@ void MegaApiImpl::sendPendingRequests()
             const char *title = request->getPrivateKey();
             const char *unifiedkey = request->getSessionKey();
 
-            if (publichandle == INVALID_HANDLE)
+            if (publichandle == INVALID_HANDLE || unifiedkey == NULL)
             {
                 e = API_EARGS;
                 break;
