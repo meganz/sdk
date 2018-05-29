@@ -85,7 +85,7 @@ const int BytesPerFormat[] = {0,1,1,2,4,8,1,1,2,4,8,4,8};
 //--------------------------------------------------------------------------
 int GfxProcQT::getExifOrientation(QString &filePath)
 {
-    QByteArray *data;
+    QByteArray *data = NULL;
     uint8_t c;
     bool ok;
 
@@ -151,10 +151,12 @@ int GfxProcQT::getExifOrientation(QString &filePath)
             default:
                 // Skip any other sections.
                 delete data;
+                data = NULL;
                 break;
         }
     }
 
+    delete data;
     return -1;
 }
 
@@ -410,13 +412,14 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
     }
 
     QImage result = resizebitmapQT(image, orientation, w, h, rw, rh);
-    if (imageType == TYPE_VIDEO || imageType == TYPE_RAW)
+    QImageReader *oldImageReader = image;
+    image = new QImageReader(image->device(), QByteArray("JPG"));
+    delete oldImageReader;
+
+    if (result.isNull())
     {
-        delete image->device();
+        return false;
     }
-    delete image;
-    image = NULL;
-    if(result.isNull()) return false;
     jpegout->clear();
 
     //Remove transparency
@@ -435,11 +438,11 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
 
 void GfxProcQT::freebitmap()
 {
-    if (image && (imageType == TYPE_VIDEO || imageType == TYPE_RAW))
+    if (image)
     {
         delete image->device();
+        delete image;
     }
-    delete image;
 }
 
 QImage GfxProcQT::createThumbnail(QString imagePath)
@@ -456,17 +459,16 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
         return QImage();
 
     QImageReader *image = readbitmapQT(w, h, orientation, imageType, imagePath);
-    if(!image)
+    if (!image)
+    {
         return QImage();
+    }
 
     QImage result = GfxProcQT::resizebitmapQT(image, orientation, w, h,
             GfxProc::dimensions[GfxProc::THUMBNAIL][0],
             GfxProc::dimensions[GfxProc::THUMBNAIL][1]);
 
-    if (imageType == TYPE_VIDEO || imageType == TYPE_RAW)
-    {
-        delete image->device();
-    }
+    delete image->device();
     delete image;
     return result;
 }
@@ -500,6 +502,20 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &ima
         return NULL;
     }
 
+    QImage unscaled = image->read();
+    QBuffer *buffer = new QBuffer();
+    if (unscaled.isNull() || !buffer->open(QIODevice::ReadWrite) || !unscaled.save(buffer, "JPG", 85))
+    {
+        LOG_warn << "Error saving image to a memory buffer";
+        delete buffer;
+        delete image;
+        return NULL;
+    }
+
+    delete image;
+    buffer->seek(0);
+    QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
+
     orientation = getExifOrientation(imagePath);
     if(orientation < ROTATION_LEFT_MIRRORED)
     {
@@ -514,7 +530,7 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &ima
         h = s.width();
     }
 
-    return image;
+    return imageReader;
 }
 
 QImage GfxProcQT::resizebitmapQT(QImageReader *image, int orientation, int w, int h, int rw, int rh)
@@ -741,6 +757,7 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
     if (!buffer->open(QIODevice::ReadWrite) || !unscaled.save(buffer, "JPG", 85))
     {
         LOG_warn << "Error saving RAW image to a memory buffer";
+        delete buffer;
         return NULL;
     }
 
@@ -994,6 +1011,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                     if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
                     {
                         LOG_warn << "Error extracting image";
+                        delete buffer;
                         av_packet_unref(&packet);
                         av_frame_free(&videoFrame);
                         avcodec_close(&codecContext);
