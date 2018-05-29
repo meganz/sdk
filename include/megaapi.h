@@ -10896,7 +10896,9 @@ class MegaApi
          * - MegaChatRequest::getChatHandle - Returns the handle of the new chatroom
          *
          * @param peers MegaChatPeerList including other users and their privilege level
-         * @param title Byte array that contains the unified chat key converted to Base64url encoding.
+         * @param title Byte array that contains the chat topic if exists.
+         * @param unifiedKey Byte array that contains the unified key, already encrypted and
+         * converted to Base64url encoding.
          * @param listener MegaChatRequestListener to track this request
          */
         void createPublicChat(MegaTextChatPeerList *peers, const char *title = NULL, const char *unifiedKey = NULL, MegaRequestListener *listener = NULL);
@@ -10930,6 +10932,8 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param title Byte array representing the title that wants to be set, already encrypted and
          * converted to Base64url encoding (optional).
+         * @param unifiedKey Byte array that contains the unified key, already encrypted and
+         * converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, const char *unifiedKey = NULL, MegaRequestListener *listener = NULL);
@@ -11059,12 +11063,23 @@ class MegaApi
          */
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
 
-
-        /** TODO documentation
-         * @brief setChatUnifiedKey
-         * @param chatid
-         * @param unifiedKey
-         * @param listener
+        /**
+         * @brief Allows to set the public chat unified key
+         *
+         * All participants with any privilege level are allowed to set the unified key of a public chat.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_SET_KEY
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getSessionKey - Returns the unified key of the chat.
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EEXIST - If the the key didn't change anything.
+         * - MegaError::API_EARGS - If the chat wasn't an public mode group chat
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param unifiedKey Byte array that contains the unified key that wants to be set, already encrypted and
+         * converted to Base64url encoding.
+         * @param listener MegaRequestListener to track this request
          */
         void setChatUnifiedKey(MegaHandle chatid, const char *unifiedKey, MegaRequestListener *listener = NULL);
 
@@ -11320,8 +11335,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
          *
          * @param publichandle MegaHandle that represents the public handle of the chat link
-         * @param Byte array that contains chat topic in case that it exists, and the unified
-         * chat key converted to Base64url encoding.
+         * @param Byte array that contains chat topic in case that it exists
+         * @param unifiedKey Byte array that contains the unified key, already encrypted and
+         * converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
         void chatLinkJoin(MegaHandle publichandle, const char *title, const char *unifiedKey, MegaRequestListener *listener = NULL);
