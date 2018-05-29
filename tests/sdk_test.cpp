@@ -20,7 +20,6 @@
  */
 
 #include "sdk_test.h"
-#include "mega/testhooks.h"
 #include "megaapi_impl.h"
 
 #ifdef _WIN32
@@ -391,11 +390,6 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
         h = transfer->getNodeHandle();
 }
 
-void SdkTest::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
-{
-    onTransferUpdate_progress = transfer->getTransferredBytes();
-    onTransferUpdate_filesize = transfer->getTotalBytes();
-}
 
 void SdkTest::onAccountUpdate(MegaApi* api)
 {
@@ -567,16 +561,6 @@ void SdkTest::login(unsigned int apiIndex, int timeout)
     ASSERT_TRUE(megaApi[apiIndex]->isLoggedIn()) << "Not logged it";
 }
 
-void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout)
-{
-    requestFlags[apiIndex][MegaRequest::TYPE_LOGIN] = false;
-    megaApi[apiIndex]->login(email[apiIndex].data(), pwd[apiIndex].data());
-
-    ASSERT_TRUE(waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_LOGIN], timeout))
-        << "Logging failed after " << timeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Logging failed (error: " << lastError[apiIndex] << ")";
-    ASSERT_TRUE(megaApi[apiIndex]->isLoggedIn()) << "Not logged it";
-}
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
@@ -2405,7 +2389,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         std::vector<std::string> e{ "dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100);
-        ASSERT_EQ(r.line, "lls dir2a\\ immediately after");
+        ASSERT_EQ(r.line, "lls dir2a\\something immediately after");
     }
 
     {
@@ -2670,7 +2654,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         std::vector<std::string> e{ "dir2a/" };
         ASSERT_TRUE(cmp(r, e));
         applyCompletion(r, true, 100);
-        ASSERT_EQ(r.line, "ls dir2a/ immediately after");
+        ASSERT_EQ(r.line, "ls dir2a/something immediately after");
     }
 
     {

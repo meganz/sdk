@@ -133,7 +133,7 @@ public:
     void logout(unsigned int apiIndex, int timeout = maxTimeout);
     char* dumpSession();
     void locallogout(int timeout = maxTimeout);
-    void resumeSession(char *session, int timeout = maxTimeout);
+    void resumeSession(const char *session, int timeout = maxTimeout);
 
     void purgeTree(MegaNode *p);
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
