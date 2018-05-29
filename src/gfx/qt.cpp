@@ -625,11 +625,15 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
         return NULL;
     }
 
-    const libraw_data_t &imgdata = libRaw.imgdata;
     libraw_processed_image_t *output = NULL;
+    const libraw_data_t &imgdata = libRaw.imgdata;
+    LOG_debug << "Processing RAW image: " << imgdata.sizes.width
+              << " " << imgdata.sizes.height
+              << " " << imgdata.thumbnail.twidth
+              << " " << imgdata.thumbnail.theight
+              << " " << imgdata.sizes.flip;
 
-    if (imgdata.thumbnail.twidth >= GfxProc::dimensions[GfxProc::PREVIEW][0]
-            || imgdata.thumbnail.theight >= GfxProc::dimensions[GfxProc::PREVIEW][0])
+    if (imgdata.thumbnail.twidth > 0 && imgdata.thumbnail.theight > 0)
     {
         ret = libRaw.unpack_thumb();
         if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
