@@ -7659,11 +7659,12 @@ void MegaApiImpl::chatLinkClose(MegaHandle chatid, MegaRequestListener *listener
     waiter->notify();
 }
 
-void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, const char *title, const char *unifiedkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_JOIN, listener);
     request->setNodeHandle(publichandle);
     request->setPrivateKey(title);
+    request->setSessionKey(unifiedkey);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -17120,12 +17121,14 @@ void MegaApiImpl::sendPendingRequests()
         {
             MegaHandle publichandle = request->getNodeHandle();
             const char *title = request->getPrivateKey();
+            const char *unifiedkey = request->getSessionKey();
+
             if (publichandle == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
             }
-            client->chatlinkjoin(publichandle, title);
+            client->chatlinkjoin(publichandle, title, unifiedkey);
             break;
         }
 #endif

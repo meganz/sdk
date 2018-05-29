@@ -11315,7 +11315,7 @@ class MegaApi
          * chat key converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
-        void chatLinkJoin(MegaHandle publichandle, const char *title, MegaRequestListener *listener = NULL);
+        void chatLinkJoin(MegaHandle publichandle, const char *title, const char *unifiedKey, MegaRequestListener *listener = NULL);
 #endif
 
         /**
