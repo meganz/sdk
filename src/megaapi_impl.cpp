@@ -7386,13 +7386,14 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 #endif
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const char *title, const char *unifiedKey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
     request->setAccess(publicchat ? 1 : 0);
     request->setMegaTextChatPeerList(peers);
     request->setPrivateKey(title);
+    request->setSessionKey(unifiedKey);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7404,10 +7405,8 @@ void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, 
     request->setParentHandle(uh);
     request->setAccess(privilege);
     request->setText(title);
-    if(unifiedKey)
-    {
-        request->setPrivateKey(unifiedKey);
-    }
+    request->setSessionKey(unifiedKey);
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -16865,13 +16864,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            const char *ukey = NULL;
+            const char *unifiedKey = request->getSessionKey();
             const userkey_map *keylist = ((MegaTextChatPeerListPrivate*)chatPeers)->getKeyList();
-            userkey_map::const_iterator ituk = keylist->find(getMyUserHandleBinary());
-            if(ituk != keylist->end())
-            {
-                ukey = (ituk->second).c_str();
-            }
 
             // if 1:1 chat, peer is enforced to be moderator too
             if (!group && userpriv->at(0).second != PRIV_MODERATOR)
@@ -16879,7 +16873,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, keylist, title, ukey);
+            client->createChat(group, publicchat, userpriv, keylist, title, unifiedKey);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -16888,7 +16882,7 @@ void MegaApiImpl::sendPendingRequests()
             handle uh = request->getParentHandle();
             int access = request->getAccess();
             const char *title = request->getText();
-            const char *unifiedKey = request->getPrivateKey();
+            const char *unifiedKey = request->getSessionKey();
 
             if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
             {

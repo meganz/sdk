@@ -10899,7 +10899,7 @@ class MegaApi
          * @param title Byte array that contains the unified chat key converted to Base64url encoding.
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const char *title = NULL, const char *unifiedKey = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
@@ -10932,7 +10932,7 @@ class MegaApi
          * converted to Base64url encoding (optional).
          * @param listener MegaRequestListener to track this request
          */
-        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, const char *unifiedKey = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove yourself or another user from a chat. To remove a user other than
