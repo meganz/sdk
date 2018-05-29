@@ -375,7 +375,7 @@ GfxProcQT::GfxProcQT()
 #endif
     image = NULL;
     orientation = -1;
-    isVideo = false;
+    imageType = TYPE_NONE;
 }
 
 bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
@@ -389,7 +389,7 @@ bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
     imagePath = QString::fromUtf8(localname->c_str());
 #endif
 
-    image = readbitmapQT(w, h, orientation, isVideo, imagePath);
+    image = readbitmapQT(w, h, orientation, imageType, imagePath);
 
 #ifdef _WIN32
     localname->resize(localname->size()-1);
@@ -402,7 +402,7 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
 {
     if (!image)
     {
-        image = readbitmapQT(w, h, orientation, isVideo, imagePath);
+        image = readbitmapQT(w, h, orientation, imageType, imagePath);
         if (!image)
         {
             return false;
@@ -410,7 +410,7 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
     }
 
     QImage result = resizebitmapQT(image, orientation, w, h, rw, rh);
-    if (isVideo)
+    if (imageType == TYPE_VIDEO || imageType == TYPE_RAW)
     {
         delete image->device();
     }
@@ -435,7 +435,7 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
 
 void GfxProcQT::freebitmap()
 {
-    if (image && isVideo)
+    if (image && (imageType == TYPE_VIDEO || imageType == TYPE_RAW))
     {
         delete image->device();
     }
@@ -445,7 +445,7 @@ void GfxProcQT::freebitmap()
 QImage GfxProcQT::createThumbnail(QString imagePath)
 {
     int w, h, orientation;
-    bool isVideo = false;
+    int imageType = TYPE_NONE;
 
     QFileInfo info(imagePath);
     if(!info.exists())
@@ -455,7 +455,7 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
     if(!QString::fromUtf8(supportedformatsQT()).contains(ext, Qt::CaseInsensitive))
         return QImage();
 
-    QImageReader *image = readbitmapQT(w, h, orientation, isVideo, imagePath);
+    QImageReader *image = readbitmapQT(w, h, orientation, imageType, imagePath);
     if(!image)
         return QImage();
 
@@ -463,7 +463,7 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
             GfxProc::dimensions[GfxProc::THUMBNAIL][0],
             GfxProc::dimensions[GfxProc::THUMBNAIL][1]);
 
-    if (isVideo)
+    if (imageType == TYPE_VIDEO || imageType == TYPE_RAW)
     {
         delete image->device();
     }
@@ -471,14 +471,14 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
     return result;
 }
 
-QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, bool &isVideo, QString imagePath)
+QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &imageType, QString imagePath)
 {
 #ifdef HAVE_FFMPEG
     QFileInfo info(imagePath);
     QString ext = QString::fromUtf8(".%1.").arg(info.suffix()).toLower();
     if (strstr(GfxProcQT::supportedformatsFfmpeg(), ext.toUtf8().constData()))
     {
-        isVideo = true;
+        imageType = TYPE_VIDEO;
         return readbitmapFfmpeg(w, h, orientation, imagePath);
     }
 #endif
@@ -486,11 +486,12 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, bool &is
 #ifdef HAVE_LIBRAW
     if (strstr(GfxProcQT::supportedformatsLibraw(), ext.toUtf8().constData()))
     {
+        imageType = TYPE_RAW;
         return readbitmapLibraw(w, h, orientation, imagePath);
     }
 #endif
 
-    isVideo = false;
+    imageType = TYPE_IMAGE;
     QImageReader* image = new QImageReader(imagePath);
     QSize s = image->size();
     if(!s.isValid() || !s.width() || !s.height())
