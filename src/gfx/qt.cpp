@@ -627,7 +627,8 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
 
     libraw_processed_image_t *output = NULL;
     const libraw_data_t &imgdata = libRaw.imgdata;
-    LOG_debug << "Processing RAW image: " << imgdata.sizes.width
+    LOG_debug << "Processing RAW image: " << imagePath.toUtf8().constData()
+              << " " << imgdata.sizes.width
               << " " << imgdata.sizes.height
               << " " << imgdata.thumbnail.twidth
               << " " << imgdata.thumbnail.theight
