@@ -3907,6 +3907,11 @@ void MegaApi::setChatTitle(MegaHandle chatid, const char* title, MegaRequestList
     pImpl->setChatTitle(chatid, title, listener);
 }
 
+void MegaApi::setChatUnifiedKey(MegaHandle chatid, const char* unifiedKey, MegaRequestListener *listener)
+{
+    pImpl->setChatUnifiedKey(chatid, unifiedKey, listener);
+}
+
 void MegaApi::getChatPresenceURL(MegaRequestListener *listener)
 {
     pImpl->getChatPresenceURL(listener);

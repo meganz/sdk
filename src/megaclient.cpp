@@ -12313,6 +12313,11 @@ void MegaClient::setChatTitle(handle chatid, const char *title)
     reqs.add(new CommandChatSetTitle(this, chatid, title));
 }
 
+void MegaClient::setChatUnifiedKey(handle chatid, const char *unifiedKey)
+{
+    reqs.add(new CommandChatSetUnifiedKey(this, chatid, unifiedKey));
+}
+
 void MegaClient::getChatPresenceUrl()
 {
     reqs.add(new CommandChatPresenceURL(this));

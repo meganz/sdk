@@ -2075,7 +2075,7 @@ class MegaRequest
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_CHAT_LINK,
-            TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN, TOTAL_OF_REQUEST_TYPES
+            TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN, TYPE_CHAT_SET_KEY, TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -11058,6 +11058,15 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
+
+
+        /** TODO documentation
+         * @brief setChatUnifiedKey
+         * @param chatid
+         * @param unifiedKey
+         * @param listener
+         */
+        void setChatUnifiedKey(MegaHandle chatid, const char *unifiedKey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get your current URL to connect to the presence server
