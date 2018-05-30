@@ -104,13 +104,14 @@ void GfxProc::loop()
     {
         waiter.init(NEVER);
         waiter.wait();
-        if (finished)
-        {
-            break;
-        }
-
         while (job = requests.pop())
         {
+            if (finished)
+            {
+                delete job;
+                break;
+            }
+
             mutex.lock();
             LOG_debug << "Processing media file: " << job->h;
 
