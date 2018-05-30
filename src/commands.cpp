@@ -2622,7 +2622,7 @@ void CommandGetUA::procresult()
         client->app->getua_result(e);
 
 #ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
         {
             client->initializekeys(); // we have now all the required data
         }
@@ -2650,7 +2650,7 @@ void CommandGetUA::procresult()
                     {
                         client->app->getua_result(API_EINTERNAL);
 #ifdef ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2666,7 +2666,7 @@ void CommandGetUA::procresult()
                     {
                         client->app->getua_result(API_EINTERNAL);
 #ifdef ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2732,7 +2732,7 @@ void CommandGetUA::procresult()
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
 #ifdef  ENABLE_CHAT
-                            if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
                                 client->initializekeys(); // we have now all the required data
                             }
@@ -2794,7 +2794,7 @@ void CommandGetUA::procresult()
                         LOG_err << "Error in CommandPutUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
 #ifdef  ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -5846,10 +5846,11 @@ void CommandContactLinkQuery::procresult()
     string email;
     string firstname;
     string lastname;
+    string avatar;
 
     if (client->json.isnumeric())
     {
-        return client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname);
+        return client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname, &avatar);
     }
 
     for (;;)
@@ -5868,13 +5869,16 @@ void CommandContactLinkQuery::procresult()
             case MAKENAMEID2('l', 'n'):
                 client->json.storeobject(&lastname);
                 break;
+            case MAKENAMEID2('+', 'a'):
+                client->json.storeobject(&avatar);
+                break;
             case EOO:
-                return client->app->contactlinkquery_result(API_OK, h, &email, &firstname, &lastname);
+                return client->app->contactlinkquery_result(API_OK, h, &email, &firstname, &lastname, &avatar);
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse query contact link response";
-                    return client->app->contactlinkquery_result(API_EINTERNAL, h, &email, &firstname, &lastname);
+                    return client->app->contactlinkquery_result(API_EINTERNAL, h, &email, &firstname, &lastname, &avatar);
                 }
                 break;
         }
@@ -5901,6 +5905,34 @@ void CommandContactLinkDelete::procresult()
     {
         client->json.storeobject();
         client->app->contactlinkdelete_result(API_EINTERNAL);
+    }
+}
+
+CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable)
+{
+    if (enable)
+    {
+        cmd("kma");
+    }
+    else
+    {
+        cmd("kmac");
+    }
+    arg("t", type);
+
+    tag = client->reqtag;
+}
+
+void CommandKeepMeAlive::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->keepmealive_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->keepmealive_result(API_EINTERNAL);
     }
 }
 

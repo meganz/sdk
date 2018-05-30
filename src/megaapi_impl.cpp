@@ -2970,6 +2970,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
+        case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
         case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
         case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
         case TYPE_MULTI_FACTOR_AUTH_SET: return "MULTI_FACTOR_AUTH_SET";
@@ -8348,6 +8349,15 @@ void MegaApiImpl::contactLinkDelete(MegaHandle handle, MegaRequestListener *list
     waiter->notify();
 }
 
+void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_KEEP_ME_ALIVE, listener);
+    request->setParamType(type);
+    request->setFlag(enable);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
@@ -11950,7 +11960,7 @@ void MegaApiImpl::contactlinkcreate_result(error e, handle h)
     fireOnRequestFinish(request, e);
 }
 
-void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname)
+void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname, string *avatar)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -11968,6 +11978,7 @@ void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, stri
         request->setEmail(email->c_str());
         request->setName(firstname->c_str());
         request->setText(lastname->c_str());
+        request->setFile(avatar->c_str());
     }
     fireOnRequestFinish(request, e);
 }
@@ -11980,6 +11991,21 @@ void MegaApiImpl::contactlinkdelete_result(error e)
     }
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_DELETE)))
+    {
+        return;
+    }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::keepmealive_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_KEEP_ME_ALIVE)))
     {
         return;
     }
@@ -12480,8 +12506,9 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 	activeError = megaError;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
+    transfer->setLastError(e);
 
-    if(e.getErrorCode())
+    if (e.getErrorCode())
     {
         LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e.getErrorString()
                     << " File: " << transfer->getFileName();
@@ -17161,6 +17188,20 @@ void MegaApiImpl::sendPendingRequests()
         {
             handle h = request->getNodeHandle();
             client->contactlinkdelete(h);
+            break;
+        }
+        case MegaRequest::TYPE_KEEP_ME_ALIVE:
+        {
+            int type = request->getParamType();
+            bool enable = request->getFlag();
+
+            if (type != MegaApi::KEEP_ALIVE_CAMERA_UPLOADS)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->keepmealive(type, enable);
             break;
         }
         case MegaRequest::TYPE_FOLDER_INFO:

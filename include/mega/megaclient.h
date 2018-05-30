@@ -657,6 +657,7 @@ private:
 
     // notify URL for new server-client commands
     string scnotifyurl;
+    dstime scnotifyurlts;
 
     // unique request ID
     char reqid[10];
@@ -1309,6 +1310,8 @@ public:
 
     // multi-factor authentication disable
     void multifactorauthdisable(const char*);
+
+    void keepmealive(int, bool enable = true);
 
     // achievements enabled for the account
     bool achievements_enabled;

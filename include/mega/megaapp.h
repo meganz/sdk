@@ -306,7 +306,7 @@ struct MEGA_API MegaApp
     virtual void contactlinkcreate_result(error, handle) { }
 
     // contact link query
-    virtual void contactlinkquery_result(error, handle, string*, string*, string*) { }
+    virtual void contactlinkquery_result(error, handle, string*, string*, string*, string*) { }
 
     // contact link delete
     virtual void contactlinkdelete_result(error) { }
@@ -319,6 +319,9 @@ struct MEGA_API MegaApp
 
     // multi-factor authentication disable
     virtual void multifactorauthdisable_result(error) { }
+
+    // keep me alive command for mobile apps
+    virtual void keepmealive_result (error) { }
 
     virtual ~MegaApp() { }
 };

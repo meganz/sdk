@@ -5214,7 +5214,7 @@ void DemoApp::contactlinkcreate_result(error e, handle h)
     }
 }
 
-void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln)
+void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln, string *avatar)
 {
     if (e)
     {
