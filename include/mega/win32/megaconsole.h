@@ -29,6 +29,8 @@
 
 namespace mega {
 
+struct MEGA_API Utf8Rdbuf;
+
 struct MEGA_API ConsoleModel
 {
     enum {
@@ -115,7 +117,7 @@ struct MEGA_API WinConsole : public Console
     ~WinConsole();
 
     // functions for native command editing (ie not using readline library)
-    void setShellConsole();
+    bool setShellConsole(UINT codepage = CP_UTF8);
     void setAutocompleteSyntax(autocomplete::ACN);
     void setAutocompleteStyle(bool unix);
     bool getAutocompleteStyle() const;
@@ -125,12 +127,22 @@ struct MEGA_API WinConsole : public Console
     char* checkForCompletedInputLine();
     void clearScreen();
     void outputHistory();
+    
+    enum logstyle { no_log, utf8_log, utf16_log, codepage_log };
+    bool log(const std::string& filename, logstyle logstyle);
+
+    static std::string toUtf8String(const std::wstring& ws, UINT codepage = CP_UTF8);
+    static std::wstring toUtf16String(const std::string& s, UINT codepage = CP_UTF8);
+
 
 private:
     HANDLE hInput;
     HANDLE hOutput;
     COORD knownCursorPos;  // if this has moved then something logged and we should redraw the prompt and input so far on a new line.
     ConsoleModel model;
+    Utf8Rdbuf *rdbuf = nullptr;
+    streambuf *oldrb1 = nullptr, *oldrb2 = nullptr;
+    bool logging = false;
 
     std::string currentPrompt;
     size_t inputLineOffset = 0;

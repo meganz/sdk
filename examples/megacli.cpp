@@ -1977,6 +1977,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("debug")));
 #ifdef WIN32
     p->Add(sequence(text("clear")));
+    p->Add(sequence(text("codepage"), opt(wholenumber(65001))));
+    p->Add(sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
     p->Add(sequence(text("test")));
 #ifdef ENABLE_CHAT
@@ -2139,6 +2141,10 @@ static void process_line(char* l)
             {
                 // any quotes or partial quoting are stripped out already
                 words.push_back(acs.words[i].s);
+            }
+            if (!words.empty() && words.back().empty())
+            {
+                words.erase(words.end() - 1);  // trailing spaces case
             }
 #else
             char* ptr = l;
@@ -2964,6 +2970,47 @@ static void process_line(char* l)
                         }
                         return;
                     }
+#ifdef WIN32
+                    else if (words[0] == "log")
+                    {
+                        if (words.size() == 1)
+                        {
+                            // close log
+                            static_cast<WinConsole*>(console)->log("", WinConsole::no_log);
+                            cout << "log closed" << endl;
+                        }
+                        else if (words.size() == 3)
+                        {
+                            // open log
+                            WinConsole::logstyle style = WinConsole::no_log;
+                            if (words[1] == "utf8")
+                            {
+                                style = WinConsole::utf8_log;
+                            }
+                            else if (words[1] == "utf16")
+                            {
+                                style = WinConsole::utf16_log;
+                            }
+                            else if (words[1] == "codepage")
+                            {
+                                style = WinConsole::codepage_log;
+                            }
+                            else
+                            {
+                                cout << "unknown log style" << endl;
+                            }
+                            if (!static_cast<WinConsole*>(console)->log(words[2], style))
+                            {
+                                cout << "failed to open log file" << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      log [utf8|utf16|codepage localfile]" << endl;
+                        }
+                        return;
+                    }
+#endif
                     break;
 
                 case 4:
@@ -4741,6 +4788,38 @@ static void process_line(char* l)
 #endif
                     break;
 
+                case 8:
+#ifdef WIN32
+                    if (words[0] == "codepage")
+                    {
+                        if (words.size() == 1)
+                        {
+                            for (int i = 32; i < 256; ++i)
+                            {
+                                string theCharUtf8 = WinConsole::toUtf8String(WinConsole::toUtf16String(string(1, (char)i), GetConsoleOutputCP()));
+                                cout << "  dec/" << i << " hex/" << hex << i << dec << ": '" << theCharUtf8 << "'";
+                                if (i % 4 == 3)
+                                {
+                                    cout << endl;
+                                }
+                            }
+                        }
+                        else if (words.size() == 2 && atoi(words[1].c_str()) != 0)
+                        {
+                            if (!static_cast<WinConsole*>(console)->setShellConsole(atoi(words[1].c_str())))
+                            {
+                                cout << "Code page change failed - unicode selected" << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      codepage [N]" << endl;
+                        }
+                        return;
+                    }
+#endif
+                    break;
+
                 case 9:
                     if (words[0] == "httpsonly")
                     {
@@ -4841,7 +4920,7 @@ static void process_line(char* l)
                     break;
             }
 
-            cout << "?Invalid command" << endl;
+            cout << "?Invalid command: " << l << endl;
     }
 }
 

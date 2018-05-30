@@ -23,6 +23,7 @@
 #include "megaapi.h"
 #include <windows.h>
 #include <conio.h>
+#include <fstream>
 
 #include <io.h>
 #include <fcntl.h>
@@ -51,20 +52,20 @@ static T clamp(T v, T lo, T hi)
     }
 }
 
-static std::string toUtf8String(const std::wstring& ws)
+std::string WinConsole::toUtf8String(const std::wstring& ws, UINT codepage)
 {
     std::string s;
     s.resize((ws.size() + 1) * 4);
-    int nchars = WideCharToMultiByte(CP_UTF8, 0, ws.data(), int(ws.size()), (LPSTR)s.data(), int(s.size()), NULL, NULL);
+    int nchars = WideCharToMultiByte(codepage, 0, ws.data(), int(ws.size()), (LPSTR)s.data(), int(s.size()), NULL, NULL);
     s.resize(nchars);
     return s;
 }
 
-static std::wstring toUtf16String(const std::string& s)
+std::wstring WinConsole::toUtf16String(const std::string& s, UINT codepage)
 {
     std::wstring ws;
     ws.resize(s.size() + 1);
-    int nwchars = MultiByteToWideChar(CP_UTF8, 0, s.data(), int(s.size()), (LPWSTR)ws.data(), int(ws.size()));
+    int nwchars = MultiByteToWideChar(codepage, 0, s.data(), int(s.size()), (LPWSTR)ws.data(), int(ws.size()));
     ws.resize(nwchars);
     return ws;
 }
@@ -77,6 +78,29 @@ inline static bool wicmp(wchar_t a, wchar_t b)
 struct Utf8Rdbuf : public streambuf
 {
     HANDLE h;
+    UINT codepage;
+    std::ofstream logfile;
+    WinConsole::logstyle logstyle = WinConsole::no_log;
+
+    bool log(const string& localfile, WinConsole::logstyle ls)
+    {
+        logfile.close();
+        logstyle = WinConsole::no_log;
+
+        if (localfile.empty() && ls == WinConsole::no_log)
+        {
+            return true;
+        }
+
+        logfile.open(localfile.c_str(), ios::out | ios::binary | ios::trunc);
+        if (logfile.fail() || !logfile.is_open())
+        {
+            return false;
+        }
+        
+        logstyle = ls;
+        return true;
+    }
 
     Utf8Rdbuf(HANDLE ch) : h(ch) {}
 
@@ -86,22 +110,67 @@ struct Utf8Rdbuf : public streambuf
         string s8(pbase(), bn);
         pbump(-int(bn));
         s8.append(s, size_t(n));
-        wstring ws = toUtf16String(s8);
-        BOOL b = WriteConsoleW(h, ws.data(), DWORD(ws.size()), &written, NULL);
-        if (!b)
+
+        if (logstyle == WinConsole::utf8_log)
         {
-            // The font can't display some characters (fails on windows 7 - windows 10 not so much but just in case).  
-            // Output those that we can and indicate the others.  
-            // If the user selects a suitable font then there should not be any failures.
-            for (unsigned i = 0; i < ws.size(); ++i)
+            logfile << s8;
+        }
+
+        wstring ws = WinConsole::toUtf16String(s8);
+
+        if (logstyle == WinConsole::utf16_log)
+        {
+            logfile.write((const char*)ws.data(), ws.size() * sizeof(wchar_t));
+        }
+
+        if (codepage == CP_UTF8)
+        {
+            // full unicode - output as wide character utf16
+            BOOL b = WriteConsoleW(h, ws.data(), DWORD(ws.size()), &written, NULL);
+            if (!b)
             {
-                b = WriteConsoleW(h, ws.data() + i, 1, &written, NULL);
-                if (!b)
+                // The font can't display some characters (fails on windows 7 - windows 10 not so much but just in case).  
+                // Output those that we can and indicate the others.  
+                // If the user selects a suitable font then there should not be any failures.
+                for (unsigned i = 0; i < ws.size(); ++i)
                 {
-                    wostringstream s;
-                    s << L"<FAIL/" << hex << unsigned short(ws.data()[i]) << L">";
-                    wstring str = s.str();
-                    WriteConsoleW(h, str.data(), str.size(), &written, NULL);
+                    b = WriteConsoleW(h, ws.data() + i, 1, &written, NULL);
+                    if (!b)
+                    {
+                        wostringstream s;
+                        s << L"<FAIL/" << hex << unsigned short(ws.data()[i]) << L">";
+                        wstring str = s.str();
+                        WriteConsoleW(h, str.data(), DWORD(str.size()), &written, NULL);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // single byte per character code page - convert the string to that code page and output in narrow char string
+            string cps = WinConsole::toUtf8String(ws, codepage);
+
+            if (logstyle == WinConsole::codepage_log)
+            {
+                logfile << cps;
+            }
+
+            BOOL b = WriteConsoleA(h, cps.data(), DWORD(cps.size()), &written, NULL);
+            if (!b)
+            {
+                // The font can't display some characters (this might be impossible with a non-utf8 code page?)
+                // Output those that we can and indicate the others.  
+                // If the user selects a suitable font (and code page) then there should not be any failures.
+                for (unsigned i = 0; i < cps.size(); ++i)
+                {
+                    b = WriteConsoleA(h, cps.data() + i, 1, &written, NULL);
+                    if (!b)
+                    {
+                        stringstream s;
+                        s << "<FAIL/" << hex << unsigned(unsigned char(cps.data()[i])) << ">";
+                        string str = s.str();
+                        WriteConsoleA(h, str.data(), DWORD(str.size()), &written, NULL);
+                    }
                 }
             }
         }
@@ -231,14 +300,14 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
     {
         if (!autocompleteState.active)
         {
-            std::string u8line = toUtf8String(buffer);
-            size_t u8InsertPos = toUtf8String(buffer.substr(0, insertPos)).size();
+            std::string u8line = WinConsole::toUtf8String(buffer);
+            size_t u8InsertPos = WinConsole::toUtf8String(buffer.substr(0, insertPos)).size();
             autocompleteState = autocomplete::autoComplete(u8line, u8InsertPos, autocompleteSyntax, unixCompletions);
             autocompleteState.active = true;
         }
         autocomplete::applyCompletion(autocompleteState, forwards, consoleWidth);
-        buffer = toUtf16String(autocompleteState.line);
-        size_t u16InsertPos = toUtf16String(autocompleteState.line.substr(0, autocompleteState.wordPos.second)).size();
+        buffer = WinConsole::toUtf16String(autocompleteState.line);
+        size_t u16InsertPos = WinConsole::toUtf16String(autocompleteState.line.substr(0, autocompleteState.wordPos.second)).size();
         insertPos = clamp<size_t>(u16InsertPos, 0, buffer.size());
         redrawInputLineNeeded = true;
     }
@@ -350,12 +419,21 @@ WinConsole::WinConsole()
 
 WinConsole::~WinConsole()
 {
-    // restore startup config
+    if (rdbuf)
+    {
+        std::cout.rdbuf(oldrb1);
+        std::cerr.rdbuf(oldrb2);
+        delete rdbuf;
+    }
 }
 
-void WinConsole::setShellConsole()
+bool WinConsole::setShellConsole(UINT codepage)
 {
     // Call this if your console app is taking live input, with the user editing commands on screen, similar to cmd or powershell
+
+    // Ideally we would work in unicode all the time (with codepage = CP_UTF8).  
+    // The option to specify others is just to support older systems, eg win7 with raster fonts selected, where unicode output of latin symbols eg U+00F3 (Latin Small Letter O with acute) fail
+    // Of course, with a non-utf code page selected, most unicode will fail
 
     // use cases covered
     // utf8 output with std::cout (since we already use cout so much and it's compatible with other platforms)
@@ -367,16 +445,26 @@ void WinConsole::setShellConsole()
     // normal cmd window type editing, including autocomplete (with runtime selectable unix style or dos style, default to local platform rules)
     // the console must have a suitable font selected for the characters to diplay properly
 
-    BOOL ok;
+    BOOL ok = true;
     // make sure the console and its buffer support utf
-    ok = SetConsoleCP(CP_UTF8);
-    assert(ok);
-    ok = SetConsoleOutputCP(CP_UTF8);
-    assert(ok);
+    ok = ok && SetConsoleCP(codepage);
+    ok = ok && SetConsoleOutputCP(codepage);
+    if (!ok)
+    {
+        codepage = CP_UTF8;
+        SetConsoleCP(codepage);
+        SetConsoleOutputCP(codepage);
+    }
 
     // skip the historic complexities of output modes etc, our own rdbuf can write direct to console
-    std::cout.rdbuf(new Utf8Rdbuf(hOutput));
-    std::cerr.rdbuf(new Utf8Rdbuf(hOutput));
+    if (!rdbuf)
+    {
+        rdbuf = new Utf8Rdbuf(hOutput);
+        oldrb1 = std::cout.rdbuf(rdbuf);
+        oldrb2 = std::cerr.rdbuf(rdbuf);
+    }
+    rdbuf->codepage = codepage;
+    return ok;
 }
 
 void WinConsole::setAutocompleteSyntax(autocomplete::ACN a)
@@ -675,14 +763,39 @@ void WinConsole::updateInputPrompt(const std::string& newprompt)
 
 char* WinConsole::checkForCompletedInputLine()
 {
+    if (rdbuf && rdbuf->logstyle != WinConsole::no_log)
+    {
+        rdbuf->logfile << flush;
+    }
     redrawPromptIfLoggingOccurred();
     if (consolePeek())
     {
         std::wstring ws;
         if (model.checkForCompletedInputLine(ws))
         {
+
+            if (rdbuf && rdbuf->logstyle == WinConsole::utf16_log)
+            {
+                std::wstring wprompt = toUtf16String(currentPrompt);
+                rdbuf->logfile.write((const char*)wprompt.data(), wprompt.size() * sizeof(wchar_t));
+                rdbuf->logfile.write((const char*)ws.data(), ws.size() * sizeof(wchar_t));
+                rdbuf->logfile.write((const char*)(const wchar_t*)L"\n", sizeof(wchar_t));
+            }
+
+            string u8s = toUtf8String(ws);
+
+            if (rdbuf && rdbuf->logstyle == WinConsole::utf8_log)
+            {
+                rdbuf->logfile << currentPrompt << u8s << "\n";
+            }
+            else if (rdbuf && rdbuf->logstyle == WinConsole::codepage_log)
+            {
+                rdbuf->logfile << currentPrompt << toUtf8String(ws, rdbuf->codepage) << "\n";
+            }
+
             currentPrompt.clear();
-            return _strdup(toUtf8String(ws).c_str());
+
+            return _strdup(u8s.c_str());
         }
     }
     return NULL;
@@ -715,6 +828,11 @@ void WinConsole::outputHistory()
     {
         std::cout << toUtf8String(model.inputHistory[i]) << std::endl;
     }
+}
+
+bool WinConsole::log(const std::string& filename, logstyle logstyle)
+{
+    return rdbuf->log(filename, logstyle);
 }
 
 } // namespace
