@@ -4831,7 +4831,6 @@ void CommandChatCreate::procresult()
                         if (mPublicChat)
                         {
                             chat->unifiedKey = mUnifiedKey;
-                            chat->peersKeys = peersKeys;
                         }
 
                         client->notifychat(chat);

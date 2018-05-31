@@ -452,7 +452,6 @@ struct TextChat : public Cachable
     privilege_t priv;
     int shard;
     userpriv_vector *userpriv;
-    userkey_map *peersKeys;
     bool group;
     string title;        // byte array
     string unifiedKey;   // byte array
