@@ -3982,9 +3982,9 @@ void MegaApi::chatLinkClose(MegaHandle chatid, MegaRequestListener *listener)
     pImpl->chatLinkClose(chatid, listener);
 }
 
-void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *title, const char *unifiedKey, MegaRequestListener *listener)
+void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, MegaRequestListener *listener)
 {
-    pImpl->chatLinkJoin(publichandle, title, unifiedKey, listener);
+    pImpl->chatLinkJoin(publichandle, unifiedKey, listener);
 }
 
 #endif

@@ -949,7 +949,7 @@ class MEGA_API CommandChatLinkJoin : public Command
 public:
     void procresult();
 
-    CommandChatLinkJoin(MegaClient*, handle publichandle, const char *title, const char *unifiedkey);
+    CommandChatLinkJoin(MegaClient*, handle publichandle, const char *unifiedkey);
 };
 
 #endif
