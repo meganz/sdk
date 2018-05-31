@@ -767,7 +767,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << "\tArchived chat: no" << endl;
     }
-    if (chat->openchat)
+    if (chat->publicchat)
     {
         cout << "\tOpen chat: yes" << endl;
     }
@@ -4359,7 +4359,7 @@ static void process_line(char* l)
                             handle publichandle;
                             Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
 
-                            client->chatlinkjoin(publichandle);
+                            client->chatlinkjoin(publichandle, words[2].c_str());
                             return;
                         }
                         else
