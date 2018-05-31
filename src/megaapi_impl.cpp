@@ -4471,44 +4471,6 @@ void MegaApiImpl::setStatsID(const char *id)
     MegaClient::statsid = MegaApi::strdup(id);
 }
 
-void MegaApiImpl::fillLocalTimeStruct(const time_t *ttime, struct tm *dt)
-{
-#if (__cplusplus >= 201103L) && defined (__STDC_LIB_EXT1__) && defined(__STDC_WANT_LIB_EXT1__)
-    localtime_s(ttime, dt);
-#elif _MSC_VER >= 1400 // MSVCRT (2005+): std::localtime is threadsafe
-    struct tm *newtm = localtime(ttime);
-    if (newtm)
-    {
-        memcpy(dt,newtm,sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt,0,sizeof(struct tm));
-    }
-#elif _WIN32
-    static MegaMutex * mtx = new MegaMutex();
-    static bool initiated = false;
-    if (!initiated)
-    {
-        mtx->init(true);
-        initiated = true;
-    }
-    mtx->lock();
-    struct tm *newtm = localtime(ttime);
-    if (newtm)
-    {
-        memcpy(dt,newtm,sizeof(struct tm));
-    }
-    else
-    {
-        memset(dt,0,sizeof(struct tm));
-    }
-    mtx->unlock();
-#else //POSIX
-    localtime_r(ttime, dt);
-#endif
-}
-
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -19593,10 +19555,10 @@ long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) con
         {
             return oldStartTimeds;
         }
-        time_t current = (oldStartTimeds + this->offsetds)/10;
+        long long current_ds = oldStartTimeds + this->offsetds;  // 64 bit
 
-        time_t newt = cron_next((cron_expr *)&ccronexpr, current);
-        long long newStarTimeds = newt*10-offsetds;
+        long long newt = cron_next((cron_expr *)&ccronexpr, time_t(current_ds/10));  // time_t is 32 bit still on many systems
+        long long newStarTimeds = newt*10-offsetds;  // 64 bit again
         return newStarTimeds;
     }
 }
@@ -19949,7 +19911,7 @@ std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
     struct tm dt;
     char buffer [40];
     time_t rawtime = rawtimeds/10;
-    megaApi->fillLocalTimeStruct(&rawtime, &dt); //Notice this is not thread safe
+    m_localtime(rawtime, &dt);
 
     strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", &dt);
 

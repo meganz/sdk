@@ -1651,7 +1651,6 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToString(int);
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
-        static void fillLocalTimeStruct(const time_t *ttime, struct tm *dt);
 
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
