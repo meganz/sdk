@@ -28,6 +28,7 @@ win32 {
         SOURCES += ../../../src/win32/console.cpp
         SOURCES += ../../../src/win32/autocomplete.cpp
         SOURCES += ../../../src/win32/consolewaiter.cpp
+    }
     else {
         SOURCES += ../../../src/wincurl/console.cpp
         SOURCES += ../../../src/wincurl/consolewaiter.cpp
