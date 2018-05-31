@@ -21,6 +21,7 @@
 
 #include "mega.h"
 #include "megacli.h"
+#include <fstream>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -1912,14 +1913,14 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     // which is clearer in the help output - one line or 3?
-    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"))));
+    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"), text("autoresume"))));
     //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
     //p->Add(sequence(text("login"), param("exportedfolderurl#key")));
     //p->Add(sequence(text("login"), param("session")));
     p->Add(sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
     p->Add(sequence(text("confirm")));
-    p->Add(sequence(text("session")));
+    p->Add(sequence(text("session"), opt(text("autoresume"))));
     p->Add(sequence(text("mount")));
     p->Add(sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
     p->Add(sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
@@ -1977,7 +1978,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("debug")));
 #ifdef WIN32
     p->Add(sequence(text("clear")));
-    p->Add(sequence(text("codepage"), opt(wholenumber(65001))));
+    p->Add(sequence(text("codepage"), opt(sequence(wholenumber(65001), opt(wholenumber(65001))))));
     p->Add(sequence(text("log"), either(text("utf8"), text("utf16"), text("codepage")), localFSFile()));
 #endif
     p->Add(sequence(text("test")));
@@ -3181,7 +3182,25 @@ static void process_line(char* l)
                         {
                             if (words.size() > 1)
                             {
-                                if (strchr(words[1].c_str(), '@'))
+                                if (words.size() == 2 && words[1] == "autoresume")
+                                {
+                                    ifstream file("megacli_autoresume_session");
+                                    string session;
+                                    file >> session;
+                                    if (file.is_open() && session.size())
+                                    {
+                                        byte sessionraw[64];
+                                        if (session.size() < sizeof sessionraw * 4 / 3)
+                                        {
+                                            int size = Base64::atob(session.c_str(), sessionraw, sizeof sessionraw);
+
+                                            cout << "Resuming session..." << endl;
+                                            return client->login(sessionraw, size);
+                                        }
+                                    }
+                                    cout << "Failed to get a valid session id from file megacli_autoresume_session" << endl;
+                                }
+                                else if (strchr(words[1].c_str(), '@'))
                                 {
                                     // full account login
                                     if (words.size() > 2)
@@ -4635,7 +4654,23 @@ static void process_line(char* l)
 
                             Base64::btoa(session, size, buf);
 
-                            cout << "Your (secret) session is: " << buf << endl;
+                            if (words.size() == 2 && words[1] == "autoresume")
+                            {
+                                ofstream file("megacli_autoresume_session");
+                                if (file.fail() || !file.is_open())
+                                {
+                                    cout << "could not open file: megacli_autoresume_session" << endl;
+                                }
+                                else
+                                {
+                                    file << buf;
+                                    cout << "Your (secret) session is saved in file 'megacli_autoresume_session'" << endl;
+                                }
+                            }
+                            else
+                            {
+                                cout << "Your (secret) session is: " << buf << endl;
+                            }
                         }
                         else if (!size)
                         {
@@ -4792,11 +4827,20 @@ static void process_line(char* l)
 #ifdef WIN32
                     if (words[0] == "codepage")
                     {
+                        WinConsole* wc = static_cast<WinConsole*>(console);
                         if (words.size() == 1)
                         {
+                            UINT cp1, cp2;
+                            wc->getShellCodepages(cp1, cp2);
+                            cout << "Current codepage is " << cp1;
+                            if (cp2 != cp1)
+                            {
+                                cout << " with failover to codepage " << cp2 << " for any absent glyphs";
+                            }
+                            cout << endl;
                             for (int i = 32; i < 256; ++i)
                             {
-                                string theCharUtf8 = WinConsole::toUtf8String(WinConsole::toUtf16String(string(1, (char)i), GetConsoleOutputCP()));
+                                string theCharUtf8 = WinConsole::toUtf8String(WinConsole::toUtf16String(string(1, (char)i), cp1));
                                 cout << "  dec/" << i << " hex/" << hex << i << dec << ": '" << theCharUtf8 << "'";
                                 if (i % 4 == 3)
                                 {
@@ -4806,14 +4850,21 @@ static void process_line(char* l)
                         }
                         else if (words.size() == 2 && atoi(words[1].c_str()) != 0)
                         {
-                            if (!static_cast<WinConsole*>(console)->setShellConsole(atoi(words[1].c_str())))
+                            if (!wc->setShellConsole(atoi(words[1].c_str()), atoi(words[1].c_str())))
+                            {
+                                cout << "Code page change failed - unicode selected" << endl;
+                            }
+                        }
+                        else if (words.size() == 3 && atoi(words[1].c_str()) != 0 && atoi(words[2].c_str()) != 0)
+                        {
+                            if (!wc->setShellConsole(atoi(words[1].c_str()), atoi(words[2].c_str())))
                             {
                                 cout << "Code page change failed - unicode selected" << endl;
                             }
                         }
                         else
                         {
-                            cout << "      codepage [N]" << endl;
+                            cout << "      codepage [N [N]]" << endl;
                         }
                         return;
                     }
@@ -5870,8 +5921,16 @@ void megacli()
     int saved_point = 0;
 
     rl_save_prompt();
+
 #elif defined(WIN32) && defined(NO_READLINE)
-    static_cast<WinConsole*>(console)->setShellConsole();
+
+    static_cast<WinConsole*>(console)->setShellConsole(CP_UTF8, GetConsoleOutputCP());
+
+    COORD fontSize;
+    string fontname = static_cast<WinConsole*>(console)->getConsoleFont(fontSize);
+    cout << "Using font '" << fontname << "', " << fontSize.X << "x" << fontSize.Y
+         << ". <CHAR/hex> will be used for absent characters.  If seen, try the 'codepage' command or a different font." << endl;
+
 #else
     #error non-windows platforms must use the readline library
 #endif

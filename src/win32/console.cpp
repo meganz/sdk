@@ -24,6 +24,7 @@
 #include <windows.h>
 #include <conio.h>
 #include <fstream>
+#include <iomanip>
 
 #include <io.h>
 #include <fcntl.h>
@@ -78,7 +79,8 @@ inline static bool wicmp(wchar_t a, wchar_t b)
 struct Utf8Rdbuf : public streambuf
 {
     HANDLE h;
-    UINT codepage;
+    UINT codepage = CP_UTF8;
+    UINT failover_codepage = CP_UTF8;
     std::ofstream logfile;
     WinConsole::logstyle logstyle = WinConsole::no_log;
 
@@ -122,55 +124,35 @@ struct Utf8Rdbuf : public streambuf
         {
             logfile.write((const char*)ws.data(), ws.size() * sizeof(wchar_t));
         }
-
-        if (codepage == CP_UTF8)
+        else if (logstyle == WinConsole::codepage_log)
         {
-            // full unicode - output as wide character utf16
-            BOOL b = WriteConsoleW(h, ws.data(), DWORD(ws.size()), &written, NULL);
-            if (!b)
+            logfile << WinConsole::toUtf8String(ws, codepage);
+        }
+
+        BOOL b = WriteConsoleW(h, ws.data(), DWORD(ws.size()), &written, NULL);
+        if (!b)
+        {
+            // The font can't display some characters (fails on windows 7 - windows 10 not so much but just in case).  
+            // Output those that we can and indicate the others.  
+            // If the user selects a suitable font then there should not be any failures.
+            for (unsigned i = 0; i < ws.size(); ++i)
             {
-                // The font can't display some characters (fails on windows 7 - windows 10 not so much but just in case).  
-                // Output those that we can and indicate the others.  
-                // If the user selects a suitable font then there should not be any failures.
-                for (unsigned i = 0; i < ws.size(); ++i)
+                b = WriteConsoleW(h, ws.data() + i, 1, &written, NULL);
+                if (!b && failover_codepage != codepage)
                 {
-                    b = WriteConsoleW(h, ws.data() + i, 1, &written, NULL);
-                    if (!b)
+                    // for raster fonts, we can have a second go with another code page, translating directly from utf16
+                    if (SetConsoleOutputCP(failover_codepage))
                     {
-                        wostringstream s;
-                        s << L"<FAIL/" << hex << unsigned short(ws.data()[i]) << L">";
-                        wstring str = s.str();
-                        WriteConsoleW(h, str.data(), DWORD(str.size()), &written, NULL);
+                        b = WriteConsoleW(h, ws.data() + i, 1, &written, NULL);
+                        SetConsoleOutputCP(codepage);
                     }
                 }
-            }
-        }
-        else
-        {
-            // single byte per character code page - convert the string to that code page and output in narrow char string
-            string cps = WinConsole::toUtf8String(ws, codepage);
-
-            if (logstyle == WinConsole::codepage_log)
-            {
-                logfile << cps;
-            }
-
-            BOOL b = WriteConsoleA(h, cps.data(), DWORD(cps.size()), &written, NULL);
-            if (!b)
-            {
-                // The font can't display some characters (this might be impossible with a non-utf8 code page?)
-                // Output those that we can and indicate the others.  
-                // If the user selects a suitable font (and code page) then there should not be any failures.
-                for (unsigned i = 0; i < cps.size(); ++i)
+                if (!b)
                 {
-                    b = WriteConsoleA(h, cps.data() + i, 1, &written, NULL);
-                    if (!b)
-                    {
-                        stringstream s;
-                        s << "<FAIL/" << hex << unsigned(unsigned char(cps.data()[i])) << ">";
-                        string str = s.str();
-                        WriteConsoleA(h, str.data(), DWORD(str.size()), &written, NULL);
-                    }
+                    wostringstream s;
+                    s << L"<CHAR/" << hex << unsigned short(ws.data()[i]) << L">";
+                    wstring str = s.str();
+                    WriteConsoleW(h, str.data(), DWORD(str.size()), &written, NULL);
                 }
             }
         }
@@ -427,13 +409,47 @@ WinConsole::~WinConsole()
     }
 }
 
-bool WinConsole::setShellConsole(UINT codepage)
+string WinConsole::getConsoleFont(COORD& size)
+{
+    CONSOLE_FONT_INFOEX cfi;
+    memset(&cfi, 0, sizeof(cfi));
+    cfi.cbSize = sizeof(cfi);
+    GetCurrentConsoleFontEx(hOutput, FALSE, &cfi);
+
+    wstring wname = cfi.FaceName;
+    string name = WinConsole::toUtf8String(wname);
+
+    if (!(cfi.FontFamily & TMPF_TRUETYPE) && (wname.size() < 6 || name.find("?") != string::npos))
+    {
+        // the name is garbled on win 7, try to compensate
+        name = "Terminal";
+    }
+
+    size = cfi.dwFontSize;
+    return name;
+}
+
+void WinConsole::getShellCodepages(UINT& codepage, UINT& failover_codepage)
+{
+    if (rdbuf)
+    {
+        codepage = rdbuf->codepage;
+        failover_codepage = rdbuf->failover_codepage;
+    }
+    else
+    {
+        codepage = GetConsoleOutputCP(); 
+        failover_codepage = codepage;
+    }
+}
+
+bool WinConsole::setShellConsole(UINT codepage, UINT failover_codepage)
 {
     // Call this if your console app is taking live input, with the user editing commands on screen, similar to cmd or powershell
 
-    // Ideally we would work in unicode all the time (with codepage = CP_UTF8).  
-    // The option to specify others is just to support older systems, eg win7 with raster fonts selected, where unicode output of latin symbols eg U+00F3 (Latin Small Letter O with acute) fail
-    // Of course, with a non-utf code page selected, most unicode will fail
+    // Ideally we would work in unicode all the time (with codepage = CP_UTF8).  However in windows 7 for example, with raster 
+    // font selected, the o symbol with diacritic (U+00F3) is not output correctly.  So we offer the option to attempt output 
+    // a second time in a 'failover' codepage, or to output in a single codepage only.  The user has control with the 'codepage' command.
 
     // use cases covered
     // utf8 output with std::cout (since we already use cout so much and it's compatible with other platforms)
@@ -445,13 +461,12 @@ bool WinConsole::setShellConsole(UINT codepage)
     // normal cmd window type editing, including autocomplete (with runtime selectable unix style or dos style, default to local platform rules)
     // the console must have a suitable font selected for the characters to diplay properly
 
-    BOOL ok = true;
-    // make sure the console and its buffer support utf
-    ok = ok && SetConsoleCP(codepage);
+    BOOL ok =  SetConsoleCP(codepage);
     ok = ok && SetConsoleOutputCP(codepage);
     if (!ok)
     {
         codepage = CP_UTF8;
+        failover_codepage = GetOEMCP();
         SetConsoleCP(codepage);
         SetConsoleOutputCP(codepage);
     }
@@ -464,6 +479,7 @@ bool WinConsole::setShellConsole(UINT codepage)
         oldrb2 = std::cerr.rdbuf(rdbuf);
     }
     rdbuf->codepage = codepage;
+    rdbuf->failover_codepage = failover_codepage;
     return ok;
 }
 
