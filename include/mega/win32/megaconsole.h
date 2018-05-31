@@ -154,6 +154,7 @@ private:
     void redrawInputLine();
     ConsoleModel::lineEditAction interpretLineEditingKeystroke(INPUT_RECORD &ir);
 
+    void utf16ToUtf8(const wchar_t *utf16data, int utf16size, string *utf8string);
 };
 } // namespace
 
