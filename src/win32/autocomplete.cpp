@@ -126,7 +126,10 @@ void ACState::addCompletion(const std::string& s, bool caseInsensitive)
             if ((s[0] == '-' && !prefix.empty() && prefix[0] == '-') ||
                 (s[0] != '-' && (prefix.empty() || prefix[0] != '-')))
             {
-                completions.emplace_back(ACState::Completion{ s, caseInsensitive });
+                ACState::Completion ct;
+                ct.caseInsensitive = caseInsensitive;
+                ct.s = s;
+                completions.emplace_back(ct);
             }
         }
     }
@@ -743,7 +746,15 @@ CompletionState autoComplete(const std::string line, size_t insertPos, ACN synta
     acs.i = 0;
     syntax->addCompletions(acs);
 
-    return CompletionState{ line, acs.wordPos.back(), acs.words.back(), acs.completions, unixStyle };
+    CompletionState cs;
+    cs.line = line;
+    cs.wordPos = acs.wordPos.back();
+    cs.originalWord = acs.words.back();
+    cs.completions = acs.completions;
+    cs.unixStyle = acs.unixStyle;
+
+
+    return cs;
 }
 
 void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle)
