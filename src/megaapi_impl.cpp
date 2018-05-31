@@ -7393,7 +7393,7 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     request->setFlag(group);
     request->setAccess(publicchat ? 1 : 0);
     request->setMegaTextChatPeerList(peers);
-    request->setPrivateKey(title);
+    request->setText(title);
     request->setSessionKey(unifiedKey);
     requestQueue.push(request);
     waiter->notify();
@@ -16875,10 +16875,11 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             bool group = request->getFlag();
+            const char *title = request->getText();
+            const char *unifiedKey = request->getSessionKey();
 
-            const char *title = request->getPrivateKey();
             bool publicchat = (request->getAccess() == 1);
-            if (publicchat && title == NULL)
+            if (publicchat && unifiedKey == NULL)
             {
                 e = API_EARGS;
                 break;
@@ -16890,7 +16891,6 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            const char *unifiedKey = request->getSessionKey();
             const userkey_map *keylist = ((MegaTextChatPeerListPrivate*)chatPeers)->getKeyList();
 
             // if 1:1 chat, peer is enforced to be moderator too
