@@ -126,10 +126,7 @@ void ACState::addCompletion(const std::string& s, bool caseInsensitive)
             if ((s[0] == '-' && !prefix.empty() && prefix[0] == '-') ||
                 (s[0] != '-' && (prefix.empty() || prefix[0] != '-')))
             {
-                ACState::Completion ct;
-                ct.caseInsensitive = caseInsensitive;
-                ct.s = s;
-                completions.emplace_back(ct);
+                completions.emplace_back(s, caseInsensitive);
             }
         }
     }

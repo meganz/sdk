@@ -40,6 +40,7 @@ namespace autocomplete {
         struct Completion {
             std::string s;
             bool caseInsensitive = false;
+            inline Completion(const std::string& str, bool b) : s(str), caseInsensitive(b) {}
         };
 
         std::vector<Completion> completions;

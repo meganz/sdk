@@ -498,7 +498,6 @@ bool WinConsole::getAutocompleteStyle() const
     return model.unixCompletions;
 }
 
-
 HANDLE WinConsole::inputAvailableHandle()
 {
     // returns a handle that will be signalled when there is console input to process (ie records available for PeekConsoleInput)
@@ -583,8 +582,6 @@ bool WinConsole::consolePeek()
     return model.newlinesBuffered;
 }
 
-
-
 ConsoleModel::lineEditAction WinConsole::interpretLineEditingKeystroke(INPUT_RECORD &ir)
 {
     if (ir.EventType == 1 && ir.Event.KeyEvent.bKeyDown)
@@ -623,9 +620,6 @@ ConsoleModel::lineEditAction WinConsole::interpretLineEditingKeystroke(INPUT_REC
     }
     return ConsoleModel::nullAction;
 }
-
-
-
 
 void WinConsole::redrawInputLine()
 {
@@ -710,27 +704,6 @@ bool WinConsole::consoleGetch(wchar_t& c)
     return false;
 }
 
-
-
-// convert Windows Unicode to UTF-8
-void WinConsole::utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* utf8string)
-{
-    if(!utf16size)
-    {
-        utf8string->clear();
-        return;
-    }
-
-    utf8string->resize((utf16size + 1) * 4);
-
-    utf8string->resize(WideCharToMultiByte(CP_UTF8, 0, utf16data,
-        utf16size,
-        (char*)utf8string->data(),
-        utf8string->size() + 1,
-        NULL, NULL));
-}
-
-
 void WinConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char** line)
 {
     // todo: remove/stub this function once we don't need to support readline for any version of megacli on windows
@@ -739,9 +712,7 @@ void WinConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char
     {
         if (c == 13)
         {
-            std::string s;
-            utf16ToUtf8(&c, 1, &s);
-            *line = _strdup(s.c_str());
+            *line = _strdup(toUtf8String(wstring(&c, 1)).c_str());
             memset(pw_buf, 0, pw_buf_size);
         }
         else if (*pw_buf_pos + 2 <= pw_buf_size)
@@ -750,7 +721,6 @@ void WinConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char
             *pw_buf_pos += 2;
         }
     }
-
 }
 
 void WinConsole::setecho(bool echo)
