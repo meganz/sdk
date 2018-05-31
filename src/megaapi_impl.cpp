@@ -244,7 +244,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                if (node->type == FILENODE)
                {
-                   duration = Base64::atoi(&it->second);
+                   duration = int(Base64::atoi(&it->second));
                }
             }
             else if (it->first == AttrMap::string2nameid("l"))
@@ -408,11 +408,11 @@ bool MegaNodePrivate::serialize(string *d)
     unsigned short ll;
     bool flag;
 
-    ll = name ? strlen(name) + 1 : 0;
+    ll = (unsigned short)(name ? strlen(name) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(name, ll);
 
-    ll = fingerprint ? strlen(fingerprint) + 1 : 0;
+    ll = (unsigned short)(fingerprint ? strlen(fingerprint) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(fingerprint, ll);
 
@@ -1810,22 +1810,22 @@ bool MegaTransferPrivate::serialize(string *d)
     d->append((const char*)&parentHandle, sizeof(parentHandle));
 
     unsigned short ll;
-    ll = path ? strlen(path) + 1 : 0;
+    ll = (unsigned short)(path ? strlen(path) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(path, ll);
 
-    ll = parentPath ? strlen(parentPath) + 1 : 0;
+    ll = (unsigned short)(parentPath ? strlen(parentPath) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(parentPath, ll);
 
-    ll = fileName ? strlen(fileName) + 1 : 0;
+    ll = (unsigned short)(fileName ? strlen(fileName) + 1 : 0);
     d->append((char*)&ll, sizeof(ll));
     d->append(fileName, ll);
 
     d->append((const char*)&folderTransferTag, sizeof(folderTransferTag));
     d->append("\0\0\0\0\0\0", 7);
 
-    ll = appData ? strlen(appData) + 1 : 0;
+    ll = (unsigned short)(appData ? strlen(appData) + 1 : 0);
     if (ll)
     {
         char hasAppData = 1;
@@ -2454,7 +2454,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setPrivateKey(request->getPrivateKey());
     this->setAccess(request->getAccess());
     this->setNumRetry(request->getNumRetry());
-	this->numDetails = 0;
+    this->setNumDetails(request->getNumDetails());
     this->setFile(request->getFile());
     this->setParamType(request->getParamType());
     this->setText(request->getText());
@@ -3045,6 +3045,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
+        case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
         case TYPE_ADD_BACKUP: return "ADD_BACKUP";
         case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
         case TYPE_TIMER: return "SET_TIMER";
@@ -5332,16 +5333,16 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, double latitude, double lon
         request->setNodeHandle(node->getHandle());
     }
 
-    int lat = latitude;
+    int lat = int(latitude);
     if (latitude != MegaNode::INVALID_COORDINATE)
     {
-        lat = ((latitude + 90) / 180) * 0xFFFFFF;
+        lat = int(((latitude + 90) / 180) * 0xFFFFFF);
     }
 
-    int lon = longitude;
+    int lon = int(longitude);
     if (longitude != MegaNode::INVALID_COORDINATE)
     {
-        lon = (longitude == 180) ? 0 : ((longitude + 180) / 360) * 0x01000000;
+        lon = int((longitude == 180) ? 0 : ((longitude + 180) / 360) * 0x01000000);
     }
 
     request->setParamType(MegaApi::NODE_ATTR_COORDINATES);
@@ -6068,22 +6069,22 @@ bool MegaApiImpl::setMaxUploadSpeed(m_off_t bpslimit)
 
 int MegaApiImpl::getMaxDownloadSpeed()
 {
-    return client->getmaxdownloadspeed();
+    return int(client->getmaxdownloadspeed());
 }
 
 int MegaApiImpl::getMaxUploadSpeed()
 {
-    return client->getmaxuploadspeed();
+    return int(client->getmaxuploadspeed());
 }
 
 int MegaApiImpl::getCurrentDownloadSpeed()
 {
-    return httpio->downloadSpeed;
+    return int(httpio->downloadSpeed);
 }
 
 int MegaApiImpl::getCurrentUploadSpeed()
 {
-    return httpio->uploadSpeed;
+    return int(httpio->uploadSpeed);
 }
 
 int MegaApiImpl::getCurrentSpeed(int type)
@@ -6091,9 +6092,9 @@ int MegaApiImpl::getCurrentSpeed(int type)
     switch (type)
     {
     case MegaTransfer::TYPE_DOWNLOAD:
-        return httpio->downloadSpeed;
+        return int(httpio->downloadSpeed);
     case MegaTransfer::TYPE_UPLOAD:
-        return httpio->uploadSpeed;
+        return int(httpio->uploadSpeed);
     default:
         return 0;
     }
@@ -8531,6 +8532,15 @@ void MegaApiImpl::contactLinkDelete(MegaHandle handle, MegaRequestListener *list
     waiter->notify();
 }
 
+void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_KEEP_ME_ALIVE, listener);
+    request->setParamType(type);
+    request->setFlag(enable);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
@@ -10841,7 +10851,7 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
         MegaRequestPrivate* request = requestMap.at(tag);
         if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE)) return;
 
-        tag = request->getNumber();
+        tag = int(request->getNumber());
 
         FileAccess *f = client->fsaccess->newfileaccess();
         string filePath(request->getFile());
@@ -10878,7 +10888,7 @@ int MegaApiImpl::fa_failed(handle, fatype, int retries, error e)
         if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_FILE))
             return 1;
 
-        tag = request->getNumber();
+        tag = int(request->getNumber());
         if(retries >= 2)
         {
             fireOnRequestFinish(request, MegaError(e));
@@ -10994,7 +11004,7 @@ void MegaApiImpl::additem_result(error e)
     }
 
     //MegaRequest::TYPE_UPGRADE_ACCOUNT
-    int method = request->getNumber();
+    int method = int(request->getNumber());
     client->purchase_checkout(method);
 }
 
@@ -11815,7 +11825,7 @@ void MegaApiImpl::getua_result(error e)
                 return;
             }
             else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
-                     && (time(NULL) - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+                 && (m_time() - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
             {
                 request->setFlag(true); // the password reminder dialog should be shown
             }
@@ -11925,7 +11935,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 }
                 else if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
                 {
-                    time_t currenttime = time(NULL);
+                    m_time_t currenttime = m_time();
                     if (!User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len)
                             && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
@@ -12150,7 +12160,7 @@ void MegaApiImpl::contactlinkcreate_result(error e, handle h)
     fireOnRequestFinish(request, e);
 }
 
-void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname)
+void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, string *firstname, string *lastname, string *avatar)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -12168,6 +12178,7 @@ void MegaApiImpl::contactlinkquery_result(error e, handle h, string *email, stri
         request->setEmail(email->c_str());
         request->setName(firstname->c_str());
         request->setText(lastname->c_str());
+        request->setFile(avatar->c_str());
     }
     fireOnRequestFinish(request, e);
 }
@@ -12180,6 +12191,20 @@ void MegaApiImpl::contactlinkdelete_result(error e)
     }
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_CONTACT_LINK_DELETE)))
+    {
+        return;
+    }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::keepmealive_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_KEEP_ME_ALIVE)))
     {
         return;
     }
@@ -12647,8 +12672,9 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
 	activeError = megaError;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
+    transfer->setLastError(e);
 
-    if(e.getErrorCode())
+    if (e.getErrorCode())
     {
         LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e.getErrorString()
                     << " File: " << transfer->getFileName();
@@ -13329,10 +13355,9 @@ int naturalsorting_compare (const char *i, const char *j)
                 return difference;
             }
 
-            difference = number_i - number_j;
-            if (difference)
+            if (number_i != number_j)
             {
-                return difference;
+                return number_i > number_j ? 1 : -1;
             }
 
             stringMode = true;
@@ -15639,7 +15664,7 @@ void MegaApiImpl::sendPendingRequests()
                         break;
                     }
 
-                    prevtag = req->getNumber();
+                    prevtag = int(req->getNumber());
                 }
 
                 if(req)
@@ -15934,7 +15959,7 @@ void MegaApiImpl::sendPendingRequests()
                 int type = request->getParamType();
                 if (type == MegaApi::NODE_ATTR_DURATION)
                 {
-                    int secs = request->getNumber();
+                    int secs = int(request->getNumber());
                     if (node->type != FILENODE || secs < MegaNode::INVALID_DURATION)
                     {
                         e = API_EARGS;
@@ -16143,7 +16168,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char *email = request->getEmail();
             const char *message = request->getText();
-            int action = request->getNumber();
+            int action = int(request->getNumber());
             MegaHandle contactLink = request->getNodeHandle();
 
             if(client->loggedin() != FULLACCOUNT)
@@ -16170,7 +16195,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REPLY_CONTACT_REQUEST:
         {
             handle h = request->getNodeHandle();
-            int action = request->getNumber();
+            int action = int(request->getNumber());
 
             if(h == INVALID_HANDLE || action < 0 || action > MegaContactRequest::REPLY_ACTION_IGNORE)
             {
@@ -16538,7 +16563,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_PAUSE_TRANSFERS:
         {
             bool pause = request->getFlag();
-            int direction = request->getNumber();
+            int direction = int(request->getNumber());
             if(direction != -1
                     && direction != MegaTransfer::TYPE_DOWNLOAD
                     && direction != MegaTransfer::TYPE_UPLOAD)
@@ -16586,7 +16611,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             bool automove = request->getFlag();
             int transferTag = request->getTransferTag();
-            int number = request->getNumber();
+            int number = int(request->getNumber());
 
             if (!transferTag || !number)
             {
@@ -16666,7 +16691,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SET_MAX_CONNECTIONS:
         {
             int direction = request->getParamType();
-            int connections = request->getNumber();
+            int connections = int(request->getNumber());
 
             if (connections <= 0 || (direction != -1
                     && direction != MegaTransfer::TYPE_DOWNLOAD
@@ -17095,7 +17120,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_PAYMENT_ID:
         case MegaRequest::TYPE_UPGRADE_ACCOUNT:
         {
-            int method = request->getNumber();
+            int method = int(request->getNumber());
             if(method != MegaApi::PAYMENT_METHOD_BALANCE && method != MegaApi::PAYMENT_METHOD_CREDIT_CARD)
             {
                 e = API_EARGS;
@@ -17108,7 +17133,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT:
         {
             const char* receipt = request->getText();
-            int type = request->getNumber();
+            int type = int(request->getNumber());
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                             && type != MegaApi::PAYMENT_METHOD_ITUNES
@@ -17164,7 +17189,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SUBMIT_FEEDBACK:
         {
-            int rating = request->getNumber();
+            int rating = int(request->getNumber());
             const char *message = request->getText();
 
             if(rating < 1 || rating > 5)
@@ -17195,7 +17220,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SEND_EVENT:
         {
-            int number = request->getNumber();
+            int number = int(request->getNumber());
             const char *text = request->getText();
 
             if(number < 99500 || number >= 99600 || !text)
@@ -17309,7 +17334,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_QUERY_GELB:
         {
             const char *service = request->getName();
-            int timeoutds = request->getNumber();
+            int timeoutds = int(request->getNumber());
             int maxretries = request->getNumRetry();
             if (!service)
             {
@@ -17489,7 +17514,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION:
         {
-            int deviceType = request->getNumber();
+            int deviceType = int(request->getNumber());
             const char *token = request->getText();
 
             if ((deviceType != MegaApi::PUSH_NOTIFICATION_ANDROID &&
@@ -17588,6 +17613,20 @@ void MegaApiImpl::sendPendingRequests()
         {
             handle h = request->getNodeHandle();
             client->contactlinkdelete(h);
+            break;
+        }
+        case MegaRequest::TYPE_KEEP_ME_ALIVE:
+        {
+            int type = request->getParamType();
+            bool enable = request->getFlag();
+
+            if (type != MegaApi::KEEP_ALIVE_CAMERA_UPLOADS)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->keepmealive(type, enable);
             break;
         }
         case MegaRequest::TYPE_FOLDER_INFO:
@@ -24348,7 +24387,7 @@ int MegaAchievementsDetailsPrivate::getRewardExpire(unsigned int index)
 long long MegaAchievementsDetailsPrivate::currentStorage()
 {
     long long total = 0;
-    m_time_t ts = time(NULL);
+    m_time_t ts = m_time();
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {
@@ -24370,7 +24409,7 @@ long long MegaAchievementsDetailsPrivate::currentStorage()
 long long MegaAchievementsDetailsPrivate::currentTransfer()
 {
     long long total = 0;
-    m_time_t ts = time(NULL);
+    m_time_t ts = m_time();
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {
@@ -24392,7 +24431,7 @@ long long MegaAchievementsDetailsPrivate::currentTransfer()
 long long MegaAchievementsDetailsPrivate::currentStorageReferrals()
 {
     long long total = 0;
-    m_time_t ts = time(NULL);
+    m_time_t ts = m_time();
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {
@@ -24414,7 +24453,7 @@ long long MegaAchievementsDetailsPrivate::currentStorageReferrals()
 long long MegaAchievementsDetailsPrivate::currentTransferReferrals()
 {
     long long total = 0;
-    m_time_t ts = time(NULL);
+    m_time_t ts = m_time();
 
     for (vector<Award>::iterator it = details.awards.begin(); it != details.awards.end(); it++)
     {

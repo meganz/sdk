@@ -723,6 +723,11 @@ void MegaClient::contactlinkdelete(handle h)
     reqs.add(new CommandContactLinkDelete(this, h));
 }
 
+void MegaClient::keepmealive(int type, bool enable)
+{
+    reqs.add(new CommandKeepMeAlive(this, type, enable));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1566,12 +1571,103 @@ void MegaClient::exec()
             if (scnotifyurl.size())
             {
                 // pendingsc is a scnotifyurl connection
-                if (pendingsc->status == REQ_SUCCESS || pendingsc->status == REQ_FAILURE)
+                switch (pendingsc->status)
                 {
+                case REQ_SUCCESS:
+                    if (pendingsc->contenttype.find("text/html") != string::npos
+                        && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
+                    {
+                        LOG_warn << "Invalid Content-Type detected in connection to waitd: " << pendingsc->contenttype;
+                        usehttps = true;
+                        app->notify_change_to_https();
+
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99436, "Automatic change to HTTPS");
+                        reqtag = creqtag;
+
+                        // go to API
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        scnotifyurl.clear();
+                        btsc.reset();
+                        break;
+                    }
+
+                    if (pendingsc->contentlength == 1
+                            && pendingsc->in.size()
+                            && pendingsc->in[0] == '0')
+                    {
+                        LOG_debug << "Waitd keep-alive received";
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
+                        {
+                            LOG_debug << "Waitd timeout expired after keep-alive";
+                            scnotifyurl.clear();
+                        }
+                        btsc.reset();
+                        break;
+                    }
+
+                    if (pendingsc->contentlength == 0)
+                    {
+                        LOG_debug << "Waitd connection closed";
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        scnotifyurl.clear();
+                        btsc.reset();
+                        break;
+                    }
+
+                    LOG_err << "Unexpected response from waitd";
+                    // fall through
+                case REQ_FAILURE:
+                    if (pendingsc->contenttype.find("text/html") != string::npos
+                        && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
+                    {
+                        LOG_warn << "Invalid Content-Type detected in failed connection to waitd: " << pendingsc->contenttype;
+                        usehttps = true;
+                        app->notify_change_to_https();
+
+                        int creqtag = reqtag;
+                        reqtag = 0;
+                        sendevent(99436, "Automatic change to HTTPS");
+                        reqtag = creqtag;
+
+                        // go to API
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        scnotifyurl.clear();
+                        btsc.reset();
+                        break;
+                    }
+
                     delete pendingsc;
                     pendingsc = NULL;
+                    if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
+                    {
+                        LOG_debug << "Waitd timeout expired after a failed request";
+                        scnotifyurl.clear();
+                        btsc.reset();
+                    }
+                    else
+                    {
+                        LOG_debug << "Waitd request error, retrying...";
+                        btsc.backoff();
+                    }
+                    break;
 
-                    scnotifyurl.clear();
+                case REQ_INFLIGHT:
+                    if (Waiter::ds >= (pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT))
+                    {
+                        LOG_debug << "Waitd timeout expired";
+                        delete pendingsc;
+                        pendingsc = NULL;
+                        scnotifyurl.clear();
+                        btsc.reset();
+                    }
+                    break;
                 }
             }
             else
@@ -1876,7 +1972,7 @@ void MegaClient::exec()
                     for (it = syncs.begin(); it != syncs.end(); )
                     {
                         Sync* sync = *it++;
-                        prevpending |= sync->dirnotify->notifyq[q].size();
+                        prevpending = prevpending || sync->dirnotify->notifyq[q].size();
                         if (prevpending)
                         {
                             break;
@@ -2604,6 +2700,19 @@ int MegaClient::preparewait()
                 && badhostcs->status == REQ_INFLIGHT)
         {
             dstime timeout = badhostcs->lastdata + HttpIO::REQUESTTIMEOUT;
+            if (timeout > Waiter::ds && timeout < nds)
+            {
+                nds = timeout;
+            }
+            else if (timeout <= Waiter::ds)
+            {
+                nds = 0;
+            }
+        }
+
+        if (!jsonsc.pos && scnotifyurl.size() && pendingsc && pendingsc->status == REQ_INFLIGHT)
+        {
+            dstime timeout = pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT;
             if (timeout > Waiter::ds && timeout < nds)
             {
                 nds = timeout;
@@ -3550,6 +3659,8 @@ bool MegaClient::procsc()
                     }
                 
                     jsonsc.storeobject(&scnotifyurl);
+                    scnotifyurlts = Waiter::ds;
+                    scnotifyurl.append("/1");
                     break;
 
                 case MAKENAMEID2('s', 'n'):
@@ -5042,7 +5153,7 @@ void MegaClient::sc_upc()
                 uts = jsonsc.getint();
                 break; 
             case 's':
-                s = jsonsc.getint();
+                s = int(jsonsc.getint());
                 break;
             case 'p':
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
@@ -5220,7 +5331,7 @@ void MegaClient::sc_se()
             uh = jsonsc.gethandle(USERHANDLE);
             break;
         case 's':
-            status = jsonsc.getint();
+            status = int(jsonsc.getint());
             break;
         case EOO:
             done = true;
@@ -5300,7 +5411,7 @@ void MegaClient::sc_chatupdate()
                 break;
 
             case MAKENAMEID2('c','s'):
-                shard = jsonsc.getint();
+                shard = int(jsonsc.getint());
                 break;
 
             case 'n':   // the new user, for notification purposes (not used)
@@ -5501,7 +5612,7 @@ void MegaClient::sc_chatflags()
                 break;
 
             case 'f':
-                flags = jsonsc.getint();
+                flags = byte(jsonsc.getint());
                 break;
 
             case EOO:
@@ -6252,7 +6363,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     break;
 
                 case 'i':   // related source NewNode index
-                    nni = j->getint();
+                    nni = int(j->getint());
                     break;
 
                 case MAKENAMEID2('t', 's'):  // actual creation timestamp
@@ -6423,7 +6534,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 // fallback timestamps
                 if (!(ts + 1))
                 {
-                    ts = time(NULL);
+                    ts = m_time();
                 }
 
                 if (!(sts + 1))
@@ -8438,7 +8549,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case MAKENAMEID2('c','s'):
-                                shard = j->getint();
+                                shard = int(j->getint());
                                 break;
 
                             case 'u':   // list of users participating in the chat (+privileges)
@@ -8526,7 +8637,7 @@ void MegaClient::procmcf(JSON *j)
                     while(j->enterobject()) // while there are more chatid/flag tuples to read...
                     {
                         handle chatid = UNDEF;
-                        int flags = 0xFF;
+                        byte flags = 0xFF;
 
                         bool readingFlags = true;
                         while (readingFlags)
@@ -8539,7 +8650,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case 'f':
-                                flags = j->getint();
+                                flags = byte(j->getint());
                                 break;
 
                             case EOO:
@@ -9471,7 +9582,7 @@ void MegaClient::closetc(bool remove)
         {
             transfer_map::iterator it = cachedtransfers[d].begin();
             Transfer *transfer = it->second;
-            if (remove || (purgeOrphanTransfers && (time(NULL) - transfer->lastaccesstime) >= 172500))
+            if (remove || (purgeOrphanTransfers && (m_time() - transfer->lastaccesstime) >= 172500))
             {
                 LOG_warn << "Purging orphan transfer";
                 transfer->finished = true;
@@ -10169,7 +10280,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
 
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
-            dstime timeleft = overquotauntil - Waiter::ds;
+            dstime timeleft = dstime(overquotauntil - Waiter::ds);
             app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
             it->second->schedule(timeleft);
         }
@@ -10183,7 +10294,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
         it->second->enqueue(offset, count, reqtag, appdata);
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
-            dstime timeleft = overquotauntil - Waiter::ds;
+            dstime timeleft = dstime(overquotauntil - Waiter::ds);
             app->pread_failure(API_EOVERQUOTA, 0, appdata, timeleft);
             it->second->schedule(timeleft);
         }
@@ -11204,7 +11315,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 if (currentVersion)
                 {
                     m_time_t delay = 0;
-                    m_time_t currentTime = time(NULL);
+                    m_time_t currentTime = m_time();
                     if (currentVersion->ctime > currentTime + 30)
                     {
                         // with more than 30 seconds of detecteed clock drift,
@@ -11247,7 +11358,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         m_time_t next = currentVersion->ctime + delay;
                         if (next > currentTime)
                         {
-                            dstime backoffds = (next - currentTime) * 10;
+                            dstime backoffds = dstime((next - currentTime) * 10);
                             ll->nagleds = waiter->ds + backoffds;
                             LOG_debug << "Waiting for the version rate limit delay during " << backoffds << " ds";
 
@@ -11661,8 +11772,8 @@ void MegaClient::execmovetosyncdebris()
     Node* tn;
     node_set::iterator it;
 
-    time_t ts;
-    struct tm* ptm;
+    m_time_t ts;
+    struct tm tms;
     char buf[32];
     syncdel_t target;
 
@@ -11680,8 +11791,8 @@ void MegaClient::execmovetosyncdebris()
 
     target = SYNCDEL_BIN;
 
-    ts = time(NULL);
-    ptm = localtime(&ts); //TODO: this ain't thread safe (see MegaApiImpl::fillLocalTimeStruct)
+    ts = m_time();
+    struct tm* ptm = m_localtime(ts, &tms);
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     m_time_t currentminute = ts / 60;
 
@@ -11898,7 +12009,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
-                dstime timeleft = overquotauntil - Waiter::ds;
+                dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
             }
         }
@@ -11909,7 +12020,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
             {
                 LOG_debug << "Resumable transfer detected";
                 t = it->second;
-                if ((d == GET && !t->pos) || ((time(NULL) - t->lastaccesstime) >= 172500))
+                if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
                     t->cachedtempurl.clear();
@@ -11979,7 +12090,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 *(FileFingerprint*)t = *(FileFingerprint*)f;
             }
 
-            t->lastaccesstime = time(NULL);
+            t->lastaccesstime = m_time();
             t->tag = reqtag;
             f->tag = reqtag;
             t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
@@ -11998,7 +12109,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
-                dstime timeleft = overquotauntil - Waiter::ds;
+                dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
             }
         }

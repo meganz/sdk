@@ -859,6 +859,11 @@ char *MegaTransfer::getLastBytes() const
     return NULL;
 }
 
+MegaError MegaTransfer::getLastError() const
+{
+    return MegaError(API_OK);
+}
+
 bool MegaTransfer::isFolderTransfer() const
 {
     return false;
@@ -1357,6 +1362,11 @@ void MegaApi::contactLinkQuery(MegaHandle handle, MegaRequestListener *listener)
 void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener)
 {
     pImpl->contactLinkDelete(handle, listener);
+}
+
+void MegaApi::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
+{
+    pImpl->keepMeAlive(type, enable, listener);
 }
 
 char *MegaApi::getMyEmail()

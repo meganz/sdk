@@ -787,6 +787,23 @@ freeimage_pkg() {
         export FREEIMAGE_LIBRARY_TYPE=STATIC
     fi
 
+cat << EOF > $build_dir/freeimage_neon_arm64_patch
+138c138
+< #  define PNG_FILTER_OPTIMIZATIONS png_init_filter_functions_neon
+---
+> //#  define PNG_FILTER_OPTIMIZATIONS png_init_filter_functions_neon
+1931,1932c1931,1932
+< PNG_INTERNAL_FUNCTION(void, png_init_filter_functions_neon,
+<    (png_structp png_ptr, unsigned int bpp), PNG_EMPTY);
+---
+> //PNG_INTERNAL_FUNCTION(void, png_init_filter_functions_neon,
+> //   (png_structp png_ptr, unsigned int bpp), PNG_EMPTY);
+EOF
+    # freeimage's LibPNG has a problem with deciding to use neon on 64 bit arm, resulting in a missing symbol
+    if [ "$ARCH" == "aarch64" ]; then
+      (patch `find . -name pngpriv.h` < $build_dir/freeimage_neon_arm64_patch)
+    fi 
+
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         package_build $name $freeimage_dir
         # manually copy header and library

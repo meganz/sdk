@@ -833,7 +833,15 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                     if (displaymatrix)
                     {
                         double rot = av_display_rotation_get((int32_t*) displaymatrix);
+#if __cplusplus >= 201103L
+#ifndef __APPLE__
+                        if (!std::isnan(rot))
+#else
                         if (!isnan(rot))
+#endif
+#else
+                        if (!(rot != rot))
+#endif
                         {
                             if (rot < -135 || rot > 135)
                             {

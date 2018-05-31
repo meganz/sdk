@@ -5214,7 +5214,7 @@ void DemoApp::contactlinkcreate_result(error e, handle h)
     }
 }
 
-void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln)
+void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln, string *avatar)
 {
     if (e)
     {
@@ -5274,7 +5274,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
         if (ad->transfer_hist_starttime)
         {
-            time_t t = time(NULL) - ad->transfer_hist_starttime;
+            m_time_t t = m_time() - ad->transfer_hist_starttime;
 
             cout << "\tTransfer history:\n";
 
