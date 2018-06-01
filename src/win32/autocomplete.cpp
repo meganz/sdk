@@ -19,7 +19,7 @@
 * program.
 */
 
-#ifndef NO_READLINE
+#ifdef NO_READLINE
 
 #include <mega/win32/autocomplete.h>
 #include <mega/megaclient.h>
