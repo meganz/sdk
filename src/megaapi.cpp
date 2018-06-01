@@ -3857,14 +3857,14 @@ char *MegaApi::getMimeType(const char *extension)
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
+void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
 {
-    pImpl->createChat(group, false, peers, NULL, NULL, listener);
+    pImpl->createChat(group, false, peers, NULL, title, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const char *title, const char *unifiedKey, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const char *unifiedKey, const char *title, MegaRequestListener *listener)
 {
-    pImpl->createChat(true, true, peers, title, unifiedKey, listener);
+    pImpl->createChat(true, true, peers, unifiedKey, title, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, const char *unifiedKey, MegaRequestListener *listener)

@@ -10863,9 +10863,10 @@ class MegaApi
          *
          * @param group Flag to indicate if the chat is a group chat or not
          * @param peers MegaTextChatPeerList including other users and their privilege level
+         * @param title Byte array that contains the chat topic if exists.
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Creates an public chatroom for multiple participants (groupchat)
@@ -10901,7 +10902,7 @@ class MegaApi
          * converted to Base64url encoding.
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const char *title = NULL, const char *unifiedKey = NULL, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const char *unifiedKey, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

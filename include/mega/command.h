@@ -772,7 +772,7 @@ class MEGA_API CommandChatCreate : public Command
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const userkey_map *ukm = NULL, const char *title = NULL, const char *unifiedkey = NULL);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const userkey_map *ukm = NULL, const char *unifiedkey = NULL, const char *title = NULL);
 };
 
 class MEGA_API CommandChatInvite : public Command

@@ -4712,7 +4712,7 @@ void CommandGetLocalSSLCertificate::procresult()
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const userkey_map *ukm, const char *title, const char *unifiedkey)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const userkey_map *ukm, const char *unifiedkey, const char *title)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);

@@ -12213,7 +12213,7 @@ void MegaClient::cleanrubbishbin()
 #ifdef ENABLE_CHAT
 void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const userkey_map *userkeymap, const char *title, const char *unifiedkey)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, unifiedkey));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, unifiedkey, title));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *title, const char *unifiedkey)

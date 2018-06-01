@@ -7387,7 +7387,7 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 #endif
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const char *title, const char *unifiedKey, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const char *unifiedKey, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
@@ -16899,7 +16899,7 @@ void MegaApiImpl::sendPendingRequests()
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, keylist, title, unifiedKey);
+            client->createChat(group, publicchat, userpriv, keylist, unifiedKey, title);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
