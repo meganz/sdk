@@ -6101,7 +6101,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
                 if (strcmp(base64Handle, n->attrs.map['rr'].c_str()))
                 {
                     LOG_debug << "Adding rr attribute";
-                    n->attrs.map['rr'] = base64Handle;
+                    n->attrs.map[AttrMap::string2nameid("rr")] = base64Handle;
                     setattr(n);
                 }
             }
@@ -6109,7 +6109,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
                      && newRoot->nodehandle != rubbishHandle)
             {
                 // undeleted node
-                attr_map::iterator it = n->attrs.map.find('rr');
+                attr_map::iterator it = n->attrs.map.find(AttrMap::string2nameid("rr"));
                 if (it != n->attrs.map.end())
                 {
                     LOG_debug << "Removing rr attribute";
