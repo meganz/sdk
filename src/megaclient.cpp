@@ -528,6 +528,21 @@ handle MegaClient::getpublicfolderhandle()
     return publichandle;
 }
 
+Node *MegaClient::getrootnode(Node *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    Node *n = node;
+    while (n->parent)
+    {
+        n = n->parent;
+    }
+    return n;
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {
@@ -6059,8 +6074,51 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         return e;
     }
 
+    Node *prevParent = NULL;
+    if (!ISUNDEF(prevparent))
+    {
+        prevParent = nodebyhandle(prevparent);
+    }
+    else
+    {
+        prevParent = n->parent;
+    }
+
     if (n->setparent(p))
     {
+        if (prevParent)
+        {
+            Node *prevRoot = getrootnode(prevParent);
+            Node *newRoot = getrootnode(p);
+            handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+
+            if (prevRoot->nodehandle != rubbishHandle
+                    && newRoot->nodehandle == rubbishHandle)
+            {
+                // deleted node
+                char *base64Handle = new char[12];
+                Base64::btoa((byte*)&prevParent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
+                if (strcmp(base64Handle, n->attrs.map['rr'].c_str()))
+                {
+                    LOG_debug << "Adding rr attribute";
+                    n->attrs.map['rr'] = base64Handle;
+                    setattr(n);
+                }
+            }
+            else if (prevRoot->nodehandle == rubbishHandle
+                     && newRoot->nodehandle != rubbishHandle)
+            {
+                // undeleted node
+                attr_map::iterator it = n->attrs.map.find('rr');
+                if (it != n->attrs.map.end())
+                {
+                    LOG_debug << "Removing rr attribute";
+                    n->attrs.map.erase(it);
+                    setattr(n);
+                }
+            }
+        }
+
         n->changed.parent = true;
         n->tag = reqtag;
         notifynode(n);

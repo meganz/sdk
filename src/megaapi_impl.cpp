@@ -126,6 +126,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->duration = node->getDuration();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
+    this->restorehandle = node->getRestoreHandle();
     this->type = node->getType();
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
@@ -222,6 +223,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
+    this->restorehandle = UNDEF;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -287,6 +289,14 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                        latitude = INVALID_COORDINATE;
                    }
                }
+            }
+            else if (it->first == AttrMap::string2nameid("rr"))
+            {
+                handle rr = 0;
+                if (Base64::atob(it->second.c_str(), (byte *)&rr, sizeof(rr)) == MegaClient::NODEHANDLE)
+                {
+                    restorehandle = rr;
+                }
             }
         }
     }
@@ -698,6 +708,11 @@ int64_t MegaNodePrivate::getCreationTime()
 int64_t MegaNodePrivate::getModificationTime()
 {
     return mtime;
+}
+
+MegaHandle MegaNodePrivate::getRestoreHandle()
+{
+    return restorehandle;
 }
 
 MegaHandle MegaNodePrivate::getParentHandle()
