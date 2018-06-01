@@ -34,7 +34,7 @@
 
 namespace mega {
 
-
+#ifdef NO_READLINE
 template<class T>
 static T clamp(T v, T lo, T hi)
 {
@@ -386,10 +386,11 @@ bool ConsoleModel::checkForCompletedInputLine(std::wstring& ws)
     }
     return false;
 }
-
+#endif
 
 WinConsole::WinConsole()
 {
+#ifdef NO_READLINE
     hInput = GetStdHandle(STD_INPUT_HANDLE);
     hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -397,18 +398,22 @@ WinConsole::WinConsole()
     GetConsoleMode(hInput, &dwMode);
     SetConsoleMode(hInput, dwMode & ~(ENABLE_MOUSE_INPUT));
     FlushConsoleInputBuffer(hInput);
+#endif
 }
 
 WinConsole::~WinConsole()
 {
+#ifdef NO_READLINE
     if (rdbuf)
     {
         std::cout.rdbuf(oldrb1);
         std::cerr.rdbuf(oldrb2);
         delete rdbuf;
     }
+#endif
 }
 
+#ifdef NO_READLINE
 string WinConsole::getConsoleFont(COORD& size)
 {
     CONSOLE_FONT_INFOEX cfi;
@@ -703,9 +708,10 @@ bool WinConsole::consoleGetch(wchar_t& c)
     }
     return false;
 }
-
+#endif
 void WinConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char** line)
 {
+#ifdef NO_READLINE
     // todo: remove/stub this function once we don't need to support readline for any version of megacli on windows
     wchar_t c;
     if (consoleGetch(c))  // only processes once newline is buffered, so no backspace processing needed
@@ -721,13 +727,56 @@ void WinConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char
             *pw_buf_pos += 2;
         }
     }
+#else
+
+    char c;
+    DWORD cread;
+
+    if (ReadConsole(GetStdHandle(STD_INPUT_HANDLE), &c, 1, &cread, NULL) == 1)
+    {
+        if ((c == 8) && *pw_buf_pos)
+        {
+            (*pw_buf_pos)--;
+        }
+        else if (c == 13)
+        {
+            *line = (char*)malloc(*pw_buf_pos + 1);
+            memcpy(*line, pw_buf, *pw_buf_pos);
+            (*line)[*pw_buf_pos] = 0;
+        }
+        else if (*pw_buf_pos < pw_buf_size)
+        {
+            pw_buf[(*pw_buf_pos)++] = c;
+        }
+    }
+#endif
 }
 
 void WinConsole::setecho(bool echo)
 {
+#ifdef NO_READLINE
     model.echoOn = echo;
+#else
+
+    HANDLE hCon = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode;
+
+    GetConsoleMode(hCon, &mode);
+
+    if (echo)
+    {
+        mode |= ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT;
+    }
+    else
+    {
+        mode &= ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
+    }
+
+    SetConsoleMode(hCon, mode);
+#endif
 }
 
+#ifdef NO_READLINE
 static bool operator==(COORD& a, COORD& b) 
 {
     return a.X == b.X && a.Y == b.Y; 
@@ -840,5 +889,5 @@ bool WinConsole::log(const std::string& filename, logstyle logstyle)
 {
     return rdbuf->log(filename, logstyle);
 }
-
+#endif
 } // namespace

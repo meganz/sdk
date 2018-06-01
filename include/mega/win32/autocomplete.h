@@ -19,6 +19,7 @@
 * program.
 */
 
+#ifdef NO_READLINE
 #ifndef MEGA_AUTOCOMPLETE_H
 #define MEGA_AUTOCOMPLETE_H 1
 
@@ -233,4 +234,5 @@ namespace autocomplete {
     ACN remoteFSFolder(MegaClient*, ::mega::handle*, const std::string descriptionPrefix = "");
 
 }}; //namespaces
+#endif
 #endif
