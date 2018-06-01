@@ -456,7 +456,7 @@ using namespace mega;
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:self]);
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)localLogout {
@@ -654,6 +654,14 @@ using namespace mega;
     self.megaApi->contactLinkDelete();
 }
 
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->keepMeAlive((int) type, enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable {
+    self.megaApi->keepMeAlive((int) type, enable);
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -787,16 +795,12 @@ using namespace mega;
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
 
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
-    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude : MegaNode::INVALID_COORDINATE), (longitude ? longitude : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude {
-    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon);
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude {
+    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude : MegaNode::INVALID_COORDINATE), (longitude ? longitude : MegaNode::INVALID_COORDINATE));
 }
 
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
@@ -1037,6 +1041,14 @@ using namespace mega;
 
 - (void)enableRichPreviews:(BOOL)enable {
     self.megaApi->enableRichPreviews(enable);
+}
+
+- (void)isRichPreviewsEnabledWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->isRichPreviewsEnabled([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)isRichPreviewsEnabled {
+    self.megaApi->isRichPreviewsEnabled();
 }
 
 - (void)shouldShowRichLinkWarningWithDelegate:(id<MEGARequestDelegate>)delegate {

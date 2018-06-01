@@ -991,7 +991,7 @@ class MegaNode
          *
          * You take the ownership of the returned value.
          *
-         * @param Serialization of a MegaNode object obtained from a chat message (in Base64)
+         * @param d Serialization of a MegaNode object obtained from a chat message (in Base64)
          * @return A new MegaNode object, or NULL if error.
          */
         static MegaNode* unserialize(const char *d);
@@ -1839,7 +1839,7 @@ class MegaNodeList
 
         /**
          * @brief Add new node to list
-         * @param MegaNode to be added. The node inserted is a copy from 'node'
+         * @param node MegaNode to be added. The node inserted is a copy from 'node'
          */
         virtual void addNode(MegaNode* node);
 };
@@ -2074,8 +2074,9 @@ class MegaRequest
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_CHAT_LINK,
-            TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN, TYPE_CHAT_SET_KEY, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_CHAT_LINK, TYPE_KEEP_ME_ALIVE,
+            TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN, TYPE_CHAT_SET_KEY,
+            TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -3047,6 +3048,12 @@ class MegaTransfer
          * @return Received bytes since the last callback
          */
         virtual char *getLastBytes() const;
+
+        /**
+         * @brief Returns the last error related to the transfer
+         * @return Last error related to the transfer
+         */
+        virtual MegaError getLastError() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer
@@ -4866,6 +4873,10 @@ class MegaApi
             RETRY_UNKNOWN = 6
         };
 
+        enum {
+            KEEP_ALIVE_CAMERA_UPLOADS = 0
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -5110,6 +5121,9 @@ class MegaApi
          *
          * @param password Access password
          * @return Base64-encoded private key
+         *
+         * @deprecated The registration and login procedure will be changed soon. When that happens, this function will stop being
+         * compatible and will be deleted, so please stop using it as soon as possible.
          */
         char* getBase64PwKey(const char *password);
 
@@ -5204,7 +5218,7 @@ class MegaApi
          * You take the ownership of the returned value
          * You can revert this operation using MegaApi::base64ToUserHandle
          *
-         * @param User handle to be converted
+         * @param handle User handle to be converted
          * @return Base64-encoded user handle
          */
         static char* userHandleToBase64(MegaHandle handle);
@@ -5344,7 +5358,7 @@ class MegaApi
          *
          * If you use mega::INVALID_HANDLE, all sessions except the current one will be closed
          *
-         * @param Handle of the session. Use mega::INVALID_HANDLE to cancel all sessions except the current one
+         * @param sessionHandle Handle of the session. Use mega::INVALID_HANDLE to cancel all sessions except the current one
          * @param listener MegaRequestListener to track this request
          */
         void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
@@ -5924,6 +5938,7 @@ class MegaApi
          * - MegaRequest::getEmail - Returns the email of the contact
          * - MegaRequest::getName - Returns the first name of the contact
          * - MegaRequest::getText - Returns the last name of the contact
+         * - MegaRequest::getFile - Returns the avatar of the contact (JPG with Base64 encoding)
          *
          * @param handle Handle of the contact link to check
          * @param listener MegaRequestListener to track this request
@@ -5944,6 +5959,30 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void contactLinkDelete(MegaHandle handle = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Command to keep mobile apps alive when needed
+         *
+         * When this feature is enabled, API servers will regularly send push notifications
+         * to keep the application running. Before using this function, it's needed to register
+         * a notification token using MegaApi::registerPushNotifications
+         *
+         * The associated request type with this request is MegaRequest::TYPE_KEEP_ME_ALIVE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getParamType - Returns the type send in the first parameter
+         * - MegaRequest::getFlag - Returns true when the feature is being enabled, otherwise false
+         *
+         * @param type Type of keep alive desired
+         * Valid values for this parameter:
+         * - MegaApi::KEEP_ALIVE_CAMERA_UPLOADS = 0
+         *
+         * @param enable True to enable this feature, false to disable it
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::registerPushNotifications
+         */
+        void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account
@@ -6508,7 +6547,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
          *
-         * @param user email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+         * @param email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
          * set to NULL, the avatar is obtained for the active account
          * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
          * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
@@ -7323,7 +7362,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
+         * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
          * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
          *
          * If the corresponding user attribute is not set yet, the request will fail with the
@@ -7343,7 +7382,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
+         * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
          * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
          * modify the message with a rich link. If number is bigger than three, the extra option "Never"
          * must be added to the warning dialog.
@@ -9151,7 +9190,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param parent Parent node
+         * @param p Parent node
          * @param order Order for the returned lists
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -10118,7 +10157,7 @@ class MegaApi
 
         /**
          * @brief Set the language code used by the app
-         * @param Language code used by the app
+         * @param languageCode Language code used by the app
          *
          * @return True if the language code is known for the SDK, otherwise false
          */
@@ -10584,7 +10623,7 @@ class MegaApi
          * other configuration options (MegaApi::httpServerEnableFileServer,
          * MegaApi::httpServerEnableFolderServer) are still applied.
          *
-         * @param Required state for the restricted mode of the HTTP proxy server
+         * @param mode Required state for the restricted mode of the HTTP proxy server
          */
         void httpServerSetRestrictedMode(int mode);
 
@@ -10739,8 +10778,7 @@ class MegaApi
          * @brief Stops serving a node via webdav.
          * The webdav link will no longer be valid.
          *
-         * @param handle Handle of the node to stop serving
-         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         * @param handle Handle of the node to stop serving         
          */
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
 

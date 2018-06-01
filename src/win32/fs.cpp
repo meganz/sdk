@@ -444,7 +444,9 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
             if (!GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, (LPVOID)&fatd))
             {
                 DWORD e = GetLastError();
-                LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
+                // this is an expected case so no need to log.  the FindFirstFileEx did not find the file, 
+                // GetFileAttributesEx is only expected to find it if it's a network share point
+                // LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
                 retry = WinFileSystemAccess::istransient(e);
                 name->resize(name->size() - added - 1);
                 return false;

@@ -429,6 +429,7 @@ class MEGA_API CommandPutNodes : public Command
     int nnsize;
     targettype_t type;
     putsource_t source;
+    handle targethandle;
 
 public:
     void procresult();
@@ -1006,6 +1007,14 @@ public:
     void procresult();
 
     CommandContactLinkDelete(MegaClient*, handle);
+};
+
+class MEGA_API CommandKeepMeAlive : public Command
+{
+public:
+    void procresult();
+
+    CommandKeepMeAlive(MegaClient*, int, bool = true);
 };
 
 } // namespace

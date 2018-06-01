@@ -130,7 +130,7 @@ void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength
 {
     if (!ts)
     {
-        ts = (uint64_t) time(NULL);
+        ts = (uint64_t) m_time();
     }
 
     string tsstr;

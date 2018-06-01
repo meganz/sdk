@@ -144,6 +144,10 @@ typedef NS_ENUM(NSUInteger, Retry) {
     RetryUnknown = 6
 };
 
+typedef NS_ENUM(NSInteger, KeepMeAlive) {
+    KeepMeAliveCameraUploads = 0
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -1510,6 +1514,53 @@ typedef NS_ENUM(NSUInteger, Retry) {
  */
 - (void)contactLinkDelete;
 
+/**
+ * @brief Command to keep mobile apps alive when needed
+ *
+ * When this feature is enabled, API servers will regularly send push notifications
+ * to keep the application running. Before using this function, it's needed to register
+ * a notification token using [MEGASdk registeriOSdeviceToken:]
+ *
+ * The associated request type with this request is MEGARequestTypeKeepMeAlive.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - MEGARequest.paramType - Returns the type send in the first parameter
+ * - MEGARequest.flag - Returns YES when the feature is being enabled, otherwise NO
+ *
+ * @param type Type of keep alive desired
+ * Valid values for this parameter:
+ * - KeepMeAliveCameraUploads = 0
+ *
+ * @param enable YES to enable this feature, NO to disable it
+ * @param delegate MEGARequestDelegate to track this request
+ *
+ * @see [MEGASdk registeriOSdeviceToken:]
+ */
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Command to keep mobile apps alive when needed
+ *
+ * When this feature is enabled, API servers will regularly send push notifications
+ * to keep the application running. Before using this function, it's needed to register
+ * a notification token using [MEGASdk registeriOSdeviceToken:]
+ *
+ * The associated request type with this request is MEGARequestTypeKeepMeAlive.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - MEGARequest.paramType - Returns the type send in the first parameter
+ * - MEGARequest.flag - Returns YES when the feature is being enabled, otherwise NO
+ *
+ * @param type Type of keep alive desired
+ * Valid values for this parameter:
+ * - KeepMeAliveCameraUploads = 0
+ *
+ * @param enable YES to enable this feature, NO to disable it
+ *
+ * @see [MEGASdk registeriOSdeviceToken:]
+ */
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -2105,7 +2156,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @param longitude Longitude in signed decimal degrees notation.
  * @param delegate Delegate to track this request.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -2124,7 +2175,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @param latitude Latitude in signed decimal degrees notation.
  * @param longitude Longitude in signed decimal degrees notation.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
@@ -3080,6 +3131,43 @@ typedef NS_ENUM(NSUInteger, Retry) {
 - (void)enableRichPreviews:(BOOL)enable;
 
 /**
+ * @brief Check if rich previews are automatically generated
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns zero
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (NO).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)isRichPreviewsEnabledWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if rich previews are automatically generated
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns zero
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (NO).
+ *
+ */
+- (void)isRichPreviewsEnabled;
+
+/**
  * @brief Check if the app should show the rich link warning dialog to the user
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
@@ -3089,7 +3177,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ * - [MEGARequest flag] - Returns YES if it is necessary to show the rich link warning
  * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
  * modify the message with a rich link. If number is bigger than three, the extra option "Never"
  * must be added to the warning dialog.
@@ -3111,7 +3199,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ * - [MEGARequest flag] - Returns YES if it is necessary to show the rich link warning
  * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
  * modify the message with a rich link. If number is bigger than three, the extra option "Never"
  * must be added to the warning dialog.
