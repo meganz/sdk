@@ -6,6 +6,25 @@
 #  - or set your build options before VS project generation by using the gui, eg:  cmake-gui.exe .
 #  - open this CMakeLists.txt as a 'cmake project' with Visual Studio 2017 or beyond, and you can build and test/debug on windows or on Linux from one IDE (eg. a virtualbox linux instance on the same machine)
 #       (though it seems in order for it to copy the needed build tree, this file must be copied up one level (to the mega root dir) and opened as a CMake project in VS from there
+#  - you can set up to build both 32 bit and 64 bit this way:
+#       make subfolders '32' and '64' of this cmake folder
+#       execute 'cmake-gui  ..' in each.  Select the cmake folder as the 'source code' folder, and the appropriate 32 or 64 folder as 'where to build the binaries' folder
+#       for each cmake-gui configuration, choose the suitable 32/64 bit compiler, and corresponding setting for the build_64_bit variable.
+#       then Configure, Generate, Open Project (all buttons in the gui) for each.
+
+# updated to build mostly against dependent libraries that were built with vcpkg
+# you can very easily build those with commands like this in your 3rdParty folder:
+#git clone https://github.com/Microsoft/vcpkg.git
+#cd vcpkg
+#.\bootstrap-vcpkg.bat
+#.\vcpkg.exe install --triplet x64-windows-static zlib
+#.\vcpkg.exe install --triplet x64-windows-static cryptopp
+#.\vcpkg.exe install --triplet x64-windows-static libsodium  (x86 for windows, x64 for linux fail currently)
+#.\vcpkg.exe install --triplet x64-windows-static openssl
+#.\vcpkg.exe install --triplet x64-windows-static c-ares
+#.\vcpkg.exe install --triplet x64-windows-static curl    
+#.\vcpkg.exe install --triplet x64-windows-static sqlite3
+#.\vcpkg.exe install --triplet x64-windows-static libevent
 
 cmake_minimum_required(VERSION 3.8)
 
@@ -46,6 +65,14 @@ ELSE(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}")
 ENDIF(WIN32)
 
+IF(WIN32)
+    if(build_64_bit)
+        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-windows-static")
+    else(build_64_bit)
+        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static")
+    endif(build_64_bit)
+ENDIF(WIN32)
+
 if (NOT CMAKE_BUILD_TYPE)
     message("Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
 else(NOT CMAKE_BUILD_TYPE)
@@ -81,59 +108,47 @@ function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64deb
     endif(build_64_bit)
 endfunction(ImportStaticLibrary)
 
+function(ImportVcpkgLibrary libName includeDir libdebug librelease)
+    add_library(${libName} STATIC IMPORTED)
+    set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
+    set_property(TARGET ${libName} PROPERTY IMPORTED_LOCATION_DEBUG ${libdebug})
+    set_property(TARGET ${libName} PROPERTY IMPORTED_LOCATION_RELEASE  ${librelease})
+endfunction(ImportVcpkgLibrary)
+
+function(ImportHeaderLibrary libName includeDir)
+    add_library(${libName} INTERFACE IMPORTED)
+    set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
+endfunction(ImportHeaderLibrary)
 
 IF(WIN32)
 
     IF(USE_CRYPTOPP)
-    ImportStaticLibrary(cryptopp        "${Mega3rdPartyDir}/cryptopp565/include"
-                                        "${Mega3rdPartyDir}/cryptopp565/Win32/Output/Debug/cryptlib.lib" 
-                                        "${Mega3rdPartyDir}/cryptopp565/Win32/Output/Release/cryptlib.lib" 
-                                        "${Mega3rdPartyDir}/cryptopp565/x64/Output/Debug/cryptlib.lib" 
-                                        "${Mega3rdPartyDir}/cryptopp565/x64/Output/Release/cryptlib.lib")
+    ImportVcpkgLibrary(cryptopp        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cryptopp-static.lib"  "${vcpkg_dir}/lib/cryptopp-static.lib")
     ENDIF(USE_CRYPTOPP)
 
     IF(USE_SODIUM)
-    ImportStaticLibrary(sodium          "${Mega3rdPartyDir}/libsodium-1.0.15/src/libsodium/include"
-                                        "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Debug/Win32/libsodium.lib" 
-                                        "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Release/Win32/libsodium.lib" 
-                                        "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Debug/x64/libsodium.lib" 
-                                        "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Release/x64/libsodium.lib")
+        if (build_64_bit)
+            ImportVcpkgLibrary(sodium          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
+        else()
+            ImportStaticLibrary(sodium          "${Mega3rdPartyDir}/libsodium-1.0.15/src/libsodium/include"
+                                                "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Debug/Win32/libsodium.lib" 
+                                                "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Release/Win32/libsodium.lib" 
+                                                "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Debug/x64/libsodium.lib" 
+                                                "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Release/x64/libsodium.lib")
+        endif()
     ENDIF(USE_SODIUM)
 
     IF(USE_CURL)
-        ImportStaticLibrary(curl        "${Mega3rdPartyDir}/curl-7.56.0/include"
-                                        "${Mega3rdPartyDir}/curl-7.56.0/builds/libcurl-vc-x86-debug-static-ssl-static-cares-static-zlib-static-ipv6-sspi/lib/libcurl_a_debug.lib" 
-                                        "${Mega3rdPartyDir}/curl-7.56.0/builds/libcurl-vc-x86-release-static-ssl-static-cares-static-zlib-static-ipv6-sspi/lib/libcurl_a.lib"
-                                        "${Mega3rdPartyDir}/curl-7.56.0/builds/libcurl-vc-x64-debug-static-ssl-static-cares-static-zlib-static-ipv6-sspi/lib/libcurl_a_debug.lib" 
-                                        "${Mega3rdPartyDir}/curl-7.56.0/builds/libcurl-vc-x64-release-static-ssl-static-cares-static-zlib-static-ipv6-sspi/lib/libcurl_a.lib")
-
-        ImportStaticLibrary(cares       "${Mega3rdPartyDir}/c-ares-1.13.0/include"
-                                        "${Mega3rdPartyDir}/c-ares-1.13.0/built32/lib/libcaresd.lib"
-                                        "${Mega3rdPartyDir}/c-ares-1.13.0/built32/lib/libcares.lib"
-                                        "${Mega3rdPartyDir}/c-ares-1.13.0/built64/lib/libcaresd.lib"
-                                        "${Mega3rdPartyDir}/c-ares-1.13.0/built64/lib/libcares.lib")
+        ImportVcpkgLibrary(curl        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libcurl.lib"  "${vcpkg_dir}/lib/libcurl.lib")
+        ImportVcpkgLibrary(cares       "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cares.lib" "${vcpkg_dir}/lib/cares.lib")
     ENDIF(USE_CURL)
 
     IF(USE_OPENSSL)
-        ImportStaticLibrary(ssl         "${Mega3rdPartyDir}/openssl-1.1.0f/include"
-                                        "${Mega3rdPartyDir}/openssl-1.1.0f/built_32d/lib/libssl.lib"
-                                        "${Mega3rdPartyDir}/openssl-1.1.0f/built_32/lib/libssl.lib"
-                                        "${Mega3rdPartyDir}/openssl-1.1.0f/built_64d/lib/libssl.lib"
-                                        "${Mega3rdPartyDir}/openssl-1.1.0f/built_64/lib/libssl.lib")
+        ImportVcpkgLibrary(ssl         "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/ssleay32.lib" "${vcpkg_dir}/lib/ssleay32.lib")
+        ImportVcpkgLibrary(sslcrypto   "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libeay32.lib" "${vcpkg_dir}/lib/libeay32.lib")
     ENDIF(USE_OPENSSL)
     
-    ImportStaticLibrary(sslcrypto       "${Mega3rdPartyDir}/openssl-1.1.0f/include"
-                                        "${Mega3rdPartyDir}/openssl-1.1.0f/built_32d/lib/libcrypto.lib"
-                                        "${Mega3rdPartyDir}/openssl-1.1.0f/built_32/lib/libcrypto.lib"
-                                        "${Mega3rdPartyDir}/openssl-1.1.0f/built_64d/lib/libcrypto.lib"
-                                        "${Mega3rdPartyDir}/openssl-1.1.0f/built_64/lib/libcrypto.lib")
-    
-
-    ImportStaticLibrary(zlib            "${Mega3rdPartyDir}/zlib-1.2.11"
-                                        "${Mega3rdPartyDir}/zlib-1.2.11/contrib/vstudio/vc14/x86/ZlibStatDebug/zlibstat.lib"
-                                        "${Mega3rdPartyDir}zlib-1.2.11/contrib/vstudio/vc14/x86/ZlibStatReleaseWithoutAsm/zlibstat.lib"
-                                        "${Mega3rdPartyDir}/zlib-1.2.11/contrib/vstudio/vc14/x64/ZlibStatDebug/zlibstat.lib"
-                                        "${Mega3rdPartyDir}/zlib-1.2.11/contrib/vstudio/vc14/x64/ZlibStatReleaseWithoutAsm/zlibstat.lib")
+    ImportVcpkgLibrary(zlib            "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
 
     ImportStaticLibrary(gtest           "${Mega3rdPartyDir}/googletest/googletest/include"
                                         "${Mega3rdPartyDir}/googletest/googletest/msvc/2010/gtest/Win32-Debug/gtestd.lib" 
@@ -166,23 +181,26 @@ IF(WIN32)
 
 
     IF(USE_SQLITE)
-        add_library(sqlite3 INTERFACE IMPORTED)
-        set_property(TARGET sqlite3 PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${Mega3rdPartyDir}/sqlite-3.20.1")
+        ImportVcpkgLibrary(sqlite3          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/sqlite3.lib" "${vcpkg_dir}/lib/sqlite3.lib")
+
+ #       add_library(sqlite3 INTERFACE IMPORTED)
+ #       set_property(TARGET sqlite3 PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${Mega3rdPartyDir}/sqlite-3.20.1")
     ENDIF(USE_SQLITE)
 
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
     SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi)
 
-    get_target_property(sqlite3dir sqlite3 INTERFACE_INCLUDE_DIRECTORIES)
+    #get_target_property(sqlite3dir sqlite3 INTERFACE_INCLUDE_DIRECTORIES)
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
-#    ${MegaDir}/src/win32/autocomplete.cpp 
+    ${MegaDir}/src/win32/autocomplete.cpp 
     ${MegaDir}/src/win32/consolewaiter.cpp 
     ${MegaDir}/src/win32/fs.cpp 
     $<IF:${USE_CURL},${MegaDir}/src/posix/net.cpp,${MegaDir}/src/win32/net.cpp>
     ${MegaDir}/src/win32/waiter.cpp 
     ${MegaDir}/src/thread/win32thread.cpp  
-    ${sqlite3dir}/sqlite3.c )
+    #${sqlite3dir}/sqlite3.c 
+    )
 
 
 ELSE(WIN32)
@@ -215,7 +233,6 @@ add_library(Mega STATIC
             ${MegaDir}/src/json.cpp 
             ${MegaDir}/src/logging.cpp 
             ${MegaDir}/src/mediafileattribute.cpp 
-#            ${MegaDir}/src/mega_ccronexpr.cpp
             ${MegaDir}/src/mega_http_parser.cpp 
             ${MegaDir}/src/mega_utf8proc.cpp 
             ${MegaDir}/src/mega_zxcvbn.cpp 
@@ -226,13 +243,11 @@ add_library(Mega STATIC
             ${MegaDir}/src/pendingcontactrequest.cpp 
             ${MegaDir}/src/proxy.cpp 
             ${MegaDir}/src/pubkeyaction.cpp 
-#            ${MegaDir}/src/raid.cpp 
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp 
             ${MegaDir}/src/share.cpp 
             ${MegaDir}/src/sharenodekeys.cpp 
             ${MegaDir}/src/sync.cpp 
-#            ${MegaDir}/src/testhooks.cpp 
             ${MegaDir}/src/transfer.cpp 
             ${MegaDir}/src/transferslot.cpp 
             ${MegaDir}/src/treeproc.cpp 
@@ -246,7 +261,7 @@ target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecifi
 target_link_libraries(Mega PUBLIC zlib 
                 $<${USE_CRYPTOPP}:cryptopp> 
                 $<${USE_SODIUM}:sodium> 
-                $<${USE_OPENSSL}:ssl> 
+                $<${USE_OPENSSL}:ssl> $<${USE_OPENSSL}:sslcrypto> 
                 $<${USE_CURL}:curl>  $<${USE_CURL}:cares> 
                 $<${USE_SQLITE}:sqlite3> 
                 $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> 
