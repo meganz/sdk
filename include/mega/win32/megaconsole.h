@@ -29,6 +29,8 @@
 
 namespace mega {
 
+#ifdef NO_READLINE
+
 struct MEGA_API Utf8Rdbuf;
 
 struct MEGA_API ConsoleModel
@@ -106,15 +108,18 @@ private:
     void autoComplete(bool forwards, unsigned consoleWidth);
 };
     
-    
+#endif
+
 struct MEGA_API WinConsole : public Console
 {
-    HANDLE inputAvailableHandle();
     void readpwchar(char*, int, int* pw_buf_pos, char**);
     void setecho(bool);
 
     WinConsole();
     ~WinConsole();
+
+#ifdef NO_READLINE
+    HANDLE inputAvailableHandle();
 
     // functions for native command editing (ie not using readline library)
     string getConsoleFont(COORD& xy);
@@ -153,6 +158,7 @@ private:
     void redrawPromptIfLoggingOccurred();
     void redrawInputLine();
     ConsoleModel::lineEditAction interpretLineEditingKeystroke(INPUT_RECORD &ir);
+#endif
 };
 } // namespace
 

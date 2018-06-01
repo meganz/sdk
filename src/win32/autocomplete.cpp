@@ -19,6 +19,8 @@
 * program.
 */
 
+#ifndef NO_READLINE
+
 #include <mega/win32/autocomplete.h>
 #include <mega/megaclient.h>
 #include <cassert>
@@ -1024,3 +1026,5 @@ ACN remoteFSFolder(MegaClient* client, ::mega::handle* cwd, const std::string de
 
 
 }}; //namespaces
+
+#endif
