@@ -2356,7 +2356,7 @@ static void process_line(char* l)
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
                 cout << "      chatc group openchat [email ro|sta|mod]*" << endl;    // group/openchat can be 1 or 0
-                cout << "      chati chatid email ro|sta|mod" << endl;
+                cout << "      chati chatid email ro|sta|mod [title unifiedkey]" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
                 cout << "      chatup chatid userhandle ro|sta|mod" << endl;
@@ -4000,7 +4000,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "chati")
                     {
-                        if (words.size() == 4)
+                        if (words.size() >= 4 && words.size() < 7)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
@@ -4032,8 +4032,24 @@ static void process_line(char* l)
                                 cout << "Unknown privilege for " << email << endl;
                                 return;
                             }
-
-                            client->inviteToChat(chatid, u->userhandle, priv);
+                            if (words.size() == 5)
+                            {
+                                string title = words[4];
+                                client->inviteToChat(chatid, u->userhandle, priv, title.c_str(), NULL);
+                            }
+                            else
+                            {
+                                if (words.size() == 6)
+                                {
+                                    string title = words[4];
+                                    string unifiedKey = words[5];
+                                    client->inviteToChat(chatid, u->userhandle, priv, title.c_str(), unifiedKey.c_str());
+                                }
+                                else
+                                {
+                                    client->inviteToChat(chatid, u->userhandle, priv);
+                                }
+                            }
                             return;
                         }
                         else
