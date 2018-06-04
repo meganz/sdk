@@ -10124,6 +10124,36 @@ class MegaApi
         const char *getBasePath();
 
         /**
+         * @brief Disable special features related to images and videos
+         *
+         * Disabling these features will avoid the upload of previews and thumbnails
+         * for images and videos.
+         *
+         * It's only recommended to disable these features before uploading files
+         * with image or video extensions that are not really images or videos,
+         * or that are encrypted in the local drive so they can't be analyzed anyway.
+         *
+         * By default, graphic features are enabled if the SDK was built with a valid
+         * graphic processor or a valid graphic processor was provided in the constructor
+         * of MegaApi.
+         *
+         * @param disable True to disable special features related to images and videos
+         */
+        void disableGfxFeatures(bool disable);
+
+        /**
+         * @brief Check if special graphic features are disabled
+         *
+         * By default, graphic features are enabled so this function will return false.
+         * If graphic features were previously disabled, or the SDK wasn't built with
+         * a valid graphic processor and it wasn't provided in the constructor on MegaApi,
+         * this function will return true.
+         *
+         * @return True if special features related to images and videos are disabled
+         */
+        bool areGfxFeaturesDisabled();
+
+        /**
          * @brief Change the API URL
          *
          * This function allows to change the API URL.

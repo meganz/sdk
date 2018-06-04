@@ -845,6 +845,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tsLogin = false;
     versions_disabled = false;
     accountsince = 0;
+    gfxdisabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3032,7 +3033,7 @@ bool MegaClient::dispatch(direction_t d)
                     {
                         nexttransfer->uploadhandle = getuploadhandle();
 
-                        if (gfx && gfx->isgfx(&nexttransfer->localfilename))
+                        if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
                             nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
@@ -11088,7 +11089,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         // same fingerprint, if available): no action needed
                         if (!ll->checked)
                         {
-                            if (gfx && gfx->isgfx(&ll->localname))
+                            if (!gfxdisabled && gfx && gfx->isgfx(&ll->localname))
                             {
                                 int missingattr = 0;
 
