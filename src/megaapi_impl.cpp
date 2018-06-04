@@ -8280,6 +8280,16 @@ void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listen
     waiter->notify();
 }
 
+void MegaApiImpl::disableGfxFeatures(bool disable)
+{
+    client->gfxdisabled = disable;
+}
+
+bool MegaApiImpl::areGfxFeaturesDisabled()
+{
+    return !client->gfx || client->gfxdisabled;
+}
+
 const char *MegaApiImpl::getUserAgent()
 {
     return client->useragent.c_str();
