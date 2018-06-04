@@ -87,6 +87,7 @@ protected:
     static int seek_data(void*, curl_off_t, int);
 
     static int socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp, direction_t d);
+    static int sockopt_callback(void *clientp, curl_socket_t curlfd, curlsocktype purpose);
     static int api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int download_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
     static int upload_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp);
@@ -129,6 +130,7 @@ protected:
     curl_slist* contenttypejson;
     curl_slist* contenttypebinary;
     WAIT_CLASS* waiter;
+    bool disconnecting;
 
     void addaresevents(Waiter *waiter);
     void addcurlevents(Waiter *waiter, direction_t d);
@@ -189,6 +191,7 @@ struct MEGA_API CurlHttpContext
 
     struct curl_slist *headers;
     bool isIPv6;
+    bool isCachedIp;
     string hostname;
     string scheme;
     int port;
