@@ -2368,7 +2368,7 @@ static void process_line(char* l)
                 cout << "      chatl chatid [del]" << endl;     // get public handle
                 cout << "      chatsm chatid" << endl;          // set private mode
                 cout << "      chatlu publichandle" << endl;    // get chat-link URL
-                cout << "      chatlj publichandle" << endl;    // join chat-link
+                cout << "      chatlj publichandle unifiedkey" << endl;    // join chat-link
 #endif
                 cout << "      httpsonly on | off" << endl;
                 cout << "      quit" << endl;
