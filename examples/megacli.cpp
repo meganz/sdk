@@ -1972,7 +1972,7 @@ static void store_line(char* l)
     line = l;
 }
 
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
 
 autocomplete::ACN autocompleteTemplate;
 
@@ -2204,7 +2204,7 @@ static void process_line(char* l)
 
             vector<string> words;
 
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
             using namespace ::mega::autocomplete;
             ACState acs = prepACState(l, strlen(l), autocompleteTemplate, static_cast<WinConsole*>(console)->getAutocompleteStyle());
             for (unsigned i = 0; i < acs.words.size(); ++i)
@@ -2216,6 +2216,7 @@ static void process_line(char* l)
             {
                 words.erase(words.end() - 1);  // trailing spaces case
             }
+
 #else
             char* ptr = l;
             char* wptr;
@@ -2283,7 +2284,7 @@ static void process_line(char* l)
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
                 std::ostringstream s;
                 s << *autocompleteTemplate;
                 cout << s.str() << flush;
@@ -2349,7 +2350,7 @@ static void process_line(char* l)
                 cout << "      symlink" << endl;
                 cout << "      version" << endl;
                 cout << "      debug" << endl;
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
                 cout << "      clear" << endl;
 #endif
                 cout << "      test" << endl;
@@ -3045,7 +3046,7 @@ static void process_line(char* l)
                         }
                         return;
                     }
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
                     else if (words[0] == "log")
                     {
                         if (words.size() == 1)
@@ -3852,7 +3853,7 @@ static void process_line(char* l)
 
                         return;
                     }
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
                     else if (words[0] == "clear")
                     {
                         static_cast<WinConsole*>(console)->clearScreen();
@@ -5029,7 +5030,7 @@ static void process_line(char* l)
                         cout << "Outgoing PCRs:" << endl << outgoing << endl;
                         return;
                     }
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
                     else if (words[0] == "history")
                     {
                         static_cast<WinConsole*>(console)->outputHistory();
@@ -5062,7 +5063,7 @@ static void process_line(char* l)
                     break;
 
                 case 8:
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
                     if (words[0] == "codepage")
                     {
                         WinConsole* wc = static_cast<WinConsole*>(console);
@@ -5181,7 +5182,7 @@ static void process_line(char* l)
                     break;
 
                 case 12:
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
                     if (words[0] == "autocomplete")
                     {
                         if (words.size() == 2)
@@ -6252,7 +6253,7 @@ void megacli()
 
             if (w & Waiter::HAVESTDIN)
             {
-#if defined(WIN32)
+#if defined(WIN32) && defined(NO_READLINE)
                 line = static_cast<WinConsole*>(console)->checkForCompletedInputLine();
 #else
                 if (prompt == COMMAND)
@@ -6369,7 +6370,7 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
-#ifdef WIN32
+#if defined(WIN32) && defined(NO_READLINE)
     static_cast<WinConsole*>(console)->setAutocompleteSyntax(autocompleteSyntax());
 #endif
 

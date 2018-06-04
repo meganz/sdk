@@ -26,7 +26,12 @@ namespace mega {
 
 class MEGA_API WinConsoleWaiter : public WinWaiter
 {
+#ifdef NO_READLINE
     WinConsole* console;
+#else
+    HANDLE hInput;
+#endif
+
 
 public:
     int wait();
