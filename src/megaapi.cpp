@@ -3877,9 +3877,9 @@ void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const mega::MegaUser
     pImpl->createChat(true, true, peers, userKeyMap, title, listener);
 }
 
-void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, const char *unifiedKey, MegaRequestListener *listener)
+void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *unifiedKey, const char *title, MegaRequestListener *listener)
 {
-    pImpl->inviteToChat(chatid, uh, privilege, title, unifiedKey, listener);
+    pImpl->inviteToChat(chatid, uh, privilege, unifiedKey, title, listener);
 }
 
 void MegaApi::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)

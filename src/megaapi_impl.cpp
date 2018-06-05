@@ -7405,7 +7405,7 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     waiter->notify();
 }
 
-void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title, const char *unifiedKey, MegaRequestListener *listener)
+void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *unifiedKey, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
     request->setNodeHandle(chatid);
@@ -16933,7 +16933,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->inviteToChat(chatid, uh, access, title, unifiedKey);
+            client->inviteToChat(chatid, uh, access, unifiedKey, title);
             break;
         }
         case MegaRequest::TYPE_CHAT_REMOVE:
