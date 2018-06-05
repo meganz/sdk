@@ -197,6 +197,9 @@ public:
     // version of the account
     int accountversion;
 
+    // salt of the account (for v2 accounts)
+    string accountsalt;
+
     // timestamp of the creation of the account
     m_time_t accountsince;
 

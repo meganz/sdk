@@ -3385,6 +3385,7 @@ void MegaClient::locallogout()
     auth.clear();
     sessionkey.clear();
     accountversion = 0;
+    accountsalt.clear();
     sid.clear();
     k.clear();
 

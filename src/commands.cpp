@@ -1441,6 +1441,7 @@ void CommandPrelogin::procresult()
                     return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
                 }
                 client->accountversion = v;
+                client->accountsalt = salt;
                 client->app->prelogin_result(v, &email, &salt, API_OK);
                 return;
             default:
@@ -3112,9 +3113,13 @@ void CommandGetUserData::procresult()
     string name;
     string pubk;
     string privk;
+    string k;
     handle jid = UNDEF;
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     int len_privk = 0;
+    m_time_t since = 0;
+    int v = 0;
+    string salt;
 
     if (client->json.isnumeric())
     {
@@ -3125,6 +3130,14 @@ void CommandGetUserData::procresult()
     {
         switch (client->json.getnameid())
         {
+        case MAKENAMEID3('a', 'a', 'v'):
+            v = (int)client->json.getint();
+            break;
+
+        case MAKENAMEID3('a', 'a', 's'):
+            client->json.storeobject(&salt);
+            break;
+
         case MAKENAMEID4('n', 'a', 'm', 'e'):
             client->json.storeobject(&name);
             break;
@@ -3134,12 +3147,12 @@ void CommandGetUserData::procresult()
             break;
 
         case 'k':
-            client->k.resize(SymmCipher::KEYLENGTH);
-            client->json.storebinary((byte *)client->k.data(), client->k.size());
+            k.resize(SymmCipher::KEYLENGTH);
+            client->json.storebinary((byte *)k.data(), k.size());
             break;
 
         case MAKENAMEID5('s', 'i', 'n', 'c', 'e'):
-            client->accountsince = client->json.getint();
+            since = client->json.getint();
             break;
 
         case MAKENAMEID4('p', 'u', 'b', 'k'):
@@ -3148,12 +3161,20 @@ void CommandGetUserData::procresult()
 
         case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):
             len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
-            client->key.ecb_decrypt(privkbuf, len_privk);
-            privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
-            privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
             break;
 
         case EOO:
+            client->accountversion = v;
+            client->accountsalt = salt;
+            client->accountsince = since;
+            client->k = k;
+            if (len_privk)
+            {
+                client->key.ecb_decrypt(privkbuf, len_privk);
+                privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
+            }
+
             client->app->userdata_result(&name, &pubk, &privk, jid, API_OK);
             return;
 
