@@ -10950,7 +10950,7 @@ class MegaApi
          *
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, mega::MegaUserKeyMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const mega::MegaUserKeyMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

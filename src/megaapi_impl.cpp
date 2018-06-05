@@ -7393,7 +7393,7 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 #endif
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, mega::MegaUserKeyMap *userKeyMap, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const mega::MegaUserKeyMap *userKeyMap, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);

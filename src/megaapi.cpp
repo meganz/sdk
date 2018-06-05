@@ -3872,7 +3872,7 @@ void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *ti
     pImpl->createChat(group, false, peers, NULL, title, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, mega::MegaUserKeyMap *userKeyMap, const char *title, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const mega::MegaUserKeyMap *userKeyMap, const char *title, MegaRequestListener *listener)
 {
     pImpl->createChat(true, true, peers, userKeyMap, title, listener);
 }
