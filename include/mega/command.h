@@ -982,6 +982,14 @@ public:
     CommandContactLinkDelete(MegaClient*, handle);
 };
 
+class MEGA_API CommandKeepMeAlive : public Command
+{
+public:
+    void procresult();
+
+    CommandKeepMeAlive(MegaClient*, int, bool = true);
+};
+
 } // namespace
 
 #endif

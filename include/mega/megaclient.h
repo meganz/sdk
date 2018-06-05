@@ -198,7 +198,7 @@ public:
     int accountversion;
 
     // timestamp of the creation of the account
-    time_t accountsince;
+    m_time_t accountsince;
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -671,6 +671,7 @@ private:
 
     // notify URL for new server-client commands
     string scnotifyurl;
+    dstime scnotifyurlts;
 
     // unique request ID
     char reqid[10];
@@ -805,6 +806,9 @@ public:
 
     // bitmap graphics handling
     GfxProc* gfx;
+
+    // enable / disable the gfx layer
+    bool gfxdisabled;
     
     // DB access
     DbAccess* dbaccess;
@@ -1314,6 +1318,8 @@ public:
 
     // delete contact link
     void contactlinkdelete(handle);
+
+    void keepmealive(int, bool enable = true);
 
     // achievements enabled for the account
     bool achievements_enabled;

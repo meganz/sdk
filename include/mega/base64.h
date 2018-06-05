@@ -57,7 +57,7 @@ class MEGA_API URLCodec
 {
     static bool ishexdigit(char c);
     static bool issafe(char c);
-    static char hexval(char c);
+    static unsigned char hexval(char c);
 
 
 public:

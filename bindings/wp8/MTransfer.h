@@ -82,6 +82,13 @@ namespace mega
         MNode^ getPublicMegaNode();
         bool isSyncTransfer();
         bool isStreamingTransfer();
+
+        /**
+        * @brief Returns true is the transfer is at finished state (COMPLETED, CANCELLED OR FAILED)
+        * @return true if this transfer is finished, false otherwise
+        */
+        bool isFinished();
+
         bool isFolderTransfer();
         int getFolderTransferTag();
         String^ getAppData();

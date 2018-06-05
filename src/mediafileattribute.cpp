@@ -590,7 +590,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
     size_t totalBytesRead = 0, jumps = 0;
     mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
-    time_t startTime = 0;
+    m_time_t startTime = 0;
 
     for (;;)
     {
@@ -602,7 +602,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
             break;
         }
 
-        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((time(NULL) - startTime) > maxSeconds)))
+        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds)))
         {
             LOG_warn << "could not extract mediainfo data within reasonable limits";
             mi.Open_Buffer_Finalize();
@@ -620,7 +620,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, std::string filena
         readpos += n;
         if (startTime == 0)
         {
-            startTime = time(NULL);
+            startTime = m_time();
         }
 
         totalBytesRead += n;
