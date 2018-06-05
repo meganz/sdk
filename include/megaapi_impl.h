@@ -1824,6 +1824,9 @@ class MegaApiImpl : public MegaApp
 
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
 
+        void disableGfxFeatures(bool disable);
+        bool areGfxFeaturesDisabled();
+
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);

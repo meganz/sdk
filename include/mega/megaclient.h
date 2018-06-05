@@ -789,6 +789,9 @@ public:
 
     // bitmap graphics handling
     GfxProc* gfx;
+
+    // enable / disable the gfx layer
+    bool gfxdisabled;
     
     // DB access
     DbAccess* dbaccess;
