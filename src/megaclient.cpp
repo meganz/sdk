@@ -47,10 +47,10 @@ const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
 const unsigned MegaClient::MAXTRANSFERS = 20;
 
 // maximum number of queued putfa before halting the upload queue
-const int MegaClient::MAXQUEUEDFA = 24;
+const int MegaClient::MAXQUEUEDFA = 30;
 
 // maximum number of concurrent putfa
-const int MegaClient::MAXPUTFA = 8;
+const int MegaClient::MAXPUTFA = 10;
 
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
@@ -1163,22 +1163,39 @@ void MegaClient::exec()
                         else
                         {
                             LOG_warn << "Error attaching attribute";
-
-                            // check if the failed attribute belongs to an active upload
-                            for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+                            Transfer *transfer = NULL;
+                            handletransfer_map::iterator htit = faputcompletion.find(fa->th);
+                            if (htit != faputcompletion.end())
                             {
-                                Transfer *transfer = it->second;
-                                if (transfer->uploadhandle == fa->th)
+                                // the failed attribute belongs to a pending upload
+                                transfer = htit->second;
+                            }
+                            else
+                            {
+                                // check if the failed attribute belongs to an active upload
+                                for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
                                 {
-                                    // reduce the number of required attributes to let the upload continue
-                                    transfer->minfa--;
-                                    checkfacompletion(fa->th);
-                                    int creqtag = reqtag;
-                                    reqtag = 0;
-                                    sendevent(99407,"Attribute attach failed during active upload");
-                                    reqtag = creqtag;
-                                    break;
+                                    if (it->second->uploadhandle == fa->th)
+                                    {
+                                        transfer = it->second;
+                                        break;
+                                    }
                                 }
+                            }
+
+                            if (transfer)
+                            {
+                                // reduce the number of required attributes to let the upload continue
+                                transfer->minfa--;
+                                checkfacompletion(fa->th);
+                                int creqtag = reqtag;
+                                reqtag = 0;
+                                sendevent(99407,"Attribute attach failed during active upload");
+                                reqtag = creqtag;
+                            }
+                            else
+                            {
+                                LOG_debug << "Transfer related to failed attribute not found: " << fa->th;
                             }
                         }
 
@@ -2723,6 +2740,7 @@ int MegaClient::checkevents()
 {
     int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
+    r |= gfx->checkevents(waiter);
     return r;
 }
 
