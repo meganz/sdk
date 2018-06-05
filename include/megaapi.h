@@ -2075,7 +2075,7 @@ class MegaRequest
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_CHAT_LINK, TYPE_KEEP_ME_ALIVE,
-            TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN, TYPE_CHAT_SET_KEY,
+            TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -11101,26 +11101,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Allows to set the public chat unified key
-         *
-         * All participants with any privilege level are allowed to set the unified key of a public chat.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_SET_KEY
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getSessionKey - Returns the unified key of the chat.
-         *
-         * On the onTransferFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_EEXIST - If the the key didn't change anything.
-         * - MegaError::API_EARGS - If the chat wasn't an public mode group chat
-         *
-         * @param chatid MegaHandle that identifies the chat room
-         * @param unifiedKey Byte array that contains the unified key that wants to be set, already encrypted and
-         * converted to Base64url encoding.
-         * @param listener MegaRequestListener to track this request
-         */
-        void setChatUnifiedKey(MegaHandle chatid, const char *unifiedKey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get your current URL to connect to the presence server

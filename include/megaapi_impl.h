@@ -2211,7 +2211,6 @@ protected:
         virtual void chatupdatepermissions_result(error);
         virtual void chattruncate_result(error);
         virtual void chatsettitle_result(error);
-        virtual void chatsetunifiedkey_result(error);
         virtual void chatpresenceurl_result(string*, error);
         virtual void registerpushnotification_result(error);
         virtual void archivechat_result(error);

@@ -5333,50 +5333,6 @@ void CommandChatSetTitle::procresult()
     }
 }
 
-CommandChatSetUnifiedKey::CommandChatSetUnifiedKey(MegaClient *client, handle chatid, const char *unifiedKey)
-{
-    this->client = client;
-    this->chatid = chatid;
-    this->unifiedKey = unifiedKey ? string(unifiedKey) : "";
-
-    cmd("mcsk");
-    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("ck", unifiedKey);
-    notself(client);
-
-    tag = client->reqtag;
-}
-
-
-void CommandChatSetUnifiedKey::procresult()
-{
-    if (client->json.isnumeric())
-    {
-        error e = (error) client->json.getint();
-        if (e == API_OK)
-        {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                client->app->chatsetunifiedkey_result(API_EINTERNAL);
-                return;
-            }
-
-            TextChat *chat = client->chats[chatid];
-            chat->unifiedKey = unifiedKey;
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
-        }
-
-        client->app->chatsetunifiedkey_result(e);
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatsetunifiedkey_result(API_EINTERNAL);
-    }
-}
-
 CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 {
     this->client = client;

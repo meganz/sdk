@@ -866,17 +866,6 @@ public:
     CommandChatSetTitle(MegaClient*, handle, const char *);
 };
 
-class MEGA_API CommandChatSetUnifiedKey : public Command
-{
-    handle chatid;
-    string unifiedKey;
-
-public:
-    void procresult();
-
-    CommandChatSetUnifiedKey(MegaClient*, handle, const char *);
-};
-
 class MEGA_API CommandChatPresenceURL : public Command
 {
 

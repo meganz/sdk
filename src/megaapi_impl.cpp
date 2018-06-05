@@ -2974,7 +2974,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_LINK_URL: return "CHAT_LINK_URL";
         case TYPE_CHAT_LINK_CLOSE: return "CHAT_LINK_CLOSE";
         case TYPE_CHAT_LINK_JOIN: return "CHAT_LINK_JOIN";
-        case TYPE_CHAT_SET_KEY: return "CHAT_SET_KEY";
         case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
     }
     return "UNKNOWN";
@@ -7492,15 +7491,6 @@ void MegaApiImpl::setChatTitle(MegaHandle chatid, const char *title, MegaRequest
     waiter->notify();
 }
 
-void MegaApiImpl::setChatUnifiedKey(MegaHandle chatid, const char *unifiedKey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_SET_KEY, listener);
-    request->setNodeHandle(chatid);
-    request->setSessionKey(unifiedKey);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::getChatPresenceURL(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_PRESENCE_URL, listener);
@@ -9819,21 +9809,6 @@ void MegaApiImpl::chatsettitle_result(error e)
     if(it == requestMap.end()       ||
             !(request = it->second) ||
             request->getType() != MegaRequest::TYPE_CHAT_SET_TITLE)
-    {
-        return;
-    }
-
-    MegaError megaError(e);
-    fireOnRequestFinish(request, megaError);
-}
-
-void MegaApiImpl::chatsetunifiedkey_result(error e)
-{
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_SET_KEY)
     {
         return;
     }
@@ -17058,18 +17033,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->setChatTitle(chatid, title);
-            break;
-        }
-        case MegaRequest::TYPE_CHAT_SET_KEY:
-        {
-            MegaHandle chatid = request->getNodeHandle();
-            const char *unifiedKey = request->getSessionKey();
-            if (chatid == INVALID_HANDLE || unifiedKey == NULL)
-            {
-                e = API_EARGS;
-                break;
-            }
-            client->setChatUnifiedKey(chatid, unifiedKey);
             break;
         }
         case MegaRequest::TYPE_CHAT_PRESENCE_URL:
