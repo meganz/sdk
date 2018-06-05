@@ -2782,6 +2782,16 @@ const char *MegaApi::getBasePath()
     return pImpl->getBasePath();
 }
 
+void MegaApi::disableGfxFeatures(bool disable)
+{
+    pImpl->disableGfxFeatures(disable);
+}
+
+bool MegaApi::areGfxFeaturesDisabled()
+{
+    return pImpl->areGfxFeaturesDisabled();
+}
+
 void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)
 {
     pImpl->changeApiUrl(apiURL, disablepkp);

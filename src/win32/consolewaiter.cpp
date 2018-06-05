@@ -21,10 +21,15 @@
 
 #include "mega.h"
 #include "megaconsolewaiter.h"
+#include "megaconsole.h"
 
 namespace mega {
-WinConsoleWaiter::WinConsoleWaiter()
+WinConsoleWaiter::WinConsoleWaiter(WinConsole* con)
+#ifdef NO_READLINE
+    : console(con)
+#endif
 {
+#ifndef NO_READLINE
     DWORD dwMode;
 
     hInput = GetStdHandle(STD_INPUT_HANDLE);
@@ -32,6 +37,7 @@ WinConsoleWaiter::WinConsoleWaiter()
     GetConsoleMode(hInput, &dwMode);
     SetConsoleMode(hInput, dwMode & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
     FlushConsoleInputBuffer(hInput);
+#endif
 }
 
 // wait for events (socket, I/O completion, timeout + application events)
@@ -40,8 +46,16 @@ WinConsoleWaiter::WinConsoleWaiter()
 int WinConsoleWaiter::wait()
 {
     int r;
+#ifdef NO_READLINE
 
+    if (console)
+    {
+
+        addhandle(console->inputAvailableHandle(), 0);
+    }
+#else
     addhandle(hInput, 0);
+#endif
 
     // aggregated wait
     r = WinWaiter::wait();
@@ -52,6 +66,12 @@ int WinConsoleWaiter::wait()
         return r;
     }
 
+#ifdef NO_READLINE
+    if (console && console->consolePeek())
+    {
+        return HAVESTDIN;
+    }
+#else
     // FIXME: improve this gruesome nonblocking console read-simulating kludge
     if (_kbhit())
     {
@@ -62,7 +82,7 @@ int WinConsoleWaiter::wait()
     INPUT_RECORD ir[1024];
     DWORD dwNum;
     ReadConsoleInput(hInput, ir, 1024, &dwNum);
-
+#endif
     return 0;
 }
 } // namespace

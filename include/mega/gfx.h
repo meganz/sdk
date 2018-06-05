@@ -22,12 +22,62 @@
 #ifndef GFX_H
 #define GFX_H 1
 
+#include "megawaiter.h"
+#include "mega/thread/qtthread.h"
+#include "mega/thread/posixthread.h"
+#include "mega/thread/win32thread.h"
+#include "mega/thread/cppthread.h"
+
 namespace mega {
-using namespace std;
+
+class MEGA_API GfxJob
+{
+public:
+    GfxJob();
+
+    // locally encoded path of the image
+    string localfilename;
+
+    // vector with the required image type
+    vector<int> imagetypes;
+
+    // handle related to the image
+    handle h;
+
+    // key related to the image
+    byte key[SymmCipher::KEYLENGTH];
+
+    // flag related to the job
+    bool flag;
+
+    // resulting images
+    vector<string *> images;
+};
+
+class MEGA_API GfxJobQueue
+{
+    protected:
+        std::deque<GfxJob *> jobs;
+        MUTEX_CLASS mutex;
+
+    public:
+        GfxJobQueue();
+        void push(GfxJob *job);
+        GfxJob *pop();
+};
 
 // bitmap graphics processor
 class MEGA_API GfxProc
 {
+    bool finished;
+    WAIT_CLASS waiter;
+    MUTEX_CLASS mutex;
+    THREAD_CLASS thread;
+    GfxJobQueue requests;
+    GfxJobQueue responses;
+    static void *threadEntryPoint(void *param);
+    void loop();
+
     // read and store bitmap
     virtual bool readbitmap(FileAccess*, string*, int) = 0;
 
@@ -48,6 +98,8 @@ protected:
     virtual const char* supportedvideoformats();
 
 public:
+    virtual int checkevents(Waiter*);
+
     // check whether the filename looks like a supported media type
     bool isgfx(string*);
 
@@ -76,7 +128,7 @@ public:
     int w, h;
 
     GfxProc();
-    virtual ~GfxProc() { }
+    virtual ~GfxProc();
 };
 } // namespace
 

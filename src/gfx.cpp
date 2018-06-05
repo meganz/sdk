@@ -90,6 +90,155 @@ const char* GfxProc::supportedvideoformats()
     return NULL;
 }
 
+void *GfxProc::threadEntryPoint(void *param)
+{
+    GfxProc* gfxProcessor = (GfxProc*)param;
+    gfxProcessor->loop();
+    return NULL;
+}
+
+void GfxProc::loop()
+{
+    GfxJob *job = NULL;
+    while (!finished)
+    {
+        waiter.init(NEVER);
+        waiter.wait();
+        while (job = requests.pop())
+        {
+            if (finished)
+            {
+                delete job;
+                break;
+            }
+
+            mutex.lock();
+            LOG_debug << "Processing media file: " << job->h;
+
+            // (this assumes that the width of the largest dimension is max)
+            if (readbitmap(NULL, &job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            {
+                for (int i = 0; i < job->imagetypes.size(); i++)
+                {
+                    // successively downscale the original image
+                    string* jpeg = new string();
+                    int w = dimensions[job->imagetypes[i]][0];
+                    int h = dimensions[job->imagetypes[i]][1];
+
+                    if (job->imagetypes[i] == PREVIEW && this->w < w && this->h < h )
+                    {
+                        LOG_debug << "Skipping upsizing of preview";
+                        w = this->w;
+                        h = this->h;
+                    }
+
+                    if (!resizebitmap(w, h, jpeg))
+                    {
+                        delete jpeg;
+                        jpeg = NULL;
+                    }
+                    job->images.push_back(jpeg);
+                }
+                freebitmap();
+            }
+            else
+            {
+                for (int i = 0; i < job->imagetypes.size(); i++)
+                {
+                    job->images.push_back(NULL);
+                }
+            }
+
+            mutex.unlock();
+            responses.push(job);
+            client->waiter->notify();
+        }
+    }
+
+    while (job = requests.pop())
+    {
+        delete job;
+    }
+
+    while (job = responses.pop())
+    {
+        for (int i = 0; i < job->imagetypes.size(); i++)
+        {
+            delete job->images[i];
+        }
+        delete job;
+    }
+}
+
+int GfxProc::checkevents(Waiter *)
+{
+    if (!client)
+    {
+        return 0;
+    }
+
+    GfxJob *job = NULL;
+    bool needexec = false;
+    SymmCipher key;
+    while (job = responses.pop())
+    {
+        for (int i = 0; i < job->images.size(); i++)
+        {
+            if (job->images[i])
+            {
+                LOG_debug << "Media file correctly processed. Attaching file attribute: " << job->h;
+
+                // store the file attribute data - it will be attached to the file
+                // immediately if the upload has already completed; otherwise, once
+                // the upload completes
+                key.setkey(job->key);
+                int creqtag = client->reqtag;
+                client->reqtag = 0;
+                client->putfa(job->h, (meta_t)job->imagetypes[i], &key, job->images[i], job->flag);
+                client->reqtag = creqtag;
+            }
+            else
+            {
+                LOG_debug << "Unable to process media file: " << job->h;
+
+                Transfer *transfer = NULL;
+                handletransfer_map::iterator htit = client->faputcompletion.find(job->h);
+                if (htit != client->faputcompletion.end())
+                {
+                    transfer = htit->second;
+                }
+                else
+                {
+                    // check if the failed attribute belongs to an active upload
+                    for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
+                    {
+                        if (it->second->uploadhandle == job->h)
+                        {
+                            transfer = it->second;
+                            break;
+                        }
+                    }
+                }
+
+                if (transfer)
+                {
+                    // reduce the number of required attributes to let the upload continue
+                    transfer->minfa--;
+                    client->checkfacompletion(job->h);
+                }
+                else
+                {
+                    LOG_debug << "Transfer related to media file not found: " << job->h;
+                }
+            }
+            needexec = true;
+        }
+        delete job;
+    }
+
+    return needexec ? Waiter::NEEDEXEC : 0;
+}
+
 void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 {
     if (rh)
@@ -137,8 +286,6 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 // FIXME: move to a worker thread to keep the engine nonblocking
 int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
 {
-    int numputs = 0;
-
     if (SimpleLogger::logCurrentLevel >= logDebug)
     {
         string utf8path;
@@ -146,61 +293,41 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
         LOG_debug << "Creating thumb/preview for " << utf8path;
     }
 
-    // (this assumes that the width of the largest dimension is max)
-    if (readbitmap(fa, localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+    GfxJob *job = new GfxJob();
+    job->h = th;
+    job->flag = checkAccess;
+    memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
+    job->localfilename = *localfilename;
+    for (int i = sizeof dimensions/sizeof dimensions[0]; i--; )
     {
-        string* jpeg = NULL;
-
-        // successively downscale the original image
-        for (int i = sizeof dimensions/sizeof dimensions[0]; i--; )
+        if (missing & (1 << i))
         {
-            if (!jpeg)
-            {
-                jpeg = new string;
-            }
-
-            int w = dimensions[i][0];
-            int h = dimensions[i][1];
-            if (i == (sizeof dimensions/sizeof dimensions[0] - 1)
-                    && this->w < w && this->h < h )
-            {
-                LOG_debug << "Skipping upsizing of preview";
-                w = this->w;
-                h = this->h;
-            }
-
-            if (missing & (1 << i) && resizebitmap(w, h, jpeg))
-            {
-                // store the file attribute data - it will be attached to the file
-                // immediately if the upload has already completed; otherwise, once
-                // the upload completes
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->putfa(th, (meta_t)i, key, jpeg, checkAccess);
-                client->reqtag = creqtag;
-                numputs++;
-
-                jpeg = NULL;
-            }
+            job->imagetypes.push_back(i);
         }
-
-        if (jpeg)
-        {
-            delete jpeg;
-        }
-
-        freebitmap();
     }
 
-    return numputs;
+    if (!job->imagetypes.size())
+    {
+        delete job;
+        return 0;
+    }
+
+    requests.push(job);
+    waiter.notify();
+    return job->imagetypes.size();
 }
 
 bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)
 {
-    if (!isgfx(localfilepath)
-            // (this assumes that the width of the largest dimension is max)
-        || !readbitmap(NULL, localfilepath, width > height ? width : height))
+    if (!isgfx(localfilepath))
     {
+        return false;
+    }
+
+    mutex.lock();
+    if (!readbitmap(NULL, localfilepath, width > height ? width : height))
+    {
+        mutex.unlock();
         return false;
     }
 
@@ -216,6 +343,7 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     string jpeg;
     bool success = resizebitmap(w, h, &jpeg);
     freebitmap();
+    mutex.unlock();
 
     if (!success)
     {
@@ -240,8 +368,49 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     return true;
 }
 
-GfxProc::GfxProc()
+GfxProc::GfxProc() : mutex(false)
 {
     client = NULL;
+    finished = false;
+    thread.start(threadEntryPoint, this);
 }
+
+GfxProc::~GfxProc()
+{
+    finished = true;
+    waiter.notify();
+    thread.join();
+}
+
+GfxJobQueue::GfxJobQueue() : mutex(false)
+{
+
+}
+
+void GfxJobQueue::push(GfxJob *job)
+{
+    mutex.lock();
+    jobs.push_back(job);
+    mutex.unlock();
+}
+
+GfxJob *GfxJobQueue::pop()
+{
+    mutex.lock();
+    if (jobs.empty())
+    {
+        mutex.unlock();
+        return NULL;
+    }
+    GfxJob *job = jobs.front();
+    jobs.pop_front();
+    mutex.unlock();
+    return job;
+}
+
+GfxJob::GfxJob()
+{
+
+}
+
 } // namespace
