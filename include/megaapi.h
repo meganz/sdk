@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 #include <inttypes.h>
+#include <map>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -33,6 +34,8 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
+typedef std::map<MegaHandle, std::string> MegaUserKeyMap;
+
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
 #else
@@ -1474,6 +1477,13 @@ public:
      * - MegaTextChatPeerList::PRIV_MODERATOR = 3
      */
     virtual int getPeerPrivilege(int i) const;
+
+    /**
+     * @brief Set the Unified Key map (map<MegaHandle, string>)
+     *
+     * @param Map of user handles with unified keys (map<MegaHandle, string>), including our own user
+     */
+    virtual void setUnifiedKeyMap(const mega::MegaUserKeyMap *);
 
     /**
      * @brief Returns the number of chat peer in the list
@@ -10936,11 +10946,11 @@ class MegaApi
          *
          * @param peers MegaChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists.
-         * @param unifiedKey Byte array that contains the unified key, already encrypted and
-         * converted to Base64url encoding.
+         * @param userKeyMap Map of user handles with unified keys (map<MegaHandle, string>), including our own user
+         *
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const char *unifiedKey, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, mega::MegaUserKeyMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

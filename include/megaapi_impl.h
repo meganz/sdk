@@ -809,6 +809,7 @@ class MegaRequestPrivate : public MegaRequest
 #ifdef ENABLE_CHAT
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
+        void setMegaTextChatUnifiedKeyMap(const mega::MegaUserKeyMap *userKeyMap);
         virtual MegaTextChatList *getMegaTextChatList() const;
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
@@ -1087,6 +1088,7 @@ public:
     virtual void addPeer(MegaHandle h, int priv);
     virtual MegaHandle getPeerHandle(int i) const;
     virtual int getPeerPrivilege(int i) const;
+    virtual void setUnifiedKeyMap(const mega::MegaUserKeyMap *userKeyMap);
     virtual std::string getPeerKey(int i) const;
     virtual int size() const;
 
@@ -1908,7 +1910,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers,  mega::MegaUserKeyMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, const char *unifiedKey = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);

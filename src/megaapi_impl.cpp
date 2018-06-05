@@ -2465,6 +2465,11 @@ void MegaRequestPrivate::setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers
     this->chatPeerList = chatPeers->copy();
 }
 
+void MegaRequestPrivate::setMegaTextChatUnifiedKeyMap(const mega::MegaUserKeyMap *userKeyMap)
+{
+    chatPeerList->setUnifiedKeyMap(userKeyMap);
+}
+
 MegaTextChatList *MegaRequestPrivate::getMegaTextChatList() const
 {
     return chatList;
@@ -7388,14 +7393,14 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 #endif
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const char *unifiedKey, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, mega::MegaUserKeyMap *userKeyMap, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
     request->setAccess(publicchat ? 1 : 0);
     request->setMegaTextChatPeerList(peers);
     request->setText(title);
-    request->setSessionKey(unifiedKey);
+    request->setMegaTextChatUnifiedKeyMap(userKeyMap);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -16886,14 +16891,18 @@ void MegaApiImpl::sendPendingRequests()
 
             bool group = request->getFlag();
             const char *title = request->getText();
-            const char *unifiedKey = request->getSessionKey();
-
             bool publicchat = (request->getAccess() == 1);
-            if (publicchat && unifiedKey == NULL)
+            const userkey_map *keylist = ((MegaTextChatPeerListPrivate*)chatPeers)->getKeyList();
+
+            if(publicchat)
             {
-                e = API_EARGS;
-                break;
+                if (!keylist || keylist->size() <= 1)
+                {
+                    e = API_EARGS;
+                    break;
+                }
             }
+
             const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
             if (!userpriv || (!group && chatPeers->size() > 1))
             {
@@ -16901,15 +16910,13 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            const userkey_map *keylist = ((MegaTextChatPeerListPrivate*)chatPeers)->getKeyList();
-
             // if 1:1 chat, peer is enforced to be moderator too
             if (!group && userpriv->at(0).second != PRIV_MODERATOR)
             {
                 ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, publicchat, userpriv, keylist, unifiedKey, title);
+            client->createChat(group, publicchat, userpriv, keylist, title);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -22230,6 +22237,15 @@ const userpriv_vector *MegaTextChatPeerListPrivate::getList() const
 const userkey_map *MegaTextChatPeerListPrivate::getKeyList() const
 {
     return &keysList;
+}
+
+
+void MegaTextChatPeerListPrivate::setUnifiedKeyMap(const mega::MegaUserKeyMap *userKeyMap)
+{
+    if (userKeyMap)
+    {
+        keysList = *userKeyMap;
+    }
 }
 
 void MegaTextChatPeerListPrivate::setPeerPrivilege(handle uh, privilege_t priv)
