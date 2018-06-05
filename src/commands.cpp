@@ -4842,7 +4842,7 @@ void CommandChatCreate::procresult()
                         chat->ts = (ts != -1) ? ts : 0;
                         chat->publicchat = mPublicChat;
                         chat->setTag(tag ? tag : -1);
-                        if (!mTitle.empty())
+                        if (chat->group && !mTitle.empty())
                         {
                             chat->title = mTitle;
                         }
