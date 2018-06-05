@@ -85,7 +85,7 @@ const int BytesPerFormat[] = {0,1,1,2,4,8,1,1,2,4,8,4,8};
 //--------------------------------------------------------------------------
 int GfxProcQT::getExifOrientation(QString &filePath)
 {
-    QByteArray *data = NULL;
+    QByteArray data;
     uint8_t c;
     bool ok;
 
@@ -125,10 +125,9 @@ int GfxProcQT::getExifOrientation(QString &filePath)
         itemlen = (lh << 8) | ll;
         if (itemlen < 2) return -1;
 
-        data = new QByteArray(file.read(itemlen-2)); // Read the whole section.
-        if(data->size() != (itemlen-2))
+        data = QByteArray(file.read(itemlen-2)); // Read the whole section.
+        if(data.size() != (itemlen-2))
         {
-            delete data;
             return -1;
         }
 
@@ -136,27 +135,23 @@ int GfxProcQT::getExifOrientation(QString &filePath)
         {
             case M_SOS:   // stop before hitting compressed data
             case M_EOI:   // in case it's a tables-only JPEG stream
-                delete data;
                 return -1;
             case M_EXIF:
-                if(data->left(4) == "Exif")
+                if(data.left(4) == "Exif")
                 {
-                    int orientation = processEXIF(data, itemlen);
+                    int orientation = processEXIF(&data, itemlen);
                     if((orientation >= 0) && (orientation <= 8))
                     {
-                        delete data;
                         return orientation;
                     }
                 }
+                break;
             default:
                 // Skip any other sections.
-                delete data;
-                data = NULL;
                 break;
         }
     }
 
-    delete data;
     return -1;
 }
 
@@ -700,19 +695,20 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
         uchar *data = output->data;
         for (int i = 0; i < numPixels; i++, data += pixelSize)
         {
+            int index = i * 4;
             if (output->colors == 3)
             {
-                pixels[i * 4] = data[2 * colorSize];
-                pixels[i * 4 + 1] = data[1 * colorSize];
-                pixels[i * 4 + 2] = data[0];
+                pixels[index] = data[2 * colorSize];
+                pixels[index + 1] = data[1 * colorSize];
+                pixels[index + 2] = data[0];
             }
             else
             {
-                pixels[i * 4] = data[0];
-                pixels[i * 4 + 1] = data[0];
-                pixels[i * 4 + 2] = data[0];
+                pixels[index] = data[0];
+                pixels[index + 1] = data[0];
+                pixels[index + 2] = data[0];
             }
-            pixels[i * 4 + 3] = 0xFF;
+            pixels[index + 3] = 0xFF;
         }
         w = output->width;
         h = output->height;
