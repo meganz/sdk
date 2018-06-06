@@ -1454,7 +1454,7 @@ void CommandPrelogin::procresult()
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion, const char *pin)
 {
     cmd("us");
 
@@ -1466,6 +1466,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
     {
         arg("user", email);
         arg("uh", emailhash, emailhashsize);
+        if (pin)
+        {
+            arg("mfa", pin);
+        }
     }
     else
     {
@@ -3163,6 +3167,31 @@ void CommandGetUserData::procresult()
             len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
             break;
 
+        case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                    case MAKENAMEID4('m', 'f', 'a', 'e'):
+                        client->gmfa_enabled = bool(client->json.getint());
+                        break;
+                    case EOO:
+                        endobject = true;
+                        break;
+                    default:
+                        if (!client->json.storeobject())
+                        {
+                            return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                        }
+                    }
+                }
+                client->json.leaveobject();
+            }
+            break;
+
         case EOO:
             client->accountversion = v;
             client->accountsalt = salt;
@@ -3706,7 +3735,7 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientkey)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientkey, const char *pin)
 {
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
@@ -3717,6 +3746,10 @@ CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey,
         arg("crv", clientkey, SymmCipher::KEYLENGTH);
     }
     arg("uh", hash, hashsize);
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
 
     tag = client->reqtag;
 }
@@ -4485,11 +4518,16 @@ void CommandCleanRubbishBin::procresult()
     }
 }
 
-CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type)
+CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type, const char *pin)
 {
     cmd("erm");
     arg("m", email);
     arg("t", type);
+
+    if (type == CANCEL_ACCOUNT && pin)
+    {
+        arg("mfa", pin);
+    }
 
     tag = client->reqtag;
 }
@@ -4681,7 +4719,7 @@ void CommandValidatePassword::procresult()
     }
 }
 
-CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add)
+CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add, const char *pin)
 {
     cmd("se");
 
@@ -4693,7 +4731,12 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
     {
         arg("aa", "r");     // remove
     }
-    arg("e", email);    
+    arg("e", email);
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
+
     notself(client);
 
     tag = client->reqtag;
@@ -6032,6 +6075,73 @@ void CommandKeepMeAlive::procresult()
     {
         client->json.storeobject();
         client->app->keepmealive_result(API_EINTERNAL);
+    }
+}
+
+CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, const char *pin)
+{
+    cmd("mfas");
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthSetup::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->multifactorauthsetup_result(NULL, (error)client->json.getint());
+    }
+
+    string code;
+    if (!client->json.storeobject(&code))
+    {
+        return client->app->multifactorauthsetup_result(NULL, API_EINTERNAL);
+    }
+    client->app->multifactorauthsetup_result(&code, API_OK);
+}
+
+CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, const char *email)
+{
+    cmd("mfag");
+    arg("e", email);
+
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthCheck::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->multifactorauthcheck_result((int)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        client->app->multifactorauthcheck_result(API_EINTERNAL);
+    }
+}
+
+CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client, const char *pin)
+{
+    cmd("mfad");
+    arg("mfa", pin);
+
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthDisable::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->multifactorauthdisable_result((error)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        client->app->multifactorauthdisable_result(API_EINTERNAL);
     }
 }
 

@@ -2971,6 +2971,9 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
         case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
+        case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
+        case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
+        case TYPE_MULTI_FACTOR_AUTH_SET: return "MULTI_FACTOR_AUTH_SET";
     }
     return "UNKNOWN";
 }
@@ -4383,6 +4386,81 @@ void MegaApiImpl::setStatsID(const char *id)
     }
 
     MegaClient::statsid = MegaApi::strdup(id);
+}
+
+bool MegaApiImpl::multiFactorAuthAvailable()
+{
+    return client->gmfa_enabled;
+}
+
+void MegaApiImpl::multiFactorAuthCheck(const char *email, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK, listener);
+    request->setEmail(email);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthGetCode(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthEnable(const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET, listener);
+    request->setFlag(true);
+    request->setPassword(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthDisable(const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET, listener);
+    request->setFlag(false);
+    request->setPassword(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthLogin(const char *email, const char *password, const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setEmail(email);
+    request->setPassword(password);
+    request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthChangePassword(const char *oldPassword, const char *newPassword, const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHANGE_PW, listener);
+    request->setPassword(oldPassword);
+    request->setNewPassword(newPassword);
+    request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthChangeEmail(const char *email, const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK, listener);
+    request->setEmail(email);
+    request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
+    request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
@@ -11064,6 +11142,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
     {
         const char *password = request->getPassword();
         const char* base64pwkey = request->getPrivateKey();
+        const char* pin = request->getText();
         if (base64pwkey)
         {
             byte pwkey[SymmCipher::KEYLENGTH];
@@ -11076,7 +11155,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
             }
             else
             {
-                client->login(email->c_str(), pwkey);
+                client->login(email->c_str(), pwkey, pin);
             }
         }
         else
@@ -11088,7 +11167,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
                 fireOnRequestFinish(request, MegaError(e));
                 return;
             }
-            client->login(email->c_str(), pwkey);
+            client->login(email->c_str(), pwkey, pin);
         }
     }
     else if (version == 2 && salt)
@@ -12005,12 +12084,76 @@ void MegaApiImpl::keepmealive_result(error e)
     {
         return;
     }
+
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || ((request->getType() != MegaRequest::TYPE_KEEP_ME_ALIVE)))
     {
         return;
     }
     fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::multifactorauthsetup_result(string *code, error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET) &&
+                    (request->getType() != MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET)))
+    {
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET && !e)
+    {
+        if (!code)
+        {
+            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+            return;
+        }
+        request->setText(code->c_str());
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::multifactorauthcheck_result(int enabled)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK)))
+    {
+        return;
+    }
+
+    if (enabled < 0)
+    {
+        fireOnRequestFinish(request, MegaError(enabled));
+        return;
+    }
+
+    request->setFlag(enabled);
+    fireOnRequestFinish(request, MegaError(API_OK));
+}
+
+void MegaApiImpl::multifactorauthdisable_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET)))
+    {
+        return;
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 void MegaApiImpl::sendsignuplink_result(error e)
@@ -14605,6 +14748,42 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
 		}
+        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK:
+        {
+            const char *email = request->getEmail();
+            if (!email)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->multifactorauthcheck(email);
+            break;
+        }
+        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET:
+        {
+            client->multifactorauthsetup();
+            break;
+        }
+        case MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET:
+        {
+            bool flag = request->getFlag();
+            const char *pin = request->getPassword();
+            if (!pin)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (flag)
+            {
+                client->multifactorauthsetup(pin);
+            }
+            else
+            {
+                client->multifactorauthdisable(pin);
+            }
+            break;
+        }
         case MegaRequest::TYPE_CREATE_FOLDER:
 		{
 			Node *parent = client->nodebyhandle(request->getParentHandle());
@@ -15164,6 +15343,7 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			const char* oldPassword = request->getPassword();
 			const char* newPassword = request->getNewPassword();
+            const char* pin = request->getText();
             if (!newPassword)
             {
                 e = API_EARGS;
@@ -15176,7 +15356,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->changepw(newPassword);
+            e = client->changepw(newPassword, pin);
 			break;
 		}
 		case MegaRequest::TYPE_LOGOUT:
@@ -16096,7 +16276,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->getcancellink(u->email.c_str());
+            const char *pin = request->getText();
+            client->getcancellink(u->email.c_str(), pin);
             break;
         }
         case MegaRequest::TYPE_CONFIRM_CANCEL_LINK:
@@ -16132,13 +16313,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             const char *email = request->getEmail();
+            const char *pin = request->getText();
             if (!email)
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->getemaillink(email);
+            client->getemaillink(email, pin);
             break;
         }
         case MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK:

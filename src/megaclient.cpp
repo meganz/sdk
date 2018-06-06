@@ -683,9 +683,9 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
     }
 }
 
-void MegaClient::getcancellink(const char *email)
+void MegaClient::getcancellink(const char *email, const char *pin)
 {
-    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT));
+    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT, pin));
 }
 
 void MegaClient::confirmcancellink(const char *code)
@@ -693,9 +693,9 @@ void MegaClient::confirmcancellink(const char *code)
     reqs.add(new CommandConfirmCancelLink(this, code));
 }
 
-void MegaClient::getemaillink(const char *email)
+void MegaClient::getemaillink(const char *email, const char *pin)
 {
-    reqs.add(new CommandGetEmailLink(this, email, 1));
+    reqs.add(new CommandGetEmailLink(this, email, 1, pin));
 }
 
 void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
@@ -721,6 +721,21 @@ void MegaClient::contactlinkquery(handle h)
 void MegaClient::contactlinkdelete(handle h)
 {
     reqs.add(new CommandContactLinkDelete(this, h));
+}
+
+void MegaClient::multifactorauthsetup(const char *pin)
+{
+    reqs.add(new CommandMultiFactorAuthSetup(this, pin));
+}
+
+void MegaClient::multifactorauthcheck(const char *email)
+{
+    reqs.add(new CommandMultiFactorAuthCheck(this, email));
+}
+
+void MegaClient::multifactorauthdisable(const char *pin)
+{
+    reqs.add(new CommandMultiFactorAuthDisable(this, pin));
 }
 
 void MegaClient::keepmealive(int type, bool enable)
@@ -846,6 +861,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     versions_disabled = false;
     accountsince = 0;
     accountversion = 0;
+    gmfa_enabled = false;
     gfxdisabled = false;
 
 #ifndef EMSCRIPTEN
@@ -3335,6 +3351,7 @@ void MegaClient::locallogout()
     tsLogin = false;
     versions_disabled = false;
     accountsince = 0;
+    gmfa_enabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -7160,7 +7177,7 @@ void MegaClient::prelogin(const char *email)
 }
 
 // create new session
-void MegaClient::login(const char* email, const byte* pwkey)
+void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
 {
     string lcemail(email);
 
@@ -7171,8 +7188,7 @@ void MegaClient::login(const char* email, const byte* pwkey)
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
-    getuserdata();
+    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek, 0, pin));
 }
 
 // create new session (v2)
@@ -7216,7 +7232,6 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
-    getuserdata();
 }
 
 void MegaClient::getuserdata()
@@ -9374,7 +9389,7 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-error MegaClient::changepw(const char* password)
+error MegaClient::changepw(const char* password, const char *pin)
 {
     User* u;
 
@@ -9400,7 +9415,7 @@ error MegaClient::changepw(const char* password)
 
         string email = u->email;
         uint64_t stringhash = stringhash64(&email, &pwcipher);
-        reqs.add(new CommandSetMasterKey(this, newkey, (const byte *)&stringhash, sizeof(stringhash)));
+        reqs.add(new CommandSetMasterKey(this, newkey, (const byte *)&stringhash, sizeof(stringhash), NULL, pin));
         return API_OK;
     }
 
@@ -9432,7 +9447,7 @@ error MegaClient::changepw(const char* password)
         hasher.add(authkey, SymmCipher::KEYLENGTH);
         hasher.get(&hashedauthkey);
         hashedauthkey.resize(SymmCipher::KEYLENGTH);
-        reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey));
+        reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, pin));
         return API_OK;
     }
 
@@ -9963,6 +9978,10 @@ void MegaClient::fetchnodes(bool nocache)
             fetchkeys();
         }
 #endif
+        if (!k.size())
+        {
+            getuserdata();
+        }
         reqs.add(new CommandFetchNodes(this, nocache));
 
         char me64[12];
