@@ -3982,7 +3982,7 @@ static void process_line(char* l)
                                 numUsers++;
                             }
 
-                            client->createChat(group, userpriv);
+                            client->createChat(group, false, userpriv);
                             delete userpriv;
                             return;
                         }
@@ -4768,7 +4768,7 @@ static void process_line(char* l)
                                 numUsers++;
                             }
 
-                            client->createChat(true, true, userpriv, userkeymap, ownunifiedkey.c_str(), title.c_str());
+                            client->createChat(true, true, userpriv, userkeymap, title.c_str());
                             delete userpriv;
                             delete userkeymap;
                             return;
