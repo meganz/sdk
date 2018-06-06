@@ -7192,7 +7192,7 @@ void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
 }
 
 // create new session (v2)
-void MegaClient::login2(const char *email, const char *password, string *salt)
+void MegaClient::login2(const char *email, const char *password, string *salt, const char *pin)
 {
     string bsalt;
     Base64::atob(*salt, bsalt);
@@ -7202,10 +7202,10 @@ void MegaClient::login2(const char *email, const char *password, string *salt)
     pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
                      (const byte *)bsalt.data(), bsalt.size(), 100000);
 
-    login2(email, derivedKey);
+    login2(email, derivedKey, pin);
 }
 
-void MegaClient::login2(const char *email, const byte *derivedKey)
+void MegaClient::login2(const char *email, const byte *derivedKey, const char* pin)
 {
     key.setkey((byte*)derivedKey);
     const byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
@@ -7216,7 +7216,7 @@ void MegaClient::login2(const char *email, const byte *derivedKey)
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek));
+    reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
     getuserdata();
 
     delete [] authString;

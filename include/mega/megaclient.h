@@ -253,10 +253,10 @@ public:
     void login(const char*, const byte*, const char* = NULL);
 
     // user login: e-mail, password, salt
-    void login2(const char*, const char*, string *);
+    void login2(const char*, const char*, string *, const char* = NULL);
 
-    // user login: e-mail, derivedkey
-    void login2(const char*, const byte*);
+    // user login: e-mail, derivedkey, 2FA pin
+    void login2(const char*, const byte*, const char* = NULL);
 
     // user login: e-mail, pwkey, emailhash
     void fastlogin(const char*, const byte*, uint64_t);
