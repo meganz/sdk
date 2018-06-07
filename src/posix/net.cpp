@@ -2098,6 +2098,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                             curl_multi_remove_handle(curlmhandle, msg->easy_handle);
                             curl_easy_cleanup(msg->easy_handle);
                             curl_slist_free_all(httpctx->headers);
+                            httpctx->isCachedIp = false;
                             httpctx->headers = NULL;
                             httpctx->curl = NULL;
                             req->httpio = this;
@@ -2110,7 +2111,6 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                                 LOG_debug << "Retrying using IPv4 from cache";
                                 httpctx->isIPv6 = false;
                                 httpctx->hostip = dnsEntry.ipv4;
-                                httpctx->isCachedIp = true;
                                 send_request(httpctx);
                             }
                             else
