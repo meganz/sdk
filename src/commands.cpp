@@ -4741,7 +4741,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
 
     if (group && title)
     {
-       arg("ct", title);
+       arg("ct", mTitle.data(), mTitle.size());
     }
 
     if (publicchat)
@@ -4752,7 +4752,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
             this->mUnifiedKey = it->second.c_str();
         }
        arg("m", 1);
-       arg("ck", mUnifiedKey.c_str());
+       arg("ck", mUnifiedKey.data(), mUnifiedKey.size());
     }
 
     beginarray("u");
@@ -4776,7 +4776,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
             userkey_map::const_iterator ituk = ukm->find(uh);
             if(ituk != ukm->end())
             {
-                arg("ck", (ituk->second).c_str());
+                arg("ck", ituk->second.data(), ituk->second.size());
             }
         }
         endobject();
