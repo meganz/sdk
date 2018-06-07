@@ -1311,6 +1311,13 @@ MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent
     pImpl = new MegaApiImpl(this, appKey, basePath, userAgent);
 }
 
+MegaApi::MegaApi(const char* appKey, Waiter* waiter, HttpIO* http, FileSystemAccess* fileAccess,
+                DbAccess* dbAccess, MegaGfxProcessor* processor,
+                const char *basePath, const char *userAgent)
+{
+    pImpl = new MegaApiImpl(this, appKey, waiter, http, fileAccess, dbAccess, processor, basePath, userAgent);
+}
+
 #ifdef ENABLE_SYNC
 MegaApi::MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd)
 {

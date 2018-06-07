@@ -190,6 +190,8 @@ struct MEGA_API HttpIO : public EventTrigger
     // get max upload speed
     virtual m_off_t getmaxuploadspeed();
 
+    virtual void setproxy(Proxy*) { }
+
     HttpIO();
     virtual ~HttpIO() { }
 };

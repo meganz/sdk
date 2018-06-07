@@ -76,6 +76,11 @@ class MegaApi;
 
 class MegaSemaphore;
 
+class Waiter;
+class HttpIO;
+class FileSystemAccess;
+class DbAccess;
+
 /**
  * @brief Interface to provide an external GFX processor
  *
@@ -4883,6 +4888,36 @@ class MegaApi
          *
          */
         MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
+
+        /**
+         * @brief MegaApi Constructor that allows to use a bunch of custom interfaces
+         *
+         * Passing NULL to any of those interfaces will result in MegaApi using the default one.
+         * Interfaces should be allocated using new; MegaApi retains their ownership.
+         *
+         * @param appKey AppKey of your application
+         * You can generate your AppKey for free here:
+         * - https://mega.nz/#sdk
+         *
+         * @param waiter Waiter interface
+         *
+         * @param httpio HttpIo interface
+         *
+         * @param fileAccess FileSystemAccess interface
+         *
+         * @param dbAccess DbAccess interface
+         *
+         * @param processor MegaGfxProcessor interface
+         *
+         * @param basePath Base path to store the local cache
+         * If you pass NULL to this parameter, the SDK won't use any local cache.
+         *
+         * @param userAgent User agent to use in network requests
+         * If you pass NULL to this parameter, a default user agent will be used
+         */
+        MegaApi(const char* appKey, Waiter* waiter, HttpIO* httpio, FileSystemAccess* fileAccess,
+                DbAccess* dbAccess, MegaGfxProcessor* processor,
+                const char *basePath = NULL, const char *userAgent = NULL);
 
 #ifdef ENABLE_SYNC
         /**
