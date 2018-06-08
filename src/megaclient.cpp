@@ -5391,7 +5391,7 @@ void MegaClient::sc_se()
 #ifdef ENABLE_CHAT
 void MegaClient::sc_chatupdate()
 {
-    // fields: id, u, cs, n, g, ou
+    // fields: id, u, cs, n, g, ou, ct, ts, m, ck
     handle chatid = UNDEF;
     userpriv_vector *userpriv = NULL;
     int shard = -1;
@@ -5401,6 +5401,7 @@ void MegaClient::sc_chatupdate()
     string title;
     m_time_t ts = -1;
     bool publicchat = false;
+    string unifiedkey;
 
     bool done = false;
     while (!done)
@@ -5443,6 +5444,10 @@ void MegaClient::sc_chatupdate()
                 publicchat = jsonsc.getint();
                 break;
 
+            case MAKENAMEID2('c','k'):
+                jsonsc.storeobject(&unifiedkey);
+                break;
+
             case EOO:
                 done = true;
 
@@ -5473,6 +5478,14 @@ void MegaClient::sc_chatupdate()
                     chat->ou = ou;
                     chat->title = title;
                     chat->setMode(publicchat);
+                    if (!unifiedkey.empty())
+                    {
+                        chat->unifiedKey = unifiedkey;
+                    }
+                    else if (publicchat)
+                    {
+                        LOG_err << "Public chat without unified key detected";
+                    }
                     // chat->flags = ?; --> flags are received in other AP: mcfc
                     if (ts != -1)
                     {
