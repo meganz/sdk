@@ -11449,7 +11449,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the public handle of the chat link
          *
-         * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
+         * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
          * will return API_EACCESS.
          *
          * @param chatid MegaHandle that identifies the chat room
@@ -11518,8 +11518,8 @@ class MegaApi
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          *
-         * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
-         * will return MegaError::API_EACCESS.
+         * If caller is not operator or it's a 1on1 room, this request will return MegaError::API_EACCESS.
+         * If the chat is not an public chat, this request will return MegaError::API_EEXIST.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param listener MegaRequestListener to track this request

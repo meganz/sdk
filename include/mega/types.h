@@ -441,7 +441,6 @@ typedef enum { AES_MODE_UNKNOWN, AES_MODE_CCM, AES_MODE_GCM } encryptionmode_t;
 #ifdef ENABLE_CHAT
 typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, PRIV_MODERATOR = 3 } privilege_t;
 typedef pair<handle, privilege_t> userpriv_pair;
-typedef std::map<handle, std::string> userkey_map;
 typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
 struct TextChat : public Cachable

@@ -17128,6 +17128,27 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            TextChat *chat = it->second;
+            if ((chat->publicchat && !unifiedKey)
+                    || (!chat->title.empty() && (!title || title[0] == '\0')))
+            {
+                e = API_EINCOMPLETE;
+                break;
+            }
+
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             client->inviteToChat(chatid, uh, access, unifiedKey, title);
             break;
         }
@@ -17142,9 +17163,22 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+
             // user is optional. If not provided, command apply to own user
             if (uh != INVALID_HANDLE)
             {
+                if (!chat->group || chat->priv != PRIV_MODERATOR)
+                {
+                    e = API_EACCESS;
+                    break;
+                }
                 client->removeFromChat(chatid, uh);
             }
             else
@@ -17208,6 +17242,19 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             client->updateChatPermissions(chatid, uh, access);
             break;
         }
@@ -17221,6 +17268,19 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             client->truncateChat(chatid, messageid);
             break;
         }
@@ -17231,6 +17291,19 @@ void MegaApiImpl::sendPendingRequests()
             if (chatid == INVALID_HANDLE || title == NULL)
             {
                 e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
                 break;
             }
 
@@ -17326,6 +17399,20 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
                 break;
             }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->group || !chat->publicchat || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             client->chatlink(chatid, del);
             break;
         }
@@ -17350,6 +17437,25 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
                 break;
             }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->publicchat)
+            {
+                e = API_EEXIST;
+                break;
+            }
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             client->chatlinkclose(chatid);
             break;
         }
