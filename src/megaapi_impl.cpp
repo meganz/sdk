@@ -7715,6 +7715,7 @@ void MegaApiImpl::chatLinkCreate(MegaHandle chatid, MegaRequestListener *listene
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK, listener);
     request->setNodeHandle(chatid);
+    request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -17081,17 +17082,21 @@ void MegaApiImpl::sendPendingRequests()
             bool publicchat = (request->getAccess() == 1);
             MegaStringMap *userKeyMap = request->getMegaStringMap();
 
+            int numPeers = chatPeers ? chatPeers->size() : 0;
+            const string_map *uhkeymap = NULL;
             if(publicchat)
             {
-                if (!group || !userKeyMap || (userKeyMap->size() != chatPeers->size() + 1))
+                if (!group || !userKeyMap
+                        || (userKeyMap->size() != numPeers + 1))    // includes our own key
                 {
                     e = API_EARGS;
                     break;
                 }
+                uhkeymap = ((MegaStringMapPrivate*)userKeyMap)->getMap();
             }
             else
             {
-                if (!group && (!chatPeers || chatPeers->size() != 1))
+                if (!group && numPeers != 1)
                 {
                     e = API_EARGS;
                     break;
@@ -17109,8 +17114,6 @@ void MegaApiImpl::sendPendingRequests()
                     ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
                 }
             }
-
-            const string_map *uhkeymap = userKeyMap ? ((MegaStringMapPrivate*)userKeyMap)->getMap() : NULL;
 
             client->createChat(group, publicchat, userpriv, uhkeymap, title);
             break;
