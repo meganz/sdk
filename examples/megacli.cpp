@@ -2357,7 +2357,7 @@ static void process_line(char* l)
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
                 cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
-                cout << "      chati chatid email ro|sta|mod [title unifiedkey]" << endl;
+                cout << "      chati chatid email ro|sta|mod [t title] [unifiedkey]" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
                 cout << "      chatup chatid userhandle ro|sta|mod" << endl;
@@ -3245,9 +3245,6 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "test")
                     {
-                        if (words.size() == 2)
-                            client->richlinkrequest(words[1].c_str());
-                        return;
                     }
                     break;
 
@@ -3994,7 +3991,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "chati")
                     {
-                        if (words.size() >= 4 && words.size() < 7)
+                        if (words.size() >= 4 && words.size() <= 7)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
@@ -4026,30 +4023,31 @@ static void process_line(char* l)
                                 cout << "Unknown privilege for " << email << endl;
                                 return;
                             }
+
+                            string title;
+                            string unifiedKey;
                             if (words.size() == 5)
                             {
-                                string title = words[4];
-                                client->inviteToChat(chatid, u->userhandle, priv, title.c_str(), NULL);
+                                unifiedKey = words[4];
                             }
-                            else
+                            else if (words.size() >= 6 && words[4] == "t")
                             {
-                                if (words.size() == 6)
+                                title = words[5];
+                                if (words.size() == 7)
                                 {
-                                    string title = words[4];
-                                    string unifiedKey = words[5];
-                                    client->inviteToChat(chatid, u->userhandle, priv, title.c_str(), unifiedKey.c_str());
-                                }
-                                else
-                                {
-                                    client->inviteToChat(chatid, u->userhandle, priv);
+                                    unifiedKey = words[6];
                                 }
                             }
+                            const char *t = !title.empty() ? title.c_str() : NULL;
+                            const char *uk = !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
+
+                            client->inviteToChat(chatid, u->userhandle, priv, t, uk);
                             return;
                         }
                         else
                         {
                             cout << "Invalid syntax to invite new peer" << endl;
-                            cout << "       chati chatid email ro|sta|mod [title unifiedkey]" << endl;
+                            cout << "       chati chatid email ro|sta|mod [t title64] [unifiedkey]" << endl;
                             return;
 
                         }
@@ -4167,7 +4165,7 @@ static void process_line(char* l)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-                            bool del = (words.size() == 3 && words[2] == "del") ? true : false;
+                            bool del = (words.size() == 3 && words[2] == "del");
 
                             client->chatlink(chatid, del);
                             return;
@@ -4674,9 +4672,9 @@ static void process_line(char* l)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-                            string title = words[2];
 
-                            client->chatlinkclose(chatid, title.c_str());
+                            const char *title = (words.size() == 3) ? words[2].c_str() : NULL;
+                            client->chatlinkclose(chatid, title);
                             return;
                         }
                         else
@@ -4688,7 +4686,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "chatlj")
                     {
-                        if (words.size() == 2)
+                        if (words.size() == 3)
                         {
                             handle publichandle;
                             Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
