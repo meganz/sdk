@@ -17240,7 +17240,17 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		{
 			key.setkey((const byte*)t->nodekey.data(),n->type);
 
-			n->attrs.getjson(&attrstring);
+            AttrMap tattrs;
+            tattrs.map = n->attrs.map;
+            nameid rrname = AttrMap::string2nameid("rr");
+            attr_map::iterator it = tattrs.map.find(rrname);
+            if (it != tattrs.map.end())
+            {
+                LOG_debug << "Removing rr attribute";
+                tattrs.map.erase(it);
+            }
+
+            tattrs.getjson(&attrstring);
 			client->makeattr(&key,t->attrstring,attrstring.c_str());
 		}
 	}
@@ -18647,6 +18657,14 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
                     attrs.map['c'] = fingerprint + ssize + 1;
                 }
             }
+        }
+
+        nameid rrname = AttrMap::string2nameid("rr");
+        attr_map::iterator it = attrs.map.find(rrname);
+        if (it != attrs.map.end())
+        {
+            LOG_debug << "Removing rr attribute";
+            attrs.map.erase(it);
         }
 
         string attrstring;

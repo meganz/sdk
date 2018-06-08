@@ -11595,6 +11595,14 @@ void MegaClient::syncupdate()
                     nnp->nodekey = n->nodekey;
                     tattrs.map = n->attrs.map;
 
+                    nameid rrname = AttrMap::string2nameid("rr");
+                    attr_map::iterator it = tattrs.map.find(rrname);
+                    if (it != tattrs.map.end())
+                    {
+                        LOG_debug << "Removing rr attribute";
+                        tattrs.map.erase(it);
+                    }
+
                     app->syncupdate_remote_copy(l->sync, l->name.c_str());
                 }
                 else
