@@ -756,7 +756,7 @@ CompletionState autoComplete(const std::string line, size_t insertPos, ACN synta
     return cs;
 }
 
-void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle)
+void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput)
 {
     ACState acs = prepACState(line, insertPos, syntax, unixStyle);
 
@@ -767,6 +767,7 @@ void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
             std::vector<ACN> v;
             Either::ExecFn f;
             std::vector<ACN> firstWordMatches;
+            std::ostringstream conout;
             for (unsigned i = 0; i < e->eithers.size(); ++i)
             {
                 acs.i = 0;
@@ -779,20 +780,24 @@ void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
                 if (auto seq = dynamic_cast<Sequence*>(e->eithers[i].get()))
                 {
                     if (seq->current->match(acs))
+                    {
                         firstWordMatches.push_back(e->eithers[i]);
+                    }
                 }
             }
             if (v.empty())
             {
-                std::cout << "Invalid syntax";
+                conout << "Invalid syntax";
                 if (firstWordMatches.empty())
                 {
-                    std::cout << ", type 'help' for command syntax" << std::endl;
+                    conout << ", type 'help' for command syntax" << std::endl;
                 }
                 else
                 {
                     for (auto fwm : firstWordMatches)
-                        std::cout << std::endl << e->describePrefix << *fwm << endl;
+                    {
+                        conout << std::endl << e->describePrefix << *fwm << endl;
+                    }
                 }
             }
             else if (v.size() == 1)
@@ -804,17 +809,18 @@ void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
                 }
                 else
                 {
-                    std::cout << "Operation not implemented yet" << std::endl;
+                    conout << "Operation not implemented yet" << std::endl;
                 }
             }
             else
             {
-                std::cout << "Ambiguous syntax" << std::endl;
+                conout << "Ambiguous syntax" << std::endl;
                 for (auto a : v)
                 {
-                    std::cout << e->describePrefix << *a << std::endl;
+                    conout << e->describePrefix << *a << std::endl;
                 }
             }
+            consoleOutput = conout.str();
         }
     }
 }
@@ -833,7 +839,24 @@ static size_t utf8strlen(const std::string s)
     return len;
 }
 
-void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth)
+const string& CompletionState::unixColumnEntry(int row, int col, int rows)
+{
+    static string emptyString;
+    size_t index = unixListCount + col * rows + row;
+    return index < completions.size() ? completions[index].s : emptyString;
+}
+
+unsigned CompletionState::calcUnixColumnWidth(int col, int rows)
+{
+    unsigned width = 0;
+    for (int r = 0; r < rows; ++r)
+    {
+        width = std::max<unsigned>(width, unsigned(unixColumnEntry(r, col, rows).size()));
+    }
+    return width;
+}
+
+void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, string& consoleOutput)
 {
     if (!s.completions.empty())
     {
@@ -882,61 +905,70 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth)
             }
             else
             {
-                // show remaining possibilities.  Assume up to 3 columns 5 rows, then they have to press again for more
-                std::cout << std::endl;
-                size_t sumSize = 0, sumCount = 0, sumMax = 0;
-                for (size_t i = s.unixListCount; i < s.unixListCount + 30 && i < s.completions.size(); ++i)
+                // show remaining possibilities.  Proper columns, unix order, alphabetical vertically then left-to-right
+                unsigned rows = 1, cols = 0, sumwidth = 0;
+                for (unsigned c = 0; ;)
                 {
-                    sumSize += s.completions[i].s.size();
-                    sumCount += 1;
-                    sumMax = std::max<size_t>(sumMax, s.completions[i].s.size());
-                }
-                size_t estimate = sumCount == 0 ? 50 : (sumSize / sumCount) * 5 / 3;
-                size_t columnWidth = clamp<size_t>(std::min<size_t>(estimate, sumMax + 3), 10, 200);
-                consoleWidth -= (consoleWidth > 3 ? 3 : 0);  // indent
-                size_t columns = std::max<size_t>(1, consoleWidth / columnWidth);
-                size_t row = 0, linepos = 0;
-                while (s.unixListCount < s.completions.size() && row < 5)
-                {
-                    if (linepos > 0 && linepos % columnWidth == 0)
+                    unsigned width = s.calcUnixColumnWidth(c, rows);
+                    if (width == 0)
                     {
-                        std::cout << ' ';
-                        linepos += 1;
+                        cols = c;
+                        break;
                     }
-                    if (linepos <= columnWidth * (columns-1))
+                    else
                     {
-                        while (linepos % columnWidth)
+                        sumwidth += width + 2;
+                        if (2 + sumwidth > consoleWidth)
                         {
-                            std::cout << ' ';
-                            linepos += 1;
+                            if (rows == 5)
+                            {
+                                cols = c;
+                                break;
+                            }
+                            else
+                            {
+                                ++rows;
+                                c = 0;
+                                sumwidth = 0;
+                            }
+                        }
+                        else if (s.unixListCount + rows * (c + 1) >= s.completions.size())
+                        {
+                            cols = c + 1;
+                            break;
+                        }
+                        else
+                        {
+                            ++c;
                         }
                     }
-                    if (linepos > 0 && linepos + s.completions[s.unixListCount].s.size() > columnWidth * columns)
-                    {
-                        std::cout << std::endl;
-                        linepos = 0;
-                        row += 1;
-                    }
-                    if (linepos == 0)
-                    {   // indent
-                        std::cout << "   ";
-                    }
-                    std::cout << s.completions[s.unixListCount].s;
-                    linepos += utf8strlen(s.completions[s.unixListCount].s);
-                    s.unixListCount += 1;
                 }
-                if (linepos != 0)
+
+                std::ostringstream conout;
+                rows = std::max<int>(rows, 1);
+                cols = std::max<int>(cols, 1);
+                for (unsigned r = 0; r < rows; ++r)
                 {
-                    std::cout << std::endl;
+                    conout << "  ";
+                    for (unsigned c = 0; c < cols; ++c)
+                    {
+                        const string& entry = s.unixColumnEntry(r, c, rows);
+                        conout << entry << std::string(s.calcUnixColumnWidth(c, rows) - entry.size() + 2, ' ');
+                    }
+                    conout << "\n";
                 }
+
+                s.unixListCount += rows * cols;
                 if (s.unixListCount < s.completions.size())
                 {
-                    std::cout << "<press again for more>" << std::endl;
+                    conout << "<press again for more>\n";
                 }
                 else
                 {
                     s.unixListCount = 0;
+                    s.firstPressDone = false;
                 }
+                consoleOutput = conout.str();
             }
         }
     }

@@ -83,6 +83,7 @@ struct MEGA_API ConsoleModel
 #endif
 
     // flags to indicate to the real console if redraws etc need to occur
+    string redrawInputLineConsoleFeedback;
     bool redrawInputLineNeeded = false;
     bool consoleNewlineNeeded = false;
 
@@ -134,6 +135,7 @@ struct MEGA_API WinConsole : public Console
     char* checkForCompletedInputLine();
     void clearScreen();
     void outputHistory();
+    void retractPrompt();
     
     enum logstyle { no_log, utf8_log, utf16_log, codepage_log };
     bool log(const std::string& filename, logstyle logstyle);
@@ -145,7 +147,7 @@ struct MEGA_API WinConsole : public Console
 private:
     HANDLE hInput;
     HANDLE hOutput;
-    COORD knownCursorPos;  // if this has moved then something logged and we should redraw the prompt and input so far on a new line.
+    bool promptRetracted = false;
     ConsoleModel model;
     Utf8Rdbuf *rdbuf = nullptr;
     streambuf *oldrb1 = nullptr, *oldrb2 = nullptr;
@@ -154,9 +156,8 @@ private:
     std::string currentPrompt;
     size_t inputLineOffset = 0;
 
-    void prepareDetectLogging();
     void redrawPromptIfLoggingOccurred();
-    void redrawInputLine();
+    void redrawInputLine(const string& autocompleteFeedback = "");
     ConsoleModel::lineEditAction interpretLineEditingKeystroke(INPUT_RECORD &ir);
 #endif
 };

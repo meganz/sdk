@@ -203,6 +203,8 @@ namespace autocomplete {
         bool active = false;
         bool firstPressDone = false;
         size_t unixListCount = 0;
+        unsigned calcUnixColumnWidth(int col, int rows);
+        const string& unixColumnEntry(int row, int col, int rows);
     };
 
     // helper function - useful in megacli for now
@@ -212,10 +214,10 @@ namespace autocomplete {
     CompletionState autoComplete(const std::string line, size_t insertPos, ACN syntax, bool unixStyle);
     
     // put the next possible string or unambiguous portion thereof at the cursor position, or indicate options to the user 
-    void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth);
+    void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, string& consoleOutput);
 
     // execute the function attached to the matching syntax
-    void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle);
+    void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput);
 
     // functions to bulid command descriptions
     ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr);
