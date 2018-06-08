@@ -11513,18 +11513,24 @@ class MegaApi
          * This function allows a chat operator to convert an existing public chat into a private
          * chat (closed mode, key rotation enabled). It will create a management message.
          *
+         * If the groupchat already has a customized title, it's required to provide the title encrypted
+         * to a new key, so it becomes private for non-participants.
+         *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_CLOSE.
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getText - Returns the title of the chat
          *
          * If caller is not operator or it's a 1on1 room, this request will return MegaError::API_EACCESS.
          * If the chat is not an public chat, this request will return MegaError::API_EEXIST.
          *
          * @param chatid MegaHandle that identifies the chat room
+         * @param title Byte array representing the title, already encrypted and converted to Base64url
+         * encoding. If the chatroom doesn't have a title yet, this parameter should be NULL.
          * @param listener MegaRequestListener to track this request
          */
-        void chatLinkClose(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Allows to join to an public chat

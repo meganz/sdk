@@ -927,10 +927,11 @@ class MEGA_API CommandChatLinkClose : public Command
 public:
     void procresult();
 
-    CommandChatLinkClose(MegaClient*, handle chatid);
+    CommandChatLinkClose(MegaClient*, handle chatid, const char *title);
 
 protected:
     handle mChatid;
+    string mTitle;
 };
 
 class MEGA_API CommandChatLinkJoin : public Command

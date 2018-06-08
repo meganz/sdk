@@ -4037,9 +4037,9 @@ void MegaApi::getChatLinkURL(MegaHandle publichandle, MegaRequestListener *liste
     pImpl->getChatLinkURL(publichandle, listener);
 }
 
-void MegaApi::chatLinkClose(MegaHandle chatid, MegaRequestListener *listener)
+void MegaApi::chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener)
 {
-    pImpl->chatLinkClose(chatid, listener);
+    pImpl->chatLinkClose(chatid, title, listener);
 }
 
 void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, MegaRequestListener *listener)

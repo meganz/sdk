@@ -563,7 +563,7 @@ public:
     void chatlinkurl(handle publichandle);
 
     // convert public chat into private chat
-    void chatlinkclose(handle chatid);
+    void chatlinkclose(handle chatid, const char *title);
 
     // auto-join publicchat
     void chatlinkjoin(handle publichandle, const char *unifiedkey);

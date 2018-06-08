@@ -5672,12 +5672,18 @@ void CommandChatLinkURL::procresult()
     }
 }
 
-CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid)
+CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
 {
     mChatid = chatid;
+    mTitle = title ? string(title) : "";
 
     cmd("mcscm");
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    if (title)
+    {
+        arg("ct", title);
+    }
 
     notself(client);
     tag = client->reqtag;
@@ -5693,13 +5699,17 @@ void CommandChatLinkClose::procresult()
             textchat_map::iterator it = client->chats.find(mChatid);
             if (it == client->chats.end())
             {
-                LOG_err << "Archive chat succeeded for a non-existing chatroom";
+                LOG_err << "Chat link close succeeded for a non-existing chatroom";
                 client->app->chatlinkclose_result(API_ENOENT);
                 return;
             }
 
             TextChat *chat = it->second;
             chat->setMode(false);
+            if (!mTitle.empty())
+            {
+                chat->title = mTitle;
+            }
 
             chat->setTag(tag ? tag : -1);
             client->notifychat(chat);

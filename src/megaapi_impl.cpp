@@ -7736,10 +7736,11 @@ void MegaApiImpl::getChatLinkURL(MegaHandle publichandle, MegaRequestListener *l
     waiter->notify();
 }
 
-void MegaApiImpl::chatLinkClose(MegaHandle chatid, MegaRequestListener *listener)
+void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_CLOSE, listener);
     request->setNodeHandle(chatid);
+    request->setText(title);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -17432,6 +17433,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHAT_LINK_CLOSE:
         {
             MegaHandle chatid = request->getNodeHandle();
+            const char *title = request->getText();
             if (chatid == INVALID_HANDLE)
             {
                 e = API_EARGS;
@@ -17455,8 +17457,13 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EACCESS;
                 break;
             }
+            if (!chat->title.empty() && (!title || title[0] == '\0'))
+            {
+                e = API_EINCOMPLETE;
+                break;
+            }
 
-            client->chatlinkclose(chatid);
+            client->chatlinkclose(chatid, title);
             break;
         }
 

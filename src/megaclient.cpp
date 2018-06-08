@@ -12492,9 +12492,9 @@ void MegaClient::chatlinkurl(handle publichandle)
     reqs.add(new CommandChatLinkURL(this, publichandle));
 }
 
-void MegaClient::chatlinkclose(handle chatid)
+void MegaClient::chatlinkclose(handle chatid, const char *title)
 {
-    reqs.add(new CommandChatLinkClose(this, chatid));
+    reqs.add(new CommandChatLinkClose(this, chatid, title));
 }
 
 void MegaClient::chatlinkjoin(handle publichandle, const char *unifiedkey)
