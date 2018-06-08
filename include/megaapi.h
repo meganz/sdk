@@ -11073,6 +11073,7 @@ class MegaApi
          * - MegaRequest::getFlag - Returns if the new chat is a group chat or permanent chat
          * - MegaRequest::getAccess - Returns zero (private mode)
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
+         * - MegaRequest::getText - Returns the title of the chat.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -11113,8 +11114,8 @@ class MegaApi
          * - MegaChatRequest::getFlag - Returns if the new chat is a group chat or permanent chat
          * - MegaRequest::getAccess - Returns one (public mode)
          * - MegaChatRequest::getMegaChatPeerList - List of participants and their privilege level
-         * - MegaChatRequest::getPrivateKey - Byte array that contains the unified chat key converted
-         * to Base64url encoding
+         * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
+         * - MegaRequest::getText - Returns the title of the chat.
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -11141,7 +11142,8 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
          * - MegaRequest::getAccess - Returns the privilege level wanted for the user
-         * - MegaRequest::getText - Returns the title of the chat.
+         * - MegaRequest::getText - Returns the title of the chat
+         * - MegaRequest::getSessionKey - Returns the unified key for the new peer
          *
          * On the onTransferFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.

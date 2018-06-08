@@ -910,7 +910,6 @@ public:
     CommandChatLink(MegaClient*, handle chatid, bool del);
 
 protected:
-    handle mChatid;
     bool mDelete;
 };
 

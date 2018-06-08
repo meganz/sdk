@@ -4942,16 +4942,17 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
     arg("p", priv);
     arg("v", 1);
 
-    if (title != NULL)
+    if (title)
     {
         arg("ct", title);
     }
-    notself(client);
 
-    if (unifiedkey != NULL)
+    if (unifiedkey)
     {
         arg("ck", unifiedkey);
     }
+
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -5560,7 +5561,6 @@ void CommandRichLink::procresult()
 
 CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del)
 {
-    mChatid = chatid;
     mDelete = del;
 
     cmd("mcph");
@@ -5622,7 +5622,7 @@ void CommandChatLinkURL::procresult()
     {
         handle chatid = UNDEF;
         int shard = -1;
-        int participants = -1;
+        int numPeers = -1;
         string url;
         string ct;
 
@@ -5638,7 +5638,7 @@ void CommandChatLinkURL::procresult()
                     shard = client->json.getint();
                     break;
 
-                case MAKENAMEID2('c','t'):  // chat-title + chat-key
+                case MAKENAMEID2('c','t'):  // chat-title
                     client->json.storeobject(&ct);
                     break;
 
@@ -5647,13 +5647,13 @@ void CommandChatLinkURL::procresult()
                     break;
 
                 case MAKENAMEID3('n','c','m'):
-                    participants = client->json.getint();
+                    numPeers = client->json.getint();
                     break;
 
                 case EOO:
-                    if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty())
+                    if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, participants, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, API_OK);
                     }
                     else
                     {
