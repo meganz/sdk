@@ -6086,6 +6086,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 
     if (n->setparent(p))
     {
+        bool setrr = false;
         if (prevParent)
         {
             Node *prevRoot = getrootnode(prevParent);
@@ -6103,7 +6104,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
                 {
                     LOG_debug << "Adding rr attribute";
                     n->attrs.map[rrname] = base64Handle;
-                    setattr(n);
+                    setrr = true;
                 }
             }
             else if (prevRoot->nodehandle == rubbishHandle
@@ -6128,6 +6129,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         rewriteforeignkeys(n);
 
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        if (setrr)
+        {
+            setattr(n);
+        }
     }
 
     return API_OK;
