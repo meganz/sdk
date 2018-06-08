@@ -1943,7 +1943,7 @@ class MegaApiImpl : public MegaApp
         void chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
-        void chatLinkClose(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, MegaRequestListener *listener = NULL);
 #endif
 

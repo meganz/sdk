@@ -2367,7 +2367,7 @@ static void process_line(char* l)
                 cout << "      chatst chatid title64" << endl;
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
                 cout << "      chatl chatid [del]" << endl;     // get public handle
-                cout << "      chatsm chatid" << endl;          // set private mode
+                cout << "      chatsm chatid title64" << endl;          // set private mode
                 cout << "      chatlu publichandle" << endl;    // get chat-link URL
                 cout << "      chatlj publichandle unifiedkey" << endl;    // join chat-link
 #endif
@@ -4670,18 +4670,19 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "chatsm")
                     {
-                        if (words.size() == 2)
+                        if (words.size() == 3)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
+                            string title = words[2];
 
-                            client->chatlinkclose(chatid);
+                            client->chatlinkclose(chatid, title.c_str());
                             return;
                         }
                         else
                         {
                             cout << "Invalid syntax to set private/close mode" << endl;
-                            cout << "       chatsm chatid" << endl;
+                            cout << "       chatsm chatid title64" << endl;
                             return;
                         }
                     }
