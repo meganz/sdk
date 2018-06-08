@@ -1588,6 +1588,15 @@ public:
      */
     virtual const char *getTitle() const;
 
+    /**
+     * @brief Returns the Unified key of the chat, if it's a public chat.
+     *
+     * The MegaTextChat retains the ownership of the returned string. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return The Unified key [<senderid><uk>] of the chat as a byte array encoded in Base64URL, or NULL if not available.
+     */
+    virtual const char *getUnifiedKey() const;
 
     /**
      * @brief Returns true if this chat has an specific change

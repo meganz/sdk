@@ -4697,6 +4697,11 @@ const char * MegaTextChat::getTitle() const
     return NULL;
 }
 
+const char * MegaTextChat::getUnifiedKey() const
+{
+    return NULL;
+}
+
 bool MegaTextChat::hasChanged(int) const
 {
     return false;

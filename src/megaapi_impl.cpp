@@ -22291,6 +22291,11 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->publicchat = chat->isPublicChat();
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
+    const char *uk = chat->getUnifiedKey();
+    if (uk)
+    {
+        this->unifiedKey = uk;
+    }
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -22307,6 +22312,11 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
     this->publicchat = chat->publicchat;
     this->changed = 0;
+
+    if (chat->publicchat)
+    {
+        this->unifiedKey = chat->unifiedKey;
+    }
     if (chat->changed.attachments)
     {
         changed |= MegaTextChat::CHANGE_TYPE_ATTACHMENT;
@@ -22374,6 +22384,12 @@ const char *MegaTextChatPrivate::getTitle() const
 {
     return !title.empty() ? title.c_str() : NULL;
 }
+
+const char *MegaTextChatPrivate::getUnifiedKey() const
+{
+    return !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
+}
+
 
 int MegaTextChatPrivate::isOwnChange() const
 {

@@ -1121,6 +1121,7 @@ public:
     virtual bool isGroup() const;
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
+    virtual const char *getUnifiedKey() const;
     virtual int64_t getCreationTime() const;
     virtual bool isArchived() const;
     virtual bool isPublicChat() const;
@@ -1138,6 +1139,7 @@ private:
     bool group;
     handle ou;
     string title;
+    string unifiedKey;
     int changed;
     int tag;
     bool archived;
