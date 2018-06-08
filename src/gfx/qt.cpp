@@ -40,6 +40,10 @@ extern "C" {
 }
 #endif
 
+#ifdef HAVE_LIBRAW
+#include <libraw.h>
+#endif
+
 namespace mega {
 
 QByteArray *GfxProcQT::formatstring = NULL;
@@ -81,7 +85,7 @@ const int BytesPerFormat[] = {0,1,1,2,4,8,1,1,2,4,8,4,8};
 //--------------------------------------------------------------------------
 int GfxProcQT::getExifOrientation(QString &filePath)
 {
-    QByteArray *data;
+    QByteArray data;
     uint8_t c;
     bool ok;
 
@@ -121,10 +125,9 @@ int GfxProcQT::getExifOrientation(QString &filePath)
         itemlen = (lh << 8) | ll;
         if (itemlen < 2) return -1;
 
-        data = new QByteArray(file.read(itemlen-2)); // Read the whole section.
-        if(data->size() != (itemlen-2))
+        data = QByteArray(file.read(itemlen-2)); // Read the whole section.
+        if(data.size() != (itemlen-2))
         {
-            delete data;
             return -1;
         }
 
@@ -132,21 +135,19 @@ int GfxProcQT::getExifOrientation(QString &filePath)
         {
             case M_SOS:   // stop before hitting compressed data
             case M_EOI:   // in case it's a tables-only JPEG stream
-                delete data;
                 return -1;
             case M_EXIF:
-                if(data->left(4) == "Exif")
+                if(data.left(4) == "Exif")
                 {
-                    int orientation = processEXIF(data, itemlen);
+                    int orientation = processEXIF(&data, itemlen);
                     if((orientation >= 0) && (orientation <= 8))
                     {
-                        delete data;
                         return orientation;
                     }
                 }
+                break;
             default:
                 // Skip any other sections.
-                delete data;
                 break;
         }
     }
@@ -371,7 +372,7 @@ GfxProcQT::GfxProcQT()
 #endif
     image = NULL;
     orientation = -1;
-    isVideo = false;
+    imageType = TYPE_NONE;
 }
 
 bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
@@ -385,7 +386,7 @@ bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
     imagePath = QString::fromUtf8(localname->c_str());
 #endif
 
-    image = readbitmapQT(w, h, orientation, isVideo, imagePath);
+    image = readbitmapQT(w, h, orientation, imageType, imagePath);
 
 #ifdef _WIN32
     localname->resize(localname->size()-1);
@@ -398,7 +399,7 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
 {
     if (!image)
     {
-        image = readbitmapQT(w, h, orientation, isVideo, imagePath);
+        image = readbitmapQT(w, h, orientation, imageType, imagePath);
         if (!image)
         {
             return false;
@@ -406,13 +407,14 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
     }
 
     QImage result = resizebitmapQT(image, orientation, w, h, rw, rh);
-    if (isVideo)
+    QImageReader *oldImageReader = image;
+    image = new QImageReader(image->device(), QByteArray("JPG"));
+    delete oldImageReader;
+
+    if (result.isNull())
     {
-        delete image->device();
+        return false;
     }
-    delete image;
-    image = NULL;
-    if(result.isNull()) return false;
     jpegout->clear();
 
     //Remove transparency
@@ -431,17 +433,17 @@ bool GfxProcQT::resizebitmap(int rw, int rh, string* jpegout)
 
 void GfxProcQT::freebitmap()
 {
-    if (image && isVideo)
+    if (image)
     {
         delete image->device();
+        delete image;
     }
-    delete image;
 }
 
 QImage GfxProcQT::createThumbnail(QString imagePath)
 {
     int w, h, orientation;
-    bool isVideo = false;
+    int imageType = TYPE_NONE;
 
     QFileInfo info(imagePath);
     if(!info.exists())
@@ -451,35 +453,42 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
     if(!QString::fromUtf8(supportedformatsQT()).contains(ext, Qt::CaseInsensitive))
         return QImage();
 
-    QImageReader *image = readbitmapQT(w, h, orientation, isVideo, imagePath);
-    if(!image)
+    QImageReader *image = readbitmapQT(w, h, orientation, imageType, imagePath);
+    if (!image)
+    {
         return QImage();
+    }
 
     QImage result = GfxProcQT::resizebitmapQT(image, orientation, w, h,
             GfxProc::dimensions[GfxProc::THUMBNAIL][0],
             GfxProc::dimensions[GfxProc::THUMBNAIL][1]);
 
-    if (isVideo)
-    {
-        delete image->device();
-    }
+    delete image->device();
     delete image;
     return result;
 }
 
-QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, bool &isVideo, QString imagePath)
+QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &imageType, QString imagePath)
 {
 #ifdef HAVE_FFMPEG
     QFileInfo info(imagePath);
     QString ext = QString::fromUtf8(".%1.").arg(info.suffix()).toLower();
     if (strstr(GfxProcQT::supportedformatsFfmpeg(), ext.toUtf8().constData()))
     {
-        isVideo = true;
+        imageType = TYPE_VIDEO;
         return readbitmapFfmpeg(w, h, orientation, imagePath);
     }
 #endif
 
-    isVideo = false;
+#ifdef HAVE_LIBRAW
+    if (strstr(GfxProcQT::supportedformatsLibraw(), ext.toUtf8().constData()))
+    {
+        imageType = TYPE_RAW;
+        return readbitmapLibraw(w, h, orientation, imagePath);
+    }
+#endif
+
+    imageType = TYPE_IMAGE;
     QImageReader* image = new QImageReader(imagePath);
     QSize s = image->size();
     if(!s.isValid() || !s.width() || !s.height())
@@ -487,6 +496,20 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, bool &is
         delete image;
         return NULL;
     }
+
+    QImage unscaled = image->read();
+    QBuffer *buffer = new QBuffer();
+    if (unscaled.isNull() || !buffer->open(QIODevice::ReadWrite) || !unscaled.save(buffer, "JPG", 85))
+    {
+        LOG_warn << "Error saving image to a memory buffer";
+        delete buffer;
+        delete image;
+        return NULL;
+    }
+
+    delete image;
+    buffer->seek(0);
+    QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
 
     orientation = getExifOrientation(imagePath);
     if(orientation < ROTATION_LEFT_MIRRORED)
@@ -502,7 +525,7 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, bool &is
         h = s.width();
     }
 
-    return image;
+    return imageReader;
 }
 
 QImage GfxProcQT::resizebitmapQT(QImageReader *image, int orientation, int w, int h, int rw, int rh)
@@ -586,9 +609,175 @@ const char *GfxProcQT::supportedformatsQT()
         formatstring->resize(formatstring->size() - 1);
         formatstring->append(supportedformatsFfmpeg());
 #endif
+
+#ifdef HAVE_LIBRAW
+        formatstring->resize(formatstring->size() - 1);
+        formatstring->append(supportedformatsLibraw());
+#endif
     }
     return formatstring->constData();
 }
+
+#ifdef HAVE_LIBRAW
+
+const char *GfxProcQT::supportedformatsLibraw()
+{
+    return ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
+}
+
+QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QString imagePath)
+{
+    LibRaw libRaw;
+    int ret = libRaw.open_file(imagePath.toUtf8().constData());
+    if (ret > 0 || LIBRAW_FATAL_ERROR(ret)
+            || libRaw.imgdata.sizes.width <= 0
+            || libRaw.imgdata.sizes.height <= 0)
+    {
+        LOG_debug << "Unreadable RAW image";
+        return NULL;
+    }
+
+    libraw_processed_image_t *output = NULL;
+    const libraw_data_t &imgdata = libRaw.imgdata;
+    LOG_debug << "Processing RAW image: " << imagePath.toUtf8().constData()
+              << " " << imgdata.sizes.width
+              << " " << imgdata.sizes.height
+              << " " << imgdata.thumbnail.twidth
+              << " " << imgdata.thumbnail.theight
+              << " " << imgdata.sizes.flip;
+
+    if (imgdata.thumbnail.twidth > 0 && imgdata.thumbnail.theight > 0)
+    {
+        ret = libRaw.unpack_thumb();
+        if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
+        {
+            LOG_debug << "Extracting thumbnail from RAW image";
+            output = libRaw.dcraw_make_mem_thumb();
+        }
+    }
+
+    if (!output)
+    {
+        ret = libRaw.unpack();
+        if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
+        {
+            LOG_debug << "Extracting full RAW image";
+            libRaw.dcraw_process();
+            output = libRaw.dcraw_make_mem_image();
+        }
+    }
+
+    if (!output)
+    {
+        LOG_warn << "Unable to extract RAW image";
+        return NULL;
+    }
+
+    QImage unscaled;
+    if (output->type == LIBRAW_IMAGE_JPEG)
+    {
+        LOG_debug << "Converting RAW image in JPG format";
+
+        unscaled.loadFromData(output->data, output->data_size, "JPEG");
+        w = unscaled.width();
+        h = unscaled.height();
+    }
+    else if (output->type == LIBRAW_IMAGE_BITMAP)
+    {
+        LOG_debug << "Converting RAW image in BITMAP format";
+
+        int numPixels = output->width * output->height;
+        int colorSize = output->bits / 8;
+        int pixelSize = output->colors * colorSize;
+
+        unscaled = QImage(output->width, output->height, QImage::Format_RGB32);
+        uchar *pixels = unscaled.bits();
+        uchar *data = output->data;
+        for (int i = 0; i < numPixels; i++, data += pixelSize)
+        {
+            int index = i * 4;
+            if (output->colors == 3)
+            {
+                pixels[index] = data[2 * colorSize];
+                pixels[index + 1] = data[1 * colorSize];
+                pixels[index + 2] = data[0];
+            }
+            else
+            {
+                pixels[index] = data[0];
+                pixels[index + 1] = data[0];
+                pixels[index + 2] = data[0];
+            }
+            pixels[index + 3] = 0xFF;
+        }
+        w = output->width;
+        h = output->height;
+    }
+
+    LOG_debug << "Output image size: " << w << " " << h;
+
+    bool rotated = false;
+    if ((imgdata.sizes.width > imgdata.sizes.height && w < h)
+            || (imgdata.sizes.width < imgdata.sizes.height && w > h))
+    {
+        rotated = true;
+        LOG_debug << "RAW image already rotated by libraw";
+    }
+
+    orientation = 0;
+    if (imgdata.sizes.flip != 0 && !rotated)
+    {
+        LOG_debug << "Image rotation needed " << imgdata.sizes.flip;
+        if (imgdata.sizes.flip == 3)
+        {
+            orientation = ROTATION_DOWN;
+        }
+        else if (imgdata.sizes.flip == 5)
+        {
+            orientation = ROTATION_RIGHT;
+        }
+        else if (imgdata.sizes.flip == 6)
+        {
+            orientation = ROTATION_LEFT;
+        }
+    }
+
+    LibRaw::dcraw_clear_mem(output);
+    if (unscaled.isNull())
+    {
+        LOG_warn << "Unable to convert RAW image";
+        return NULL;
+    }
+
+    QBuffer *buffer = new QBuffer();
+    if (!buffer->open(QIODevice::ReadWrite) || !unscaled.save(buffer, "JPG", 85))
+    {
+        LOG_warn << "Error saving RAW image to a memory buffer";
+        delete buffer;
+        return NULL;
+    }
+
+    LOG_debug << "RAW image correctly extracted";
+    if (orientation < ROTATION_LEFT_MIRRORED)
+    {
+        //No rotation or 180º rotation
+        w = unscaled.width();
+        h = unscaled.height();
+    }
+    else
+    {
+        //90º or 270º rotation
+        w = unscaled.height();
+        h = unscaled.width();
+    }
+
+    buffer->seek(0);
+    QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
+    return imageReader;
+}
+
+#endif
+
 
 #ifdef HAVE_FFMPEG
 
@@ -818,6 +1007,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
                     if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
                     {
                         LOG_warn << "Error extracting image";
+                        delete buffer;
                         av_packet_unref(&packet);
                         av_frame_free(&videoFrame);
                         avcodec_close(&codecContext);

@@ -118,7 +118,7 @@ class MEGA_API CommandLogin : public Command
 public:
     void procresult();
 
-    CommandLogin(MegaClient*, const char*, uint64_t, const byte* = NULL,  int = 0);
+    CommandLogin(MegaClient*, const char*, uint64_t, const byte* = NULL,  int = 0, const char* = NULL);
 };
 
 class MEGA_API CommandSetMasterKey : public Command
@@ -128,7 +128,7 @@ class MEGA_API CommandSetMasterKey : public Command
 public:
     void procresult();
 
-    CommandSetMasterKey(MegaClient*, const byte*, uint64_t);
+    CommandSetMasterKey(MegaClient*, const byte*, uint64_t, const char* = NULL);
 };
 
 class MEGA_API CommandCreateEphemeralSession : public Command
@@ -685,7 +685,7 @@ class MEGA_API CommandGetRecoveryLink : public Command
 public:
     void procresult();
 
-    CommandGetRecoveryLink(MegaClient*, const char *, int);
+    CommandGetRecoveryLink(MegaClient*, const char *, int, const char* = NULL);
 };
 
 class MEGA_API CommandQueryRecoveryLink : public Command
@@ -733,7 +733,7 @@ class MEGA_API CommandGetEmailLink : public Command
 public:
     void procresult();
 
-    CommandGetEmailLink(MegaClient*, const char*, int);
+    CommandGetEmailLink(MegaClient*, const char*, int, const char *pin = NULL);
 };
 
 class MEGA_API CommandConfirmEmailLink : public Command
@@ -1003,6 +1003,30 @@ public:
     void procresult();
 
     CommandKeepMeAlive(MegaClient*, int, bool = true);
+};
+
+class MEGA_API CommandMultiFactorAuthSetup : public Command
+{
+public:
+    void procresult();
+
+    CommandMultiFactorAuthSetup(MegaClient*, const char* = NULL);
+};
+
+class MEGA_API CommandMultiFactorAuthCheck : public Command
+{
+public:
+    void procresult();
+
+    CommandMultiFactorAuthCheck(MegaClient*, const char*);
+};
+
+class MEGA_API CommandMultiFactorAuthDisable : public Command
+{
+public:
+    void procresult();
+
+    CommandMultiFactorAuthDisable(MegaClient*, const char*);
 };
 
 } // namespace
