@@ -809,7 +809,6 @@ class MegaRequestPrivate : public MegaRequest
 #ifdef ENABLE_CHAT
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
-        void setMegaTextChatUnifiedKeyMap(const mega::MegaUserKeyMap *userKeyMap);
         virtual MegaTextChatList *getMegaTextChatList() const;
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
@@ -1088,20 +1087,15 @@ public:
     virtual void addPeer(MegaHandle h, int priv);
     virtual MegaHandle getPeerHandle(int i) const;
     virtual int getPeerPrivilege(int i) const;
-    virtual void setUnifiedKeyMap(const mega::MegaUserKeyMap *userKeyMap);
-    virtual std::string getPeerKey(int i) const;
     virtual int size() const;
 
     // returns the list of user-privilege (this object keeps the ownership)
     const userpriv_vector * getList() const;
-    const userkey_map * getKeyList() const;
 
     void setPeerPrivilege(handle uh, privilege_t priv);
-    void setPeerKey(handle uh, std::string uk);
 
 private:
     userpriv_vector list;
-    userkey_map keysList;
 };
 
 class MegaTextChatPrivate : public MegaTextChat
@@ -1178,6 +1172,7 @@ public:
     virtual MegaStringList *getKeys() const;
     virtual void set(const char *key, const char *value);
     virtual int size() const;
+    const string_map *getMap() const;
 
 protected:
     MegaStringMapPrivate(const MegaStringMapPrivate *megaStringMap);
@@ -1925,7 +1920,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const mega::MegaUserKeyMap *userKeyMap = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);

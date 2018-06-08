@@ -2357,7 +2357,6 @@ static void process_line(char* l)
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
                 cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
-                cout << "      chatcp ownunifiedkey title [email ro|sta|mod unifiedkey]*" << endl;
                 cout << "      chati chatid email ro|sta|mod [title unifiedkey]" << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
@@ -4700,83 +4699,6 @@ static void process_line(char* l)
                         {
                             cout << "Invalid syntax to join an openchat" << endl;
                             cout << "      chatlj publichandle unifiedkey" << endl;
-                            return;
-                        }
-                    }
-                    else if (words[0] == "chatcp")
-                    {
-                        unsigned wordscount = words.size();
-                        if (wordscount >= 5)
-                        {
-                            string title;
-                            string ownunifiedkey = words[1];
-                            unsigned parseoffset = 2;
-
-                            if (((wordscount - 3) % 3) == 0)
-                            {
-                                if(words[2].length() > 1)
-                                {
-                                    parseoffset = 3;
-                                    title = words[2];
-                                }
-                                else
-                                {
-                                    cout << "Title must have more that one character" << endl;
-                                }
-                            }
-
-                            userpriv_vector *userpriv = new userpriv_vector;
-                            userkey_map *userkeymap = new userkey_map;
-                            unsigned numUsers = 0;
-
-                            while ((numUsers+1)*3 + parseoffset <= wordscount)
-                            {
-                                string email = words[numUsers*3 + parseoffset];
-                                User *u = client->finduser(email.c_str(), 0);
-                                if (!u)
-                                {
-                                    cout << "User not found: " << email << endl;
-                                    delete userpriv;
-                                    return;
-                                }
-
-                                string privstr = words[numUsers*3 + parseoffset + 1];
-                                privilege_t priv;
-
-                                if (privstr ==  "ro")
-                                {
-                                    priv = PRIV_RO;
-                                }
-                                else if (privstr == "sta")
-                                {
-                                    priv = PRIV_STANDARD;
-                                }
-                                else if (privstr == "mod")
-                                {
-                                    priv = PRIV_MODERATOR;
-                                }
-                                else
-                                {
-                                    cout << "Unknown privilege for " << email << endl;
-                                    delete userpriv;
-                                    return;
-                                }
-
-                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
-                                string unifiedkey = words[numUsers*3 + parseoffset + 2];
-                                userkeymap->insert(std::pair<handle, string>(u->userhandle,unifiedkey));
-                                numUsers++;
-                            }
-
-                            client->createChat(true, true, userpriv, userkeymap, title.c_str());
-                            delete userpriv;
-                            delete userkeymap;
-                            return;
-                        }
-                        else
-                        {
-                            cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "       chatcp ownunifiedkey title [email ro|sta|mod unifiedkey]*" << endl;
                             return;
                         }
                     }

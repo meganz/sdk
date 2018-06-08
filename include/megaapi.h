@@ -25,7 +25,6 @@
 #include <string>
 #include <vector>
 #include <inttypes.h>
-#include <map>
 
 #ifdef __APPLE__
 #include <TargetConditionals.h>
@@ -34,7 +33,6 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
-typedef std::map<MegaHandle, std::string> MegaUserKeyMap;
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -1479,13 +1477,6 @@ public:
     virtual int getPeerPrivilege(int i) const;
 
     /**
-     * @brief Set the Unified Key map (map<MegaHandle, string>)
-     *
-     * @param Map of user handles with unified keys (map<MegaHandle, string>), including our own user
-     */
-    virtual void setUnifiedKeyMap(const mega::MegaUserKeyMap *);
-
-    /**
      * @brief Returns the number of chat peer in the list
      * @return Number of chat peers in the list
      */
@@ -1727,6 +1718,12 @@ public:
 class MegaStringMap
 {
 public:
+    /**
+     * @brief Creates a new instance of MegaStringMap
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaStringMap *createInstance();
+
     virtual ~MegaStringMap();
 
     virtual MegaStringMap *copy() const;
@@ -1828,7 +1825,7 @@ class MegaNodeList
 {
     public:
         /**
-         * @brief Creates a new instance of MegaChatPeerList
+         * @brief Creates a new instance of MegaNodeList
          * @return A pointer to the superclass of the private object
          */
         static MegaNodeList * createInstance();
@@ -2093,8 +2090,6 @@ class MegaRequest
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE,
-            TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
             TYPE_CHAT_LINK, TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
@@ -11127,11 +11122,11 @@ class MegaApi
          *
          * @param peers MegaChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists.
-         * @param userKeyMap Map of user handles with unified keys (map<MegaHandle, string>), including our own user
+         * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          *
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const mega::MegaUserKeyMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

@@ -516,7 +516,7 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const userkey_map *userkeymap = NULL, const char *title = NULL);
+    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL);
 
     // invite a user to a chat
     void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);

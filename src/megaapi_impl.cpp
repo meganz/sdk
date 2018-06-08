@@ -2465,11 +2465,6 @@ void MegaRequestPrivate::setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers
     this->chatPeerList = chatPeers->copy();
 }
 
-void MegaRequestPrivate::setMegaTextChatUnifiedKeyMap(const mega::MegaUserKeyMap *userKeyMap)
-{
-    chatPeerList->setUnifiedKeyMap(userKeyMap);
-}
-
 MegaTextChatList *MegaRequestPrivate::getMegaTextChatList() const
 {
     return chatList;
@@ -3083,6 +3078,11 @@ void MegaStringMapPrivate::set(const char *key, const char *value)
 int MegaStringMapPrivate::size() const
 {
     return strMap.size();
+}
+
+const string_map *MegaStringMapPrivate::getMap() const
+{
+    return &strMap;
 }
 
 MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStringMap)
@@ -7471,14 +7471,14 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 #endif
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const mega::MegaUserKeyMap *userKeyMap, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
     request->setAccess(publicchat ? 1 : 0);
     request->setMegaTextChatPeerList(peers);
     request->setText(title);
-    request->setMegaTextChatUnifiedKeyMap(userKeyMap);
+    request->setMegaStringMap(userKeyMap);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -17075,40 +17075,43 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHAT_CREATE:
         {
             MegaTextChatPeerList *chatPeers = request->getMegaTextChatPeerList();
-            if (!chatPeers)   // refuse to create chats without participants
-            {
-                e = API_EARGS;
-                break;
-            }
-
             bool group = request->getFlag();
             const char *title = request->getText();
             bool publicchat = (request->getAccess() == 1);
-            const userkey_map *keylist = ((MegaTextChatPeerListPrivate*)chatPeers)->getKeyList();
+            MegaStringMap *userKeyMap = request->getMegaStringMap();
 
             if(publicchat)
             {
-                if (!keylist || keylist->size() <= 1)
+                if (!group || !userKeyMap || (userKeyMap->size() != chatPeers->size() + 1))
+                {
+                    e = API_EARGS;
+                    break;
+                }
+            }
+            else
+            {
+                if (!group && (!chatPeers || chatPeers->size() != 1))
                 {
                     e = API_EARGS;
                     break;
                 }
             }
 
-            const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
-            if (!userpriv || (!group && chatPeers->size() > 1))
+            const userpriv_vector *userpriv = NULL;
+            if (chatPeers)
             {
-                e = API_EARGS;
-                break;
+                userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
+
+                // if 1:1 chat, peer is enforced to be moderator too
+                if (!group && userpriv->at(0).second != PRIV_MODERATOR)
+                {
+                    ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
+                }
             }
 
-            // if 1:1 chat, peer is enforced to be moderator too
-            if (!group && userpriv->at(0).second != PRIV_MODERATOR)
-            {
-                ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
-            }
+            const string_map *uhkeymap = userKeyMap ? ((MegaStringMapPrivate*)userKeyMap)->getMap() : NULL;
 
-            client->createChat(group, publicchat, userpriv, keylist, title);
+            client->createChat(group, publicchat, userpriv, uhkeymap, title);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -22396,26 +22399,6 @@ int MegaTextChatPeerListPrivate::getPeerPrivilege(int i) const
     }
 }
 
-std::string MegaTextChatPeerListPrivate::getPeerKey(int i) const
-{
-    if (i > size())
-    {
-        return std::string();
-    }
-    else
-    {
-        userkey_map::const_iterator ituk = this->keysList.find(list.at(i).first);
-        if(ituk != this->keysList.end())
-        {
-            return ituk->second;
-        }
-        else
-        {
-            return std::string();
-        }
-    }
-}
-
 int MegaTextChatPeerListPrivate::size() const
 {
     return list.size();
@@ -22424,20 +22407,6 @@ int MegaTextChatPeerListPrivate::size() const
 const userpriv_vector *MegaTextChatPeerListPrivate::getList() const
 {
     return &list;
-}
-
-const userkey_map *MegaTextChatPeerListPrivate::getKeyList() const
-{
-    return &keysList;
-}
-
-
-void MegaTextChatPeerListPrivate::setUnifiedKeyMap(const mega::MegaUserKeyMap *userKeyMap)
-{
-    if (userKeyMap)
-    {
-        keysList = *userKeyMap;
-    }
 }
 
 void MegaTextChatPeerListPrivate::setPeerPrivilege(handle uh, privilege_t priv)
