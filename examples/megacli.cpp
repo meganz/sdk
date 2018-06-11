@@ -4712,62 +4712,73 @@ static void process_line(char* l)
                             return;
                         }
 
-                        userpriv_vector *userpriv = new userpriv_vector;
-                        string_map *userkeymap = new string_map;
+                        userpriv_vector *userpriv = nullptr;
+                        string_map *userkeymap = nullptr;
                         std:string mownkey = words[1];
                         unsigned parseoffset = 2;
-                        const char *title;
-                        if (words[2] == "t")
+                        const char *title = nullptr;
+
+                        if (wordscount >= 4)
                         {
-                            title = words[3].empty() ? words[3].c_str() : NULL;
-                            parseoffset = 4;
+                            if (words[2] == "t" && !words[3].empty())
+                            {
+                                title = words[3].empty() ? words[3].c_str() : NULL;
+                                parseoffset = 4;
+                            }
+
+                            userpriv = new userpriv_vector;
+                            userkeymap = new string_map;
                             if (((wordscount - parseoffset) % 3) != 0)
                             {
                                 cout << "Invalid syntax to create chatroom" << endl;
                                 cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
                                 return;
                             }
+
+                            unsigned numUsers = 0;
+                            while ((numUsers+1)*3 + parseoffset <= wordscount)
+                            {
+                                string email = words[numUsers*3 + parseoffset];
+                                User *u = client->finduser(email.c_str(), 0);
+                                if (!u)
+                                {
+                                    cout << "User not found: " << email << endl;
+                                    delete userpriv;
+                                    return;
+                                }
+
+                                string privstr = words[numUsers*3 + parseoffset + 1];
+                                privilege_t priv;
+                                if (privstr ==  "ro")
+                                {
+                                    priv = PRIV_RO;
+                                }
+                                else if (privstr == "sta")
+                                {
+                                    priv = PRIV_STANDARD;
+                                }
+                                else if (privstr == "mod")
+                                {
+                                    priv = PRIV_MODERATOR;
+                                }
+                                else
+                                {
+                                    cout << "Unknown privilege for " << email << endl;
+                                    delete userpriv;
+                                    return;
+                                }
+                                string uh;
+                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
+                                string unifiedkey = words[numUsers*3 + parseoffset + 2];
+                                uh.assign(u->userhandle, sizeof(u->userhandle));
+                                userkeymap->insert(std::pair<string, string>(uh, unifiedkey));
+                                numUsers++;
+                            }
                         }
-
-                        unsigned numUsers = 0;
-                        while ((numUsers+1)*3 + parseoffset <= wordscount)
-                        {
-                            string email = words[numUsers*3 + parseoffset];
-                            User *u = client->finduser(email.c_str(), 0);
-                            if (!u)
-                            {
-                                cout << "User not found: " << email << endl;
-                                delete userpriv;
-                                return;
-                            }
-
-                            string privstr = words[numUsers*3 + parseoffset + 1];
-                            privilege_t priv;
-                            if (privstr ==  "ro")
-                            {
-                                priv = PRIV_RO;
-                            }
-                            else if (privstr == "sta")
-                            {
-                                priv = PRIV_STANDARD;
-                            }
-                            else if (privstr == "mod")
-                            {
-                                priv = PRIV_MODERATOR;
-                            }
-                            else
-                            {
-                                cout << "Unknown privilege for " << email << endl;
-                                delete userpriv;
-                                return;
-                            }
-
-                            userpriv->push_back(userpriv_pair(u->userhandle, priv));
-                            string unifiedkey = words[numUsers*3 + parseoffset + 2];
-                            userkeymap->insert(std::pair<string, string>(std::to_string(u->userhandle), unifiedkey));
-                            numUsers++;
-                        }
-                        userkeymap->insert(std::pair<string, string>(std::to_string(client->ownuser()->userhandle), mownkey));
+                        string ownuh;
+                        handle auxHandle = client->ownuser()->userhandle;
+                        ownuh.assign(auxHandle, sizeof(auxHandle));
+                        userkeymap->insert(std::pair<string, string>(ownuh, mownkey));
                         client->createChat(true, true, userpriv, userkeymap, title);
                         delete userpriv;
                         delete userkeymap;
