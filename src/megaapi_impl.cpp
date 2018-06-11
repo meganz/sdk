@@ -6868,6 +6868,16 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
         Sync *sync = (*it);
         if (sync->localnodebypath(NULL, &localpath, &parent) || parent)
         {
+            if (localpath.size() >= sync->localdebris.size()
+             && !memcmp(localpath.data(), sync->localdebris.data(), sync->localdebris.size())
+             && (localpath.size() == sync->localdebris.size()
+              || !memcmp(localpath.data() + sync->localdebris.size(),
+                        client->fsaccess->localseparator.data(),
+                        client->fsaccess->localseparator.size())))
+            {
+                break;
+            }
+
             int index = fsAccess->lastpartlocal(&localpath);
             name = localpath.substr(index);
             fsAccess->local2name(&name);
