@@ -6511,6 +6511,7 @@ int MegaApiImpl::syncPathState(string* path)
                     client->fsaccess->localseparator.data(),
                     client->fsaccess->localseparator.size())))
         {
+            state = MegaApi::STATE_IGNORED;
             break;
         }
 
