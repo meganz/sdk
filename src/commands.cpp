@@ -4788,6 +4788,8 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
 
     if (publicchat)
     {
+        arg("m", 1);
+
         char ownHandleB64[12];
         Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
         ownHandleB64[11] = '\0';
@@ -4796,9 +4798,8 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
         if (it != ukm->end())
         {
             this->mUnifiedKey = it->second;
+            arg("ck", mUnifiedKey.c_str());
         }
-        arg("m", 1);
-        arg("ck", mUnifiedKey.c_str());
     }
 
     beginarray("u");
