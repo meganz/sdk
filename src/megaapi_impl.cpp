@@ -17082,7 +17082,13 @@ void MegaApiImpl::sendPendingRequests()
             bool publicchat = (request->getAccess() == 1);
             MegaStringMap *userKeyMap = request->getMegaStringMap();
 
-            int numPeers = chatPeers ? chatPeers->size() : 0;
+            if (!chatPeers) // emtpy groupchat
+            {
+                chatPeers = new MegaTextChatPeerListPrivate();
+                request->setMegaTextChatPeerList(chatPeers);
+            }
+
+            int numPeers = chatPeers->size();
             const string_map *uhkeymap = NULL;
             if(publicchat)
             {
@@ -17103,16 +17109,12 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            const userpriv_vector *userpriv = NULL;
-            if (chatPeers)
-            {
-                userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
+            const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
 
-                // if 1:1 chat, peer is enforced to be moderator too
-                if (!group && userpriv->at(0).second != PRIV_MODERATOR)
-                {
-                    ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
-                }
+            // if 1:1 chat, peer is enforced to be moderator too
+            if (!group && userpriv->at(0).second != PRIV_MODERATOR)
+            {
+                ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
             client->createChat(group, publicchat, userpriv, uhkeymap, title);

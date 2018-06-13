@@ -4712,26 +4712,33 @@ static void process_line(char* l)
                             return;
                         }
 
-                        userpriv_vector *userpriv = nullptr;
-                        string_map *userkeymap = nullptr;
-                        std:string mownkey = words[1];
+                        userpriv_vector *userpriv = new userpriv_vector;
+                        string_map *userkeymap = new string_map;
+                        string mownkey = words[1];
                         unsigned parseoffset = 2;
-                        const char *title = nullptr;
+                        const char *title = NULL;
 
                         if (wordscount >= 4)
                         {
-                            if (words[2] == "t" && !words[3].empty())
+                            if (words[2] == "t")
                             {
-                                title = words[3].empty() ? words[3].c_str() : NULL;
+                                if (words[3].empty())
+                                {
+                                    cout << "Title cannot be set to empty string" << endl;
+                                    delete userpriv;
+                                    delete userkeymap;
+                                    return;
+                                }
+                                title =  words[3].c_str();
                                 parseoffset = 4;
                             }
 
-                            userpriv = new userpriv_vector;
-                            userkeymap = new string_map;
                             if (((wordscount - parseoffset) % 3) != 0)
                             {
                                 cout << "Invalid syntax to create chatroom" << endl;
                                 cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
+                                delete userpriv;
+                                delete userkeymap;
                                 return;
                             }
 
@@ -4744,6 +4751,7 @@ static void process_line(char* l)
                                 {
                                     cout << "User not found: " << email << endl;
                                     delete userpriv;
+                                    delete userkeymap;
                                     return;
                                 }
 
@@ -4765,19 +4773,20 @@ static void process_line(char* l)
                                 {
                                     cout << "Unknown privilege for " << email << endl;
                                     delete userpriv;
+                                    delete userkeymap;
                                     return;
                                 }
                                 string uh;
                                 userpriv->push_back(userpriv_pair(u->userhandle, priv));
                                 string unifiedkey = words[numUsers*3 + parseoffset + 2];
-                                uh.assign(u->userhandle, sizeof(u->userhandle));
+                                uh.assign((const char *)&u->userhandle, MegaClient::USERHANDLE);
                                 userkeymap->insert(std::pair<string, string>(uh, unifiedkey));
                                 numUsers++;
                             }
                         }
                         string ownuh;
                         handle auxHandle = client->ownuser()->userhandle;
-                        ownuh.assign(auxHandle, sizeof(auxHandle));
+                        ownuh.assign((const char *)&auxHandle, MegaClient::USERHANDLE);
                         userkeymap->insert(std::pair<string, string>(ownuh, mownkey));
                         client->createChat(true, true, userpriv, userkeymap, title);
                         delete userpriv;

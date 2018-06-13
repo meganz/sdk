@@ -4773,7 +4773,7 @@ void CommandGetLocalSSLCertificate::procresult()
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title)
 {
     this->client = client;
-    this->chatPeers = upl ? new userpriv_vector(*upl) : NULL;
+    this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
     this->mTitle = title ? string(title) : "";
     this->mUnifiedKey = "";
@@ -4801,37 +4801,34 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
         arg("ck", mUnifiedKey.c_str());
     }
 
-    if (chatPeers)
+    beginarray("u");
+
+    userpriv_vector::iterator itupl;
+    for (itupl = chatPeers->begin(); itupl != chatPeers->end(); itupl++)
     {
-        beginarray("u");
+        beginobject();
 
-        userpriv_vector::iterator itupl;
-        for (itupl = chatPeers->begin(); itupl != chatPeers->end(); itupl++)
+        handle uh = itupl->first;
+        char uid[12];
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+        uid[11] = 0;
+
+        privilege_t priv = itupl->second;
+
+        arg("u", uid);
+        arg("p", priv);
+        if (publicchat)
         {
-            beginobject();
-
-            handle uh = itupl->first;
-            char uid[12];
-            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-            uid[11] = 0;
-
-            privilege_t priv = itupl->second;
-
-            arg("u", uid);
-            arg("p", priv);
-            if (publicchat)
+            string_map::const_iterator ituk = ukm->find(uid);
+            if(ituk != ukm->end())
             {
-                string_map::const_iterator ituk = ukm->find(uid);
-                if(ituk != ukm->end())
-                {
-                    arg("ck", ituk->second.c_str());
-                }
+                arg("ck", ituk->second.c_str());
             }
-            endobject();
         }
-
-        endarray();
+        endobject();
     }
+
+    endarray();
 
     arg("v", 1);
     notself(client);
