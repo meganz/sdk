@@ -14809,11 +14809,38 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			Node *node = client->nodebyhandle(request->getNodeHandle());
 			Node *newParent = client->nodebyhandle(request->getParentHandle());
-			if(!node || !newParent) { e = API_EARGS; break; }
+            if (!node || !newParent)
+            {
+                e = API_EARGS;
+                break;
+            }
 
-            if(node->parent == newParent)
+            if (node->parent == newParent)
             {
                 fireOnRequestFinish(request, MegaError(API_OK));
+                break;
+            }
+
+            if (node->type == ROOTNODE
+                    || node->type == INCOMINGNODE
+                    || node->type == RUBBISHNODE
+                    || !node->parent) // rootnodes cannot be moved
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            // old versions cannot be moved
+            if (node->parent->type == FILENODE)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            // target must be folder with enough permissions
+            if (newParent->type == FILENODE || !client->checkaccess(newParent, RDWR))
+            {
+                e = API_EACCESS;
                 break;
             }
 
