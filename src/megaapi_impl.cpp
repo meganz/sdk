@@ -6499,21 +6499,57 @@ int MegaApiImpl::syncPathState(string* path)
     {
         Sync *sync = (*it);
         unsigned int ssize = sync->localroot.localname.size();
-        if(path->size() < ssize || memcmp(path->data(), sync->localroot.localname.data(), ssize))
+        if (path->size() < ssize || memcmp(path->data(), sync->localroot.localname.data(), ssize))
+        {
             continue;
+        }
 
-        if(path->size() == ssize)
+        if (path->size() >= sync->localdebris.size()
+         && !memcmp(path->data(), sync->localdebris.data(), sync->localdebris.size())
+         && (path->size() == sync->localdebris.size()
+          || !memcmp(path->data() + sync->localdebris.size(),
+                    client->fsaccess->localseparator.data(),
+                    client->fsaccess->localseparator.size())))
+        {
+            state = MegaApi::STATE_IGNORED;
+            break;
+        }
+
+        if (path->size() == ssize)
         {
             state = sync->localroot.ts;
             break;
         }
-        else if(!memcmp(path->data()+ssize, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
+        else if (!memcmp(path->data()+ssize, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
         {
             LocalNode* l = sync->localnodebypath(NULL, path);
-            if(l)
+            if (l)
+            {
                 state = l->ts;
+            }
             else
-                state = MegaApi::STATE_IGNORED;
+            {
+                int index = fsAccess->lastpartlocal(path);
+                string name = path->substr(index);
+                fsAccess->local2name(&name);
+                if (is_syncable(sync, name.c_str(), path))
+                {
+                    FileAccess *fa = fsAccess->newfileaccess();
+                    if ((fa->fopen(path) && is_syncable(fa->size)) || fa->type == FOLDERNODE)
+                    {
+                        state = MegaApi::STATE_PENDING;
+                    }
+                    else
+                    {
+                        state = MegaApi::STATE_IGNORED;
+                    }
+                    delete fa;
+                }
+                else
+                {
+                    state = MegaApi::STATE_IGNORED;
+                }
+            }
             break;
         }
     }
@@ -6833,6 +6869,16 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
         Sync *sync = (*it);
         if (sync->localnodebypath(NULL, &localpath, &parent) || parent)
         {
+            if (localpath.size() >= sync->localdebris.size()
+             && !memcmp(localpath.data(), sync->localdebris.data(), sync->localdebris.size())
+             && (localpath.size() == sync->localdebris.size()
+              || !memcmp(localpath.data() + sync->localdebris.size(),
+                        client->fsaccess->localseparator.data(),
+                        client->fsaccess->localseparator.size())))
+            {
+                break;
+            }
+
             int index = fsAccess->lastpartlocal(&localpath);
             name = localpath.substr(index);
             fsAccess->local2name(&name);
