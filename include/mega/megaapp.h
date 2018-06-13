@@ -314,6 +314,15 @@ struct MEGA_API MegaApp
     // contact link delete
     virtual void contactlinkdelete_result(error) { }
 
+    // multi-factor authentication setup
+    virtual void multifactorauthsetup_result(string*, error) { }
+
+    // multi-factor authentication get
+    virtual void multifactorauthcheck_result(int) { }
+
+    // multi-factor authentication disable
+    virtual void multifactorauthdisable_result(error) { }
+
     // keep me alive command for mobile apps
     virtual void keepmealive_result (error) { }
 

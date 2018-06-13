@@ -197,6 +197,9 @@ public:
     // timestamp of the creation of the account
     m_time_t accountsince;
 
+    // multi-factor authentication globally enabled
+    bool gmfa_enabled;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
@@ -233,7 +236,7 @@ public:
     void setkeypair();
 
     // user login: e-mail, pwkey
-    void login(const char*, const byte*);
+    void login(const char*, const byte*, const char* = NULL);
 
     // user login: e-mail, pwkey, emailhash
     void fastlogin(const char*, const byte*, uint64_t);
@@ -286,7 +289,7 @@ public:
     error encryptlink(const char* link, const char* pwd, string *encryptedLink);
 
     // change login password
-    error changepw(const byte*);
+    error changepw(const byte*, const char *pin = NULL);
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);
@@ -796,6 +799,9 @@ public:
 
     // bitmap graphics handling
     GfxProc* gfx;
+
+    // enable / disable the gfx layer
+    bool gfxdisabled;
     
     // DB access
     DbAccess* dbaccess;
@@ -1286,13 +1292,13 @@ public:
     void confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
 
     // request a link to cancel the account
-    void getcancellink(const char *email);
+    void getcancellink(const char *email, const char* = NULL);
 
     // confirm a link to cancel the account
     void confirmcancellink(const char *code);
 
     // get a link to change the email address
-    void getemaillink(const char *email);
+    void getemaillink(const char *email, const char *pin = NULL);
 
     // confirm a link to change the email address
     void confirmemaillink(const char *code, const char *email, const byte *pwkey);
@@ -1305,6 +1311,15 @@ public:
 
     // delete contact link
     void contactlinkdelete(handle);
+
+    // multi-factor authentication setup
+    void multifactorauthsetup(const char* = NULL);
+
+    // multi-factor authentication get
+    void multifactorauthcheck(const char*);
+
+    // multi-factor authentication disable
+    void multifactorauthdisable(const char*);
 
     void keepmealive(int, bool enable = true);
 

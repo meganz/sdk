@@ -122,6 +122,9 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeFolderInfo,
     MEGARequestTypeRichLink,
     MEGARequestTypeKeepMeAlive,
+    MEGARequestTypeMultiFactorAuthCheck,
+    MEGARequestTypeMultiFactorAuthGet,
+    MEGARequestTypeMultiFactorAuthSet,
     TotalOfRequestTypes
 };
 

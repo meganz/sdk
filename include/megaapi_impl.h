@@ -1652,6 +1652,16 @@ class MegaApiImpl : public MegaApp
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
 
+        bool multiFactorAuthAvailable();
+        void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
+        void multiFactorAuthGetCode(MegaRequestListener *listener = NULL);
+        void multiFactorAuthEnable(const char *pin, MegaRequestListener *listener = NULL);
+        void multiFactorAuthDisable(const char *pin, MegaRequestListener *listener = NULL);
+        void multiFactorAuthLogin(const char* email, const char* password, const char* pin, MegaRequestListener *listener = NULL);
+        void multiFactorAuthChangePassword(const char *oldPassword, const char *newPassword, const char* pin, MegaRequestListener *listener = NULL);
+        void multiFactorAuthChangeEmail(const char *email, const char* pin, MegaRequestListener *listener = NULL);
+        void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
+
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
@@ -1991,6 +2001,9 @@ class MegaApiImpl : public MegaApp
 
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
 
+        void disableGfxFeatures(bool disable);
+        bool areGfxFeaturesDisabled();
+
         void changeApiUrl(const char *apiURL, bool disablepkp = false);
 
         bool setLanguage(const char* languageCode);
@@ -2242,6 +2255,11 @@ protected:
         virtual void contactlinkcreate_result(error, handle);
         virtual void contactlinkquery_result(error, handle, string*, string*, string*, string*);
         virtual void contactlinkdelete_result(error);
+
+        // multi-factor authentication
+        virtual void multifactorauthsetup_result(string*, error);
+        virtual void multifactorauthcheck_result(int);
+        virtual void multifactorauthdisable_result(error);
 
         // keep me alive feature
         virtual void keepmealive_result (error);

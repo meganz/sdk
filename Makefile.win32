@@ -86,6 +86,7 @@ COMMON_SRC=\
 		src/user.cpp  \
 		src/utils.cpp  \
 		src/logging.cpp  \
+		src/thread/win32thread.cpp \
 		src/waiterbase.cpp  \
 		src/megaclient.cpp  \
 		src/proxy.cpp  \

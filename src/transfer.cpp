@@ -791,7 +791,7 @@ void Transfer::complete()
                     // set missing node attributes
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                     {
-                        if (client->gfx && client->gfx->isgfx(&localname) &&
+                        if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(&localname) &&
                                 keys.find(n->nodekey) == keys.end() &&    // this file hasn't been processed yet
                                 client->checkaccess(n, OWNER))
                         {
@@ -967,8 +967,11 @@ void Transfer::complete()
         }
 
 
-        // prepare file attributes for video/audio files if the file is suitable
-        addAnyMissingMediaFileAttributes(NULL, localfilename);
+        if (!client->gfxdisabled)
+        {
+            // prepare file attributes for video/audio files if the file is suitable
+            addAnyMissingMediaFileAttributes(NULL, localfilename);
+        }
 
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this);
