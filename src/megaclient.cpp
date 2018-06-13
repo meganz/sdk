@@ -6041,7 +6041,13 @@ error MegaClient::checkmove(Node* fn, Node* tn)
         return API_EACCESS;
     }
 
-    // condition #4: tn must not be below fn (would create circular linkage)
+    // condition #4: source can't be a version
+    if (fn->parent->type == FILENODE)
+    {
+        return API_EACCESS;
+    }
+
+    // condition #5: tn must not be below fn (would create circular linkage)
     for (;;)
     {
         if (tn == fn)
@@ -6057,7 +6063,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
         tn = tn->parent;
     }
 
-    // condition #5: fn and tn must be in the same tree (same ultimate parent
+    // condition #6: fn and tn must be in the same tree (same ultimate parent
     // node or shared by the same user)
     for (;;)
     {

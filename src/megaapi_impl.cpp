@@ -14837,7 +14837,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            // target must be folder with enough permissions
+            // target must be a folder with enough permissions
             if (newParent->type == FILENODE || !client->checkaccess(newParent, RDWR))
             {
                 e = API_EACCESS;
