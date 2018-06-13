@@ -4772,11 +4772,12 @@ static void process_line(char* l)
                                     delete userkeymap;
                                     return;
                                 }
-                                string uh;
                                 userpriv->push_back(userpriv_pair(u->userhandle, priv));
                                 string unifiedkey = words[numUsers*3 + parseoffset + 2];
-                                uh.assign((const char *)&u->userhandle, MegaClient::USERHANDLE);
-                                userkeymap->insert(std::pair<string, string>(uh, unifiedkey));
+                                char uhB64[12];
+                                Base64::btoa((byte *)&u->userhandle, MegaClient::USERHANDLE, uhB64);
+                                uhB64[11] = '\0';
+                                userkeymap->insert(std::pair<string, string>(uhB64, unifiedkey));
                                 numUsers++;
                             }
                         }
