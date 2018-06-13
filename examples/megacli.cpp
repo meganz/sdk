@@ -4038,7 +4038,7 @@ static void process_line(char* l)
                             const char *t = !title.empty() ? title.c_str() : NULL;
                             const char *uk = !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
 
-                            client->inviteToChat(chatid, u->userhandle, priv, t, uk);
+                            client->inviteToChat(chatid, u->userhandle, priv, uk, t);
                             return;
                         }
                         else
