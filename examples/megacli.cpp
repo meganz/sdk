@@ -4705,7 +4705,7 @@ static void process_line(char* l)
                     else if (words[0] == "chatcp")
                     {
                         unsigned wordscount = words.size();
-                        if (wordscount < 2)
+                        if (wordscount < 2 || wordscount < 4)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
                             cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
@@ -4784,10 +4784,10 @@ static void process_line(char* l)
                                 numUsers++;
                             }
                         }
-                        string ownuh;
-                        handle auxHandle = client->ownuser()->userhandle;
-                        ownuh.assign((const char *)&auxHandle, MegaClient::USERHANDLE);
-                        userkeymap->insert(std::pair<string, string>(ownuh, mownkey));
+                        char ownHandleB64[12];
+                        Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
+                        ownHandleB64[11] = '\0';
+                        userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
                         client->createChat(true, true, userpriv, userkeymap, title);
                         delete userpriv;
                         delete userkeymap;

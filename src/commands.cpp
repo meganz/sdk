@@ -4790,7 +4790,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
     {
         char ownHandleB64[12];
         Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
-        ownHandleB64[11] = 0;
+        ownHandleB64[11] = '\0';
 
         string_map::const_iterator it = ukm->find(ownHandleB64);
         if (it != ukm->end())
