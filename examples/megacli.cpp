@@ -788,11 +788,11 @@ void DemoApp::printChatInformation(TextChat *chat)
     }
     if (chat->publicchat)
     {
-        cout << "\tOpen chat: yes" << endl;
+        cout << "\tPublic chat: yes" << endl;
     }
     else
     {
-        cout << "\tOpen chat: no" << endl;
+        cout << "\tPublic chat: no" << endl;
     }
     cout << "\tPeers:";
 
