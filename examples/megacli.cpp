@@ -2364,7 +2364,7 @@ static void process_line(char* l)
                 cout << "      chatst chatid title64" << endl;
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
                 cout << "      chatl chatid [del]" << endl;     // get public handle
-                cout << "      chatsm chatid title64" << endl;          // set private mode
+                cout << "      chatsm chatid [title64]" << endl;          // set private mode
                 cout << "      chatlu publichandle" << endl;    // get chat-link URL
                 cout << "      chatlj publichandle unifiedkey" << endl;    // join chat-link
 #endif
@@ -4665,7 +4665,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "chatsm")
                     {
-                        if (words.size() == 3)
+                        if (words.size() == 2 || words.size() == 3)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
@@ -4677,7 +4677,7 @@ static void process_line(char* l)
                         else
                         {
                             cout << "Invalid syntax to set private/close mode" << endl;
-                            cout << "       chatsm chatid title64" << endl;
+                            cout << "       chatsm chatid [title64]" << endl;
                             return;
                         }
                     }
@@ -4701,7 +4701,7 @@ static void process_line(char* l)
                     else if (words[0] == "chatcp")
                     {
                         unsigned wordscount = words.size();
-                        if (wordscount < 2 || wordscount < 4)
+                        if (wordscount < 2 || wordscount == 3)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
                             cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
