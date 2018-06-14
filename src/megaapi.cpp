@@ -1292,6 +1292,17 @@ void MegaListener::onGlobalSyncStateChanged(MegaApi *)
 { }
 #endif
 
+void MegaListener::onBackupStateChanged(MegaApi *, MegaBackup *)
+{ }
+void MegaListener::onBackupStart(MegaApi *, MegaBackup *)
+{ }
+void MegaListener::onBackupFinish(MegaApi *, MegaBackup *, MegaError *)
+{ }
+void MegaListener::onBackupUpdate(MegaApi *, MegaBackup *)
+{ }
+void MegaListener::onBackupTemporaryError(MegaApi *, MegaBackup *, MegaError *)
+{ }
+
 #ifdef ENABLE_CHAT
 void MegaGlobalListener::onChatsUpdate(MegaApi *api, MegaTextChatList *chats)
 {}
@@ -2257,6 +2268,32 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, MegaTransferL
     pImpl->startUpload(localPath, parent, listener);
 }
 
+
+MegaStringList *MegaApi::getBackupFolders(int backuptag) const
+{
+    return pImpl->getBackupFolders(backuptag);
+}
+
+void MegaApi::setBackup(const char* localPath, MegaNode* parent, bool attendPastBackups, int64_t period, const char *periodstring, int numBackups, MegaRequestListener *listener)
+{
+    pImpl->setBackup(localPath, parent, attendPastBackups, period, periodstring ? periodstring : "", numBackups, listener);
+}
+
+void MegaApi::removeBackup(int tag, MegaRequestListener *listener)
+{
+    pImpl->removeBackup(tag, listener);
+}
+
+void MegaApi::abortCurrentBackup(int tag, MegaRequestListener *listener)
+{
+    pImpl->abortCurrentBackup(tag, listener);
+}
+
+void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
+{
+    pImpl->startTimer(period, listener);
+}
+
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
 {
     pImpl->startUpload(localPath, parent, (const char *)NULL, -1, 0, appData, false, listener);
@@ -2519,6 +2556,22 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 }
 #endif
 #endif
+
+
+MegaBackup *MegaApi::getBackupByTag(int tag)
+{
+    return pImpl->getBackupByTag(tag);
+}
+
+MegaBackup *MegaApi::getBackupByNode(MegaNode *node)
+{
+    return pImpl->getBackupByNode(node);
+}
+
+MegaBackup *MegaApi::getBackupByPath(const char *localPath)
+{
+    return pImpl->getBackupByPath(localPath);
+}
 
 int MegaApi::getNumPendingUploads()
 {
@@ -2994,6 +3047,16 @@ void MegaApi::removeSyncListener(MegaSyncListener *listener)
     pImpl->removeSyncListener(listener);
 }
 #endif
+
+void MegaApi::addBackupListener(MegaBackupListener *listener)
+{
+    pImpl->addBackupListener(listener);
+}
+
+void MegaApi::removeBackupListener(MegaBackupListener *listener)
+{
+    pImpl->removeBackupListener(listener);
+}
 
 void MegaApi::removeListener(MegaListener* listener)
 {
@@ -4493,6 +4556,118 @@ const char *MegaRegExp::getFullPattern()
     return pImpl->getFullPattern();
 }
 #endif
+
+
+void MegaBackupListener::onBackupStateChanged(MegaApi *, MegaBackup *)
+{ }
+void MegaBackupListener::onBackupStart(MegaApi *, MegaBackup *)
+{ }
+void MegaBackupListener::onBackupFinish(MegaApi*, MegaBackup *, MegaError*)
+{ }
+void MegaBackupListener::onBackupUpdate(MegaApi *, MegaBackup *)
+{ }
+void MegaBackupListener::onBackupTemporaryError(MegaApi *, MegaBackup *, MegaError*)
+{ }
+MegaBackupListener::~MegaBackupListener()
+{ }
+
+MegaBackup::~MegaBackup() { }
+
+MegaBackup *MegaBackup::copy()
+{
+    return NULL;
+}
+
+MegaHandle MegaBackup::getMegaHandle() const
+{
+    return INVALID_HANDLE;
+}
+
+const char *MegaBackup::getLocalFolder() const
+{
+    return NULL;
+}
+
+int MegaBackup::getTag() const
+{
+    return 0;
+}
+
+bool MegaBackup::getAttendPastBackups() const
+{
+    return false;
+}
+
+int64_t MegaBackup::getPeriod() const
+{
+    return 0;
+}
+
+const char *MegaBackup::getPeriodString() const
+{
+    return NULL;
+}
+
+long long MegaBackup::getNextStartTime(long long oldStartTimeAbsolute) const
+{
+    return 0;
+}
+
+
+int MegaBackup::getMaxBackups() const
+{
+    return 0;
+}
+
+int MegaBackup::getState() const
+{
+    return MegaBackup::BACKUP_FAILED;
+}
+
+long long MegaBackup::getNumberFolders() const
+{
+     return 0;
+}
+
+long long MegaBackup::getNumberFiles() const
+{
+     return 0;
+}
+
+long long MegaBackup::getTotalFiles() const
+{
+     return 0;
+}
+
+int64_t MegaBackup::getCurrentBKStartTime() const
+{
+     return 0;
+}
+
+long long MegaBackup::getTransferredBytes() const
+{
+     return 0;
+}
+
+long long MegaBackup::getTotalBytes() const
+{
+     return 0;
+}
+
+long long MegaBackup::getSpeed() const
+{
+     return 0;
+}
+
+long long MegaBackup::getMeanSpeed() const
+{
+     return 0;
+}
+
+int64_t MegaBackup::getUpdateTime() const
+{
+     return 0;
+}
 
 MegaAccountBalance::~MegaAccountBalance()
 {

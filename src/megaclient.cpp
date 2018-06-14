@@ -1915,6 +1915,7 @@ void MegaClient::exec()
             }
         }
 
+
 #ifdef ENABLE_SYNC
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
@@ -2481,6 +2482,23 @@ void MegaClient::exec()
             workinglockcs->post(this);
         }
 
+
+        for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
+        {
+            TimerWithBackoff *bttimer = *it;
+            if (bttimer->armed())
+            {
+                restag = bttimer->tag;
+                app->timer_result(API_OK);
+                delete bttimer;
+                it = bttimers.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
@@ -2572,6 +2590,11 @@ int MegaClient::preparewait()
         if (!workinglockcs && requestLock)
         {
             btworkinglock.update(&nds);
+        }
+
+        for (vector<TimerWithBackoff *>::iterator cit = bttimers.begin(); cit != bttimers.end(); cit++)
+        {
+            (*cit)->update(&nds);
         }
 
         // retry failed file attribute puts
@@ -3380,9 +3403,15 @@ void MegaClient::locallogout()
         delete it->second;
     }
 
+    for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end();  it++)
+    {
+        delete *it;
+    }
+
     queuedfa.clear();
     activefa.clear();
     pendinghttp.clear();
+    bttimers.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
@@ -10492,6 +10521,12 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 #endif
 }
 
+error MegaClient::addtimer(TimerWithBackoff *twb)
+{
+    bttimers.push_back(twb);
+    return API_OK;
+}
+
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
@@ -11792,7 +11827,7 @@ void MegaClient::execmovetosyncdebris()
     target = SYNCDEL_BIN;
 
     ts = m_time();
-    struct tm* ptm = m_localtime(ts, &tms); 
+    struct tm* ptm = m_localtime(ts, &tms);
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     m_time_t currentminute = ts / 60;
 

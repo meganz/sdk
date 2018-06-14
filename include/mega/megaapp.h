@@ -302,6 +302,9 @@ struct MEGA_API MegaApp
     // HTTP request finished
     virtual void http_result(error, int, byte*, int) { }
 
+    // Timer ended
+    virtual void timer_result(error) { }
+
     // contact link create
     virtual void contactlinkcreate_result(error, handle) { }
 

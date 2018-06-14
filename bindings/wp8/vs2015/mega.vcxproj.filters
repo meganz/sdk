@@ -184,7 +184,13 @@
     <ClInclude Include="..\..\..\include\mega\mega_utf8proc.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\mega_ccronexpr.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\include\mega\mega_evt_tls.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\mega_evt_queue.h">
       <Filter>SDK\Header</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\include\mega\megaapp.h">
@@ -418,6 +424,8 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\mega_evt_tls.cpp">
