@@ -3928,6 +3928,13 @@ static void process_line(char* l)
                         }
 
                         int group = atoi(words[1].c_str());
+                        if (group != 0 && group != 1)
+                        {
+                            cout << "Invalid syntax to create chatroom" << endl;
+                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            return;
+                        }
+
                         unsigned parseoffset = 2;
                         const char *title = NULL;
 
