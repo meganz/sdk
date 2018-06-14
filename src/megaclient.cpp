@@ -2756,7 +2756,10 @@ int MegaClient::checkevents()
 {
     int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
-    r |= gfx->checkevents(waiter);
+    if (gfx)
+    {
+        r |= gfx->checkevents(waiter);
+    }
     return r;
 }
 
