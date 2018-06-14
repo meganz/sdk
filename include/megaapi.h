@@ -9482,6 +9482,32 @@ class MegaApi
          */
         MegaSync *getSyncByPath(const char *localPath);
 
+#ifdef USE_PCRE
+        /**
+        * @brief Set a list of rules to exclude files and folders for a given synchronized folder
+        * @param sync Synchronization whose rules want to be updated
+        * @param regExp List of regular expressions (rules) to exclude file / folders
+        */
+        void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
+#endif
+
+        /**
+         * @brief Get the total number of local nodes in the account
+         * @return Total number of local nodes in the account
+         */
+        long long getNumLocalNodes();
+
+        /**
+         * @brief Get the path if the file/folder that is blocking the sync engine
+         *
+         * If the sync engine is not blocked, this function returns NULL
+         * You take the ownership of the returned value
+         *
+         * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
+         */
+        char *getBlockedPath();
+#endif
+
         /**
          * @brief Get the backup identified with a tag
          *
@@ -9512,32 +9538,6 @@ class MegaApi
          * @return Backup with the specified root local path
          */
         MegaBackup *getBackupByPath(const char *localPath);
-
-#ifdef USE_PCRE
-        /**
-        * @brief Set a list of rules to exclude files and folders for a given synchronized folder
-        * @param sync Synchronization whose rules want to be updated
-        * @param regExp List of regular expressions (rules) to exclude file / folders
-        */
-        void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
-#endif
-
-        /**
-         * @brief Get the total number of local nodes in the account
-         * @return Total number of local nodes in the account
-         */
-        long long getNumLocalNodes();
-
-        /**
-         * @brief Get the path if the file/folder that is blocking the sync engine
-         *
-         * If the sync engine is not blocked, this function returns NULL
-         * You take the ownership of the returned value
-         *
-         * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
-         */
-        char *getBlockedPath();
-#endif
 
         /**
          * @brief Force a loop of the SDK thread
