@@ -982,15 +982,6 @@ MegaClient::~MegaClient()
     delete sctable;
     delete tctable;
     delete dbaccess;
-
-    for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
-    {
-        TimerWithBackoff * bttimer = ((TimerWithBackoff *)*it);
-        restag = bttimer->tag; //Does this make sense here?
-        app->timer_result(API_EFAILED);
-        delete *it;
-        it = bttimers.erase(it);
-    }
 }
 
 // nonblocking state machine executing all operations currently in progress
@@ -2494,12 +2485,12 @@ void MegaClient::exec()
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
         {
-            TimerWithBackoff * bttimer = ((TimerWithBackoff *)*it);
+            TimerWithBackoff *bttimer = *it;
             if (bttimer->armed())
             {
-                restag = bttimer->tag; //Does this make sense here?
+                restag = bttimer->tag;
                 app->timer_result(API_OK);
-                delete *it;
+                delete bttimer;
                 it = bttimers.erase(it);
             }
             else
@@ -2603,7 +2594,7 @@ int MegaClient::preparewait()
 
         for (vector<TimerWithBackoff *>::iterator cit = bttimers.begin(); cit != bttimers.end(); cit++)
         {
-            ((TimerWithBackoff *)*cit)->update(&nds);
+            (*cit)->update(&nds);
         }
 
         // retry failed file attribute puts
@@ -3412,9 +3403,15 @@ void MegaClient::locallogout()
         delete it->second;
     }
 
+    for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
+    {
+        delete *it;
+    }
+
     queuedfa.clear();
     activefa.clear();
     pendinghttp.clear();
+    bttimers.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
