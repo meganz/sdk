@@ -5085,11 +5085,6 @@ void MegaApiImpl::renameNode(MegaNode *node, const char *newName, MegaRequestLis
     waiter->notify();
 }
 
-void MegaApiImpl::remove(MegaNode *node, MegaRequestListener *listener)
-{
-    return remove(node, false, listener);
-}
-
 void MegaApiImpl::remove(MegaNode *node, bool keepversions, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE, listener);

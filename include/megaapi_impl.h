@@ -1720,7 +1720,6 @@ class MegaApiImpl : public MegaApp
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
         void renameNode(MegaNode* node, const char* newName, MegaRequestListener *listener = NULL);
-        void remove(MegaNode* node, MegaRequestListener *listener = NULL);
         void remove(MegaNode* node, bool keepversions = false, MegaRequestListener *listener = NULL);
         void removeVersions(MegaRequestListener *listener = NULL);
         void restoreVersion(MegaNode *version, MegaRequestListener *listener = NULL);
