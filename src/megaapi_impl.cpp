@@ -19642,8 +19642,6 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
-    LOG_fatal << " at MegaFolderUploadController::onTransferStart: "+ string(t->getFileName());
-
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
