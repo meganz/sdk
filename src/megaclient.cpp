@@ -3403,7 +3403,7 @@ void MegaClient::locallogout()
         delete it->second;
     }
 
-    for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
+    for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end();  it++)
     {
         delete *it;
     }
