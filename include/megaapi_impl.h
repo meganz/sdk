@@ -2441,8 +2441,6 @@ protected:
     bool closing;
     int remainingcloseevents;
 
-    string crlfout;
-
 #ifdef ENABLE_EVT_TLS
     // TLS
     evt_ctx_t evtctx;
@@ -2737,6 +2735,8 @@ protected:
         FTP_CMD_OPTS, //rfc2389
         FTP_CMD_NOOP
     };
+
+    std::string crlfout;
 
     MegaHandle nodeHandleToRename;
 

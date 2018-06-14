@@ -2103,7 +2103,7 @@ const char * MegaTransferPrivate::getTransferString() const
         return "UPLOAD";
     case TYPE_DOWNLOAD:
         return "DOWNLOAD";
-    case TYPE_LOCAL_HTTP_DOWNLOAD:
+    case TYPE_LOCAL_TCP_DOWNLOAD:
         return "LOCAL_HTTP_DOWNLOAD";
     }
 
@@ -16573,7 +16573,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (megaTransfer->getType() == MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD)
+            if (megaTransfer->getType() == MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD)
             {
                 e = API_EACCESS;
                 break;
@@ -19559,15 +19559,6 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
         uv_mutex_init(&MegaTCPServer::mutexinitializeuvloop);
         mutexuvloop_initialized = true;
     }
-
-#ifdef _WIN32
-        crlfout = "\r\n";
-#elif defined(__MACH__)
-        crlfout = "\r";
-#else
-        //crlfout = "\n";
-#endif
-        crlfout = "\r\n";
 }
 
 MegaTCPServer::~MegaTCPServer()
@@ -21432,7 +21423,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             link.append(httpctx->nodekey);
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
-            httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+            httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
             httpctx->transfer->setPath(httpctx->path.c_str());
             httpctx->transfer->setFileName(httpctx->nodename.c_str());
             httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
@@ -22014,7 +22005,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     }
     else //GET/POST/HEAD
     {
-        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
         httpctx->transfer->setPath(httpctx->path.c_str());
         if (httpctx->nodename.size())
         {
@@ -22596,6 +22587,16 @@ MegaFTPServer::MegaFTPServer(MegaApiImpl *megaApi, string basePath, int dataport
     this->pport = dataportBegin;
     this->dataportBegin = dataportBegin;
     this->dataPortEnd = dataPortEnd;
+
+
+//#ifdef _WIN32
+//        crlfout = "\r\n";
+//#elif defined(__MACH__)
+//        crlfout = "\r";
+//#else
+//        crlfout = "\n";
+//#endif
+        crlfout = "\r\n"; //empirically suitable for common clients in all platforms
 }
 
 MegaFTPServer::~MegaFTPServer()
@@ -24665,7 +24666,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->streamingBuffer.setMaxBufferSize(ftpdatactx->server->getMaxBufferSize());
             ftpdatactx->streamingBuffer.setMaxOutputSize(ftpdatactx->server->getMaxOutputSize());
 
-            ftpdatactx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+            ftpdatactx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
 
             ftpdatactx->transfer->setPath(fds->controlftpctx->arg1.c_str());
             if (ftpdatactx->nodename.size())
