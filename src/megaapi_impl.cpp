@@ -4045,8 +4045,7 @@ MegaApiImpl::~MegaApiImpl()
 
     for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
     {
-        MegaBackupController *backupController=it->second;
-        delete backupController;
+        delete it->second;
     }
 
     for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
@@ -5084,11 +5083,6 @@ void MegaApiImpl::renameNode(MegaNode *node, const char *newName, MegaRequestLis
 	request->setName(newName);
 	requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::remove(MegaNode *node, MegaRequestListener *listener)
-{
-    return remove(node, false, listener);
 }
 
 void MegaApiImpl::remove(MegaNode *node, bool keepversions, MegaRequestListener *listener)
@@ -11434,7 +11428,14 @@ void MegaApiImpl::logout_result(error e)
     {
         requestMap.erase(request->getTag());
 
-        error preverror = (error)request->getParamType();
+        error preverror = (error)request->getParamType();       
+        while (!backupsMap.empty())
+        {
+            std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
+            delete it->second;
+            backupsMap.erase(it);
+        }
+
         while (!requestMap.empty())
         {
             std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
@@ -15108,6 +15109,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             requestMap.erase(request->getTag());
+
+            while (!backupsMap.empty())
+            {
+                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
+                delete it->second;
+                backupsMap.erase(it);
+            }
+
             while (!requestMap.empty())
             {
                 std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
@@ -16443,6 +16452,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             requestMap.erase(request->getTag());
+
+            while (!backupsMap.empty())
+            {
+                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
+                delete it->second;
+                backupsMap.erase(it);
+            }
+
             while (!requestMap.empty())
             {
                 std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
@@ -19620,8 +19637,6 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
-    LOG_fatal << " at MegaFolderUploadController::onTransferStart: "+ string(t->getFileName());
-
     transfer->setState(t->getState());
     transfer->setPriority(t->getPriority());
     transfer->setTotalBytes(transfer->getTotalBytes() + t->getTotalBytes());
