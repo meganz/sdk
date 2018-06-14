@@ -2352,7 +2352,7 @@ static void process_line(char* l)
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
-                cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
+                cout << "      chatc group [t title64] [email ro|sta|mod]*" << endl;    // group can be 1 or 0
                 cout << "      chati chatid email ro|sta|mod [t title] [unifiedkey]" << endl;
                 cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
                 cout << "      chatr chatid [email]" << endl;
@@ -3919,22 +3919,55 @@ static void process_line(char* l)
 #ifdef ENABLE_CHAT
                     else if (words[0] == "chatc")
                     {
-                        size_t wordscount = words.size();
-                        if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
+                        unsigned wordscount = words.size();
+                        if (wordscount < 2 || wordscount == 3)
                         {
-                            int group = atoi(words[1].c_str());
-                            if (!group && (wordscount - 2) != 2)
+                            cout << "Invalid syntax to create chatroom" << endl;
+                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            return;
+                        }
+
+                        int group = atoi(words[1].c_str());
+                        unsigned parseoffset = 2;
+                        const char *title = NULL;
+
+                        if (wordscount >= 4)
+                        {
+                            if (words[2] == "t")
                             {
-                                cout << "Only group chats can have more than one peer" << endl;
+                                if (words[3].empty())
+                                {
+                                    cout << "Title cannot be set to empty string" << endl;
+                                    return;
+                                }
+
+                                if (group)
+                                {
+                                    title =  words[3].c_str();
+                                    parseoffset = 4;
+                                }
+                                else
+                                {
+                                    cout << "Only group chats have Title" << endl;
+                                    return;
+                                }
+                            }
+                        }
+
+                        if (((wordscount - parseoffset) % 2) == 0)
+                        {
+                            if (!group && (wordscount - parseoffset) != 2)
+                            {
+                                cout << "Peer to peer chats must have only one peer" << endl;
                                 return;
                             }
 
                             userpriv_vector *userpriv = new userpriv_vector;
 
                             unsigned numUsers = 0;
-                            while ((numUsers+1)*2 + 2 <= wordscount)
+                            while ((numUsers+1)*2 + parseoffset <= wordscount)
                             {
-                                string email = words[numUsers*2 + 2];
+                                string email = words[numUsers*2 + parseoffset];
                                 User *u = client->finduser(email.c_str(), 0);
                                 if (!u)
                                 {
@@ -3943,7 +3976,7 @@ static void process_line(char* l)
                                     return;
                                 }
 
-                                string privstr = words[numUsers*2 + 2 + 1];
+                                string privstr = words[numUsers*2 + parseoffset + 1];
                                 privilege_t priv;
                                 if (!group) // 1:1 chats enforce peer to be moderator
                                 {
@@ -3982,7 +4015,7 @@ static void process_line(char* l)
                         else
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "       chatc group [email ro|sta|mod]*" << endl;
+                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
                             return;
                         }
                     }
