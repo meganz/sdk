@@ -83,7 +83,7 @@ struct MEGA_API ConsoleModel
 #endif
 
     // flags to indicate to the real console if redraws etc need to occur
-    string redrawInputLineConsoleFeedback;
+    ::mega::autocomplete::CompletionTextOut redrawInputLineConsoleFeedback;
     bool redrawInputLineNeeded = false;
     bool consoleNewlineNeeded = false;
 
@@ -157,7 +157,7 @@ private:
     size_t inputLineOffset = 0;
 
     void redrawPromptIfLoggingOccurred();
-    void redrawInputLine(const string& autocompleteFeedback = "");
+    void redrawInputLine(::mega::autocomplete::CompletionTextOut* autocompleteFeedback);
     ConsoleModel::lineEditAction interpretLineEditingKeystroke(INPUT_RECORD &ir);
 #endif
 };

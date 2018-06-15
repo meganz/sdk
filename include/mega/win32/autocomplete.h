@@ -203,7 +203,7 @@ namespace autocomplete {
         bool active = false;
         bool firstPressDone = false;
         size_t unixListCount = 0;
-        unsigned calcUnixColumnWidth(int col, int rows);
+        unsigned calcUnixColumnWidthInGlyphs(int col, int rows);
         const string& unixColumnEntry(int row, int col, int rows);
     };
 
@@ -214,7 +214,8 @@ namespace autocomplete {
     CompletionState autoComplete(const std::string line, size_t insertPos, ACN syntax, bool unixStyle);
     
     // put the next possible string or unambiguous portion thereof at the cursor position, or indicate options to the user 
-    void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, string& consoleOutput);
+    struct CompletionTextOut { vector<vector<string>> stringgrid; vector<int> columnwidths; };
+    void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, CompletionTextOut& consoleOutput);
 
     // execute the function attached to the matching syntax
     void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput);

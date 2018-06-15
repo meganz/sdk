@@ -839,6 +839,22 @@ static size_t utf8strlen(const std::string s)
     return len;
 }
 
+unsigned utf8GlyphCount(const string &str) 
+{
+    int c, i, ix, q;
+    for (q = 0, i = 0, ix = int(str.length()); i < ix; i++, q++)
+    {
+        c = (unsigned char)str[i];
+
+        if (c >= 0 && c <= 127) i += 0;
+        else if ((c & 0xE0) == 0xC0) i += 1;
+        else if ((c & 0xF0) == 0xE0) { i += 2; q++; } //these glyphs may occupy 2 characters! Problem: not always. Let's assume the worst
+        else if ((c & 0xF8) == 0xF0) i += 3;
+        else q++; // invalid utf8 - leave lots of space
+    }
+    return q;
+}
+
 const string& CompletionState::unixColumnEntry(int row, int col, int rows)
 {
     static string emptyString;
@@ -846,17 +862,17 @@ const string& CompletionState::unixColumnEntry(int row, int col, int rows)
     return index < completions.size() ? completions[index].s : emptyString;
 }
 
-unsigned CompletionState::calcUnixColumnWidth(int col, int rows)
+unsigned CompletionState::calcUnixColumnWidthInGlyphs(int col, int rows)
 {
     unsigned width = 0;
     for (int r = 0; r < rows; ++r)
     {
-        width = std::max<unsigned>(width, unsigned(unixColumnEntry(r, col, rows).size()));
+        width = std::max<unsigned>(width, utf8GlyphCount(unixColumnEntry(r, col, rows)));
     }
     return width;
 }
 
-void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, string& consoleOutput)
+void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, CompletionTextOut& textOut)
 {
     if (!s.completions.empty())
     {
@@ -909,7 +925,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, s
                 unsigned rows = 1, cols = 0, sumwidth = 0;
                 for (unsigned c = 0; ;)
                 {
-                    unsigned width = s.calcUnixColumnWidth(c, rows);
+                    unsigned width = s.calcUnixColumnWidthInGlyphs(c, rows);
                     if (width == 0)
                     {
                         cols = c;
@@ -917,8 +933,8 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, s
                     }
                     else
                     {
-                        sumwidth += width + 2;
-                        if (2 + sumwidth > consoleWidth)
+                        sumwidth += width + 3;
+                        if (3 + sumwidth > consoleWidth)
                         {
                             if (rows == 5)
                             {
@@ -944,31 +960,35 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, s
                     }
                 }
 
-                std::ostringstream conout;
                 rows = std::max<int>(rows, 1);
                 cols = std::max<int>(cols, 1);
+                for (unsigned c = 0; c < cols; ++c)
+                {
+                    textOut.columnwidths.push_back(s.calcUnixColumnWidthInGlyphs(c, rows) + (c == 0 ? 6 : 3));
+                }
                 for (unsigned r = 0; r < rows; ++r)
                 {
-                    conout << "  ";
+                    textOut.stringgrid.push_back(vector<string>());
                     for (unsigned c = 0; c < cols; ++c)
                     {
                         const string& entry = s.unixColumnEntry(r, c, rows);
-                        conout << entry << std::string(s.calcUnixColumnWidth(c, rows) - entry.size() + 2, ' ');
+                        if (!entry.empty())
+                        {
+                            textOut.stringgrid[r].push_back((c == 0 ? "   " : "") + entry);
+                        }
                     }
-                    conout << "\n";
                 }
 
                 s.unixListCount += rows * cols;
                 if (s.unixListCount < s.completions.size())
                 {
-                    conout << "<press again for more>\n";
+                    textOut.stringgrid.push_back(vector<string>(1, "<press again for more>"));
                 }
                 else
                 {
                     s.unixListCount = 0;
                     s.firstPressDone = false;
                 }
-                consoleOutput = conout.str();
             }
         }
     }

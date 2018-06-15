@@ -1941,7 +1941,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("open"), param("exportedfolderlink#key")));
     p->Add(sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(sequence(text("putq"), opt(param("cancelslot"))));
-    p->Add(sequence(text("get"), opt(flag("-r")), remoteFSPath(client , &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+#ifdef USE_FILESYSTEM
+    p->Add(sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+#else
+    p->Add(sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+#endif
     p->Add(sequence(text("get"), param("exportedfilelink#key"), opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(sequence(text("getq"), opt(param("cancelslot"))));
     p->Add(sequence(text("pause"), opt(either(text("get"), text("put"))), opt(text("hard")), opt(text("status"))));
@@ -1965,7 +1969,6 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef DEBUG
     p->Add(sequence(text("delua"), param("attrname")));
 #endif
-    p->Add(sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify")))));
     p->Add(sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(sequence(text("whoami")));
@@ -2012,7 +2015,7 @@ autocomplete::ACN autocompleteSyntax()
 
 bool extractparam(const std::string& p, vector<string>& words)
 {
-    for (unsigned i = 0; i < words.size(); ++i)
+    for (unsigned i = 1; i < words.size(); ++i)
     {
         if (!words[i].empty() && words[i][0] == '-' && !words[i].compare(1, string::npos, p))
         {
@@ -2038,7 +2041,7 @@ bool recursiveget(fs::path& localpath, Node* n, bool folders, unsigned& queued)
     }
     else if (n->type == FOLDERNODE || n->type == ROOTNODE)
     {
-        fs::path newpath = localpath / n->displayname();
+        fs::path newpath = localpath / (n->type == ROOTNODE ? "ROOTNODE" : n->displayname());
         if (folders)
         {
             std::error_code ec; 
@@ -2808,9 +2811,12 @@ static void process_line(char* l)
                                     cout << "creating folders: " << endl;
                                     if (recursiveget(fs::current_path(), n, true, queued))
                                     {
-                                        cout << "queueing files..." << endl;
-                                        bool alldone = recursiveget(fs::current_path(), n, false, queued);
-                                        cout << "queued " << queued << " files for download" << (!alldone ? " before failure" : "") << endl;
+                                        if (!foldersonly)
+                                        {
+                                            cout << "queueing files..." << endl;
+                                            bool alldone = recursiveget(fs::current_path(), n, false, queued);
+                                            cout << "queued " << queued << " files for download" << (!alldone ? " before failure" : "") << endl;
+                                        }
                                     }
                                 }
                             }

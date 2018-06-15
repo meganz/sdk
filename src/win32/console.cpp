@@ -580,9 +580,8 @@ bool WinConsole::consolePeek()
     }
     if (model.redrawInputLineNeeded && model.echoOn)
     {
-        redrawInputLine(model.redrawInputLineConsoleFeedback);
+        redrawInputLine(&model.redrawInputLineConsoleFeedback);
     }
-    model.redrawInputLineConsoleFeedback.clear();
     if (model.consoleNewlineNeeded)
     {
         DWORD written = 0;
@@ -633,15 +632,42 @@ ConsoleModel::lineEditAction WinConsole::interpretLineEditingKeystroke(INPUT_REC
     return ConsoleModel::nullAction;
 }
 
-void WinConsole::redrawInputLine(const string& autocompleteFeedback)
+void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autocompleteFeedback = nullptr)
 {
-    if (!autocompleteFeedback.empty())
+    CONSOLE_SCREEN_BUFFER_INFO sbi;
+
+    if (autocompleteFeedback && !autocompleteFeedback->stringgrid.empty())
     {
         promptRetracted = true;
-        cout << "\n" << autocompleteFeedback << std::flush;
+        cout << "\n" << std::flush;
+        for (auto& r : autocompleteFeedback->stringgrid)
+        {
+            int x = 0;
+            for (unsigned c = 0; c < r.size(); ++c)
+            {
+                cout << r[c] << std::flush;
+                if (c + 1 == r.size())
+                {
+                    cout << "\n" << std::flush;
+                }
+                else
+                {
+                    x += autocompleteFeedback->columnwidths[c];
+
+                    // to make the grid nice in the presence of unicode characters that are sometimes double-width glyphs, we set the X coordinate explicitly
+                    BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
+                    if (ok && sbi.dwCursorPosition.X < x)
+                    {
+                        sbi.dwCursorPosition.X = short(x);
+                        SetConsoleCursorPosition(hOutput, sbi.dwCursorPosition);
+                    }
+                }
+            }
+        }
+        autocompleteFeedback->stringgrid.clear();
+        autocompleteFeedback->columnwidths.clear();
     }
 
-    CONSOLE_SCREEN_BUFFER_INFO sbi;
     BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
     assert(ok);
     if (ok)
