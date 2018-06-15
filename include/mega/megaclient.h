@@ -200,6 +200,9 @@ public:
     // multi-factor authentication globally enabled
     bool gmfa_enabled;
 
+    // server-side Rubbish-bin autopurging enabled
+    bool ssrs_enabled;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;

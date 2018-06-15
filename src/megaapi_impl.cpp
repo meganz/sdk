@@ -4473,6 +4473,11 @@ void MegaApiImpl::setStatsID(const char *id)
     MegaClient::statsid = MegaApi::strdup(id);
 }
 
+bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
+{
+    return client->ssrs_enabled;
+}
+
 bool MegaApiImpl::multiFactorAuthAvailable()
 {
     return client->gmfa_enabled;

@@ -1485,6 +1485,11 @@ void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRe
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
 }
 
+bool MegaApi::serverSideRubbishBinAutopurgeEnabled()
+{
+    return pImpl->serverSideRubbishBinAutopurgeEnabled();
+}
+
 bool MegaApi::multiFactorAuthAvailable()
 {
     return pImpl->multiFactorAuthAvailable();

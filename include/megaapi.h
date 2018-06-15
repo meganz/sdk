@@ -5708,6 +5708,12 @@ class MegaApi
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
 
         /**
+         * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
+         * @return True if this feature is enabled. Otherwise false.
+         */
+        bool serverSideRubbishBinAutopurgeEnabled();
+
+        /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
          * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
