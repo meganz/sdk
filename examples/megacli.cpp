@@ -466,7 +466,7 @@ bool DemoApp::sync_syncable(Sync *, const char *name, string *)
 #endif
 
 AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
-                       string* cfingerprint)
+                       string* cfingerprint, const string& targetfolder)
 {
     if (n)
     {
@@ -495,6 +495,12 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
 
     localname = name;
     client->fsaccess->name2local(&localname);
+    if (!targetfolder.empty())
+    {
+        string ltf, tf = targetfolder;
+        client->fsaccess->path2local(&tf, &ltf);
+        localname = ltf + client->fsaccess->localseparator + localname;
+    }
 }
 
 AppFilePut::AppFilePut(string* clocalname, handle ch, const char* ctargetuser)
@@ -1935,7 +1941,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("open"), param("exportedfolderlink#key")));
     p->Add(sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(sequence(text("putq"), opt(param("cancelslot"))));
-    p->Add(sequence(text("get"), remoteFSPath(client , &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+#ifdef USE_FILESYSTEM
+    p->Add(sequence(text("get"), opt(sequence(flag("-r"), opt(flag("-foldersonly")))), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+#else
+    p->Add(sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
+#endif
     p->Add(sequence(text("get"), param("exportedfilelink#key"), opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(sequence(text("getq"), opt(param("cancelslot"))));
     p->Add(sequence(text("pause"), opt(either(text("get"), text("put"))), opt(text("hard")), opt(text("status"))));
@@ -1959,7 +1969,6 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef DEBUG
     p->Add(sequence(text("delua"), param("attrname")));
 #endif
-    p->Add(sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify")))));
     p->Add(sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(sequence(text("whoami")));
@@ -2001,6 +2010,60 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("quit")));
 
     return autocompleteTemplate = std::move(p);
+}
+#endif
+
+bool extractparam(const std::string& p, vector<string>& words)
+{
+    for (unsigned i = 1; i < words.size(); ++i)
+    {
+        if (!words[i].empty() && words[i][0] == '-' && !words[i].compare(1, string::npos, p))
+        {
+            words.erase(words.begin() + i);
+            return true;
+        }
+    }
+    return false;
+}
+
+#ifdef USE_FILESYSTEM
+bool recursiveget(fs::path& localpath, Node* n, bool folders, unsigned& queued)
+{
+    if (n->type == FILENODE)
+    {
+        if (!folders)
+        {
+            auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, WinConsole::toUtf8String(localpath.native()));
+            f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+            client->startxfer(GET, f);
+            queued += 1;
+        }
+    }
+    else if (n->type == FOLDERNODE || n->type == ROOTNODE)
+    {
+        fs::path newpath = localpath / (n->type == ROOTNODE ? "ROOTNODE" : n->displayname());
+        if (folders)
+        {
+            std::error_code ec; 
+            if (fs::create_directory(newpath, ec) || !ec)
+            {
+                cout << newpath << endl;
+            }
+            else
+            {
+                cout << "Failed trying to create " << newpath << ": " << ec.message() << endl;
+                return false;
+            }
+        }
+        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+        {
+            if (!recursiveget(newpath, *it, folders, queued))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 #endif
 
@@ -2086,7 +2149,7 @@ static void process_line(char* l)
                 }
                 else if (recoveryemail.size() && recoverycode.size())
                 {
-                    cout << endl << "Reseting password..." << endl;
+                    cout << endl << "Resetting password..." << endl;
 
                     if (hasMasterKey)
                     {
@@ -2725,7 +2788,47 @@ static void process_line(char* l)
                 case 3:
                     if (words[0] == "get")
                     {
-                        if (words.size() > 1)
+                        bool reportsyntax = false;
+                        if (extractparam("r", words))
+                        {
+#ifdef USE_FILESYSTEM
+                            // recursive get.  create local folder structure first, then queue transfer of all files 
+                            bool foldersonly = extractparam("foldersonly", words);
+
+                            if (words.size() == 2)
+                            {
+                                if (!(n = nodebypath(words[1].c_str())))
+                                {
+                                    cout << words[1] << ": No such folder (or file)" << endl;
+                                }
+                                else if (n->type != FOLDERNODE && n->type != ROOTNODE)
+                                {
+                                    cout << words[1] << ": not a folder" << endl;
+                                }
+                                else
+                                {
+                                    unsigned queued = 0;
+                                    cout << "creating folders: " << endl;
+                                    if (recursiveget(fs::current_path(), n, true, queued))
+                                    {
+                                        if (!foldersonly)
+                                        {
+                                            cout << "queueing files..." << endl;
+                                            bool alldone = recursiveget(fs::current_path(), n, false, queued);
+                                            cout << "queued " << queued << " files for download" << (!alldone ? " before failure" : "") << endl;
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                reportsyntax = true;
+                            }
+#else
+                            cout << "Sorry, -r not supported yet" << endl;
+#endif
+                        }
+                        else if (words.size() > 1)
                         {
                             if (client->openfilelink(words[1].c_str(), 0) == API_OK)
                             {
@@ -2737,6 +2840,10 @@ static void process_line(char* l)
 
                             if (n)
                             {
+                                if (words.size() > 4)
+                                {
+                                    reportsyntax = true;
+                                }
                                 if (words.size() > 2)
                                 {
                                     // read file slice
@@ -2789,9 +2896,12 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      get remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
+                            reportsyntax = true;
                         }
-
+                        if (reportsyntax)
+                        {
+                            cout << "      get [-r] remotepath [offset [length]]" << endl << "      get exportedfilelink#key [offset [length]]" << endl;
+                        }
                         return;
                     }
                     else if (words[0] == "put")
