@@ -203,6 +203,15 @@ typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNO
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
+//handle lengths
+static const int USERHANDLE = 8;
+
+//unified key length
+static const int UNIFIEDKEY = 16;
+
+//handle + unified key length
+static const int HANDLEWITHUNIFIEDKEY = 24;
+
 typedef list<class Sync*> sync_list;
 
 // persistent resource cache storage
