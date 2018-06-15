@@ -92,7 +92,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
     MEGAUserAttributeLanguage                = 14, // private - char array
     MEGAUserAttributePwdReminder             = 15, // private - char array
-    MEGAUserAttributeContactLinkVerification = 17  // private - byte array
+    MEGAUserAttributeContactLinkVerification = 17, // private - byte array
+    MEGAUserAttributeRichPreviews            = 18  // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -141,6 +142,10 @@ typedef NS_ENUM(NSUInteger, Retry) {
     RetryRateLimit = 4,
     RetryLocalLock = 5,
     RetryUnknown = 6
+};
+
+typedef NS_ENUM(NSInteger, KeepMeAlive) {
+    KeepMeAliveCameraUploads = 0
 };
 
 /**
@@ -531,6 +536,254 @@ typedef NS_ENUM(NSUInteger, Retry) {
 #pragma mark - Login Requests
 
 /**
+ * @brief Check if multi-factor authentication is enabled for an account
+ *
+ * The associated request type with this request is MEGARequestTypeMultiFactorAuthCheck
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email sent in the first parameter
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns true if multi-factor authentication is enabled or false if it's disabled.
+ *
+ * @param email Email to check
+ * @param delegate MegaRequestListener to track this request
+ */
+- (void)multiFactorAuthCheckWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if multi-factor authentication is enabled for an account
+ *
+ * The associated request type with this request is MEGARequestTypeMultiFactorAuthCheck
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the email sent in the first parameter
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns true if multi-factor authentication is enabled or false if it's disabled.
+ *
+ * @param email Email to check
+ */
+- (void)multiFactorAuthCheckWithEmail:(NSString *)email;
+
+/**
+ * @brief Get the secret code of the account to enable multi-factor authentication
+ * The MEGASdk object must be logged into an account to successfully use this function.
+ *
+ * The associated request type with this request is MEGARequestTypeMultiFactorAuthGet
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the Base32 secret code needed to configure multi-factor authentication.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)multiFactorAuthGetCodeWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the secret code of the account to enable multi-factor authentication
+ * The MEGASdk object must be logged into an account to successfully use this function.
+ *
+ * The associated request type with this request is MEGARequestTypeMultiFactorAuthGet
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the Base32 secret code needed to configure multi-factor authentication.
+ *
+ */
+- (void)multiFactorAuthGetCode;
+
+/**
+ * @brief Enable multi-factor authentication for the account
+ * The MEGASdk object must be logged into an account to successfully use this function.
+ *
+ * The associated request type with this request is MEGARequestTypeMultiFactorAuthSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns true
+ * - [MEGARequest password] - Returns the pin sent in the first parameter
+ *
+ * @param pin Valid pin code for multi-factor authentication
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)multiFactorAuthEnableWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable multi-factor authentication for the account
+ * The MEGASdk object must be logged into an account to successfully use this function.
+ *
+ * The associated request type with this request is MEGARequestTypeMultiFactorAuthSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns true
+ * - [MEGARequest password] - Returns the pin sent in the first parameter
+ *
+ * @param pin Valid pin code for multi-factor authentication
+ */
+- (void)multiFactorAuthEnableWithPin:(NSString *)pin;
+
+/**
+ * @brief Disable multi-factor authentication for the account
+ * The MEGASdk object must be logged into an account to successfully use this function.
+ *
+ * The associated request type with this request is MEGARequestTypeMultiFactorAuthSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns false
+ * - [MEGARequest password] - Returns the pin sent in the first parameter
+ *
+ * @param pin Valid pin code for multi-factor authentication
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)multiFactorAuthDisableWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Disable multi-factor authentication for the account
+ * The MEGASdk object must be logged into an account to successfully use this function.
+ *
+ * The associated request type with this request is MEGARequestTypeMultiFactorAuthSet
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest flag] - Returns false
+ * - [MEGARequest password] - Returns the pin sent in the first parameter
+ *
+ * @param pin Valid pin code for multi-factor authentication
+ */
+- (void)multiFactorAuthDisableWithPin:(NSString *)pin;
+
+/**
+ * @brief Log in to a MEGA account with multi-factor authentication enabled
+ *
+ * The associated request type with this request is MEGARequestTypeLogin.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the first parameter
+ * - [MEGARequest password] - Returns the second parameter
+ * - [MEGARequest text] - Returns the third parameter
+ *
+ * If the email/password aren't valid the error code provided in onRequestFinish is
+ * MEGAErrorTypeApiENoent.
+ *
+ * @param email Email of the user
+ * @param password Password
+ * @param pin Pin code for multi-factor authentication
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)multiFactorAuthLoginWithEmail:(NSString *)email password:(NSString *)password pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Log in to a MEGA account with multi-factor authentication enabled
+ *
+ * The associated request type with this request is MEGARequestTypeLogin.
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest email] - Returns the first parameter
+ * - [MEGARequest password] - Returns the second parameter
+ * - [MEGARequest text] - Returns the third parameter
+ *
+ * If the email/password aren't valid the error code provided in onRequestFinish is
+ * MEGAErrorTypeApiENoent.
+ *
+ * @param email Email of the user
+ * @param password Password
+ * @param pin Pin code for multi-factor authentication
+ */
+- (void)multiFactorAuthLoginWithEmail:(NSString *)email password:(NSString *)password pin:(NSString *)pin;
+
+/**
+ * @brief Change the password of a MEGA account with multi-factor authentication enabled
+ *
+ * The associated request type with this request is MEGARequestTypeChangePassword
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest password] - Returns the old password (if it was passed as parameter)
+ * - [MEGARequest newPassword] - Returns the new password
+ * - [MEGARequest text] - Returns the pin code for multi-factor authentication
+ *
+ * @param oldPassword Old password (optional, it can be nil to not check the old password)
+ * @param newPassword New password
+ * @param pin Pin code for multi-factor authentication
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)multiFactorAuthChangePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Change the password of a MEGA account with multi-factor authentication enabled
+ *
+ * The associated request type with this request is MEGARequestTypeChangePassword
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest password] - Returns the old password (if it was passed as parameter)
+ * - [MEGARequest newPassword] - Returns the new password
+ * - [MEGARequest text] - Returns the pin code for multi-factor authentication
+ *
+ * @param oldPassword Old password (optional, it can be nil to not check the old password)
+ * @param newPassword New password
+ * @param pin Pin code for multi-factor authentication
+ */
+- (void)multiFactorAuthChangePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin;
+
+/**
+ * @brief Initialize the change of the email address associated to an account with multi-factor authentication enabled.
+ *
+ * The associated request type with this request is MEGARequestTypeGetChangeEmailLink.
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest text] - Returns the pin code for multi-factor authentication
+ *
+ * If this request succeeds, a change-email link will be sent to the specified email address.
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish().
+ *
+ * @param email The new email to be associated to the account.
+ * @param pin Pin code for multi-factor authentication
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)multiFactorAuthChangeEmail:(NSString *)email pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Initialize the change of the email address associated to an account with multi-factor authentication enabled.
+ *
+ * The associated request type with this request is MEGARequestTypeGetChangeEmailLink.
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest email] - Returns the email for the account
+ * - [MEGARequest text] - Returns the pin code for multi-factor authentication
+ *
+ * If this request succeeds, a change-email link will be sent to the specified email address.
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish().
+ *
+ * @param email The new email to be associated to the account.
+ * @param pin Pin code for multi-factor authentication
+ */
+- (void)multiFactorAuthChangeEmail:(NSString *)email pin:(NSString *)pin;
+
+/**
+ * @brief Initialize the cancellation of an account.
+ *
+ * The associated request type with this request is MEGARequestTypeGetCancelLink.
+ *
+ * If this request succeeds, a cancellation link will be sent to the email address of the user.
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish().
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest text] - Returns the pin code for multi-factor authentication
+ *
+ * @see [MEGASdk confirmCancelAccountWithLink:password:]
+ *
+ * @param pin Pin code for multi-factor authentication
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)multiFactorAuthCancelAccountWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Initialize the cancellation of an account.
+ *
+ * The associated request type with this request is MEGARequestTypeGetCancelLink.
+ *
+ * If this request succeeds, a cancellation link will be sent to the email address of the user.
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish().
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - [MEGARequest text] - Returns the pin code for multi-factor authentication
+ *
+ * @see [MEGASdk confirmCancelAccountWithLink:password:]
+ *
+ * @param pin Pin code for multi-factor authentication
+ */
+- (void)multiFactorAuthCancelAccountWithPin:(NSString *)pin;
+
+/**
  * @brief Log in to a MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeLogin.
@@ -711,6 +964,23 @@ typedef NS_ENUM(NSUInteger, Retry) {
 - (void)logout;
 
 /**
+ * @brief Logout of the MEGA account without invalidating the session
+ *
+ * The associated request type with this request is MEGARequestTypeLogout
+ *
+ * @param delegate Delegate to track this request.
+ */
+- (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Logout of the MEGA account without invalidating the session
+ *
+ * The associated request type with this request is MEGARequestTypeLogout
+ *
+ */
+- (void)localLogout;
+
+/**
  * @brief Invalidate the existing cache and create a fresh one
  */
 - (void)invalidateCache;
@@ -844,12 +1114,12 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * Until the user successfully confirms the signup link sent to the provided email address,
  * you can resume the ephemeral session in order to change the email address, resend the
- * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:) and also 
+ * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:]) and also
  * to receive notifications in case the user confirms the account using another client 
  * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
  *
  * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest sessionKey] - Returns the session id to resume the process
  * - [MEGARequest paramType] - Returns the value 1
  *
@@ -869,12 +1139,12 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * Until the user successfully confirms the signup link sent to the provided email address,
  * you can resume the ephemeral session in order to change the email address, resend the
- * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:) and also
+ * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:]) and also
  * to receive notifications in case the user confirms the account using another client
  * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
  *
  * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest sessionKey] - Returns the session id to resume the process
  * - [MEGARequest paramType] - Returns the value 1
  *
@@ -1234,7 +1504,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest link] - Returns the cancel link
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the link
  *
@@ -1250,7 +1520,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
 * Valid data in the MEGARequest object received on all callbacks:
 * - [MEGARequest link] - Returns the cancel link
 *
-* Valid data in the MegaRequest object received in onRequestFinish when the error code
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
 * is MEGAErrorTypeApiOk:
 * - [MEGARequest email] - Return the email associated with the link
 *
@@ -1492,6 +1762,53 @@ typedef NS_ENUM(NSUInteger, Retry) {
  */
 - (void)contactLinkDelete;
 
+/**
+ * @brief Command to keep mobile apps alive when needed
+ *
+ * When this feature is enabled, API servers will regularly send push notifications
+ * to keep the application running. Before using this function, it's needed to register
+ * a notification token using [MEGASdk registeriOSdeviceToken:]
+ *
+ * The associated request type with this request is MEGARequestTypeKeepMeAlive.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - MEGARequest.paramType - Returns the type send in the first parameter
+ * - MEGARequest.flag - Returns YES when the feature is being enabled, otherwise NO
+ *
+ * @param type Type of keep alive desired
+ * Valid values for this parameter:
+ * - KeepMeAliveCameraUploads = 0
+ *
+ * @param enable YES to enable this feature, NO to disable it
+ * @param delegate MEGARequestDelegate to track this request
+ *
+ * @see [MEGASdk registeriOSdeviceToken:]
+ */
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Command to keep mobile apps alive when needed
+ *
+ * When this feature is enabled, API servers will regularly send push notifications
+ * to keep the application running. Before using this function, it's needed to register
+ * a notification token using [MEGASdk registeriOSdeviceToken:]
+ *
+ * The associated request type with this request is MEGARequestTypeKeepMeAlive.
+ *
+ * Valid data in the MEGARequest object received on all callbacks:
+ * - MEGARequest.paramType - Returns the type send in the first parameter
+ * - MEGARequest.flag - Returns YES when the feature is being enabled, otherwise NO
+ *
+ * @param type Type of keep alive desired
+ * Valid values for this parameter:
+ * - KeepMeAliveCameraUploads = 0
+ *
+ * @param enable YES to enable this feature, NO to disable it
+ *
+ * @see [MEGASdk registeriOSdeviceToken:]
+ */
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -1703,7 +2020,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * When the request finishes, file versions might not be deleted yet.
  * Deletions are notified using onNodesUpdate callbacks.
  *
- * @param MEGARequestDelegate Delegate to track this request
+ * @param delegate MEGARequestDelegate Delegate to track this request
  */
 - (void)removeVersionsWithDelegate:(id<MEGARequestDelegate>)delegate;
 
@@ -2006,7 +2323,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * - [MEGARequest password] - Returns the password to encrypt the link
  * - [MEGARequest flag] - Returns true
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest text] - Encrypted public link
  *
@@ -2025,7 +2342,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * - [MEGARequest password] - Returns the password to encrypt the link
  * - [MEGARequest flag] - Returns true
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest text] - Encrypted public link
  *
@@ -2087,7 +2404,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @param longitude Longitude in signed decimal degrees notation.
  * @param delegate Delegate to track this request.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -2106,7 +2423,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @param latitude Latitude in signed decimal degrees notation.
  * @param longitude Longitude in signed decimal degrees notation.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
@@ -2713,10 +3030,10 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * The associated request type with this request is MEGARequestTypeQueryTransferQuota
  *
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest number] - Returns the amount of bytes to be transferred
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest flag] - YES if it is expected to get an overquota error, otherwise NO
  *
@@ -2730,10 +3047,10 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * The associated request type with this request is MEGARequestTypeQueryTransferQuota
  *
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest number] - Returns the amount of bytes to be transferred
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest flag] - YES if it is expected to get an overquota error, otherwise NO
  *
@@ -3037,6 +3354,132 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @param atLogout YES if the check is being done just before a logout
  */
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout;
+
+/**
+ * @brief Enable or disable the generation of rich previews
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param enable YES to enable the generation of rich previews
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable or disable the generation of rich previews
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param enable YES to enable the generation of rich previews
+ */
+- (void)enableRichPreviews:(BOOL)enable;
+
+/**
+ * @brief Check if rich previews are automatically generated
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns zero
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (NO).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)isRichPreviewsEnabledWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if rich previews are automatically generated
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns zero
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if generation of rich previews is enabled
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (NO).
+ *
+ */
+- (void)isRichPreviewsEnabled;
+
+/**
+ * @brief Check if the app should show the rich link warning dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns one
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if it is necessary to show the rich link warning
+ * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
+ * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+ * must be added to the warning dialog.
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (YES).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)shouldShowRichLinkWarningWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the app should show the rich link warning dialog to the user
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ * - [MEGARequest numDetails] - Returns one
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest flag] - Returns YES if it is necessary to show the rich link warning
+ * - [MEGARequest number] - Returns the number of times that user has indicated that doesn't want
+ * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+ * must be added to the warning dialog.
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent, but the value of [MEGARequest flag] will still be valid (YES).
+ *
+ */
+- (void)shouldShowRichLinkWarning;
+
+/**
+ * @brief Set the number of times "Not now" option has been selected in the rich link warning dialog
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param value Number of times "Not now" option has been selected
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the number of times "Not now" option has been selected in the rich link warning dialog
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRichPreviews
+ *
+ * @param value Number of times "Not now" option has been selected
+ */
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value;
 
 /**
  * @brief Use HTTPS communications only
@@ -3761,7 +4204,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @brief Pause/resume a transfer
  *
  * The associated request type with this request is MEGARequestTypePauseTransfer
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
  * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
  *
@@ -3775,7 +4218,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @brief Pause/resume a transfer
  *
  * The associated request type with this request is MEGARequestTypePauseTransfer
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
  * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
  *
@@ -3788,7 +4231,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @brief Pause/resume a transfer
  *
  * The associated request type with this request is MEGARequestTypePauseTransfer
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
  * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
  *
@@ -3802,7 +4245,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * @brief Pause/resume a transfer
  *
  * The associated request type with this request is MEGARequestTypePauseTransfer
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
  * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
  *
@@ -4360,7 +4803,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
 /**
  * @brief Get a Base64-encoded fingerprint from an ALAssetRepresentation and a modification time
  *
- * If the input stream is NULL, has a negative size or can't be read, this function returns NULL
+ * If the input stream is nil, has a negative size or can't be read, this function returns nil
  *
  * @param assetRepresentation ALAssetRepresentation that provides the data to create the fingerprint
  * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
@@ -4689,7 +5132,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
 /**
  * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
  *
- * The associated request type with this request is MegaRequestTypeSetAttrUser
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
  *
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
@@ -4705,7 +5148,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
 /**
  * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
  *
- * The associated request type with this request is MegaRequestTypeSetAttrUser
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
  *
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
@@ -4722,7 +5165,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
  *
- * The associated request type with this request is MegaRequestTypeGetAttrUser
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
  *
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
@@ -4741,7 +5184,7 @@ typedef NS_ENUM(NSUInteger, Retry) {
  *
  * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
  *
- * The associated request type with this request is MegaRequestTypeGetAttrUser
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
  *
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the value MEGAUserAttributeContactLinkVerification
@@ -4752,6 +5195,33 @@ typedef NS_ENUM(NSUInteger, Retry) {
  * - [MEGARequest flag] - NO if disabled, YES if enabled
  */
 - (void)getContactLinksOption;
+
+/**
+ * @brief Keep retrying when public key pinning fails
+ *
+ * By default, when the check of the MEGA public key fails, it causes an automatic
+ * logout. Pass NO to this function to disable that automatic logout and
+ * keep the SDK retrying the request.
+ *
+ * Even if the automatic logout is disabled, a request of the type MEGARequestTypeLogout
+ * will be automatically created and callbacks (onRequestStart, onRequestFinish) will
+ * be sent. However, logout won't be really executed and in onRequestFinish the error code
+ * for the request will be MEGAErrorTypeApiEIncomplete
+ *
+ * @param enable YES to keep retrying failed requests due to a fail checking the MEGA public key
+ * or NO to perform an automatic logout in that case
+ */
+- (void)retrySSLErrors:(BOOL)enable;
+
+/**
+ * @brief Enable / disable the public key pinning
+ *
+ * Public key pinning is enabled by default for all sensible communications.
+ * It is strongly discouraged to disable this feature.
+ *
+ * @param enable YES to keep public key pinning enabled, NO to disable it
+ */
+- (void)setPublicKeyPinning:(BOOL)enable;
 
 /**
  * @brief Create a thumbnail for an image

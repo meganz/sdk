@@ -55,7 +55,7 @@ struct AppFileGet : public AppFile
     void update();
     void completed(Transfer*, LocalNode*);
 
-    AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL);
+    AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
 };
 
@@ -234,7 +234,7 @@ struct DemoApp : public MegaApp
     void richlinkrequest_result(string*, error);
 
     void contactlinkcreate_result(error, handle);
-    void contactlinkquery_result(error, handle, string*, string*, string*);
+    void contactlinkquery_result(error, handle, string*, string*, string*, string*);
     void contactlinkdelete_result(error);
 
     void reload(const char*);

@@ -20,7 +20,7 @@ You have two options, using a prebuilt native library or building it by yourself
 ```
 git clone --recursive https://github.com/meganz/sdk.git
 ```
-* Download the prebuilt libraries (`libmega.so`) along with its corresponding Java classes from [here](https://mega.nz/#!AkMXUBiL!CXiHUPCo2EV6TllFr-k1fMHnZM5_VfgDAzTmoAoNRoo). Generated with commit: 84a546f81e04ca2845fbfceae5634ed57eeef957
+* Download the prebuilt libraries (`libmega.so`) along with its corresponding Java classes from [here](https://mega.nz/#!F9MDiIYR!Udguz_byyIttpjaa2twcWZGqcqWCfalhGO-_jg7kNCo). Generated with commit: 08adf46ca80dd8aa9f54916b998c2efe1f7a444d
 * Extract the content into `app/src/main`, keeping the folder structure.
 * Open the project with Android Studio, let it build the project and hit _*Run*_
 

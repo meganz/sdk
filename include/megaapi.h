@@ -51,6 +51,7 @@ typedef uint64_t MegaHandle;
 class MegaListener;
 class MegaRequestListener;
 class MegaTransferListener;
+class MegaBackupListener;
 class MegaGlobalListener;
 class MegaTreeProcessor;
 class MegaAccountDetails;
@@ -64,6 +65,7 @@ class MegaError;
 class MegaRequest;
 class MegaEvent;
 class MegaTransfer;
+class MegaBackup;
 class MegaSync;
 class MegaStringList;
 class MegaNodeList;
@@ -71,6 +73,7 @@ class MegaUserList;
 class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
+class MegaBackupList;
 class MegaFolderInfo;
 class MegaApi;
 
@@ -991,7 +994,7 @@ class MegaNode
          *
          * You take the ownership of the returned value.
          *
-         * @param Serialization of a MegaNode object obtained from a chat message (in Base64)
+         * @param d Serialization of a MegaNode object obtained from a chat message (in Base64)
          * @return A new MegaNode object, or NULL if error.
          */
         static MegaNode* unserialize(const char *d);
@@ -1390,6 +1393,16 @@ class MegaShare
          * @return The timestamp when the sharing was created (in seconds since the epoch)
          */
         virtual int64_t getTimestamp();
+
+        /**
+         * @brief Returns true if the sharing is pending
+         *
+         * A sharing is pending when the folder has been shared with a user (or email) that
+         * is not still a contact of this account.
+         *
+         * @return True if the sharing is pending, otherwise false.
+         */
+        virtual bool isPending();
 };
 
 #ifdef ENABLE_CHAT
@@ -1809,7 +1822,7 @@ class MegaNodeList
 
         /**
          * @brief Add new node to list
-         * @param MegaNode to be added. The node inserted is a copy from 'node'
+         * @param node MegaNode to be added. The node inserted is a copy from 'node'
          */
         virtual void addNode(MegaNode* node);
 };
@@ -1954,6 +1967,42 @@ class MegaTransferList
 };
 
 /**
+ * @brief List of MegaBackup objects
+ *
+ * A MegaBackupList has the ownership of the MegaBackup objects that it contains, so they will be
+ * only valid until the MegaBackupList is deleted. If you want to retain a MegaBackup returned by
+ * a MegaBackupList, use MegaBackup::copy.
+ *
+ * Objects of this class are immutable.
+ *
+ * @see MegaApi::getBackups
+ */
+class MegaBackupList
+{
+	public:
+        virtual ~MegaBackupList();
+
+        /**
+         * @brief Returns the MegaBackup at the position i in the MegaBackupList
+         *
+         * The MegaBackupList retains the ownership of the returned MegaBackup. It will be only valid until
+         * the MegaBackupList is deleted.
+         *
+         * If the index is >= the size of the list, this function returns NULL.
+         *
+         * @param i Position of the MegaBackup that we want to get for the list
+         * @return MegaBackup at the position i in the list
+         */
+        virtual MegaBackup* get(int i);
+
+        /**
+         * @brief Returns the number of MegaBackup objects in the list
+         * @return Number of MegaBackup objects in the list
+         */
+        virtual int size();
+};
+
+/**
  * @brief List of MegaContactRequest objects
  *
  * A MegaContactRequestList has the ownership of the MegaContactRequest objects that it contains, so they will be
@@ -2044,7 +2093,10 @@ class MegaRequest
             TYPE_QUERY_TRANSFER_QUOTA, TYPE_PASSWORD_LINK, TYPE_GET_ACHIEVEMENTS,
             TYPE_RESTORE, TYPE_REMOVE_VERSIONS, TYPE_CHAT_ARCHIVE, TYPE_WHY_AM_I_BLOCKED,
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
-            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TOTAL_OF_REQUEST_TYPES
+            TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
+            TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
+            TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
+            TOTAL_OF_REQUEST_TYPES
         };
 
         virtual ~MegaRequest();
@@ -2342,6 +2394,7 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::resumeSync - Returns the path of the local folder
+         * - MegaApi::setBackup - Returns the path of the local folder
          *
          * @return Path of a file related to the request
          */
@@ -2350,6 +2403,8 @@ class MegaRequest
         /**
          * @brief Return the number of times that a request has temporarily failed
          * @return Number of times that a request has temporarily failed
+         * This value is valid for these requests:
+         * - MegaApi::setBackup - Returns the maximun number of backups to keep
          */
         virtual int getNumRetry() const;
 
@@ -2421,6 +2476,7 @@ class MegaRequest
          * - MegaApi::inviteContact - Returns the message appended to the contact invitation
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
+         * - MegaApi::setBackup - Returns the cron like time string to define period
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2452,8 +2508,10 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns MegaTransfer::MOVE_TYPE_BOTTOM
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer with the target position
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer with the target position
-         * - MegaApi::setMaxConnections - Returns the number of connections
-         * - MegaApi::queryTransferQuota - Returns the amount of bytes to be transferred
+         * - MegaApi::setBackup - Returns the period between backups in deciseconds (-1 if cron time used)
+         * - MegaApi::abortCurrentBackup - Returns the tag of the aborted backup
+         * - MegaApi::removeBackup - Returns the tag of the deleted backup
+         * - MegaApi::startTimer - Returns the selected period
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2486,6 +2544,7 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns true (it means that it's an automatic move)
          * - MegaApi::moveTransferBefore - Returns false (it means that it's a manual move)
          * - MegaApi::moveTransferBeforeByTag - Returns false (it means that it's a manual move)
+         * - MegaApi::setBackup - Returns if backups that should have happen in the past should be taken care of
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2572,6 +2631,7 @@ class MegaRequest
          * - MegaApi::moveTransferToLastByTag - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
+         * - MegaApi::setBackup - Returns the tag asociated with the backup
          *
          * @return Tag of a transfer related to the request
          */
@@ -3004,6 +3064,12 @@ class MegaTransfer
         virtual bool isStreamingTransfer() const;
 
         /**
+         * @brief Returns true is the transfer is at finished state (COMPLETED, CANCELLED OR FAILED)
+         * @return true if this transfer is finished, false otherwise
+         */
+        virtual bool isFinished() const;
+
+        /**
          * @brief Returns the received bytes since the last callback
          *
          * The returned value is only valid for streaming transfers (MegaApi::startStreaming).
@@ -3011,6 +3077,12 @@ class MegaTransfer
          * @return Received bytes since the last callback
          */
         virtual char *getLastBytes() const;
+
+        /**
+         * @brief Returns the last error related to the transfer
+         * @return Last error related to the transfer
+         */
+        virtual MegaError getLastError() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer
@@ -3514,7 +3586,7 @@ private:
  * Developers can use listeners (MegaListener, MegaSyncListener)
  * to track the progress of each synchronization. MegaSync objects are provided in callbacks sent
  * to these listeners and allow developers to know the state of the synchronizations and their parameters
- * and
+ * and their results.
  *
  * The implementation will receive callbacks from an internal worker thread.
  *
@@ -3653,6 +3725,314 @@ public:
 };
 
 #endif
+
+
+/**
+ * @brief Provides information about a backup
+ *
+ * Developers can use listeners (MegaListener, MegaBackupListener)
+ * to track the progress of each backup. MegaBackup objects are provided in callbacks sent
+ * to these listeners and allow developers to know the state of the backups and their parameters
+ * and their results.
+ *
+ * The implementation will receive callbacks from an internal worker thread.
+ *
+ **/
+class MegaBackupListener
+{
+public:
+
+    virtual ~MegaBackupListener();
+
+    /**
+     * @brief This function is called when the state of the backup changes
+     *
+     * The SDK calls this function when the state of the backup changes, for example
+     * from 'active' to 'ongoing' or 'removing exceeding'.
+     *
+     * You can use MegaBackup::getState to get the new state.
+     *
+     * @param api MegaApi object that is backing up files
+     * @param backup MegaBackup object that has changed the state
+     */
+    virtual void onBackupStateChanged(MegaApi *api,  MegaBackup *backup);
+
+    /**
+     * @brief This function is called when a backup is about to start being processed
+     *
+     * The SDK retains the ownership of the backup parameter.
+     * Don't use it after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     */
+    virtual void onBackupStart(MegaApi *api, MegaBackup *backup);
+
+    /**
+     * @brief This function is called when a backup has finished
+     *
+     * The SDK retains the ownership of the backup and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * There won't be more callbacks about this backup.
+     * The last parameter provides the result of the backup. If the backup finished without problems,
+     * the error code will be API_OK
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     * @param error Error information
+     */
+    virtual void onBackupFinish(MegaApi* api, MegaBackup *backup, MegaError* error);
+
+    /**
+     * @brief This function is called to inform about the progress of a backup
+     *
+     * The SDK retains the ownership of the backup parameter.
+     * Don't use it after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     *
+     * @see MegaBackup::getTransferredBytes, MegaBackup::getSpeed
+     */
+    virtual void onBackupUpdate(MegaApi *api, MegaBackup *backup);
+
+    /**
+     * @brief This function is called when there is a temporary error processing a backup
+     *
+     * The backup continues after this callback, so expect more MegaBackupListener::onBackupTemporaryError or
+     * a MegaBackupListener::onBackupFinish callback
+     *
+     * The SDK retains the ownership of the backup and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     * @param error Error information
+     */
+    virtual void onBackupTemporaryError(MegaApi *api, MegaBackup *backup, MegaError* error);
+
+};
+
+
+/**
+ * @brief Provides information about a backup
+ */
+class MegaBackup
+{
+public:
+    enum
+    {
+        BACKUP_FAILED = -2,
+        BACKUP_CANCELED = -1,
+        BACKUP_INITIALSCAN = 0,
+        BACKUP_ACTIVE,
+        BACKUP_ONGOING,
+        BACKUP_SKIPPING,
+        BACKUP_REMOVING_EXCEEDING
+    };
+
+    virtual ~MegaBackup();
+
+    /**
+     * @brief Creates a copy of this MegaBackup object
+     *
+     * The resulting object is fully independent of the source MegaBackup,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaBackup object
+     */
+    virtual MegaBackup *copy();
+
+    /**
+     * @brief Get the handle of the folder that is being backed up
+     * @return Handle of the folder that is being backed up in MEGA
+     */
+    virtual MegaHandle getMegaHandle() const;
+
+    /**
+     * @brief Get the path of the local folder that is being backed up
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRequest object is deleted.
+     *
+     * @return Local folder that is being backed up
+     */
+    virtual const char* getLocalFolder() const;
+
+    /**
+     * @brief Returns the identifier of this backup
+     *
+     * @return Identifier of the backup
+     */
+    virtual int getTag() const;
+
+    /**
+     * @brief Returns if backups that should have happen in the past should be taken care of
+     *
+     * @return Whether past backups should be taken care of
+     */
+    virtual bool getAttendPastBackups() const;
+
+    /**
+     * @brief Returns the period of the backup
+     *
+     * @return The period of the backup in deciseconds
+     */
+    virtual int64_t getPeriod() const;
+
+    /**
+     * @brief Returns the period string of the backup
+     * Any of these 6 fields may be an asterisk (*). This would mean the entire range of possible values, i.e. each minute, each hour, etc.
+     *
+     * Period is formatted as follows
+     *  - - - - - -
+     *  | | | | | |
+     *  | | | | | |
+     *  | | | | | +---- Day of the Week   (range: 1-7, 1 standing for Monday)
+     *  | | | | +------ Month of the Year (range: 1-12)
+     *  | | | +-------- Day of the Month  (range: 1-31)
+     *  | | +---------- Hour              (range: 0-23)
+     *  | +------------ Minute            (range: 0-59)
+     *  +-------------- Second            (range: 0-59)
+     *
+     * E.g:
+     * - daily at 04:00:00 (UTC): "0 0 4 * * *"
+     * - every 15th day at 00:00:00 (UTC) "0 0 0 15 * *"
+     * - mondays at 04.30.00 (UTC): "0 30 4 * * 1"
+     *
+     * @return The period string of the backup
+     */
+    virtual const char *getPeriodString() const;
+
+    /**
+     * @brief Returns the next absolute timestamp of the next backup.
+     * @param oldStartTime Reference timestamp of the previous backup. If none provided it'll use current one.
+     *
+     * Successive nested calls to this functions will give you a full schedule of the next backups.
+     *
+     * Timestamp measures are given in number of seconds that elapsed since January 1, 1970 (midnight UTC/GMT),
+     * not counting leap seconds (in ISO 8601: 1970-01-01T00:00:00Z).
+     *
+     * @return timestamp of the next backup.
+     */
+    virtual long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
+
+
+    /**
+     * @brief Returns the number of backups to keep
+     *
+     * @return Maximun number of Backups to store
+     */
+    virtual int getMaxBackups() const;
+
+    /**
+     * @brief Get the state of the backup
+     *
+     * Possible values are:
+     * - BACKUP_FAILED = -2
+     * The backup has failed and has been disabled
+     *
+     * - BACKUP_CANCELED = -1,
+     * The backup has failed and has been disabled
+     *
+     * - BACKUP_INITIALSCAN = 0,
+     * The backup is doing the initial scan
+     *
+     * - BACKUP_ACTIVE
+     * The backup is active
+     *
+     * - BACKUP_ONGOING
+     * A backup is being performed
+     *
+     * - BACKUP_SKIPPING
+     * A backup is being skipped
+     *
+     * - BACKUP_REMOVING_EXCEEDING
+     * The backup is active and an exceeding backup is being removed
+     * @return State of the backup
+     */
+    virtual int getState() const;
+
+
+    // Current backup data:
+    /**
+     * @brief Returns the number of folders created in the backup
+     * @return number of folders created in the backup
+     */
+    virtual long long getNumberFolders() const;
+
+    /**
+     * @brief Returns the number of files created in the backup
+     * @return number of files created in the backup
+     */
+    virtual long long getNumberFiles() const;
+
+    /**
+     * @brief Returns the number of files to be created in the backup
+     * @return number of files to be created in the backup
+     */
+    virtual long long getTotalFiles() const;
+
+    /**
+     * @brief Returns the starting time of the current backup being processed (in deciseconds)
+     *
+     * The returned value is a monotonic time since some unspecified starting point expressed in
+     * deciseconds.
+     *
+     * @return Starting time of the backup (in deciseconds)
+     */
+    virtual int64_t getCurrentBKStartTime() const;
+
+    /**
+     * @brief Returns the number of transferred bytes during this request
+     * @return Transferred bytes during this backup
+     */
+    virtual long long getTransferredBytes() const;
+
+    /**
+     * @brief Returns the total bytes to be transferred to complete the backup
+     * @return Total bytes to be transferred to complete the backup
+     */
+    virtual long long getTotalBytes() const;
+
+    /**
+     * @brief Returns the current speed of this backup
+     * @return Current speed of this backup
+     */
+    virtual long long getSpeed() const;
+
+    /**
+     * @brief Returns the average speed of this backup
+     * @return Average speed of this backup
+     */
+    virtual long long getMeanSpeed() const;
+
+    /**
+     * @brief Returns the timestamp when the last data was received (in deciseconds)
+     *
+     * This timestamp doesn't have a defined starting point. Use the difference between
+     * the return value of this function and MegaBackup::getCurrentBKStartTime to know how
+     * much time the backup has been running.
+     *
+     * @return Timestamp when the last data was received (in deciseconds)
+     */
+    virtual int64_t getUpdateTime() const;
+
+};
+
 
 /**
  * @brief Provides information about an error
@@ -4646,6 +5026,83 @@ class MegaListener
     virtual void onGlobalSyncStateChanged(MegaApi* api);
 #endif
 
+    /**
+     * @brief This function is called when the state of the backup changes
+     *
+     * The SDK calls this function when the state of the backup changes, for example
+     * from 'active' to 'ongoing' or 'removing exceeding'.
+     *
+     * You can use MegaBackup::getState to get the new state.
+     *
+     * @param api MegaApi object that is backing up files
+     * @param backup MegaBackup object that has changed the state
+     */
+    virtual void onBackupStateChanged(MegaApi *api,  MegaBackup *backup);
+
+    /**
+     * @brief This function is called when a backup is about to start being processed
+     *
+     * The SDK retains the ownership of the backup parameter.
+     * Don't use it after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     */
+    virtual void onBackupStart(MegaApi *api, MegaBackup *backup);
+
+    /**
+     * @brief This function is called when a backup has finished
+     *
+     * The SDK retains the ownership of the backup and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * There won't be more callbacks about this backup.
+     * The last parameter provides the result of the backup. If the backup finished without problems,
+     * the error code will be API_OK
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     * @param error Error information
+     */
+    virtual void onBackupFinish(MegaApi* api, MegaBackup *backup, MegaError* error);
+
+    /**
+     * @brief This function is called to inform about the progress of a backup
+     *
+     * The SDK retains the ownership of the backup parameter.
+     * Don't use it after this functions returns.
+     *
+     * The api object is the one created by the application, it will be valid until
+     * the application deletes it.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     *
+     * @see MegaBackup::getTransferredBytes, MegaBackup::getSpeed
+     */
+    virtual void onBackupUpdate(MegaApi *api, MegaBackup *backup);
+
+    /**
+     * @brief This function is called when there is a temporary error processing a backup
+     *
+     * The backup continues after this callback, so expect more MegaBackupListener::onBackupTemporaryError or
+     * a MegaBackupListener::onBackupFinish callback
+     *
+     * The SDK retains the ownership of the backup and error parameters.
+     * Don't use them after this functions returns.
+     *
+     * @param api MegaApi object that started the backup
+     * @param backup Information about the backup
+     * @param error Error information
+     */
+    virtual void onBackupTemporaryError(MegaApi *api, MegaBackup *backup, MegaError* error);
+
 #ifdef ENABLE_CHAT
     /**
      * @brief This function is called when there are new or updated chats
@@ -4830,6 +5287,10 @@ class MegaApi
             RETRY_UNKNOWN = 6
         };
 
+        enum {
+            KEEP_ALIVE_CAMERA_UPLOADS = 0
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -4963,6 +5424,18 @@ class MegaApi
 #endif
 
         /**
+         * @brief Add a listener for all events related to backups
+         * @param listener Listener that will receive backup events
+         */
+        void addBackupListener(MegaBackupListener *listener);
+
+        /**
+         * @brief Unregister a backup listener
+         * @param listener Objet that will be unregistered
+         */
+        void removeBackupListener(MegaBackupListener *listener);
+
+        /**
          * @brief Unregister a listener
          *
          * This listener won't receive more events.
@@ -5074,6 +5547,9 @@ class MegaApi
          *
          * @param password Access password
          * @return Base64-encoded private key
+         *
+         * @deprecated The registration and login procedure will be changed soon. When that happens, this function will stop being
+         * compatible and will be deleted, so please stop using it as soon as possible.
          */
         char* getBase64PwKey(const char *password);
 
@@ -5168,7 +5644,7 @@ class MegaApi
          * You take the ownership of the returned value
          * You can revert this operation using MegaApi::base64ToUserHandle
          *
-         * @param User handle to be converted
+         * @param handle User handle to be converted
          * @return Base64-encoded user handle
          */
         static char* userHandleToBase64(MegaHandle handle);
@@ -5231,6 +5707,145 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Check if multi-factor authentication can be enabled for the current account.
+         *
+         * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
+         * using this function. Otherwise it will always return false.
+         *
+         * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
+         */
+        bool multiFactorAuthAvailable();
+
+        /**
+         * @brief Check if multi-factor authentication is enabled for an account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the email sent in the first parameter
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if multi-factor authentication is enabled or false if it's disabled.
+         *
+         * @param email Email to check
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the secret code of the account to enable multi-factor authentication
+         * The MegaApi object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the Base32 secret code needed to configure multi-factor authentication.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthGetCode(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable multi-factor authentication for the account
+         * The MegaApi object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns true
+         * - MegaRequest::getPassword - Returns the pin sent in the first parameter
+         *
+         * @param pin Valid pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthEnable(const char *pin, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Disable multi-factor authentication for the account
+         * The MegaApi object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getPassword - Returns the pin sent in the first parameter
+         *
+         * @param pin Valid pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthDisable(const char *pin, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Log in to a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the first parameter
+         * - MegaRequest::getPassword - Returns the second parameter
+         * - MegaRequest::getText - Returns the third parameter
+         *
+         * If the email/password aren't valid the error code provided in onRequestFinish is
+         * MegaError::API_ENOENT.
+         *
+         * @param email Email of the user
+         * @param password Password
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthLogin(const char* email, const char* password, const char* pin, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Change the password of a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
+         * - MegaRequest::getNewPassword - Returns the new password
+         * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+         * @param newPassword New password
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthChangePassword(const char *oldPassword, const char *newPassword, const char* pin, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Initialize the change of the email address associated to an account with multi-factor authentication enabled.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getEmail - Returns the email for the account
+         * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * If this request succeeds, a change-email link will be sent to the specified email address.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * @param email The new email to be associated to the account.
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthChangeEmail(const char *email, const char* pin, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Initialize the cancellation of an account.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
+         *
+         * If this request succeeds, a cancellation link will be sent to the email address of the user.
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @see MegaApi::confirmCancelAccount
+         *
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MegaRequestListener to track this request
+         */
+        void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a MEGA account
@@ -5308,7 +5923,7 @@ class MegaApi
          *
          * If you use mega::INVALID_HANDLE, all sessions except the current one will be closed
          *
-         * @param Handle of the session. Use mega::INVALID_HANDLE to cancel all sessions except the current one
+         * @param sessionHandle Handle of the session. Use mega::INVALID_HANDLE to cancel all sessions except the current one
          * @param listener MegaRequestListener to track this request
          */
         void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
@@ -5888,6 +6503,7 @@ class MegaApi
          * - MegaRequest::getEmail - Returns the email of the contact
          * - MegaRequest::getName - Returns the first name of the contact
          * - MegaRequest::getText - Returns the last name of the contact
+         * - MegaRequest::getFile - Returns the avatar of the contact (JPG with Base64 encoding)
          *
          * @param handle Handle of the contact link to check
          * @param listener MegaRequestListener to track this request
@@ -5908,6 +6524,30 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void contactLinkDelete(MegaHandle handle = INVALID_HANDLE, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Command to keep mobile apps alive when needed
+         *
+         * When this feature is enabled, API servers will regularly send push notifications
+         * to keep the application running. Before using this function, it's needed to register
+         * a notification token using MegaApi::registerPushNotifications
+         *
+         * The associated request type with this request is MegaRequest::TYPE_KEEP_ME_ALIVE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getParamType - Returns the type send in the first parameter
+         * - MegaRequest::getFlag - Returns true when the feature is being enabled, otherwise false
+         *
+         * @param type Type of keep alive desired
+         * Valid values for this parameter:
+         * - MegaApi::KEEP_ALIVE_CAMERA_UPLOADS = 0
+         *
+         * @param enable True to enable this feature, false to disable it
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::registerPushNotifications
+         */
+        void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account
@@ -6472,7 +7112,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
          *
-         * @param user email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+         * @param email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
          * set to NULL, the avatar is obtained for the active account
          * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
          * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
@@ -7287,7 +7927,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
+         * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
          * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
          *
          * If the corresponding user attribute is not set yet, the request will fail with the
@@ -7307,7 +7947,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
+         * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
          * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
          * modify the message with a rich link. If number is bigger than three, the extra option "Never"
          * must be added to the warning dialog.
@@ -8383,6 +9023,95 @@ class MegaApi
          */
         MegaTransferList *getChildTransfers(int transferTag);
 
+
+        /**
+         * @brief Returns the folder paths of a backup
+         *
+         * You take ownership of the returned value.
+         *
+         * @param backuptag backup tag
+         * @return Folder paths that contain each of the backups or NULL if tag not found.
+         */
+        MegaStringList *getBackupFolders(int backuptag) const;
+
+
+        /**
+         * @brief Starts a backup of a local folder into a remote location
+         *
+         * Determined by the selected period several backups will be stored in the selected location
+         * If a backup with the same local folder and remote location exists, its parameters will be updated
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_BACKUP
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the period between backups in deciseconds (-1 if cron time used)
+         * - MegaRequest::getText - Returns the cron like time string to define period
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getNumRetry - Returns the maximun number of backups to keep
+         * - MegaRequest::getTransferTag - Returns the tag asociated with the backup
+         * - MegaRequest::getFlag - Returns whether to attend past backups (ocurred while not running)
+         *
+         *
+         * @param localFolder Local folder
+         * @param parent MEGA folder to hold the backups
+         * @param attendPastBackups attend backups that ought to have started before
+         * @param period period between backups in deciseconds
+         * @param periodstring cron like time string to define period
+         * @param numBackups maximun number of backups to keep
+         * @param listener MegaRequestListener to track this request
+         *
+         */
+        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, const char *periodstring, int numBackups, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief Remove a backup
+         *
+         * The backup will stop being performed. No files in the local nor in the remote folder
+         * will be deleted due to the usage of this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_REMOVE_BACKUP
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the tag of the deleted backup
+         *
+         * @param tag tag of the backup to delete
+         * @param listener MegaRequestListener to track this request
+         */
+        void removeBackup(int tag, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief Aborts current ONGOING backup.
+         *
+         * This will cancell all current active backups.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ABORT_CURRENT_BACKUP
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the tag of the aborted backup
+         *
+         * Possible return values for this function are:
+         * - MegaError::API_OK if successfully aborted an ongoing backup
+         * - MegaError::API_ENOENT if backup could not be found or no ongoing backup found
+         *
+         * @param tag tag of the backup to delete
+         */
+        void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
+
+        /**
+         * @brief Starts a timer.
+         *
+         * This, besides the classic timer usage, can be used to enforce a loop of the SDK thread when the time passes
+         *
+         * The associated request type with this request is MegaRequest::TYPE_TIMER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the selected period
+
+         * An OnRequestFinish will be caled when the time is passed
+         *
+         * @param period time to wait
+         * @param listener MegaRequestListener to track this request
+         *
+        */
+        void startTimer(int64_t period, MegaRequestListener *listener = NULL);
+
+
 #ifdef ENABLE_SYNC
 
         ///////////////////   SYNCHRONIZATION   ///////////////////
@@ -8781,6 +9510,37 @@ class MegaApi
 #endif
 
         /**
+         * @brief Get the backup identified with a tag
+         *
+         * You take the ownership of the returned value
+         *
+         * @param tag Tag that identifies the backup
+         * @return Backup identified by the tag
+         */
+        MegaBackup *getBackupByTag(int tag);
+
+        /**
+         * @brief getBackupByNode Get the backup associated with a node
+         *
+         * You take the ownership of the returned value
+         * Caveat: Two backups can have the same parent node, the first one encountered is returned
+         *
+         * @param node Root node of the backup
+         * @return Backup with the specified root node
+         */
+        MegaBackup *getBackupByNode(MegaNode *node);
+
+        /**
+         * @brief getBackupByPath Get the backup associated with a local path
+         *
+         * You take the ownership of the returned value
+         *
+         * @param localPath Root local path of the backup
+         * @return Backup with the specified root local path
+         */
+        MegaBackup *getBackupByPath(const char *localPath);
+
+        /**
          * @brief Force a loop of the SDK thread
          * @deprecated This function is only here for debugging purposes. It will probably
          * be removed in future updates
@@ -9115,7 +9875,7 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * @param parent Parent node
+         * @param p Parent node
          * @param order Order for the returned lists
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -10070,6 +10830,36 @@ class MegaApi
         const char *getBasePath();
 
         /**
+         * @brief Disable special features related to images and videos
+         *
+         * Disabling these features will avoid the upload of previews and thumbnails
+         * for images and videos.
+         *
+         * It's only recommended to disable these features before uploading files
+         * with image or video extensions that are not really images or videos,
+         * or that are encrypted in the local drive so they can't be analyzed anyway.
+         *
+         * By default, graphic features are enabled if the SDK was built with a valid
+         * graphic processor or a valid graphic processor was provided in the constructor
+         * of MegaApi.
+         *
+         * @param disable True to disable special features related to images and videos
+         */
+        void disableGfxFeatures(bool disable);
+
+        /**
+         * @brief Check if special graphic features are disabled
+         *
+         * By default, graphic features are enabled so this function will return false.
+         * If graphic features were previously disabled, or the SDK wasn't built with
+         * a valid graphic processor and it wasn't provided in the constructor on MegaApi,
+         * this function will return true.
+         *
+         * @return True if special features related to images and videos are disabled
+         */
+        bool areGfxFeaturesDisabled();
+
+        /**
          * @brief Change the API URL
          *
          * This function allows to change the API URL.
@@ -10082,7 +10872,7 @@ class MegaApi
 
         /**
          * @brief Set the language code used by the app
-         * @param Language code used by the app
+         * @param languageCode Language code used by the app
          *
          * @return True if the language code is known for the SDK, otherwise false
          */
@@ -10556,7 +11346,7 @@ class MegaApi
          * other configuration options (MegaApi::httpServerEnableFileServer,
          * MegaApi::httpServerEnableFolderServer) are still applied.
          *
-         * @param Required state for the restricted mode of the HTTP proxy server
+         * @param mode Required state for the restricted mode of the HTTP proxy server
          */
         void httpServerSetRestrictedMode(int mode);
 
@@ -10711,8 +11501,7 @@ class MegaApi
          * @brief Stops serving a node via webdav.
          * The webdav link will no longer be valid.
          *
-         * @param handle Handle of the node to stop serving
-         * @return URL to the node in the local HTTP proxy server, otherwise NULL
+         * @param handle Handle of the node to stop serving         
          */
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
 

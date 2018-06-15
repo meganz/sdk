@@ -120,6 +120,11 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeContactLinkQuery,
     MEGARequestTypeContactLinkDelete,
     MEGARequestTypeFolderInfo,
+    MEGARequestTypeRichLink,
+    MEGARequestTypeKeepMeAlive,
+    MEGARequestTypeMultiFactorAuthCheck,
+    MEGARequestTypeMultiFactorAuthGet,
+    MEGARequestTypeMultiFactorAuthSet,
     TotalOfRequestTypes
 };
 

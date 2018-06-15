@@ -52,7 +52,7 @@ void WinHttpIO::setuseragent(string* useragent)
     wuseragent.resize(sizeof(wchar_t)
                       * (MultiByteToWideChar(CP_UTF8, 0, useragent->c_str(),
                                               -1, (wchar_t*)wuseragent.data(),
-                                              wuseragent.size() / sizeof(wchar_t) + 1)
+                                              int(wuseragent.size() / sizeof(wchar_t) + 1))
                           - 1));
 
     // create the session handle using the default settings.
@@ -232,7 +232,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 if (httpctx->gzip)
                 {                    
                     m_off_t zprevsize = httpctx->zin.size();
-                    httpctx->zin.resize(zprevsize + size);
+                    httpctx->zin.resize(size_t(zprevsize + size));
                     ptr = (char*)httpctx->zin.data() + zprevsize;
                 }
                 else
@@ -284,6 +284,12 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                         LOG_err << "GZIP error";
                         httpio->cancel(req);
                     }
+                }
+                else
+                {
+                    // data was copied direct to buf or to req->in.
+                    assert(req->buf && (byte*)lpvStatusInformation >= req->buf && (byte*)lpvStatusInformation + dwStatusInformationLength <= req->buf + req->buflen ||
+                           !req->buf && (char*)lpvStatusInformation >= req->in.data() && (char*)lpvStatusInformation + dwStatusInformationLength <= req->in.data() + req->in.size());
                 }
 
                 if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))
@@ -338,6 +344,19 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                         req->timeleft = timeLeft;
                     }
 
+                    // check for gzip content encoding
+                    WCHAR contentEncoding[16];
+                    DWORD contentEncodingSize = sizeof(contentEncoding);
+
+                    httpctx->gzip = WinHttpQueryHeaders(httpctx->hRequest,
+                        WINHTTP_QUERY_CONTENT_ENCODING,
+                        WINHTTP_HEADER_NAME_BY_INDEX,
+                        &contentEncoding,
+                        &contentEncodingSize,
+                        WINHTTP_NO_HEADER_INDEX)
+                        && !wcscmp(contentEncoding, L"gzip");
+
+
                     // obtain original content length - always present if gzip is in use
                     DWORD contentLength;
                     DWORD contentLengthSize = sizeof(contentLength);
@@ -351,18 +370,6 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                     {
                         LOG_verbose << "Content-Length: " << contentLength;
                         req->setcontentlength(contentLength);
-
-                        // check for gzip content encoding
-                        WCHAR contentEncoding[16];
-                        DWORD contentEncodingSize = sizeof(contentEncoding);
-
-                        httpctx->gzip = WinHttpQueryHeaders(httpctx->hRequest,
-                                                WINHTTP_QUERY_CONTENT_ENCODING,
-                                                WINHTTP_HEADER_NAME_BY_INDEX,
-                                                &contentEncoding,
-                                                &contentEncodingSize,
-                                                WINHTTP_NO_HEADER_INDEX)
-                                    && !wcscmp(contentEncoding, L"gzip");
 
                         if (httpctx->gzip)
                         {
@@ -385,9 +392,30 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                             LOG_verbose << "Not using GZIP";
                         }
                     }
+                    else if (httpctx->gzip)
+                    {
+                        LOG_err << "Content is gzipped but length is missing";
+                        httpio->cancel(req);
+                        httpio->httpevent();
+                        break;
+                    }
                     else
                     {
-                        LOG_verbose << "Content-Length not available";
+                        // not zipped and no original size - check for Content-Length instead, plain data arriving (eg. keep-alive)
+                        if (WinHttpQueryHeaders(httpctx->hRequest,
+                            WINHTTP_QUERY_CUSTOM | WINHTTP_QUERY_FLAG_NUMBER,
+                            L"Content-Length",
+                            &contentLength,
+                            &contentLengthSize,
+                            WINHTTP_NO_HEADER_INDEX))
+                        {
+                            LOG_verbose << "Content-Length: " << contentLength;
+                            req->setcontentlength(contentLength);
+                        }
+                        else
+                        {
+                            LOG_verbose << "Content-Length not available";
+                        }
                     }
                 }
 
@@ -596,7 +624,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                                     ? L"Content-Type: application/json\r\nAccept-Encoding: gzip"
                                     : L"Content-Type: application/octet-stream";
 
-                httpctx->postlen = data ? len : req->out->size();
+                httpctx->postlen = int(data ? len : req->out->size());
                 httpctx->postdata = data ? data : req->out->data();
 
                 if (urlComp.nPort == 80)
@@ -623,7 +651,7 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
                 }
 
                 if (WinHttpSendRequest(httpctx->hRequest, pwszHeaders,
-                                       wcslen(pwszHeaders),
+                                       DWORD(wcslen(pwszHeaders)),
                                        (LPVOID)httpctx->postdata,
                                        httpctx->postpos,
                                        httpctx->postlen,

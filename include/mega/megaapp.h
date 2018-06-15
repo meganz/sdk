@@ -302,14 +302,29 @@ struct MEGA_API MegaApp
     // HTTP request finished
     virtual void http_result(error, int, byte*, int) { }
 
+    // Timer ended
+    virtual void timer_result(error) { }
+
     // contact link create
     virtual void contactlinkcreate_result(error, handle) { }
 
     // contact link query
-    virtual void contactlinkquery_result(error, handle, string*, string*, string*) { }
+    virtual void contactlinkquery_result(error, handle, string*, string*, string*, string*) { }
 
     // contact link delete
     virtual void contactlinkdelete_result(error) { }
+
+    // multi-factor authentication setup
+    virtual void multifactorauthsetup_result(string*, error) { }
+
+    // multi-factor authentication get
+    virtual void multifactorauthcheck_result(int) { }
+
+    // multi-factor authentication disable
+    virtual void multifactorauthdisable_result(error) { }
+
+    // keep me alive command for mobile apps
+    virtual void keepmealive_result (error) { }
 
     virtual ~MegaApp() { }
 };

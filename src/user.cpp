@@ -72,13 +72,13 @@ bool User::serialize(string* d)
     {
         d->append((char*)&it->first, sizeof it->first);
 
-        ll = it->second.size();
+        ll = (unsigned short)it->second.size();
         d->append((char*)&ll, sizeof ll);
         d->append(it->second.data(), ll);
 
         if (attrsv.find(it->first) != attrsv.end())
         {
-            ll = attrsv[it->first].size();
+            ll = (unsigned short)attrsv[it->first].size();
             d->append((char*)&ll, sizeof ll);
             d->append(attrsv[it->first].data(), ll);
         }
@@ -585,20 +585,20 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     bool changed = false;
 
     // Timestamp for last successful validation of password in PRD
-    time_t tsLastSuccess;
+    m_time_t tsLastSuccess;
     size_t len = oldValue.find(":");
     string buf = oldValue.substr(0, len) + "#"; // add character control '#' for conversion
     oldValue = oldValue.substr(len + 1);    // skip ':'
     if (lastSuccess)
     {
         changed = true;
-        tsLastSuccess = time(NULL);
+        tsLastSuccess = m_time();
     }
     else
     {
         char *pEnd = NULL;
-        tsLastSuccess = strtol(buf.data(), &pEnd, 10);
-        if (*pEnd != '#' || tsLastSuccess == LONG_MAX || tsLastSuccess == LONG_MIN)
+        tsLastSuccess = strtoll(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSuccess == LLONG_MAX || tsLastSuccess == LLONG_MIN)
         {
             tsLastSuccess = 0;
             changed = true;
@@ -606,20 +606,20 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
 
     // Timestamp for last time the PRD was skipped
-    time_t tsLastSkipped;
+    m_time_t tsLastSkipped;
     len = oldValue.find(":");
     buf = oldValue.substr(0, len) + "#";
     oldValue = oldValue.substr(len + 1);
     if (lastSkipped)
     {
-        tsLastSkipped = time(NULL);
+        tsLastSkipped = m_time();
         changed = true;
     }
     else
     {
         char *pEnd = NULL;
-        tsLastSkipped = strtol(buf.data(), &pEnd, 10);
-        if (*pEnd != '#' || tsLastSkipped == LONG_MAX || tsLastSkipped == LONG_MIN)
+        tsLastSkipped = strtoll(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSkipped == LLONG_MAX || tsLastSkipped == LLONG_MIN)
         {
             tsLastSkipped = 0;
             changed = true;
@@ -685,11 +685,11 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     }
 
     // Timestamp for last time user logged in
-    time_t tsLastLogin = 0;
+    m_time_t tsLastLogin = 0;
     len = oldValue.length();
     if (lastLogin)
     {
-        tsLastLogin = time(NULL);
+        tsLastLogin = m_time();
         changed = true;
     }
     else
@@ -697,8 +697,8 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
         buf = oldValue.substr(0, len) + "#";
 
         char *pEnd = NULL;
-        tsLastLogin = strtol(buf.data(), &pEnd, 10);
-        if (*pEnd != '#' || tsLastLogin == LONG_MAX || tsLastLogin == LONG_MIN)
+        tsLastLogin = strtoll(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastLogin == LLONG_MAX || tsLastLogin == LLONG_MIN)
         {
             tsLastLogin = 0;
             changed = true;
@@ -714,7 +714,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     return changed;
 }
 
-time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int size)
+m_time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int size)
 {
     if (!numDetail || !data || !size)
     {
@@ -739,15 +739,15 @@ time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int si
     bool lastLogin = (numDetail & PWD_LAST_LOGIN) != 0;
 
     // Timestamp for last successful validation of password in PRD
-    time_t tsLastSuccess;
+    m_time_t tsLastSuccess;
     size_t len = value.find(":");
     string buf = value.substr(0, len) + "#"; // add character control '#' for conversion
     value = value.substr(len + 1);    // skip ':'
     if (lastSuccess)
     {
         char *pEnd = NULL;
-        tsLastSuccess = strtol(buf.data(), &pEnd, 10);
-        if (*pEnd != '#' || tsLastSuccess == LONG_MAX || tsLastSuccess == LONG_MIN)
+        tsLastSuccess = strtoll(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSuccess == LLONG_MAX || tsLastSuccess == LLONG_MIN)
         {
             tsLastSuccess = 0;
         }
@@ -755,15 +755,15 @@ time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int si
     }
 
     // Timestamp for last time the PRD was skipped
-    time_t tsLastSkipped;
+    m_time_t tsLastSkipped;
     len = value.find(":");
     buf = value.substr(0, len) + "#";
     value = value.substr(len + 1);
     if (lastSkipped)
     {
         char *pEnd = NULL;
-        tsLastSkipped = strtol(buf.data(), &pEnd, 10);
-        if (*pEnd != '#' || tsLastSkipped == LONG_MAX || tsLastSkipped == LONG_MIN)
+        tsLastSkipped = strtoll(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastSkipped == LLONG_MAX || tsLastSkipped == LLONG_MIN)
         {
             tsLastSkipped = 0;
         }
@@ -771,56 +771,45 @@ time_t User::getPwdReminderData(int numDetail, const char *data, unsigned int si
     }
 
     // Flag for Recovery Key exported
-    bool flagMkExported;
     len = value.find(":");
     buf = value.substr(0, len) + "#";
     value = value.substr(len + 1);
     if (mkExported)
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
-        if (*pEnd != '#' || (tmp != 0 && tmp != 1))
+        m_time_t flagMkExported = strtoll(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || (flagMkExported != 0 && flagMkExported != 1))
         {
-            flagMkExported = false;
+            flagMkExported = 0;
         }
-        else
-        {
-            flagMkExported = tmp;
-        }
-
         return flagMkExported;
     }
 
     // Flag for "Don't show again" the PRD
-    bool flagDontShowAgain;
     len = value.find(":");
     buf = value.substr(0, len) + "#";
     value = value.substr(len + 1);
     if (dontShowAgain)
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
-        if (*pEnd != '#' || (tmp != 0 && tmp != 1))
+        m_time_t flagDontShowAgain = strtoll(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || (flagDontShowAgain != 0 && flagDontShowAgain != 1))
         {
-            flagDontShowAgain = false;
-        }
-        else
-        {
-            flagDontShowAgain = tmp;
+            flagDontShowAgain = 0;
         }
         return flagDontShowAgain;
     }
 
     // Timestamp for last time user logged in
-    time_t tsLastLogin = 0;
+    m_time_t tsLastLogin = 0;
     len = value.length();
     if (lastLogin)
     {
         buf = value.substr(0, len) + "#";
 
         char *pEnd = NULL;
-        tsLastLogin = strtol(buf.data(), &pEnd, 10);
-        if (*pEnd != '#' || tsLastLogin == LONG_MAX || tsLastLogin == LONG_MIN)
+        tsLastLogin = strtoll(buf.data(), &pEnd, 10);
+        if (*pEnd != '#' || tsLastLogin == LLONG_MAX || tsLastLogin == LLONG_MIN)
         {
             tsLastLogin = 0;
         }

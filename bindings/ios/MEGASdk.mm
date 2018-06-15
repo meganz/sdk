@@ -401,6 +401,70 @@ using namespace mega;
 
 #pragma mark - Login Requests
 
+- (void)multiFactorAuthCheckWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthCheck((email ? email.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthCheckWithEmail:(NSString *)email {
+    self.megaApi->multiFactorAuthCheck((email ? email.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthGetCodeWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthGetCode([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthGetCode {
+    self.megaApi->multiFactorAuthGetCode();
+}
+
+- (void)multiFactorAuthEnableWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthEnable((pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthEnableWithPin:(NSString *)pin  {
+    self.megaApi->multiFactorAuthEnable((pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthDisableWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthDisable((pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthDisableWithPin:(NSString *)pin {
+    self.megaApi->multiFactorAuthDisable((pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthLoginWithEmail:(NSString *)email password:(NSString *)password pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthLogin((email ? email.UTF8String : NULL), (password ? password.UTF8String : NULL), (pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthLoginWithEmail:(NSString *)email password:(NSString *)password pin:(NSString *)pin {
+    self.megaApi->multiFactorAuthLogin((email ? email.UTF8String : NULL), (password ? password.UTF8String : NULL), (pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthChangePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthChangePassword((oldPassword ? oldPassword.UTF8String : NULL), (newPassword ? newPassword.UTF8String : NULL), (pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthChangePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin {
+    self.megaApi->multiFactorAuthChangePassword((oldPassword ? oldPassword.UTF8String : NULL), (newPassword ? newPassword.UTF8String : NULL), (pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthChangeEmail:(NSString *)email pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthChangeEmail((email ? email.UTF8String : NULL), (pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthChangeEmail:(NSString *)email pin:(NSString *)pin {
+    self.megaApi->multiFactorAuthChangeEmail((email ? email.UTF8String : NULL), (pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthCancelAccountWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthCancelAccount((pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthCancelAccountWithPin:(NSString *)pin {
+    self.megaApi->multiFactorAuthCancelAccount((pin ? pin.UTF8String : NULL));
+}
+
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password {
     self.megaApi->login((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }
@@ -453,6 +517,14 @@ using namespace mega;
 
 - (void)logout {
     self.megaApi->logout();
+}
+
+- (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)localLogout {
+    self.megaApi->localLogout();
 }
 
 - (void)invalidateCache {
@@ -646,6 +718,14 @@ using namespace mega;
     self.megaApi->contactLinkDelete();
 }
 
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->keepMeAlive((int) type, enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable {
+    self.megaApi->keepMeAlive((int) type, enable);
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -779,16 +859,12 @@ using namespace mega;
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
 
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
-    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude : MegaNode::INVALID_COORDINATE), (longitude ? longitude : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude {
-    double lat = latitude != nil ? latitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    double lon = longitude != nil ? longitude.doubleValue : MegaNode::INVALID_COORDINATE;
-    self.megaApi->setNodeCoordinates((node != nil) ? [node getCPtr] : NULL, lat, lon);
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude {
+    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude : MegaNode::INVALID_COORDINATE), (longitude ? longitude : MegaNode::INVALID_COORDINATE));
 }
 
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
@@ -1021,6 +1097,38 @@ using namespace mega;
 
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout {
     self.megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
+- (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->enableRichPreviews(enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)enableRichPreviews:(BOOL)enable {
+    self.megaApi->enableRichPreviews(enable);
+}
+
+- (void)isRichPreviewsEnabledWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->isRichPreviewsEnabled([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)isRichPreviewsEnabled {
+    self.megaApi->isRichPreviewsEnabled();
+}
+
+- (void)shouldShowRichLinkWarningWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->shouldShowRichLinkWarning([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)shouldShowRichLinkWarning {
+    self.megaApi->shouldShowRichLinkWarning();
+}
+
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setRichLinkWarningCounterValue((int)value, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setRichLinkWarningCounterValue:(NSUInteger)value {
+    self.megaApi->setRichLinkWarningCounterValue((int)value);
 }
 
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
@@ -1628,6 +1736,14 @@ using namespace mega;
 
 - (void)getContactLinksOption {
     self.megaApi->getContactLinksOption();
+}
+
+- (void)retrySSLErrors:(BOOL)enable {
+    self.megaApi->retrySSLerrors(enable);
+}
+
+- (void)setPublicKeyPinning:(BOOL)enable {
+    self.megaApi->setPublicKeyPinning(enable);
 }
 
 - (BOOL)createThumbnail:(NSString *)imagePath destinatioPath:(NSString *)destinationPath {

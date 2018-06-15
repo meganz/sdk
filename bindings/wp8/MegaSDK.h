@@ -174,6 +174,282 @@ namespace mega
         void reconnect();
         static void setStatsID(String^ id);
 
+        /**
+         * @brief Check if multi-factor authentication is enabled for an account
+         *
+         * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getEmail - Returns the email sent in the first parameter
+         *
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
+         * - MRequest::getFlag - Returns true if multi-factor authentication is enabled or false if it's disabled.
+         *
+         * @param email Email to check
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthCheck(String^ email, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Check if multi-factor authentication is enabled for an account
+         *
+         * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getEmail - Returns the email sent in the first parameter
+         *
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
+         * - MRequest::getFlag - Returns true if multi-factor authentication is enabled or false if it's disabled.
+         *
+         * @param email Email to check
+         */
+        void multiFactorAuthCheck(String^ email);
+
+        /**
+         * @brief Get the secret code of the account to enable multi-factor authentication
+         * The MegaSDK object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_GET
+         *
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
+         * - MRequest::getText - Returns the Base32 secret code needed to configure multi-factor authentication.
+         *
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthGetCode(MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Get the secret code of the account to enable multi-factor authentication
+         * The MegaSDK object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_GET
+         *
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
+         * - MRequest::getText - Returns the Base32 secret code needed to configure multi-factor authentication.
+         */
+        void multiFactorAuthGetCode();
+
+        /**
+         * @brief Enable multi-factor authentication for the account
+         * The MegaSDK object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_SET
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getFlag - Returns true
+         * - MRequest::getPassword - Returns the pin sent in the first parameter
+         *
+         * @param pin Valid pin code for multi-factor authentication
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthEnable(String^ pin, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Enable multi-factor authentication for the account
+         * The MegaSDK object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_SET
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getFlag - Returns true
+         * - MRequest::getPassword - Returns the pin sent in the first parameter
+         *
+         * @param pin Valid pin code for multi-factor authentication
+         */
+        void multiFactorAuthEnable(String^ pin);
+
+        /**
+         * @brief Disable multi-factor authentication for the account
+         * The MegaSDK object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_SET
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getFlag - Returns false
+         * - MRequest::getPassword - Returns the pin sent in the first parameter
+         *
+         * @param pin Valid pin code for multi-factor authentication
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthDisable(String^ pin, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Disable multi-factor authentication for the account
+         * The MegaSDK object must be logged into an account to successfully use this function.
+         *
+         * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_SET
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getFlag - Returns false
+         * - MRequest::getPassword - Returns the pin sent in the first parameter
+         *
+         * @param pin Valid pin code for multi-factor authentication
+         */
+        void multiFactorAuthDisable(String^ pin);
+
+        /**
+         * @brief Log in to a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MRequest::TYPE_LOGIN.
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getEmail - Returns the first parameter
+         * - MRequest::getPassword - Returns the second parameter
+         * - MRequest::getText - Returns the third parameter
+         *
+         * If the email/password aren't valid the error code provided in onRequestFinish is
+         * MError::API_ENOENT.
+         *
+         * @param email Email of the user
+         * @param password Password
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthLogin(String^ email, String^ password, String^ pin, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Log in to a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MRequest::TYPE_LOGIN.
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getEmail - Returns the first parameter
+         * - MRequest::getPassword - Returns the second parameter
+         * - MRequest::getText - Returns the third parameter
+         *
+         * If the email/password aren't valid the error code provided in onRequestFinish is
+         * MError::API_ENOENT.
+         *
+         * @param email Email of the user
+         * @param password Password
+         * @param pin Pin code for multi-factor authentication
+         */
+        void multiFactorAuthLogin(String^ email, String^ password, String^ pin);
+
+        /**
+         * @brief Change the password of a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getPassword - Returns the old password (if it was passed as parameter)
+         * - MRequest::getNewPassword - Returns the new password
+         * - MRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @param oldPassword Old password
+         * @param newPassword New password
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthChangePassword(String^ oldPassword, String^ newPassword, String^ pin, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Change the password of a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getPassword - Returns the old password (if it was passed as parameter)
+         * - MRequest::getNewPassword - Returns the new password
+         * - MRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @param oldPassword Old password
+         * @param newPassword New password
+         * @param pin Pin code for multi-factor authentication
+         */
+        void multiFactorAuthChangePassword(String^ oldPassword, String^ newPassword, String^ pin);
+
+        /**
+         * @brief Change the password of a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getPassword - Returns the old password (if it was passed as parameter)
+         * - MRequest::getNewPassword - Returns the new password
+         * - MRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @param newPassword New password
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthChangePasswordWithoutOld(String^ newPassword, String^ pin, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Change the password of a MEGA account with multi-factor authentication enabled
+         *
+         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
+         * Valid data in the MRequest object received on callbacks:
+         * - MRequest::getPassword - Returns the old password (if it was passed as parameter)
+         * - MRequest::getNewPassword - Returns the new password
+         * - MRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @param newPassword New password
+         * @param pin Pin code for multi-factor authentication
+         */
+        void multiFactorAuthChangePasswordWithoutOld(String^ newPassword, String^ pin);
+
+        /**
+         * @brief Initialize the change of the email address associated to an account with multi-factor authentication enabled.
+         *
+         * The associated request type with this request is MRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getEmail - Returns the email for the account
+         * - MRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * If this request succeeds, a change-email link will be sent to the specified email address.
+         * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+         *
+         * @param email The new email to be associated to the account.
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthChangeEmail(String^ email, String^ pin, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Initialize the change of the email address associated to an account with multi-factor authentication enabled.
+         *
+         * The associated request type with this request is MRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getEmail - Returns the email for the account
+         * - MRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * If this request succeeds, a change-email link will be sent to the specified email address.
+         * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+         *
+         * @param email The new email to be associated to the account.
+         * @param pin Pin code for multi-factor authentication
+         */
+        void multiFactorAuthChangeEmail(String^ email, String^ pin);
+
+        /**
+         * @brief Initialize the cancellation of an account.
+         *
+         * The associated request type with this request is MRequest::TYPE_GET_CANCEL_LINK.
+         *
+         * If this request succeeds, a cancellation link will be sent to the email address of the user.
+         * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @see MegaSDK::confirmCancelAccount
+         *
+         * @param pin Pin code for multi-factor authentication
+         * @param listener MRequestListener to track this request
+         */
+        void multiFactorAuthCancelAccount(String^ pin, MRequestListenerInterface^ listener);
+
+        /**
+         * @brief Initialize the cancellation of an account.
+         *
+         * The associated request type with this request is MRequest::TYPE_GET_CANCEL_LINK.
+         *
+         * If this request succeeds, a cancellation link will be sent to the email address of the user.
+         * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+         *
+         * Valid data in the MRequest object received on all callbacks:
+         * - MRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * @see MegaSDK::confirmCancelAccount
+         *
+         * @param pin Pin code for multi-factor authentication
+         */
+        void multiFactorAuthCancelAccount(String^ pin);
+
         //API requests
         void login(String^ email, String^ password, MRequestListenerInterface^ listener);
         void login(String^ email, String^ password);
@@ -741,10 +1017,49 @@ namespace mega
                 
         void removeContact(MUser^ user, MRequestListenerInterface^ listener);
         void removeContact(MUser^ user);
-        void logout(MRequestListenerInterface^ listener);        
+        
+        /**
+        * @brief Logout of the MEGA account invalidating the session
+        *
+        * The associated request type with this request is MRequestType::TYPE_LOGOUT
+        *
+        * Under certain circumstances, this request might return the error code
+        * MError::API_ESID. It should not be taken as an error, since the reason
+        * is that the logout action has been notified before the reception of the
+        * logout response itself.
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void logout(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Logout of the MEGA account invalidating the session
+        *
+        * The associated request type with this request is MRequestType::TYPE_LOGOUT
+        *
+        * Under certain circumstances, this request might return the error code
+        * MError::API_ESID. It should not be taken as an error, since the reason
+        * is that the logout action has been notified before the reception of the
+        * logout response itself.
+        */
         void logout();
+
+        /**
+        * @brief Logout of the MEGA account without invalidating the session
+        *
+        * The associated request type with this request is MRequestType::TYPE_LOGOUT
+        *
+        * @param listener MRequestListener to track this request
+        */
         void localLogout(MRequestListenerInterface^ listener);
-        void localLogout();
+
+        /**
+        * @brief Logout of the MEGA account without invalidating the session
+        *
+        * The associated request type with this request is MRequestType::TYPE_LOGOUT
+        */
+        void localLogout();        
+        
         int getPasswordStrength(String^ password);
         void submitFeedback(int rating, String^ comment, MRequestListenerInterface^ listener);
         void submitFeedback(int rating, String^ comment);
@@ -1031,6 +1346,33 @@ namespace mega
          * - MRequest::getFlag - false if disabled, true if enabled
          */
         void getContactLinksOption();
+
+        /**
+        * @brief Keep retrying when public key pinning fails
+        *
+        * By default, when the check of the MEGA public key fails, it causes an automatic
+        * logout. Pass false to this function to disable that automatic logout and
+        * keep the SDK retrying the request.
+        *
+        * Even if the automatic logout is disabled, a request of the type MegaRequestType::TYPE_LOGOUT
+        * will be automatically created and callbacks (onRequestStart, onRequestFinish) will
+        * be sent. However, logout won't be really executed and in onRequestFinish the error code
+        * for the request will be MError::API_EINCOMPLETE
+        *
+        * @param enable true to keep retrying failed requests due to a fail checking the MEGA public key
+        * or false to perform an automatic logout in that case
+        */
+        void retrySSLerrors(bool enable);
+
+        /**
+        * @brief Enable / disable the public key pinning
+        *
+        * Public key pinning is enabled by default for all sensible communications.
+        * It is strongly discouraged to disable this feature.
+        *
+        * @param enable true to keep public key pinning enabled, false to disable it
+        */
+        void setPublicKeyPinning(bool enable);
 
         bool createThumbnail(String^ imagePath, String^ dstPath);
         bool createPreview(String^ imagePath, String^ dstPath);

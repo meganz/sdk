@@ -500,9 +500,285 @@ public class MegaApiJava {
         megaApi.retryPendingConnections();
     }
 
-    /****************************************************************************************************/
-    // REQUESTS
-    /****************************************************************************************************/
+    /**
+     * Check if multi-factor authentication is enabled for an account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email sent in the first parameter
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if multi-factor authentication is enabled or false if it's disabled.
+     *
+     * @param email Email to check
+     * @param listener MegaRequestListener to track this request
+     */
+    public void multiFactorAuthCheck(String email, MegaRequestListenerInterface listener){
+        megaApi.multiFactorAuthCheck(email, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if multi-factor authentication is enabled for an account
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the email sent in the first parameter
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if multi-factor authentication is enabled or false if it's disabled.
+     *
+     * @param email Email to check
+     */
+    public void multiFactorAuthCheck(String email){
+        megaApi.multiFactorAuthCheck(email);
+    }
+
+    /**
+     * Get the secret code of the account to enable multi-factor authentication
+     * The MegaApi object must be logged into an account to successfully use this function.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the Base32 secret code needed to configure multi-factor authentication.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void multiFactorAuthGetCode(MegaRequestListenerInterface listener){
+        megaApi.multiFactorAuthGetCode(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the secret code of the account to enable multi-factor authentication
+     * The MegaApi object must be logged into an account to successfully use this function.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_GET
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the Base32 secret code needed to configure multi-factor authentication.
+     */
+    public void multiFactorAuthGetCode(){
+        megaApi.multiFactorAuthGetCode();
+    }
+
+    /**
+     * Enable multi-factor authentication for the account
+     * The MegaApi object must be logged into an account to successfully use this function.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Returns true
+     * - MegaRequest::getPassword - Returns the pin sent in the first parameter
+     *
+     * @param pin Valid pin code for multi-factor authentication
+     * @param listener MegaRequestListener to track this request
+     */
+    public void multiFactorAuthEnable(String pin, MegaRequestListenerInterface listener){
+        megaApi.multiFactorAuthEnable(pin, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Enable multi-factor authentication for the account
+     * The MegaApi object must be logged into an account to successfully use this function.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Returns true
+     * - MegaRequest::getPassword - Returns the pin sent in the first parameter
+     *
+     * @param pin Valid pin code for multi-factor authentication
+     */
+    public void multiFactorAuthEnable(String pin){
+        megaApi.multiFactorAuthEnable(pin);
+    }
+
+    /**
+     * Disable multi-factor authentication for the account
+     * The MegaApi object must be logged into an account to successfully use this function.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getPassword - Returns the pin sent in the first parameter
+     *
+     * @param pin Valid pin code for multi-factor authentication
+     * @param listener MegaRequestListener to track this request
+     */
+    public void multiFactorAuthDisable(String pin, MegaRequestListenerInterface listener){
+        megaApi.multiFactorAuthDisable(pin, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Disable multi-factor authentication for the account
+     * The MegaApi object must be logged into an account to successfully use this function.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_SET
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getFlag - Returns false
+     * - MegaRequest::getPassword - Returns the pin sent in the first parameter
+     *
+     * @param pin Valid pin code for multi-factor authentication
+     */
+    public void multiFactorAuthDisable(String pin){
+        megaApi.multiFactorAuthDisable(pin);
+    }
+
+    /**
+     * Log in to a MEGA account with multi-factor authentication enabled
+     *
+     * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the first parameter
+     * - MegaRequest::getPassword - Returns the second parameter
+     * - MegaRequest::getText - Returns the third parameter
+     *
+     * If the email/password aren't valid the error code provided in onRequestFinish is
+     * MegaError::API_ENOENT.
+     *
+     * @param email Email of the user
+     * @param password Password
+     * @param pin Pin code for multi-factor authentication
+     * @param listener MegaRequestListener to track this request
+     */
+    public void multiFactorAuthLogin(String email, String password, String pin, MegaRequestListenerInterface listener){
+        megaApi.multiFactorAuthLogin(email, password, pin, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Log in to a MEGA account with multi-factor authentication enabled
+     *
+     * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getEmail - Returns the first parameter
+     * - MegaRequest::getPassword - Returns the second parameter
+     * - MegaRequest::getText - Returns the third parameter
+     *
+     * If the email/password aren't valid the error code provided in onRequestFinish is
+     * MegaError::API_ENOENT.
+     *
+     * @param email Email of the user
+     * @param password Password
+     * @param pin Pin code for multi-factor authentication
+     */
+    public void multiFactorAuthLogin(String email, String password, String pin){
+        megaApi.multiFactorAuthLogin(email, password, pin);
+    }
+
+    /**
+     * Change the password of a MEGA account with multi-factor authentication enabled
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
+     * - MegaRequest::getNewPassword - Returns the new password
+     * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+     *
+     * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+     * @param newPassword New password
+     * @param pin Pin code for multi-factor authentication
+     * @param listener MegaRequestListener to track this request
+     */
+    public void multiFactorAuthChangePassword(String oldPassword, String newPassword, String pin, MegaRequestListenerInterface listener){
+        megaApi.multiFactorAuthChangePassword(oldPassword, newPassword, pin, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Change the password of a MEGA account with multi-factor authentication enabled
+     *
+     * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getPassword - Returns the old password (if it was passed as parameter)
+     * - MegaRequest::getNewPassword - Returns the new password
+     * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+     *
+     * @param oldPassword Old password (optional, it can be NULL to not check the old password)
+     * @param newPassword New password
+     * @param pin Pin code for multi-factor authentication
+     */
+    public void multiFactorAuthChangePassword(String oldPassword, String newPassword, String pin){
+        megaApi.multiFactorAuthChangePassword(oldPassword, newPassword, pin);
+    }
+
+    /**
+     * Initialize the change of the email address associated to an account with multi-factor authentication enabled.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+     *
+     * If this request succeeds, a change-email link will be sent to the specified email address.
+     * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * @param email The new email to be associated to the account.
+     * @param pin Pin code for multi-factor authentication
+     * @param listener MegaRequestListener to track this request
+     */
+    public void multiFactorAuthChangeEmail(String email, String pin, MegaRequestListenerInterface listener){
+        megaApi.multiFactorAuthChangeEmail(email, pin, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Initialize the change of the email address associated to an account with multi-factor authentication enabled.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getEmail - Returns the email for the account
+     * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+     *
+     * If this request succeeds, a change-email link will be sent to the specified email address.
+     * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * @param email The new email to be associated to the account.
+     * @param pin Pin code for multi-factor authentication
+     */
+    public void multiFactorAuthChangeEmail(String email, String pin){
+        megaApi.multiFactorAuthChangeEmail(email, pin);
+    }
+
+
+    /**
+     * Initialize the cancellation of an account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
+     *
+     * If this request succeeds, a cancellation link will be sent to the email address of the user.
+     * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+     *
+     * @see MegaApi::confirmCancelAccount
+     *
+     * @param pin Pin code for multi-factor authentication
+     * @param listener MegaRequestListener to track this request
+     */
+    public void multiFactorAuthCancelAccount(String pin, MegaRequestListenerInterface listener){
+        megaApi.multiFactorAuthCancelAccount(pin, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Initialize the cancellation of an account.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_CANCEL_LINK.
+     *
+     * If this request succeeds, a cancellation link will be sent to the email address of the user.
+     * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+     *
+     * Valid data in the MegaRequest object received on all callbacks:
+     * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+     *
+     * @see MegaApi::confirmCancelAccount
+     *
+     * @param pin Pin code for multi-factor authentication
+     */
+    public void multiFactorAuthCancelAccount(String pin){
+        megaApi.multiFactorAuthCancelAccount(pin);
+    }
 
     /**
      * Log in to a MEGA account.
@@ -1446,6 +1722,18 @@ public class MegaApiJava {
     public String getMyUserHandle() {
     	return megaApi.getMyUserHandle();
     }
+
+    /**
+     * Returns the user handle of the currently open account
+     *
+     * If the MegaApi object isn't logged in,
+     * this function returns INVALID_HANDLE
+     *
+     * @return User handle of the account
+     */
+    public long getMyUserHandleBinary(){
+        return megaApi.getMyUserHandleBinary();
+    }
     
     /**
      * Get the MegaUser of the currently open account
@@ -1457,7 +1745,6 @@ public class MegaApiJava {
      * @note The visibility of your own user is unhdefined and shouldn't be used.
      * @return MegaUser of the currently open account, otherwise NULL
      */
-    
     public MegaUser getMyUser(){
     	return megaApi.getMyUser();
     }
@@ -3393,6 +3680,153 @@ public class MegaApiJava {
      */
     public void shouldShowPasswordReminderDialog(boolean atLogout, MegaRequestListenerInterface listener){
         megaApi.shouldShowPasswordReminderDialog(atLogout, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Enable or disable the generation of rich previews
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+     *
+     * @param enable True to enable the generation of rich previews
+     * @param listener MegaRequestListener to track this request
+     */
+    public void enableRichPreviews(boolean enable, MegaRequestListenerInterface listener){
+        megaApi.enableRichPreviews(enable, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Enable or disable the generation of rich previews
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+     *
+     * @param enable True to enable the generation of rich previews
+     */
+    public void enableRichPreviews(boolean enable){
+        megaApi.enableRichPreviews(enable);
+    }
+
+    /**
+     * Check if rich previews are automatically generated
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+     * - MegaRequest::getNumDetails - Returns zero
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
+     * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
+     *
+     * If the corresponding user attribute is not set yet, the request will fail with the
+     * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid (false).
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void isRichPreviewsEnabled(MegaRequestListenerInterface listener){
+        megaApi.isRichPreviewsEnabled(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if rich previews are automatically generated
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+     * - MegaRequest::getNumDetails - Returns zero
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if generation of rich previews is enabled
+     * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
+     *
+     * If the corresponding user attribute is not set yet, the request will fail with the
+     * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid (false).
+     *
+     */
+    public void isRichPreviewsEnabled(){
+        megaApi.isRichPreviewsEnabled();
+    }
+
+    /**
+     * Check if the app should show the rich link warning dialog to the user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+     * - MegaRequest::getNumDetails - Returns one
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
+     * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
+     * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+     * must be added to the warning dialog.
+     * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
+     *
+     * If the corresponding user attribute is not set yet, the request will fail with the
+     * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid (true).
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void shouldShowRichLinkWarning(MegaRequestListenerInterface listener){
+        megaApi.shouldShowRichLinkWarning(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the app should show the rich link warning dialog to the user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+     * - MegaRequest::getNumDetails - Returns one
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getFlag - Returns true if it is necessary to show the rich link warning
+     * - MegaRequest::getNumber - Returns the number of times that user has indicated that doesn't want
+     * modify the message with a rich link. If number is bigger than three, the extra option "Never"
+     * must be added to the warning dialog.
+     * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
+     *
+     * If the corresponding user attribute is not set yet, the request will fail with the
+     * error code MegaError::API_ENOENT, but the value of MegaRequest::getFlag will still be valid (true).
+     *
+     */
+    public void shouldShowRichLinkWarning(){
+
+        megaApi.shouldShowRichLinkWarning();
+    }
+
+    /**
+     * Set the number of times "Not now" option has been selected in the rich link warning dialog
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+     *
+     * @param value Number of times "Not now" option has been selected
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setRichLinkWarningCounterValue(int value, MegaRequestListenerInterface listener){
+        megaApi.setRichLinkWarningCounterValue(value, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set the number of times "Not now" option has been selected in the rich link warning dialog
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RICH_PREVIEWS
+     *
+     * @param value Number of times "Not now" option has been selected
+     */
+    public void setRichLinkWarningCounterValue(int value){
+        megaApi.setRichLinkWarningCounterValue(value);
     }
 
     /**

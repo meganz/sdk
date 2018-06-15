@@ -398,6 +398,163 @@ void MegaSDK::setStatsID(String^ id)
     MegaApi::setStatsID((id != nullptr) ? utf8id.c_str() : NULL);
 }
 
+void MegaSDK::multiFactorAuthCheck(String^ email, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    megaApi->multiFactorAuthCheck(
+        (email != nullptr) ? utf8email.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::multiFactorAuthCheck(String^ email)
+{
+    this->multiFactorAuthCheck(email, nullptr);
+}
+
+void MegaSDK::multiFactorAuthGetCode(MRequestListenerInterface^ listener)
+{
+    megaApi->multiFactorAuthGetCode(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::multiFactorAuthGetCode()
+{
+    this->multiFactorAuthGetCode(nullptr);
+}
+
+void MegaSDK::multiFactorAuthEnable(String^ pin, MRequestListenerInterface^ listener)
+{
+    std::string utf8pin;
+    if (pin != nullptr)
+        MegaApi::utf16ToUtf8(pin->Data(), pin->Length(), &utf8pin);
+
+    megaApi->multiFactorAuthEnable(
+        (pin != nullptr) ? utf8pin.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::multiFactorAuthEnable(String^ pin)
+{
+    this->multiFactorAuthEnable(pin, nullptr);
+}
+
+void MegaSDK::multiFactorAuthDisable(String^ pin, MRequestListenerInterface^ listener)
+{
+    std::string utf8pin;
+    if (pin != nullptr)
+        MegaApi::utf16ToUtf8(pin->Data(), pin->Length(), &utf8pin);
+
+    megaApi->multiFactorAuthDisable(
+        (pin != nullptr) ? utf8pin.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::multiFactorAuthDisable(String^ pin)
+{
+    this->multiFactorAuthDisable(pin, nullptr);
+}
+
+void MegaSDK::multiFactorAuthLogin(String^ email, String^ password, String^ pin, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8password;
+    if (password != nullptr)
+        MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
+
+    std::string utf8pin;
+    if (pin != nullptr)
+        MegaApi::utf16ToUtf8(pin->Data(), pin->Length(), &utf8pin);
+
+    megaApi->multiFactorAuthLogin(
+        (email != nullptr) ? utf8email.c_str() : NULL,
+        (password != nullptr) ? utf8password.c_str() : NULL,
+        (pin != nullptr) ? utf8pin.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::multiFactorAuthLogin(String^ email, String^ password, String^ pin)
+{
+    this->multiFactorAuthLogin(email, password, pin, nullptr);
+}
+
+void MegaSDK::multiFactorAuthChangePassword(String^ oldPassword, String^ newPassword, String^ pin, MRequestListenerInterface^ listener)
+{
+    std::string utf8oldPassword;
+    if (oldPassword != nullptr)
+        MegaApi::utf16ToUtf8(oldPassword->Data(), oldPassword->Length(), &utf8oldPassword);
+
+    std::string utf8newPassword;
+    if (newPassword != nullptr)
+        MegaApi::utf16ToUtf8(newPassword->Data(), newPassword->Length(), &utf8newPassword);
+
+    std::string utf8pin;
+    if (pin != nullptr)
+        MegaApi::utf16ToUtf8(pin->Data(), pin->Length(), &utf8pin);
+
+    megaApi->multiFactorAuthChangePassword(
+        (oldPassword != nullptr) ? utf8oldPassword.c_str() : NULL,
+        (newPassword != nullptr) ? utf8newPassword.c_str() : NULL,
+        (pin != nullptr) ? utf8pin.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::multiFactorAuthChangePassword(String^ oldPassword, String^ newPassword, String^ pin)
+{
+    this->multiFactorAuthChangePassword(oldPassword, newPassword, pin, nullptr);
+}
+
+void MegaSDK::multiFactorAuthChangePasswordWithoutOld(String^ newPassword, String^ pin, MRequestListenerInterface^ listener)
+{
+    this->multiFactorAuthChangePassword(nullptr, newPassword, pin, listener);
+}
+
+void MegaSDK::multiFactorAuthChangePasswordWithoutOld(String^ newPassword, String^ pin)
+{
+    this->multiFactorAuthChangePassword(nullptr, newPassword, pin, nullptr);
+}
+
+void MegaSDK::multiFactorAuthChangeEmail(String^ email, String^ pin, MRequestListenerInterface^ listener)
+{
+    std::string utf8email;
+    if (email != nullptr)
+        MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
+
+    std::string utf8pin;
+    if (pin != nullptr)
+        MegaApi::utf16ToUtf8(pin->Data(), pin->Length(), &utf8pin);
+
+    megaApi->multiFactorAuthChangeEmail(
+        (email != nullptr) ? utf8email.c_str() : NULL,
+        (pin != nullptr) ? utf8pin.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::multiFactorAuthChangeEmail(String^ email, String^ pin)
+{
+    this->multiFactorAuthChangeEmail(email, pin, nullptr);
+}
+
+void MegaSDK::multiFactorAuthCancelAccount(String^ pin, MRequestListenerInterface^ listener)
+{
+    std::string utf8pin;
+    if (pin != nullptr)
+        MegaApi::utf16ToUtf8(pin->Data(), pin->Length(), &utf8pin);
+
+    megaApi->multiFactorAuthCancelAccount(
+        (pin != nullptr) ? utf8pin.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::multiFactorAuthCancelAccount(String^ pin)
+{
+    this->multiFactorAuthCancelAccount(pin, nullptr);
+}
+
 void MegaSDK::login(String^ email, String^ password)
 {
 	std::string utf8email;
@@ -3634,6 +3791,16 @@ void MegaSDK::getContactLinksOption(MRequestListenerInterface^ listener)
 void MegaSDK::getContactLinksOption()
 {
     megaApi->getContactLinksOption();
+}
+
+void MegaSDK::retrySSLerrors(bool enable)
+{
+    megaApi->retrySSLerrors(enable);
+}
+
+void MegaSDK::setPublicKeyPinning(bool enable)
+{
+    megaApi->setPublicKeyPinning(enable);
 }
 
 bool MegaSDK::createThumbnail(String^ imagePath, String^ dstPath)
