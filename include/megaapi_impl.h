@@ -2083,7 +2083,7 @@ class MegaApiImpl : public MegaApp
         void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
 
         //FTP
-        bool ftpServerStart(bool localOnly = true, int port = 22, int dataportBegin = 1500, int dataPortEnd = 1600, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
+        bool ftpServerStart(bool localOnly = true, int port = 4990, int dataportBegin = 1500, int dataPortEnd = 1600, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
         void ftpServerStop();
         int ftpServerIsRunning();
 

@@ -21552,7 +21552,7 @@ bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
 {
     if (started && this->port == port && this->localOnly == localOnly)
     {
-        LOG_debug << " at MegaTCPServer::start 01, returning " << started;
+        LOG_verbose << "MegaTCPServer::start Alread started at that port, returning " << started;
         return true;
     }
     if (started)
@@ -21571,7 +21571,7 @@ bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
         thread->start(threadEntryPoint, this);
         uv_sem_wait(&semaphoreStartup);
     }
-    LOG_debug << " at MegaTCPServer::start, returning " << started;
+    LOG_verbose << "MegaTCPServer::start, returning " << started;
     return started;
 }
 
@@ -22318,7 +22318,7 @@ void MegaTCPServer::onInitializeRequest(uv_async_t *handle)
     }
     else
     {
-        LOG_debug << " at onInitializeRequest for port = " << tcpServer->port;
+        LOG_verbose << "MegaTCPServer::onInitializeRequest port = " << tcpServer->port;
         tcpServer->initializeAndStartListenig();
         handle->data = NULL;
     }
@@ -24593,7 +24593,7 @@ MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
 
 void MegaFTPServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 {
-    LOG_debug << " at processWriteFinished on FTP Server. status=" << status;
+    LOG_verbose << "MegaFTPServer::processWriteFinished. status=" << status;
 }
 
 string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
@@ -24603,11 +24603,11 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
     //str_perm((statbuf.st_mode & ALLPERMS), perms);
     getPermissionsString(child->isFolder() ? 777 : 664, perms);
 
-    //TODO: cross-platform this code
     char timebuff[80];
     time_t rawtime = (child->isFolder()?child->getCreationTime():child->getModificationTime());
-    struct tm* time = localtime(&rawtime); //TODO: issue with concurrency
-    strftime(timebuff,80,"%b %d %H:%M",time);
+    struct tm time;
+    m_localtime(rawtime, &time);
+    strftime(timebuff,80,"%b %d %H:%M",&time);
 
     char toprint[3000];
     sprintf(toprint,
@@ -24633,12 +24633,6 @@ string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
     {
     case 110:
         return "Restart marker reply.";
-        //         In this case, the text is exact and not left to the
-        //         particular implementation; it must read:
-        //              MARK yyyy = mmmm
-        //         Where yyyy is User-process data stream marker, and mmmm
-        //         server's equivalent marker (note the spaces between markers
-        //         and "=").
     case 120:
         return "Service ready in " + argument + " minutes.";
     case 125:
@@ -24657,18 +24651,12 @@ string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
         return "File status.";
     case 214:
         return "Help message.";
-        //         On how to use the server or the meaning of a particular
-        //         non-standard command.  This reply is useful only to the
-        //         human user.
     case 215:
         return "NAME system type.";
-        //         Where NAME is an official system name from the list in the
-        //         Assigned Numbers document.
     case 220:
         return "Service ready for new user.";
     case 221:
         return "Service closing control connection.";
-        //         Logged out if appropriate.
     case 225:
         return "Data connection open; no transfer in progress.";
     case 226:
@@ -24689,8 +24677,6 @@ string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
         return "Requested file action pending further information.";
     case 421:
         return "Service not available, closing control connection.";
-        //         This may be a reply to any command if the service knows it
-        //         must shut down.
     case 425:
         return "Can't open data connection.";
     case 426:
@@ -24703,7 +24689,6 @@ string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
         return "Requested action not taken. Insufficient storage space in system.";
     case 500:
         return "Syntax error, command unrecognized.";
-        //         This may include errors such as command line too long.
     case 501:
         return "Syntax error in parameters or arguments.";
     case 502:
@@ -26477,7 +26462,7 @@ void MegaFTPDataServer::sendData()
 
     if (tcpctx)
     {
-        LOG_debug << " at sendData. triggering asyncsend for tcpctx=" << tcpctx;
+        LOG_verbose << "MegaFTPDataServer::sendData. triggering asyncsend for tcpctx=" << tcpctx;
 #ifdef ENABLE_EVT_TLS
         if (useTLS && !evt_tls_is_handshake_over(tcpctx->evt_tls))
         {
@@ -26493,7 +26478,7 @@ void MegaFTPDataServer::sendData()
     }
     else
     {
-        LOG_debug << " at sendData. no tcpctx.";
+        LOG_verbose << "MegaFTPDataServer::sendData. no tcpctx. notifyNewConnectionRequired";
         this->notifyNewConnectionRequired = true;
     }
 }
@@ -26592,7 +26577,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
 
 void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
 {
-    LOG_debug << " at processAsyncEvent on FTPData server tcptcx= " << tcpctx;
+    LOG_verbose << "MegaFTPDataServer::processAsyncEvent. tcptcx= " << tcpctx;
     MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
     MegaFTPDataServer* fds = dynamic_cast<MegaFTPDataServer *>(tcpctx->server);
 
@@ -26712,7 +26697,7 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
     MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
     MegaFTPDataServer *fds = ((MegaFTPDataServer *)ftpdatactx->server);
 
-    LOG_debug << " at processOnAsyncEventClose on MegaFTPDataServer tcpctx=" << tcpctx << " port = " << fds->port << " remaining = " << fds->remainingcloseevents;
+    LOG_verbose << "MegaFTPDataServer::processOnAsyncEventClose. tcpctx=" << tcpctx << " port = " << fds->port << " remaining = " << fds->remainingcloseevents;
 
     fds->remotePathToUpload = "";
 
@@ -26725,7 +26710,7 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 
     if (!fds->remainingcloseevents && fds->closing)
     {
-        LOG_debug << " at processOnAsyncEventClose stoping without waiting port = " << fds->port;
+        LOG_verbose << "MegaFTPDataServer::processOnAsyncEventClose stopping without waiting. port = " << fds->port;
         fds->stop(true);
     }
 }
@@ -26746,7 +26731,7 @@ void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
 {
     MegaFTPDataServer* ftpDataServer = dynamic_cast<MegaFTPDataServer *>(tcpServer);
 
-    LOG_debug << " at processOnExitHandleClose remaining = " << ftpDataServer->remainingcloseevents << " port = " << ftpDataServer->port;;
+    LOG_verbose << "MegaFTPDataServer::processOnExitHandleClose remaining = " << ftpDataServer->remainingcloseevents << " port = " << ftpDataServer->port;;
 
     if (!ftpDataServer->remainingcloseevents && ftpDataServer->closing)
     {
