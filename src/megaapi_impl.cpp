@@ -6422,7 +6422,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
 
     for(map<int64_t, string>::iterator itr = backupTimesPaths.begin(); itr != backupTimesPaths.end(); itr++)
     {
-        listofpaths.push_back(strdup(itr->second.c_str()));
+        listofpaths.push_back(MegaApi::strdup(itr->second.c_str()));
     }
     backupFolders = new MegaStringListPrivate(listofpaths.data(),listofpaths.size());
 
@@ -15009,7 +15009,7 @@ void MegaApiImpl::removeRecursively(const char *path)
 
 error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error e)
 {
-    int tag = request->getNumber();
+    int tag = int(request->getNumber());
     bool found = false;
 
     map<int, MegaBackupController *>::iterator itr = backupsMap.find(tag) ;
@@ -17133,7 +17133,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_BACKUP:
         {
-            int backuptag = request->getNumber();
+            int backuptag = int(request->getNumber());
             bool found = false;
             bool flag = request->getFlag();
 
@@ -17191,7 +17191,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_TIMER:
         {
-            long long delta = request->getNumber();
+            int delta = int(request->getNumber());
             TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
             twb->backoff(delta);
             e = client->addtimer(twb);
@@ -19810,7 +19810,7 @@ long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) con
         }
         long long current_ds = oldStartTimeds + this->offsetds;  // 64 bit
 
-        long long newt = cron_next((cron_expr *)&ccronexpr, time_t(current_ds/10));  // time_t is 32 bit still on many systems
+        long long newt = cron_next(&ccronexpr, time_t(current_ds/10));  // time_t is 32 bit still on many systems
         long long newStarTimeds = newt*10-offsetds;  // 64 bit again
         return newStarTimeds;
     }
@@ -20159,12 +20159,12 @@ bool MegaBackupController::isBusy() const
     return (state == BACKUP_ONGOING) || (state == BACKUP_REMOVING_EXCEEDING || (state == BACKUP_SKIPPING));
 }
 
-std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
+std::string MegaBackupController::epochdsToString(int64_t rawtimeds) const
 {
     struct tm dt;
     char buffer [40];
-    time_t rawtime = rawtimeds/10;
-    m_localtime(rawtime, &dt);
+    m_time_t rawtime = rawtimeds / 10;
+    m_localtime(rawtime, &dt); 
 
     strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", &dt);
 
@@ -20199,7 +20199,7 @@ int64_t MegaBackupController::stringTimeTods(string stime) const
 #endif
     dt.tm_isdst = -1; //let mktime interprete if time has Daylight Saving Time flag correction
                         //TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
-    return (mktime(&dt))*10;
+    return m_mktime(&dt) * 10;
 }
 
 void MegaBackupController::clearCurrentBackupData()
@@ -20614,7 +20614,7 @@ void MegaBackupController::setPeriod(const int64_t &value)
     period = value;
     if (value != -1)
     {
-        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+        this->offsetds = m_time() * 10 - Waiter::ds;
         this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
         if (this->startTime < Waiter::ds)
             this->startTime = Waiter::ds;
@@ -20628,7 +20628,7 @@ void MegaBackupController::setPeriodstring(const string &value)
     if (value.size())
     {
         const char* err = NULL;
-        memset((cron_expr *)&ccronexpr, 0, sizeof(ccronexpr));
+        memset(&ccronexpr, 0, sizeof(ccronexpr));
         cron_parse_expr(periodstring.c_str(), &ccronexpr, &err);
 
         if (err != NULL)
@@ -20637,7 +20637,7 @@ void MegaBackupController::setPeriodstring(const string &value)
             return;
         }
 
-        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+        this->offsetds = m_time() * 10 - Waiter::ds;
 
         if (!lastbackuptime)
         {

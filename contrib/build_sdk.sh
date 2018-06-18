@@ -477,14 +477,15 @@ libuv_pkg() {
 
     package_extract $name $libuv_file $libuv_dir
 
+    export OLD_CFLAGS="$CFLAGS"
+
     # linking with static library requires -fPIC
     if [ $use_dynamic -eq 0 ]; then
-        export CFLAGS="-fPIC"
+        export CFLAGS="$CFLAGS -fPIC"
     fi
     package_configure $name $libuv_dir $install_dir "$libuv_params"
-    if [ $use_dynamic -eq 0 ]; then
-        unset CFLAGS
-    fi
+
+    export CFLAGS="$OLD_CFLAGS"
 
     package_build $name $libuv_dir
     package_install $name $libuv_dir $install_dir
@@ -997,6 +998,7 @@ build_sdk() {
     local static_flags=""
     local readline_flags=""
     local freeimage_flags=""
+    local libuv_flags=""
     local megaapi_flags=""
     local openssl_flags=""
     local sodium_flags="--without-sodium"
@@ -1025,6 +1027,13 @@ build_sdk() {
         freeimage_flags="--with-freeimage=$install_dir"
     else
         freeimage_flags="--without-freeimage"
+    fi
+
+    # enable libuv
+    if [ $enable_libuv -eq 1 ]; then
+        libuv_flags="--with-libuv=$install_dir"
+    else
+        libuv_flags="--without-libuv"
     fi
 
     # use local or system MediaInfo
@@ -1069,6 +1078,7 @@ build_sdk() {
             --with-cares=$install_dir \
             --with-curl=$install_dir \
             $freeimage_flags \
+            $libuv_flags \
             $readline_flags \
             $disable_posix_threads \
             $no_examples \
@@ -1093,6 +1103,7 @@ build_sdk() {
             --without-curl \
             --with-winhttp=$cwd \
             $freeimage_flags \
+            $libuv_flags \
             $readline_flags \
             $disable_posix_threads \
             $no_examples \

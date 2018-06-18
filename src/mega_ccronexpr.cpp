@@ -154,7 +154,7 @@ void cron_del_bit(uint8_t* rbyte, int idx) {
     rbyte[j] &= ~(1 << k);
 }
 
-uint8_t cron_get_bit(uint8_t* rbyte, int idx) {
+uint8_t cron_get_bit(const uint8_t* rbyte, int idx) {
     uint8_t j = (uint8_t) (idx / 8);
     uint8_t k = (uint8_t) (idx % 8);
 
@@ -185,7 +185,7 @@ static char* strdupl(const char* str, size_t len) {
     return res;
 }
 
-static unsigned int next_set_bit(uint8_t* bits, unsigned int max, unsigned int from_index, int* notfound) {
+static unsigned int next_set_bit(const uint8_t* bits, unsigned int max, unsigned int from_index, int* notfound) {
     unsigned int i;
     if (!bits) {
         *notfound = 1;
@@ -342,7 +342,7 @@ static int set_field(struct tm* calendar, int field, int val) {
  * Search the bits provided for the next set bit after the value provided,
  * and reset the calendar.
  */
-static unsigned int find_next(uint8_t* bits, unsigned int max, unsigned int value, struct tm* calendar, unsigned int field, unsigned int nextField, int* lower_orders, int* res_out) {
+static unsigned int find_next(const uint8_t* bits, unsigned int max, unsigned int value, struct tm* calendar, unsigned int field, unsigned int nextField, int* lower_orders, int* res_out) {
     int notfound = 0;
     int err = 0;
     unsigned int next_value = next_set_bit(bits, max, value, &notfound);
@@ -368,7 +368,7 @@ static unsigned int find_next(uint8_t* bits, unsigned int max, unsigned int valu
     return 0;
 }
 
-static unsigned int find_next_day(struct tm* calendar, uint8_t* days_of_month, unsigned int day_of_month, uint8_t* days_of_week, unsigned int day_of_week, int* resets, int* res_out) {
+static unsigned int find_next_day(struct tm* calendar, const uint8_t* days_of_month, unsigned int day_of_month, const uint8_t* days_of_week, unsigned int day_of_week, int* resets, int* res_out) {
     int err;
     unsigned int count = 0;
     unsigned int max = 366;
@@ -387,7 +387,7 @@ static unsigned int find_next_day(struct tm* calendar, uint8_t* days_of_month, u
     return 0;
 }
 
-static int do_next(cron_expr* expr, struct tm* calendar, unsigned int dot) {
+static int do_next(const cron_expr* expr, struct tm* calendar, unsigned int dot) {
     int i;
     int res = 0;
     int* resets = NULL;
@@ -880,7 +880,7 @@ void cron_parse_expr(const char* expression, cron_expr* target, const char** err
     free_splitted(fields, len);
 }
 
-time_t cron_next(cron_expr* expr, time_t date) {
+time_t cron_next(const cron_expr* expr, time_t date) {
     /*
      The plan:
 
