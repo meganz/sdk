@@ -477,7 +477,7 @@ libuv_pkg() {
 
     package_extract $name $libuv_file $libuv_dir
 
-    export OLD_CFLAGS="$CFLAGS"
+    local OLD_CFLAGS="$CFLAGS"
 
     # linking with static library requires -fPIC
     if [ $use_dynamic -eq 0 ]; then
