@@ -3329,16 +3329,6 @@ int MegaApi::httpServerGetRestrictedMode()
     return pImpl->httpServerGetRestrictedMode();
 }
 
-void MegaApi::httpServerEnableSubtitlesSupport(bool enable)
-{
-    pImpl->httpServerEnableSubtitlesSupport(enable);
-}
-
-bool MegaApi::httpServerIsSubtitlesSupportEnabled()
-{
-    return pImpl->httpServerIsSubtitlesSupportEnabled();
-}
-
 void MegaApi::httpServerAddListener(MegaTransferListener *listener)
 {
     pImpl->httpServerAddListener(listener);
@@ -3374,6 +3364,11 @@ void MegaApi::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
     return pImpl->httpServerRemoveWebDavAllowedNode(handle);
 }
 
+void MegaApi::httpServerRemoveWebDavAllowedNodes()
+{
+    return pImpl->httpServerRemoveWebDavAllowedNodes();
+}
+
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
 {
     pImpl->httpServerSetMaxBufferSize(bufferSize);
@@ -3393,6 +3388,93 @@ int MegaApi::httpServerGetMaxOutputSize()
 {
     return pImpl->httpServerGetMaxOutputSize();
 }
+
+//FTP Server:
+bool MegaApi::ftpServerStart(bool localOnly, int port, int dataportBegin, int dataPortEnd, bool useTLS, const char * certificatepath, const char * keypath)
+{
+    return pImpl->ftpServerStart(localOnly, port, dataportBegin, dataPortEnd, useTLS, certificatepath, keypath);
+}
+
+void MegaApi::ftpServerStop()
+{
+    pImpl->ftpServerStop();
+}
+
+int MegaApi::ftpServerIsRunning()
+{
+    return pImpl->ftpServerIsRunning();
+}
+
+bool MegaApi::ftpServerIsLocalOnly()
+{
+    return pImpl->ftpServerIsLocalOnly();
+}
+
+void MegaApi::ftpServerSetRestrictedMode(int mode)
+{
+    pImpl->ftpServerSetRestrictedMode(mode);
+}
+
+int MegaApi::ftpServerGetRestrictedMode()
+{
+    return pImpl->ftpServerGetRestrictedMode();
+}
+
+void MegaApi::ftpServerAddListener(MegaTransferListener *listener)
+{
+    pImpl->ftpServerAddListener(listener);
+}
+
+void MegaApi::ftpServerRemoveListener(MegaTransferListener *listener)
+{
+    pImpl->ftpServerRemoveListener(listener);
+}
+
+char *MegaApi::ftpServerGetLocalLink(MegaNode *node)
+{
+    return pImpl->ftpServerGetLocalLink(node);
+}
+
+MegaStringList *MegaApi::ftpServerGetLinks()
+{
+    return pImpl->ftpServerGetLinks();
+}
+
+MegaNodeList *MegaApi::ftpServerGetAllowedNodes()
+{
+    return pImpl->ftpServerGetAllowedNodes();
+}
+
+void MegaApi::ftpServerRemoveAllowedNode(MegaHandle handle)
+{
+    return pImpl->ftpServerRemoveAllowedNode(handle);
+}
+
+void MegaApi::ftpServerRemoveAllowedNodes()
+{
+    return pImpl->ftpServerRemoveAllowedNodes();
+}
+
+void MegaApi::ftpServerSetMaxBufferSize(int bufferSize)
+{
+    pImpl->ftpServerSetMaxBufferSize(bufferSize);
+}
+
+int MegaApi::ftpServerGetMaxBufferSize()
+{
+    return pImpl->ftpServerGetMaxBufferSize();
+}
+
+void MegaApi::ftpServerSetMaxOutputSize(int outputSize)
+{
+    pImpl->ftpServerSetMaxOutputSize(outputSize);
+}
+
+int MegaApi::ftpServerGetMaxOutputSize()
+{
+    return pImpl->ftpServerGetMaxOutputSize();
+}
+
 #endif
 
 char *MegaApi::getMimeType(const char *extension)
