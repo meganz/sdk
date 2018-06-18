@@ -2229,7 +2229,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     }
 
     // dos style file completion, local fs
-    string s;
+    CompletionTextOut s;
 
     {
         auto r = autoComplete("lls ", 4, syntax, false);

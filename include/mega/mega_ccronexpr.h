@@ -21,6 +21,15 @@
  * Created on February 24, 2015, 9:35 AM
  */
 
+/*
+ * MODIFICATIONS BY MEGA (prominent notice stating changes per Apache 2.0 licence):
+ * Additionally modifications can be seen in detail our public github repository.
+ *
+ * 2018/06/18: -  marked cron_next's first parameter as a const pointer, as the function does not change the object passed
+ *             -  also marked some internal function parameters in a similar fashion.  
+ *
+ */
+
 #ifndef CCRONEXPR_H
 #define	CCRONEXPR_H
 
@@ -80,7 +89,7 @@ void cron_parse_expr(const char* expression, cron_expr* target, const char** err
  * @param date start date to start calculation from
  * @return next 'fire' date in case of success, '((time_t) -1)' in case of error.
  */
-time_t cron_next(cron_expr* expr, time_t date);
+time_t cron_next(const cron_expr* expr, time_t date);
 
 
 #if defined(__cplusplus) && !defined(CRON_COMPILE_AS_CXX)
