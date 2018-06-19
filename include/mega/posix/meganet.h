@@ -206,6 +206,8 @@ struct MEGA_API CurlHttpContext
 struct MEGA_API CurlDNSEntry
 {
     CurlDNSEntry();
+    bool isIPv4Expired();
+    bool isIPv6Expired();
 
     string ipv4;
     dstime ipv4timestamp;

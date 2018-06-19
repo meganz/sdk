@@ -1668,13 +1668,13 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         {
             CurlDNSEntry& entry = it->second;
 
-            if (entry.ipv6.size() && Waiter::ds - entry.ipv6timestamp >= DNS_CACHE_TIMEOUT_DS)
+            if (entry.ipv6.size() && entry.isIPv6Expired())
             {
                 entry.ipv6timestamp = 0;
                 entry.ipv6.clear();
             }
 
-            if (entry.ipv4.size() && Waiter::ds - entry.ipv4timestamp >= DNS_CACHE_TIMEOUT_DS)
+            if (entry.ipv4.size() && entry.isIPv4Expired())
             {
                 entry.ipv4timestamp = 0;
                 entry.ipv4.clear();
@@ -1726,8 +1726,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (ipv6requestsenabled)
     {
-        if (dnsEntry && dnsEntry->ipv6.size()
-                && (!DNS_CACHE_EXPIRES || (Waiter::ds - dnsEntry->ipv6timestamp) < DNS_CACHE_TIMEOUT_DS))
+        if (dnsEntry && dnsEntry->ipv6.size() && !dnsEntry->isIPv6Expired())
         {
             LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6)";
             std::ostringstream oss;
@@ -1746,8 +1745,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
     else
     {
-        if (dnsEntry && dnsEntry->ipv4.size()
-                && (!DNS_CACHE_EXPIRES || (Waiter::ds - dnsEntry->ipv4timestamp) < DNS_CACHE_TIMEOUT_DS))
+        if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
         {
             LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4)";
             httpctx->isIPv6 = false;
@@ -2089,8 +2087,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         ipv6deactivationtime = Waiter::ds;
 
                         // for IPv6 errors, try IPv4 before sending an error to the engine
-                        if ((dnsEntry.ipv4.size()
-                            && (!DNS_CACHE_EXPIRES || (Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS))
+                        if ((dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
                                 || httpctx->ares_pending)
                         {
                             numconnections[httpctx->d]--;
@@ -2105,8 +2102,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                             req->in.clear();
                             req->status = REQ_INFLIGHT;
 
-                            if (dnsEntry.ipv4.size()
-                                    && (!DNS_CACHE_EXPIRES || (Waiter::ds - dnsEntry.ipv4timestamp) < DNS_CACHE_TIMEOUT_DS))
+                            if (dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
                             {
                                 LOG_debug << "Retrying using IPv4 from cache";
                                 httpctx->isIPv6 = false;
@@ -2636,6 +2632,16 @@ CurlDNSEntry::CurlDNSEntry()
 {
     ipv4timestamp = 0;
     ipv6timestamp = 0;
+}
+
+bool CurlDNSEntry::isIPv4Expired()
+{
+    return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv4timestamp) >= DNS_CACHE_TIMEOUT_DS);
+}
+
+bool CurlDNSEntry::isIPv6Expired()
+{
+    return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
 
 SockInfo::SockInfo()
