@@ -2088,7 +2088,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                         // for IPv6 errors, try IPv4 before sending an error to the engine
                         if ((dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
-                                || httpctx->ares_pending)
+                                || (!httpctx->isCachedIp && httpctx->ares_pending))
                         {
                             numconnections[httpctx->d]--;
                             pausedrequests[httpctx->d].erase(msg->easy_handle);
