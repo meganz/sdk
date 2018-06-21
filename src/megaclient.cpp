@@ -6098,7 +6098,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
                     && newRoot->nodehandle == rubbishHandle)
             {
                 // deleted node
-                char *base64Handle = new char[12];
+                char base64Handle[12];
                 Base64::btoa((byte*)&prevParent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
                 if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
                 {
