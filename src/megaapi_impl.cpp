@@ -18659,14 +18659,6 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
             }
         }
 
-        nameid rrname = AttrMap::string2nameid("rr");
-        attr_map::iterator it = attrs.map.find(rrname);
-        if (it != attrs.map.end())
-        {
-            LOG_debug << "Removing rr attribute";
-            attrs.map.erase(it);
-        }
-
         string attrstring;
         attrs.getjson(&attrstring);
         client->makeattr(&key,t->attrstring, attrstring.c_str());
