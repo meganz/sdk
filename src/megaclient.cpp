@@ -47,10 +47,10 @@ const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
 const unsigned MegaClient::MAXTRANSFERS = 20;
 
 // maximum number of queued putfa before halting the upload queue
-const int MegaClient::MAXQUEUEDFA = 24;
+const int MegaClient::MAXQUEUEDFA = 30;
 
 // maximum number of concurrent putfa
-const int MegaClient::MAXPUTFA = 8;
+const int MegaClient::MAXPUTFA = 10;
 
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
@@ -698,9 +698,9 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
     }
 }
 
-void MegaClient::getcancellink(const char *email)
+void MegaClient::getcancellink(const char *email, const char *pin)
 {
-    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT));
+    reqs.add(new CommandGetRecoveryLink(this, email, CANCEL_ACCOUNT, pin));
 }
 
 void MegaClient::confirmcancellink(const char *code)
@@ -708,9 +708,9 @@ void MegaClient::confirmcancellink(const char *code)
     reqs.add(new CommandConfirmCancelLink(this, code));
 }
 
-void MegaClient::getemaillink(const char *email)
+void MegaClient::getemaillink(const char *email, const char *pin)
 {
-    reqs.add(new CommandGetEmailLink(this, email, 1));
+    reqs.add(new CommandGetEmailLink(this, email, 1, pin));
 }
 
 void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
@@ -736,6 +736,21 @@ void MegaClient::contactlinkquery(handle h)
 void MegaClient::contactlinkdelete(handle h)
 {
     reqs.add(new CommandContactLinkDelete(this, h));
+}
+
+void MegaClient::multifactorauthsetup(const char *pin)
+{
+    reqs.add(new CommandMultiFactorAuthSetup(this, pin));
+}
+
+void MegaClient::multifactorauthcheck(const char *email)
+{
+    reqs.add(new CommandMultiFactorAuthCheck(this, email));
+}
+
+void MegaClient::multifactorauthdisable(const char *pin)
+{
+    reqs.add(new CommandMultiFactorAuthDisable(this, pin));
 }
 
 void MegaClient::keepmealive(int type, bool enable)
@@ -860,6 +875,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tsLogin = false;
     versions_disabled = false;
     accountsince = 0;
+    gmfa_enabled = false;
+    gfxdisabled = false;
+    ssrs_enabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1177,22 +1195,39 @@ void MegaClient::exec()
                         else
                         {
                             LOG_warn << "Error attaching attribute";
-
-                            // check if the failed attribute belongs to an active upload
-                            for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+                            Transfer *transfer = NULL;
+                            handletransfer_map::iterator htit = faputcompletion.find(fa->th);
+                            if (htit != faputcompletion.end())
                             {
-                                Transfer *transfer = it->second;
-                                if (transfer->uploadhandle == fa->th)
+                                // the failed attribute belongs to a pending upload
+                                transfer = htit->second;
+                            }
+                            else
+                            {
+                                // check if the failed attribute belongs to an active upload
+                                for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
                                 {
-                                    // reduce the number of required attributes to let the upload continue
-                                    transfer->minfa--;
-                                    checkfacompletion(fa->th);
-                                    int creqtag = reqtag;
-                                    reqtag = 0;
-                                    sendevent(99407,"Attribute attach failed during active upload");
-                                    reqtag = creqtag;
-                                    break;
+                                    if (it->second->uploadhandle == fa->th)
+                                    {
+                                        transfer = it->second;
+                                        break;
+                                    }
                                 }
+                            }
+
+                            if (transfer)
+                            {
+                                // reduce the number of required attributes to let the upload continue
+                                transfer->minfa--;
+                                checkfacompletion(fa->th);
+                                int creqtag = reqtag;
+                                reqtag = 0;
+                                sendevent(99407,"Attribute attach failed during active upload");
+                                reqtag = creqtag;
+                            }
+                            else
+                            {
+                                LOG_debug << "Transfer related to failed attribute not found: " << fa->th;
                             }
                         }
 
@@ -1896,6 +1931,7 @@ void MegaClient::exec()
             }
         }
 
+
 #ifdef ENABLE_SYNC
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
@@ -2462,6 +2498,23 @@ void MegaClient::exec()
             workinglockcs->post(this);
         }
 
+
+        for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
+        {
+            TimerWithBackoff *bttimer = *it;
+            if (bttimer->armed())
+            {
+                restag = bttimer->tag;
+                app->timer_result(API_OK);
+                delete bttimer;
+                it = bttimers.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
@@ -2553,6 +2606,11 @@ int MegaClient::preparewait()
         if (!workinglockcs && requestLock)
         {
             btworkinglock.update(&nds);
+        }
+
+        for (vector<TimerWithBackoff *>::iterator cit = bttimers.begin(); cit != bttimers.end(); cit++)
+        {
+            (*cit)->update(&nds);
         }
 
         // retry failed file attribute puts
@@ -2737,6 +2795,7 @@ int MegaClient::checkevents()
 {
     int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
+    r |= gfx->checkevents(waiter);
     return r;
 }
 
@@ -3047,7 +3106,7 @@ bool MegaClient::dispatch(direction_t d)
                     {
                         nexttransfer->uploadhandle = getuploadhandle();
 
-                        if (gfx && gfx->isgfx(&nexttransfer->localfilename))
+                        if (!gfxdisabled && gfx && gfx->isgfx(&nexttransfer->localfilename))
                         {
                             // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
                             nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
@@ -3330,6 +3389,8 @@ void MegaClient::locallogout()
     tsLogin = false;
     versions_disabled = false;
     accountsince = 0;
+    gmfa_enabled = false;
+    ssrs_enabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -3359,9 +3420,15 @@ void MegaClient::locallogout()
         delete it->second;
     }
 
+    for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end();  it++)
+    {
+        delete *it;
+    }
+
     queuedfa.clear();
     activefa.clear();
     pendinghttp.clear();
+    bttimers.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
@@ -6020,7 +6087,13 @@ error MegaClient::checkmove(Node* fn, Node* tn)
         return API_EACCESS;
     }
 
-    // condition #4: tn must not be below fn (would create circular linkage)
+    // condition #4: source can't be a version
+    if (fn->parent->type == FILENODE)
+    {
+        return API_EACCESS;
+    }
+
+    // condition #5: tn must not be below fn (would create circular linkage)
     for (;;)
     {
         if (tn == fn)
@@ -6036,7 +6109,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
         tn = tn->parent;
     }
 
-    // condition #5: fn and tn must be in the same tree (same ultimate parent
+    // condition #6: fn and tn must be in the same tree (same ultimate parent
     // node or shared by the same user)
     for (;;)
     {
@@ -7196,7 +7269,7 @@ error MegaClient::folderaccess(const char *folderlink)
 }
 
 // create new session
-void MegaClient::login(const char* email, const byte* pwkey)
+void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
 {
     locallogout();
 
@@ -7209,8 +7282,7 @@ void MegaClient::login(const char* email, const byte* pwkey)
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, emailhash, sek));
-    getuserdata();
+    reqs.add(new CommandLogin(this, email, emailhash, sek, 0, pin));
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
@@ -7223,7 +7295,6 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, emailhash, sek));
-    getuserdata();
 }
 
 void MegaClient::getuserdata()
@@ -9381,7 +9452,7 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-error MegaClient::changepw(const byte* newpwkey)
+error MegaClient::changepw(const byte* newpwkey, const char *pin)
 {
     User* u;
 
@@ -9397,7 +9468,7 @@ error MegaClient::changepw(const byte* newpwkey)
     pwcipher.ecb_encrypt(newkey);
 
     string email = u->email;
-    reqs.add(new CommandSetMasterKey(this, newkey, stringhash64(&email, &pwcipher)));
+    reqs.add(new CommandSetMasterKey(this, newkey, stringhash64(&email, &pwcipher), pin));
     return API_OK;
 }
 
@@ -9882,6 +9953,10 @@ void MegaClient::fetchnodes(bool nocache)
             fetchkeys();
         }
 #endif
+        if (!k.size())
+        {
+            getuserdata();
+        }
         reqs.add(new CommandFetchNodes(this, nocache));
 
         char me64[12];
@@ -10518,6 +10593,12 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 #endif
 }
 
+error MegaClient::addtimer(TimerWithBackoff *twb)
+{
+    bttimers.push_back(twb);
+    return API_OK;
+}
+
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
@@ -11152,7 +11233,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         // same fingerprint, if available): no action needed
                         if (!ll->checked)
                         {
-                            if (gfx && gfx->isgfx(&ll->localname))
+                            if (!gfxdisabled && gfx && gfx->isgfx(&ll->localname))
                             {
                                 int missingattr = 0;
 
@@ -11826,7 +11907,7 @@ void MegaClient::execmovetosyncdebris()
     target = SYNCDEL_BIN;
 
     ts = m_time();
-    struct tm* ptm = m_localtime(ts, &tms); 
+    struct tm* ptm = m_localtime(ts, &tms);
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     m_time_t currentminute = ts / 60;
 

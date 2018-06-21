@@ -86,6 +86,7 @@ COMMON_SRC=\
 		src/user.cpp  \
 		src/utils.cpp  \
 		src/logging.cpp  \
+		src/thread/win32thread.cpp \
 		src/waiterbase.cpp  \
 		src/megaclient.cpp  \
 		src/proxy.cpp  \
@@ -97,6 +98,7 @@ COMMON_SRC=\
 		src/win32/fs.cpp src/win32/console.cpp src/win32/net.cpp src/win32/waiter.cpp src/win32/consolewaiter.cpp \
 		src/db/sqlite.cpp \
 		src/mega_utf8proc.cpp \
+		src/mega_ccronexpr.cpp
 		src/mega_evt_tls.cpp
 
 MEGACLI_SRC=examples/megacli.cpp

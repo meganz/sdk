@@ -34,7 +34,7 @@
 
 namespace mega {
 
-
+#ifdef NO_READLINE
 template<class T>
 static T clamp(T v, T lo, T hi)
 {
@@ -83,6 +83,7 @@ struct Utf8Rdbuf : public streambuf
     UINT failover_codepage = CP_UTF8;
     std::ofstream logfile;
     WinConsole::logstyle logstyle = WinConsole::no_log;
+    WinConsole* wc;
 
     bool log(const string& localfile, WinConsole::logstyle ls)
     {
@@ -104,7 +105,7 @@ struct Utf8Rdbuf : public streambuf
         return true;
     }
 
-    Utf8Rdbuf(HANDLE ch) : h(ch) {}
+    Utf8Rdbuf(HANDLE ch, WinConsole* w) : h(ch), wc(w) {}
 
     streamsize xsputn(const char* s, streamsize n)
     {
@@ -127,6 +128,11 @@ struct Utf8Rdbuf : public streambuf
         else if (logstyle == WinConsole::codepage_log)
         {
             logfile << WinConsole::toUtf8String(ws, codepage);
+        }
+
+        if (wc)
+        {
+            wc->retractPrompt();
         }
 
         BOOL b = WriteConsoleW(h, ws.data(), DWORD(ws.size()), &written, NULL);
@@ -156,6 +162,7 @@ struct Utf8Rdbuf : public streambuf
                 }
             }
         }
+
         return n;
     }
 
@@ -278,7 +285,7 @@ void ConsoleModel::redrawInputLine(int p)
 
 void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
 {   
-    if (autocompleteSyntax) 
+    if (autocompleteSyntax)
     {
         if (!autocompleteState.active)
         {
@@ -287,7 +294,8 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
             autocompleteState = autocomplete::autoComplete(u8line, u8InsertPos, autocompleteSyntax, unixCompletions);
             autocompleteState.active = true;
         }
-        autocomplete::applyCompletion(autocompleteState, forwards, consoleWidth);
+
+        autocomplete::applyCompletion(autocompleteState, forwards, consoleWidth, redrawInputLineConsoleFeedback);
         buffer = WinConsole::toUtf16String(autocompleteState.line);
         size_t u16InsertPos = WinConsole::toUtf16String(autocompleteState.line.substr(0, autocompleteState.wordPos.second)).size();
         insertPos = clamp<size_t>(u16InsertPos, 0, buffer.size());
@@ -386,10 +394,11 @@ bool ConsoleModel::checkForCompletedInputLine(std::wstring& ws)
     }
     return false;
 }
-
+#endif
 
 WinConsole::WinConsole()
 {
+#ifdef NO_READLINE
     hInput = GetStdHandle(STD_INPUT_HANDLE);
     hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -397,18 +406,22 @@ WinConsole::WinConsole()
     GetConsoleMode(hInput, &dwMode);
     SetConsoleMode(hInput, dwMode & ~(ENABLE_MOUSE_INPUT));
     FlushConsoleInputBuffer(hInput);
+#endif
 }
 
 WinConsole::~WinConsole()
 {
+#ifdef NO_READLINE
     if (rdbuf)
     {
         std::cout.rdbuf(oldrb1);
         std::cerr.rdbuf(oldrb2);
         delete rdbuf;
     }
+#endif
 }
 
+#ifdef NO_READLINE
 string WinConsole::getConsoleFont(COORD& size)
 {
     CONSOLE_FONT_INFOEX cfi;
@@ -474,7 +487,7 @@ bool WinConsole::setShellConsole(UINT codepage, UINT failover_codepage)
     // skip the historic complexities of output modes etc, our own rdbuf can write direct to console
     if (!rdbuf)
     {
-        rdbuf = new Utf8Rdbuf(hOutput);
+        rdbuf = new Utf8Rdbuf(hOutput, this);
         oldrb1 = std::cout.rdbuf(rdbuf);
         oldrb2 = std::cerr.rdbuf(rdbuf);
     }
@@ -567,15 +580,13 @@ bool WinConsole::consolePeek()
     }
     if (model.redrawInputLineNeeded && model.echoOn)
     {
-        redrawInputLine();
+        redrawInputLine(&model.redrawInputLineConsoleFeedback);
     }
     if (model.consoleNewlineNeeded)
     {
-        std::cout << '\n' << std::flush;
-    }
-    if (model.redrawInputLineNeeded || model.consoleNewlineNeeded)
-    {
-        prepareDetectLogging();
+        DWORD written = 0;
+        BOOL b = WriteConsoleW(hOutput, L"\n", 1, &written, NULL);
+        assert(b && written == 1);
     }
     model.redrawInputLineNeeded = false;
     model.consoleNewlineNeeded = false;
@@ -621,9 +632,42 @@ ConsoleModel::lineEditAction WinConsole::interpretLineEditingKeystroke(INPUT_REC
     return ConsoleModel::nullAction;
 }
 
-void WinConsole::redrawInputLine()
+void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autocompleteFeedback = nullptr)
 {
     CONSOLE_SCREEN_BUFFER_INFO sbi;
+
+    if (autocompleteFeedback && !autocompleteFeedback->stringgrid.empty())
+    {
+        promptRetracted = true;
+        cout << "\n" << std::flush;
+        for (auto& r : autocompleteFeedback->stringgrid)
+        {
+            int x = 0;
+            for (unsigned c = 0; c < r.size(); ++c)
+            {
+                cout << r[c] << std::flush;
+                if (c + 1 == r.size())
+                {
+                    cout << "\n" << std::flush;
+                }
+                else
+                {
+                    x += autocompleteFeedback->columnwidths[c];
+
+                    // to make the grid nice in the presence of unicode characters that are sometimes double-width glyphs, we set the X coordinate explicitly
+                    BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
+                    if (ok && sbi.dwCursorPosition.X < x)
+                    {
+                        sbi.dwCursorPosition.X = short(x);
+                        SetConsoleCursorPosition(hOutput, sbi.dwCursorPosition);
+                    }
+                }
+            }
+        }
+        autocompleteFeedback->stringgrid.clear();
+        autocompleteFeedback->columnwidths.clear();
+    }
+
     BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
     assert(ok);
     if (ok)
@@ -687,9 +731,41 @@ void WinConsole::redrawInputLine()
         ok = SetConsoleCursorPosition(hOutput, cpos);
         assert(ok);
 
-        prepareDetectLogging();
+        promptRetracted = false;
     }
 }
+
+void WinConsole::retractPrompt()
+{
+    if (currentPrompt.size() && !promptRetracted)
+    {
+        CONSOLE_SCREEN_BUFFER_INFO sbi;
+        BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
+        assert(ok);
+        //if (0 == memcmp(&knownCursorPos, &sbi.dwCursorPosition, sizeof(COORD)))
+        {
+            size_t width = std::max<size_t>(currentPrompt.size() + model.buffer.size() + 1 + inputLineOffset, sbi.dwSize.X); // +1 to show character under cursor 
+            std::unique_ptr<CHAR_INFO[]> line(new CHAR_INFO[width]);
+
+            for (size_t i = width; i--; )
+            {
+                line[i].Attributes = sbi.wAttributes;
+                line[i].Char.UnicodeChar = ' ';
+            }
+
+            SMALL_RECT screenarea2{ 0, sbi.dwCursorPosition.Y, sbi.dwSize.X, sbi.dwCursorPosition.Y };
+            ok = WriteConsoleOutputW(hOutput, line.get(), COORD{ SHORT(width), 1 }, COORD{ SHORT(inputLineOffset), 0 }, &screenarea2);
+            assert(ok);
+
+            COORD cpos{ 0, sbi.dwCursorPosition.Y };
+            ok = SetConsoleCursorPosition(hOutput, cpos);
+            assert(ok);
+
+            promptRetracted = true;
+        }
+    }
+}
+
 
 bool WinConsole::consoleGetch(wchar_t& c)
 {
@@ -703,9 +779,10 @@ bool WinConsole::consoleGetch(wchar_t& c)
     }
     return false;
 }
-
+#endif
 void WinConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char** line)
 {
+#ifdef NO_READLINE
     // todo: remove/stub this function once we don't need to support readline for any version of megacli on windows
     wchar_t c;
     if (consoleGetch(c))  // only processes once newline is buffered, so no backspace processing needed
@@ -721,42 +798,66 @@ void WinConsole::readpwchar(char* pw_buf, int pw_buf_size, int* pw_buf_pos, char
             *pw_buf_pos += 2;
         }
     }
+#else
+
+    char c;
+    DWORD cread;
+
+    if (ReadConsole(GetStdHandle(STD_INPUT_HANDLE), &c, 1, &cread, NULL) == 1)
+    {
+        if ((c == 8) && *pw_buf_pos)
+        {
+            (*pw_buf_pos)--;
+        }
+        else if (c == 13)
+        {
+            *line = (char*)malloc(*pw_buf_pos + 1);
+            memcpy(*line, pw_buf, *pw_buf_pos);
+            (*line)[*pw_buf_pos] = 0;
+        }
+        else if (*pw_buf_pos < pw_buf_size)
+        {
+            pw_buf[(*pw_buf_pos)++] = c;
+        }
+    }
+#endif
 }
 
 void WinConsole::setecho(bool echo)
 {
+#ifdef NO_READLINE
     model.echoOn = echo;
+#else
+
+    HANDLE hCon = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode;
+
+    GetConsoleMode(hCon, &mode);
+
+    if (echo)
+    {
+        mode |= ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT;
+    }
+    else
+    {
+        mode &= ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT);
+    }
+
+    SetConsoleMode(hCon, mode);
+#endif
 }
 
+#ifdef NO_READLINE
 static bool operator==(COORD& a, COORD& b) 
 {
     return a.X == b.X && a.Y == b.Y; 
 }
 
-void WinConsole::prepareDetectLogging()
-{
-    CONSOLE_SCREEN_BUFFER_INFO sbi;
-    BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
-    assert(ok);
-    knownCursorPos = sbi.dwCursorPosition;
-}
-
 void WinConsole::redrawPromptIfLoggingOccurred()
 {
-    CONSOLE_SCREEN_BUFFER_INFO sbi;
-    BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
-    assert(ok);
-    if (ok && !currentPrompt.empty())
+    if (promptRetracted)
     {
-        if (!(knownCursorPos == sbi.dwCursorPosition))
-        {
-            if (sbi.dwCursorPosition.X != 0)
-            {
-                std::cout << endl;
-            }
-            redrawInputLine();
-            prepareDetectLogging();
-        }
+        redrawInputLine();
     }
 }
 
@@ -840,5 +941,5 @@ bool WinConsole::log(const std::string& filename, logstyle logstyle)
 {
     return rdbuf->log(filename, logstyle);
 }
-
+#endif
 } // namespace

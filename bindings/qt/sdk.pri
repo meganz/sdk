@@ -37,6 +37,7 @@ SOURCES += src/attrmap.cpp \
     src/db/sqlite.cpp  \
     src/gfx/external.cpp \
     src/mega_utf8proc.cpp \
+    src/mega_ccronexpr.cpp \
     src/mega_evt_tls.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp
@@ -116,6 +117,28 @@ CONFIG(USE_MEDIAINFO) {
     }
 }
 
+CONFIG(USE_LIBRAW) {
+    DEFINES += HAVE_LIBRAW
+    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libraw
+
+    win32 {
+        LIBS += -llibraw
+    }
+
+    macx {
+        LIBS += -lraw
+    }
+
+    unix:!macx {
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a) {
+            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a
+        }
+        else {
+            LIBS += -lraw
+        }
+    }
+}
+
 CONFIG(USE_FFMPEG) {
     DEFINES += HAVE_FFMPEG
 
@@ -172,7 +195,7 @@ CONFIG(USE_WEBRTC) {
 
     DEFINES += ENABLE_WEBRTC V8_DEPRECATION_WARNINGS USE_OPENSSL_CERTS=1 NO_TCMALLOC DISABLE_NACL SAFE_BROWSING_DB_REMOTE \
                CHROMIUM_BUILD FIELDTRIAL_TESTING_ENABLED _FILE_OFFSET_BITS=64 __STDC_CONSTANT_MACROS __STDC_FORMAT_MACROS \
-               _FORTIFY_SOURCE=2 __GNU_SOURCE=1 __compiler_offsetof=__builtin_offsetof NDEBUG NVALGRIND DYNAMIC_ANNOTATIONS_ENABLED=0 \
+               _FORTIFY_SOURCE=2 __GNU_SOURCE=1 __compiler_offsetof=__builtin_offsetof NVALGRIND DYNAMIC_ANNOTATIONS_ENABLED=0 \
                WEBRTC_ENABLE_PROTOBUF=1 WEBRTC_INCLUDE_INTERNAL_AUDIO_DEVICE EXPAT_RELATIVE_PATH HAVE_SCTP
 
     unix {
@@ -269,6 +292,7 @@ HEADERS  += include/mega.h \
             include/megaapi.h \
             include/megaapi_impl.h \
             include/mega/mega_utf8proc.h \
+            include/mega/mega_ccronexpr.h \
             include/mega/mega_evt_tls.h \
             include/mega/mega_evt_queue.h \
             include/mega/thread/posixthread.h \

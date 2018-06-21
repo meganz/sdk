@@ -29,6 +29,8 @@
 
 namespace mega {
 
+#ifdef NO_READLINE
+
 struct MEGA_API Utf8Rdbuf;
 
 struct MEGA_API ConsoleModel
@@ -81,6 +83,7 @@ struct MEGA_API ConsoleModel
 #endif
 
     // flags to indicate to the real console if redraws etc need to occur
+    ::mega::autocomplete::CompletionTextOut redrawInputLineConsoleFeedback;
     bool redrawInputLineNeeded = false;
     bool consoleNewlineNeeded = false;
 
@@ -106,15 +109,18 @@ private:
     void autoComplete(bool forwards, unsigned consoleWidth);
 };
     
-    
+#endif
+
 struct MEGA_API WinConsole : public Console
 {
-    HANDLE inputAvailableHandle();
     void readpwchar(char*, int, int* pw_buf_pos, char**);
     void setecho(bool);
 
     WinConsole();
     ~WinConsole();
+
+#ifdef NO_READLINE
+    HANDLE inputAvailableHandle();
 
     // functions for native command editing (ie not using readline library)
     string getConsoleFont(COORD& xy);
@@ -129,6 +135,7 @@ struct MEGA_API WinConsole : public Console
     char* checkForCompletedInputLine();
     void clearScreen();
     void outputHistory();
+    void retractPrompt();
     
     enum logstyle { no_log, utf8_log, utf16_log, codepage_log };
     bool log(const std::string& filename, logstyle logstyle);
@@ -140,7 +147,7 @@ struct MEGA_API WinConsole : public Console
 private:
     HANDLE hInput;
     HANDLE hOutput;
-    COORD knownCursorPos;  // if this has moved then something logged and we should redraw the prompt and input so far on a new line.
+    bool promptRetracted = false;
     ConsoleModel model;
     Utf8Rdbuf *rdbuf = nullptr;
     streambuf *oldrb1 = nullptr, *oldrb2 = nullptr;
@@ -149,10 +156,10 @@ private:
     std::string currentPrompt;
     size_t inputLineOffset = 0;
 
-    void prepareDetectLogging();
     void redrawPromptIfLoggingOccurred();
-    void redrawInputLine();
+    void redrawInputLine(::mega::autocomplete::CompletionTextOut* autocompleteFeedback);
     ConsoleModel::lineEditAction interpretLineEditingKeystroke(INPUT_RECORD &ir);
+#endif
 };
 } // namespace
 
