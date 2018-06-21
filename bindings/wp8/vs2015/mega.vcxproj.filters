@@ -426,6 +426,7 @@
     <ClCompile Include="..\..\..\src\mega_utf8proc.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\mega_ccronexpr.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\mega_evt_tls.cpp">
