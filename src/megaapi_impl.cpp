@@ -24346,7 +24346,18 @@ MegaHTTPContext::~MegaHTTPContext()
 {
     delete transfer;
     delete node;
+    if (tmpFileAccess)
+    {
+        delete tmpFileAccess;
+
+        string localPath;
+        server->fsAccess->path2local(&tmpFileName, &localPath);
+        server->fsAccess->unlinklocal(&localPath);
+    }
+    delete [] messageBody;
     uv_mutex_destroy(&mutex_responses);
+
+
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
@@ -26174,6 +26185,13 @@ MegaFTPContext::~MegaFTPContext()
     {
         ftpDataServer->stop(true);
     }
+    if (tmpFileName.size())
+    {
+        string localPath;
+        server->fsAccess->path2local(&tmpFileName, &localPath);
+        server->fsAccess->unlinklocal(&localPath);
+        tmpFileName = "";
+    }
     uv_mutex_destroy(&mutex_responses);
 }
 
@@ -26202,7 +26220,13 @@ void MegaFTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
     {
         MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
     }
-
+    if (tmpFileName.size())
+    {
+        string localPath;
+        server->fsAccess->path2local(&tmpFileName, &localPath);
+        server->fsAccess->unlinklocal(&localPath);
+        tmpFileName = "";
+    }
 }
 
 void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
@@ -26543,7 +26567,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
     if (nread < 0) //transfer finish
     {
         MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(fds->controlftpctx->server);
-        LOG_warn << "FTP Data Channel received invalid read size: " << nread << ". Closing connection";
+        LOG_verbose << "FTP Data Channel received invalid read size: " << nread << ". Closing connection";
 
         if (ftpdatactx->tmpFileName.size())
         {
@@ -26551,6 +26575,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             if (newParentNode)
             {
                 LOG_debug << "Starting upload of file " << fds->newNameToUpload;
+                fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
                 ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(), fds->controlftpctx);
             }
             else
