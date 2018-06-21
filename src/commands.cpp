@@ -3122,6 +3122,9 @@ void CommandGetUserData::procresult()
                     case MAKENAMEID4('m', 'f', 'a', 'e'):
                         client->gmfa_enabled = bool(client->json.getint());
                         break;
+                    case MAKENAMEID4('s', 's', 'r', 's'):
+                        client->ssrs_enabled = bool(client->json.getint());
+                        break;
                     case EOO:
                         endobject = true;
                         break;
