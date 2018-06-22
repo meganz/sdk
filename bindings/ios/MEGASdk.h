@@ -4958,6 +4958,14 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target;
 
 /**
+ * @brief Check if a node is in the Rubbish bin tree
+ *
+ * @param node Node to check
+ * @return YES if the node is in the Rubbish bin
+ */
+- (BOOL)isNodeInRubbish:(MEGANode *)node;
+
+/**
  * @brief Search nodes containing a search string in their name.
  *
  * The search is case-insensitive.
