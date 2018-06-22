@@ -12223,7 +12223,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
 
         MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
         logoutRequest->setFlag(false);
-        request->setParamType(API_EBLOCKED);
+        logoutRequest->setParamType(API_EBLOCKED);
         requestQueue.push(logoutRequest);
         waiter->notify();
     }
