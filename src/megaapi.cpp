@@ -1346,7 +1346,7 @@ int MegaApi::isLoggedIn()
 
 void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
 {
-    return pImpl->whyAmIBlocked(false, listener);
+    pImpl->whyAmIBlocked(false, listener);
 }
 
 void MegaApi::contactLinkCreate(bool renew, MegaRequestListener *listener)
@@ -2782,7 +2782,7 @@ MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
 {
-    return pImpl->getLastAvailableVersion(appKey, listener);
+    pImpl->getLastAvailableVersion(appKey, listener);
 }
 
 void MegaApi::getLocalSSLCertificate(MegaRequestListener *listener)
@@ -3361,12 +3361,12 @@ MegaNodeList *MegaApi::httpServerGetWebDavAllowedNodes()
 
 void MegaApi::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
 {
-    return pImpl->httpServerRemoveWebDavAllowedNode(handle);
+    pImpl->httpServerRemoveWebDavAllowedNode(handle);
 }
 
 void MegaApi::httpServerRemoveWebDavAllowedNodes()
 {
-    return pImpl->httpServerRemoveWebDavAllowedNodes();
+    pImpl->httpServerRemoveWebDavAllowedNodes();
 }
 
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
@@ -3447,12 +3447,12 @@ MegaNodeList *MegaApi::ftpServerGetAllowedNodes()
 
 void MegaApi::ftpServerRemoveAllowedNode(MegaHandle handle)
 {
-    return pImpl->ftpServerRemoveAllowedNode(handle);
+    pImpl->ftpServerRemoveAllowedNode(handle);
 }
 
 void MegaApi::ftpServerRemoveAllowedNodes()
 {
-    return pImpl->ftpServerRemoveAllowedNodes();
+    pImpl->ftpServerRemoveAllowedNodes();
 }
 
 void MegaApi::ftpServerSetMaxBufferSize(int bufferSize)
