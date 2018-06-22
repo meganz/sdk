@@ -26,6 +26,9 @@
 #include "mega/gfx/external.h"
 #include "megaapi.h"
 
+#define CRON_USE_LOCAL_TIME 1
+#include "mega/mega_ccronexpr.h"
+
 #ifdef USE_PCRE
 #include <pcre.h>
 #endif
@@ -214,6 +217,146 @@ public:
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 };
 
+
+class MegaBackupController : public MegaBackup, public MegaRequestListener, public MegaTransferListener
+{
+public:
+    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, bool attendPastBackups, const char *speriod, int64_t period=-1, int maxBackups = 10);
+    MegaBackupController(MegaBackupController *backup);
+    ~MegaBackupController();
+
+    void update();
+    void start(bool skip = false);
+    void removeexceeding();
+    void abortCurrent();
+
+    // MegaBackup interface
+    MegaBackup *copy();
+    const char *getLocalFolder() const;
+    MegaHandle getMegaHandle() const;
+    int getTag() const;
+    int64_t getPeriod() const;
+    const char *getPeriodString() const;
+    int getMaxBackups() const;
+    int getState() const;
+    long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
+    bool getAttendPastBackups() const;
+
+    // MegaBackup setters
+    void setLocalFolder(const std::string &value);
+    void setMegaHandle(const MegaHandle &value);
+    void setTag(int value);
+    void setPeriod(const int64_t &value);
+    void setPeriodstring(const std::string &value);
+    void setMaxBackups(int value);
+    void setState(int value);
+    void setAttendPastBackups(bool value);
+
+    //getters&setters
+    int64_t getStartTime() const;
+    void setStartTime(const int64_t &value);
+    std::string getBackupName() const;
+    void setBackupName(const std::string &value);
+    int64_t getOffsetds() const;
+    void setOffsetds(const int64_t &value);
+    int64_t getLastbackuptime() const;
+    void setLastbackuptime(const int64_t &value);
+    int getFolderTransferTag() const;
+    void setFolderTransferTag(int value);
+
+    //convenience methods
+    bool isBackup(std::string localname, std::string backupname) const;
+    int64_t getTimeOfBackup(std::string localname) const;
+
+protected:
+
+    // common variables
+    MegaApiImpl *megaApi;
+    MegaClient *client;
+    MegaBackupListener *backupListener;
+
+    int state;
+    int tag;
+    int64_t lastwakeuptime;
+    int64_t lastbackuptime; //ds absolute
+    int pendingremovals;
+    int folderTransferTag; //reused between backup instances
+    std::string basepath;
+    std::string backupName;
+    handle parenthandle;
+    int maxBackups;
+    int64_t period;
+    std::string periodstring;
+    cron_expr ccronexpr;
+    bool valid;
+    int64_t offsetds; //times offset with epoch time?
+    int64_t startTime; // when shall the next backup begin
+    bool attendPastBackups;
+
+    // backup instance related
+    handle currentHandle;
+    std::string currentName;
+    std::list<std::string> pendingFolders;
+    std::list<MegaTransfer *> failedTransfers;
+    int recursive;
+    int pendingTransfers;
+    int pendingTags;
+    // backup instance stats
+    int64_t currentBKStartTime;
+    int64_t updateTime;
+    long long transferredBytes;
+    long long totalBytes;
+    long long speed;
+    long long meanSpeed;
+    long long numberFiles; //number of files successfully uploaded
+    long long totalFiles;
+    long long numberFolders;
+
+
+    // internal methods
+    void onFolderAvailable(MegaHandle handle);
+    bool checkCompletion();
+    bool isBusy() const;
+    int64_t getLastBackupTime();
+    long long getNextStartTimeDs(long long oldStartTimeds = -1) const;
+
+    std::string epochdsToString(int64_t rawtimeds) const;
+    int64_t stringTimeTods(string stime) const;
+
+    void clearCurrentBackupData();
+
+public:
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+    virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+
+    long long getNumberFolders() const;
+    void setNumberFolders(long long value);
+    long long getNumberFiles() const;
+    void setNumberFiles(long long value);
+    long long getMeanSpeed() const;
+    void setMeanSpeed(long long value);
+    long long getSpeed() const;
+    void setSpeed(long long value);
+    long long getTotalBytes() const;
+    void setTotalBytes(long long value);
+    long long getTransferredBytes() const;
+    void setTransferredBytes(long long value);
+    int64_t getUpdateTime() const;
+    void setUpdateTime(const int64_t &value);
+    int64_t getCurrentBKStartTime() const;
+    void setCurrentBKStartTime(const int64_t &value);
+    long long getTotalFiles() const;
+    void setTotalFiles(long long value);
+    MegaBackupListener *getBackupListener() const;
+    void setBackupListener(MegaBackupListener *value);
+    cron_expr getCcronexpr() const;
+    void setCcronexpr(const cron_expr &value);
+    bool isValid() const;
+    void setValid(bool value);
+};
+
 class MegaFolderDownloadController : public MegaTransferListener
 {
 public:
@@ -264,6 +407,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int64_t getCreationTime();
         virtual int64_t getModificationTime();
         virtual MegaHandle getHandle();
+        virtual MegaHandle getRestoreHandle();
         virtual MegaHandle getParentHandle();
         virtual std::string* getNodeKey();
         virtual char *getBase64Key();
@@ -323,6 +467,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int64_t mtime;
         MegaHandle nodehandle;
         MegaHandle parenthandle;
+        MegaHandle restorehandle;
         std::string nodekey;
         std::string attrstring;
         std::string fileattrstring;
@@ -824,7 +969,10 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaRegExp *getRegExp() const;
 #endif
 
-    protected:
+        MegaBackupListener *getBackupListener() const;
+        void setBackupListener(MegaBackupListener *value);
+
+protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
         AchievementsDetails *achievementsDetails;
@@ -851,6 +999,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaSyncListener *syncListener;
         MegaRegExp *regExp;
 #endif
+        MegaBackupListener *backupListener;
+
         int transfer;
         int numDetails;
         MegaNode* publicNode;
@@ -1438,6 +1588,7 @@ class RequestQueue
 #ifdef ENABLE_SYNC
         void removeListener(MegaSyncListener *listener);
 #endif
+        void removeListener(MegaBackupListener *listener);
 };
 
 
@@ -1467,7 +1618,8 @@ class MegaApiImpl : public MegaApp
         //Multiple listener management.
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
-        void addTransferListener(MegaTransferListener* listener);     
+        void addTransferListener(MegaTransferListener* listener);
+        void addBackupListener(MegaBackupListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
 #ifdef ENABLE_SYNC
         void addSyncListener(MegaSyncListener *listener);
@@ -1476,6 +1628,7 @@ class MegaApiImpl : public MegaApp
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
+        void removeBackupListener(MegaBackupListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
 
         MegaRequest *getCurrentRequest();
@@ -1500,6 +1653,8 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToString(int);
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
+
+        bool serverSideRubbishBinAutopurgeEnabled();
 
         bool multiFactorAuthAvailable();
         void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
@@ -1643,6 +1798,15 @@ class MegaApiImpl : public MegaApp
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
         bool usingHttpsOnly();
 
+        //Backups
+        MegaStringList *getBackupFolders(int backuptag);
+        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void removeBackup(int tag, MegaRequestListener *listener=NULL);
+        void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
+
+        //Timer
+        void startTimer( int64_t period, MegaRequestListener *listener=NULL);
+
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
@@ -1686,6 +1850,8 @@ class MegaApiImpl : public MegaApp
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
         MegaTransferList *getChildTransfers(int transferTag);
+        MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
+
 
 #ifdef ENABLE_SYNC
         //Sync
@@ -1716,6 +1882,10 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
         void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
+
+        MegaBackup *getBackupByTag(int tag);
+        MegaBackup *getBackupByNode(MegaNode *node);
+        MegaBackup *getBackupByPath(const char * localPath);
 
         void update();
         int isWaiting();
@@ -1948,6 +2118,13 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
+        error processAbortBackupRequest(MegaRequestPrivate *request, error e);
+
+        void fireOnBackupStateChanged(MegaBackupController *backup);
+        void fireOnBackupStart(MegaBackupController *backup);
+        void fireOnBackupFinish(MegaBackupController *backup, MegaError e);
+        void fireOnBackupUpdate(MegaBackupController *backup);
+        void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -2011,6 +2188,8 @@ protected:
         set<MegaTransferListener *> httpServerListeners;
 #endif
 		
+        map<int, MegaBackupController *> backupsMap;
+
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
@@ -2030,6 +2209,7 @@ protected:
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
+        set<MegaBackupListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
         set<MegaSyncListener *> syncListeners;
@@ -2277,8 +2457,12 @@ protected:
         // notify about a finished HTTP request
         virtual void http_result(error, int, byte *, int);
 
+        // notify about a finished timer
+        virtual void timer_result(error);
+
         void sendPendingRequests();
         void sendPendingTransfers();
+        void updateBackups();
         char *stringToArray(string &buffer);
 
         //Internal

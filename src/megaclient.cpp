@@ -528,6 +528,21 @@ handle MegaClient::getpublicfolderhandle()
     return publichandle;
 }
 
+Node *MegaClient::getrootnode(Node *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    Node *n = node;
+    while (n->parent)
+    {
+        n = n->parent;
+    }
+    return n;
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {
@@ -863,6 +878,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     accountversion = 0;
     gmfa_enabled = false;
     gfxdisabled = false;
+    ssrs_enabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1916,6 +1932,7 @@ void MegaClient::exec()
             }
         }
 
+
 #ifdef ENABLE_SYNC
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
@@ -2482,6 +2499,23 @@ void MegaClient::exec()
             workinglockcs->post(this);
         }
 
+
+        for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
+        {
+            TimerWithBackoff *bttimer = *it;
+            if (bttimer->armed())
+            {
+                restag = bttimer->tag;
+                app->timer_result(API_OK);
+                delete bttimer;
+                it = bttimers.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
@@ -2573,6 +2607,11 @@ int MegaClient::preparewait()
         if (!workinglockcs && requestLock)
         {
             btworkinglock.update(&nds);
+        }
+
+        for (vector<TimerWithBackoff *>::iterator cit = bttimers.begin(); cit != bttimers.end(); cit++)
+        {
+            (*cit)->update(&nds);
         }
 
         // retry failed file attribute puts
@@ -3352,6 +3391,7 @@ void MegaClient::locallogout()
     versions_disabled = false;
     accountsince = 0;
     gmfa_enabled = false;
+    ssrs_enabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -3381,9 +3421,15 @@ void MegaClient::locallogout()
         delete it->second;
     }
 
+    for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end();  it++)
+    {
+        delete *it;
+    }
+
     queuedfa.clear();
     activefa.clear();
     pendinghttp.clear();
+    bttimers.clear();
     xferpaused[PUT] = false;
     xferpaused[GET] = false;
     putmbpscap = 0;
@@ -6044,7 +6090,13 @@ error MegaClient::checkmove(Node* fn, Node* tn)
         return API_EACCESS;
     }
 
-    // condition #4: tn must not be below fn (would create circular linkage)
+    // condition #4: source can't be a version
+    if (fn->parent->type == FILENODE)
+    {
+        return API_EACCESS;
+    }
+
+    // condition #5: tn must not be below fn (would create circular linkage)
     for (;;)
     {
         if (tn == fn)
@@ -6060,7 +6112,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
         tn = tn->parent;
     }
 
-    // condition #5: fn and tn must be in the same tree (same ultimate parent
+    // condition #6: fn and tn must be in the same tree (same ultimate parent
     // node or shared by the same user)
     for (;;)
     {
@@ -6098,8 +6150,53 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         return e;
     }
 
+    Node *prevParent = NULL;
+    if (!ISUNDEF(prevparent))
+    {
+        prevParent = nodebyhandle(prevparent);
+    }
+    else
+    {
+        prevParent = n->parent;
+    }
+
     if (n->setparent(p))
     {
+        bool setrr = false;
+        if (prevParent)
+        {
+            Node *prevRoot = getrootnode(prevParent);
+            Node *newRoot = getrootnode(p);
+            handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+            nameid rrname = AttrMap::string2nameid("rr");
+
+            if (prevRoot->nodehandle != rubbishHandle
+                    && p->nodehandle == rubbishHandle)
+            {
+                // deleted node
+                char base64Handle[12];
+                Base64::btoa((byte*)&prevParent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
+                if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
+                {
+                    LOG_debug << "Adding rr attribute";
+                    n->attrs.map[rrname] = base64Handle;
+                    setrr = true;
+                }
+            }
+            else if (prevRoot->nodehandle == rubbishHandle
+                     && newRoot->nodehandle != rubbishHandle)
+            {
+                // undeleted node
+                attr_map::iterator it = n->attrs.map.find(rrname);
+                if (it != n->attrs.map.end())
+                {
+                    LOG_debug << "Removing rr attribute";
+                    n->attrs.map.erase(it);
+                    setattr(n);
+                }
+            }
+        }
+
         n->changed.parent = true;
         n->tag = reqtag;
         notifynode(n);
@@ -6108,6 +6205,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         rewriteforeignkeys(n);
 
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        if (setrr)
+        {
+            setattr(n);
+        }
     }
 
     return API_OK;
@@ -10618,6 +10719,12 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare)
 #endif
 }
 
+error MegaClient::addtimer(TimerWithBackoff *twb)
+{
+    bttimers.push_back(twb);
+    return API_OK;
+}
+
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
@@ -11700,6 +11807,14 @@ void MegaClient::syncupdate()
                     nnp->nodekey = n->nodekey;
                     tattrs.map = n->attrs.map;
 
+                    nameid rrname = AttrMap::string2nameid("rr");
+                    attr_map::iterator it = tattrs.map.find(rrname);
+                    if (it != tattrs.map.end())
+                    {
+                        LOG_debug << "Removing rr attribute";
+                        tattrs.map.erase(it);
+                    }
+
                     app->syncupdate_remote_copy(l->sync, l->name.c_str());
                 }
                 else
@@ -11918,7 +12033,7 @@ void MegaClient::execmovetosyncdebris()
     target = SYNCDEL_BIN;
 
     ts = m_time();
-    struct tm* ptm = m_localtime(ts, &tms); 
+    struct tm* ptm = m_localtime(ts, &tms);
     sprintf(buf, "%04d-%02d-%02d", ptm->tm_year + 1900, ptm->tm_mon + 1, ptm->tm_mday);
     m_time_t currentminute = ts / 60;
 

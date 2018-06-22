@@ -25,6 +25,7 @@
 
 #define IPV6_RETRY_INTERVAL_DS 72000
 #define DNS_CACHE_TIMEOUT_DS 18000
+#define DNS_CACHE_EXPIRES 0
 #define MAX_SPEED_CONTROL_TIMEOUT_MS 500
 
 namespace mega {
@@ -125,6 +126,7 @@ CurlHttpIO::CurlHttpIO()
     dnsok = false;
     reset = false;
     statechange = false;
+    disconnecting = false;
     maxspeed[GET] = 0;
     maxspeed[PUT] = 0;
     pkpErrors = 0;
@@ -613,6 +615,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
 
 CurlHttpIO::~CurlHttpIO()
 {
+    disconnecting = true;
     ares_destroy(ares);
     curl_multi_cleanup(curlm[API]);
     curl_multi_cleanup(curlm[GET]);
@@ -643,7 +646,10 @@ void CurlHttpIO::setdnsservers(const char* servers)
     if (servers)
     {
         lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
-        dnscache.clear();
+        if (DNS_CACHE_EXPIRES)
+        {
+            dnscache.clear();
+        }
 
         dnsservers = servers;
 
@@ -655,6 +661,7 @@ void CurlHttpIO::setdnsservers(const char* servers)
 void CurlHttpIO::disconnect()
 {
     LOG_debug << "Reinitializing the network layer";
+    disconnecting = true;
     assert(!numconnections[API] && !numconnections[GET] && !numconnections[PUT]);
 
     ares_destroy(ares);
@@ -676,7 +683,10 @@ void CurlHttpIO::disconnect()
     closecurlevents(PUT);
 
     lastdnspurge = Waiter::ds + DNS_CACHE_TIMEOUT_DS / 2;
-    dnscache.clear();
+    if (DNS_CACHE_EXPIRES)
+    {
+        dnscache.clear();
+    }
 
     curlm[API] = curl_multi_init();
     curlm[GET] = curl_multi_init();
@@ -714,6 +724,7 @@ void CurlHttpIO::disconnect()
     curltimeoutreset[PUT] = -1;
     arerequestspaused[PUT] = false;
 
+    disconnecting = false;
     if (dnsservers.size())
     {
         LOG_debug << "Using custom DNS servers: " << dnsservers;
@@ -966,6 +977,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     CurlHttpContext* httpctx = (CurlHttpContext*)arg;
     CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
+    bool invalidcache = false;
     httpctx->ares_pending--;
 
     LOG_verbose << "c-ares info received";
@@ -983,14 +995,61 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         // add to DNS cache
         CurlDNSEntry& dnsEntry = httpio->dnscache[httpctx->hostname];
 
+        int i = 0;
+        bool incache = false;
+        if ((host->h_addrtype == PF_INET6 && dnsEntry.ipv6.size())
+                || (host->h_addrtype != PF_INET6 && dnsEntry.ipv4.size()))
+        {
+            invalidcache = true;
+            while (host->h_addr_list[i] != NULL)
+            {
+                char checkip[INET6_ADDRSTRLEN];
+                mega_inet_ntop(host->h_addrtype, host->h_addr_list[i], checkip, sizeof(checkip));
+                if (host->h_addrtype == PF_INET6)
+                {
+                    if (!strcmp(dnsEntry.ipv6.c_str(), checkip))
+                    {
+                        incache = true;
+                        invalidcache = false;
+                        break;
+                    }
+                }
+                else
+                {
+                    if (!strcmp(dnsEntry.ipv4.c_str(), checkip))
+                    {
+                        incache = true;
+                        invalidcache = false;
+                        break;
+                    }
+                }
+                i++;
+            }
+        }
+
+        if (incache)
+        {
+            LOG_verbose << "The current DNS cache record is still valid";
+        }
+        else if (invalidcache)
+        {
+            LOG_warn << "The current DNS cache record is invalid";
+        }
+
         if (host->h_addrtype == PF_INET6)
         {
-            dnsEntry.ipv6 = ip;
+            if (!incache)
+            {
+                dnsEntry.ipv6 = ip;
+            }
             dnsEntry.ipv6timestamp = Waiter::ds;
         }
         else
         {
-            dnsEntry.ipv4 = ip;
+            if (!incache)
+            {
+                dnsEntry.ipv4 = ip;
+            }
             dnsEntry.ipv4timestamp = Waiter::ds;
         }
 
@@ -1036,6 +1095,11 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     if (httpctx->curl)
     {
         LOG_verbose << "Request already sent using a previous DNS response";
+        if (invalidcache && httpctx->isIPv6 == (host->h_addrtype == PF_INET6))
+        {
+            LOG_warn << "Cancelling request due to the detection of an invalid DNS cache record";
+            httpio->cancel(req);
+        }
         return;
     }
 
@@ -1243,6 +1307,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE,  90L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
+        curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
+        curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
@@ -1536,6 +1602,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->data = data;
     httpctx->headers = NULL;
     httpctx->isIPv6 = false;
+    httpctx->isCachedIp = false;
     httpctx->ares_pending = 0;
     httpctx->d = (req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET);
     req->httpiohandle = (void*)httpctx;    
@@ -1593,7 +1660,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
 
     // purge DNS cache if needed
-    if (Waiter::ds - lastdnspurge > DNS_CACHE_TIMEOUT_DS)
+    if (DNS_CACHE_EXPIRES && (Waiter::ds - lastdnspurge) > DNS_CACHE_TIMEOUT_DS)
     {
         std::map<string, CurlDNSEntry>::iterator it = dnscache.begin();
 
@@ -1601,13 +1668,13 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         {
             CurlDNSEntry& entry = it->second;
 
-            if (entry.ipv6.size() && Waiter::ds - entry.ipv6timestamp >= DNS_CACHE_TIMEOUT_DS)
+            if (entry.ipv6.size() && entry.isIPv6Expired())
             {
                 entry.ipv6timestamp = 0;
                 entry.ipv6.clear();
             }
 
-            if (entry.ipv4.size() && Waiter::ds - entry.ipv4timestamp >= DNS_CACHE_TIMEOUT_DS)
+            if (entry.ipv4.size() && entry.isIPv4Expired())
             {
                 entry.ipv4timestamp = 0;
                 entry.ipv4.clear();
@@ -1659,11 +1726,12 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (ipv6requestsenabled)
     {
-        if (dnsEntry && dnsEntry->ipv6.size() && Waiter::ds - dnsEntry->ipv6timestamp < DNS_CACHE_TIMEOUT_DS)
+        if (dnsEntry && dnsEntry->ipv6.size() && !dnsEntry->isIPv6Expired())
         {
             LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6)";
             std::ostringstream oss;
             httpctx->isIPv6 = true;
+            httpctx->isCachedIp = true;
             oss << "[" << dnsEntry->ipv6 << "]";
             httpctx->hostip = oss.str();
             httpctx->ares_pending = 0;
@@ -1677,10 +1745,11 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
     else
     {
-        if (dnsEntry && dnsEntry->ipv4.size() && Waiter::ds - dnsEntry->ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+        if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
         {
             LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4)";
             httpctx->isIPv6 = false;
+            httpctx->isCachedIp = true;
             httpctx->hostip = dnsEntry->ipv4;
             httpctx->ares_pending = 0;
             send_request(httpctx);
@@ -2018,20 +2087,22 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         ipv6deactivationtime = Waiter::ds;
 
                         // for IPv6 errors, try IPv4 before sending an error to the engine
-                        if((dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS) || httpctx->ares_pending)
+                        if ((dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
+                                || (!httpctx->isCachedIp && httpctx->ares_pending))
                         {
                             numconnections[httpctx->d]--;
                             pausedrequests[httpctx->d].erase(msg->easy_handle);
                             curl_multi_remove_handle(curlmhandle, msg->easy_handle);
                             curl_easy_cleanup(msg->easy_handle);
                             curl_slist_free_all(httpctx->headers);
+                            httpctx->isCachedIp = false;
                             httpctx->headers = NULL;
                             httpctx->curl = NULL;
                             req->httpio = this;
                             req->in.clear();
                             req->status = REQ_INFLIGHT;
 
-                            if(dnsEntry.ipv4.size() && Waiter::ds - dnsEntry.ipv4timestamp < DNS_CACHE_TIMEOUT_DS)
+                            if (dnsEntry.ipv4.size() && !dnsEntry.isIPv4Expired())
                             {
                                 LOG_debug << "Retrying using IPv4 from cache";
                                 httpctx->isIPv6 = false;
@@ -2357,6 +2428,29 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     return 0;
 }
 
+int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
+{
+    HttpReq *req = (HttpReq*)clientp;
+    CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
+    CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
+    if (httpio && !httpio->disconnecting
+            && httpctx && httpctx->isCachedIp && !httpctx->ares_pending)
+    {
+        httpctx->ares_pending = 1;
+        if (httpio->ipv6requestsenabled)
+        {
+            httpctx->ares_pending++;
+            LOG_debug << "Resolving IPv6 address for " << httpctx->hostname << " during connection";
+            ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET6, ares_completed_callback, httpctx);
+        }
+
+        LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
+        ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
+    }
+
+    return CURL_SOCKOPT_OK;
+}
+
 int CurlHttpIO::api_socket_callback(CURL *e, curl_socket_t s, int what, void *userp, void *socketp)
 {
     return socket_callback(e, s, what, userp, socketp, API);
@@ -2538,6 +2632,16 @@ CurlDNSEntry::CurlDNSEntry()
 {
     ipv4timestamp = 0;
     ipv6timestamp = 0;
+}
+
+bool CurlDNSEntry::isIPv4Expired()
+{
+    return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv4timestamp) >= DNS_CACHE_TIMEOUT_DS);
+}
+
+bool CurlDNSEntry::isIPv6Expired()
+{
+    return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
 
 SockInfo::SockInfo()

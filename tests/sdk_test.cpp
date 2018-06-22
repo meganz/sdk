@@ -1088,12 +1088,12 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     n1 = megaApi[0]->getNodeByHandle(h);
 
     // do same conversions to lose the same precision
-    int buf = ((lat + 90) / 180) * 0xFFFFFF;
+    int buf = int(((lat + 90) / 180) * 0xFFFFFF);
     double res = -90 + 180 * (double) buf / 0xFFFFFF;
 
     ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
 
-    buf = (lon == 180) ? 0 : (lon + 180) / 360 * 0x01000000;
+    buf = int((lon == 180) ? 0 : (lon + 180) / 360 * 0x01000000);
     res = -180 + 360 * (double) buf / 0x01000000;
 
     ASSERT_EQ(res, n1->getLongitude()) << "Longitude value does not match";
@@ -1113,7 +1113,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     n1 = megaApi[0]->getNodeByHandle(h);
 
     // do same conversions to lose the same precision
-    buf = ((lat + 90) / 180) * 0xFFFFFF;
+    buf = int(((lat + 90) / 180) * 0xFFFFFF);
     res = -90 + 180 * (double) buf / 0xFFFFFF;
 
     ASSERT_EQ(res, n1->getLatitude()) << "Latitude value does not match";
@@ -1415,8 +1415,8 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Get the size of a file ---
 
-    int filesize = getFilesize(filename1);
-    int nodesize = megaApi[0]->getSize(n2);
+    size_t filesize = getFilesize(filename1);
+    long long nodesize = megaApi[0]->getSize(n2);
     EXPECT_EQ(filesize, nodesize) << "Wrong size of uploaded file";
 
 
@@ -1698,7 +1698,7 @@ TEST_F(SdkTest, SdkTestContacts)
 
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_PWD_REMINDER, maxTimeout, 0));
     string pwdReminder = attributeValue;
-    int offset = pwdReminder.find(':');
+    size_t offset = pwdReminder.find(':');
     offset += pwdReminder.find(':', offset+1);
     ASSERT_EQ( pwdReminder.at(offset), '1' ) << "Password reminder attribute not updated";
 
@@ -1740,8 +1740,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_NO_FATAL_FAILURE( getUserAttribute(u, MegaApi::USER_ATTR_AVATAR));
     ASSERT_STREQ( "Avatar changed", attributeValue.data()) << "Failed to change avatar";
 
-    int filesizeSrc = getFilesize(AVATARSRC);
-    int filesizeDst = getFilesize(AVATARDST);
+    size_t filesizeSrc = getFilesize(AVATARSRC);
+    size_t filesizeDst = getFilesize(AVATARDST);
     ASSERT_EQ(filesizeDst, filesizeSrc) << "Received avatar differs from uploaded avatar";
 
     delete u;
@@ -1985,7 +1985,7 @@ TEST_F(SdkTest, SdkTestShares)
     // --- Get pending outgoing shares ---
 
     char emailfake[64];
-    srand(time(NULL));
+    srand(unsigned(time(NULL)));
     sprintf(emailfake, "%d@nonexistingdomain.com", rand()%1000000);
     // carefull, antispam rejects too many tries without response for the same address
 
@@ -2114,7 +2114,7 @@ bool cmp(const autocomplete::CompletionState& c, const std::vector<std::string>&
     }
     else
     {
-        for (int i = c.completions.size(); i--; )
+        for (size_t i = c.completions.size(); i--; )
         {
             if (c.completions[i].s != s[i])
             {
@@ -2125,7 +2125,7 @@ bool cmp(const autocomplete::CompletionState& c, const std::vector<std::string>&
     }
     if (!result)
     {
-        for (int i = 0; i < c.completions.size() || i < s.size(); ++i)
+        for (size_t i = 0; i < c.completions.size() || i < s.size(); ++i)
         {
             cout << (i < s.size() ? s[i] : "") << "/" << (i < c.completions.size() ? c.completions[i].s : "") << endl;
         }
@@ -2229,12 +2229,13 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     }
 
     // dos style file completion, local fs
+    CompletionTextOut s;
 
     {
         auto r = autoComplete("lls ", 4, syntax, false);
         std::vector<std::string> e{ "dir1", "dir2", "dir2a" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir1");
     }
 
@@ -2290,55 +2291,55 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2\\..\\", 12, syntax, false);
         std::vector<std::string> e{ "dir2\\..\\dir1", "dir2\\..\\dir2", "dir2\\..\\dir2a" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\dir1");
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\dir2");
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\dir2a");
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\dir1");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\dir2a");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\dir2");
     }
 
     {
         auto r = autoComplete("lls dir2a\\", 10, syntax, false);
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "lls dir2a\\nospace");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "lls \"dir2a\\dir space2\"");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "lls \"dir2a\\dir space\"");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "lls dir2a\\nospace");
     }
 
     {
         auto r = autoComplete("lls \"dir\"1\\", 11, syntax, false);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"dir1\\sub11\"");
     }
 
     {
         auto r = autoComplete("lls dir1\\\"..\\dir2\\\"", std::string::npos, syntax, false);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"dir1\\..\\dir2\\sub21\"");
     }
 
     {
         auto r = autoComplete("lls c:\\prog", std::string::npos, syntax, false);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"c:\\Program Files\"");
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"c:\\Program Files (x86)\"");
     }
 
     {
         auto r = autoComplete("lls \"c:\\program files \"", std::string::npos, syntax, false);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"c:\\Program Files (x86)\"");
     }
 
@@ -2348,7 +2349,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls ", 4, syntax, true);
         std::vector<std::string> e{ "dir1\\", "dir2\\", "dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir");
     }
 
@@ -2356,7 +2357,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls di", 6, syntax, true);
         std::vector<std::string> e{ "dir1\\", "dir2\\", "dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir");
     }
 
@@ -2364,7 +2365,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2", 8, syntax, true);
         std::vector<std::string> e{ "dir2\\", "dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2");
     }
 
@@ -2372,7 +2373,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2a", 9, syntax, true);
         std::vector<std::string> e{ "dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2a\\");
     }
 
@@ -2380,7 +2381,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2 something after", 8, syntax, true);
         std::vector<std::string> e{ "dir2\\", "dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2 something after");
     }
 
@@ -2388,7 +2389,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2asomething immediately after", 9, syntax, true);
         std::vector<std::string> e{ "dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2a\\something immediately after");
     }
 
@@ -2396,10 +2397,10 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2\\", 9, syntax, true);
         std::vector<std::string> e{ "dir2\\sub21\\", "dir2\\sub22\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\sub2");
         auto rr = autoComplete("lls dir2\\sub22", 14, syntax, true);
-        applyCompletion(rr, true, 100);
+        applyCompletion(rr, true, 100, s);
         ASSERT_EQ(rr.line, "lls dir2\\sub22\\");
     }
 
@@ -2407,7 +2408,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2\\.\\", 11, syntax, true);
         std::vector<std::string> e{ "dir2\\.\\sub21\\", "dir2\\.\\sub22\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\.\\sub2");
     }
 
@@ -2415,7 +2416,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2\\..", 11, syntax, true);
         std::vector<std::string> e{ "dir2\\..\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\");
     }
 
@@ -2423,7 +2424,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2\\..\\", 12, syntax, true);
         std::vector<std::string> e{ "dir2\\..\\dir1\\", "dir2\\..\\dir2\\", "dir2\\..\\dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\dir");
     }
 
@@ -2431,46 +2432,46 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("lls dir2\\..\\", 12, syntax, true);
         std::vector<std::string> e{ "dir2\\..\\dir1\\", "dir2\\..\\dir2\\", "dir2\\..\\dir2a\\" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls dir2\\..\\dir");
     }
 
     {
         auto r = autoComplete("lls dir2a\\d", 11, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"dir2a\\dir space\"");
         auto rr = autoComplete("lls \"dir2a\\dir space\"\\", std::string::npos, syntax, false);
-        applyCompletion(rr, true, 100);
+        applyCompletion(rr, true, 100, s);
         ASSERT_EQ(rr.line, "lls \"dir2a\\dir space\\next\"");
     }
 
     {
         auto r = autoComplete("lls \"dir\"1\\", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"dir1\\sub1\"");
     }
 
     {
         auto r = autoComplete("lls dir1\\\"..\\dir2\\\"", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"dir1\\..\\dir2\\sub2\"");
     }
 
     {
         auto r = autoComplete("lls c:\\prog", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls c:\\program");
     }
 
     {
         auto r = autoComplete("lls \"c:\\program files \"", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls \"c:\\program files (x86)\\\"");
     }
 
     {
         auto r = autoComplete("lls 'c:\\program files '", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "lls 'c:\\program files (x86)\\'");
     }
 
@@ -2507,7 +2508,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls ", std::string::npos, syntax, false);
         std::vector<std::string> e{ "dir1", "dir2", "dir2a" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir1");
     }
 
@@ -2563,47 +2564,47 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2/../", std::string::npos, syntax, false);
         std::vector<std::string> e{ "dir2/../dir1", "dir2/../dir2", "dir2/../dir2a" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir1");
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir2");
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir2a");
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir1");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir2a");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir2");
     }
 
     {
         auto r = autoComplete("ls dir2a/", std::string::npos, syntax, false);
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "ls dir2a/nospace");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "ls \"dir2a/dir space2\"");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "ls \"dir2a/dir space\"");
-        applyCompletion(r, false, 100);
+        applyCompletion(r, false, 100, s);
         ASSERT_EQ(r.line, "ls dir2a/nospace");
     }
 
     {
         auto r = autoComplete("ls \"dir\"1/", std::string::npos, syntax, false);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls \"dir1/sub11\"");
     }
 
     {
         auto r = autoComplete("ls dir1/\"../dir2/\"", std::string::npos, syntax, false);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls \"dir1/../dir2/sub21\"");
     }
 
     {
         auto r = autoComplete("ls /test_autocomplete_meg", std::string::npos, syntax, false);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls /test_autocomplete_megafs");
     }
 
@@ -2613,7 +2614,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls ", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir1/", "dir2/", "dir2a/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir");
     }
 
@@ -2621,7 +2622,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls di", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir1/", "dir2/", "dir2a/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir");
     }
 
@@ -2629,7 +2630,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir2/", "dir2a/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2");
     }
 
@@ -2637,7 +2638,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2a", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir2a/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2a/");
     }
 
@@ -2645,7 +2646,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2 something after", 7, syntax, true);
         std::vector<std::string> e{ "dir2/", "dir2a/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2 something after");
     }
 
@@ -2653,7 +2654,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2asomething immediately after", 8, syntax, true);
         std::vector<std::string> e{ "dir2a/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2a/something immediately after");
     }
 
@@ -2661,10 +2662,10 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2/", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir2/sub21/", "dir2/sub22/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/sub2");
         auto rr = autoComplete("ls dir2/sub22", std::string::npos, syntax, true);
-        applyCompletion(rr, true, 100);
+        applyCompletion(rr, true, 100, s);
         ASSERT_EQ(rr.line, "ls dir2/sub22/");
     }
 
@@ -2672,7 +2673,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2/./", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir2/./sub21/", "dir2/./sub22/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/./sub2");
     }
 
@@ -2680,7 +2681,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2/..", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir2/../" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../");
     }
 
@@ -2688,7 +2689,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2/../", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir");
     }
 
@@ -2696,40 +2697,40 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         auto r = autoComplete("ls dir2/../", std::string::npos, syntax, true);
         std::vector<std::string> e{ "dir2/../dir1/", "dir2/../dir2/", "dir2/../dir2a/" };
         ASSERT_TRUE(cmp(r, e));
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls dir2/../dir");
     }
 
     {
         auto r = autoComplete("ls dir2a/d", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls \"dir2a/dir space\"");
         auto rr = autoComplete("ls \"dir2a/dir space\"/", std::string::npos, syntax, false);
-        applyCompletion(rr, true, 100);
+        applyCompletion(rr, true, 100, s);
         ASSERT_EQ(rr.line, "ls \"dir2a/dir space/next\"");
     }
 
     {
         auto r = autoComplete("ls \"dir\"1/", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls \"dir1/sub1\"");
     }
 
     {
         auto r = autoComplete("ls dir1/\"../dir2/\"", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls \"dir1/../dir2/sub2\"");
     }
 
     {
         auto r = autoComplete("ls /test_autocomplete_meg", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls /test_autocomplete_megafs/");
         r = autoComplete(r.line + "dir2a", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls /test_autocomplete_megafs/dir2a/");
         r = autoComplete(r.line + "d", std::string::npos, syntax, true);
-        applyCompletion(r, true, 100);
+        applyCompletion(r, true, 100, s);
         ASSERT_EQ(r.line, "ls \"/test_autocomplete_megafs/dir2a/dir space\"");
     }
 

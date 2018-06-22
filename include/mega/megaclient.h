@@ -206,6 +206,9 @@ public:
     // multi-factor authentication globally enabled
     bool gmfa_enabled;
 
+    // server-side Rubbish-bin autopurging enabled
+    bool ssrs_enabled;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
@@ -438,9 +441,14 @@ public:
     error exportnode(Node*, int, m_time_t);
     void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
 
+    // add timer
+    error addtimer(TimerWithBackoff *twb);
+
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
+
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+
     void delsync(Sync*, bool = true);
 
     // close all open HTTP connections
@@ -664,6 +672,8 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
+
+    vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
     HttpReq* pendingsc;
@@ -1276,6 +1286,9 @@ public:
 
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
     handle getpublicfolderhandle();
+
+    //returns the top-level node for a node
+    Node *getrootnode(Node*);
 
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);

@@ -65,6 +65,15 @@ public:
 
     BackoffTimer();
 };
+
+
+class MEGA_API TimerWithBackoff: public BackoffTimer {
+
+public:
+    long long tag;
+    TimerWithBackoff(long long tag);
+};
+
 } // namespace
 
 #endif
