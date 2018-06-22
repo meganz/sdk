@@ -1267,6 +1267,9 @@ public:
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
     handle getpublicfolderhandle();
 
+    //returns the top-level node for a node
+    Node *getrootnode(Node*);
+
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
 

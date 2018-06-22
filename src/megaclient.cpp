@@ -528,6 +528,21 @@ handle MegaClient::getpublicfolderhandle()
     return publichandle;
 }
 
+Node *MegaClient::getrootnode(Node *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    Node *n = node;
+    while (n->parent)
+    {
+        n = n->parent;
+    }
+    return n;
+}
+
 // set server-client sequence number
 bool MegaClient::setscsn(JSON* j)
 {
@@ -6132,8 +6147,53 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         return e;
     }
 
+    Node *prevParent = NULL;
+    if (!ISUNDEF(prevparent))
+    {
+        prevParent = nodebyhandle(prevparent);
+    }
+    else
+    {
+        prevParent = n->parent;
+    }
+
     if (n->setparent(p))
     {
+        bool setrr = false;
+        if (prevParent)
+        {
+            Node *prevRoot = getrootnode(prevParent);
+            Node *newRoot = getrootnode(p);
+            handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+            nameid rrname = AttrMap::string2nameid("rr");
+
+            if (prevRoot->nodehandle != rubbishHandle
+                    && p->nodehandle == rubbishHandle)
+            {
+                // deleted node
+                char base64Handle[12];
+                Base64::btoa((byte*)&prevParent->nodehandle, MegaClient::NODEHANDLE, base64Handle);
+                if (strcmp(base64Handle, n->attrs.map[rrname].c_str()))
+                {
+                    LOG_debug << "Adding rr attribute";
+                    n->attrs.map[rrname] = base64Handle;
+                    setrr = true;
+                }
+            }
+            else if (prevRoot->nodehandle == rubbishHandle
+                     && newRoot->nodehandle != rubbishHandle)
+            {
+                // undeleted node
+                attr_map::iterator it = n->attrs.map.find(rrname);
+                if (it != n->attrs.map.end())
+                {
+                    LOG_debug << "Removing rr attribute";
+                    n->attrs.map.erase(it);
+                    setattr(n);
+                }
+            }
+        }
+
         n->changed.parent = true;
         n->tag = reqtag;
         notifynode(n);
@@ -6142,6 +6202,10 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         rewriteforeignkeys(n);
 
         reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        if (setrr)
+        {
+            setattr(n);
+        }
     }
 
     return API_OK;
@@ -11616,6 +11680,14 @@ void MegaClient::syncupdate()
                     // rubbish to reduce node creation load
                     nnp->nodekey = n->nodekey;
                     tattrs.map = n->attrs.map;
+
+                    nameid rrname = AttrMap::string2nameid("rr");
+                    attr_map::iterator it = tattrs.map.find(rrname);
+                    if (it != tattrs.map.end())
+                    {
+                        LOG_debug << "Removing rr attribute";
+                        tattrs.map.erase(it);
+                    }
 
                     app->syncupdate_remote_copy(l->sync, l->name.c_str());
                 }

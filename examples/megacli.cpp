@@ -1798,8 +1798,18 @@ public:
 
             key.setkey((const byte*) t->nodekey.data(), n->type);
 
-            n->attrs.getjson(&attrstring);
+            AttrMap tattrs;
+            tattrs.map = n->attrs.map;
+            nameid rrname = AttrMap::string2nameid("rr");
+            attr_map::iterator it = tattrs.map.find(rrname);
+            if (it != tattrs.map.end())
+            {
+                LOG_debug << "Removing rr attribute";
+                tattrs.map.erase(it);
+            }
+
             t->attrstring = new string;
+            tattrs.getjson(&attrstring);
             client->makeattr(&key, t->attrstring, attrstring.c_str());
         }
         else

@@ -407,6 +407,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int64_t getCreationTime();
         virtual int64_t getModificationTime();
         virtual MegaHandle getHandle();
+        virtual MegaHandle getRestoreHandle();
         virtual MegaHandle getParentHandle();
         virtual std::string* getNodeKey();
         virtual char *getBase64Key();
@@ -466,6 +467,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int64_t mtime;
         MegaHandle nodehandle;
         MegaHandle parenthandle;
+        MegaHandle restorehandle;
         std::string nodekey;
         std::string attrstring;
         std::string fileattrstring;

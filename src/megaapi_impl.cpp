@@ -126,6 +126,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->duration = node->getDuration();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
+    this->restorehandle = node->getRestoreHandle();
     this->type = node->getType();
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
@@ -222,6 +223,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
+    this->restorehandle = UNDEF;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -287,6 +289,14 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                        latitude = INVALID_COORDINATE;
                    }
                }
+            }
+            else if (it->first == AttrMap::string2nameid("rr"))
+            {
+                handle rr = 0;
+                if (Base64::atob(it->second.c_str(), (byte *)&rr, sizeof(rr)) == MegaClient::NODEHANDLE)
+                {
+                    restorehandle = rr;
+                }
             }
         }
     }
@@ -698,6 +708,11 @@ int64_t MegaNodePrivate::getCreationTime()
 int64_t MegaNodePrivate::getModificationTime()
 {
     return mtime;
+}
+
+MegaHandle MegaNodePrivate::getRestoreHandle()
+{
+    return restorehandle;
 }
 
 MegaHandle MegaNodePrivate::getParentHandle()
@@ -18081,7 +18096,17 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		{
 			key.setkey((const byte*)t->nodekey.data(),n->type);
 
-			n->attrs.getjson(&attrstring);
+            AttrMap tattrs;
+            tattrs.map = n->attrs.map;
+            nameid rrname = AttrMap::string2nameid("rr");
+            attr_map::iterator it = tattrs.map.find(rrname);
+            if (it != tattrs.map.end())
+            {
+                LOG_debug << "Removing rr attribute";
+                tattrs.map.erase(it);
+            }
+
+            tattrs.getjson(&attrstring);
 			client->makeattr(&key,t->attrstring,attrstring.c_str());
 		}
 	}

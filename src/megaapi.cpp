@@ -274,6 +274,11 @@ MegaHandle MegaNode::getHandle()
     return INVALID_HANDLE;
 }
 
+MegaHandle MegaNode::getRestoreHandle()
+{
+    return INVALID_HANDLE;
+}
+
 MegaHandle MegaNode::getParentHandle()
 {
     return INVALID_HANDLE;

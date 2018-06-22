@@ -585,6 +585,18 @@ class MegaNode
         virtual MegaHandle getHandle();
 
         /**
+         * @brief Returns the handle of the previous parent of this node.
+         *
+         * This attribute is set when nodes are moved to the Rubbish Bin to
+         * ease their restoration. If the attribute is not set for the node,
+         * this function returns MegaApi::INVALID_HANDLE
+         *
+         * @return Handle of the previous parent of this node or MegaApi::INVALID_HANDLE
+         * if the attribute is not set.
+         */
+        virtual MegaHandle getRestoreHandle();
+
+        /**
          * @brief Returns the handle of the parent node
          *
          * You can use MegaApi::getNodeByHandle to recover the node later.
