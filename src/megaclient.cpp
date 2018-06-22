@@ -6168,7 +6168,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
             nameid rrname = AttrMap::string2nameid("rr");
 
             if (prevRoot->nodehandle != rubbishHandle
-                    && newRoot->nodehandle == rubbishHandle)
+                    && p->nodehandle == rubbishHandle)
             {
                 // deleted node
                 char base64Handle[12];
