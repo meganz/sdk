@@ -14862,7 +14862,10 @@ void MegaApiImpl::sendPendingRequests()
                         {
                             if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                             {
-                                fireOnRequestFinish(request, MegaError(API_OK));
+                                e = API_OK; // there is already an identical node in the target folder
+                                // continue to complete the copy-delete
+                                client->restag = request->getTag();
+                                putnodes_result(API_OK, NODE_HANDLE, NULL);
                                 break;
                             }
 
