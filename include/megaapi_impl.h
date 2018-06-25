@@ -2653,6 +2653,7 @@ protected:
 
 #ifdef ENABLE_EVT_TLS
     // TLS
+    bool evtrequirescleaning;
     evt_ctx_t evtctx;
     std::string certificatepath;
     std::string keypath;
@@ -2691,7 +2692,7 @@ protected:
     static void closeTCPConnection(MegaTCPContext *tcpctx);
 
     void run();
-    void initializeAndStartListenig();
+    void initializeAndStartListening();
 
     void answer(MegaTCPContext* tcpctx, const char *rsp, int rlen);
 
@@ -2711,6 +2712,7 @@ public:
     static bool uvloopinitiated;
     static uv_async_s asynchandleoflibuvinitializer;
     static MegaThread *uvthread;
+    static MegaTCPServer *uvstarterserver;
 
     std::string basePath;
     bool uvstartedbyother;

@@ -4102,6 +4102,8 @@ MegaApiImpl::~MegaApiImpl()
         MegaTCPServer::uvthread->join();
         delete MegaTCPServer::uvthread;
         MegaTCPServer::uvthread = NULL;
+        delete MegaTCPServer::uvstarterserver;
+        MegaTCPServer::uvstarterserver = NULL;
     }
 #endif
 
@@ -7436,7 +7438,11 @@ void MegaApiImpl::httpServerStop()
         MegaHTTPServer *server = httpServer;
         httpServer = NULL;
         sdkMutex.unlock();
-        delete server;
+        server->stop();
+        if (server->uvstartedbyother)
+        {
+            delete server;
+        }
     }
     else
     {
@@ -7834,7 +7840,11 @@ void MegaApiImpl::ftpServerStop()
         MegaFTPServer *server = ftpServer;
         ftpServer = NULL;
         sdkMutex.unlock();
-        delete server;
+        server->stop();
+        if (server->uvstartedbyother)
+        {
+            delete server;
+        }
     }
     else
     {
@@ -17727,33 +17737,9 @@ void MegaApiImpl::sendPendingRequests()
         {
 #ifdef HAVE_LIBUV
             sdkMutex.unlock();
-            if (httpServer && httpServer->uvstartedbyother)
-            {
-                httpServer->stop();
-            }
-            if (ftpServer && ftpServer->uvstartedbyother)
-            {
-                ftpServer->stop();
-            }
+            httpServerStop();
+            ftpServerStop();
             sdkMutex.lock();
-
-            if (httpServer)
-            {
-                MegaHTTPServer *server = httpServer;
-                httpServer = NULL;
-                sdkMutex.unlock();
-                delete server;
-                sdkMutex.lock();
-            }
-
-            if (ftpServer)
-            {
-                MegaFTPServer *server = ftpServer;
-                ftpServer = NULL;
-                sdkMutex.unlock();
-                delete server;
-                sdkMutex.lock();
-            }
 #endif
             threadExit = 1;
             break;
@@ -21542,6 +21528,7 @@ uv_mutex_t MegaTCPServer::mutexinitializeuvloop;
 uv_async_s MegaTCPServer::asynchandleoflibuvinitializer;
 bool MegaTCPServer::uvloopinitiated = false;
 MegaThread *MegaTCPServer::uvthread = NULL;
+MegaTCPServer *MegaTCPServer::uvstarterserver = NULL;
 
 MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
 {
@@ -21563,6 +21550,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
     this->keypath = keypath;
     this->closing = false;
     this->remainingcloseevents = 0;
+    this->evtrequirescleaning = false;
 #else
     this->useTLS = false;
 #endif
@@ -21600,6 +21588,14 @@ MegaTCPServer::~MegaTCPServer()
     delete fsAccess;
     if (uvstartedbyother)
     {
+        #ifdef ENABLE_EVT_TLS
+        if (useTLS && evtrequirescleaning)
+        {
+            //evt_ctx_free(&evtctx); //This causes invalid free! collides with memory allocated elsewhere (e.g: via curl_global_init!)
+            SSL_CTX_free(evtctx.ctx);
+            evtrequirescleaning = false;
+        }
+        #endif
         thread->join();
         delete thread;
     }
@@ -21621,7 +21617,7 @@ bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
     this->localOnly = localOnly;
     if (alreadyinuvthread)
     {
-        initializeAndStartListenig();
+        initializeAndStartListening();
     }
     else
     {
@@ -21769,6 +21765,7 @@ void MegaTCPServer::run()
         uv_async_init(uv_loop, &asynchandleoflibuvinitializer, onInitializeRequest);
         uvloopinitiated = true;
         uvthread = thread;
+        uvstarterserver = this;
         uv_mutex_unlock(&mutexinitializeuvloop);
         uv_run(uv_loop, UV_RUN_DEFAULT);
         uvloopinitiated = false;
@@ -21792,7 +21789,7 @@ void MegaTCPServer::run()
     }
 }
 
-void MegaTCPServer::initializeAndStartListenig()
+void MegaTCPServer::initializeAndStartListening()
 {
     uvstartedbyother = true;
 #ifdef ENABLE_EVT_TLS
@@ -21806,6 +21803,7 @@ void MegaTCPServer::initializeAndStartListenig()
             uv_sem_post(&semaphoreEnd);
             return;
         }
+        evtrequirescleaning = true;
         evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
     }
 #endif
@@ -22335,13 +22333,13 @@ void MegaTCPServer::onExitHandleClose(uv_handle_t *handle)
 
     tcpServer->remainingcloseevents--;
     LOG_verbose << "At onExitHandleClose port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
-    tcpServer->processOnExitHandleClose(tcpServer);
 
     if (!tcpServer->remainingcloseevents && !tcpServer->semaphoresdestroyed)
     {
         uv_sem_post(&tcpServer->semaphoreStartup);
         uv_sem_post(&tcpServer->semaphoreEnd);
     }
+    tcpServer->processOnExitHandleClose(tcpServer);
 }
 
 void MegaTCPServer::onCloseRequested(uv_async_t *handle)
@@ -22376,7 +22374,7 @@ void MegaTCPServer::onInitializeRequest(uv_async_t *handle)
     else
     {
         LOG_verbose << "MegaTCPServer::onInitializeRequest port = " << tcpServer->port;
-        tcpServer->initializeAndStartListenig();
+        tcpServer->initializeAndStartListening();
         handle->data = NULL;
     }
 }
