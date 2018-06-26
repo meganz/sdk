@@ -193,6 +193,14 @@ bool MTransfer::isFinished()
     return megaTransfer ? megaTransfer->isFinished() : false;
 }
 
+MError^ MTransfer::getLastError()
+{
+    if (!megaTransfer) return nullptr;
+    
+    MegaError *error = megaTransfer->getLastError().copy();
+    return error ? ref new MError(error, true) : nullptr;
+}
+
 bool MTransfer::isFolderTransfer()
 {
     return megaTransfer ? megaTransfer->isFolderTransfer() : false;

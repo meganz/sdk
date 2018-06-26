@@ -557,6 +557,7 @@ namespace mega
          * - MRequest::getEmail - Returns the email of the contact
          * - MRequest::getName - Returns the first name of the contact
          * - MRequest::getText - Returns the last name of the contact
+         * - MRequest::getFile - Returns the avatar of the contact (JPG with Base64 encoding)
          *
          * @param handle Handle of the contact link to check
          * @param listener MRequestListener to track this request
@@ -577,6 +578,7 @@ namespace mega
          * - MRequest::getEmail - Returns the email of the contact
          * - MRequest::getName - Returns the first name of the contact
          * - MRequest::getText - Returns the last name of the contact
+         * - MRequest::getFile - Returns the avatar of the contact (JPG with Base64 encoding)
          *
          * @param handle Handle of the contact link to check
          */
