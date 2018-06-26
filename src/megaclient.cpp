@@ -1183,7 +1183,7 @@ void MegaClient::exec()
                             if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
                             {
                                 LOG_debug << "Attaching file attribute";
-                                reqs.add(new CommandAttachFA(n->nodehandle, fa->type, fah, fa->tag));
+                                reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
                             }
                             else
                             {
@@ -6688,7 +6688,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, 0));
                              it != pendingfa.end() && it->first.first == uh; )
                         {
-                            reqs.add(new CommandAttachFA(h, it->first.second, it->second.first, it->second.second));
+                            reqs.add(new CommandAttachFA(this, h, it->first.second, it->second.first, it->second.second));
                             pendingfa.erase(it++);
                         }
 
