@@ -296,7 +296,7 @@ void CommandAttachFA::procresult()
              Node* n = client->nodebyhandle(h);
              if (n)
              {
-                Node::copystring(&n->fileattrstring, fa.c_str());
+                n->fileattrstring = fa;
                 n->changed.fileattrstring = true;
                 client->notifynode(n);
              }
