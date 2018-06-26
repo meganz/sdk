@@ -640,12 +640,25 @@ void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
 {
     size = (unsigned)(npos - pos);
 
-    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+    byte *chunkstart = (byte*)out->data();
+    m_off_t startpos = pos;
+    m_off_t finalpos = npos;
+    m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
+    m_off_t chunksize = endpos - startpos;
+    while (chunksize)
+    {
+        byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+        key->ctr_crypt(chunkstart, chunksize, startpos, ctriv, mac, 1);
+        memcpy((*macs)[startpos].mac, mac, sizeof mac);
+        (*macs)[startpos].finished = false;
+        LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
 
-    key->ctr_crypt((byte*)out->data(), size, pos, ctriv, mac, 1);
-
-    memcpy((*macs)[pos].mac, mac, sizeof mac);
-    (*macs)[pos].finished = false;
+        chunkstart += chunksize;
+        startpos = endpos;
+        endpos = ChunkedHash::chunkceil(startpos, finalpos);
+        chunksize = endpos - startpos;
+    }
+    assert(endpos == finalpos);
 
     // unpad for POSTing
     out->resize(size);

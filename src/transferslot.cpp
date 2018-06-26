@@ -416,7 +416,16 @@ void TransferSlot::doio(MegaClient* client)
                                 {
                                     errorcount = 0;
                                     transfer->failcount = 0;
-                                    transfer->chunkmacs[reqs[i]->pos].finished = true;
+
+                                    m_off_t startpos = reqs[i]->pos;
+                                    m_off_t finalpos = startpos + reqs[i]->size;
+                                    while (startpos < finalpos)
+                                    {
+                                        transfer->chunkmacs[startpos].finished = true;
+                                        startpos = ChunkedHash::chunkceil(startpos, finalpos);
+                                        LOG_verbose << "Upload chunk completed: " << startpos;
+                                    }
+
                                     transfer->progresscompleted += reqs[i]->size;
                                     memcpy(transfer->filekey, transfer->transferkey, sizeof transfer->transferkey);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
@@ -476,7 +485,14 @@ void TransferSlot::doio(MegaClient* client)
                             return transfer->failed(e);
                         }
 
-                        transfer->chunkmacs[reqs[i]->pos].finished = true;
+                        m_off_t startpos = reqs[i]->pos;
+                        m_off_t finalpos = startpos + reqs[i]->size;
+                        while (startpos < finalpos)
+                        {
+                            transfer->chunkmacs[startpos].finished = true;
+                            startpos = ChunkedHash::chunkceil(startpos, finalpos);
+                            LOG_verbose << "Upload chunk completed: " << startpos;
+                        }
                         transfer->progresscompleted += reqs[i]->size;
 
                         if (transfer->progresscompleted == transfer->size)
@@ -625,7 +641,7 @@ void TransferSlot::doio(MegaClient* client)
                             if (transfer->type == PUT)
                             {
                                 LOG_verbose << "Async read succeeded";
-                                m_off_t npos = ChunkedHash::chunkceil(asyncIO[i]->pos, transfer->size);
+                                m_off_t npos = asyncIO[i]->pos + asyncIO[i]->len;
 
                                 string finaltempurl = tempurl;
                                 if (client->usealtupport && !memcmp(tempurl.c_str(), "http:", 5))
@@ -830,7 +846,7 @@ void TransferSlot::doio(MegaClient* client)
 
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
-                    if (transfer->type == GET && transfer->size)
+                    if (transfer->size)
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
                         if (maxReqSize > maxDownloadRequestSize)
@@ -864,7 +880,7 @@ void TransferSlot::doio(MegaClient* client)
                             reqSize = npos - transfer->pos;
                             it = transfer->chunkmacs.find(npos);
                         }
-                        LOG_debug << "Downloading chunk of size " << reqSize;
+                        LOG_debug << "Starting chunk of size " << reqSize;
                     }
 
                     if (!reqs[i])
@@ -885,7 +901,7 @@ void TransferSlot::doio(MegaClient* client)
                                 LOG_warn << "Retrying a failed read";
                                 pos = asyncIO[i]->pos;
                                 size = asyncIO[i]->len;
-                                npos = ChunkedHash::chunkceil(pos, transfer->size);
+                                npos = pos + size;
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
                             }
