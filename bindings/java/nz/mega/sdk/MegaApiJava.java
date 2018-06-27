@@ -5952,6 +5952,36 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if a node is in the Cloud Drive tree
+     *
+     * @param node Node to check
+     * @return True if the node is in the cloud drive
+     */
+    public boolean isInCloud(MegaNode node){
+        return megaApi.isInCloud(node);
+    }
+
+    /**
+     * Check if a node is in the Rubbish bin tree
+     *
+     * @param node Node to check
+     * @return True if the node is in the Rubbish bin
+     */
+    public boolean isInRubbish(MegaNode node){
+        return megaApi.isInRubbish(node);
+    }
+
+    /**
+     * Check if a node is in the Inbox tree
+     *
+     * @param node Node to check
+     * @return True if the node is in the Inbox
+     */
+    public boolean isInInbox(MegaNode node){
+        return megaApi.isInInbox(node);
+    }
+
+    /**
      * Returns the inbox node of the account.
      * <p>
      * If you haven't successfully called MegaApiJava.fetchNodes() before,
