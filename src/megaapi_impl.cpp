@@ -21917,7 +21917,14 @@ void MegaTCPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
     data.base = bfr;
     data.len = sz;
 
-    tcpctx->server->processReceivedData(tcpctx, sz, &data);
+    if (!tcpctx->invalid)
+    {
+        tcpctx->server->processReceivedData(tcpctx, sz, &data);
+    }
+    else
+    {
+        LOG_debug << " Not procesing invalid data after failed evt_close";
+    }
 }
 
 void MegaTCPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
@@ -21934,6 +21941,7 @@ void MegaTCPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
     else
     {
         LOG_debug << "TLS connection closed failed!!! status = " << status;
+        tcpctx->invalid = true;
     }
 }
 
@@ -22215,6 +22223,7 @@ MegaTCPContext::MegaTCPContext()
     bytesWritten = 0;
 #ifdef ENABLE_EVT_TLS
     evt_tls = NULL;
+    invalid = false;
 #endif
     server = NULL;
     megaApi = NULL;
@@ -22847,11 +22856,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
                                                      "content-type: application/xml; charset=utf-8\r\n"
                                                      "server: MEGAsdk\r\n"
                                                      "\r\n";
-
-    if (httpctx->parser.method != HTTP_HEAD)
-    {
-        response << sweb;
-    }
+    response << sweb;
     httpctx->resultCode = API_OK;
     return response.str();
 }
@@ -24137,6 +24142,7 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 #ifdef ENABLE_EVT_TLS
     if (httpctx->server->useTLS)
     {
+        assert (resbuf.len);
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
@@ -26156,6 +26162,7 @@ MegaFTPContext::~MegaFTPContext()
 {
     if (ftpDataServer)
     {
+        LOG_verbose << "Deleting ftpDataServer associated with ftp context";
         delete ftpDataServer;
     }
     if (tmpFileName.size())

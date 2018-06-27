@@ -2606,6 +2606,7 @@ public:
 #ifdef ENABLE_EVT_TLS
     //tls stuff:
     evt_tls_t *evt_tls;
+    bool invalid;
 #endif
     std::list<char*> writePointers;
 
