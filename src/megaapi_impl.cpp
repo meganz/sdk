@@ -26745,7 +26745,7 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
         fds->stop(true);
     }
 
-    if (!ftpdatactx->controlRespondedElsewhere)
+    if (!ftpdatactx->controlRespondedElsewhere && fds->started)
     {
         LOG_debug << "MegaFTPDataServer::processOnAsyncEventClose port = " << fds->port << ". Responding " << ftpdatactx->controlResponseCode << ". " << ftpdatactx->controlResponseMessage;
         MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(fds->controlftpctx->server);
