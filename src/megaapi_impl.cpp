@@ -4056,14 +4056,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
 MegaApiImpl::~MegaApiImpl()
 {
-#ifdef HAVE_LIBUV
-    if (MegaTCPServer::uvloopinitiated)
-    {
-        MegaTCPServer::asynchandleoflibuvinitializer.data = NULL;
-        uv_async_send(&MegaTCPServer::asynchandleoflibuvinitializer);
-    }
-#endif
-
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DELETE);
     requestQueue.push(request);
     waiter->notify();
@@ -4095,19 +4087,6 @@ MegaApiImpl::~MegaApiImpl()
 #endif
 
     fireOnRequestFinish(request, MegaError(API_OK));
-
-#ifdef HAVE_LIBUV
-    if (MegaTCPServer::uvthread)
-    {
-        MegaTCPServer::uvthread->join();
-        delete MegaTCPServer::uvthread;
-        MegaTCPServer::uvthread = NULL;
-        delete MegaTCPServer::uvstarterserver;
-        MegaTCPServer::uvstarterserver = NULL;
-    }
-#endif
-
-
 }
 
 int MegaApiImpl::isLoggedIn()
@@ -7413,9 +7392,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     httpServer->setRestrictedMode(httpServerRestrictedMode);
     httpServer->enableSubtitlesSupport(httpServerRestrictedMode);
 
-    sdkMutex.unlock();
     bool result = httpServer->start(port, localOnly);
-    sdkMutex.lock();
     if (!result)
     {
         MegaHTTPServer *server = httpServer;
@@ -7439,10 +7416,7 @@ void MegaApiImpl::httpServerStop()
         httpServer = NULL;
         sdkMutex.unlock();
         server->stop();
-        if (server->uvstartedbyother)
-        {
-            delete server;
-        }
+        delete server;
     }
     else
     {
@@ -7815,9 +7789,7 @@ bool MegaApiImpl::ftpServerStart(bool localOnly, int port, int dataportBegin, in
     ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
     ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
 
-    sdkMutex.unlock();
     bool result = ftpServer->start(port, localOnly);
-    sdkMutex.lock();
     if (!result)
     {
         MegaFTPServer *server = ftpServer;
@@ -7841,10 +7813,7 @@ void MegaApiImpl::ftpServerStop()
         ftpServer = NULL;
         sdkMutex.unlock();
         server->stop();
-        if (server->uvstartedbyother)
-        {
-            delete server;
-        }
+        delete server;
     }
     else
     {
@@ -21523,19 +21492,11 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 // http_parser settings
 http_parser_settings MegaTCPServer::parsercfg;
 
-// libuv control
-uv_mutex_t MegaTCPServer::mutexinitializeuvloop;
-uv_async_s MegaTCPServer::asynchandleoflibuvinitializer;
-bool MegaTCPServer::uvloopinitiated = false;
-MegaThread *MegaTCPServer::uvthread = NULL;
-MegaTCPServer *MegaTCPServer::uvstarterserver = NULL;
-
 MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
 {
     this->megaApi = megaApi;
     this->localOnly = true;
     this->started = false;
-    this->uvstartedbyother = false;
     this->port = 0;
     this->maxBufferSize = 0;
     this->maxOutputSize = 0;
@@ -21571,12 +21532,6 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
     semaphoresdestroyed = false;
     uv_sem_init(&semaphoreEnd, 0);
     uv_sem_init(&semaphoreStartup, 0);
-    static bool mutexuvloop_initialized = false;
-    if (!mutexuvloop_initialized)
-    {
-        uv_mutex_init(&MegaTCPServer::mutexinitializeuvloop);
-        mutexuvloop_initialized = true;
-    }
 }
 
 MegaTCPServer::~MegaTCPServer()
@@ -21586,22 +21541,14 @@ MegaTCPServer::~MegaTCPServer()
     uv_sem_destroy(&semaphoreStartup);
     uv_sem_destroy(&semaphoreEnd);
     delete fsAccess;
-    if (uvstartedbyother)
-    {
-        #ifdef ENABLE_EVT_TLS
-        if (useTLS && evtrequirescleaning)
-        {
-            //evt_ctx_free(&evtctx); //This causes invalid free! collides with memory allocated elsewhere (e.g: via curl_global_init!)
-            SSL_CTX_free(evtctx.ctx);
-            evtrequirescleaning = false;
-        }
-        #endif
-        thread->join();
-        delete thread;
-    }
+
+    LOG_verbose << " MegaTCPServer::~MegaTCPServer joining uv thread";
+    thread->join();
+    LOG_verbose << " MegaTCPServer::~MegaTCPServer deleting uv thread";
+    delete thread;
 }
 
-bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
+bool MegaTCPServer::start(int port, bool localOnly)
 {
     if (started && this->port == port && this->localOnly == localOnly)
     {
@@ -21615,16 +21562,11 @@ bool MegaTCPServer::start(int port, bool localOnly, bool alreadyinuvthread)
 
     this->port = port;
     this->localOnly = localOnly;
-    if (alreadyinuvthread)
-    {
-        initializeAndStartListening();
-    }
-    else
-    {
-        thread->start(threadEntryPoint, this);
-        uv_sem_wait(&semaphoreStartup);
-    }
-    LOG_verbose << "MegaTCPServer::start, returning " << started;
+
+    thread->start(threadEntryPoint, this);
+    uv_sem_wait(&semaphoreStartup);
+
+    LOG_verbose << "MegaTCPServer::start. port = " << port << ", returning " << started;
     return started;
 }
 
@@ -21668,20 +21610,7 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 
 void MegaTCPServer::run()
 {
-    uv_mutex_lock(&mutexinitializeuvloop);
     LOG_debug << " Running tcp server: " << port << " TLS=" << useTLS;
-
-    if (uvloopinitiated)
-    {
-        uvstartedbyother = true;
-
-        LOG_debug << " Delegating initialization to existing uv thread, port = " << port << " TLS=" << useTLS << " handle=" << &asynchandleoflibuvinitializer;
-
-        asynchandleoflibuvinitializer.data = this;
-        uv_async_send(&asynchandleoflibuvinitializer);
-        uv_mutex_unlock(&mutexinitializeuvloop);
-        return;
-    }
 
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -21698,12 +21627,12 @@ void MegaTCPServer::run()
     }
 #endif
 
-    uv_loop_t *uv_loop = uv_default_loop();
+    uv_loop_init(&uv_loop);
 
-    uv_async_init(uv_loop, &exit_handle, onCloseRequested);
+    uv_async_init(&uv_loop, &exit_handle, onCloseRequested);
     exit_handle.data = this;
 
-    uv_tcp_init(uv_loop, &server);
+    uv_tcp_init(&uv_loop, &server);
     server.data = this;
 
     uv_tcp_keepalive(&server, 0, 0);
@@ -21736,21 +21665,12 @@ void MegaTCPServer::run()
     {
         LOG_err << "TCP failed to bind/listen port = " << port;
         port = 0;
-        if (uvloopinitiated)
-        {
-            uv_async_send(&exit_handle);
-            //This is required in case uv_loop was already running so as to free references to "this".
-            // a uv_sem_post will be required there, so that we can delete the server accordingly
-        }
-        else
-        {
-            uv_close((uv_handle_t *)&exit_handle,NULL);
-            uv_close((uv_handle_t *)&server,NULL);
-            uv_sem_post(&semaphoreStartup);
-            uv_run(uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
-            uv_sem_post(&semaphoreEnd);
-        }
-        uv_mutex_unlock(&mutexinitializeuvloop);
+
+        uv_close((uv_handle_t *)&exit_handle,NULL);
+        uv_close((uv_handle_t *)&server,NULL);
+        uv_sem_post(&semaphoreStartup);
+        uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
+        uv_sem_post(&semaphoreEnd);
         return;
     }
 
@@ -21758,40 +21678,25 @@ void MegaTCPServer::run()
     started = true;
     uv_sem_post(&semaphoreStartup);
 
-    if (!uvloopinitiated)
-    {
-        LOG_info << "Starting uv loop ...";
+    LOG_info << "Starting uv loop ...";
+    uv_run(&uv_loop, UV_RUN_DEFAULT);
 
-        uv_async_init(uv_loop, &asynchandleoflibuvinitializer, onInitializeRequest);
-        uvloopinitiated = true;
-        uvthread = thread;
-        uvstarterserver = this;
-        uv_mutex_unlock(&mutexinitializeuvloop);
-        uv_run(uv_loop, UV_RUN_DEFAULT);
-        uvloopinitiated = false;
-
-        LOG_info << "UV loop ended";
+    LOG_info << "UV loop ended";
 #ifdef ENABLE_EVT_TLS
-        if (useTLS)
-        {
-            evt_ctx_free(&evtctx);
-        }
-#endif
-        uv_loop_close(uv_loop);
-        started = false;
-        port = 0;
-        LOG_debug << "UV loop thread exit";
-    }
-    else
+    if (useTLS)
     {
-        LOG_debug << "UV loop already alive!";
-        uv_mutex_unlock(&mutexinitializeuvloop);
+        //evt_ctx_free(&evtctx); //This causes invalid free when called second time!! collides with memory allocated elsewhere (e.g: via curl_global_init!)
+        SSL_CTX_free(evtctx.ctx);
     }
+#endif
+    uv_loop_close(&uv_loop);
+    started = false;
+    port = 0;
+    LOG_debug << "UV loop thread exit";
 }
 
 void MegaTCPServer::initializeAndStartListening()
 {
-    uvstartedbyother = true;
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
     {
@@ -21808,12 +21713,12 @@ void MegaTCPServer::initializeAndStartListening()
     }
 #endif
 
-    uv_loop_t *uv_loop = uv_default_loop();
+    uv_loop_init(&uv_loop);
 
-    uv_async_init(uv_loop, &exit_handle, onCloseRequested);
+    uv_async_init(&uv_loop, &exit_handle, onCloseRequested);
     exit_handle.data = this;
 
-    uv_tcp_init(uv_loop, &server);
+    uv_tcp_init(&uv_loop, &server);
     server.data = this;
 
     uv_tcp_keepalive(&server, 0, 0);
@@ -22020,8 +21925,16 @@ void MegaTCPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
     MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
     assert(tcpctx != NULL);
 
-    LOG_debug << "TLS connection closed";
-    closeTCPConnection(tcpctx);
+    LOG_debug << "TLS connection closed. status = " << status;
+
+    if (status == 1)
+    {
+        closeTCPConnection(tcpctx);
+    }
+    else
+    {
+        LOG_debug << "TLS connection closed failed!!! status = " << status;
+    }
 }
 
 void MegaTCPServer::on_hd_complete( evt_tls_t *evt_tls, int status)
@@ -22060,10 +21973,10 @@ void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
     uv_mutex_init(&tcpctx->mutex);
 
     // Async handle to perform writes
-    uv_async_init(uv_default_loop(), &tcpctx->asynchandle, onAsyncEvent);
+    uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
 
     // Accept the connection
-    uv_tcp_init(uv_default_loop(), &tcpctx->tcphandle);
+    uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
     if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
     {
         LOG_err << "uv_accept failed";
@@ -22080,6 +21993,8 @@ void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
         evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
         return;
     }
+
+    tcpctx->server->connections.push_back(tcpctx);
 
     tcpctx->server->readData(tcpctx);
 }
@@ -22117,10 +22032,10 @@ void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
     uv_mutex_init(&tcpctx->mutex);
 
     // Async handle to perform writes
-    uv_async_init(uv_default_loop(), &tcpctx->asynchandle, onAsyncEvent);
+    uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
 
     // Accept the connection
-    uv_tcp_init(uv_default_loop(), &tcpctx->tcphandle);
+    uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
     if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
     {
         LOG_err << "uv_accept failed";
@@ -22128,6 +22043,7 @@ void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
         return;
     }
 
+    tcpctx->server->connections.push_back(tcpctx);
     if (tcpctx->server->respondNewConnection(tcpctx))
     {
         // Start reading
@@ -22164,6 +22080,7 @@ void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *d
     {
         if (evt_tls_is_handshake_over(tcpctx->evt_tls))
         {
+            LOG_verbose << "MegaTCPServer::on_tcp_read calling processReceivedData";
             tcpctx->server->processReceivedData(tcpctx, nrd, data);
             evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
         }
@@ -22248,11 +22165,11 @@ void MegaTCPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
     {
         if (tcpctx->size == tcpctx->bytesWritten && !tcpctx->writePointers.size())
         {
-            LOG_debug << "TCP link closed, shutdown result: " << status;
+            LOG_debug << "TCP link closed, shutdown result: " << status << " port = " << tcpctx->server->port;
         }
         else
         {
-            LOG_debug << "TCP link closed, ignoring the result of the async TLS write: " << status;
+            LOG_debug << "TCP link closed, ignoring the result of the async TLS write: " << status << " port = " << tcpctx->server->port;
         }
         return;
     }
@@ -22272,6 +22189,7 @@ void MegaTCPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
     }
 
     LOG_verbose << "Async TLS write finished";
+    uv_async_send(&tcpctx->asynchandle);
 }
 #endif
 
@@ -22316,6 +22234,7 @@ void MegaTCPServer::onAsyncEvent(uv_async_t* handle)
 {
     MegaTCPContext* tcpctx = (MegaTCPContext*) handle->data;
 
+    assert(tcpctx->server != NULL);
 #ifdef ENABLE_EVT_TLS
     if (tcpctx->server->useTLS && !evt_tls_is_handshake_over(tcpctx->evt_tls))
     {
@@ -22334,12 +22253,13 @@ void MegaTCPServer::onExitHandleClose(uv_handle_t *handle)
     tcpServer->remainingcloseevents--;
     LOG_verbose << "At onExitHandleClose port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
 
+    tcpServer->processOnExitHandleClose(tcpServer);
+
     if (!tcpServer->remainingcloseevents && !tcpServer->semaphoresdestroyed)
     {
         uv_sem_post(&tcpServer->semaphoreStartup);
         uv_sem_post(&tcpServer->semaphoreEnd);
     }
-    tcpServer->processOnExitHandleClose(tcpServer);
 }
 
 void MegaTCPServer::onCloseRequested(uv_async_t *handle)
@@ -22361,22 +22281,6 @@ void MegaTCPServer::onCloseRequested(uv_async_t *handle)
     tcpServer->remainingcloseevents++;
     LOG_verbose << "At onCloseRequested: closing exit_handle port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
     uv_close((uv_handle_t *)&tcpServer->exit_handle, onExitHandleClose);
-}
-
-void MegaTCPServer::onInitializeRequest(uv_async_t *handle)
-{
-    MegaTCPServer *tcpServer = (MegaTCPServer*) handle->data;
-    if (!tcpServer) //close requested
-    {
-        LOG_verbose << "Closing libuv initializer async handle";
-        uv_close((uv_handle_t *)handle, NULL);
-    }
-    else
-    {
-        LOG_verbose << "MegaTCPServer::onInitializeRequest port = " << tcpServer->port;
-        tcpServer->initializeAndStartListening();
-        handle->data = NULL;
-    }
 }
 
 void MegaTCPServer::closeConnection(MegaTCPContext *tcpctx)
@@ -22418,6 +22322,16 @@ void MegaTCPServer::processOnExitHandleClose(MegaTCPServer *tcpServer) // withou
     LOG_debug << "At supposed to be virtual processOnExitHandleClose";
 }
 
+void MegaTCPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t *buf)
+{
+    LOG_debug << "At supposed to be virtual processReceivedData";
+}
+
+void MegaTCPServer::processAsyncEvent(MegaTCPContext *tcpctx)
+{
+    LOG_debug << "At supposed to be virtual processAsyncEvent";
+}
+
 ///////////////////////////////
 //  MegaHTTPServer specifics //
 ///////////////////////////////
@@ -22455,7 +22369,6 @@ MegaTCPContext * MegaHTTPServer::initializeContext(uv_stream_t *server_handle)
     httpctx->parser.data = httpctx;
     httpctx->tcphandle.data = httpctx;
     httpctx->asynchandle.data = httpctx;
-    server->connections.push_back(httpctx);
 
     return httpctx;
 }
@@ -22578,6 +22491,9 @@ void MegaHTTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
 
 MegaHTTPServer::~MegaHTTPServer()
 {
+    // if not stopped, the uv thread might want to access a pointer to this.
+    // though this is done in the parent destructor, it could try to access it after vtable has been erased
+    stop();
 }
 
 bool MegaHTTPServer::isHandleWebDavAllowed(handle h)
@@ -24640,6 +24556,9 @@ MegaFTPServer::MegaFTPServer(MegaApiImpl *megaApi, string basePath, int dataport
 
 MegaFTPServer::~MegaFTPServer()
 {
+    // if not stopped, the uv thread might want to access a pointer to this.
+    // though this is done in the parent destructor, it could try to access it after vtable has been erased
+    stop();
 }
 
 MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
@@ -24652,7 +24571,6 @@ MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
     ftpctx->megaApi = server->megaApi;
     ftpctx->tcphandle.data = ftpctx;
     ftpctx->asynchandle.data = ftpctx;
-    server->connections.push_back(ftpctx);
 
     return ftpctx;
 }
@@ -24780,7 +24698,7 @@ string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
     }
 }
 
-void MegaFTPServer::returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e, bool synchronous)
+void MegaFTPServer::returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e)
 {
     int reqError = e->getErrorCode();
     int ftpreturncode = 500;
@@ -24815,10 +24733,10 @@ void MegaFTPServer::returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, Meg
 
     LOG_debug << "FTP petition failed. request error = " << reqError << " FTP status to return = " << ftpreturncode;
     string errorMessage = e->getErrorString(reqError);
-    return returnFtpCode(ftpctx, ftpreturncode, errorMessage, synchronous);
+    return returnFtpCode(ftpctx, ftpreturncode, errorMessage);
 }
 
-void MegaFTPServer::returnFtpCode(MegaFTPContext* ftpctx, int errorCode, string errorMessage, bool synchronous)
+void MegaFTPServer::returnFtpCode(MegaFTPContext* ftpctx, int errorCode, string errorMessage)
 {
     MegaFTPServer* ftpserver = dynamic_cast<MegaFTPServer *>(ftpctx->server);
 
@@ -24827,27 +24745,20 @@ void MegaFTPServer::returnFtpCode(MegaFTPContext* ftpctx, int errorCode, string 
              << ftpserver->crlfout;
 
     string resstr = response.str();
-    if (synchronous)
-    {
-        ftpserver->answer(ftpctx, resstr.c_str(), resstr.size());
-    }
-    else
-    {
-        uv_mutex_lock(&ftpctx->mutex_responses);
-        ftpctx->responses.push_back(resstr);
-        uv_mutex_unlock(&ftpctx->mutex_responses);
-        uv_async_send(&ftpctx->asynchandle);
-    }
+    uv_mutex_lock(&ftpctx->mutex_responses);
+    ftpctx->responses.push_back(resstr);
+    uv_mutex_unlock(&ftpctx->mutex_responses);
+    uv_async_send(&ftpctx->asynchandle);
 }
 
 void MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e)
 {
-    return returnFtpCodeBasedOnRequestError(ftpctx, e, false);
+    return returnFtpCodeBasedOnRequestError(ftpctx, e);
 }
 
 void MegaFTPServer::returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, string errorMessage)
 {
-    return returnFtpCode(ftpctx, errorCode, errorMessage, false);
+    return returnFtpCode(ftpctx, errorCode, errorMessage);
 }
 
 // you get the ownership
@@ -24933,7 +24844,10 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
     }
     else if (ftpctx->athandle && path.size() && path.at(0) != '/')
     {
-        string handle = ftpctx->megaApi->handleToBase64(ftpctx->cwd);
+        char *cshandle = ftpctx->megaApi->handleToBase64(ftpctx->cwd);
+        string handle(cshandle);
+        delete []cshandle;
+
         path="/"+handle+"/"+path;
     }
     else if (path.size() && path.at(0) != '/')
@@ -25158,7 +25072,11 @@ std::string MegaFTPServer::cd(string newpath, MegaFTPContext* ftpctx)
     ftpctx->cwdpath = shortenpath(ftpctx->cwdpath);
     ftpctx->athandle = false;
     string handlepath = "/";
-    string shandle = megaApi->handleToBase64(newcwd->getHandle());
+
+    char *cshandle = megaApi->handleToBase64(newcwd->getHandle());
+    string shandle(cshandle);
+    delete []cshandle;
+
     handlepath.append(shandle);
     if (ftpctx->cwdpath == handlepath || ftpctx->cwdpath == shandle || ftpctx->cwdpath == (handlepath +"/") )
     {
@@ -25574,7 +25492,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 #else
                 MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, string(), string());
 #endif
-                bool result = fds->start(ftpctx->pasiveport, localOnly, true);
+                bool result = fds->start(ftpctx->pasiveport, localOnly);
                 if (result)
                 {
                     ftpctx->ftpDataServer = fds;
@@ -25682,7 +25600,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
 
             MegaNode *node = NULL;
-            if (ftpctx->arg1.size() && ftpctx->arg1 != "-l")
+            if (ftpctx->arg1.size() && ftpctx->arg1 != "-l" && ftpctx->arg1 != "-a")
             {
                 node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
             }
@@ -26150,7 +26068,7 @@ void MegaFTPServer::processAsyncEvent(MegaTCPContext *tcpctx)
 
     if (tcpctx->finished)
     {
-        LOG_debug << "HTTP link closed, ignoring async event";
+        LOG_debug << "FTP link closed, ignoring async event";
         return;
     }
 
@@ -26167,7 +26085,7 @@ void MegaFTPServer::processAsyncEvent(MegaTCPContext *tcpctx)
 
 void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 {
-
+    LOG_verbose << "At MegaFTPServer::processOnAsyncEventClose";
 }
 
 void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
@@ -26238,7 +26156,7 @@ MegaFTPContext::~MegaFTPContext()
 {
     if (ftpDataServer)
     {
-        ftpDataServer->stop(true);
+        delete ftpDataServer;
     }
     if (tmpFileName.size())
     {
@@ -26256,6 +26174,7 @@ void MegaFTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
 
 bool MegaFTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
 {
+    LOG_verbose << "MegaFTPContext::onTransferData";
     return true;
 }
 
@@ -26418,13 +26337,19 @@ MegaFTPDataServer::MegaFTPDataServer(MegaApiImpl *megaApi, string basePath, Mega
     this->controlftpctx = controlftpctx;
     this->nodeToDownload = NULL;
     this->rangeStartREST = 0;
-    notifyNewConnectionRequired = false;
+    this->notifyNewConnectionRequired = false;
     this->newParentNodeHandle = UNDEF;
 }
 
 MegaFTPDataServer::~MegaFTPDataServer()
 {
+    LOG_verbose << "MegaFTPDataServer::~MegaFTPDataServer";
     delete nodeToDownload;
+
+    // if not stopped, the uv thread might want to access a pointer to this.
+    // though this is done in the parent destructor, it could try to access it after vtable has been erased
+    stop();
+    LOG_verbose << "MegaFTPDataServer::~MegaFTPDataServer. end";
 }
 
 MegaTCPContext* MegaFTPDataServer::initializeContext(uv_stream_t *server_handle)
@@ -26441,7 +26366,6 @@ MegaTCPContext* MegaFTPDataServer::initializeContext(uv_stream_t *server_handle)
 //    ftpctx->parser.data = ftpctx;
     ftpctx->tcphandle.data = ftpctx;
     ftpctx->asynchandle.data = ftpctx;
-    server->connections.push_back(ftpctx);
 
     return ftpctx;
 }
@@ -26453,7 +26377,7 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
         LOG_warn << " error received at processWriteFinished: " << status << ": " << uv_err_name(status);
     }
 
-    MegaFTPDataContext* ftpctx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
+    MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
 
     LOG_debug << " processWriteFinished on MegaFTPDataServer. status = " << status;
     if (resultmsj.size())
@@ -26462,8 +26386,7 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 
         if (this->controlftpctx)
         {
-            MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(this->controlftpctx->server);
-            ftpControlServer->returnFtpCode(this->controlftpctx, 226);
+            ftpdatactx->setControlCodeUponDataClose(226);
         }
         else
         {
@@ -26473,11 +26396,11 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
     }
     else // transfering node (download)
     {
-        ftpctx->bytesWritten += ftpctx->lastBufferLen;
-        LOG_verbose << "Bytes written: " << ftpctx->lastBufferLen << " Remaining: " << (ftpctx->size - ftpctx->bytesWritten);
-        ftpctx->lastBuffer = NULL;
+        ftpdatactx->bytesWritten += ftpdatactx->lastBufferLen;
+        LOG_verbose << "Bytes written: " << ftpdatactx->lastBufferLen << " Remaining: " << (ftpdatactx->size - ftpdatactx->bytesWritten);
+        ftpdatactx->lastBuffer = NULL;
 
-        if (status < 0 || ftpctx->size == ftpctx->bytesWritten)
+        if (status < 0 || ftpdatactx->size == ftpdatactx->bytesWritten)
         {
             if (status < 0)
             {
@@ -26490,47 +26413,49 @@ void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
 
             if (this->controlftpctx)
             {
-                MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(this->controlftpctx->server);
-                ftpControlServer->returnFtpCode(this->controlftpctx, 226);
+                ftpdatactx->setControlCodeUponDataClose(226);
             }
             else
             {
                 LOG_verbose << "Avoiding waking controlftp aync handle, ftpctx already closed";
             }
-            closeConnection(ftpctx);
+            closeConnection(ftpdatactx);
             return;
         }
 
-        uv_mutex_lock(&ftpctx->mutex);
-        if (ftpctx->lastBufferLen)
+        uv_mutex_lock(&ftpdatactx->mutex);
+        if (ftpdatactx->lastBufferLen)
         {
-            ftpctx->streamingBuffer.freeData(ftpctx->lastBufferLen);
-            ftpctx->lastBufferLen = 0;
+            ftpdatactx->streamingBuffer.freeData(ftpdatactx->lastBufferLen);
+            ftpdatactx->lastBufferLen = 0;
         }
 
-        if (ftpctx->pause)
+        if (ftpdatactx->pause)
         {
-            if (ftpctx->streamingBuffer.availableSpace() > ftpctx->streamingBuffer.availableCapacity() / 2)
+            if (ftpdatactx->streamingBuffer.availableSpace() > ftpdatactx->streamingBuffer.availableCapacity() / 2)
             {
-                ftpctx->pause = false;
-                m_off_t start = ftpctx->rangeStart + ftpctx->rangeWritten + ftpctx->streamingBuffer.availableData();
-                m_off_t len =  /*ftpctx->rangeEnd */ ftpctx->size - ftpctx->rangeStart -  ftpctx->rangeWritten - ftpctx->streamingBuffer.availableData();
+                ftpdatactx->pause = false;
+                m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten + ftpdatactx->streamingBuffer.availableData();
+                m_off_t len =  ftpdatactx->rangeEnd - ftpdatactx->rangeStart -  ftpdatactx->rangeWritten - ftpdatactx->streamingBuffer.availableData();
 
                 LOG_debug << "Resuming streaming from " << start << " len: " << len
-                         << " Buffer status: " << ftpctx->streamingBuffer.availableSpace()
-                         << " of " << ftpctx->streamingBuffer.availableCapacity() << " bytes free";
-                ftpctx->megaApi->startStreaming(ftpctx->node, start, len, ftpctx);
+                         << " Buffer status: " << ftpdatactx->streamingBuffer.availableSpace()
+                         << " of " << ftpdatactx->streamingBuffer.availableCapacity() << " bytes free";
+                ftpdatactx->megaApi->startStreaming(ftpdatactx->node, start, len, ftpdatactx);
             }
         }
-        uv_mutex_unlock(&ftpctx->mutex);
+        uv_mutex_unlock(&ftpdatactx->mutex);
 
-        uv_async_send(&ftpctx->asynchandle);
+        uv_async_send(&ftpdatactx->asynchandle);
     }
 }
 
 void MegaFTPDataServer::sendData()
 {
     MegaTCPContext * tcpctx = NULL;
+
+    this->notifyNewConnectionRequired = true;
+
     if (connections.size())
     {
         tcpctx = connections.back(); //only interested in the last connection received (the one that needs response)
@@ -26542,14 +26467,33 @@ void MegaFTPDataServer::sendData()
     if (tcpctx)
     {
         LOG_verbose << "MegaFTPDataServer::sendData. triggering asyncsend for tcpctx=" << tcpctx;
-#ifdef ENABLE_EVT_TLS
-        if (useTLS && !evt_tls_is_handshake_over(tcpctx->evt_tls))
+        if (tcpctx->evt_tls == NULL)
         {
-            this->notifyNewConnectionRequired = true;
+            LOG_warn << "MegaFTPDataServer::sendData, evt_tls is NULL";
+        }
+
+#ifdef ENABLE_EVT_TLS
+        if (useTLS && (!tcpctx->evt_tls || tcpctx->finished || !evt_tls_is_handshake_over(tcpctx->evt_tls)))
+        {
+            if (!tcpctx->evt_tls)
+            {
+                LOG_verbose << "MegaFTPDataServer::sendData. no evt_tls";
+            }
+            else if (tcpctx->finished)
+            {
+                LOG_verbose << "MegaFTPDataServer::sendData. tcpctx->finished";
+                this->notifyNewConnectionRequired = false;
+            }
+            else
+            {
+                LOG_verbose << "MegaFTPDataServer::sendData. handshake not over";
+            }
         }
         else
         {
 #endif
+            LOG_verbose << "MegaFTPDataServer::sendData. do triggering asyncsend 03";
+            this->notifyNewConnectionRequired = false;
             uv_async_send(&tcpctx->asynchandle);
 #ifdef ENABLE_EVT_TLS
         }
@@ -26592,8 +26536,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
 
             if(!ftpdatactx->tmpFileAccess->fopen(&localPath, false, true))
             {
-                MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(fds->controlftpctx->server);
-                ftpControlServer->returnFtpCode(this->controlftpctx, 450);
+                ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
                 closeConnection(tcpctx);
                 return;
@@ -26605,8 +26548,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             LOG_verbose << " Writting " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
             if(!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
             {
-                MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(fds->controlftpctx->server);
-                ftpControlServer->returnFtpCode(this->controlftpctx, 450);
+                ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
                 closeConnection(tcpctx);
             }
@@ -26632,19 +26574,19 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
                 LOG_debug << "Starting upload of file " << fds->newNameToUpload;
                 fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
                 ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(), fds->controlftpctx);
+                ftpdatactx->controlRespondedElsewhere = true;
             }
             else
             {
                 LOG_err << "Unable to start upload: " << fds->newNameToUpload;
-                MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(this->controlftpctx->server);
-                ftpControlServer->returnFtpCode(this->controlftpctx, 550, "Destination folder not available");
+                ftpdatactx->setControlCodeUponDataClose(550, "Destination folder not available");
             }
             ftpdatactx->tmpFileName="";
         }
         else
         {
             LOG_err << "Data channel received close without tmp file created!";
-            ftpControlServer->returnFtpCode(this->controlftpctx, 426);
+            ftpdatactx->setControlCodeUponDataClose(426);
         }
 
         ftpdatactx->tmpFileName = ""; // empty so that we don't try to upload it
@@ -26663,7 +26605,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
 
     if (ftpdatactx->finished)
     {
-        LOG_debug << "HTTP link closed, ignoring async event";
+        LOG_debug << "FTP DATA link closed, ignoring async event";
         return;
     }
 
@@ -26725,6 +26667,8 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             {
                 start = ftpdatactx->rangeStart;
             }
+            ftpdatactx->rangeEnd = end + 1;
+
             ftpdatactx->rangeStart = start;
 
             //bool rangeRequested = (/*ftpdatactx->rangeEnd*/ - ftpdatactx->rangeStart) != totalSize;
@@ -26735,7 +26679,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->lastBufferLen = 0;
             ftpdatactx->transfer->setStartPos(0);
             ftpdatactx->transfer->setEndPos(end); //This will actually be override later
-            ftpdatactx->node = nodeToDownload;
+            ftpdatactx->node = nodeToDownload->copy();
 
     //        string resstr = response.str();
 
@@ -26793,6 +26737,13 @@ void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
         LOG_verbose << "MegaFTPDataServer::processOnAsyncEventClose stopping without waiting. port = " << fds->port;
         fds->stop(true);
     }
+
+    if (!ftpdatactx->controlRespondedElsewhere)
+    {
+        LOG_debug << "MegaFTPDataServer::processOnAsyncEventClose port = " << fds->port << ". Responding " << ftpdatactx->controlResponseCode << ". " << ftpdatactx->controlResponseMessage;
+        MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(fds->controlftpctx->server);
+        ftpControlServer->returnFtpCode(this->controlftpctx, ftpdatactx->controlResponseCode, ftpdatactx->controlResponseMessage);
+    }
 }
 
 bool MegaFTPDataServer::respondNewConnection(MegaTCPContext* tcpctx)
@@ -26800,6 +26751,7 @@ bool MegaFTPDataServer::respondNewConnection(MegaTCPContext* tcpctx)
     MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
     if (notifyNewConnectionRequired) //in some cases, control connection tried this before the ftpdatactx was ready. this fixes that
     {
+        LOG_verbose << "MegaFTPDataServer::respondNewConnection async sending to notify new connection";
         uv_async_send(&ftpdatactx->asynchandle);
         notifyNewConnectionRequired = false;
     }
@@ -26809,15 +26761,6 @@ bool MegaFTPDataServer::respondNewConnection(MegaTCPContext* tcpctx)
 
 void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
 {
-    MegaFTPDataServer* ftpDataServer = dynamic_cast<MegaFTPDataServer *>(tcpServer);
-
-    LOG_verbose << "MegaFTPDataServer::processOnExitHandleClose remaining = " << ftpDataServer->remainingcloseevents << " port = " << ftpDataServer->port;;
-
-    if (!ftpDataServer->remainingcloseevents && ftpDataServer->closing)
-    {
-        LOG_debug << " deleting MegaFTPDataServer due to zero remaining close events at exit handle port= " << ftpDataServer->port;
-        delete ftpDataServer;
-    }
 }
 
 void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
@@ -26853,11 +26796,11 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
 
     if (!resbuf.len)
     {
-        LOG_verbose << "Skipping write. No data available";
+        LOG_verbose << "Skipping write. No data available." << " buffered = " << ftpdatactx->streamingBuffer.availableData();
         return;
     }
 
-    LOG_verbose << "Writting " << resbuf.len << " bytes";
+    LOG_verbose << "Writting " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
     ftpdatactx->rangeWritten += resbuf.len;
     ftpdatactx->lastBuffer = resbuf.base;
     ftpdatactx->lastBufferLen = resbuf.len;
@@ -26904,14 +26847,23 @@ MegaFTPDataContext::MegaFTPDataContext()
     rangeStart = 0;
     tmpFileAccess = NULL;
     tmpFileSize = 0;
+    this->controlRespondedElsewhere = false;
+    this->controlResponseCode = 426;
 }
 
 MegaFTPDataContext::~MegaFTPDataContext()
 {
     delete transfer;
     delete tmpFileAccess;
+
+    delete node;
 }
 
+void MegaFTPDataContext::setControlCodeUponDataClose(int code, string msg)
+{
+    controlResponseCode = code;
+    controlResponseMessage = msg;
+}
 
 void MegaFTPDataContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
 {
@@ -26922,6 +26874,8 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
 {
     LOG_verbose << "Streaming data received: " << transfer->getTransferredBytes()
                 << " Size: " << size
+                << " Remaining from transfer: "   << (size + (transfer->getTotalBytes() - transfer->getTransferredBytes()) )
+                << " Remaining to write TCP: "   << (this->size - bytesWritten)
                 << " Queued: " << this->tcphandle.write_queue_size
                 << " Buffered: " << streamingBuffer.availableData()
                 << " Free: " << streamingBuffer.availableSpace();
@@ -26952,6 +26906,7 @@ bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char 
 
 void MegaFTPDataContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
 {
+    LOG_verbose << "MegaFTPDataContext::onTransferFinish";
     if (finished)
     {
         LOG_debug << "FTP Data link closed";

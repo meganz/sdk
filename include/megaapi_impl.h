@@ -2586,7 +2586,7 @@ class MegaTCPContext : public MegaTransferListener, public MegaRequestListener
 {
 public:
     MegaTCPContext();
-    ~MegaTCPContext();
+    virtual ~MegaTCPContext();
 
     // Connection management
     MegaTCPServer *server;
@@ -2630,7 +2630,7 @@ protected:
     static void *threadEntryPoint(void *param);
     static http_parser_settings parsercfg;
 
-    static uv_mutex_t mutexinitializeuvloop;
+    uv_loop_t uv_loop;
 
     set<handle> allowedHandles;
     handle lastHandle;
@@ -2682,7 +2682,6 @@ protected:
     static void onExitHandleClose(uv_handle_t* handle);
 
     static void onCloseRequested(uv_async_t* handle);
-    static void onInitializeRequest(uv_async_t* handle);
 
     static void onWriteFinished(uv_write_t* req, int status); //This might need to go to HTTPServer
 #ifdef ENABLE_EVT_TLS
@@ -2698,8 +2697,8 @@ protected:
 
 
     //virtual methods:
-    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf) = 0;
-    virtual void processAsyncEvent(MegaTCPContext *tcpctx) = 0;
+    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
     virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle) = 0;
     virtual void processWriteFinished(MegaTCPContext* tcpctx, int status) = 0;
     virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
@@ -2709,17 +2708,12 @@ protected:
 public:
     bool useTLS;
     MegaFileSystemAccess *fsAccess;
-    static bool uvloopinitiated;
-    static uv_async_s asynchandleoflibuvinitializer;
-    static MegaThread *uvthread;
-    static MegaTCPServer *uvstarterserver;
 
     std::string basePath;
-    bool uvstartedbyother;
 
     MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
     virtual ~MegaTCPServer();
-    bool start(int port, bool localOnly = true, bool alreadyinuvthread = false);
+    bool start(int port, bool localOnly = true);
     void stop(bool doNotWait = false);
     int getPort();
     bool isLocalOnly();
@@ -2983,8 +2977,8 @@ public:
 
     static std::string getFTPErrorString(int errorcode, std::string argument = string());
 
-    static void returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e, bool synchronous = true);
-    static void returnFtpCode(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string(), bool synchronous = true);
+    static void returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
+    static void returnFtpCode(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
 
     static void returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
     static void returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
@@ -3036,6 +3030,8 @@ public:
     MegaFTPDataContext();
     ~MegaFTPDataContext();
 
+    void setControlCodeUponDataClose(int code, std::string msg = string());
+
     // Connection management
     StreamingBuffer streamingBuffer;
     MegaTransferPrivate *transfer;
@@ -3052,6 +3048,10 @@ public:
     std::string tmpFileName;
     FileAccess* tmpFileAccess;
     size_t tmpFileSize;
+
+    bool controlRespondedElsewhere;
+    string controlResponseMessage;
+    int controlResponseCode;
 
     virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
