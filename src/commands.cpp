@@ -1046,11 +1046,13 @@ void CommandPutNodes::procresult()
     e = API_EINTERNAL;
 
     bool noexit = true;
+    bool empty = false;
     while (noexit)
     {
         switch (client->json.getnameid())
         {
             case 'f':
+                empty = !memcmp(client->json.pos, "[]", 2);
                 if (client->readnodes(&client->json, 1, source, nn, nnsize, tag))
                 {
                     e = API_OK;
@@ -1113,7 +1115,7 @@ void CommandPutNodes::procresult()
             }
         }
 #endif
-        client->app->putnodes_result(e, type, nn);
+        client->app->putnodes_result((!e && empty) ? API_ENOENT : e, type, nn);
     }
 #ifdef ENABLE_SYNC
     else
