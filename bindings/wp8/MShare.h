@@ -49,6 +49,16 @@ namespace mega
         int getAccess();
         uint64 getTimestamp();
 
+        /**
+        * @brief Returns true if the sharing is pending
+        *
+        * A sharing is pending when the folder has been shared with a user (or email) that
+        * is not still a contact of this account.
+        *
+        * @return True if the sharing is pending, otherwise false.
+        */
+        bool isPending();
+    
     private:
         MShare(MegaShare *megaShare, bool cMemoryOwn);
         MegaShare *megaShare;

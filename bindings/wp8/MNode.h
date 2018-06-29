@@ -78,6 +78,19 @@ namespace mega
         uint64 getCreationTime();
         uint64 getModificationTime();
         uint64 getHandle();
+
+        /**
+        * @brief Returns the handle of the previous parent of this node.
+        *
+        * This attribute is set when nodes are moved to the Rubbish Bin to
+        * ease their restoration. If the attribute is not set for the node,
+        * this function returns MegaApi::INVALID_HANDLE
+        *
+        * @return Handle of the previous parent of this node or MegaApi::INVALID_HANDLE
+        * if the attribute is not set.
+        */
+        uint64 getRestoreHandle();
+
         uint64 getParentHandle();
         String^ getBase64Key();
         int getTag();

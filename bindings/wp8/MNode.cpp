@@ -151,6 +151,11 @@ uint64 MNode::getHandle()
     return megaNode ? megaNode->getHandle() : ::mega::INVALID_HANDLE;
 }
 
+uint64 MNode::getRestoreHandle()
+{
+    return megaNode ? megaNode->getRestoreHandle() : ::mega::INVALID_HANDLE;
+}
+
 uint64 MNode::getParentHandle()
 {
     return megaNode ? megaNode->getParentHandle() : ::mega::INVALID_HANDLE;

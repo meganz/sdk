@@ -67,6 +67,7 @@ namespace mega
     public ref class MError sealed
     {
         friend ref class MegaSDK;
+        friend ref class MTransfer;
         friend class DelegateMRequestListener;
         friend class DelegateMTransferListener;
         friend class DelegateMListener;
