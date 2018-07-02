@@ -3096,7 +3096,8 @@ bool MegaClient::dispatch(direction_t d)
                 {
                     if (ts->fa->mtime != nexttransfer->mtime || ts->fa->size != nexttransfer->size)
                     {
-                        LOG_warn << "Modification detected starting upload";
+                        LOG_warn << "Modification detected starting upload.   Size: " << nexttransfer->size << "  Mtime: " << nexttransfer->mtime
+                                 << "    FaSize: " << ts->fa->size << "  FaMtime: " << ts->fa->mtime;
                         nexttransfer->failed(API_EREAD);
                         continue;
                     }
@@ -10644,6 +10645,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 syncsup = false;
                 e = API_OK;
                 sync->initializing = false;
+                LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
             }
             else
             {
