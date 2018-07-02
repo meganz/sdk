@@ -422,8 +422,8 @@ void TransferSlot::doio(MegaClient* client)
                                     while (startpos < finalpos)
                                     {
                                         transfer->chunkmacs[startpos].finished = true;
-                                        startpos = ChunkedHash::chunkceil(startpos, finalpos);
                                         LOG_verbose << "Upload chunk completed: " << startpos;
+                                        startpos = ChunkedHash::chunkceil(startpos, finalpos);
                                     }
 
                                     transfer->progresscompleted += reqs[i]->size;
@@ -490,8 +490,8 @@ void TransferSlot::doio(MegaClient* client)
                         while (startpos < finalpos)
                         {
                             transfer->chunkmacs[startpos].finished = true;
-                            startpos = ChunkedHash::chunkceil(startpos, finalpos);
                             LOG_verbose << "Upload chunk completed: " << startpos;
+                            startpos = ChunkedHash::chunkceil(startpos, finalpos);
                         }
                         transfer->progresscompleted += reqs[i]->size;
 
