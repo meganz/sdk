@@ -859,6 +859,11 @@ char *MegaTransfer::getLastBytes() const
     return NULL;
 }
 
+MegaError MegaTransfer::getLastError() const
+{
+    return MegaError(API_OK);
+}
+
 bool MegaTransfer::isFolderTransfer() const
 {
     return false;
@@ -1348,6 +1353,11 @@ void MegaApi::contactLinkDelete(MegaHandle handle, MegaRequestListener *listener
     pImpl->contactLinkDelete(handle, listener);
 }
 
+void MegaApi::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
+{
+    pImpl->keepMeAlive(type, enable, listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
@@ -1462,6 +1472,51 @@ char *MegaApi::userHandleToBase64(MegaHandle handle)
 void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener* listener)
 {
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
+}
+
+bool MegaApi::multiFactorAuthAvailable()
+{
+    return pImpl->multiFactorAuthAvailable();
+}
+
+void MegaApi::multiFactorAuthCheck(const char *email, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthCheck(email, listener);
+}
+
+void MegaApi::multiFactorAuthGetCode(MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthGetCode(listener);
+}
+
+void MegaApi::multiFactorAuthEnable(const char *pin, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthEnable(pin, listener);
+}
+
+void MegaApi::multiFactorAuthDisable(const char *pin, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthDisable(pin, listener);
+}
+
+void MegaApi::multiFactorAuthLogin(const char *email, const char *password, const char *pin, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthLogin(email, password, pin, listener);
+}
+
+void MegaApi::multiFactorAuthChangePassword(const char *oldPassword, const char *newPassword, const char *pin, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthChangePassword(oldPassword, newPassword, pin, listener);
+}
+
+void MegaApi::multiFactorAuthChangeEmail(const char *email, const char *pin, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthChangeEmail(email, pin, listener);
+}
+
+void MegaApi::multiFactorAuthCancelAccount(const char *pin, MegaRequestListener *listener)
+{
+    pImpl->multiFactorAuthCancelAccount(pin, listener);
 }
 
 void MegaApi::addEntropy(char *data, unsigned int size)
@@ -2725,6 +2780,16 @@ const char *MegaApi::getUserAgent()
 const char *MegaApi::getBasePath()
 {
     return pImpl->getBasePath();
+}
+
+void MegaApi::disableGfxFeatures(bool disable)
+{
+    pImpl->disableGfxFeatures(disable);
+}
+
+bool MegaApi::areGfxFeaturesDisabled()
+{
+    return pImpl->areGfxFeaturesDisabled();
 }
 
 void MegaApi::changeApiUrl(const char *apiURL, bool disablepkp)

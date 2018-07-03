@@ -91,7 +91,7 @@
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #define strtoull _strtoui64
-#if _MSC_VER <= 1800 // Visual Studio 2013
+#if _MSC_VER <= 1800 && !defined (__MINGW32__)// Visual Studio 2013
 #define strtoll _strtoi64
 #endif
 

@@ -51,10 +51,17 @@ class MEGA_API GfxProcQT : public GfxProc
         ROTATION_RIGHT = 8
     };
 
+    enum {
+        TYPE_NONE = -1,
+        TYPE_IMAGE = 0,
+        TYPE_VIDEO,
+        TYPE_RAW
+    };
+
     QImageReader *image;
     QString imagePath;
     int orientation;
-    bool isVideo;
+    int imageType;
 
 public:
     GfxProcQT();
@@ -65,10 +72,15 @@ public:
 protected:
     static int processEXIF(QByteArray *barr, int itemlen);
     static int processEXIFDir(const char *dirStart, const char *offsetBase, uint32_t size, uint32_t nesting, int MotorolaOrder);
-    static QImageReader *readbitmapQT(int &w, int &h, int &orientation, bool &isVideo, QString imagePath);
+    static QImageReader *readbitmapQT(int &w, int &h, int &orientation, int &imageType, QString imagePath);
     static QImage resizebitmapQT(QImageReader *image, int orientation, int w, int h, int rw, int rh);
     static QByteArray *formatstring;
     static const char* supportedformatsQT();
+
+#ifdef HAVE_LIBRAW
+    static const char* supportedformatsLibraw();
+    static QImageReader *readbitmapLibraw(int &w, int &h, int &orientation, QString imagePath);
+#endif
 
 #ifdef HAVE_FFMPEG
     static MUTEX_CLASS gfxMutex;

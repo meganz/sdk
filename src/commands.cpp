@@ -1407,7 +1407,7 @@ void CommandLogout::procresult()
 }
 
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, const byte *sessionkey, int csessionversion)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, const byte *sessionkey, int csessionversion, const char *pin)
 {
     cmd("us");
 
@@ -1419,6 +1419,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
     {
         arg("user", email);
         arg("uh", (byte*)&emailhash, sizeof emailhash);
+        if (pin)
+        {
+            arg("mfa", pin);
+        }
     }
     else
     {
@@ -2618,7 +2622,7 @@ void CommandGetUA::procresult()
         client->app->getua_result(e);
 
 #ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
         {
             client->initializekeys(); // we have now all the required data
         }
@@ -2646,7 +2650,7 @@ void CommandGetUA::procresult()
                     {
                         client->app->getua_result(API_EINTERNAL);
 #ifdef ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2662,7 +2666,7 @@ void CommandGetUA::procresult()
                     {
                         client->app->getua_result(API_EINTERNAL);
 #ifdef ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -2728,7 +2732,7 @@ void CommandGetUA::procresult()
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), value.size());
 #ifdef  ENABLE_CHAT
-                            if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
                                 client->initializekeys(); // we have now all the required data
                             }
@@ -2790,7 +2794,7 @@ void CommandGetUA::procresult()
                         LOG_err << "Error in CommandPutUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
 #ifdef  ENABLE_CHAT
-                        if (client->fetchingkeys && u->userhandle == client->me && at == ATTR_SIG_RSA_PUBK)
+                        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
                         }
@@ -3105,6 +3109,31 @@ void CommandGetUserData::procresult()
             client->key.ecb_decrypt(privkbuf, len_privk);
             privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
             privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
+            break;
+
+        case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                    case MAKENAMEID4('m', 'f', 'a', 'e'):
+                        client->gmfa_enabled = bool(client->json.getint());
+                        break;
+                    case EOO:
+                        endobject = true;
+                        break;
+                    default:
+                        if (!client->json.storeobject())
+                        {
+                            return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                        }
+                    }
+                }
+                client->json.leaveobject();
+            }
             break;
 
         case EOO:
@@ -3639,13 +3668,17 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash, const char *pin)
 {
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
     cmd("up");
     arg("k", newkey, SymmCipher::KEYLENGTH);
     arg("uh", (byte*)&hash, sizeof hash);
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
 
     tag = client->reqtag;
 }
@@ -4343,11 +4376,16 @@ void CommandCleanRubbishBin::procresult()
     }
 }
 
-CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type)
+CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type, const char *pin)
 {
     cmd("erm");
     arg("m", email);
     arg("t", type);
+
+    if (type == CANCEL_ACCOUNT && pin)
+    {
+        arg("mfa", pin);
+    }
 
     tag = client->reqtag;
 }
@@ -4539,7 +4577,7 @@ void CommandValidatePassword::procresult()
     }
 }
 
-CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add)
+CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add, const char *pin)
 {
     cmd("se");
 
@@ -4551,7 +4589,12 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
     {
         arg("aa", "r");     // remove
     }
-    arg("e", email);    
+    arg("e", email);
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
+
     notself(client);
 
     tag = client->reqtag;
@@ -5803,10 +5846,11 @@ void CommandContactLinkQuery::procresult()
     string email;
     string firstname;
     string lastname;
+    string avatar;
 
     if (client->json.isnumeric())
     {
-        return client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname);
+        return client->app->contactlinkquery_result((error)client->json.getint(), h, &email, &firstname, &lastname, &avatar);
     }
 
     for (;;)
@@ -5825,13 +5869,16 @@ void CommandContactLinkQuery::procresult()
             case MAKENAMEID2('l', 'n'):
                 client->json.storeobject(&lastname);
                 break;
+            case MAKENAMEID2('+', 'a'):
+                client->json.storeobject(&avatar);
+                break;
             case EOO:
-                return client->app->contactlinkquery_result(API_OK, h, &email, &firstname, &lastname);
+                return client->app->contactlinkquery_result(API_OK, h, &email, &firstname, &lastname, &avatar);
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse query contact link response";
-                    return client->app->contactlinkquery_result(API_EINTERNAL, h, &email, &firstname, &lastname);
+                    return client->app->contactlinkquery_result(API_EINTERNAL, h, &email, &firstname, &lastname, &avatar);
                 }
                 break;
         }
@@ -5858,6 +5905,101 @@ void CommandContactLinkDelete::procresult()
     {
         client->json.storeobject();
         client->app->contactlinkdelete_result(API_EINTERNAL);
+    }
+}
+
+CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable)
+{
+    if (enable)
+    {
+        cmd("kma");
+    }
+    else
+    {
+        cmd("kmac");
+    }
+    arg("t", type);
+
+    tag = client->reqtag;
+}
+
+void CommandKeepMeAlive::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->keepmealive_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->keepmealive_result(API_EINTERNAL);
+    }
+}
+
+CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, const char *pin)
+{
+    cmd("mfas");
+    if (pin)
+    {
+        arg("mfa", pin);
+    }
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthSetup::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->multifactorauthsetup_result(NULL, (error)client->json.getint());
+    }
+
+    string code;
+    if (!client->json.storeobject(&code))
+    {
+        return client->app->multifactorauthsetup_result(NULL, API_EINTERNAL);
+    }
+    client->app->multifactorauthsetup_result(&code, API_OK);
+}
+
+CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, const char *email)
+{
+    cmd("mfag");
+    arg("e", email);
+
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthCheck::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->multifactorauthcheck_result((int)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        client->app->multifactorauthcheck_result(API_EINTERNAL);
+    }
+}
+
+CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client, const char *pin)
+{
+    cmd("mfad");
+    arg("mfa", pin);
+
+    tag = client->reqtag;
+}
+
+void CommandMultiFactorAuthDisable::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->multifactorauthdisable_result((error)client->json.getint());
+    }
+    else    // error
+    {
+        client->json.storeobject();
+        client->app->multifactorauthdisable_result(API_EINTERNAL);
     }
 }
 

@@ -401,6 +401,70 @@ using namespace mega;
 
 #pragma mark - Login Requests
 
+- (void)multiFactorAuthCheckWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthCheck((email ? email.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthCheckWithEmail:(NSString *)email {
+    self.megaApi->multiFactorAuthCheck((email ? email.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthGetCodeWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthGetCode([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthGetCode {
+    self.megaApi->multiFactorAuthGetCode();
+}
+
+- (void)multiFactorAuthEnableWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthEnable((pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthEnableWithPin:(NSString *)pin  {
+    self.megaApi->multiFactorAuthEnable((pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthDisableWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthDisable((pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthDisableWithPin:(NSString *)pin {
+    self.megaApi->multiFactorAuthDisable((pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthLoginWithEmail:(NSString *)email password:(NSString *)password pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthLogin((email ? email.UTF8String : NULL), (password ? password.UTF8String : NULL), (pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthLoginWithEmail:(NSString *)email password:(NSString *)password pin:(NSString *)pin {
+    self.megaApi->multiFactorAuthLogin((email ? email.UTF8String : NULL), (password ? password.UTF8String : NULL), (pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthChangePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthChangePassword((oldPassword ? oldPassword.UTF8String : NULL), (newPassword ? newPassword.UTF8String : NULL), (pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthChangePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword pin:(NSString *)pin {
+    self.megaApi->multiFactorAuthChangePassword((oldPassword ? oldPassword.UTF8String : NULL), (newPassword ? newPassword.UTF8String : NULL), (pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthChangeEmail:(NSString *)email pin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthChangeEmail((email ? email.UTF8String : NULL), (pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthChangeEmail:(NSString *)email pin:(NSString *)pin {
+    self.megaApi->multiFactorAuthChangeEmail((email ? email.UTF8String : NULL), (pin ? pin.UTF8String : NULL));
+}
+
+- (void)multiFactorAuthCancelAccountWithPin:(NSString *)pin delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->multiFactorAuthCancelAccount((pin ? pin.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)multiFactorAuthCancelAccountWithPin:(NSString *)pin {
+    self.megaApi->multiFactorAuthCancelAccount((pin ? pin.UTF8String : NULL));
+}
+
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password {
     self.megaApi->login((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }
@@ -652,6 +716,14 @@ using namespace mega;
 
 - (void)contactLinkDeleteWithHandle:(uint64_t)handle {
     self.megaApi->contactLinkDelete();
+}
+
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->keepMeAlive((int) type, enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable {
+    self.megaApi->keepMeAlive((int) type, enable);
 }
 
 #pragma mark - Filesystem changes Requests
