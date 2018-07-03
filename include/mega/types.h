@@ -203,6 +203,10 @@ typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNO
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
+
+//handle lengths
+static const int PUBLICHANDLE = 6;
+
 //handle lengths
 static const int USERHANDLE = 8;
 
