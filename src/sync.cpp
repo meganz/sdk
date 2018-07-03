@@ -631,6 +631,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                 // if it's a file, size and mtime must match to qualify
                 if (l->type != FILENODE || (l->size == fa->size && l->mtime == fa->mtime))
                 {
+                    LOG_verbose << "Cached localnode is still valid. Type: " << l->type << "  Size: " << l->size << "  Mtime: " << l->mtime;
                     l->scanseqno = scanseqno;
 
                     if (l->type == FOLDERNODE)
@@ -654,6 +655,15 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
 
         if (initializing)
         {
+            if (cl)
+            {
+                LOG_verbose << "Outdated localnode. Type: " << cl->type << "  Size: " << cl->size << "  Mtime: " << cl->mtime
+                            << "    FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
+            }
+            else
+            {
+                LOG_verbose << "New file. FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
+            }
             delete fa;
             return NULL;
         }

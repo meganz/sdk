@@ -151,6 +151,15 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) uint64_t handle;
 
 /**
+ * The handle of the previous parent of this node.
+ *
+ * This attribute is set when nodes are moved to the Rubbish Bin to
+ * ease their restoration. If the attribute is not set for the node,
+ * this function returns MegaApi::INVALID_HANDLE
+ */
+@property (readonly, nonatomic) uint64_t restoreHandle;
+
+/**
  * @brief The handle of the parent node
  *
  * You can use [MEGASdk nodeForHandle:] to recover the node later.

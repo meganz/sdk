@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "MError.h"
 #include "MNode.h"
 
 #include "megaapi.h"
@@ -88,6 +89,12 @@ namespace mega
         * @return true if this transfer is finished, false otherwise
         */
         bool isFinished();
+
+        /**
+        * @brief Returns the last error related to the transfer
+        * @return Last error related to the transfer
+        */
+        MError^ getLastError();
 
         bool isFolderTransfer();
         int getFolderTransferTag();

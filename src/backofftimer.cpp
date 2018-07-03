@@ -128,4 +128,10 @@ void BackoffTimer::update(dstime* waituntil)
         }
     }
 }
+
+TimerWithBackoff::TimerWithBackoff(long long tag)
+{
+    this->tag = tag;
+}
+
 } // namespace

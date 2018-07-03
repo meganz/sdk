@@ -247,9 +247,11 @@ void CommandGetFA::procresult()
     }
 }
 
-CommandAttachFA::CommandAttachFA(handle nh, fatype t, handle ah, int ctag)
+CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle ah, int ctag)
 {
     cmd("pfa");
+    notself(client);
+
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
 
     char buf[64];
@@ -263,9 +265,11 @@ CommandAttachFA::CommandAttachFA(handle nh, fatype t, handle ah, int ctag)
     tag = ctag;
 }
 
-CommandAttachFA::CommandAttachFA(handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
+CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
 {
     cmd("pfa");
+    notself(client);
+
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
 
     arg("fa", encryptedAttributes.c_str());
@@ -289,7 +293,14 @@ void CommandAttachFA::procresult()
 
          if (client->json.storeobject(&fa))
          {
-               return client->app->putfa_result(h, type, fa.c_str());
+             Node* n = client->nodebyhandle(h);
+             if (n)
+             {
+                n->fileattrstring = fa;
+                n->changed.fileattrstring = true;
+                client->notifynode(n);
+             }
+             return client->app->putfa_result(h, type, fa.c_str());
          }
 
          e = API_EINTERNAL;
@@ -1035,11 +1046,13 @@ void CommandPutNodes::procresult()
     e = API_EINTERNAL;
 
     bool noexit = true;
+    bool empty = false;
     while (noexit)
     {
         switch (client->json.getnameid())
         {
             case 'f':
+                empty = !memcmp(client->json.pos, "[]", 2);
                 if (client->readnodes(&client->json, 1, source, nn, nnsize, tag))
                 {
                     e = API_OK;
@@ -1102,7 +1115,7 @@ void CommandPutNodes::procresult()
             }
         }
 #endif
-        client->app->putnodes_result(e, type, nn);
+        client->app->putnodes_result((!e && empty) ? API_ENOENT : e, type, nn);
     }
 #ifdef ENABLE_SYNC
     else
@@ -1232,43 +1245,53 @@ void CommandMoveNode::procresult()
         }
 #endif
         // Movement of shares and pending shares into Rubbish should remove them
-        Node *n = client->nodebyhandle(h);
-        if (n && (n->pendingshares || n->outshares))
+        if (!e)
         {
-            Node *rootnode = client->nodebyhandle(np);
-            while (rootnode)
+            Node *n = client->nodebyhandle(h);
+            if (n && (n->pendingshares || n->outshares))
             {
-                if (!rootnode->parent)
+                Node *rootnode = client->nodebyhandle(np);
+                while (rootnode)
                 {
-                    break;
-                }
-                rootnode = rootnode->parent;
-            }
-            if (rootnode && rootnode->type == RUBBISHNODE)
-            {
-                share_map::iterator it;
-                if (n->pendingshares)
-                {
-                    for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+                    if (!rootnode->parent)
                     {
-                        client->newshares.push_back(new NewShare(
-                                                        n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                        0, NULL, NULL, it->first, false));
+                        break;
                     }
+                    rootnode = rootnode->parent;
                 }
-
-                if (n->outshares)
+                if (rootnode && rootnode->type == RUBBISHNODE)
                 {
-                    for (it = n->outshares->begin(); it != n->outshares->end(); it++)
+                    share_map::iterator it;
+                    if (n->pendingshares)
                     {
-                        client->newshares.push_back(new NewShare(
-                                                        n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
-                                                        0, NULL, NULL, UNDEF, false));
+                        for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
+                        {
+                            client->newshares.push_back(new NewShare(
+                                                            n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
+                                                            0, NULL, NULL, it->first, false));
+                        }
                     }
-                }
 
-                client->mergenewshares(1);
+                    if (n->outshares)
+                    {
+                        for (it = n->outshares->begin(); it != n->outshares->end(); it++)
+                        {
+                            client->newshares.push_back(new NewShare(
+                                                            n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
+                                                            0, NULL, NULL, UNDEF, false));
+                        }
+                    }
+
+                    client->mergenewshares(1);
+                }
             }
+        }
+        else if (syncdel == SYNCDEL_NONE)
+        {
+            int creqtag = client->reqtag;
+            client->reqtag = 0;
+            client->sendevent(99439, "Unexpected move error");
+            client->reqtag = creqtag;
         }
 
         client->app->rename_result(h, e);
@@ -3121,6 +3144,9 @@ void CommandGetUserData::procresult()
                     {
                     case MAKENAMEID4('m', 'f', 'a', 'e'):
                         client->gmfa_enabled = bool(client->json.getint());
+                        break;
+                    case MAKENAMEID4('s', 's', 'r', 's'):
+                        client->ssrs_enabled = bool(client->json.getint());
                         break;
                     case EOO:
                         endobject = true;
