@@ -2881,6 +2881,8 @@ public:
     uv_mutex_t mutex_responses;
     std::list<std::string> responses;
 
+    uv_mutex_t mutex_nodeToDownload;
+
     //status
     MegaHandle cwd;
     bool atroot;

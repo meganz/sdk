@@ -24549,15 +24549,7 @@ MegaFTPServer::MegaFTPServer(MegaApiImpl *megaApi, string basePath, int dataport
     this->dataportBegin = dataportBegin;
     this->dataPortEnd = dataPortEnd;
 
-
-//#ifdef _WIN32
-//        crlfout = "\r\n";
-//#elif defined(__MACH__)
-//        crlfout = "\r";
-//#else
-//        crlfout = "\n";
-//#endif
-        crlfout = "\r\n"; //empirically suitable for common clients in all platforms
+    crlfout = "\r\n";
 }
 
 MegaFTPServer::~MegaFTPServer()
@@ -24990,7 +24982,7 @@ std::string MegaFTPServer::cdup(handle parentHandle, MegaFTPContext* ftpctx)
     if (newcwd)
     {
         bool allowed = isHandleAllowed(newcwd->getHandle()) || isHandleAllowed(newcwd->getParentHandle());
-        MegaNode *pn = ftpctx->megaApi->getNodeByHandle(newcwd->getParentHandle());;
+        MegaNode *pn = ftpctx->megaApi->getNodeByHandle(newcwd->getHandle());
         while (!allowed && pn)
         {
             MegaNode *aux = pn;
@@ -24998,8 +24990,7 @@ std::string MegaFTPServer::cdup(handle parentHandle, MegaFTPContext* ftpctx)
             delete aux;
             if (pn)
             {
-                allowed = isHandleAllowed(newcwd->getParentHandle());
-                pn = NULL;
+                allowed = isHandleAllowed(pn->getParentHandle());
             }
         }
         delete pn;
@@ -25125,17 +25116,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
     if (nread >= 0)
     {
         bool failed = false;
-//        parsed = ftp_parser_execute(&ftpctx->parser, &parsercfg, buf->base, nread);
 
         const char *separators = " ";
 
-//#ifdef _WIN32
-        const char *crlf = "\r\n"; //Apparently this works for most common clients
-//#elif defined(__MACH__)
-//        const char *crlf = "\r";
-//#else
-//        const char *crlf = "\n";
-//#endif
+        const char *crlf = "\r\n";
 
         petition = string(buf->base, nread);
 
@@ -25625,6 +25609,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                             string toret = getListingLineFromNode(n, name);
                             toret.append(crlfout);
                             ftpctx->ftpDataServer->resultmsj.append(toret);
+                            delete n;
                         }
                     }
 
@@ -25642,6 +25627,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                         toret.append(crlfout);
                         assert(!ftpctx->ftpDataServer->resultmsj.size());
                         ftpctx->ftpDataServer->resultmsj.append(toret);
+                        delete n;
                     }
                     ftpctx->ftpDataServer->resultmsj.append(crlfout);
 
@@ -25711,16 +25697,20 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 break;
             }
 
-            //MegaNode *node = ftpctx->megaApi->getNodeByPath(ftpctx->arg1.c_str(), nodecwd);
             MegaNode *node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
 
             if (node)
             {
                 if (node->isFile())
                 {
+                    uv_mutex_lock(&ftpctx->mutex_nodeToDownload);
+
                     MegaNode *oldNodeToDownload = ftpctx->ftpDataServer->nodeToDownload;
                     ftpctx->ftpDataServer->nodeToDownload = node;
                     delete oldNodeToDownload;
+
+                    uv_mutex_unlock(&ftpctx->mutex_nodeToDownload);
+
                     response = "150 Here comes the file: ";
                     response.append(node->getName());
                 }
@@ -25858,6 +25848,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                             response = "553 Requested action not taken: Invalid destiny";
                             delete n;
                             ftpctx->nodeToDeleteAfterMove = NULL;
+                            delete nodeToRename;
                             break;
                         }
 
@@ -25886,7 +25877,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                             ftpctx->megaApi->renameNode(nodeToRename, newName.c_str(), ftpctx);
                             delayresponse = true;
                         }
-                        delete nodeToRename;
                     }
                     else
                     {
@@ -25895,6 +25885,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                         ftpctx->nodeToDeleteAfterMove = NULL;
                     }
                     delete newParentNode;
+                    delete nodeToRename;
                 }
                 else
                 {
@@ -25961,8 +25952,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 if (number != ULLONG_MAX)
                 {
                     ftpctx->ftpDataServer->rangeStartREST = number;
-                    response = "150 Here comes the file: ";
-                    response.append(ftpctx->ftpDataServer->nodeToDownload->getName());
+                    response = "350 Restarting at: ";
+                    response.append(ftpctx->arg1);
                 }
                 else
                 {
@@ -26156,6 +26147,7 @@ MegaFTPContext::MegaFTPContext()
     ftpDataServer = NULL;
     nodeToDeleteAfterMove = NULL;
     uv_mutex_init(&mutex_responses);
+    uv_mutex_init(&mutex_nodeToDownload);
 }
 
 MegaFTPContext::~MegaFTPContext()
@@ -26173,6 +26165,7 @@ MegaFTPContext::~MegaFTPContext()
         tmpFileName = "";
     }
     uv_mutex_destroy(&mutex_responses);
+    uv_mutex_destroy(&mutex_nodeToDownload);
 }
 
 void MegaFTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
@@ -26240,7 +26233,6 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
                     sup.append("/..");
                     string nsup = ftpserver->shortenpath(sup);
                     ftpserver->cd(nsup, this);
-                    delete n;
                     n = megaApi->getNodeByHandle(cwd);
                 }
                 delete n;
@@ -26623,6 +26615,9 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
         return;
     }
 
+
+    uv_mutex_lock(&fds->controlftpctx->mutex_nodeToDownload);
+
     if (resultmsj.size())
     {
         LOG_debug << " responding DATA: " << resultmsj;
@@ -26688,9 +26683,7 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
             ftpdatactx->transfer->setEndPos(end); //This will actually be override later
             ftpdatactx->node = nodeToDownload->copy();
 
-    //        string resstr = response.str();
-
-            ftpdatactx->streamingBuffer.init(len/* + resstr.size()*/);
+            ftpdatactx->streamingBuffer.init(len);
             ftpdatactx->size = len;
 
             ftpdatactx->megaApi->fireOnFtpStreamingStart(ftpdatactx->transfer);
@@ -26721,6 +26714,9 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
 
         LOG_err << " Async event with no result mesj!!!";
     }
+
+    uv_mutex_unlock(&fds->controlftpctx->mutex_nodeToDownload);
+
 }
 
 void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
