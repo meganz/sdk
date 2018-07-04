@@ -73,7 +73,6 @@ class MegaUserList;
 class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
-class MegaBackupList;
 class MegaFolderInfo;
 class MegaApi;
 
@@ -1974,42 +1973,6 @@ class MegaTransferList
         /**
          * @brief Returns the number of MegaTransfer objects in the list
          * @return Number of MegaTransfer objects in the list
-         */
-        virtual int size();
-};
-
-/**
- * @brief List of MegaBackup objects
- *
- * A MegaBackupList has the ownership of the MegaBackup objects that it contains, so they will be
- * only valid until the MegaBackupList is deleted. If you want to retain a MegaBackup returned by
- * a MegaBackupList, use MegaBackup::copy.
- *
- * Objects of this class are immutable.
- *
- * @see MegaApi::getBackups
- */
-class MegaBackupList
-{
-	public:
-        virtual ~MegaBackupList();
-
-        /**
-         * @brief Returns the MegaBackup at the position i in the MegaBackupList
-         *
-         * The MegaBackupList retains the ownership of the returned MegaBackup. It will be only valid until
-         * the MegaBackupList is deleted.
-         *
-         * If the index is >= the size of the list, this function returns NULL.
-         *
-         * @param i Position of the MegaBackup that we want to get for the list
-         * @return MegaBackup at the position i in the list
-         */
-        virtual MegaBackup* get(int i);
-
-        /**
-         * @brief Returns the number of MegaBackup objects in the list
-         * @return Number of MegaBackup objects in the list
          */
         virtual int size();
 };

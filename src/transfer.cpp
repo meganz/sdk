@@ -405,7 +405,8 @@ void Transfer::failed(error e, dstime timeleft)
 
         if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
         {
-            LOG_warn << "Modification detected during active upload";
+            LOG_warn << "Modification detected during active upload. Size: " << size << "  Mtime: " << mtime
+                     << "    FaSize: " << slot->fa->size << "  FaMtime: " << slot->fa->mtime;
             defer = false;
         }
     }
