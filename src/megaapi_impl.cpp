@@ -24333,8 +24333,6 @@ MegaHTTPContext::~MegaHTTPContext()
     }
     delete [] messageBody;
     uv_mutex_destroy(&mutex_responses);
-
-
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
@@ -24838,7 +24836,7 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
 {
     if (ftpctx->atroot && path.size() && path.at(0) != '/')
     {
-        path="/"+path;
+        path= "/" + path;
     }
     else if (ftpctx->athandle && path.size() && path.at(0) != '/')
     {
@@ -24846,17 +24844,17 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
         string handle(cshandle);
         delete []cshandle;
 
-        path="/"+handle+"/"+path;
+        path= "/" + handle + "/" + path;
     }
     else if (path.size() && path.at(0) != '/')
     {
-        path = ftpctx->cwdpath+"/"+path;
+        path = ftpctx->cwdpath + "/" + path;
         path = shortenpath(path);
     }
 
     if (path.find("..") == 0)
     {
-        string fullpath = ftpctx->cwdpath+"/"+path;
+        string fullpath = ftpctx->cwdpath + "/" + path;
         size_t seppos = fullpath.find("/");
         int count = 0;
         while (seppos != string::npos && fullpath.size() > (seppos +1) )
@@ -24916,7 +24914,7 @@ std::string MegaFTPServer::shortenpath(std::string path)
 {
     string orig = path;
 
-    while ( (path.size()>1) && path.at(path.size()-1) == '/') // remove trailing /
+    while ((path.size() > 1) && path.at(path.size() - 1) == '/') // remove trailing /
     {
         path = path.substr(0,path.size()-1);
     }
@@ -24955,7 +24953,6 @@ std::string MegaFTPServer::shortenpath(std::string path)
         parts.push_back(path);
     }
 
-
     string toret;
     if (!parts.size() && orig.size() && orig.at(0) == '/')
     {
@@ -24970,8 +24967,6 @@ std::string MegaFTPServer::shortenpath(std::string path)
             parts.pop_front();
         }
     }
-
-
     return toret;
 }
 
@@ -25116,9 +25111,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
     if (nread >= 0)
     {
         bool failed = false;
-
         const char *separators = " ";
-
         const char *crlf = "\r\n";
 
         petition = string(buf->base, nread);
@@ -25380,20 +25373,20 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             break;
 
         case FTP_CMD_ALLO: //ALLO <SP> <decimal-integer> [<SP> R <SP> <decimal-integer>] <CRLF>
-            if (psep != string::npos && ( (psep + 1)< petition.size()) )
+            if (psep != string::npos && ((psep + 1) < petition.size()))
             {
                 string rest = petition.substr(psep+1);
                 psep = rest.find_first_of(separators);
                 ftpctx->arg1 = rest.substr(0,psep);
-                if (psep != string::npos && ( (psep + 1)< petition.size()) )
-                {//optional R <SP> <decimal-integer>
+                if (psep != string::npos && ((psep + 1) < petition.size()))
+                {  //optional R <SP> <decimal-integer>
                     rest = petition.substr(psep+1);
                     psep = rest.find_first_of(separators);
                     if (psep != 1 && (rest.at(0) != 'R' || rest.at(0) != 'r'))
                     {
                         parsed = -1;
                     }
-                    else if ( (psep + 1)< petition.size() )
+                    else if ((psep + 1) < petition.size())
                     {
                         rest = petition.substr(psep+1);
                         ftpctx->arg2 = rest;
@@ -25415,7 +25408,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 string rest = petition.substr(psep+1);
                 psep = rest.find_first_of(separators);
                 ftpctx->arg1 = rest.substr(0,psep);
-                if (psep != string::npos && ( (psep + 1)< rest.size()) )
+                if (psep != string::npos && ((psep + 1) < rest.size()))
                 {
                     ftpctx->arg2 = rest.substr(psep+1);
                 }
@@ -25471,9 +25464,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_PASV:
         case FTP_CMD_EPSV:
         {
-            if(!ftpctx->ftpDataServer)
+            if (!ftpctx->ftpDataServer)
             {
-                if (pport > (dataPortEnd)) pport = dataportBegin;
+                if (pport > (dataPortEnd))
+                {
+                    pport = dataportBegin;
+                }
                 ftpctx->pasiveport = pport++;
 
                 LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
@@ -25639,7 +25635,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             if (node)
             {
-                if (node->isFolder() )
+                if (node->isFolder())
                 {
                     MegaNodeList *children = ftpctx->megaApi->getChildren(node);
                     assert(!ftpctx->ftpDataServer->resultmsj.size());
@@ -25698,7 +25694,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
 
             MegaNode *node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
-
             if (node)
             {
                 if (node->isFile())
@@ -25717,6 +25712,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 else
                 {
                     response = "501 Not a file";
+                    delete node;
                 }
             }
             else
@@ -25786,7 +25782,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             {
                 this->nodeHandleToRename = nodetoRename->getHandle();
                 response = "350 Pending RNTO";
-
                 delete nodetoRename;
             }
             else
@@ -25802,7 +25797,7 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 
             if (nodeToDelete)
             {
-                if ( (ftpctx->command == FTP_CMD_DELE) ? nodeToDelete->isFile() : nodeToDelete->isFolder() )
+                if ((ftpctx->command == FTP_CMD_DELE) ? nodeToDelete->isFile() : nodeToDelete->isFolder())
                 {
                     ftpctx->megaApi->remove(nodeToDelete, false, ftpctx);
                     delayresponse = true;
@@ -25811,7 +25806,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     response = "501 Wrong type";
                 }
-
                 delete nodeToDelete;
             }
             else
@@ -25988,7 +25982,6 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         case FTP_CMD_SIZE: //This has to be exact, and depends ond STRU, MODE & TYPE!! (since assumed TYPE I, it's ok)
         {
             MegaNode *nodeToGetSize = getNodeByFtpPath(ftpctx, ftpctx->arg1);
-
             if (nodeToGetSize)
             {
                 if (nodeToGetSize->isFile())
@@ -26022,10 +26015,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             break;
         }
 
-        response+=crlfout;
+        response += crlfout;
     }
 
-    if ( nread < 0 )
+    if (nread < 0)
     {
         LOG_debug << "FTP Control Server received invalid read size. Closing connection";
         closeConnection(ftpctx);
@@ -26056,13 +26049,11 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         }
     }
     uv_mutex_unlock(&tcpctx->mutex);
-
 }
 
 void MegaFTPServer::processAsyncEvent(MegaTCPContext *tcpctx)
 {
     LOG_verbose << "Processing FTP Server async event";
-
     if (tcpctx->finished)
     {
         LOG_debug << "FTP link closed, ignoring async event";
@@ -26228,7 +26219,7 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
                 size_t seps = std::count(cwdpath.begin(), cwdpath.end(), '/');
                 unsigned int isep = 0;
                 string sup = cwdpath;
-                while (!n && (isep++<seps) )
+                while (!n && (isep++ < seps))
                 {
                     sup.append("/..");
                     string nsup = ftpserver->shortenpath(sup);
@@ -26355,14 +26346,10 @@ MegaTCPContext* MegaFTPDataServer::initializeContext(uv_stream_t *server_handle)
 {
     MegaFTPDataContext* ftpctx = new MegaFTPDataContext();
 
-//    // Initialize the parser
-//    ftp_parser_init(&ftpctx->parser);
-
     // Set connection data
     MegaFTPDataServer *server = (MegaFTPDataServer *)(server_handle->data);
     ftpctx->server = server;
     ftpctx->megaApi = server->megaApi;
-//    ftpctx->parser.data = ftpctx;
     ftpctx->tcphandle.data = ftpctx;
     ftpctx->asynchandle.data = ftpctx;
 
@@ -26461,7 +26448,7 @@ void MegaFTPDataServer::sendData()
     }
     //Some client might create connections before receiving a 150 in the control channel (e.g: ftp linux command)
     // This could cause never answered / never closed connections.
-    //assert(connections.size()<=1); //This might not be true due to that
+    //assert(connections.size() <= 1); //This might not be true due to that
 
     if (tcpctx)
     {
@@ -26533,7 +26520,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             fds->fsAccess->path2local(&ftpdatactx->tmpFileName, &localPath);
             fds->fsAccess->unlinklocal(&localPath);
 
-            if(!ftpdatactx->tmpFileAccess->fopen(&localPath, false, true))
+            if (!ftpdatactx->tmpFileAccess->fopen(&localPath, false, true))
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
@@ -26545,7 +26532,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         if (nread > 0)
         {
             LOG_verbose << " Writting " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
-            if(!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
+            if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
@@ -26562,9 +26549,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
 
     if (nread < 0) //transfer finish
     {
-        MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(fds->controlftpctx->server);
         LOG_verbose << "FTP Data Channel received invalid read size: " << nread << ". Closing connection";
-
         if (ftpdatactx->tmpFileName.size())
         {
             MegaNode *newParentNode = ftpdatactx->megaApi->getNodeByHandle(fds->newParentNodeHandle);
@@ -26591,7 +26576,6 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
         ftpdatactx->tmpFileName = ""; // empty so that we don't try to upload it
         remotePathToUpload = ""; //empty, so that we don't read in the next connections
         closeConnection(tcpctx);
-
         return;
     }
 }
@@ -26670,7 +26654,6 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
                 start = ftpdatactx->rangeStart;
             }
             ftpdatactx->rangeEnd = end + 1;
-
             ftpdatactx->rangeStart = start;
 
             //bool rangeRequested = (/*ftpdatactx->rangeEnd*/ - ftpdatactx->rangeStart) != totalSize;
@@ -26701,7 +26684,6 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
                 ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
                 fds->processWriteFinished(ftpdatactx, 0);
             }
-
         }
         else
         {
@@ -26716,7 +26698,6 @@ void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
     }
 
     uv_mutex_unlock(&fds->controlftpctx->mutex_nodeToDownload);
-
 }
 
 void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
@@ -26858,7 +26839,6 @@ MegaFTPDataContext::~MegaFTPDataContext()
 {
     delete transfer;
     delete tmpFileAccess;
-
     delete node;
 }
 
