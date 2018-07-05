@@ -11061,19 +11061,32 @@ void MegaApiImpl::fetchnodes_result(error e)
             byte pwkey[SymmCipher::KEYLENGTH];
             if (!request->getPrivateKey())
             {
-                string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), request->getName());
-                string b64derivedKey;
-                Base64::btoa(derivedKey, b64derivedKey);
-                request->setPrivateKey(b64derivedKey.c_str());
+                if (client->nsre_enabled)
+                {
+                    string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), request->getName());
+                    string b64derivedKey;
+                    Base64::btoa(derivedKey, b64derivedKey);
+                    request->setPrivateKey(b64derivedKey.c_str());
 
-                char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
-                Base64::btoa((byte*) &client->me, sizeof client->me, buf);
-                string sid;
-                sid.append(buf);
-                sid.append("#");
-                Base64::btoa((byte *)derivedKey.data(), SymmCipher::KEYLENGTH, buf);
-                sid.append(buf);
-                request->setSessionKey(sid.c_str());
+                    char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+                    Base64::btoa((byte*) &client->me, sizeof client->me, buf);
+                    string sid;
+                    sid.append(buf);
+                    sid.append("#");
+                    Base64::btoa((byte *)derivedKey.data(), SymmCipher::KEYLENGTH, buf);
+                    sid.append(buf);
+                    request->setSessionKey(sid.c_str());
+                }
+                else
+                {
+                    client->pw_key(request->getPassword(), pwkey);
+                    client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
+
+                    char* buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
+                    Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
+                    request->setPrivateKey(buf);
+                    delete [] buf;
+                }
             }
             else
             {
