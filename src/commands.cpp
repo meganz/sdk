@@ -3147,6 +3147,9 @@ void CommandGetUserData::procresult()
     m_time_t since = 0;
     int v = 0;
     string salt;
+    bool gmfa = false;
+    bool ssrs = false;
+    bool nsre = false;
 
     if (client->json.isnumeric())
     {
@@ -3199,10 +3202,13 @@ void CommandGetUserData::procresult()
                     switch (client->json.getnameid())
                     {
                     case MAKENAMEID4('m', 'f', 'a', 'e'):
-                        client->gmfa_enabled = bool(client->json.getint());
+                        gmfa = bool(client->json.getint());
                         break;
                     case MAKENAMEID4('s', 's', 'r', 's'):
-                        client->ssrs_enabled = bool(client->json.getint());
+                        ssrs = bool(client->json.getint());
+                        break;
+                    case MAKENAMEID4('n', 's', 'r', 'e'):
+                        nsre = bool(client->json.getint());
                         break;
                     case EOO:
                         endobject = true;
@@ -3222,6 +3228,9 @@ void CommandGetUserData::procresult()
             client->accountversion = v;
             client->accountsalt = salt;
             client->accountsince = since;
+            client->gmfa_enabled = gmfa;
+            client->ssrs_enabled = ssrs;
+            client->nsre_enabled = nsre;
             client->k = k;
             if (len_privk)
             {

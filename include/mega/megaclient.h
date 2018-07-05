@@ -209,6 +209,9 @@ public:
     // server-side Rubbish-bin autopurging enabled
     bool ssrs_enabled;
 
+    // new registration method enabled
+    bool nsre_enabled;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
