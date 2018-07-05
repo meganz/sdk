@@ -17859,7 +17859,7 @@ void MegaApiImpl::sendPendingRequests()
             // user is optional. If not provided, command apply to own user
             if (uh != INVALID_HANDLE)
             {
-                if (!chat->group || chat->priv != PRIV_MODERATOR)
+                if (!chat->group || (uh != client->me && chat->priv != PRIV_MODERATOR))
                 {
                     e = API_EACCESS;
                     break;
