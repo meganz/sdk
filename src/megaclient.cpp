@@ -1184,7 +1184,7 @@ void MegaClient::exec()
                             if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
                             {
                                 LOG_debug << "Attaching file attribute";
-                                reqs.add(new CommandAttachFA(n->nodehandle, fa->type, fah, fa->tag));
+                                reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
                             }
                             else
                             {
@@ -3097,7 +3097,8 @@ bool MegaClient::dispatch(direction_t d)
                 {
                     if (ts->fa->mtime != nexttransfer->mtime || ts->fa->size != nexttransfer->size)
                     {
-                        LOG_warn << "Modification detected starting upload";
+                        LOG_warn << "Modification detected starting upload.   Size: " << nexttransfer->size << "  Mtime: " << nexttransfer->mtime
+                                 << "    FaSize: " << ts->fa->size << "  FaMtime: " << ts->fa->mtime;
                         nexttransfer->failed(API_EREAD);
                         continue;
                     }
@@ -6691,7 +6692,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, 0));
                              it != pendingfa.end() && it->first.first == uh; )
                         {
-                            reqs.add(new CommandAttachFA(h, it->first.second, it->second.first, it->second.second));
+                            reqs.add(new CommandAttachFA(this, h, it->first.second, it->second.first, it->second.second));
                             pendingfa.erase(it++);
                         }
 
@@ -10770,6 +10771,7 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
                 syncsup = false;
                 e = API_OK;
                 sync->initializing = false;
+                LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
             }
             else
             {
