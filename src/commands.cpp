@@ -1470,7 +1470,7 @@ void CommandPrelogin::procresult()
             default:
                 if (!client->json.storeobject())
                 {
-                    return;
+                    return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
                 }
         }
     }
