@@ -21068,7 +21068,7 @@ void MegaBackupController::setPeriodstring(const string &value)
             {
                 this->startTime = starttimes[j]; //starttimes[j] should have the oldest time
             }
-            delete starttimes;
+            delete [] starttimes;
         }
         LOG_debug << " Next Backup set in " << startTime - Waiter::ds << " deciseconds. At: " << epochdsToString((this->startTime+this->offsetds));
     }

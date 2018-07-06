@@ -87,7 +87,7 @@ time_t cron_mktime(struct tm* tm) {
 time_t timegm(struct tm* __tp);
 #endif /* ANDROID */
 time_t cron_mktime(struct tm* tm) {
-#ifndef ANDROID
+#if !defined(ANDROID) || defined(__LP64__)
     return timegm(tm);
 #else /* ANDROID */
     /* https://github.com/adobe/chromium/blob/cfe5bf0b51b1f6b9fe239c2a3c2f2364da9967d7/base/os_compat_android.cc#L20 */

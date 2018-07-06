@@ -2759,9 +2759,9 @@ class MegaTransfer
 	public:
         enum {
             TYPE_DOWNLOAD = 0,
-            TYPE_UPLOAD,
-            TYPE_LOCAL_TCP_DOWNLOAD,
-            TYPE_LOCAL_HTTP_DOWNLOAD = TYPE_LOCAL_TCP_DOWNLOAD //kept for backwards compatibility
+            TYPE_UPLOAD = 1,
+            TYPE_LOCAL_TCP_DOWNLOAD = 2,
+            TYPE_LOCAL_HTTP_DOWNLOAD = 2 //kept for backwards compatibility
         };
 
         enum {
@@ -11162,10 +11162,10 @@ class MegaApi
 
         //kept for backwards compatibility
         enum {
-            HTTP_SERVER_DENY_ALL = TCP_SERVER_DENY_ALL,
-            HTTP_SERVER_ALLOW_ALL = TCP_SERVER_ALLOW_ALL,
-            HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS,
-            HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = TCP_SERVER_ALLOW_LAST_LOCAL_LINK
+            HTTP_SERVER_DENY_ALL = -1,
+            HTTP_SERVER_ALLOW_ALL = 0,
+            HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
+            HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
         };
 
         /**
