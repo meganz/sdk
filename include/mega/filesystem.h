@@ -56,6 +56,7 @@ struct MEGA_API AsyncIOContext
     bool finished;
     bool failed;
     bool retry;
+    fserr_t err;
 
     // parameters
     int op;
@@ -86,6 +87,9 @@ struct MEGA_API FileAccess
 
     // if the open failed, retry indicates a potentially transient reason
     bool retry;
+
+    // Error type related to the last failure
+    fserr_t err;
 
     // for files "opened" in nonblocking mode, the current local filename
     string localname;
@@ -309,6 +313,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
     
+    // type of the last error
+    fserr_t err;
+
     // set whenever there was a global file notification error or permanent failure
     // (this is in addition to the DirNotify-local error)
     bool notifyerr;
@@ -326,6 +333,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     MegaClient* client;
 
     virtual ~FileSystemAccess() { }
+    FileSystemAccess();
 };
 } // namespace
 

@@ -1882,6 +1882,7 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
+        int getBlockedReason();
         void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
 

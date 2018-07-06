@@ -72,6 +72,7 @@ public:
 
     void addevents(Waiter*, int);
 
+    static fserr_t errtype(DWORD);
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
 

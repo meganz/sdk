@@ -32,6 +32,11 @@ void FileSystemAccess::captimestamp(m_time_t* t)
     else if (*t < 0) *t = 0;
 }
 
+FileSystemAccess::FileSystemAccess()
+{
+    err = FSERR_UNKNOWN;
+}
+
 bool FileSystemAccess::islchex(char c) const
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
@@ -231,6 +236,7 @@ FileAccess::FileAccess(Waiter *waiter)
     this->waiter = waiter;
     this->isAsyncOpened = false;
     this->numAsyncReads = 0;
+    this->err = FSERR_UNKNOWN;
 }
 
 FileAccess::~FileAccess()
@@ -277,6 +283,7 @@ bool FileAccess::openf()
         mtime = curr_mtime;
         size = curr_size;
         retry = false;
+        err = FSERR_UNKNOWN;
         return false;
     }
 
@@ -319,6 +326,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
     context->fa = this;
 
     context->failed = !sysstat(&mtime, &size);
+    context->err = this->err;
     context->retry = this->retry;
     context->finished = true;
     context->userCallback(context->userData);
@@ -353,6 +361,7 @@ bool FileAccess::asyncopenf()
         mtime = curr_mtime;
         size = curr_size;
         retry = false;
+        err = FSERR_UNKNOWN;
         return false;
     }
 
@@ -403,6 +412,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t
 
 void FileAccess::asyncsysopen(AsyncIOContext *context)
 {
+    context->err = FSERR_UNKNOWN;
     context->failed = true;
     context->retry = false;
     context->finished = true;
@@ -431,6 +441,7 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
     if (!asyncopenf())
     {
         LOG_err << "Error in asyncopenf";
+        context->err = this->err;
         context->failed = true;
         context->retry = this->retry;
         context->finished = true;
@@ -444,6 +455,7 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
 
 void FileAccess::asyncsysread(AsyncIOContext *context)
 {
+    context->err = FSERR_UNKNOWN;
     context->failed = true;
     context->retry = false;
     context->finished = true;
@@ -473,6 +485,7 @@ AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t 
 
 void FileAccess::asyncsyswrite(AsyncIOContext *context)
 {
+    context->err = FSERR_UNKNOWN;
     context->failed = true;
     context->retry = false;
     context->finished = true;
@@ -537,6 +550,7 @@ AsyncIOContext::AsyncIOContext()
     finished = false;
     failed = false;
     retry = false;
+    err = FSERR_UNKNOWN;
 }
 
 AsyncIOContext::~AsyncIOContext()

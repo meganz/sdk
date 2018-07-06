@@ -642,6 +642,9 @@ public:
     // file that is blocking the sync engine
     string blockedfile;
 
+    // error code related to a blocked file
+    fserr_t blockedfilereason;
+
     // stats id
     static char* statsid;
 

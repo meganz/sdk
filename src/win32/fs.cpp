@@ -50,6 +50,7 @@ bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
         DWORD e = GetLastError();
+        err = WinFileSystemAccess::errtype(e);
         retry = WinFileSystemAccess::istransient(e);
         LOG_err << "SetFilePointerEx failed for reading. Error: " << e;
         return false;
@@ -58,6 +59,7 @@ bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
     if (!ReadFile(hFile, (LPVOID)dst, (DWORD)len, &dwRead, NULL))
     {
         DWORD e = GetLastError();
+        err = WinFileSystemAccess::errtype(e);
         retry = WinFileSystemAccess::istransient(e);
         LOG_err << "ReadFile failed. Error: " << e;
         return false;
@@ -65,6 +67,7 @@ bool WinFileAccess::sysread(byte* dst, unsigned len, m_off_t pos)
 
     if (dwRead != len)
     {
+        err = FSERR_UNKNOWN;
         retry = false;
         LOG_err << "ReadFile failed (dwRead) " << dwRead << " - " << len;
         return false;
@@ -79,6 +82,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
     if (!SetFilePointerEx(hFile, *(LARGE_INTEGER*)&pos, NULL, FILE_BEGIN))
     {
         DWORD e = GetLastError();
+        err = WinFileSystemAccess::errtype(e);
         retry = WinFileSystemAccess::istransient(e);
         LOG_err << "SetFilePointerEx failed for writting. Error: " << e;
         return false;
@@ -87,6 +91,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
     if (!WriteFile(hFile, (LPCVOID)data, (DWORD)len, &dwWritten, NULL))
     {
         DWORD e = GetLastError();
+        err = WinFileSystemAccess::errtype(e);
         retry = WinFileSystemAccess::istransient(e);
         LOG_err << "WriteFile failed. Error: " << e;
         return false;
@@ -94,6 +99,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 
      if (dwWritten != len)
      {
+         err = FSERR_UNKNOWN;
          retry = false;
          LOG_err << "WriteFile failed (dwWritten) " << dwWritten << " - " << len;
          return false;
@@ -102,6 +108,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
      if (!FlushFileBuffers(hFile))
      {
          DWORD e = GetLastError();
+         err = WinFileSystemAccess::errtype(e);
          retry = WinFileSystemAccess::istransient(e);
          LOG_err << "FlushFileBuffers failed. Error: " << e;
          return false;
@@ -137,6 +144,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW((LPCWSTR)localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
+        err = WinFileSystemAccess::errtype(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -144,6 +152,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
     {
         type = FOLDERNODE;
+        err = FSERR_UNKNOWN;
         retry = false;
         return false;
     }
@@ -172,6 +181,7 @@ bool WinFileAccess::sysopen(bool async)
     {
         DWORD e = GetLastError();
         LOG_debug << "Unable to open file (sysopen). Error code: " << e;
+        err = WinFileSystemAccess::errtype(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -247,6 +257,7 @@ VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTran
         LOG_warn << "Async operation finished with error: " << dwErrorCode;
     }
 
+    context->err = WinFileSystemAccess::errtype(dwErrorCode);;
     context->retry = WinFileSystemAccess::istransient(dwErrorCode);
     context->finished = true;
     if (context->userCallback)
@@ -275,6 +286,7 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
 
     context->failed = !fopen(&path, read, write, true);
     context->retry = retry;
+    context->err = err;
     context->finished = true;
     if (context->userCallback)
     {
@@ -294,6 +306,7 @@ void WinFileAccess::asyncsysread(AsyncIOContext *context)
     WinAsyncIOContext *winContext = dynamic_cast<WinAsyncIOContext*>(context);
     if (!winContext)
     {
+        context->err = FSERR_UNKNOWN;
         context->failed = true;
         context->retry = false;
         context->finished = true;
@@ -316,6 +329,7 @@ void WinFileAccess::asyncsysread(AsyncIOContext *context)
                    overlapped, asyncopfinished))
     {
         DWORD e = GetLastError();
+        winContext->err = WinFileSystemAccess::errtype(e);
         winContext->retry = WinFileSystemAccess::istransient(e);
         winContext->failed = true;
         winContext->finished = true;
@@ -342,6 +356,7 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
     WinAsyncIOContext *winContext = dynamic_cast<WinAsyncIOContext*>(context);
     if (!winContext)
     {
+        context->err = FSERR_UNKNOWN;
         context->failed = true;
         context->retry = false;
         context->finished = true;
@@ -363,6 +378,7 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
                    overlapped, asyncopfinished))
     {
         DWORD e = GetLastError();
+        winContext->err = WinFileSystemAccess::errtype(e);
         winContext->retry = WinFileSystemAccess::istransient(e);
         winContext->failed = true;
         winContext->finished = true;
@@ -447,6 +463,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
                 // this is an expected case so no need to log.  the FindFirstFileEx did not find the file, 
                 // GetFileAttributesEx is only expected to find it if it's a network share point
                 // LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
+                err = WinFileSystemAccess::errtype(e);
                 retry = WinFileSystemAccess::istransient(e);
                 name->resize(name->size() - added - 1);
                 return false;
@@ -562,6 +579,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
     {
         DWORD e = GetLastError();
         LOG_debug << "Unable to open file. Error code: " << e;
+        err = WinFileSystemAccess::errtype(e);
         retry = WinFileSystemAccess::istransient(e);
         return false;
     }
@@ -596,6 +614,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
         {
             DWORD e = GetLastError();
             LOG_debug << "Unable to open folder. Error code: " << e;
+            err = WinFileSystemAccess::errtype(e);
             retry = WinFileSystemAccess::istransient(e);
             return false;
         }
@@ -664,6 +683,21 @@ bool WinFileSystemAccess::istransientorexists(DWORD e)
 
 void WinFileSystemAccess::addevents(Waiter* w, int)
 {
+}
+
+fserr_t WinFileSystemAccess::errtype(DWORD e)
+{
+    if (e == ERROR_ACCESS_DENIED || e == ERROR_WRITE_PROTECT)
+    {
+        return FSERR_PERMISSIONS;
+    }
+
+    if (e == ERROR_SHARING_VIOLATION || e == ERROR_LOCK_VIOLATION)
+    {
+        return FSERR_SHARING;
+    }
+
+    return FSERR_UNKNOWN;
 }
 
 // generate unique local filename in the same fs as relatedpath
@@ -777,6 +811,7 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool rep
             client->fsaccess->local2path(newname, &utf8newname);
             LOG_warn << "Unable to move file: " << utf8oldname.c_str() << " to " << utf8newname.c_str() << ". Error code: " << e;
         }
+        err = errtype(e);
         transient_error = istransientorexists(e);
     }
 
@@ -801,6 +836,7 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
     {
         DWORD e = GetLastError();
         LOG_debug << "Unable to copy file. Error code: " << e;
+        err = errtype(e);
         transient_error = istransientorexists(e);
     }
 
@@ -817,6 +853,7 @@ bool WinFileSystemAccess::rmdirlocal(string* name)
     {
         DWORD e = GetLastError();
         LOG_debug << "Unable to delete folder. Error code: " << e;
+        err = errtype(e);
         transient_error = istransient(e);
     }
 
@@ -833,6 +870,7 @@ bool WinFileSystemAccess::unlinklocal(string* name)
     {
         DWORD e = GetLastError();
         LOG_debug << "Unable to delete file. Error code: " << e;
+        err = errtype(e);
         transient_error = istransient(e);
     }
 
@@ -963,6 +1001,7 @@ bool WinFileSystemAccess::mkdirlocal(string* name, bool hidden)
     {
         DWORD e = GetLastError();
         LOG_debug << "Unable to create folder. Error code: " << e;
+        err = errtype(e);
         transient_error = istransientorexists(e);
     }
     else if (hidden)
@@ -1006,6 +1045,7 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
     if (hFile == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
+        err = errtype(e);
         transient_error = istransient(e);
         LOG_warn << "Error opening file to change mtime: " << e;
         return false;
@@ -1020,6 +1060,7 @@ bool WinFileSystemAccess::setmtimelocal(string* name, m_time_t mtime)
     if (!r)
     {
         DWORD e = GetLastError();
+        err = errtype(e);
         transient_error = istransient(e);
         LOG_warn << "Error changing mtime: " << e;
     }

@@ -1087,6 +1087,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
             client->blockedfile = path;
+            client->blockedfilereason = fa->err;
         }
         else if (l)
         {

@@ -878,6 +878,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
+    blockedfilereason = FSERR_UNKNOWN;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -2170,6 +2171,7 @@ void MegaClient::exec()
                         {
                             syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
                             fsaccess->local2path(&sync->dirnotify->notifyq[DirNotify::RETRY].front().path, &blockedfile);
+                            blockedfilereason = fsaccess->err;
                             syncfslockretry = true;
                         }
                     }
@@ -3392,6 +3394,8 @@ void MegaClient::locallogout()
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
+    blockedfile.clear();
+    blockedfilereason = FSERR_UNKNOWN;
 
     freeq(GET);
     freeq(PUT);
@@ -10931,6 +10935,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else
                 {
                     fsaccess->local2path(localpath, &blockedfile);
+                    blockedfilereason = fsaccess->err;
                     LOG_warn << "Transient error deleting " << blockedfile;
                     success = false;
                     lit++;
@@ -10997,6 +11002,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 {
                     // schedule retry
                     fsaccess->local2path(&curpath, &blockedfile);
+                    blockedfilereason = fsaccess->err;
                     LOG_debug << "Transient error moving localnode " << blockedfile;
                     success = false;
                 }
@@ -11068,6 +11074,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 else if (success && fsaccess->transient_error)
                 {
                     fsaccess->local2path(localpath, &blockedfile);
+                    blockedfilereason = fsaccess->err;
                     LOG_debug << "Transient error creating folder " << blockedfile;
                     success = false;
                 }

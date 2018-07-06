@@ -5266,6 +5266,12 @@ class MegaApi
             KEEP_ALIVE_CAMERA_UPLOADS = 0
         };
 
+        enum {
+            FSERROR_UNKNOWN = 0,
+            FSERROR_PERMISSIONS,
+            FSERROR_SHARING
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -9488,6 +9494,27 @@ class MegaApi
          * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
          */
         char *getBlockedPath();
+
+        /**
+         * @brief Get the error related to the blocked file.
+         *
+         * This function can be used to know the cause of a blocked file
+         * when MegaApi::getBlockedPath do not return NULL.
+         *
+         * Possible values are:
+         * - MegaApi::FSERROR_UNKNOWN = 0
+         * The file is blocked due to an unknown reason
+         *
+         * - MegaApi::FSERROR_PERMISSIONS = 1
+         * The file is blocked due to a problem with permissions
+         *
+         * - MegaApi::FSERROR_SHARING = 2
+         * The file is blocked because it's being used by another app
+         *
+         * @return Error type related to the blocked file.
+         * @see MegaApi::getBlockedPath
+         */
+        int getBlockedReason();
 #endif
 
         /**

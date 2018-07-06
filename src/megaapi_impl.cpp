@@ -1136,6 +1136,12 @@ char *MegaApiImpl::getBlockedPath()
     sdkMutex.unlock();
     return path;
 }
+
+int MegaApiImpl::getBlockedReason()
+{
+    return client->blockedfilereason;
+}
+
 #endif
 
 MegaBackup *MegaApiImpl::getBackupByTag(int tag)

@@ -2504,6 +2504,11 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
+int MegaApi::getBlockedReason()
+{
+    return pImpl->getBlockedReason();
+}
+
 MegaSync *MegaApi::getSyncByTag(int tag)
 {
     return pImpl->getSyncByTag(tag);
