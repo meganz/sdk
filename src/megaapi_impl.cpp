@@ -14569,6 +14569,54 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     return fp;
 }
 
+char *MegaApiImpl::getMegaFingerprintFromSdkFingerprint(const char *sdkFingerprint)
+{
+    if (!sdkFingerprint || !sdkFingerprint[0])
+    {
+        return NULL;
+    }
+
+    unsigned int sizelen = sdkFingerprint[0] - 'A';
+    if (sizelen > (sizeof(m_off_t) * 4 / 3 + 4) || strlen(sdkFingerprint) <= (sizelen + 1))
+    {
+        return NULL;
+    }
+
+    FileFingerprint ffp;
+    string result = sdkFingerprint + sizelen + 1;
+    if (!ffp.unserializefingerprint(&result))
+    {
+        return NULL;
+    }
+    return MegaApi::strdup(result.c_str());
+}
+
+char *MegaApiImpl::getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size)
+{
+    if (!megaFingerprint || !megaFingerprint[0] || size < 0)
+    {
+        return NULL;
+    }
+
+    FileFingerprint ffp;
+    string sMegaFingerprint = megaFingerprint;
+    if (!ffp.unserializefingerprint(&sMegaFingerprint))
+    {
+        return NULL;
+    }
+
+    char bsize[sizeof(size) + 1];
+    int l = Serialize64::serialize((byte *)bsize, size);
+    char *buf = new char[l * 4 / 3 + 4];
+    char sizelen = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+    string result(1, sizelen);
+    result.append(buf);
+    result.append(megaFingerprint);
+    delete [] buf;
+
+    return MegaApi::strdup(result.c_str());
+}
+
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
 {
     if(!n) return NULL;
