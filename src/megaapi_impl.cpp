@@ -20332,7 +20332,7 @@ void MegaBackupController::removeexceeding()
             state = BACKUP_REMOVING_EXCEEDING;
             megaApi->fireOnBackupStateChanged(this);
             pendingremovals++;
-            megaApi->remove(nodeToDelete, this);
+            megaApi->remove(nodeToDelete, false, this);
 
             backupTimesNodes.erase(timetodelete);
         }
