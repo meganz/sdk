@@ -26453,12 +26453,12 @@ void MegaFTPDataServer::sendData()
     if (tcpctx)
     {
         LOG_verbose << "MegaFTPDataServer::sendData. triggering asyncsend for tcpctx=" << tcpctx;
+#ifdef ENABLE_EVT_TLS
         if (tcpctx->evt_tls == NULL)
         {
             LOG_warn << "MegaFTPDataServer::sendData, evt_tls is NULL";
         }
 
-#ifdef ENABLE_EVT_TLS
         if (useTLS && (!tcpctx->evt_tls || tcpctx->finished || !evt_tls_is_handshake_over(tcpctx->evt_tls)))
         {
             if (!tcpctx->evt_tls)
