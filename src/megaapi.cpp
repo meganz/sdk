@@ -998,6 +998,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "SSL verification failed";
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
+        case API_EMFAREQUIRED:
+            return "Multi-factor authentication required";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
