@@ -145,7 +145,7 @@ using namespace mega;
 }
 
 - (NSString *)text {
-    return self.megaRequest ? [[NSString alloc] initWithUTF8String:self.megaRequest->getText()] : nil;
+    return self.megaRequest->getText() ? [[NSString alloc] initWithUTF8String:self.megaRequest->getText()] : nil;
 }
 
 - (NSNumber *)number {
