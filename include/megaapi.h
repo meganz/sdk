@@ -3894,7 +3894,7 @@ public:
 
     /**
      * @brief Returns the next absolute timestamp of the next backup.
-     * @param oldStartTime Reference timestamp of the previous backup. If none provided it'll use current one.
+     * @param oldStartTimeAbsolute Reference timestamp of the previous backup. If none provided it'll use current one.
      *
      * Successive nested calls to this functions will give you a full schedule of the next backups.
      *
@@ -7094,7 +7094,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
          *
-         * @param email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+         * @param email_or_handle Email or user handle (Base64 encoded) to get the avatar. If this parameter is
          * set to NULL, the avatar is obtained for the active account
          * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
          * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
@@ -9033,7 +9033,7 @@ class MegaApi
          * - MegaRequest::getFlag - Returns whether to attend past backups (ocurred while not running)
          *
          *
-         * @param localFolder Local folder
+         * @param localPath Local path of the folder
          * @param parent MEGA folder to hold the backups
          * @param attendPastBackups attend backups that ought to have started before
          * @param period period between backups in deciseconds
@@ -10871,7 +10871,7 @@ class MegaApi
          * This attribute is automatically created by the server. Apps only need
          * to set the new value when the user changes the language.
          *
-         * @param Language code to be set
+         * @param languageCode Language code to be set
          * @param listener MegaRequestListener to track this request
          */
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
@@ -11648,7 +11648,7 @@ class MegaApi
          * the FTP server only remembers the generated links since the last call to
          * MegaApi::ftpServerStart
          *
-         * @param Required state for the restricted mode of the FTP server
+         * @param mode State for the restricted mode of the FTP server
          */
         void ftpServerSetRestrictedMode(int mode);
 
@@ -12149,7 +12149,7 @@ class MegaApi
         /**
          * @brief Get files attributes from a node
          * You take the ownership of the returned value
-         * @param handle handle from node
+         * @param h Handle from node
          * @return char array with files attributes from the node.
          */
         const char* getFileAttribute(MegaHandle h);
