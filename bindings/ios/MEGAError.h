@@ -45,7 +45,8 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
     MEGAErrorTypeApiERead = -21,                   // file could not be read from
     MEGAErrorTypeApiEAppKey = -22,                 // invalid or missing application key
     MEGAErrorTypeApiESSL = -23,                    // invalid SSL key
-    MEGAErrorTypeApiEgoingOverquota = -24          // Not enough quota
+    MEGAErrorTypeApiEgoingOverquota = -24,         // Not enough quota
+    MEGAErrorTypeApiEMFARequired = -26             // Multi-factor authentication required
 };
 
 /**

@@ -14663,6 +14663,54 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     return fp;
 }
 
+char *MegaApiImpl::getMegaFingerprintFromSdkFingerprint(const char *sdkFingerprint)
+{
+    if (!sdkFingerprint || !sdkFingerprint[0])
+    {
+        return NULL;
+    }
+
+    unsigned int sizelen = sdkFingerprint[0] - 'A';
+    if (sizelen > (sizeof(m_off_t) * 4 / 3 + 4) || strlen(sdkFingerprint) <= (sizelen + 1))
+    {
+        return NULL;
+    }
+
+    FileFingerprint ffp;
+    string result = sdkFingerprint + sizelen + 1;
+    if (!ffp.unserializefingerprint(&result))
+    {
+        return NULL;
+    }
+    return MegaApi::strdup(result.c_str());
+}
+
+char *MegaApiImpl::getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size)
+{
+    if (!megaFingerprint || !megaFingerprint[0] || size < 0)
+    {
+        return NULL;
+    }
+
+    FileFingerprint ffp;
+    string sMegaFingerprint = megaFingerprint;
+    if (!ffp.unserializefingerprint(&sMegaFingerprint))
+    {
+        return NULL;
+    }
+
+    char bsize[sizeof(size) + 1];
+    int l = Serialize64::serialize((byte *)bsize, size);
+    char *buf = new char[l * 4 / 3 + 4];
+    char sizelen = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+    string result(1, sizelen);
+    result.append(buf);
+    result.append(megaFingerprint);
+    delete [] buf;
+
+    return MegaApi::strdup(result.c_str());
+}
+
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
 {
     if(!n) return NULL;
@@ -20415,7 +20463,7 @@ void MegaBackupController::removeexceeding()
             state = BACKUP_REMOVING_EXCEEDING;
             megaApi->fireOnBackupStateChanged(this);
             pendingremovals++;
-            megaApi->remove(nodeToDelete, this);
+            megaApi->remove(nodeToDelete, false, this);
 
             backupTimesNodes.erase(timetodelete);
         }
@@ -21151,7 +21199,7 @@ void MegaBackupController::setPeriodstring(const string &value)
             {
                 this->startTime = starttimes[j]; //starttimes[j] should have the oldest time
             }
-            delete starttimes;
+            delete [] starttimes;
         }
         LOG_debug << " Next Backup set in " << startTime - Waiter::ds << " deciseconds. At: " << epochdsToString((this->startTime+this->offsetds));
     }
@@ -26536,12 +26584,12 @@ void MegaFTPDataServer::sendData()
     if (tcpctx)
     {
         LOG_verbose << "MegaFTPDataServer::sendData. triggering asyncsend for tcpctx=" << tcpctx;
+#ifdef ENABLE_EVT_TLS
         if (tcpctx->evt_tls == NULL)
         {
             LOG_warn << "MegaFTPDataServer::sendData, evt_tls is NULL";
         }
 
-#ifdef ENABLE_EVT_TLS
         if (useTLS && (!tcpctx->evt_tls || tcpctx->finished || !evt_tls_is_handshake_over(tcpctx->evt_tls)))
         {
             if (!tcpctx->evt_tls)

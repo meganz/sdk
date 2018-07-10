@@ -55,6 +55,7 @@ namespace mega
         API_EAPPKEY             = -22,  // invalid or missing application key
         API_ESSL                = -23,  // SSL verification failed
         API_EGOINGOVERQUOTA     = -24,  // Not enough quota
+        API_EMFAREQUIRED        = -26,  // Multi-factor authentication required
 
         PAYMENT_ECARD           = -101,
         PAYMENT_EBILLING        = -102,
