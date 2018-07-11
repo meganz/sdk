@@ -134,11 +134,12 @@ public:
 class MEGA_API CommandSetMasterKey : public Command
 {
     byte newkey[SymmCipher::KEYLENGTH];
+    string salt;
 
 public:
     void procresult();
 
-    CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* = NULL, const char* = NULL);
+    CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* = NULL, const char* = NULL, string* = NULL);
 };
 
 class MEGA_API CommandCreateEphemeralSession : public Command

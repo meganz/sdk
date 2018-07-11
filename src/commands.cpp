@@ -1445,7 +1445,7 @@ void CommandPrelogin::procresult()
         return client->app->prelogin_result(0, NULL, NULL, (error)client->json.getint());
     }
 
-    int v = 0;
+    int v = 1;
     string salt;
     for (;;)
     {
@@ -1464,7 +1464,7 @@ void CommandPrelogin::procresult()
                     return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
                 }
                 client->accountversion = v;
-                client->accountsalt = salt;
+                Base64::atob(salt, client->accountsalt);
                 client->app->prelogin_result(v, &email, &salt, API_OK);
                 return;
             default:
@@ -3145,7 +3145,7 @@ void CommandGetUserData::procresult()
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     int len_privk = 0;
     m_time_t since = 0;
-    int v = 0;
+    int v = 1;
     string salt;
     bool gmfa = false;
     bool ssrs = false;
@@ -3226,7 +3226,7 @@ void CommandGetUserData::procresult()
 
         case EOO:
             client->accountversion = v;
-            client->accountsalt = salt;
+            Base64::atob(salt, client->accountsalt);
             client->accountsince = since;
             client->gmfa_enabled = gmfa;
             client->ssrs_enabled = ssrs;
@@ -3770,7 +3770,7 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientkey, const char *pin)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientkey, const char *pin, string *salt)
 {
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
@@ -3786,6 +3786,11 @@ CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey,
         arg("mfa", pin);
     }
 
+    if (salt)
+    {
+        this->salt = *salt;
+    }
+
     tag = client->reqtag;
 }
 
@@ -3797,8 +3802,9 @@ void CommandSetMasterKey::procresult()
     }
     else
     {
-        // update encrypted MK for further checkups
+        // update encrypted MK and salt for further checkups
         client->k.assign((const char *) newkey, SymmCipher::KEYLENGTH);
+        client->accountsalt = salt;
 
         client->json.storeobject();
         client->app->changepw_result(API_OK);

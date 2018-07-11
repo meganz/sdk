@@ -4177,20 +4177,43 @@ bool MegaApiImpl::isAchievementsEnabled()
 
 bool MegaApiImpl::checkPassword(const char *password)
 {
-    byte pwkey[SymmCipher::KEYLENGTH];
-
     sdkMutex.lock();
-    if (!password || !password[0]
-            || client->k.size() < SymmCipher::KEYLENGTH
-            || client->pw_key(password, pwkey))
+    if (!password || !password[0] || client->k.size() != SymmCipher::KEYLENGTH)
     {
         sdkMutex.unlock();
         return false;
     }
 
     string k = client->k;
-    SymmCipher cipher(pwkey);
-    cipher.ecb_decrypt((byte *)k.data());
+    if (client->accountversion == 1)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        if (client->pw_key(password, pwkey))
+        {
+            sdkMutex.unlock();
+            return false;
+        }
+
+        SymmCipher cipher(pwkey);
+        cipher.ecb_decrypt((byte *)k.data());
+    }
+    else
+    {
+        if (client->accountsalt.size() != 32) // SHA256
+        {
+            sdkMutex.unlock();
+            return false;
+        }
+
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                         (const byte *)client->accountsalt.data(), client->accountsalt.size(), 100000);
+
+        SymmCipher cipher(derivedKey);
+        cipher.ecb_decrypt((byte *)k.data());
+    }
+
     bool result = !memcmp(k.data(), client->key.key, SymmCipher::KEYLENGTH);
     sdkMutex.unlock();
     return result;

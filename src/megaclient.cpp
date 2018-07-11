@@ -875,7 +875,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tsLogin = false;
     versions_disabled = false;
     accountsince = 0;
-    accountversion = 0;
+    accountversion = 1;
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
@@ -3468,7 +3468,7 @@ void MegaClient::locallogout()
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
-    accountversion = 0;
+    accountversion = 1;
     accountsalt.clear();
     sid.clear();
     k.clear();
@@ -9523,39 +9523,36 @@ error MegaClient::changepw(const char* password, const char *pin)
         return API_OK;
     }
 
-    if (accountversion == 2)
-    {
-        byte clientkey[SymmCipher::KEYLENGTH];
-        PrnGen::genblock(clientkey, sizeof(clientkey));
+    byte clientkey[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(clientkey, sizeof(clientkey));
 
-        string salt;
-        HashSHA256 hasher;
-        string buffer = "mega.nz";
-        buffer.resize(100, 'P');
-        buffer.append((char *)clientkey, sizeof(clientkey));
-        hasher.add((const byte*)buffer.data(), buffer.size());
-        hasher.get(&salt);
+    string salt;
+    HashSHA256 hasher;
+    string buffer = "mega.nz";
+    buffer.resize(100, 'P');
+    buffer.append((char *)clientkey, sizeof(clientkey));
+    hasher.add((const byte*)buffer.data(), buffer.size());
+    hasher.get(&salt);
 
-        byte derivedKey[2 * SymmCipher::KEYLENGTH];
-        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
-        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
-                         (const byte *)salt.data(), salt.size(), 100000);
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)salt.data(), salt.size(), 100000);
 
-        byte encmasterkey[SymmCipher::KEYLENGTH];
-        SymmCipher cipher;
-        cipher.setkey(derivedKey);
-        cipher.ecb_encrypt(key.key, encmasterkey);
+    byte encmasterkey[SymmCipher::KEYLENGTH];
+    SymmCipher cipher;
+    cipher.setkey(derivedKey);
+    cipher.ecb_encrypt(key.key, encmasterkey);
 
-        string hashedauthkey;
-        byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
-        hasher.add(authkey, SymmCipher::KEYLENGTH);
-        hasher.get(&hashedauthkey);
-        hashedauthkey.resize(SymmCipher::KEYLENGTH);
-        reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, pin));
-        return API_OK;
-    }
+    string hashedauthkey;
+    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    hasher.add(authkey, SymmCipher::KEYLENGTH);
+    hasher.get(&hashedauthkey);
+    hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
-    return API_EINTERNAL;
+    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
+    reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, pin, &salt));
+    return API_OK;
 }
 
 // create ephemeral session
