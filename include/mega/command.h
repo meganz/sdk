@@ -771,7 +771,7 @@ class MEGA_API CommandConfirmEmailLink : public Command
 public:
     void procresult();
 
-    CommandConfirmEmailLink(MegaClient*, const char*, const char *, uint64_t, bool);
+    CommandConfirmEmailLink(MegaClient*, const char*, const char *, const byte *, bool);
 };
 
 class MEGA_API CommandGetVersion : public Command

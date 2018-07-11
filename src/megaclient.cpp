@@ -715,12 +715,17 @@ void MegaClient::getemaillink(const char *email, const char *pin)
 
 void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
 {
-    SymmCipher pwcipher(pwkey);
-
-    string emailstr = email;
-    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
-
-    reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
+    if (pwkey)
+    {
+        SymmCipher pwcipher(pwkey);
+        string emailstr = email;
+        uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+        reqs.add(new CommandConfirmEmailLink(this, code, email, (const byte*)&loginHash, true));
+    }
+    else
+    {
+        reqs.add(new CommandConfirmEmailLink(this, code, email, NULL, true));
+    }
 }
 
 void MegaClient::contactlinkcreate(bool renew)

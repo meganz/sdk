@@ -10100,13 +10100,35 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
             fireOnRequestFinish(request, MegaError(API_EARGS));
             return;
         }
-
-        client->pw_key(request->getPassword(), pwkey);
-
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        client->validatepwd(pwkey);
-        client->reqtag = creqtag;
+        
+        if (!checkPassword(request->getPassword()))
+        {
+            fireOnRequestFinish(request, MegaError(API_EACCESS));
+            return;
+        }
+                
+        const char* code;
+        if ((code = strstr(request->getLink(), "#verify")))
+        {
+            code += strlen("#verify");
+            int creqtag = client->reqtag;
+            client->reqtag = client->restag;
+            if (client->accountversion == 1)
+            {
+                byte pwkey[SymmCipher::KEYLENGTH];
+                client->pw_key(request->getPassword(), pwkey);
+                client->confirmemaillink(code, request->getEmail(), pwkey);
+            }
+            else
+            {
+                client->confirmemaillink(code, request->getEmail(), NULL);
+            }
+            client->reqtag = creqtag;
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+        }
     }
 }
 
@@ -10178,57 +10200,6 @@ void MegaApiImpl::confirmcancellink_result(error e)
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK)) return;
 
     fireOnRequestFinish(request, MegaError(e));
-}
-
-void MegaApiImpl::validatepassword_result(error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK))) return;
-
-    if (e)
-    {
-        fireOnRequestFinish(request, MegaError(e));
-        return;
-    }
-
-    if (request->getType() == MegaRequest::TYPE_CONFIRM_CANCEL_LINK)
-    {
-        const char *link = request->getLink();
-        const char* code;
-        if ((code = strstr(link, "#cancel")))
-        {
-            code += strlen("#cancel");
-            int creqtag = client->reqtag;
-            client->reqtag = client->restag;
-            client->confirmcancellink(code);
-            client->reqtag = creqtag;
-        }
-        else
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-        }
-    }
-    else if (request->getType() == MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)
-    {
-        byte pwkey[SymmCipher::KEYLENGTH];
-        client->pw_key(request->getPassword(), pwkey);
-
-        const char* code;
-        if ((code = strstr(request->getLink(), "#verify")))
-        {
-            code += strlen("#verify");
-            int creqtag = client->reqtag;
-            client->reqtag = client->restag;
-            client->confirmemaillink(code, request->getEmail(), pwkey);
-            client->reqtag = creqtag;
-        }
-        else
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-        }
-    }
 }
 
 void MegaApiImpl::getemaillink_result(error e)
@@ -17255,6 +17226,7 @@ void MegaApiImpl::sendPendingRequests()
             if (client->loggedin() != FULLACCOUNT)
             {
                 e = API_EACCESS;
+                break;
             }
 
             const char* code;
@@ -17263,12 +17235,15 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
                 break;
             }
+            
+            if (!checkPassword(pwd))
+            {
+                e = API_EACCESS;
+                break;
+            }
 
-            byte pwkey[SymmCipher::KEYLENGTH];
-            client->pw_key(pwd, pwkey);
-
-            // concatenate login + confirm requests
-            e = client->validatepwd(pwkey);
+            code += strlen("#cancel");
+            client->confirmcancellink(code);
             break;
         }
         case MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK:
@@ -17298,6 +17273,7 @@ void MegaApiImpl::sendPendingRequests()
             if (client->loggedin() != FULLACCOUNT)
             {
                 e = API_EACCESS;
+                break;
             }
 
             const char* code;

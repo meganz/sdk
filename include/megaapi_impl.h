@@ -2422,7 +2422,6 @@ protected:
         virtual void getprivatekey_result(error, const byte *privk = NULL, const size_t len_privk = 0);
         virtual void confirmrecoverylink_result(error);
         virtual void confirmcancellink_result(error);
-        virtual void validatepassword_result(error);
         virtual void getemaillink_result(error);
         virtual void confirmemaillink_result(error);
         virtual void getversion_result(int, const char*, error);

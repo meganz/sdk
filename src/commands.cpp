@@ -4796,7 +4796,7 @@ void CommandGetEmailLink::procresult()
     }
 }
 
-CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, uint64_t newLoginHash, bool replace)
+CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
 {
     this->email = email;
     this->replace = replace;
@@ -4805,7 +4805,10 @@ CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char 
 
     arg("c", code);
     arg("e", email);
-    arg("uh", (byte*)&newLoginHash, sizeof newLoginHash);
+    if (newLoginHash)
+    {
+        arg("uh", newLoginHash, sizeof(uint64_t));
+    }
     if (replace)
     {
         arg("r", 1);    // replace the current email address by this one
