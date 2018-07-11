@@ -2796,8 +2796,9 @@ class MegaTransfer
 	public:
         enum {
             TYPE_DOWNLOAD = 0,
-            TYPE_UPLOAD,
-            TYPE_LOCAL_HTTP_DOWNLOAD
+            TYPE_UPLOAD = 1,
+            TYPE_LOCAL_TCP_DOWNLOAD = 2,
+            TYPE_LOCAL_HTTP_DOWNLOAD = 2 //kept for backwards compatibility
         };
 
         enum {
@@ -3930,7 +3931,7 @@ public:
 
     /**
      * @brief Returns the next absolute timestamp of the next backup.
-     * @param oldStartTime Reference timestamp of the previous backup. If none provided it'll use current one.
+     * @param oldStartTimeAbsolute Reference timestamp of the previous backup. If none provided it'll use current one.
      *
      * Successive nested calls to this functions will give you a full schedule of the next backups.
      *
@@ -4081,6 +4082,7 @@ public:
         API_EAPPKEY = -22,      ///< Invalid or missing application key.
         API_ESSL = -23,         ///< SSL verification failed
         API_EGOINGOVERQUOTA = -24,  ///< Not enough quota
+        API_EMFAREQUIRED = -26, ///< Multi-factor authentication required
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -7129,7 +7131,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the destination path
          * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
          *
-         * @param email_or_user Email or user handle (Base64 encoded) to get the avatar. If this parameter is
+         * @param email_or_handle Email or user handle (Base64 encoded) to get the avatar. If this parameter is
          * set to NULL, the avatar is obtained for the active account
          * @param dstFilePath Destination path for the avatar. It has to be a path to a file, not to a folder.
          * If this path is a local folder, it must end with a '\' or '/' character and (email + "0.jpg")
@@ -9068,7 +9070,7 @@ class MegaApi
          * - MegaRequest::getFlag - Returns whether to attend past backups (ocurred while not running)
          *
          *
-         * @param localFolder Local folder
+         * @param localPath Local path of the folder
          * @param parent MEGA folder to hold the backups
          * @param attendPastBackups attend backups that ought to have started before
          * @param period period between backups in deciseconds
@@ -10906,7 +10908,7 @@ class MegaApi
          * This attribute is automatically created by the server. Apps only need
          * to set the new value when the user changes the language.
          *
-         * @param Language code to be set
+         * @param languageCode Language code to be set
          * @param listener MegaRequestListener to track this request
          */
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
@@ -11190,6 +11192,14 @@ class MegaApi
 #ifdef HAVE_LIBUV
 
         enum {
+            TCP_SERVER_DENY_ALL = -1,
+            TCP_SERVER_ALLOW_ALL = 0,
+            TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
+            TCP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+        };
+
+        //kept for backwards compatibility
+        enum {
             HTTP_SERVER_DENY_ALL = -1,
             HTTP_SERVER_ALLOW_ALL = 0,
             HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1,
@@ -11215,7 +11225,7 @@ class MegaApi
          * that can restrict the nodes that will be served and the connections that will be accepted.
          *
          * These are the default options:
-         * - The restricted mode of the server is set to MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * - The restricted mode of the server is set to MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS
          * (see MegaApi::httpServerSetRestrictedMode)
          *
          * - Folder nodes are NOT allowed to be served (see MegaApi::httpServerEnableFolderServer)
@@ -11231,7 +11241,7 @@ class MegaApi
          * enabling this flag will cause the function to return false.
          * @param certificatepath path to certificate (PEM format)
          * @param keypath path to certificate key
-         * @return True is the server is ready, false if the initialization failed
+         * @return True if the server is ready, false if the initialization failed
          */
         bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
 
@@ -11347,7 +11357,7 @@ class MegaApi
          *
          * The default value of this property is MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
          *
-         * The state of this option is preserved even if the HTTP server is restarted, but the
+         * The state of this option is preserved even if the HTTP server is restarted, but
          * the HTTP proxy server only remembers the generated links since the last call to
          * MegaApi::httpServerStart
          *
@@ -11429,7 +11439,7 @@ class MegaApi
          * @brief Add a listener to receive information about the HTTP proxy server
          *
          * This is the valid data that will be provided on callbacks:
-         * - MegaTransfer::getType - It will be MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD
+         * - MegaTransfer::getType - It will be MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD
          * - MegaTransfer::getPath - URL requested to the HTTP proxy server
          * - MegaTransfer::getFileName - Name of the requested file (if any, otherwise NULL)
          * - MegaTransfer::getNodeHandle - Handle of the requested file (if any, otherwise NULL)
@@ -11514,6 +11524,12 @@ class MegaApi
          */
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
 
+        /**
+         * @brief Stops serving all nodes served via webdav.
+         * The webdav links will no longer be valid.
+         *
+         */
+        void httpServerRemoveWebDavAllowedNodes();
 
         /**
          * @brief Set the maximum buffer size for the internal buffer
@@ -11569,7 +11585,7 @@ class MegaApi
          * It's recommended to set this value to at least 8192 and no more than the 25% of
          * the maximum buffer size (MegaApi::httpServerSetMaxBufferSize).
          *
-         * The new value will be takein into account since the next request received by
+         * The new value will be taken into account since the next request received by
          * the HTTP proxy server, not for ongoing requests. It's possible and effective
          * to call this function even before the server has been started, and the value
          * will be still active even if the server is stopped and started again.
@@ -11587,6 +11603,272 @@ class MegaApi
          * @return Maximum size of the packets sent to clients (in bytes)
          */
         int httpServerGetMaxOutputSize();
+
+        /**
+         * @brief Start an FTP server in specified port
+         *
+         * If this function returns true, that means that the server is
+         * ready to accept connections. The initialization is synchronous.
+         *
+         * The server will serve files using this URL format:
+         * ftp://127.0.0.1:PORT/<NodeHandle>/<NodeName>
+         *
+         * The node name must be URL encoded and must match with the node handle.
+         * You can generate a correct link for a MegaNode using MegaApi::ftpServerGetLocalLink
+         *
+         * It's important to know that the FTP server has several configuration options
+         * that can restrict the nodes that will be served and the connections that will be accepted.
+         *
+         * These are the default options:
+         * - The restricted mode of the server is set to MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         * (see MegaApi::ftpServerSetRestrictedMode)
+         *
+         * The FTP server will only stream a node if it's allowed by all configuration options.
+         *
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
+         * @param port Port in which the server must accept connections
+         * @param dataportBegin Initial port for FTP data channel
+         * @param dataPortEnd Final port for FTP data channel (included)
+         * @param useTLS Use TLS (default false)
+         * @param certificatepath path to certificate (PEM format)
+         * @param keypath path to certificate key
+         * @return True if the server is ready, false if the initialization failed
+         */
+        bool ftpServerStart(bool localOnly = true, int port = 22, int dataportBegin = 1500, int dataPortEnd = 1600, bool useTLS = false, const char *certificatepath = NULL, const char * keypath = NULL);
+
+        /**
+         * @brief Stop the FTP server
+         *
+         * When this function returns, the server is already shutdown.
+         * If the FTP server isn't running, this functions does nothing
+         */
+        void ftpServerStop();
+
+        /**
+         * @brief Check if the FTP server is running
+         * @return 0 if the server is not running. Otherwise the port in which it's listening to
+         */
+        int ftpServerIsRunning();
+
+         /**
+         * @brief Check if the FTP server is listening on all network interfaces
+         * @return true if the FTP server is listening on 127.0.0.1 only, or it's not started.
+         * If it's started and listening on all network interfaces, this function returns false
+         */
+        bool ftpServerIsLocalOnly();
+
+        /**
+         * @brief Enable/disable the restricted mode of the FTP server
+         *
+         * This function allows to restrict the nodes that are allowed to be served.
+         * For not allowed links, the server will return a corresponding "550" error.
+         *
+         * Possible values are:
+         * - TCP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - TCP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1 (default)
+         * Only links created with MegaApi::ftpServerGetLocalLink are allowed to be served
+         *
+         * - TCP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::ftpServerGetLocalLink is allowed to be served
+         *
+         * If a different value from the list above is passed to this function, it won't have any effect and the previous
+         * state of this option will be preserved.
+         *
+         * The default value of this property is MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * The state of this option is preserved even if the FTP server is restarted, but the
+         * the FTP server only remembers the generated links since the last call to
+         * MegaApi::ftpServerStart
+         *
+         * @param mode State for the restricted mode of the FTP server
+         */
+        void ftpServerSetRestrictedMode(int mode);
+
+        /**
+         * @brief Check if the FTP server is working in restricted mode
+         *
+         * Possible return values are:
+         * - TCP_SERVER_DENY_ALL = -1
+         * All nodes are forbidden
+         *
+         * - TCP_SERVER_ALLOW_ALL = 0
+         * All nodes are allowed to be served
+         *
+         * - TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS = 1
+         * Only links created with MegaApi::ftpServerGetLocalLink are allowed to be served
+         *
+         * - TCP_SERVER_ALLOW_LAST_LOCAL_LINK = 2
+         * Only the last link created with MegaApi::ftpServerGetLocalLink is allowed to be served
+         *
+         * The default value of this property is MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+         *
+         * See MegaApi::ftpServerEnableRestrictedMode and MegaApi::ftpServerStart
+         *
+         * @return State of the restricted mode of the FTP server
+         */
+        int ftpServerGetRestrictedMode();
+
+        /**
+         * @brief Add a listener to receive information about the FTP server
+         *
+         * This is the valid data that will be provided on callbacks:
+         * - MegaTransfer::getType - It will be MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD
+         * - MegaTransfer::getPath - URL requested to the FTP server
+         * - MegaTransfer::getFileName - Name of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getNodeHandle - Handle of the requested file (if any, otherwise NULL)
+         * - MegaTransfer::getTotalBytes - Total bytes of the response (response headers + file, if required)
+         * - MegaTransfer::getStartPos - Start position (for range requests only, otherwise -1)
+         * - MegaTransfer::getEndPos - End position (for range requests only, otherwise -1)
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EINCOMPLETE - If the whole response wasn't sent
+         * (it's normal to get this error code sometimes because media players close connections when they have
+         * the data that they need)
+         *
+         * - MegaError::API_EREAD - If the connection with MEGA storage servers failed
+         * - MegaError::API_EAGAIN - If the download speed is too slow for streaming
+         * - A number > 0 means an FTP error code returned to the client
+         *
+         * @param listener Listener to receive information about the FTP server
+         */
+        void ftpServerAddListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Stop the reception of callbacks related to the FTP server on this listener
+         * @param listener Listener that won't continue receiving information
+         */
+        void ftpServerRemoveListener(MegaTransferListener *listener);
+
+        /**
+         * @brief Returns a URL to a node in the local FTP server
+         *
+         * The FTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to generate the local FTP link
+         * @return URL to the node in the local FTP server, otherwise NULL
+         */
+        char *ftpServerGetLocalLink(MegaNode *node);
+
+        /**
+         * @brief Returns the list with the links of locations served via FTP
+         *
+         * The FTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local FTP server, otherwise NULL
+         */
+        MegaStringList *ftpServerGetLinks();
+
+        /**
+         * @brief Returns the list of nodes served via FTP
+         *
+         * The FTP server must be running before using this function, otherwise
+         * it will return NULL.
+         *
+         * You take the ownership of the returned value
+         *
+         * @return URL to the node in the local FTP server, otherwise NULL
+         */
+        MegaNodeList *ftpServerGetAllowedNodes();
+
+        /**
+         * @brief Stops serving a node via ftp.
+         * The ftp link will no longer be valid.
+         *
+         * @param handle Handle of the node to stop serving
+         * @return URL to the node in the local FTP server, otherwise NULL
+         */
+        void ftpServerRemoveAllowedNode(MegaHandle handle);
+
+        /**
+         * @brief Stops serving all nodes served via ftp.
+         * The ftp links will no longer be valid.
+         *
+         */
+        void ftpServerRemoveAllowedNodes();
+
+        /**
+         * @brief Set the maximum buffer size for the internal buffer
+         *
+         * The FTP server has an internal buffer to store the data received from MEGA
+         * while it's being sent to clients. When the buffer is full, the connection with
+         * the MEGA storage server is closed, when the buffer has few data, the connection
+         * with the MEGA storage server is started again.
+         *
+         * Even with very fast connections, due to the possible latency starting new connections,
+         * if this buffer is small the streaming can have problems due to the overhead caused by
+         * the excessive number of RETR/REST requests.
+         *
+         * It's recommended to set this buffer at least to 1MB
+         *
+         * For connections that request less data than the buffer size, the FTP server
+         * will only allocate the required memory to complete the request to minimize the
+         * memory usage.
+         *
+         * The new value will be taken into account since the next request received by
+         * the FTP server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param bufferSize Maximum buffer size (in bytes) or a number <= 0 to use the
+         * internal default value
+         */
+        void ftpServerSetMaxBufferSize(int bufferSize);
+
+        /**
+         * @brief Get the maximum size of the internal buffer size
+         *
+         * See MegaApi::ftpServerSetMaxBufferSize
+         *
+         * @return Maximum size of the internal buffer size (in bytes)
+         */
+        int ftpServerGetMaxBufferSize();
+
+        /**
+         * @brief Set the maximum size of packets sent to clients
+         *
+         * For each connection, the FTP server only sends one write to the underlying
+         * socket at once. This parameter allows to set the size of that write.
+         *
+         * A small value could cause a lot of writes and would lower the performance.
+         *
+         * A big value could send too much data to the output buffer of the socket. That could
+         * keep the internal buffer full of data that hasn't been sent to the client yet,
+         * preventing the retrieval of additional data from the MEGA storage server. In that
+         * circumstances, the client could read a lot of data at once and the FTP server
+         * could not have enough time to get more data fast enough.
+         *
+         * It's recommended to set this value to at least 8192 and no more than the 25% of
+         * the maximum buffer size (MegaApi::ftpServerSetMaxBufferSize).
+         *
+         * The new value will be taken into account since the next request received by
+         * the FTP server, not for ongoing requests. It's possible and effective
+         * to call this function even before the server has been started, and the value
+         * will be still active even if the server is stopped and started again.
+         *
+         * @param outputSize Maximun size of data packets sent to clients (in bytes) or
+         * a number <= 0 to use the internal default value
+         */
+        void ftpServerSetMaxOutputSize(int outputSize);
+
+        /**
+         * @brief Get the maximum size of the packets sent to clients
+         *
+         * See MegaApi::ftpServerSetMaxOutputSize
+         *
+         * @return Maximum size of the packets sent to clients (in bytes)
+         */
+        int ftpServerGetMaxOutputSize();
 
 #endif
     
@@ -11946,7 +12228,7 @@ class MegaApi
         /**
          * @brief Get files attributes from a node
          * You take the ownership of the returned value
-         * @param handle handle from node
+         * @param h Handle from node
          * @return char array with files attributes from the node.
          */
         const char* getFileAttribute(MegaHandle h);

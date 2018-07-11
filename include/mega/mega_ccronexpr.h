@@ -37,7 +37,7 @@
 extern "C" {
 #endif
 
-#ifndef ANDROID
+#if !defined(ANDROID) || defined(__LP64__)
 #include <time.h>
 #else /* ANDROID */
 #include <time64.h>

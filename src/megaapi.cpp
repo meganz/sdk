@@ -998,6 +998,8 @@ const char* MegaError::getErrorString(int errorCode)
             return "SSL verification failed";
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
+        case API_EMFAREQUIRED:
+            return "Multi-factor authentication required";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1351,7 +1353,7 @@ int MegaApi::isLoggedIn()
 
 void MegaApi::whyAmIBlocked(MegaRequestListener *listener)
 {
-    return pImpl->whyAmIBlocked(false, listener);
+    pImpl->whyAmIBlocked(false, listener);
 }
 
 void MegaApi::contactLinkCreate(bool renew, MegaRequestListener *listener)
@@ -2792,7 +2794,7 @@ MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
 {
-    return pImpl->getLastAvailableVersion(appKey, listener);
+    pImpl->getLastAvailableVersion(appKey, listener);
 }
 
 void MegaApi::getLocalSSLCertificate(MegaRequestListener *listener)
@@ -3381,7 +3383,12 @@ MegaNodeList *MegaApi::httpServerGetWebDavAllowedNodes()
 
 void MegaApi::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
 {
-    return pImpl->httpServerRemoveWebDavAllowedNode(handle);
+    pImpl->httpServerRemoveWebDavAllowedNode(handle);
+}
+
+void MegaApi::httpServerRemoveWebDavAllowedNodes()
+{
+    pImpl->httpServerRemoveWebDavAllowedNodes();
 }
 
 void MegaApi::httpServerSetMaxBufferSize(int bufferSize)
@@ -3403,6 +3410,93 @@ int MegaApi::httpServerGetMaxOutputSize()
 {
     return pImpl->httpServerGetMaxOutputSize();
 }
+
+//FTP Server:
+bool MegaApi::ftpServerStart(bool localOnly, int port, int dataportBegin, int dataPortEnd, bool useTLS, const char * certificatepath, const char * keypath)
+{
+    return pImpl->ftpServerStart(localOnly, port, dataportBegin, dataPortEnd, useTLS, certificatepath, keypath);
+}
+
+void MegaApi::ftpServerStop()
+{
+    pImpl->ftpServerStop();
+}
+
+int MegaApi::ftpServerIsRunning()
+{
+    return pImpl->ftpServerIsRunning();
+}
+
+bool MegaApi::ftpServerIsLocalOnly()
+{
+    return pImpl->ftpServerIsLocalOnly();
+}
+
+void MegaApi::ftpServerSetRestrictedMode(int mode)
+{
+    pImpl->ftpServerSetRestrictedMode(mode);
+}
+
+int MegaApi::ftpServerGetRestrictedMode()
+{
+    return pImpl->ftpServerGetRestrictedMode();
+}
+
+void MegaApi::ftpServerAddListener(MegaTransferListener *listener)
+{
+    pImpl->ftpServerAddListener(listener);
+}
+
+void MegaApi::ftpServerRemoveListener(MegaTransferListener *listener)
+{
+    pImpl->ftpServerRemoveListener(listener);
+}
+
+char *MegaApi::ftpServerGetLocalLink(MegaNode *node)
+{
+    return pImpl->ftpServerGetLocalLink(node);
+}
+
+MegaStringList *MegaApi::ftpServerGetLinks()
+{
+    return pImpl->ftpServerGetLinks();
+}
+
+MegaNodeList *MegaApi::ftpServerGetAllowedNodes()
+{
+    return pImpl->ftpServerGetAllowedNodes();
+}
+
+void MegaApi::ftpServerRemoveAllowedNode(MegaHandle handle)
+{
+    pImpl->ftpServerRemoveAllowedNode(handle);
+}
+
+void MegaApi::ftpServerRemoveAllowedNodes()
+{
+    pImpl->ftpServerRemoveAllowedNodes();
+}
+
+void MegaApi::ftpServerSetMaxBufferSize(int bufferSize)
+{
+    pImpl->ftpServerSetMaxBufferSize(bufferSize);
+}
+
+int MegaApi::ftpServerGetMaxBufferSize()
+{
+    return pImpl->ftpServerGetMaxBufferSize();
+}
+
+void MegaApi::ftpServerSetMaxOutputSize(int outputSize)
+{
+    pImpl->ftpServerSetMaxOutputSize(outputSize);
+}
+
+int MegaApi::ftpServerGetMaxOutputSize()
+{
+    return pImpl->ftpServerGetMaxOutputSize();
+}
+
 #endif
 
 char *MegaApi::getMimeType(const char *extension)
