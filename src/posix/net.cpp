@@ -35,7 +35,7 @@ MUTEX_CLASS CurlHttpIO::curlMutex(false);
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
 MUTEX_CLASS **CurlHttpIO::sslMutexes = NULL;
-static MUTEX_CLASS lock_init_mutex;
+static MUTEX_CLASS lock_init_mutex(false);
 void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
 {
     MUTEX_CLASS *mutex = sslMutexes[lockNumber];
@@ -43,9 +43,9 @@ void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
     {
         // we still have to be careful about multiple threads getting to this point simultaneously
         lock_init_mutex.lock();
-        while (!(mutex = sslMutexes[lockNumber]))
+        if (!(mutex = sslMutexes[lockNumber]))
         {
-            sslMutexes[lockNumber] = new MUTEX_CLASS(true);
+            mutex = sslMutexes[lockNumber] = new MUTEX_CLASS(true);
         }
         lock_init_mutex.unlock();
     }
