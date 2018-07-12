@@ -663,38 +663,95 @@ void MegaClient::getprivatekey(const char *code)
     reqs.add(new CommandGetPrivateKey(this, code));
 }
 
-void MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
+void MegaClient::confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey, int accountversion)
 {
-    SymmCipher pwcipher(pwkey);
-
-    string emailstr = email;
-    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
-
-    if (masterkey)
+    if (accountversion == 1)
     {
-        // encrypt provided masterkey using the new password
-        byte encryptedMasterKey[SymmCipher::KEYLENGTH];
-        memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
-        pwcipher.ecb_encrypt(encryptedMasterKey);
+        byte pwkey[SymmCipher::KEYLENGTH];
+        pw_key(password, pwkey);
+        SymmCipher pwcipher(pwkey);
 
-        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, encryptedMasterKey, NULL));
+        string emailstr = email;
+        uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+        if (masterkey)
+        {
+            // encrypt provided masterkey using the new password
+            byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            pwcipher.ecb_encrypt(encryptedMasterKey);
+
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, encryptedMasterKey, NULL));
+        }
+        else
+        {
+            // create a new masterkey
+            byte masterkey[SymmCipher::KEYLENGTH];
+            PrnGen::genblock(masterkey, sizeof masterkey);
+
+            // generate a new session
+            byte initialSession[2 * SymmCipher::KEYLENGTH];
+            PrnGen::genblock(initialSession, sizeof initialSession);
+            key.setkey(masterkey);
+            key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+            // and encrypt the master key to the new password
+            pwcipher.ecb_encrypt(masterkey);
+
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, masterkey, initialSession));
+        }
     }
     else
     {
-        // create a new masterkey
-        byte masterkey[SymmCipher::KEYLENGTH];
-        PrnGen::genblock(masterkey, sizeof masterkey);
+        byte clientkey[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(clientkey, sizeof(clientkey));
 
-        // generate a new session
-        byte initialSession[2 * SymmCipher::KEYLENGTH];
-        PrnGen::genblock(initialSession, sizeof initialSession);
-        key.setkey(masterkey);
-        key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+        string salt;
+        HashSHA256 hasher;
+        string buffer = "mega.nz";
+        buffer.resize(100, 'P');
+        buffer.append((char *)clientkey, sizeof(clientkey));
+        hasher.add((const byte*)buffer.data(), buffer.size());
+        hasher.get(&salt);
 
-        // and encrypt the master key to the new password
-        pwcipher.ecb_encrypt(masterkey);
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                         (const byte *)salt.data(), salt.size(), 100000);
 
-        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, masterkey, initialSession));
+        string hashedauthkey;
+        byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+        hasher.add(authkey, SymmCipher::KEYLENGTH);
+        hasher.get(&hashedauthkey);
+        hashedauthkey.resize(SymmCipher::KEYLENGTH);
+
+        SymmCipher cipher;
+        cipher.setkey(derivedKey);
+
+        if (masterkey)
+        {
+            // encrypt provided masterkey using the new password
+            byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            cipher.ecb_encrypt(encryptedMasterKey);
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, encryptedMasterKey, NULL));
+        }
+        else
+        {
+            // create a new masterkey
+            byte masterkey[SymmCipher::KEYLENGTH];
+            PrnGen::genblock(masterkey, sizeof masterkey);
+
+            // generate a new session
+            byte initialSession[2 * SymmCipher::KEYLENGTH];
+            PrnGen::genblock(initialSession, sizeof initialSession);
+            key.setkey(masterkey);
+            key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+            // and encrypt the master key to the new password
+            cipher.ecb_encrypt(masterkey);
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, masterkey, initialSession));
+        }
     }
 }
 
@@ -7307,7 +7364,7 @@ void MegaClient::login2(const char *email, const char *password, string *salt, c
     Base64::atob(*salt, bsalt);
 
     byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
     pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
                      (const byte *)bsalt.data(), bsalt.size(), 100000);
 
@@ -9540,7 +9597,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     hasher.get(&salt);
 
     byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
     pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
                      (const byte *)salt.data(), salt.size(), 100000);
 
@@ -9616,7 +9673,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.get(&salt);
 
     byte derivedKey[2 * SymmCipher::KEYLENGTH];
-    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
     pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
                      (const byte *)salt.data(), salt.size(), 100000);
 

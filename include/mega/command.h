@@ -64,6 +64,7 @@ public:
     void beginarray(const char*);
     void endarray();
     void beginobject();
+    void beginobject(const char*);
     void endobject();
     void element(int);
     void element(handle, int = sizeof(handle));
@@ -737,7 +738,7 @@ class MEGA_API CommandConfirmRecoveryLink : public Command
 public:
     void procresult();
 
-    CommandConfirmRecoveryLink(MegaClient*, const char*, uint64_t, const byte*, const byte*);
+    CommandConfirmRecoveryLink(MegaClient*, const char*, const byte*, int, const byte*, const byte*, const byte*);
 };
 
 class MEGA_API CommandConfirmCancelLink : public Command

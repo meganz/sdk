@@ -4675,7 +4675,7 @@ void CommandGetPrivateKey::procresult()
     }
 }
 
-CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, uint64_t newLoginHash, const byte *encMasterKey, const byte *initialSession)
+CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientkey, const byte *encMasterKey, const byte *initialSession)
 {
     cmd("erx");
 
@@ -4687,7 +4687,17 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
     arg("c", code);
 
     arg("x", encMasterKey, SymmCipher::KEYLENGTH);
-    arg("y", (byte*)&newLoginHash, sizeof newLoginHash);
+    if (!clientkey)
+    {
+        arg("y", hash, hashsize);
+    }
+    else
+    {
+        beginobject("y");
+        arg("crv", clientkey, SymmCipher::KEYLENGTH);
+        arg("hak", hash, hashsize);
+        endobject();
+    }
 
     if (initialSession)
     {

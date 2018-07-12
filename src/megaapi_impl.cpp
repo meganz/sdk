@@ -4206,7 +4206,7 @@ bool MegaApiImpl::checkPassword(const char *password)
         }
 
         byte derivedKey[2 * SymmCipher::KEYLENGTH];
-        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA256> pbkdf2;
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
         pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
                          (const byte *)client->accountsalt.data(), client->accountsalt.size(), 100000);
 
@@ -10023,12 +10023,6 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     request->setText(ip);       // not specified in MegaApi documentation
     request->setNodeHandle(uh); // not specified in MegaApi documentation
 
-    const char *link = request->getLink();
-    const char* code;
-
-    byte pwkey[SymmCipher::KEYLENGTH];
-    const char *mk64;
-
     if (reqType == MegaRequest::TYPE_QUERY_RECOVERY_LINK)
     {
         fireOnRequestFinish(request, MegaError());
@@ -10036,50 +10030,11 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     }
     else if (reqType == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
     {
-        if ((code = strstr(link, "#recover")))
-        {
-            code += strlen("#recover");
-        }
-        else
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-            return;
-        }
-
-        switch (type)
-        {
-        case RECOVER_WITH_MASTERKEY:
-            {
-                mk64 = request->getPrivateKey();
-                if (!mk64)
-                {
-                    fireOnRequestFinish(request, MegaError(API_EARGS));
-                    return;
-                }
-
-                int creqtag = client->reqtag;
-                client->reqtag = client->restag;
-                client->getprivatekey(code);
-                client->reqtag = creqtag;
-                break;
-            }
-
-        case RECOVER_WITHOUT_MASTERKEY:
-            {
-                client->pw_key(request->getPassword(), pwkey);
-                int creqtag = client->reqtag;
-                client->reqtag = client->restag;
-                client->confirmrecoverylink(code, email, pwkey);
-                client->reqtag = creqtag;
-                break;
-            }
-
-        default:
-            LOG_debug << "Unknown type of recovery link";
-
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-            return;
-        }
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
+        client->prelogin(email);
+        client->reqtag = creqtag;
+        return;
     }
     else if (reqType == MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)
     {
@@ -10090,27 +10045,18 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
             fireOnRequestFinish(request, MegaError(API_EARGS));
             return;
         }
-
-        if ((code = strstr(link, "#verify")))
-        {
-            code += strlen("#verify");
-        }
-        else
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-            return;
-        }
-        
-        if (!checkPassword(request->getPassword()))
-        {
-            fireOnRequestFinish(request, MegaError(API_EACCESS));
-            return;
-        }
                 
         const char* code;
         if ((code = strstr(request->getLink(), "#verify")))
         {
             code += strlen("#verify");
+
+            if (!checkPassword(request->getPassword()))
+            {
+                fireOnRequestFinish(request, MegaError(API_EACCESS));
+                return;
+            }
+
             int creqtag = client->reqtag;
             client->reqtag = client->restag;
             if (client->accountversion == 1)
@@ -10156,9 +10102,6 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
         return;
     }
 
-    byte pwkey[SymmCipher::KEYLENGTH];
-    client->pw_key(request->getPassword(), pwkey);
-
     byte mk[SymmCipher::KEYLENGTH];
     Base64::atob(request->getPrivateKey(), mk, sizeof mk);
 
@@ -10174,14 +10117,13 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
     if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
     {
         fireOnRequestFinish(request, MegaError(API_EKEY));
+        return;
     }
-    else
-    {
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
-        client->reqtag = creqtag;
-    }
+
+    int creqtag = client->reqtag;
+    client->reqtag = client->restag;
+    client->confirmrecoverylink(code, request->getEmail(), request->getPassword(), mk, request->getParamType());
+    client->reqtag = creqtag;
 }
 
 void MegaApiImpl::confirmrecoverylink_result(error e)
@@ -11774,7 +11716,11 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_LOGIN)) return;
+    if (!request || ((request->getType() != MegaRequest::TYPE_LOGIN)
+                    && (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)))
+    {
+        return;
+    }
 
     if (result)
     {
@@ -11782,56 +11728,110 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         return;
     }
 
-    if (version == 1)
+    if (request->getType() == MegaRequest::TYPE_LOGIN)
     {
-        const char *password = request->getPassword();
-        const char* base64pwkey = request->getPrivateKey();
-        const char* pin = request->getText();
-        if (base64pwkey)
+        if (version == 1)
         {
-            byte pwkey[SymmCipher::KEYLENGTH];
-            Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-            if (password)
+            const char *password = request->getPassword();
+            const char* base64pwkey = request->getPrivateKey();
+            const char* pin = request->getText();
+            if (base64pwkey)
             {
-                uint64_t emailhash;
-                Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
-                client->fastlogin(email->c_str(), pwkey, emailhash);
+                byte pwkey[SymmCipher::KEYLENGTH];
+                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
+                if (password)
+                {
+                    uint64_t emailhash;
+                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
+                    client->fastlogin(email->c_str(), pwkey, emailhash);
+                }
+                else
+                {
+                    client->login(email->c_str(), pwkey, pin);
+                }
             }
             else
             {
+                error e;
+                byte pwkey[SymmCipher::KEYLENGTH];
+                if ((e = client->pw_key(password, pwkey)))
+                {
+                    fireOnRequestFinish(request, MegaError(e));
+                    return;
+                }
                 client->login(email->c_str(), pwkey, pin);
             }
         }
-        else
+        else if (salt)
         {
-            error e;
-            byte pwkey[SymmCipher::KEYLENGTH];
-            if ((e = client->pw_key(password, pwkey)))
+            const char *password = request->getPassword();
+            const char* base64pwkey = request->getPrivateKey();
+            if (base64pwkey)
             {
-                fireOnRequestFinish(request, MegaError(e));
-                return;
+                byte derivedKey[2 * SymmCipher::KEYLENGTH];
+                Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
+                client->login2(email->c_str(), derivedKey);
             }
-            client->login(email->c_str(), pwkey, pin);
-        }
-    }
-    else if (version == 2 && salt)
-    {
-        const char *password = request->getPassword();
-        const char* base64pwkey = request->getPrivateKey();
-        if (base64pwkey)
-        {
-            byte derivedKey[2 * SymmCipher::KEYLENGTH];
-            Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
-            client->login2(email->c_str(), derivedKey);
+            else
+            {
+                client->login2(email->c_str(), password, salt);
+            }
         }
         else
         {
-            client->login2(email->c_str(), password, salt);
+            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
         }
     }
-    else
+    else if (request->getType() == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
     {
-        fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+        request->setParamType(version);
+        const char *link = request->getLink();
+        const char* code;
+        const char *mk64;
+
+        if ((code = strstr(link, "#recover")))
+        {
+            code += strlen("#recover");
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
+        }
+
+        int type = request->getNumber();
+        switch (type)
+        {
+            case RECOVER_WITH_MASTERKEY:
+            {
+                mk64 = request->getPrivateKey();
+                if (!mk64)
+                {
+                    fireOnRequestFinish(request, MegaError(API_EARGS));
+                    return;
+                }
+
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->getprivatekey(code);
+                client->reqtag = creqtag;
+                break;
+            }
+            case RECOVER_WITHOUT_MASTERKEY:
+            {
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->confirmrecoverylink(code, email->c_str(), request->getPassword(), NULL, version);
+                client->reqtag = creqtag;
+                break;
+            }
+
+        default:
+            LOG_debug << "Unknown type of recovery link";
+
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
+        }
     }
 }
 
