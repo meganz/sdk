@@ -1442,16 +1442,6 @@ void MegaApi::log(int logLevel, const char *message, const char *filename, int l
     MegaApiImpl::log(logLevel, message, filename, line);
 }
 
-char *MegaApi::getBase64PwKey(const char *password)
-{
-    return pImpl->getBase64PwKey(password);
-}
-
-char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
-{
-    return pImpl->getStringHash(base64pwkey, inBuf);
-}
-
 long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();
@@ -1554,11 +1544,6 @@ void MegaApi::setStatsID(const char *id)
 }
 #endif
 
-void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
-{
-    pImpl->fastLogin(email, stringHash, base64pwkey,listener);
-}
-
 void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
 {
     pImpl->fastLogin(session, listener);
@@ -1627,11 +1612,6 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
 {
     pImpl->resumeCreateAccount(sid, listener);
-}
-
-void MegaApi::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
-{
-    pImpl->fastCreateAccount(email, base64pwkey, name, listener);
 }
 
 void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)

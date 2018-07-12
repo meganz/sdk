@@ -4265,43 +4265,9 @@ void MegaApiImpl::log(int logLevel, const char *message, const char *filename, i
     externalLogger.postLog(logLevel, message, filename, line);
 }
 
-char* MegaApiImpl::getBase64PwKey(const char *password)
-{
-	if(!password) return NULL;
-
-	byte pwkey[SymmCipher::KEYLENGTH];
-	error e = client->pw_key(password,pwkey);
-	if(e)
-		return NULL;
-
-	char* buf = new char[SymmCipher::KEYLENGTH*4/3+4];
-	Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
-	return buf;
-}
-
 long long MegaApiImpl::getSDKtime()
 {
     return Waiter::ds;
-}
-
-char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
-{
-	if(!base64pwkey || !inBuf) return NULL;
-
-	char pwkey[SymmCipher::KEYLENGTH];
-	Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-
-	SymmCipher key;
-	key.setkey((byte*)pwkey);
-
-    uint64_t strhash;
-	string neBuf = inBuf;
-
-    strhash = client->stringhash64(&neBuf, &key);
-
-	char* buf = new char[8*4/3+4];
-    Base64::btoa((byte*)&strhash, 8, buf);
-    return buf;
 }
 
 void MegaApiImpl::getSessionTransferURL(const char *path, MegaRequestListener *listener)
@@ -4596,16 +4562,6 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
     waiter->notify();
 }
 
-void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
-	request->setEmail(email);
-	request->setPassword(stringHash);
-	request->setPrivateKey(base64pwkey);
-	requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::fastLogin(const char *session, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
@@ -4756,16 +4712,6 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
     request->setName(firstname);
     request->setText(lastname);
     requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
-	request->setEmail(email);
-	request->setPrivateKey(base64pwkey);
-	request->setName(name);
-	requestQueue.push(request);
     waiter->notify();
 }
 
