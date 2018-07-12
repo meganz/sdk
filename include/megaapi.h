@@ -6344,6 +6344,8 @@ class MegaApi
         /**
          * @brief Effectively parks the user's account without creating a new fresh account.
          *
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
          * The contents of the account will then be purged after 60 days. Once the account is
          * parked, the user needs to contact MEGA support to restore the account.
          *
@@ -6380,8 +6382,6 @@ class MegaApi
         /**
          * @brief Get information about a change-email link created by MegaApi::changeEmail.
          *
-         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
-         *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getLink - Returns the change-email link
@@ -6397,6 +6397,8 @@ class MegaApi
 
         /**
          * @brief Effectively changes the email address associated to the account.
+         *
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          *
          * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK.
          * Valid data in the MegaRequest object received on all callbacks:
