@@ -16946,33 +16946,30 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (!email || !name || (!password && !base64pwkey))
+            if (!email || !name || (client->accountversion == 1 && !base64pwkey && !password))
             {
                 e = API_EARGS;
                 break;
             }
 
-
-            if (password)
+            if (client->accountversion == 1)
+            {
+                byte pwkey[SymmCipher::KEYLENGTH];
+                if (password)
+                {
+                    client->pw_key(password, pwkey);
+                }
+                else if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != SymmCipher::KEYLENGTH)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+                client->sendsignuplink(email, name, pwkey);
+            }
+            else
             {
                 client->resendsignuplink2(email, name);
-                break;
             }
-
-            // pwcipher provided
-            byte pwkey[2 * SymmCipher::KEYLENGTH];
-            switch(Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey))
-            {
-                case SymmCipher::KEYLENGTH:
-                    client->sendsignuplink(email, name, pwkey);
-                    break;
-                case 2 * SymmCipher::KEYLENGTH:
-                    client->resendsignuplink2(email, name);
-                    break;
-                default:
-                    e = API_EARGS;
-            }
-
             break;
         }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
