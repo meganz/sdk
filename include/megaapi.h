@@ -6114,6 +6114,20 @@ class MegaApi
          *
          * @param email Email for the account
          * @param name Firstname of the user
+         * @param password Password for the account
+         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sends the confirmation email for a new account
+         *
+         * This function is useful to send the confirmation link again or to send it to a different
+         * email address, in case the user mistyped the email at the registration form.
+         *
+         * @param email Email for the account
+         * @param name Firstname of the user
          * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
          * @param listener MegaRequestListener to track this request
          *
