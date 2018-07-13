@@ -1899,6 +1899,7 @@ void xferq(direction_t d, int cancel)
 static byte pwkey[SymmCipher::KEYLENGTH];
 static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
+static string newpassword;
 
 // readline callback - exit if EOF, add to history unless password
 static void store_line(char* l)
@@ -2136,6 +2137,7 @@ static void process_line(char* l)
             return;
 
         case NEWPASSWORD:
+            newpassword = l;
             client->pw_key(l, newpwkey);
 
             cout << endl;
@@ -2163,11 +2165,11 @@ static void process_line(char* l)
 
                     if (hasMasterKey)
                     {
-                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, masterkey);
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpassword.c_str(), masterkey);
                     }
                     else
                     {
-                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, NULL);
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpassword.c_str(), NULL);
                     }
 
                     recoverycode.clear();
@@ -2177,7 +2179,7 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    if ((e = client->changepw(newpwkey)) == API_OK)
+                    if ((e = client->changepw(newpassword.c_str())) == API_OK)
                     {
                         memcpy(pwkey, newpwkey, sizeof pwkey);
                         cout << endl << "Changing password..." << endl;
