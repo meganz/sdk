@@ -4279,6 +4279,32 @@ void MegaApiImpl::getSessionTransferURL(const char *path, MegaRequestListener *l
     waiter->notify();
 }
 
+char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
+{
+    if (!base64pwkey || !inBuf)
+    {
+        return NULL;
+    }
+
+    char pwkey[2 * SymmCipher::KEYLENGTH];
+    if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != SymmCipher::KEYLENGTH)
+    {
+        return MegaApi::strdup("");
+    }
+
+    SymmCipher key;
+    key.setkey((byte*)pwkey);
+
+    uint64_t strhash;
+    string neBuf = inBuf;
+
+    strhash = client->stringhash64(&neBuf, &key);
+
+    char* buf = new char[8*4/3+4];
+    Base64::btoa((byte*)&strhash, 8, buf);
+    return buf;
+}
+
 MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
 {
 	if(!base32Handle) return INVALID_HANDLE;
@@ -4558,6 +4584,16 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
     request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setEmail(email);
+    request->setPassword(stringHash);
+    request->setPrivateKey(base64pwkey);
     requestQueue.push(request);
     waiter->notify();
 }

@@ -5510,6 +5510,24 @@ class MegaApi
         MegaUserList *getCurrentUsers();
 
         /**
+         * @brief Generates a hash based in the provided private key and email
+         *
+         * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
+         * required to log in, this function allows to do this step in a separate function. You should run this function
+         * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
+         * @param email Email to create the hash
+         * @return Base64-encoded hash
+         *
+         * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
+         * this function will return an empty string for new accounts and will be removed few time after.
+         */
+        char* getStringHash(const char* base64pwkey, const char* email);
+
+        /**
          * @brief Get internal timestamp used by the SDK
          *
          * This is a time used in certain internal operations.
@@ -5826,6 +5844,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Log in to a MEGA account using precomputed keys
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Returns the first parameter
+         * - MegaRequest::getPassword - Returns the second parameter
+         * - MegaRequest::getPrivateKey - Returns the third parameter
+         *
+         * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
+         * MegaError::API_ENOENT.
+         *
+         * @param email Email of the user
+         * @param stringHash Hash of the email returned by MegaApi::getStringHash
+         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
+         * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
+         * one soon. Please use MegaApi::login (with email and password) or MegaApi::fastLogin (with session) instead when possible.
+         */
+        void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a MEGA account using a session key

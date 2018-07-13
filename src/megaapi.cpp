@@ -1447,6 +1447,11 @@ long long MegaApi::getSDKtime()
     return pImpl->getSDKtime();
 }
 
+char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
+{
+    return pImpl->getStringHash(base64pwkey, inBuf);
+}
+
 void MegaApi::getSessionTransferURL(const char *path, MegaRequestListener *listener)
 {
     pImpl->getSessionTransferURL(path, listener);
@@ -1543,6 +1548,11 @@ void MegaApi::setStatsID(const char *id)
     MegaApiImpl::setStatsID(id);
 }
 #endif
+
+void MegaApi::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
+{
+    pImpl->fastLogin(email, stringHash, base64pwkey,listener);
+}
 
 void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
 {
