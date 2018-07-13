@@ -12859,7 +12859,7 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
 
 	if (*(uint64_t*)(signuppwchallenge+4))
 	{
-        fireOnRequestFinish(request, MegaError(API_ENOENT));
+        fireOnRequestFinish(request, MegaError(API_EKEY));
 	}
 	else
     {
