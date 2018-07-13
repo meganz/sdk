@@ -15611,6 +15611,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
+            client->locallogout();
             if (sessionKey)
             {
                 byte session[MAX_SESSION_LENGTH];
@@ -16959,6 +16960,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
+            client->locallogout();
             if (resumeProcess)
             {
                 client->resumeephemeral(uh, pwbuf);

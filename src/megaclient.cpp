@@ -7318,8 +7318,6 @@ error MegaClient::folderaccess(const char *folderlink)
     handle h = 0;
     byte folderkey[SymmCipher::KEYLENGTH];
 
-    locallogout();
-
     if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
     {
         return API_EARGS;
@@ -7338,7 +7336,6 @@ error MegaClient::folderaccess(const char *folderlink)
 
 void MegaClient::prelogin(const char *email)
 {
-    locallogout();
     reqs.add(new CommandPrelogin(this, email));
 }
 
@@ -7383,15 +7380,11 @@ void MegaClient::login2(const char *email, const byte *derivedKey, const char* p
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
-    getuserdata();
-
     delete [] authString;
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
 {
-    locallogout();
-
     key.setkey((byte*)pwkey);
 
     byte sek[SymmCipher::KEYLENGTH];
@@ -7412,9 +7405,7 @@ void MegaClient::getpubkey(const char *user)
 
 // resume session - load state from local cache, if available
 void MegaClient::login(const byte* session, int size)
-{
-    locallogout();
-   
+{   
     int sessionversion = 0;
     if (size == sizeof key.key + SIDLEN + 1)
     {
@@ -9623,8 +9614,6 @@ void MegaClient::createephemeral()
     byte keybuf[SymmCipher::KEYLENGTH];
     byte pwbuf[SymmCipher::KEYLENGTH];
     byte sscbuf[2 * SymmCipher::KEYLENGTH];
-
-    locallogout();
 
     PrnGen::genblock(keybuf, sizeof keybuf);
     PrnGen::genblock(pwbuf, sizeof pwbuf);
