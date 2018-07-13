@@ -1624,11 +1624,6 @@ void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener
     pImpl->resumeCreateAccount(sid, listener);
 }
 
-void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
-{
-    pImpl->sendSignupLink(email, name, password, listener);
-}
-
 void MegaApi::fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener)
 {
     pImpl->fastSendSignupLink(email, base64pwkey, name, listener);
