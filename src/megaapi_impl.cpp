@@ -23312,6 +23312,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         return 0;
     }
 
+    httpctx->nodehandle = MegaApi::handleToBase64(httpctx->server->lastHandle);
+
     if (httpctx->path == "/")
     {
         node = httpctx->megaApi->getRootNode();
@@ -23446,7 +23448,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         else
         {
             //Subtitles support
-            bool subtitles = false;
+            bool subtitles = true;
 
             if (httpserver->isSubtitlesSupportEnabled())
             {

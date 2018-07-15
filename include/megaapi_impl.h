@@ -2638,7 +2638,6 @@ protected:
     uv_loop_t uv_loop;
 
     set<handle> allowedHandles;
-    handle lastHandle;
     list<MegaTCPContext*> connections;
     uv_async_t exit_handle;
     MegaApiImpl *megaApi;
@@ -2713,7 +2712,7 @@ protected:
 public:
     bool useTLS;
     MegaFileSystemAccess *fsAccess;
-
+    handle lastHandle;
     std::string basePath;
 
     MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
