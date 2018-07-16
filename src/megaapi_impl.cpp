@@ -11712,11 +11712,11 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
 
     if (request->getType() == MegaRequest::TYPE_LOGIN)
     {
+        const char* pin = request->getText();
         if (version == 1)
         {
             const char *password = request->getPassword();
             const char* base64pwkey = request->getPrivateKey();
-            const char* pin = request->getText();
             if (base64pwkey)
             {
                 byte pwkey[SymmCipher::KEYLENGTH];
@@ -11752,11 +11752,11 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
             {
                 byte derivedKey[2 * SymmCipher::KEYLENGTH];
                 Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
-                client->login2(email->c_str(), derivedKey);
+                client->login2(email->c_str(), derivedKey, pin);
             }
             else
             {
-                client->login2(email->c_str(), password, salt);
+                client->login2(email->c_str(), password, salt, pin);
             }
         }
         else
