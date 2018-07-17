@@ -12283,7 +12283,7 @@ void MegaApiImpl::getua_result(error e)
             {
                 m_time_t currenttime = m_time();
                 if ((currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
-                        && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
+                        && (currenttime - client->lastLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
                 {
                     request->setFlag(true); // the password reminder dialog should be shown
                 }
@@ -12401,7 +12401,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_LOGIN, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTLOGIN
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SKIPPED, (const char*)data, len)) > (request->getNumber() ? User::PWD_SHOW_AFTER_LASTSKIP_LOGOUT : User::PWD_SHOW_AFTER_LASTSKIP)
-                            && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
+                            && (currenttime - client->lastLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
