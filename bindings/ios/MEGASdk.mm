@@ -341,18 +341,6 @@ using namespace mega;
 
 #pragma mark - Utils
 
-- (NSString *)base64pwkeyForPassword:(NSString *)password {
-    if(password == nil) return nil;
-    
-    const char *val = self.megaApi->getBase64PwKey([password UTF8String]);
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
-}
-
 - (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email {
     if(base64pwkey == nil || email == nil)  return  nil;
     
@@ -571,14 +559,6 @@ using namespace mega;
 
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId {
     self.megaApi->resumeCreateAccount((sessionId != nil) ? [sessionId UTF8String] : NULL);
-}
-
-- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
-    self.megaApi->fastCreateAccount((email != nil) ? [email UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL);
-}
-
-- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->fastCreateAccount((email != nil) ? [email UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {

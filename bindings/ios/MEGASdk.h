@@ -449,19 +449,6 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 #pragma mark - Utils
 
 /**
- * @brief Generates a private key based on the access password.
- *
- * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
- * required to log in, this function allows to do this step in a separate function. You should run this function
- * in a background thread, to prevent UI hangs. The resulting key can be used in 
- * [MEGASdk fastLoginWithEmail:stringHash:base64pwKey:].
- *
- * @param password Access password.
- * @return Base64-encoded private key
- */
-- (NSString *)base64pwkeyForPassword:(NSString *)password;
-
-/**
  * @brief Generates a hash based in the provided private key and email.
  *
  * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
@@ -469,11 +456,13 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * in a background thread, to prevent UI hangs. The resulting key can be used in 
  * [MEGASdk fastLoginWithEmail:stringHash:base64pwKey:].
  *
- * @param base64pwkey Private key returned by [MEGASdk base64PwKeybase64pwkeyForPassword:]
+ * @param base64pwkey Private key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
  * @param email Email to create the hash
  * @return Base64-encoded hash
+ * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
+ * this function will return an empty string for new accounts and will be removed few time after.
  */
-- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email;
+- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email __attribute__((deprecated("This function will return an empty string for new accounts and will be removed few time after")));
 
 /**
  * @brief Converts a Base64-encoded node handle to a MegaHandle.
@@ -1156,45 +1145,6 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
 
 /**
- * @brief Initialize the creation of a new MEGA account with precomputed keys
- *
- * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyForPassword:]
- * - [MEGARequest name] - Returns the name of the user
- *
- * If this request succeed, a confirmation email will be sent to the users.
- * If an account with the same email already exists, you will get the error code
- * MEGAErrorTypeApiEExist in onRequestFinish
- *
- * @param email Email for the account.
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:].
- * @param name Name of the user.
- * @param delegate Delegate to track this request.
- */
-- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Initialize the creation of a new MEGA account with precomputed keys.
- *
- * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyForPassword:]
- * - [MEGARequest name] - Returns the name of the user
- *
- * If this request succeed, a confirmation email will be sent to the users.
- * If an account with the same email already exists, you will get the error code
- * MEGAErrorTypeApiEExist in onRequestFinish.
- *
- * @param email Email for the account.
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:].
- * @param name Name of the user.
- */
-- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
-
-/**
  * @brief Sends the confirmation email for a new account
  *
  * This function is useful to send the confirmation link again or to send it to a different
@@ -1227,7 +1177,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param email Email for the account
  * @param name Firstname of the user
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:]
+ * @param base64pwkeyPrivate key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
@@ -1240,7 +1190,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param email Email for the account
  * @param name Firstname of the user
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:]
+ * @param base64pwkeyPrivate key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
  */
 - (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
 
@@ -1330,8 +1280,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param link Confirmation link.
  * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyForPassword:].
  * @param delegate Delegate to track this request.
+ * @deprecated This function only works using the old registration method and will be removed soon.
+ * Please use [MEGASdk confirmAccountWithLink:password:delegate] instead.
  */
-- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegate;
+- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function only works using the old registration method and will be removed soon.")));
 
 /**
  * @brief Confirm a MEGA account using a confirmation link and a precomputed key.
@@ -1348,8 +1300,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param link Confirmation link.
  * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyForPassword:].
+ * @deprecated This function only works using the old registration method and will be removed soon.
+ * Please use [MEGASdk confirmAccountWithLink:password] instead.
  */
-- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey;
+- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey __attribute__((deprecated("This function only works using the old registration method and will be removed soon.")));
 
 /**
  * @brief Initialize the reset of the existing password, with and without the Master Key.
@@ -1531,6 +1485,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 /**
  * @brief Effectively parks the user's account without creating a new fresh account.
  *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
  * The contents of the account will then be purged after 60 days. Once the account is
  * parked, the user needs to contact MEGA support to restore the account.
  *
@@ -1551,6 +1507,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 
 /**
  * @brief Effectively parks the user's account without creating a new fresh account.
+ *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
  *
  * The contents of the account will then be purged after 60 days. Once the account is
  * parked, the user needs to contact MEGA support to restore the account.
@@ -1636,6 +1594,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 /**
  * @brief Effectively changes the email address associated to the account.
  *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
  * The associated request type with this request is MEGARequestTypeConfirmChangeEmailLink.
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest link] - Returns the recovery link
@@ -1653,6 +1613,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 
 /**
  * @brief Effectively changes the email address associated to the account.
+ *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
  *
  * The associated request type with this request is MEGARequestTypeConfirmChangeEmailLink.
  * Valid data in the MEGARequest object received on all callbacks:

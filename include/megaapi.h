@@ -6114,8 +6114,7 @@ class MegaApi
          *
          * @param email Email for the account
          * @param name Firstname of the user
-         * @param password Password for the account
-         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
+         * @param password Password for the account         
          * @param listener MegaRequestListener to track this request
          */
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
