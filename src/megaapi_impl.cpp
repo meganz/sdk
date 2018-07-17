@@ -12882,13 +12882,20 @@ void MegaApiImpl::confirmsignuplink_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::confirmsignuplink2_result(handle, const char *, const char *, error e)
+void MegaApiImpl::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
 {
     MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
+    if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT)) return;
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_QUERY_SIGNUP_LINK))) return;
 
+    if (!e)
+    {
+        request->setName(name);
+        request->setEmail(email);
+        request->setFlag(true);
+    }
     fireOnRequestFinish(request, megaError);
 }
 
@@ -17031,7 +17038,14 @@ void MegaApiImpl::sendPendingRequests()
                 len = Base64::atob(ptr,c,len);
                 if (len)
                 {
-                    client->querysignuplink(c,len);
+                    if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                    {
+                        client->confirmsignuplink2(c, len);
+                    }
+                    else
+                    {
+                        client->querysignuplink(c, len);
+                    }
                 }
                 else
                 {

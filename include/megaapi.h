@@ -6146,6 +6146,12 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Return the email associated with the link
          * - MegaRequest::getName - Returns the name associated with the link (available only for confirmation links)
+         * - MegaRequest::getFlag - Returns true if the account was automatically confirmed, otherwise false
+         *
+         * If MegaRequest::getFlag returns true, the account was automatically confirmed and it's not needed
+         * to call MegaApi::confirmAccount. If it returns false, it's needed to call MegaApi::confirmAccount
+         * as usual. New accounts do not require a confirmation with the password, but old confirmation links
+         * require it, so it's needed to check that parameter in onRequestFinish to know how to proceed.
          *
          * @param link Confirmation link (#confirm) or new signup link (#newsignup)
          * @param listener MegaRequestListener to track this request
