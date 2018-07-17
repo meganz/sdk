@@ -2071,6 +2071,7 @@ class MegaRequest
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
+            TYPE_GET_PSA,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -5210,7 +5211,8 @@ class MegaApi
             USER_ATTR_PWD_REMINDER = 15,        // private - char array
             USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
             USER_ATTR_CONTACT_LINK_VERIFICATION = 17,     // private - byte array
-            USER_ATTR_RICH_PREVIEWS = 18         // private - byte array
+            USER_ATTR_RICH_PREVIEWS = 18,        // private - byte array
+            USER_ATTR_LAST_PSA = 19              // private - char array
         };
 
         enum {
@@ -6530,6 +6532,42 @@ class MegaApi
          * @see MegaApi::registerPushNotifications
          */
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+         *
+         * After the PSA has been accepted or dismissed by the user, app should
+         * use MegaApi::setPSA to notify API servers about this event and
+         * do not get the same PSA again in the next call to this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PSA.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
+         * - MegaRequest::getName - Returns the title of the PSA
+         * - MegaRequest::getText - Returns the text of the PSA
+         * - MegaRequest::getFile - Returns the URL of the image of the PSA
+         * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
+         * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
+         *
+         * If there isn't any new PSA to show, onRequestFinish will be called with the error
+         * code MegaError::API_ENOENT
+         *
+         * @param listener MegaRequestListener to track this request
+         * @see MegaApi::setPSA
+         */
+        void getPSA(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+         * @param id Identifier of the PSA
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getPSA
+         */
+        void setPSA(int id, MegaRequestListener *listener = NULL);
+
 
         /**
          * @brief Retuns the email of the currently open account

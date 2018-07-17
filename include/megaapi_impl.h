@@ -2006,6 +2006,9 @@ class MegaApiImpl : public MegaApp
 
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
 
+        void getPSA(MegaRequestListener *listener = NULL);
+        void setPSA(int id, MegaRequestListener *listener = NULL);
+
         void disableGfxFeatures(bool disable);
         bool areGfxFeaturesDisabled();
 
@@ -2309,6 +2312,9 @@ protected:
 
         // keep me alive feature
         virtual void keepmealive_result (error);
+
+        // get the current PSA
+        virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);
 
         // account creation
         virtual void sendsignuplink_result(error);

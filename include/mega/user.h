@@ -67,6 +67,7 @@ struct MEGA_API User : public Cachable
         bool disableVersions : 1;   // disable fileversioning
         bool contactLinkVerification : 1; // Verify contact requests with contact links
         bool richPreviews : 1;  // enable messages with rich previews
+        bool lastPsa : 1;
     } changed;
 
     // user's public key

@@ -987,6 +987,14 @@ public:
     CommandMultiFactorAuthDisable(MegaClient*, const char*);
 };
 
+class MEGA_API CommandGetPSA : public Command
+{
+public:
+    void procresult();
+
+    CommandGetPSA(MegaClient*);
+};
+
 } // namespace
 
 #endif

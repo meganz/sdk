@@ -400,6 +400,10 @@ string User::attr2string(attr_t type)
             attrname = "*!rp";
             break;
 
+        case ATTR_LAST_PSA:
+            attrname = "^!lastPsa";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -485,6 +489,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_RICH_PREVIEWS;
     }
+    else if(!strcmp(name, "^!lastPsa"))
+    {
+        return ATTR_LAST_PSA;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -506,6 +514,7 @@ bool User::needversioning(attr_t at)
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
         case ATTR_RICH_PREVIEWS:
+        case ATTR_LAST_PSA:
             return 0;
 
         case ATTR_AUTHRING:
@@ -544,6 +553,7 @@ char User::scope(attr_t at)
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
         case ATTR_CONTACT_LINK_VERIFICATION:
+        case ATTR_LAST_PSA:
             return '^';
 
         default:
@@ -902,6 +912,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_RICH_PREVIEWS:
             changed.richPreviews = true;
+            break;
+
+        case ATTR_LAST_PSA:
+            changed.lastPsa = true;
             break;
 
         default:

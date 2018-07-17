@@ -758,6 +758,11 @@ void MegaClient::keepmealive(int type, bool enable)
     reqs.add(new CommandKeepMeAlive(this, type, enable));
 }
 
+void MegaClient::getpsa()
+{
+    reqs.add(new CommandGetPSA(this));
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

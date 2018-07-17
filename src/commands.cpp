@@ -6029,4 +6029,58 @@ void CommandMultiFactorAuthDisable::procresult()
     }
 }
 
+CommandGetPSA::CommandGetPSA(MegaClient *client)
+{
+    cmd("gpsa");
+
+    tag = client->reqtag;
+}
+
+void CommandGetPSA::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->getpsa_result((error)client->json.getint(), 0, NULL, NULL, NULL, NULL, NULL);
+    }
+
+    int id = 0;
+    string title, text, image;
+    string buttonlink;
+    string buttontext;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.getint();
+                break;
+            case 't':
+                client->json.storeobject(&title);
+                break;
+            case 'd':
+                client->json.storeobject(&text);
+                break;
+            case MAKENAMEID3('i', 'm', 'g'):
+                client->json.storeobject(&image);
+                break;
+            case 'l':
+                client->json.storeobject(&buttonlink);
+                break;
+            case 'b':
+                client->json.storeobject(&buttontext);
+                break;
+            case EOO:
+                return client->app->getpsa_result(API_OK, id, &title, &text, &image, &buttontext, &buttonlink);
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse get PSA response";
+                    return client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
+                }
+                break;
+        }
+    }
+}
+
 } // namespace
