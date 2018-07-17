@@ -10990,10 +10990,10 @@ void MegaApiImpl::fetchnodes_result(error e)
             request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
         }
 
-        if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
+        if (!e && client->loggedin() == FULLACCOUNT && client->isNewSession)
         {
             updatePwdReminderData(false, false, false, false, true);
-            client->tsLogin = false;
+            client->isNewSession = false;
         }
 
         fireOnRequestFinish(request, megaError);
@@ -11027,10 +11027,10 @@ void MegaApiImpl::fetchnodes_result(error e)
             }
         }
 
-        if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
+        if (!e && client->loggedin() == FULLACCOUNT && client->isNewSession)
         {
             updatePwdReminderData(false, false, false, false, true);
-            client->tsLogin = false;
+            client->isNewSession = false;
         }
 
         fireOnRequestFinish(request, megaError);
@@ -11769,8 +11769,8 @@ void MegaApiImpl::login_result(error result)
     if (result == API_OK && request->getEmail() &&
             (request->getPassword() || request->getPrivateKey()))
     {
-        client->tsLogin = true;
-        client->lastLogin = m_time();
+        client->isNewSession = true;
+        client->tsLogin = m_time();
     }
 
     fireOnRequestFinish(request, megaError);
@@ -12283,7 +12283,7 @@ void MegaApiImpl::getua_result(error e)
             {
                 m_time_t currenttime = m_time();
                 if ((currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
-                        && (currenttime - client->lastLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
+                        && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
                 {
                     request->setFlag(true); // the password reminder dialog should be shown
                 }
@@ -12401,7 +12401,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_LOGIN, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTLOGIN
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SKIPPED, (const char*)data, len)) > (request->getNumber() ? User::PWD_SHOW_AFTER_LASTSKIP_LOGOUT : User::PWD_SHOW_AFTER_LASTSKIP)
-                            && (currenttime - client->lastLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
+                            && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
