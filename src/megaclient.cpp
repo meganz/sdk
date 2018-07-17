@@ -873,6 +873,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     asyncfopens = 0;
     achievements_enabled = false;
     tsLogin = false;
+    lastLogin = 0;
     versions_disabled = false;
     accountsince = 0;
     gmfa_enabled = false;
@@ -3388,6 +3389,7 @@ void MegaClient::locallogout()
     cachedscsn = UNDEF;
     achievements_enabled = false;
     tsLogin = false;
+    lastLogin = 0;
     versions_disabled = false;
     accountsince = 0;
     gmfa_enabled = false;
