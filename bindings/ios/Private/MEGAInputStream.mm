@@ -58,7 +58,7 @@ bool MEGAInputStream::read(char *buffer, size_t size) {
     if (assetRepresentation) {
         int numBytesToRead = (int)size;
         while (numBytesToRead > 0) {
-            int n = [assetRepresentation getBytes:(uint8_t *)buffer fromOffset:offset length:numBytesToRead error:nil];
+            int n = (int) [assetRepresentation getBytes:(uint8_t *)buffer fromOffset:offset length:numBytesToRead error:nil];
             if (n == 0) {
                 return false;
             }
