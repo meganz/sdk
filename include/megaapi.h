@@ -6561,6 +6561,13 @@ class MegaApi
 
         /**
          * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_LAST_PSA
+         * - MegaRequest::getText - Returns the id passed in the first parameter (as a string)
+         *
          * @param id Identifier of the PSA
          * @param listener MegaRequestListener to track this request
          *

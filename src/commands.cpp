@@ -6044,9 +6044,9 @@ void CommandGetPSA::procresult()
     }
 
     int id = 0;
-    string title, text, image;
-    string buttonlink;
-    string buttontext;
+    string temp;
+    string title, text, imagename, imagepath;
+    string buttonlink, buttontext;
 
     for (;;)
     {
@@ -6056,22 +6056,30 @@ void CommandGetPSA::procresult()
                 id = client->json.getint();
                 break;
             case 't':
-                client->json.storeobject(&title);
+                client->json.storeobject(&temp);
+                Base64::atob(temp, title);
                 break;
             case 'd':
-                client->json.storeobject(&text);
+                client->json.storeobject(&temp);
+                Base64::atob(temp, text);
                 break;
             case MAKENAMEID3('i', 'm', 'g'):
-                client->json.storeobject(&image);
+                client->json.storeobject(&imagename);
                 break;
             case 'l':
                 client->json.storeobject(&buttonlink);
                 break;
             case 'b':
-                client->json.storeobject(&buttontext);
+                client->json.storeobject(&temp);
+                Base64::atob(temp, buttontext);
+                break;
+            case MAKENAMEID3('d', 's', 'p'):
+                client->json.storeobject(&imagepath);
                 break;
             case EOO:
-                return client->app->getpsa_result(API_OK, id, &title, &text, &image, &buttontext, &buttonlink);
+                imagepath.append(imagename);
+                imagepath.append(".png");
+                return client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
             default:
                 if (!client->json.storeobject())
                 {
