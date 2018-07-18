@@ -1335,7 +1335,10 @@ public:
     bool achievements_enabled;
 
     // non-zero if login with user+pwd was done (reset upon fetchnodes completion)
-    bool tsLogin;
+    bool isNewSession;
+
+    // timestamp of the last login with user and password
+    m_time_t tsLogin;
 
     // true if user has disabled fileversioning
     bool versions_disabled;

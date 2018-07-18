@@ -3335,6 +3335,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
  *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent but the value of [MEGARequest flag] will still
+ * be valid.
+ *
  * @param atLogout YES if the check is being done just before a logout
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3350,6 +3354,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent but the value of  [MEGARequest flag] will still
+ * be valid.
  *
  * @param atLogout YES if the check is being done just before a logout
  */
