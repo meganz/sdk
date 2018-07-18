@@ -4808,6 +4808,9 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (NSString *)fingerprintForFilePath:(NSString *)filePath;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 /**
  * @brief Get a Base64-encoded fingerprint from an ALAssetRepresentation and a modification time
  *
@@ -4818,6 +4821,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @return Base64-encoded fingerprint
  */
 - (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
+
+#pragma clang diagnostic pop
 
 /**
  * @brief Get a Base64-encoded fingerprint from a NSData and a modification time

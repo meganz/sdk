@@ -21,6 +21,9 @@
 
 #import "MEGAInputStream.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 MEGAInputStream::MEGAInputStream(ALAssetRepresentation *assetRepresentation) {
     this->assetRepresentation = assetRepresentation;
     this->data = NULL;
@@ -70,3 +73,5 @@ bool MEGAInputStream::read(char *buffer, size_t size) {
     
     return true;
 }
+
+#pragma clang diagnostic pop
