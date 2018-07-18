@@ -714,7 +714,7 @@ using namespace mega;
     self.megaApi->contactLinkDelete(INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)contactLinkDeleteWithHandle:(uint64_t)handle {
+- (void)contactLinkDelete {
     self.megaApi->contactLinkDelete();
 }
 
