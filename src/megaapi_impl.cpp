@@ -11389,7 +11389,11 @@ void MegaApiImpl::additem_result(error e)
 
     //MegaRequest::TYPE_UPGRADE_ACCOUNT
     int method = int(request->getNumber());
+
+    int creqtag = client->reqtag;
+    client->reqtag = client->restag;
     client->purchase_checkout(method);
+    client->reqtag = creqtag;
 }
 
 void MegaApiImpl::checkout_result(const char *errortype, error e)
@@ -11725,11 +11729,18 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
                 {
                     uint64_t emailhash;
                     Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
+
+                    int creqtag = client->reqtag;
+                    client->reqtag = client->restag;
                     client->fastlogin(email->c_str(), pwkey, emailhash);
+                    client->reqtag = creqtag;
                 }
                 else
                 {
+                    int creqtag = client->reqtag;
+                    client->reqtag = client->restag;
                     client->login(email->c_str(), pwkey, pin);
+                    client->reqtag = creqtag;
                 }
             }
             else
@@ -11741,7 +11752,11 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
                     fireOnRequestFinish(request, MegaError(e));
                     return;
                 }
+
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
                 client->login(email->c_str(), pwkey, pin);
+                client->reqtag = creqtag;
             }
         }
         else if (salt)
@@ -11752,11 +11767,18 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
             {
                 byte derivedKey[2 * SymmCipher::KEYLENGTH];
                 Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
+
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
                 client->login2(email->c_str(), derivedKey, pin);
+                client->reqtag = creqtag;
             }
             else
             {
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
                 client->login2(email->c_str(), password, salt, pin);
+                client->reqtag = creqtag;
             }
         }
         else
