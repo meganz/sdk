@@ -152,8 +152,8 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         if (!thumbnail) {
             return false;
         }
-        w = CGImageGetWidth(thumbnail);
-        h = CGImageGetHeight(thumbnail);
+        w = (int) CGImageGetWidth(thumbnail);
+        h = (int) CGImageGetHeight(thumbnail);
         CGImageRelease(thumbnail);
     }
     return w && h;
