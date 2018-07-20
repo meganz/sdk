@@ -18341,7 +18341,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             TextChat *chat = it->second;
-            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            if (chat->priv != PRIV_MODERATOR)
             {
                 e = API_EACCESS;
                 break;
