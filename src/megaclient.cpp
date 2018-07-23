@@ -941,7 +941,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
-    nsre_enabled = false;
+    nsr_enabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3456,7 +3456,7 @@ void MegaClient::locallogout()
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
-    nsre_enabled = false;
+    nsr_enabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -9576,14 +9576,14 @@ error MegaClient::changepw(const char* password, const char *pin)
         return API_OK;
     }
 
-    byte clientkey[SymmCipher::KEYLENGTH];
-    PrnGen::genblock(clientkey, sizeof(clientkey));
+    byte clientRandomValue[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(clientRandomValue, sizeof(clientRandomValue));
 
     string salt;
     HashSHA256 hasher;
     string buffer = "mega.nz";
     buffer.resize(100, 'P');
-    buffer.append((char *)clientkey, sizeof(clientkey));
+    buffer.append((char *)clientRandomValue, sizeof(clientRandomValue));
     hasher.add((const byte*)buffer.data(), buffer.size());
     hasher.get(&salt);
 
@@ -9604,7 +9604,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
     // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
-    reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, pin, &salt));
+    reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
     return API_OK;
 }
 
@@ -9650,14 +9650,14 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
 
 string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
-    byte clientkey[SymmCipher::KEYLENGTH];
-    PrnGen::genblock(clientkey, sizeof(clientkey));
+    byte clientrandomvalue[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(clientrandomvalue, sizeof(clientrandomvalue));
 
     string salt;
     HashSHA256 hasher;
     string buffer = "mega.nz";
     buffer.resize(100, 'P');
-    buffer.append((char *)clientkey, sizeof(clientkey));
+    buffer.append((char *)clientrandomvalue, sizeof(clientrandomvalue));
     hasher.add((const byte*)buffer.data(), buffer.size());
     hasher.get(&salt);
 
@@ -9677,7 +9677,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
-    reqs.add(new CommandSendSignupLink2(this, email, name, clientkey, encmasterkey, (byte*)hashedauthkey.data()));
+    reqs.add(new CommandSendSignupLink2(this, email, name, clientrandomvalue, encmasterkey, (byte*)hashedauthkey.data()));
     return string((const char*)derivedKey, 2 * SymmCipher::KEYLENGTH);
 }
 

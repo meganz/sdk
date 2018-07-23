@@ -203,14 +203,14 @@ public:
     // timestamp of the creation of the account
     m_time_t accountsince;
 
-    // multi-factor authentication globally enabled
+    // Global Multi-Factor Authentication enabled
     bool gmfa_enabled;
 
-    // server-side Rubbish-bin autopurging enabled
+    // Server-Side Rubbish-bin Scheduler enabled (autopurging)
     bool ssrs_enabled;
 
-    // new registration method enabled
-    bool nsre_enabled;
+    // New Secure Registration method enabled
+    bool nsr_enabled;
 
 #ifdef ENABLE_CHAT
     // all chats

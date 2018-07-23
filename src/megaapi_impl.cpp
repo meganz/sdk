@@ -10979,7 +10979,7 @@ void MegaApiImpl::fetchnodes_result(error e)
             byte pwkey[SymmCipher::KEYLENGTH];
             if (!request->getPrivateKey())
             {
-                if (client->nsre_enabled)
+                if (client->nsr_enabled)
                 {
                     string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), request->getName());
                     string b64derivedKey;
@@ -11694,7 +11694,7 @@ void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t tot
     }
 }
 
-void MegaApiImpl::prelogin_result(int version, string* email, string *salt, error result)
+void MegaApiImpl::prelogin_result(int version, string* email, string *salt, error e)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -11704,9 +11704,9 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
         return;
     }
 
-    if (result)
+    if (e)
     {
-        fireOnRequestFinish(request, MegaError(result));
+        fireOnRequestFinish(request, MegaError(e));
         return;
     }
 

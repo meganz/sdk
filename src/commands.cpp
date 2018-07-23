@@ -3160,11 +3160,11 @@ void CommandGetUserData::procresult()
     {
         switch (client->json.getnameid())
         {
-        case MAKENAMEID3('a', 'a', 'v'):
+        case MAKENAMEID3('a', 'a', 'v'):    // authentication's algorithm version
             v = (int)client->json.getint();
             break;
 
-        case MAKENAMEID3('a', 'a', 's'):
+        case MAKENAMEID3('a', 'a', 's'):    // authentication salt
             client->json.storeobject(&salt);
             break;
 
@@ -3201,13 +3201,13 @@ void CommandGetUserData::procresult()
                 {
                     switch (client->json.getnameid())
                     {
-                    case MAKENAMEID4('m', 'f', 'a', 'e'):
+                    case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
                         gmfa = bool(client->json.getint());
                         break;
-                    case MAKENAMEID4('s', 's', 'r', 's'):
+                    case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
                         ssrs = bool(client->json.getint());
                         break;
-                    case MAKENAMEID4('n', 's', 'r', 'e'):
+                    case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
                         nsre = bool(client->json.getint());
                         break;
                     case EOO:
@@ -3230,7 +3230,7 @@ void CommandGetUserData::procresult()
             client->accountsince = since;
             client->gmfa_enabled = gmfa;
             client->ssrs_enabled = ssrs;
-            client->nsre_enabled = nsre;
+            client->nsr_enabled = nsre;
             client->k = k;
             if (len_privk)
             {
@@ -3770,15 +3770,15 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientkey, const char *pin, string *salt)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientrandomvalue, const char *pin, string *salt)
 {
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
     cmd("up");
     arg("k", newkey, SymmCipher::KEYLENGTH);
-    if (clientkey)
+    if (clientrandomvalue)
     {
-        arg("crv", clientkey, SymmCipher::KEYLENGTH);
+        arg("crv", clientrandomvalue, SymmCipher::KEYLENGTH);
     }
     arg("uh", hash, hashsize);
     if (pin)
@@ -3954,14 +3954,14 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
     tag = client->reqtag;
 }
 
-CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientkey, byte *enck, byte *uh)
+CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientrandomvalue, byte *encmasterkey, byte *hashedauthkey)
 {
     cmd("uc2");
     arg("n", (byte*)name, strlen(name));
     arg("m", (byte*)email, strlen(email));
-    arg("crv", clientkey, SymmCipher::KEYLENGTH);
-    arg("hak", uh, SymmCipher::KEYLENGTH);
-    arg("k", enck, SymmCipher::KEYLENGTH);
+    arg("crv", clientrandomvalue, SymmCipher::KEYLENGTH);
+    arg("hak", hashedauthkey, SymmCipher::KEYLENGTH);
+    arg("k", encmasterkey, SymmCipher::KEYLENGTH);
     arg("v", 2);
 
     tag = client->reqtag;
@@ -4675,7 +4675,7 @@ void CommandGetPrivateKey::procresult()
     }
 }
 
-CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientkey, const byte *encMasterKey, const byte *initialSession)
+CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientrandomvalue, const byte *encMasterKey, const byte *initialSession)
 {
     cmd("erx");
 
@@ -4687,15 +4687,15 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
     arg("c", code);
 
     arg("x", encMasterKey, SymmCipher::KEYLENGTH);
-    if (!clientkey)
+    if (!clientrandomvalue)
     {
         arg("y", hash, hashsize);
     }
     else
     {
         beginobject("y");
-        arg("crv", clientkey, SymmCipher::KEYLENGTH);
-        arg("hak", hash, hashsize);
+        arg("crv", clientrandomvalue, SymmCipher::KEYLENGTH);
+        arg("hak", hash, hashsize); //hashed authentication key
         endobject();
     }
 

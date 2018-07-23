@@ -140,7 +140,7 @@ class MEGA_API CommandSetMasterKey : public Command
 public:
     void procresult();
 
-    CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* = NULL, const char* = NULL, string* = NULL);
+    CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* clientrandomvalue = NULL, const char* = NULL, string* = NULL);
 };
 
 class MEGA_API CommandCreateEphemeralSession : public Command
