@@ -4197,7 +4197,7 @@ bool MegaApiImpl::checkPassword(const char *password)
         SymmCipher cipher(pwkey);
         cipher.ecb_decrypt((byte *)k.data());
     }
-    else
+    else if (client->accountversion == 2)
     {
         if (client->accountsalt.size() != 32) // SHA256
         {
@@ -4212,6 +4212,12 @@ bool MegaApiImpl::checkPassword(const char *password)
 
         SymmCipher cipher(derivedKey);
         cipher.ecb_decrypt((byte *)k.data());
+    }
+    else
+    {
+        LOG_warn << "Version of account not supported";
+        sdkMutex.unlock();
+        return false;
     }
 
     bool result = !memcmp(k.data(), client->key.key, SymmCipher::KEYLENGTH);
@@ -10047,9 +10053,14 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
                 client->pw_key(request->getPassword(), pwkey);
                 client->confirmemaillink(code, request->getEmail(), pwkey);
             }
-            else
+            else if (client->accountversion == 2)
             {
                 client->confirmemaillink(code, request->getEmail(), NULL);
+            }
+            else
+            {
+                LOG_warn << "Version of account not supported";
+                fireOnRequestFinish(request, MegaError(API_EINTERNAL));
             }
             client->reqtag = creqtag;
         }
@@ -17039,9 +17050,14 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 client->sendsignuplink(email, name, pwkey);
             }
-            else
+            else if (client->accountversion == 2)
             {
                 client->resendsignuplink2(email, name);
+            }
+            else
+            {
+                e = API_EINTERNAL;
+                break;
             }
             break;
         }

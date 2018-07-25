@@ -1445,7 +1445,7 @@ void CommandPrelogin::procresult()
         return client->app->prelogin_result(0, NULL, NULL, (error)client->json.getint());
     }
 
-    int v = 1;
+    int v = 0;
     string salt;
     for (;;)
     {
@@ -1458,7 +1458,17 @@ void CommandPrelogin::procresult()
                 client->json.storeobject(&salt);
                 break;
             case EOO:
-                if (v == 2 && !salt.size())
+                if (v == 0)
+                {
+                    LOG_err << "No version returned";
+                    return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                }
+                else if (v > 2)
+                {
+                    LOG_err << "Version of account not supported";
+                    return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                }
+                else if (v == 2 && !salt.size())
                 {
                     LOG_err << "No salt returned";
                     return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
@@ -3145,7 +3155,7 @@ void CommandGetUserData::procresult()
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     int len_privk = 0;
     m_time_t since = 0;
-    int v = 1;
+    int v = 0;
     string salt;
     bool gmfa = false;
     bool ssrs = false;
@@ -3160,11 +3170,11 @@ void CommandGetUserData::procresult()
     {
         switch (client->json.getnameid())
         {
-        case MAKENAMEID3('a', 'a', 'v'):    // authentication's algorithm version
+        case MAKENAMEID3('a', 'a', 'v'):    // account authentication version
             v = (int)client->json.getint();
             break;
 
-        case MAKENAMEID3('a', 'a', 's'):    // authentication salt
+        case MAKENAMEID3('a', 'a', 's'):    // account authentication salt
             client->json.storeobject(&salt);
             break;
 
@@ -3225,6 +3235,21 @@ void CommandGetUserData::procresult()
             break;
 
         case EOO:
+            if (v == 0)
+            {
+                LOG_err << "No version returned";
+                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+            }
+            else if (v > 2)
+            {
+                LOG_err << "Version of account not supported";
+                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+            }
+            else if (v == 2 && !salt.size())
+            {
+                LOG_err << "No salt returned";
+                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+            }
             client->accountversion = v;
             Base64::atob(salt, client->accountsalt);
             client->accountsince = since;
@@ -4041,6 +4066,7 @@ void CommandConfirmSignupLink2::procresult()
     string name;
     string email;
     handle uh;
+    int version = 0;
 
     if (client->json.isnumeric())
     {
@@ -4050,10 +4076,11 @@ void CommandConfirmSignupLink2::procresult()
     if (client->json.storebinary(&email) && client->json.storebinary(&name))
     {
         uh = client->json.gethandle(MegaClient::USERHANDLE);
+        version = client->json.getint();
     }
     while (client->json.storeobject());
 
-    if (!ISUNDEF(uh))
+    if (!ISUNDEF(uh) && version == 2)
     {
         client->app->confirmsignuplink2_result(uh, name.c_str(), email.c_str(), API_OK);
     }
