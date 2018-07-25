@@ -11770,7 +11770,7 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
                 client->reqtag = creqtag;
             }
         }
-        else if (salt)
+        else if (version == 2 && salt)
         {
             const char *password = request->getPassword();
             const char* base64pwkey = request->getPrivateKey();
