@@ -7375,14 +7375,10 @@ void MegaClient::login2(const char *email, const byte *derivedKey, const char* p
     key.setkey((byte*)derivedKey);
     const byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
 
-    char* authString = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
-    Base64::btoa(authKey, SymmCipher::KEYLENGTH, authString);
-
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
-    delete [] authString;
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
