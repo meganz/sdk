@@ -694,7 +694,7 @@ using namespace mega;
     self.megaApi->contactLinkDelete(INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)contactLinkDeleteWithHandle:(uint64_t)handle {
+- (void)contactLinkDelete {
     self.megaApi->contactLinkDelete();
 }
 
@@ -1514,6 +1514,9 @@ using namespace mega;
     return ret;
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 - (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime {
     if (assetRepresentation == nil) return nil;
     
@@ -1525,6 +1528,8 @@ using namespace mega;
     delete [] val;
     return ret;
 }
+
+#pragma clang diagnostic pop
 
 - (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime {
     if (data == nil) return nil;

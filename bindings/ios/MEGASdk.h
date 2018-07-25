@@ -3297,6 +3297,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
  *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent but the value of [MEGARequest flag] will still
+ * be valid.
+ *
  * @param atLogout YES if the check is being done just before a logout
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3312,6 +3316,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest flag] - Returns YES if the password reminder dialog should be shown
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent but the value of  [MEGARequest flag] will still
+ * be valid.
  *
  * @param atLogout YES if the check is being done just before a logout
  */
@@ -4762,6 +4770,9 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (NSString *)fingerprintForFilePath:(NSString *)filePath;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 /**
  * @brief Get a Base64-encoded fingerprint from an ALAssetRepresentation and a modification time
  *
@@ -4772,6 +4783,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @return Base64-encoded fingerprint
  */
 - (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
+
+#pragma clang diagnostic pop
 
 /**
  * @brief Get a Base64-encoded fingerprint from a NSData and a modification time
