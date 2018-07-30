@@ -1610,98 +1610,62 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && pendingsc)
         {
-            if (scnotifyurl.size())
+            switch (pendingsc->status)
             {
-                switch (pendingsc->status)
+            case REQ_SUCCESS:
+                if (pendingsc->contentlength == 1
+                        && pendingsc->in.size()
+                        && pendingsc->in[0] == '0')
                 {
-                case REQ_SUCCESS:
-                    if (pendingsc->contenttype.find("text/html") != string::npos
-                        && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
-                    {
-                        LOG_warn << "Invalid Content-Type detected in connection to waitd: " << pendingsc->contenttype;
-                        usehttps = true;
-                        app->notify_change_to_https();
+                    LOG_debug << "Waitd keep-alive received";
+                    delete pendingsc;
+                    pendingsc = NULL;
+                    btsc.reset();
+                    break;
+                }
 
+                if (*pendingsc->in.c_str() == '{')
+                {
+                    jsonsc.begin(pendingsc->in.c_str());
+                    jsonsc.enterobject();
+                    break;
+                }
+                else
+                {
+                    error e = (error)atoi(pendingsc->in.c_str());
+                    if (e == API_ESID)
+                    {
+                        app->request_error(API_ESID);
+                        *scsn = 0;
+                    }
+                    else if (e == API_ETOOMANY)
+                    {
+                        LOG_warn << "Too many pending updates - reloading local state";
                         int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99436, "Automatic change to HTTPS");
+                        reqtag = fetchnodestag; // associate with ongoing request, if any
+                        fetchingnodes = false;
+                        fetchnodestag = 0;
+                        fetchnodes(true);
                         reqtag = creqtag;
-
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        btsc.reset();
-                        break;
                     }
-
-                    if (pendingsc->contentlength == 1
-                            && pendingsc->in.size()
-                            && pendingsc->in[0] == '0')
+                    else if (e == API_EAGAIN || e == API_ERATELIMIT)
                     {
-                        LOG_debug << "Waitd keep-alive received";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        btsc.reset();
-                        break;
-                    }
-
-                    if (*pendingsc->in.c_str() == '{')
-                    {
-                        jsonsc.begin(pendingsc->in.c_str());
-                        jsonsc.enterobject();
-                        break;
+                        if (!statecurrent)
+                        {
+                            fnstats.eAgainCount++;
+                        }
                     }
                     else
                     {
-                        error e = (error)atoi(pendingsc->in.c_str());
-                        if (e == API_ESID)
-                        {
-                            app->request_error(API_ESID);
-                            *scsn = 0;
-                        }
-                        else if (e == API_ETOOMANY)
-                        {
-                            LOG_warn << "Too many pending updates - reloading local state";
-                            int creqtag = reqtag;
-                            reqtag = fetchnodestag; // associate with ongoing request, if any
-                            fetchingnodes = false;
-                            fetchnodestag = 0;
-                            fetchnodes(true);
-                            reqtag = creqtag;
-                        }
-                        else if (e == API_EAGAIN || e == API_ERATELIMIT)
-                        {
-                            if (!statecurrent)
-                            {
-                                fnstats.eAgainCount++;
-                            }
-                        }
-                        else
-                        {
-                            LOG_err << "Unexpected sc response: " << pendingsc->in;
-                        }
+                        LOG_err << "Unexpected sc response: " << pendingsc->in;
                     }
+                }
 
-                    // fall through
-                case REQ_FAILURE:
-                    if (pendingsc && pendingsc->contenttype.find("text/html") != string::npos
-                        && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
-                    {
-                        LOG_warn << "Invalid Content-Type detected in failed connection to waitd: " << pendingsc->contenttype;
-                        usehttps = true;
-                        app->notify_change_to_https();
-
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99436, "Automatic change to HTTPS");
-                        reqtag = creqtag;
-
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        btsc.reset();
-                        break;
-                    }                  
-
-                    if (pendingsc && !statecurrent && pendingsc->httpstatus != 200)
+                // fall through
+            case REQ_FAILURE:
+                if (pendingsc)
+                {
+                    if (!statecurrent && pendingsc->httpstatus != 200)
                     {
                         if (pendingsc->httpstatus == 500)
                         {
@@ -1713,7 +1677,7 @@ void MegaClient::exec()
                         }
                     }
 
-                    if (pendingsc && pendingsc->sslcheckfailed)
+                    if (pendingsc->sslcheckfailed)
                     {
                         sslfakeissuer = pendingsc->sslfakeissuer;
                         app->request_error(API_ESSL);
@@ -1725,22 +1689,23 @@ void MegaClient::exec()
                         }
                     }
 
-                    // failure, repeat with capped exponential backoff
                     delete pendingsc;
                     pendingsc = NULL;
-                    btsc.backoff();
-                    break;
-
-                case REQ_INFLIGHT:
-                    if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
-                    {
-                        LOG_debug << "sc timeout expired";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        btsc.reset();
-                    }
-                    break;
                 }
+
+                // failure, repeat with capped exponential backoff
+                btsc.backoff();
+                break;
+
+            case REQ_INFLIGHT:
+                if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
+                {
+                    LOG_debug << "sc timeout expired";
+                    delete pendingsc;
+                    pendingsc = NULL;
+                    btsc.reset();
+                }
+                break;
             }
         }
 
@@ -2704,7 +2669,7 @@ int MegaClient::preparewait()
             }
         }
 
-        if (!jsonsc.pos && scnotifyurl.size() && pendingsc && pendingsc->status == REQ_INFLIGHT)
+        if (!jsonsc.pos && pendingsc && pendingsc->status == REQ_INFLIGHT)
         {
             dstime timeout = pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT;
             if (timeout > Waiter::ds && timeout < nds)
