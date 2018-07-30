@@ -163,6 +163,8 @@ const char* errorstring(error e)
             return "Invalid application key";
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
+        case API_EMFAREQUIRED:
+            return "Required 2FA pin";
         default:
             return "Unknown error";
     }
@@ -1705,12 +1707,12 @@ static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
-    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):"
+    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:"
 };
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY, LOGINTFA
 };
 
 static prompttype prompt = COMMAND;
@@ -1739,7 +1741,10 @@ static void setprompt(prompttype p)
 #else
         cout << prompts[p] << flush;
 #endif
-        console->setecho(false);
+        if (p != LOGINTFA)
+        {
+            console->setecho(false);
+        }
     }
 }
 
@@ -2083,6 +2088,11 @@ static void process_line(char* l)
 {
     switch (prompt)
     {
+        case LOGINTFA:
+                client->login(login.c_str(), pwkey, l);
+                setprompt(COMMAND);
+                return;
+
         case LOGINPASSWORD:
             client->pw_key(l, pwkey);
 
@@ -5144,14 +5154,18 @@ void DemoApp::request_response_progress(m_off_t current, m_off_t total)
 // login result
 void DemoApp::login_result(error e)
 {
-    if (e)
-    {
-        cout << "Login failed: " << errorstring(e) << endl;
-    }
-    else
+    if (!e)
     {
         cout << "Login successful, retrieving account..." << endl;
         client->fetchnodes();
+    }
+    else if (e == API_EMFAREQUIRED)
+    {
+        setprompt(LOGINTFA);
+    }
+    else
+    {
+        cout << "Login failed: " << errorstring(e) << endl;
     }
 }
 
