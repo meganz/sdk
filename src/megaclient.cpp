@@ -1752,12 +1752,12 @@ void MegaClient::exec()
             }
             else
             {
-                pendingsc->protect = true;
                 pendingsc->posturl = APIURL;
                 pendingsc->posturl.append("wsc");
                 scnotifyurl = pendingsc->posturl;
             }
 
+            pendingsc->protect = true;
             pendingsc->posturl.append("?sn=");
             pendingsc->posturl.append(scsn);
             pendingsc->posturl.append(auth);
