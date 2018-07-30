@@ -1612,7 +1612,6 @@ void MegaClient::exec()
         {
             if (scnotifyurl.size())
             {
-                // pendingsc is a scnotifyurl connection
                 switch (pendingsc->status)
                 {
                 case REQ_SUCCESS:
@@ -1628,10 +1627,8 @@ void MegaClient::exec()
                         sendevent(99436, "Automatic change to HTTPS");
                         reqtag = creqtag;
 
-                        // go to API
                         delete pendingsc;
                         pendingsc = NULL;
-                        scnotifyurl.clear();
                         btsc.reset();
                         break;
                     }
@@ -1643,29 +1640,50 @@ void MegaClient::exec()
                         LOG_debug << "Waitd keep-alive received";
                         delete pendingsc;
                         pendingsc = NULL;
-                        if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
-                        {
-                            LOG_debug << "Waitd timeout expired after keep-alive";
-                            scnotifyurl.clear();
-                        }
                         btsc.reset();
                         break;
                     }
 
-                    if (pendingsc->contentlength == 0)
+                    if (*pendingsc->in.c_str() == '{')
                     {
-                        LOG_debug << "Waitd connection closed";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        scnotifyurl.clear();
-                        btsc.reset();
+                        jsonsc.begin(pendingsc->in.c_str());
+                        jsonsc.enterobject();
                         break;
                     }
+                    else
+                    {
+                        error e = (error)atoi(pendingsc->in.c_str());
+                        if (e == API_ESID)
+                        {
+                            app->request_error(API_ESID);
+                            *scsn = 0;
+                        }
+                        else if (e == API_ETOOMANY)
+                        {
+                            LOG_warn << "Too many pending updates - reloading local state";
+                            int creqtag = reqtag;
+                            reqtag = fetchnodestag; // associate with ongoing request, if any
+                            fetchingnodes = false;
+                            fetchnodestag = 0;
+                            fetchnodes(true);
+                            reqtag = creqtag;
+                        }
+                        else if (e == API_EAGAIN || e == API_ERATELIMIT)
+                        {
+                            if (!statecurrent)
+                            {
+                                fnstats.eAgainCount++;
+                            }
+                        }
+                        else
+                        {
+                            LOG_err << "Unexpected sc response: " << pendingsc->in;
+                        }
+                    }
 
-                    LOG_err << "Unexpected response from waitd";
                     // fall through
                 case REQ_FAILURE:
-                    if (pendingsc->contenttype.find("text/html") != string::npos
+                    if (pendingsc && pendingsc->contenttype.find("text/html") != string::npos
                         && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
                     {
                         LOG_warn << "Invalid Content-Type detected in failed connection to waitd: " << pendingsc->contenttype;
@@ -1677,113 +1695,51 @@ void MegaClient::exec()
                         sendevent(99436, "Automatic change to HTTPS");
                         reqtag = creqtag;
 
-                        // go to API
                         delete pendingsc;
                         pendingsc = NULL;
-                        scnotifyurl.clear();
                         btsc.reset();
                         break;
-                    }
+                    }                  
 
-                    delete pendingsc;
-                    pendingsc = NULL;
-                    if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
+                    if (pendingsc && !statecurrent && pendingsc->httpstatus != 200)
                     {
-                        LOG_debug << "Waitd timeout expired after a failed request";
-                        scnotifyurl.clear();
-                        btsc.reset();
-                    }
-                    else
-                    {
-                        LOG_debug << "Waitd request error, retrying...";
-                        btsc.backoff();
-                    }
-                    break;
-
-                case REQ_INFLIGHT:
-                    if (Waiter::ds >= (pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT))
-                    {
-                        LOG_debug << "Waitd timeout expired";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        scnotifyurl.clear();
-                        btsc.reset();
-                    }
-                    break;
-                }
-            }
-            else
-            {
-                // pendingsc is a server-client API request
-                switch (pendingsc->status)
-                {
-                    case REQ_SUCCESS:
-                        if (*pendingsc->in.c_str() == '{')
+                        if (pendingsc->httpstatus == 500)
                         {
-                            jsonsc.begin(pendingsc->in.c_str());
-                            jsonsc.enterobject();
-                            break;
+                            fnstats.e500Count++;
                         }
                         else
                         {
-                            error e = (error)atoi(pendingsc->in.c_str());
-                            if (e == API_ESID)
-                            {
-                                app->request_error(API_ESID);
-                                *scsn = 0;
-                            }
-                            else if (e == API_ETOOMANY)
-                            {
-                                LOG_warn << "Too many pending updates - reloading local state";
-                                int creqtag = reqtag;
-                                reqtag = fetchnodestag; // associate with ongoing request, if any
-                                fetchingnodes = false;
-                                fetchnodestag = 0;
-                                fetchnodes(true);
-                                reqtag = creqtag;
-                            }
-                            else if (e == API_EAGAIN || e == API_ERATELIMIT)
-                            {
-                                if (!statecurrent)
-                                {
-                                    fnstats.eAgainCount++;
-                                }
-                            }
+                            fnstats.eOthersCount++;
                         }
-                        // fall through
-                    case REQ_FAILURE:
-                        if (pendingsc && !statecurrent && pendingsc->httpstatus != 200)
+                    }
+
+                    if (pendingsc && pendingsc->sslcheckfailed)
+                    {
+                        sslfakeissuer = pendingsc->sslfakeissuer;
+                        app->request_error(API_ESSL);
+                        sslfakeissuer.clear();
+
+                        if (!retryessl)
                         {
-                            if (pendingsc->httpstatus == 500)
-                            {
-                                fnstats.e500Count++;
-                            }
-                            else
-                            {
-                                fnstats.eOthersCount++;
-                            }
+                            *scsn = 0;
                         }
+                    }
 
-                        if (pendingsc && pendingsc->sslcheckfailed)
-                        {
-                            sslfakeissuer = pendingsc->sslfakeissuer;
-                            app->request_error(API_ESSL);
-                            sslfakeissuer.clear();
+                    // failure, repeat with capped exponential backoff
+                    delete pendingsc;
+                    pendingsc = NULL;
+                    btsc.backoff();
+                    break;
 
-                            if (!retryessl)
-                            {
-                                *scsn = 0;
-                            }
-                        }
-
-                        // failure, repeat with capped exponential backoff
+                case REQ_INFLIGHT:
+                    if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
+                    {
+                        LOG_debug << "sc timeout expired";
                         delete pendingsc;
                         pendingsc = NULL;
-
-                        btsc.backoff();
-
-                    default:
-                        ;
+                        btsc.reset();
+                    }
+                    break;
                 }
             }
         }
@@ -1833,19 +1789,15 @@ void MegaClient::exec()
             {
                 pendingsc->protect = true;
                 pendingsc->posturl = APIURL;
-                pendingsc->posturl.append("sc?sn=");
-                pendingsc->posturl.append(scsn);
-                pendingsc->posturl.append(auth);
-
-                if (usehttps)
-                {
-                    pendingsc->posturl.append("&ssl=1");
-                }
+                pendingsc->posturl.append("wsc");
+                scnotifyurl = pendingsc->posturl;
             }
 
+            pendingsc->posturl.append("?sn=");
+            pendingsc->posturl.append(scsn);
+            pendingsc->posturl.append(auth);
             pendingsc->type = REQ_JSON;
             pendingsc->post(this);
-
             jsonsc.pos = NULL;
         }
 
@@ -2754,7 +2706,7 @@ int MegaClient::preparewait()
 
         if (!jsonsc.pos && scnotifyurl.size() && pendingsc && pendingsc->status == REQ_INFLIGHT)
         {
-            dstime timeout = pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT;
+            dstime timeout = pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT;
             if (timeout > Waiter::ds && timeout < nds)
             {
                 nds = timeout;
@@ -3629,6 +3581,34 @@ bool MegaClient::procsc()
             switch (jsonsc.getnameid())
             {
                 case 'w':
+                    jsonsc.storeobject(&scnotifyurl);
+                    break;
+
+                case MAKENAMEID2('s', 'n'):
+                    // the sn element is guaranteed to be the last in sequence
+                    setscsn(&jsonsc);
+                    notifypurge();
+                    if (sctable)
+                    {
+                        if (!pendingcs && !csretrying && !reqs.cmdspending())
+                        {
+                            sctable->commit();
+                            sctable->begin();
+                            app->notify_dbcommit();
+                            pendingsccommit = false;
+                        }
+                        else
+                        {
+                            LOG_debug << "Postponing DB commit until cs requests finish";
+                            pendingsccommit = true;
+                        }
+                    }
+                    break;
+                    
+                case EOO:
+                    mergenewshares(1);
+                    applykeys();
+
                     if (!statecurrent)
                     {
                         if (fetchingnodes)
@@ -3713,36 +3693,6 @@ bool MegaClient::procsc()
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
                     }
-                
-                    jsonsc.storeobject(&scnotifyurl);
-                    scnotifyurlts = Waiter::ds;
-                    scnotifyurl.append("/1");
-                    break;
-
-                case MAKENAMEID2('s', 'n'):
-                    // the sn element is guaranteed to be the last in sequence
-                    setscsn(&jsonsc);
-                    notifypurge();
-                    if (sctable)
-                    {
-                        if (!pendingcs && !csretrying && !reqs.cmdspending())
-                        {
-                            sctable->commit();
-                            sctable->begin();
-                            app->notify_dbcommit();
-                            pendingsccommit = false;
-                        }
-                        else
-                        {
-                            LOG_debug << "Postponing DB commit until cs requests finish";
-                            pendingsccommit = true;
-                        }
-                    }
-                    break;
-                    
-                case EOO:
-                    mergenewshares(1);
-                    applykeys();
                     return true;
 
                 case 'a':
