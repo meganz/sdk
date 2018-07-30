@@ -90,6 +90,9 @@ Console* console;
 // loading progress of lengthy API responses
 int responseprogress = -1;
 
+//2FA pin attempts
+int attempts = 0;
+
 static const char* getAccessLevelStr(int access)
 {
     switch(access)
@@ -1707,12 +1710,12 @@ static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
-    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:"
+    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:", "Type pin to enable 2FA:"
 };
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY, LOGINTFA
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY, LOGINTFA, SETTFA
 };
 
 static prompttype prompt = COMMAND;
@@ -1741,10 +1744,7 @@ static void setprompt(prompttype p)
 #else
         cout << prompts[p] << flush;
 #endif
-        if (p != LOGINTFA)
-        {
-            console->setecho(false);
-        }
+        console->setecho(false);
     }
 }
 
@@ -2093,6 +2093,11 @@ static void process_line(char* l)
                 setprompt(COMMAND);
                 return;
 
+        case SETTFA:
+                client->multifactorauthsetup(l);
+                setprompt(COMMAND);
+                return;
+
         case LOGINPASSWORD:
             client->pw_key(l, pwkey);
 
@@ -2305,6 +2310,9 @@ static void process_line(char* l)
                 s << *autocompleteTemplate;
                 cout << s.str() << flush;
 #else
+                cout << "      tfac" << endl;
+                cout << "      tfae" << endl;
+                cout << "      tfad pin" << endl;
                 cout << "      login email [password]" << endl;
                 cout << "      login exportedfolderurl#key" << endl;
                 cout << "      login session" << endl;
@@ -3306,8 +3314,44 @@ static void process_line(char* l)
                     {
                         return;
                     }
-                    break;
 
+                    else if (words[0] == "tfad")
+                    {
+                        if (words.size() == 2)
+                        {
+                            client->multifactorauthdisable(words[1].c_str());
+                        }
+                        else
+                        {
+                            cout << "      tfad pin" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "tfac")
+                    {
+                        if (words.size() == 1)
+                        {
+                            client->multifactorauthcheck(login.c_str());
+                        }
+                        else
+                        {
+                            cout << "      tfac" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "tfae")
+                    {
+                        if (words.size() == 1)
+                        {
+                            client->multifactorauthsetup();
+                        }
+                        else
+                        {
+                            cout << "      tfae" << endl;
+                        }
+                        return;
+                    }
+                    break;
                 case 5:
                     if (words[0] == "login")
                     {
@@ -5148,6 +5192,70 @@ void DemoApp::request_response_progress(m_off_t current, m_off_t total)
     else
     {
         responseprogress = -1;
+    }
+}
+
+//2FA disable result
+void DemoApp::multifactorauthdisable_result(error e)
+{
+    if (!e)
+    {
+        cout << "2FA, disabled succesfully..." << endl;
+    }
+    else
+    {
+        cout << "Error enabling 2FA : " << errorstring(e) << endl;
+    }
+    setprompt(COMMAND);
+}
+
+//2FA check result
+void DemoApp::multifactorauthcheck_result(int enabled)
+{
+    if (enabled)
+    {
+        cout << "2FA is enabled for this account" << endl;
+    }
+    else
+    {
+        cout << "2FA is disabled for this account" << endl;
+    }
+    setprompt(COMMAND);
+}
+
+//2FA enable result
+void DemoApp::multifactorauthsetup_result(string *code, error e)
+{
+    if (!e)
+    {
+        if (!code)
+        {
+            cout << "2FA enabled successfully" << endl;
+            setprompt(COMMAND);
+            attempts = 0;
+        }
+        else
+        {
+            cout << "2FA code: " << *code << endl;
+            setprompt(SETTFA);
+        }
+    }
+    else
+    {
+        cout << "Error enabling 2FA : " << errorstring(e) << endl;
+        if (e == API_EFAILED)
+        {
+            if (++attempts >= 3)
+            {
+                attempts = 0;
+                cout << "Two many attempts"<< endl;
+                setprompt(COMMAND);
+            }
+            else
+            {
+                setprompt(SETTFA);
+            }
+        }
     }
 }
 
