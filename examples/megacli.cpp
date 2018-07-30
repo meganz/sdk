@@ -2013,6 +2013,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("chatra"), param("chatid"), param("nodehandle"), param("uid")));
     p->Add(sequence(text("chatst"), param("chatid"), param("title64")));
 #endif
+    p->Add(sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
+    p->Add(sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
+    p->Add(sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
     p->Add(sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
@@ -5089,6 +5092,49 @@ static void process_line(char* l)
                         return;
                     }
 #endif
+                    break;
+
+                case 17:
+                    if (words[0] == "setmaxuploadspeed")
+                    {
+                        if (words.size() > 1)
+                        {
+                            bool done = client->setmaxuploadspeed(atoi(words[1].c_str()));
+                            cout << (done ? "Success. " : "Failed. ");
+                        }
+                        cout << "Max Upload Speed: " << client->getmaxuploadspeed() << endl;
+                        return;
+                    }
+                    break;
+
+                case 19:
+                    if (words[0] == "setmaxdownloadspeed")
+                    {
+                        if (words.size() > 1)
+                        {
+                            bool done = client->setmaxdownloadspeed(atoi(words[1].c_str()));
+                            cout << (done ? "Success. " : "Failed. ");
+                        }
+                        cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
+                        return;
+                    }
+                    break;
+
+                case 24:
+                    if (words[0] == "enabletransferresumption")
+                    {
+                        if (words.size() > 1 && words[1] == "off")
+                        {
+                            client->disabletransferresumption(NULL);
+                            cout << "transfer resumption disabled" << endl;
+                        }
+                        else
+                        {
+                            client->enabletransferresumption(NULL);
+                            cout << "transfer resumption enabled" << endl;
+                        }
+                        return;
+                    }
                     break;
             }
 
