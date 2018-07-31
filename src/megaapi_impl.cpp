@@ -18411,6 +18411,7 @@ void MegaApiImpl::update()
               << " " << client->syncscanstate << " " << client->statecurrent
               << " " << client->syncadding << " " << client->syncdebrisadding
               << " " << client->umindex.size() << " " << client->uhindex.size();
+    LOG_debug << "UL speed: " << httpio->uploadSpeed << "  DL speed: " << httpio->downloadSpeed;
 
     sdkMutex.unlock();
 #endif
