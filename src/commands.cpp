@@ -1626,16 +1626,27 @@ void CommandLogin::procresult()
                     // account has RSA keypair: decrypt server-provided session ID
                     if (len_privk < 256)
                     {
-                        return client->app->login_result(API_EINTERNAL);
+                        if (!checksession)
+                        {
+                            return client->app->login_result(API_EINTERNAL);
+                        }
+                        else
+                        {
+                            // logging in with tsid to an account without a RSA keypair
+                            LOG_info << "Generating and adding missing RSA keypair";
+                            client->setkeypair();
+                        }
                     }
-
-                    // decrypt and set private key
-                    client->key.ecb_decrypt(privkbuf, len_privk);
-
-                    if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+                    else
                     {
-                        LOG_warn << "Error checking private key";
-                        return client->app->login_result(API_ENOENT);
+                        // decrypt and set private key
+                        client->key.ecb_decrypt(privkbuf, len_privk);
+
+                        if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+                        {
+                            LOG_warn << "Error checking private key";
+                            return client->app->login_result(API_ENOENT);
+                        }
                     }
 
                     if (!checksession)
