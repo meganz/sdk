@@ -1608,7 +1608,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     // FIXME: serialize/unserialize
     l->created = false;
     l->reported = false;
-    l->checked = true;
+    l->checked = h != UNDEF;
 
     return l;
 }
