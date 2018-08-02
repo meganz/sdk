@@ -2486,6 +2486,11 @@ void MegaApi::removeSyncs(MegaRequestListener *listener)
    pImpl->stopSyncs(listener);
 }
 
+void MegaApi::createAnonymousSession(MegaRequestListener *listener)
+{
+   pImpl->createAnonymousSession(listener);
+}
+
 int MegaApi::getNumActiveSyncs()
 {
     return pImpl->getNumActiveSyncs();

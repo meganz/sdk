@@ -1870,6 +1870,7 @@ class MegaApiImpl : public MegaApp
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
+        void createAnonymousSession(MegaRequestListener *listener = NULL);
         bool isSynced(MegaNode *n);
         void setExcludedNames(vector<string> *excludedNames);
         void setExcludedPaths(vector<string> *excludedPaths);

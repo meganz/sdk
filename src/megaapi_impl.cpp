@@ -3072,6 +3072,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
         case TYPE_TIMER: return "SET_TIMER";
         case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
+        case TYPE_ANONYMOUS_SESSION: return "ANONYMOUS_SESSION";
     }
     return "UNKNOWN";
 }
@@ -6951,6 +6952,14 @@ int MegaApiImpl::getNumActiveSyncs()
 void MegaApiImpl::stopSyncs(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNCS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+
+void MegaApiImpl::createAnonymousSession(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ANONYMOUS_SESSION, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12652,7 +12661,8 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
+    if(!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)
+                    &&(request->getType() != MegaRequest::TYPE_ANONYMOUS_SESSION))) return;
 
     // save uh and pwcipher for session resumption of ephemeral accounts
     char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
@@ -17052,6 +17062,11 @@ void MegaApiImpl::sendPendingRequests()
             }
             break;
 		}
+        case MegaRequest::TYPE_ANONYMOUS_SESSION:
+        {
+            client->createephemeral();
+            break;
+        }
         case MegaRequest::TYPE_SEND_SIGNUP_LINK:
         {
             const char *email = request->getEmail();

@@ -2107,7 +2107,7 @@ class MegaRequest
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
             TYPE_CHAT_LINK, TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
-            TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
+            TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP, TYPE_ANONYMOUS_SESSION,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -9355,6 +9355,12 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void removeSyncs(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief MegaApi::createAnonymousSession
+         * @param listener
+         */
+        void createAnonymousSession(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the number of active synced folders
