@@ -20420,7 +20420,7 @@ int64_t MegaBackupController::getLastBackupTime()
                     if (timeofbackup)
                     {
                         backupTimesPaths[timeofbackup]=childNode;
-                        latesttime = max(latesttime, timeofbackup);
+                        latesttime = std::max(latesttime, timeofbackup);
                     }
                     else
                     {
@@ -20689,7 +20689,7 @@ void MegaBackupController::start(bool skip)
     string backupname = ossremotename.str();
     currentName = backupname;
 
-    lastbackuptime = max(lastbackuptime,offsetds+startTime);
+    lastbackuptime = std::max(lastbackuptime,offsetds+startTime);
 
     megaApi->fireOnBackupStart(this);
 
