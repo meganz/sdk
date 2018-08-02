@@ -1346,4 +1346,12 @@ public:
 };
 } // namespace
 
+#if __cplusplus < 201100L
+#define char_is_not_digit std::not1(std::ptr_fun(static_cast<int(*)(int)>(std::isdigit)))
+#define char_is_not_space std::not1(std::ptr_fun<int, int>(std::isspace))
+#else
+#define char_is_not_digit [](char c) { return !std::isdigit(c); }
+#define char_is_not_space [](char c) { return !std::isspace(c); }
+#endif
+
 #endif

@@ -5536,8 +5536,7 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
         if (creditcard)
         {
             screditcard = creditcard;
-            screditcard.erase(remove_if(screditcard.begin(), screditcard.end(),
-                                     not1(ptr_fun(static_cast<int(*)(int)>(isdigit)))), screditcard.end());
+            screditcard.erase(std::remove_if(screditcard.begin(), screditcard.end(), char_is_not_digit), screditcard.end());
         }
 
         if (expire_month)
@@ -15515,8 +15514,8 @@ void MegaApiImpl::sendPendingRequests()
             if(login)
             {
                 slogin = login;
-                slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
-                slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), slogin.end());
+                slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), char_is_not_space));
+                slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), char_is_not_space).base(), slogin.end());
             }
 
             requestMap.erase(request->getTag());
@@ -18989,7 +18988,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 
     if (logToConsole)
     {
-        cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
     }
     mutex.unlock();
 }
