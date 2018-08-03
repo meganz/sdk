@@ -7888,6 +7888,24 @@ class MegaApi
         void shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Check if the master key has been exported
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getAccess - Returns true if the master key has been exported
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void isMasterKeyExported(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Enable or disable the generation of rich previews
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
