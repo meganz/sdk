@@ -90,6 +90,9 @@ Console* console;
 // loading progress of lengthy API responses
 int responseprogress = -1;
 
+//2FA pin attempts
+int attempts = 0;
+
 static const char* getAccessLevelStr(int access)
 {
     switch(access)
@@ -163,6 +166,8 @@ const char* errorstring(error e)
             return "Invalid application key";
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
+        case API_EMFAREQUIRED:
+            return "Required 2FA pin";
         default:
             return "Unknown error";
     }
@@ -1705,12 +1710,12 @@ static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
-    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):"
+    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:", "Type pin to enable 2FA:"
 };
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY, LOGINTFA, SETTFA
 };
 
 static prompttype prompt = COMMAND;
@@ -2014,6 +2019,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("chatra"), param("chatid"), param("nodehandle"), param("uid")));
     p->Add(sequence(text("chatst"), param("chatid"), param("title64")));
 #endif
+    p->Add(sequence(text("enabletransferresumption"), opt(either(text("on"), text("off")))));
+    p->Add(sequence(text("setmaxdownloadspeed"), opt(wholenumber(10000))));
+    p->Add(sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
     p->Add(sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
@@ -2083,6 +2091,16 @@ static void process_line(char* l)
 {
     switch (prompt)
     {
+        case LOGINTFA:
+                client->login(login.c_str(), pwkey, l);
+                setprompt(COMMAND);
+                return;
+
+        case SETTFA:
+                client->multifactorauthsetup(l);
+                setprompt(COMMAND);
+                return;
+
         case LOGINPASSWORD:
             client->pw_key(l, pwkey);
 
@@ -2295,6 +2313,9 @@ static void process_line(char* l)
                 s << *autocompleteTemplate;
                 cout << s.str() << flush;
 #else
+                cout << "      tfac" << endl;
+                cout << "      tfae" << endl;
+                cout << "      tfad pin" << endl;
                 cout << "      login email [password]" << endl;
                 cout << "      login exportedfolderurl#key" << endl;
                 cout << "      login session" << endl;
@@ -3296,8 +3317,44 @@ static void process_line(char* l)
                     {
                         return;
                     }
-                    break;
 
+                    else if (words[0] == "tfad")
+                    {
+                        if (words.size() == 2)
+                        {
+                            client->multifactorauthdisable(words[1].c_str());
+                        }
+                        else
+                        {
+                            cout << "      tfad pin" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "tfac")
+                    {
+                        if (words.size() == 1)
+                        {
+                            client->multifactorauthcheck(login.c_str());
+                        }
+                        else
+                        {
+                            cout << "      tfac" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "tfae")
+                    {
+                        if (words.size() == 1)
+                        {
+                            client->multifactorauthsetup();
+                        }
+                        else
+                        {
+                            cout << "      tfae" << endl;
+                        }
+                        return;
+                    }
+                    break;
                 case 5:
                     if (words[0] == "login")
                     {
@@ -5092,6 +5149,49 @@ static void process_line(char* l)
                     }
 #endif
                     break;
+
+                case 17:
+                    if (words[0] == "setmaxuploadspeed")
+                    {
+                        if (words.size() > 1)
+                        {
+                            bool done = client->setmaxuploadspeed(atoi(words[1].c_str()));
+                            cout << (done ? "Success. " : "Failed. ");
+                        }
+                        cout << "Max Upload Speed: " << client->getmaxuploadspeed() << endl;
+                        return;
+                    }
+                    break;
+
+                case 19:
+                    if (words[0] == "setmaxdownloadspeed")
+                    {
+                        if (words.size() > 1)
+                        {
+                            bool done = client->setmaxdownloadspeed(atoi(words[1].c_str()));
+                            cout << (done ? "Success. " : "Failed. ");
+                        }
+                        cout << "Max Download Speed: " << client->getmaxdownloadspeed() << endl;
+                        return;
+                    }
+                    break;
+
+                case 24:
+                    if (words[0] == "enabletransferresumption")
+                    {
+                        if (words.size() > 1 && words[1] == "off")
+                        {
+                            client->disabletransferresumption(NULL);
+                            cout << "transfer resumption disabled" << endl;
+                        }
+                        else
+                        {
+                            client->enabletransferresumption(NULL);
+                            cout << "transfer resumption enabled" << endl;
+                        }
+                        return;
+                    }
+                    break;
             }
 
             cout << "?Invalid command: " << l << endl;
@@ -5141,17 +5241,85 @@ void DemoApp::request_response_progress(m_off_t current, m_off_t total)
     }
 }
 
-// login result
-void DemoApp::login_result(error e)
+//2FA disable result
+void DemoApp::multifactorauthdisable_result(error e)
 {
-    if (e)
+    if (!e)
     {
-        cout << "Login failed: " << errorstring(e) << endl;
+        cout << "2FA, disabled succesfully..." << endl;
     }
     else
     {
+        cout << "Error enabling 2FA : " << errorstring(e) << endl;
+    }
+    setprompt(COMMAND);
+}
+
+//2FA check result
+void DemoApp::multifactorauthcheck_result(int enabled)
+{
+    if (enabled)
+    {
+        cout << "2FA is enabled for this account" << endl;
+    }
+    else
+    {
+        cout << "2FA is disabled for this account" << endl;
+    }
+    setprompt(COMMAND);
+}
+
+//2FA enable result
+void DemoApp::multifactorauthsetup_result(string *code, error e)
+{
+    if (!e)
+    {
+        if (!code)
+        {
+            cout << "2FA enabled successfully" << endl;
+            setprompt(COMMAND);
+            attempts = 0;
+        }
+        else
+        {
+            cout << "2FA code: " << *code << endl;
+            setprompt(SETTFA);
+        }
+    }
+    else
+    {
+        cout << "Error enabling 2FA : " << errorstring(e) << endl;
+        if (e == API_EFAILED)
+        {
+            if (++attempts >= 3)
+            {
+                attempts = 0;
+                cout << "Two many attempts"<< endl;
+                setprompt(COMMAND);
+            }
+            else
+            {
+                setprompt(SETTFA);
+            }
+        }
+    }
+}
+
+// login result
+void DemoApp::login_result(error e)
+{
+    if (!e)
+    {
         cout << "Login successful, retrieving account..." << endl;
         client->fetchnodes();
+    }
+    else if (e == API_EMFAREQUIRED)
+    {
+        setprompt(LOGINTFA);
+    }
+    else
+    {
+        cout << "Login failed: " << errorstring(e) << endl;
     }
 }
 

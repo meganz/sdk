@@ -938,7 +938,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tsLogin = 0;
     versions_disabled = false;
     accountsince = 0;
-    accountversion = 1;
+    accountversion = 0;
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
@@ -2860,7 +2860,10 @@ int MegaClient::checkevents()
 {
     int r =  httpio->checkevents(waiter);
     r |= fsaccess->checkevents(waiter);
-    r |= gfx->checkevents(waiter);
+    if (gfx)
+    {
+        r |= gfx->checkevents(waiter);
+    }
     return r;
 }
 
@@ -3532,7 +3535,7 @@ void MegaClient::locallogout()
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
-    accountversion = 1;
+    accountversion = 0;
     accountsalt.clear();
     sid.clear();
     k.clear();

@@ -3234,24 +3234,17 @@ void CommandGetUserData::procresult()
             }
             break;
 
-        case EOO:
-            if (v == 0)
+        case EOO:            
+            if (v)
             {
-                LOG_err << "No version returned";
-                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                client->accountversion = v;
             }
-            else if (v > 2)
+
+            if (salt.size())
             {
-                LOG_err << "Version of account not supported";
-                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                Base64::atob(salt, client->accountsalt);
             }
-            else if (v == 2 && !salt.size())
-            {
-                LOG_err << "No salt returned";
-                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
-            }
-            client->accountversion = v;
-            Base64::atob(salt, client->accountsalt);
+
             client->accountsince = since;
             client->gmfa_enabled = gmfa;
             client->ssrs_enabled = ssrs;
