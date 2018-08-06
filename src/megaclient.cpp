@@ -709,7 +709,7 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         string salt;
         HashSHA256 hasher;
         string buffer = "mega.nz";
-        buffer.resize(100, 'P');
+        buffer.resize(200, 'P');
         buffer.append((char *)clientkey, sizeof(clientkey));
         hasher.add((const byte*)buffer.data(), buffer.size());
         hasher.get(&salt);
@@ -9580,7 +9580,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     string salt;
     HashSHA256 hasher;
     string buffer = "mega.nz";
-    buffer.resize(100, 'P');
+    buffer.resize(200, 'P');
     buffer.append((char *)clientRandomValue, sizeof(clientRandomValue));
     hasher.add((const byte*)buffer.data(), buffer.size());
     hasher.get(&salt);
@@ -9654,7 +9654,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     string salt;
     HashSHA256 hasher;
     string buffer = "mega.nz";
-    buffer.resize(100, 'P');
+    buffer.resize(200, 'P');
     buffer.append((char *)clientrandomvalue, sizeof(clientrandomvalue));
     hasher.add((const byte*)buffer.data(), buffer.size());
     hasher.get(&salt);
