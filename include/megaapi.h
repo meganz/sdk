@@ -8160,6 +8160,11 @@ class MegaApi
          *
          * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
          * is sent to MEGA servers.
+         *
+         * @note Event types are restricted to the following ranges:
+         *  - MEGAchat: [99000, 99150)
+         *  - MEGA SDK: [99400, 99500)
+         *  - MEGAsync: [99500, 99600)
          */
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
