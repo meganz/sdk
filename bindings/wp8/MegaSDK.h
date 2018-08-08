@@ -906,6 +906,40 @@ namespace mega
         void shouldShowPasswordReminderDialog(bool atLogout);
 
         /**
+        * @brief Check if the master key has been exported
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getAccess - Returns true if the master key has been exported
+        *
+        * If the corresponding user attribute is not set yet, the request will fail with the
+        * error code MError::API_ENOENT.
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void isMasterKeyExported(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Check if the master key has been exported
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getAccess - Returns true if the master key has been exported
+        *
+        * If the corresponding user attribute is not set yet, the request will fail with the
+        * error code MError::API_ENOENT.
+        */
+        void isMasterKeyExported();
+
+        /**
         * @brief Change the password of the MEGA account
         *
         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
