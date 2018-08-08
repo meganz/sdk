@@ -78,6 +78,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->fingerprint = MegaApi::strdup(fingerprint);
     this->customAttrs = NULL;
     this->duration = -1;
+    this->width = -1;
+    this->height = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->type = type;
@@ -124,6 +126,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
     this->duration = node->getDuration();
+    this->width = node->getWidth();
+    this->height = node->getHeight();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
@@ -220,6 +224,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     }
 
     this->duration = -1;
+    this->width = -1;
+    this->height = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
@@ -683,6 +689,42 @@ int MegaNodePrivate::getDuration()
     }
 
     return duration;
+}
+
+
+int MegaNodePrivate::getWidth()
+{
+    if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+    {
+        uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+        MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+        if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+            && mediaProperties.shortformat != 254 // 254 = No information available
+            && mediaProperties.width > 0)
+        {
+            return mediaProperties.width;
+        }
+    }
+    
+    return width;
+}
+
+
+int MegaNodePrivate::getHeight()
+{
+    if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+    {
+        uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+        MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+        if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+            && mediaProperties.shortformat != 254 // 254 = No information available
+            && mediaProperties.height > 0)
+        {
+            return mediaProperties.height;
+        }
+    }
+    
+    return height;
 }
 
 double MegaNodePrivate::getLatitude()

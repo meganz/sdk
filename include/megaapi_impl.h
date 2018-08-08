@@ -402,6 +402,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaStringList *getCustomAttrNames();
         virtual const char *getCustomAttr(const char* attrName);
         virtual int getDuration();
+        virtual int getWidth();
+        virtual int getHeight();
         virtual double getLatitude();
         virtual double getLongitude();
         virtual char *getBase64Handle();
@@ -488,6 +490,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         PublicLink *plink;
         std::string *sharekey;   // for plinks of folders
         int duration;
+        int width;
+        int height;
         double latitude;
         double longitude;
         MegaNodeList *children;

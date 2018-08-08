@@ -239,6 +239,16 @@ int MegaNode::getDuration()
     return -1;
 }
 
+int MegaNode::getWidth()
+{
+    return -1;
+}
+
+int MegaNode::getHeight()
+{
+    return -1;
+}
+
 double MegaNode::getLatitude()
 {
     return INVALID_COORDINATE;
