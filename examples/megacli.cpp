@@ -2313,9 +2313,6 @@ static void process_line(char* l)
                 s << *autocompleteTemplate;
                 cout << s.str() << flush;
 #else
-                cout << "      tfac" << endl;
-                cout << "      tfae" << endl;
-                cout << "      tfad pin" << endl;
                 cout << "      login email [password]" << endl;
                 cout << "      login exportedfolderurl#key" << endl;
                 cout << "      login session" << endl;
@@ -2395,6 +2392,9 @@ static void process_line(char* l)
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
 #endif
                 cout << "      httpsonly on | off" << endl;
+                cout << "      mfac" << endl;
+                cout << "      mfae" << endl;
+                cout << "      mfad pin" << endl;
                 cout << "      quit" << endl;
 #endif
                 return;
@@ -3318,7 +3318,7 @@ static void process_line(char* l)
                         return;
                     }
 
-                    else if (words[0] == "tfad")
+                    else if (words[0] == "mfad")
                     {
                         if (words.size() == 2)
                         {
@@ -3326,11 +3326,11 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      tfad pin" << endl;
+                            cout << "      mfad pin" << endl;
                         }
                         return;
                     }
-                    else if (words[0] == "tfac")
+                    else if (words[0] == "mfac")
                     {
                         if (words.size() == 1)
                         {
@@ -3338,11 +3338,11 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      tfac" << endl;
+                            cout << "      mfac" << endl;
                         }
                         return;
                     }
-                    else if (words[0] == "tfae")
+                    else if (words[0] == "mfae")
                     {
                         if (words.size() == 1)
                         {
@@ -3350,7 +3350,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "      tfae" << endl;
+                            cout << "      mfae" << endl;
                         }
                         return;
                     }
