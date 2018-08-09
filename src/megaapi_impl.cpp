@@ -694,15 +694,18 @@ int MegaNodePrivate::getDuration()
 
 int MegaNodePrivate::getWidth()
 {
-    if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+    if (width == -1)    // not initialized yet, or not available
     {
-        uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
-        MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
-        if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
-            && mediaProperties.shortformat != 254 // 254 = No information available
-            && mediaProperties.width > 0)
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
         {
-            return mediaProperties.width;
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                    && mediaProperties.shortformat != 254 // 254 = No information available
+                    && mediaProperties.width > 0)
+            {
+                width = mediaProperties.width;
+            }
         }
     }
     
@@ -712,15 +715,18 @@ int MegaNodePrivate::getWidth()
 
 int MegaNodePrivate::getHeight()
 {
-    if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+    if (height == -1)    // not initialized yet, or not available
     {
-        uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
-        MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
-        if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
-            && mediaProperties.shortformat != 254 // 254 = No information available
-            && mediaProperties.height > 0)
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
         {
-            return mediaProperties.height;
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                    && mediaProperties.shortformat != 254 // 254 = No information available
+                    && mediaProperties.height > 0)
+            {
+                height = mediaProperties.height;
+            }
         }
     }
     
