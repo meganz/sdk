@@ -13922,11 +13922,11 @@ bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
 {
     if (i->type < j->type)
     {
-        return 1;
+        return 0;
     }
     if (i->type > j->type)
     {
-        return 0;
+        return 1;
     }
     if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
     {
