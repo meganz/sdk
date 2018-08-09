@@ -1099,6 +1099,14 @@ using namespace mega;
     self.megaApi->shouldShowPasswordReminderDialog(atLogout);
 }
 
+- (void)isMasterKeyExportedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->isMasterKeyExported([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)isMasterKeyExported {
+    self.megaApi->isMasterKeyExported();
+}
+
 - (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->enableRichPreviews(enable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

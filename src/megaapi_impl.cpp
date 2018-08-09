@@ -12443,7 +12443,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 else if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
                 {
                     m_time_t currenttime = m_time();
-                    if (!User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len)
+                    bool isMasterKeyExported = User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len);
+                    if (!isMasterKeyExported
                             && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
@@ -12453,6 +12454,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
+                    request->setAccess(isMasterKeyExported ? 1 : 0);
                 }
             }
             break;

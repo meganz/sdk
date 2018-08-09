@@ -2411,6 +2411,16 @@ void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout)
     megaApi->shouldShowPasswordReminderDialog(atLogout);
 }
 
+void MegaSDK::isMasterKeyExported(MRequestListenerInterface^ listener)
+{
+    megaApi->isMasterKeyExported(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::isMasterKeyExported()
+{
+    megaApi->isMasterKeyExported();
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;
