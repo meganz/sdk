@@ -96,6 +96,16 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) NSInteger duration;
 
 /**
+ * @brief Width of the node for video files, in pixels. -1 if not set.
+ */
+@property (readonly, nonatomic) NSInteger width;
+
+/**
+ * @brief Height of the node for video files, in pixels. -1 if not set.
+ */
+@property (readonly, nonatomic) NSInteger height;
+
+/**
  * @brief Attribute of the node representing the latitude coordinate in its decimal
  * degree notation, or nil if this attribute is not set.
  *

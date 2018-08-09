@@ -516,6 +516,20 @@ class MegaNode
          * @return The number of seconds, or -1 if this attribute is not set.
          */
         virtual int getDuration();
+    
+        /**
+         * @brief Get the attribute of the node representing its width.
+         *
+         * @return The number of pixels for width, or -1 if this attribute is not set.
+         */
+        virtual int getWidth();
+    
+        /**
+         * @brief Get the attribute of the node representing its height.
+         *
+         * @return The number of pixels for height, or -1 if this attribute is not set.
+         */
+        virtual int getHeight();
 
         /**
          * @brief Get the attribute of the node representing the latitude.
