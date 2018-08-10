@@ -1650,6 +1650,10 @@ using namespace mega;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess((node != nil) ? [node getCPtr] : NULL, (int) level).copy() cMemoryOwn:YES];
 }
 
+- (BOOL)isNodeInRubbish:(MEGANode *)node {
+    return self.megaApi->isInRubbish(node ? [node getCPtr] : NULL);
+}
+
 - (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target {
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove((node != nil) ? [node getCPtr] : NULL, (target != nil) ? [target getCPtr] : NULL).copy() cMemoryOwn:YES];
 }

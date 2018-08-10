@@ -592,6 +592,7 @@ void Node::setattr()
         nameid name;
         string* t;
 
+        attrs.map.clear();
         json.begin((char*)buf + 5);
 
         while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))

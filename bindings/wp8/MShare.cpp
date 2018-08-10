@@ -66,3 +66,8 @@ uint64 MShare::getTimestamp()
 {
     return megaShare ? megaShare->getTimestamp() : 0;
 }
+
+bool MShare::isPending()
+{
+    return megaShare ? megaShare->isPending() : false;
+}

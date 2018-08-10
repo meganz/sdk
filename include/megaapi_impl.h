@@ -26,6 +26,9 @@
 #include "mega/gfx/external.h"
 #include "megaapi.h"
 
+#define CRON_USE_LOCAL_TIME 1
+#include "mega/mega_ccronexpr.h"
+
 #ifdef USE_PCRE
 #include <pcre.h>
 #endif
@@ -134,7 +137,9 @@ class MegaGfxProc : public GfxProcExternal {};
 #endif
 
 #ifdef HAVE_LIBUV
+class MegaTCPServer;
 class MegaHTTPServer;
+class MegaFTPServer;
 #endif
 
 class MegaDbAccess : public SqliteDbAccess
@@ -214,6 +219,146 @@ public:
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 };
 
+
+class MegaBackupController : public MegaBackup, public MegaRequestListener, public MegaTransferListener
+{
+public:
+    MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char *filename, bool attendPastBackups, const char *speriod, int64_t period=-1, int maxBackups = 10);
+    MegaBackupController(MegaBackupController *backup);
+    ~MegaBackupController();
+
+    void update();
+    void start(bool skip = false);
+    void removeexceeding();
+    void abortCurrent();
+
+    // MegaBackup interface
+    MegaBackup *copy();
+    const char *getLocalFolder() const;
+    MegaHandle getMegaHandle() const;
+    int getTag() const;
+    int64_t getPeriod() const;
+    const char *getPeriodString() const;
+    int getMaxBackups() const;
+    int getState() const;
+    long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
+    bool getAttendPastBackups() const;
+
+    // MegaBackup setters
+    void setLocalFolder(const std::string &value);
+    void setMegaHandle(const MegaHandle &value);
+    void setTag(int value);
+    void setPeriod(const int64_t &value);
+    void setPeriodstring(const std::string &value);
+    void setMaxBackups(int value);
+    void setState(int value);
+    void setAttendPastBackups(bool value);
+
+    //getters&setters
+    int64_t getStartTime() const;
+    void setStartTime(const int64_t &value);
+    std::string getBackupName() const;
+    void setBackupName(const std::string &value);
+    int64_t getOffsetds() const;
+    void setOffsetds(const int64_t &value);
+    int64_t getLastbackuptime() const;
+    void setLastbackuptime(const int64_t &value);
+    int getFolderTransferTag() const;
+    void setFolderTransferTag(int value);
+
+    //convenience methods
+    bool isBackup(std::string localname, std::string backupname) const;
+    int64_t getTimeOfBackup(std::string localname) const;
+
+protected:
+
+    // common variables
+    MegaApiImpl *megaApi;
+    MegaClient *client;
+    MegaBackupListener *backupListener;
+
+    int state;
+    int tag;
+    int64_t lastwakeuptime;
+    int64_t lastbackuptime; //ds absolute
+    int pendingremovals;
+    int folderTransferTag; //reused between backup instances
+    std::string basepath;
+    std::string backupName;
+    handle parenthandle;
+    int maxBackups;
+    int64_t period;
+    std::string periodstring;
+    cron_expr ccronexpr;
+    bool valid;
+    int64_t offsetds; //times offset with epoch time?
+    int64_t startTime; // when shall the next backup begin
+    bool attendPastBackups;
+
+    // backup instance related
+    handle currentHandle;
+    std::string currentName;
+    std::list<std::string> pendingFolders;
+    std::list<MegaTransfer *> failedTransfers;
+    int recursive;
+    int pendingTransfers;
+    int pendingTags;
+    // backup instance stats
+    int64_t currentBKStartTime;
+    int64_t updateTime;
+    long long transferredBytes;
+    long long totalBytes;
+    long long speed;
+    long long meanSpeed;
+    long long numberFiles; //number of files successfully uploaded
+    long long totalFiles;
+    long long numberFolders;
+
+
+    // internal methods
+    void onFolderAvailable(MegaHandle handle);
+    bool checkCompletion();
+    bool isBusy() const;
+    int64_t getLastBackupTime();
+    long long getNextStartTimeDs(long long oldStartTimeds = -1) const;
+
+    std::string epochdsToString(int64_t rawtimeds) const;
+    int64_t stringTimeTods(string stime) const;
+
+    void clearCurrentBackupData();
+
+public:
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+    virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+
+    long long getNumberFolders() const;
+    void setNumberFolders(long long value);
+    long long getNumberFiles() const;
+    void setNumberFiles(long long value);
+    long long getMeanSpeed() const;
+    void setMeanSpeed(long long value);
+    long long getSpeed() const;
+    void setSpeed(long long value);
+    long long getTotalBytes() const;
+    void setTotalBytes(long long value);
+    long long getTransferredBytes() const;
+    void setTransferredBytes(long long value);
+    int64_t getUpdateTime() const;
+    void setUpdateTime(const int64_t &value);
+    int64_t getCurrentBKStartTime() const;
+    void setCurrentBKStartTime(const int64_t &value);
+    long long getTotalFiles() const;
+    void setTotalFiles(long long value);
+    MegaBackupListener *getBackupListener() const;
+    void setBackupListener(MegaBackupListener *value);
+    cron_expr getCcronexpr() const;
+    void setCcronexpr(const cron_expr &value);
+    bool isValid() const;
+    void setValid(bool value);
+};
+
 class MegaFolderDownloadController : public MegaTransferListener
 {
 public:
@@ -264,6 +409,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int64_t getCreationTime();
         virtual int64_t getModificationTime();
         virtual MegaHandle getHandle();
+        virtual MegaHandle getRestoreHandle();
         virtual MegaHandle getParentHandle();
         virtual std::string* getNodeKey();
         virtual char *getBase64Key();
@@ -323,6 +469,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int64_t mtime;
         MegaHandle nodehandle;
         MegaHandle parenthandle;
+        MegaHandle restorehandle;
         std::string nodekey;
         std::string attrstring;
         std::string fileattrstring;
@@ -824,7 +971,10 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaRegExp *getRegExp() const;
 #endif
 
-    protected:
+        MegaBackupListener *getBackupListener() const;
+        void setBackupListener(MegaBackupListener *value);
+
+protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
         AchievementsDetails *achievementsDetails;
@@ -851,6 +1001,8 @@ class MegaRequestPrivate : public MegaRequest
         MegaSyncListener *syncListener;
         MegaRegExp *regExp;
 #endif
+        MegaBackupListener *backupListener;
+
         int transfer;
         int numDetails;
         MegaNode* publicNode;
@@ -1438,6 +1590,7 @@ class RequestQueue
 #ifdef ENABLE_SYNC
         void removeListener(MegaSyncListener *listener);
 #endif
+        void removeListener(MegaBackupListener *listener);
 };
 
 
@@ -1467,7 +1620,8 @@ class MegaApiImpl : public MegaApp
         //Multiple listener management.
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
-        void addTransferListener(MegaTransferListener* listener);     
+        void addTransferListener(MegaTransferListener* listener);
+        void addBackupListener(MegaBackupListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
 #ifdef ENABLE_SYNC
         void addSyncListener(MegaSyncListener *listener);
@@ -1476,6 +1630,7 @@ class MegaApiImpl : public MegaApp
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
+        void removeBackupListener(MegaBackupListener* listener);
         void removeGlobalListener(MegaGlobalListener* listener);
 
         MegaRequest *getCurrentRequest();
@@ -1500,6 +1655,8 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToString(int);
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
+
+        bool serverSideRubbishBinAutopurgeEnabled();
 
         bool multiFactorAuthAvailable();
         void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);
@@ -1643,6 +1800,15 @@ class MegaApiImpl : public MegaApp
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
         bool usingHttpsOnly();
 
+        //Backups
+        MegaStringList *getBackupFolders(int backuptag);
+        void setBackup(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
+        void removeBackup(int tag, MegaRequestListener *listener=NULL);
+        void abortCurrentBackup(int tag, MegaRequestListener *listener=NULL);
+
+        //Timer
+        void startTimer( int64_t period, MegaRequestListener *listener=NULL);
+
         //Transfers
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
@@ -1686,6 +1852,8 @@ class MegaApiImpl : public MegaApp
         MegaTransfer* getTransferByTag(int transferTag);
         MegaTransferList *getTransfers(int type);
         MegaTransferList *getChildTransfers(int transferTag);
+        MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
+
 
 #ifdef ENABLE_SYNC
         //Sync
@@ -1716,6 +1884,10 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
         void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
+
+        MegaBackup *getBackupByTag(int tag);
+        MegaBackup *getBackupByNode(MegaNode *node);
+        MegaBackup *getBackupByPath(const char * localPath);
 
         void update();
         int isWaiting();
@@ -1888,6 +2060,7 @@ class MegaApiImpl : public MegaApp
         MegaStringList *httpServerGetWebDavLinks();
         MegaNodeList *httpServerGetWebDavAllowedNodes();
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
+        void httpServerRemoveWebDavAllowedNodes();
         void httpServerSetMaxBufferSize(int bufferSize);
         int httpServerGetMaxBufferSize();
         void httpServerSetMaxOutputSize(int outputSize);
@@ -1901,10 +2074,10 @@ class MegaApiImpl : public MegaApp
         bool httpServerIsOfflineAttributeEnabled();
         void httpServerSetRestrictedMode(int mode);
         int httpServerGetRestrictedMode();
-        void httpServerEnableSubtitlesSupport(bool enable);
-        bool httpServerIsSubtitlesSupportEnabled();
         bool httpServerIsLocalOnly();
         void httpServerEnableOfflineAttribute(bool enable);
+        void httpServerEnableSubtitlesSupport(bool enable);
+        bool httpServerIsSubtitlesSupportEnabled();
 
         void httpServerAddListener(MegaTransferListener *listener);
         void httpServerRemoveListener(MegaTransferListener *listener);
@@ -1912,6 +2085,35 @@ class MegaApiImpl : public MegaApp
         void fireOnStreamingStart(MegaTransferPrivate *transfer);
         void fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
         void fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
+
+        //FTP
+        bool ftpServerStart(bool localOnly = true, int port = 4990, int dataportBegin = 1500, int dataPortEnd = 1600, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
+        void ftpServerStop();
+        int ftpServerIsRunning();
+
+        // management
+        char *ftpServerGetLocalLink(MegaNode *node);
+        MegaStringList *ftpServerGetLinks();
+        MegaNodeList *ftpServerGetAllowedNodes();
+        void ftpServerRemoveAllowedNode(MegaHandle handle);
+        void ftpServerRemoveAllowedNodes();
+        void ftpServerSetMaxBufferSize(int bufferSize);
+        int ftpServerGetMaxBufferSize();
+        void ftpServerSetMaxOutputSize(int outputSize);
+        int ftpServerGetMaxOutputSize();
+
+        // permissions
+        void ftpServerSetRestrictedMode(int mode);
+        int ftpServerGetRestrictedMode();
+        bool ftpServerIsLocalOnly();
+
+        void ftpServerAddListener(MegaTransferListener *listener);
+        void ftpServerRemoveListener(MegaTransferListener *listener);
+
+        void fireOnFtpStreamingStart(MegaTransferPrivate *transfer);
+        void fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e);
+        void fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaError e);
+
 #endif
 
 #ifdef ENABLE_CHAT
@@ -1948,6 +2150,17 @@ class MegaApiImpl : public MegaApp
         MegaClient *getMegaClient();
         static FileFingerprint *getFileFingerprintInternal(const char *fingerprint);
 
+        // You take the ownership of the returned value of both functiions
+        // It can be NULL if the input parameters are invalid
+        static char* getMegaFingerprintFromSdkFingerprint(const char* sdkFingerprint);
+        static char* getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size);
+
+        error processAbortBackupRequest(MegaRequestPrivate *request, error e);
+        void fireOnBackupStateChanged(MegaBackupController *backup);
+        void fireOnBackupStart(MegaBackupController *backup);
+        void fireOnBackupFinish(MegaBackupController *backup, MegaError e);
+        void fireOnBackupUpdate(MegaBackupController *backup);
+        void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -2009,8 +2222,17 @@ protected:
         int httpServerRestrictedMode;
         bool httpServerSubtitlesSupportEnabled;
         set<MegaTransferListener *> httpServerListeners;
+
+        MegaFTPServer *ftpServer;
+        int ftpServerMaxBufferSize;
+        int ftpServerMaxOutputSize;
+        int ftpServerRestrictedMode;
+        set<MegaTransferListener *> ftpServerListeners;
+
 #endif
 		
+        map<int, MegaBackupController *> backupsMap;
+
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
@@ -2030,6 +2252,7 @@ protected:
         long long notificationNumber;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
+        set<MegaBackupListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
         set<MegaSyncListener *> syncListeners;
@@ -2275,8 +2498,12 @@ protected:
         // notify about a finished HTTP request
         virtual void http_result(error, int, byte *, int);
 
+        // notify about a finished timer
+        virtual void timer_result(error);
+
         void sendPendingRequests();
         void sendPendingTransfers();
+        void updateBackups();
         char *stringToArray(string &buffer);
 
         //Internal
@@ -2358,20 +2585,17 @@ protected:
     unsigned int maxOutputSize;
 };
 
-class MegaHTTPServer;
-class MegaHTTPContext : public MegaTransferListener, public MegaRequestListener
+class MegaTCPServer;
+class MegaTCPContext : public MegaTransferListener, public MegaRequestListener
 {
 public:
-    MegaHTTPContext();
-    ~MegaHTTPContext();
+    MegaTCPContext();
+    virtual ~MegaTCPContext();
 
     // Connection management
-    MegaHTTPServer *server;
-    StreamingBuffer streamingBuffer;
-    MegaTransferPrivate *transfer;
+    MegaTCPServer *server;
     uv_tcp_t tcphandle;
     uv_async_t asynchandle;
-    http_parser parser;
     uv_mutex_t mutex;
     MegaApiImpl *megaApi;
     m_off_t bytesWritten;
@@ -2382,6 +2606,171 @@ public:
     bool finished;
     bool failed;
     bool pause;
+
+#ifdef ENABLE_EVT_TLS
+    //tls stuff:
+    evt_tls_t *evt_tls;
+    bool invalid;
+#endif
+    std::list<char*> writePointers;
+
+    // Request information
+    bool range;
+    m_off_t rangeStart;
+    m_off_t rangeEnd;
+    m_off_t rangeWritten;
+    MegaNode *node;
+    std::string path;
+    std::string nodehandle;
+    std::string nodekey;
+    std::string nodename;
+    m_off_t nodesize;
+    int resultCode;
+
+};
+
+class MegaTCPServer
+{
+protected:
+    static void *threadEntryPoint(void *param);
+    static http_parser_settings parsercfg;
+
+    uv_loop_t uv_loop;
+
+    set<handle> allowedHandles;
+    handle lastHandle;
+    list<MegaTCPContext*> connections;
+    uv_async_t exit_handle;
+    MegaApiImpl *megaApi;
+    bool semaphoresdestroyed;
+    uv_sem_t semaphoreStartup;
+    uv_sem_t semaphoreEnd;
+    MegaThread *thread;
+    uv_tcp_t server;
+    int maxBufferSize;
+    int maxOutputSize;
+    int restrictedMode;
+    bool localOnly;
+    bool started;
+    int port;
+    bool closing;
+    int remainingcloseevents;
+
+#ifdef ENABLE_EVT_TLS
+    // TLS
+    bool evtrequirescleaning;
+    evt_ctx_t evtctx;
+    std::string certificatepath;
+    std::string keypath;
+#endif
+
+    // libuv callbacks
+    static void onNewClient(uv_stream_t* server_handle, int status);
+    static void onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf);
+    static void allocBuffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf);
+    static void onClose(uv_handle_t* handle);
+
+#ifdef ENABLE_EVT_TLS
+    //libuv tls
+    static void onNewClient_tls(uv_stream_t* server_handle, int status);
+    static void onWriteFinished_tls_async(uv_write_t* req, int status);
+    static void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data);
+    static int uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz);
+    static void on_evt_tls_close(evt_tls_t *evt_tls, int status);
+    static void on_hd_complete( evt_tls_t *evt_tls, int status);
+    static void evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz);
+#endif
+
+
+    static void onAsyncEventClose(uv_handle_t* handle);
+    static void onAsyncEvent(uv_async_t* handle);
+    static void onExitHandleClose(uv_handle_t* handle);
+
+    static void onCloseRequested(uv_async_t* handle);
+
+    static void onWriteFinished(uv_write_t* req, int status); //This might need to go to HTTPServer
+#ifdef ENABLE_EVT_TLS
+    static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
+#endif
+    static void closeConnection(MegaTCPContext *tcpctx);
+    static void closeTCPConnection(MegaTCPContext *tcpctx);
+
+    void run();
+    void initializeAndStartListening();
+
+    void answer(MegaTCPContext* tcpctx, const char *rsp, int rlen);
+
+
+    //virtual methods:
+    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
+    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle) = 0;
+    virtual void processWriteFinished(MegaTCPContext* tcpctx, int status) = 0;
+    virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx) = 0; //returns true if server needs to start by reading
+    virtual void processOnExitHandleClose(MegaTCPServer* tcpServer);
+
+public:
+    bool useTLS;
+    MegaFileSystemAccess *fsAccess;
+
+    std::string basePath;
+
+    MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    virtual ~MegaTCPServer();
+    bool start(int port, bool localOnly = true);
+    void stop(bool doNotWait = false);
+    int getPort();
+    bool isLocalOnly();
+    void setMaxBufferSize(int bufferSize);
+    void setMaxOutputSize(int outputSize);
+    int getMaxBufferSize();
+    int getMaxOutputSize();
+    void setRestrictedMode(int mode);
+    int getRestrictedMode();
+    bool isHandleAllowed(handle h);
+    void clearAllowedHandles();
+    char* getLink(MegaNode *node, std::string protocol = "http");
+
+    set<handle> getAllowedHandles();
+    void removeAllowedHandle(MegaHandle handle);
+
+    void readData(MegaTCPContext* tcpctx);
+};
+
+
+class MegaTCServer;
+class MegaHTTPServer;
+class MegaHTTPContext : public MegaTCPContext
+{
+
+public:
+    MegaHTTPContext();
+    ~MegaHTTPContext();
+
+    // Connection management
+    StreamingBuffer streamingBuffer;
+    MegaTransferPrivate *transfer;
+    http_parser parser;
+    char *lastBuffer;
+    int lastBufferLen;
+    bool nodereceived;
+    bool failed;
+    bool pause;
+
+    // Request information
+    bool range;
+    m_off_t rangeStart;
+    m_off_t rangeEnd;
+    m_off_t rangeWritten;
+    MegaNode *node;
+    std::string path;
+    std::string nodehandle;
+    std::string nodekey;
+    std::string nodename;
+    m_off_t nodesize;
+    int resultCode;
+
 
     // WEBDAV related
     int depth;
@@ -2401,88 +2790,31 @@ public:
     uv_mutex_t mutex_responses;
     std::list<std::string> responses;
 
-#ifdef ENABLE_EVT_TLS
-    //tls stuff:
-    evt_tls_t *evt_tls;
-#endif
-    std::list<char*> writePointers;
-
-    // Request information
-    bool range;
-    m_off_t rangeStart;
-    m_off_t rangeEnd;
-    m_off_t rangeWritten;
-    MegaNode *node;
-    std::string path;
-    std::string nodehandle;
-    std::string nodekey;
-    std::string nodename;
-    m_off_t nodesize;
-    int resultCode;
-
     virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
     virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
 };
 
-class MegaHTTPServer
+class MegaHTTPServer: public MegaTCPServer
 {
 protected:
-    static void *threadEntryPoint(void *param);
-    static http_parser_settings parsercfg;
-
-    set<handle> allowedHandles;
     set<handle> allowedWebDavHandles;
-    handle lastHandle;
-    list<MegaHTTPContext*> connections;
-    uv_async_t exit_handle;
-    MegaApiImpl *megaApi;
-    uv_sem_t semaphore;
-    MegaThread thread;
-    uv_tcp_t server;
-    int maxBufferSize;
-    int maxOutputSize;
+
     bool fileServerEnabled;
     bool folderServerEnabled;
     bool offlineAttribute;
     bool subtitlesSupportEnabled;
-    int restrictedMode;
-    bool localOnly;
-    bool started;
-    int port;
 
-#ifdef ENABLE_EVT_TLS
-    // TLS
-    evt_ctx_t evtctx;
-    std::string certificatepath;
-    std::string keypath;
-#endif
+    //virtual methods:
+    virtual void processReceivedData(MegaTCPContext *ftpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *ftpctx);
+    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
+    virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
+    virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx);
+    virtual void processOnExitHandleClose(MegaTCPServer* tcpServer);
 
-    // libuv callbacks
-    static void onNewClient(uv_stream_t* server_handle, int status);
-    static void onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf);
-    static void allocBuffer(uv_handle_t *handle, size_t suggested_size, uv_buf_t* buf);
-    static void onClose(uv_handle_t* handle);
-
-#ifdef ENABLE_EVT_TLS
-    //libuv tls
-    static void onNewClient_tls(uv_stream_t* server_handle, int status);
-    static void onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t * buf);
-    static void onWriteFinished_tls(evt_tls_t *evt_tls, int status);
-    static void onWriteFinished_tls_async(uv_write_t* req, int status);
-    static void on_tcp_read(uv_stream_t *stream, ssize_t nrd, const uv_buf_t *data);
-    static int uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz);
-    static void on_evt_tls_close(evt_tls_t *evt_tls, int status);
-    static void on_hd_complete( evt_tls_t *evt_tls, int status);
-    static void evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz);
-#endif
-
-
-    static void onAsyncEventClose(uv_handle_t* handle);
-    static void onAsyncEvent(uv_async_t* handle);
-    static void onCloseRequested(uv_async_t* handle);
-    static void onWriteFinished(uv_write_t* req, int status);
 
     // HTTP parser callback
     static int onMessageBegin(http_parser* parser);
@@ -2493,14 +2825,6 @@ protected:
     static int onBody(http_parser* parser, const char* at, size_t length);
     static int onMessageComplete(http_parser* parser);
 
-    static std::string getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx);
-
-    // WEBDAV related
-    static std::string getWebDavPropFindResponseForNode(std::string baseURL, std::string subnodepath, MegaNode *node, MegaHTTPContext* httpctx);
-    static std::string getWebDavProfFindNodeContents(MegaNode *node, std::string baseURL, bool offlineAttribute);
-
-
-    void run();
     static void sendHeaders(MegaHTTPContext *httpctx, string *headers);
     static void sendNextBytes(MegaHTTPContext *httpctx);
     static int streamNode(MegaHTTPContext *httpctx);
@@ -2508,48 +2832,242 @@ protected:
     //Utility funcitons
     static std::string getHTTPMethodName(int httpmethod);
     static std::string getHTTPErrorString(int errorcode);
+    static std::string getResponseForNode(MegaNode *node, MegaHTTPContext* httpctx);
 
-
-public:
-    bool useTLS;
-    MegaFileSystemAccess *fsAccess;
-
-    std::string basePath;
-
-    MegaHTTPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
-    virtual ~MegaHTTPServer();
-    bool start(int port, bool localOnly = true);
-    void stop();
-    int getPort();
-    bool isLocalOnly();
-    void setMaxBufferSize(int bufferSize);
-    void setMaxOutputSize(int outputSize);
-    int getMaxBufferSize();
-    int getMaxOutputSize();
-    void enableFileServer(bool enable);
-    void enableFolderServer(bool enable);
-    void setRestrictedMode(int mode);
-    bool isFileServerEnabled();
-    bool isFolderServerEnabled();
-    int getRestrictedMode();
-    bool isHandleAllowed(handle h);
-    bool isHandleWebDavAllowed(handle h);
-    void enableOfflineAttribute(bool enable);
-    bool isOfflineAttributeEnabled();
-    void clearAllowedHandles();
-    char* getLink(MegaNode *node, bool enablewebdav = false);
-    bool isSubtitlesSupportEnabled();
-    void enableSubtitlesSupport(bool enable);
+    // WEBDAV related
+    static std::string getWebDavPropFindResponseForNode(std::string baseURL, std::string subnodepath, MegaNode *node, MegaHTTPContext* httpctx);
+    static std::string getWebDavProfFindNodeContents(MegaNode *node, std::string baseURL, bool offlineAttribute);
 
     static void returnHttpCodeBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e, bool synchronous = true);
     static void returnHttpCode(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string(), bool synchronous = true);
 
+public:
+
     static void returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
     static void returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
 
+    MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    virtual ~MegaHTTPServer();
+    char *getWebDavLink(MegaNode *node);
+
+    void clearAllowedHandles();
+    bool isHandleWebDavAllowed(handle h);
     set<handle> getAllowedWebDavHandles();
     void removeAllowedWebDavHandle(MegaHandle handle);
+    void enableFileServer(bool enable);
+    void enableFolderServer(bool enable);
+    bool isFileServerEnabled();
+    bool isFolderServerEnabled();
+    void enableOfflineAttribute(bool enable);
+    bool isOfflineAttributeEnabled();
+    bool isSubtitlesSupportEnabled();
+    void enableSubtitlesSupport(bool enable);
+
 };
+
+class MegaFTPServer;
+class MegaFTPDataServer;
+class MegaFTPContext : public MegaTCPContext
+{
+public:
+
+    int command;
+    std::string arg1;
+    std::string arg2;
+    int resultcode;
+    int pasiveport;
+    MegaFTPDataServer * ftpDataServer;
+
+    std::string tmpFileName;
+
+    MegaNode *nodeToDeleteAfterMove;
+
+    uv_mutex_t mutex_responses;
+    std::list<std::string> responses;
+
+    uv_mutex_t mutex_nodeToDownload;
+
+    //status
+    MegaHandle cwd;
+    bool atroot;
+    bool athandle;
+    MegaHandle parentcwd;
+
+    std::string cwdpath;
+
+    MegaFTPContext();
+    ~MegaFTPContext();
+
+    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
+    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+};
+
+class MegaFTPDataServer;
+class MegaFTPServer: public MegaTCPServer
+{
+protected:
+    enum{
+        FTP_CMD_INVALID = -1,
+        FTP_CMD_USER = 1,
+        FTP_CMD_PASS,
+        FTP_CMD_ACCT,
+        FTP_CMD_CWD,
+        FTP_CMD_CDUP,
+        FTP_CMD_SMNT,
+        FTP_CMD_QUIT,
+        FTP_CMD_REIN,
+        FTP_CMD_PORT,
+        FTP_CMD_PASV,
+        FTP_CMD_TYPE,
+        FTP_CMD_STRU,
+        FTP_CMD_MODE,
+        FTP_CMD_RETR,
+        FTP_CMD_STOR,
+        FTP_CMD_STOU,
+        FTP_CMD_APPE,
+        FTP_CMD_ALLO,
+        FTP_CMD_REST,
+        FTP_CMD_RNFR,
+        FTP_CMD_RNTO,
+        FTP_CMD_ABOR,
+        FTP_CMD_DELE,
+        FTP_CMD_RMD,
+        FTP_CMD_MKD,
+        FTP_CMD_PWD,
+        FTP_CMD_LIST,
+        FTP_CMD_NLST,
+        FTP_CMD_SITE,
+        FTP_CMD_SYST,
+        FTP_CMD_STAT,
+        FTP_CMD_HELP,
+        FTP_CMD_FEAT,  //rfc2389
+        FTP_CMD_SIZE,
+        FTP_CMD_PROT,
+        FTP_CMD_EPSV, //rfc2428
+        FTP_CMD_PBSZ, //rfc2228
+        FTP_CMD_OPTS, //rfc2389
+        FTP_CMD_NOOP
+    };
+
+    std::string crlfout;
+
+    MegaHandle nodeHandleToRename;
+
+    int pport;
+    int dataportBegin;
+    int dataPortEnd;
+
+    std::string getListingLineFromNode(MegaNode *child, std::string nameToShow = string());
+
+    MegaNode *getBaseFolderNode(std::string path);
+    MegaNode *getNodeByFullFtpPath(std::string path);
+    void getPermissionsString(int permissions, char *permsString);
+
+
+    //virtual methods:
+    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
+    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
+    virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
+    virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx);
+    virtual void processOnExitHandleClose(MegaTCPServer* tcpServer);
+
+public:
+
+    std::string newNameAfterMove;
+
+    MegaFTPServer(MegaApiImpl *megaApi, string basePath, int dataportBegin, int dataPortEnd, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    virtual ~MegaFTPServer();
+
+    static std::string getFTPErrorString(int errorcode, std::string argument = string());
+
+    static void returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
+    static void returnFtpCode(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
+
+    static void returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
+    static void returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
+    MegaNode * getNodeByFtpPath(MegaFTPContext* ftpctx, std::string path);
+    std::string cdup(handle parentHandle, MegaFTPContext* ftpctx);
+    std::string cd(string newpath, MegaFTPContext* ftpctx);
+    std::string shortenpath(std::string path);
+};
+
+class MegaFTPDataContext;
+class MegaFTPDataServer: public MegaTCPServer
+{
+protected:
+
+    //virtual methods:
+    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
+    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
+    virtual MegaTCPContext * initializeContext(uv_stream_t *server_handle);
+    virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
+    virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
+    virtual bool respondNewConnection(MegaTCPContext* tcpctx);
+    virtual void processOnExitHandleClose(MegaTCPServer* tcpServer);
+
+    void sendNextBytes(MegaFTPDataContext *ftpdatactx);
+
+
+public:
+    MegaFTPContext *controlftpctx;
+
+    std::string resultmsj;
+    MegaNode *nodeToDownload;
+    std::string remotePathToUpload;
+    std::string newNameToUpload;
+    MegaHandle newParentNodeHandle;
+    m_off_t rangeStartREST;
+    void sendData();
+    bool notifyNewConnectionRequired;
+
+    MegaFTPDataServer(MegaApiImpl *megaApi, string basePath, MegaFTPContext * controlftpctx, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    virtual ~MegaFTPDataServer();
+    string getListingLineFromNode(MegaNode *child);
+};
+
+class MegaFTPDataServer;
+class MegaFTPDataContext : public MegaTCPContext
+{
+public:
+
+    MegaFTPDataContext();
+    ~MegaFTPDataContext();
+
+    void setControlCodeUponDataClose(int code, std::string msg = string());
+
+    // Connection management
+    StreamingBuffer streamingBuffer;
+    MegaTransferPrivate *transfer;
+    char *lastBuffer;
+    int lastBufferLen;
+    bool failed;
+    int ecode;
+    bool pause;
+    MegaNode *node;
+
+    m_off_t rangeStart;
+    m_off_t rangeWritten;
+
+    std::string tmpFileName;
+    FileAccess* tmpFileAccess;
+    size_t tmpFileSize;
+
+    bool controlRespondedElsewhere;
+    string controlResponseMessage;
+    int controlResponseCode;
+
+    virtual void onTransferStart(MegaApi *, MegaTransfer *transfer);
+    virtual bool onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size);
+    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
+};
+
+
+
 #endif
 
 }

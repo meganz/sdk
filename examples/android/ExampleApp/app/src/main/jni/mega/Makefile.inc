@@ -50,6 +50,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/posix/fs.cpp  \
     sdk/src/posix/waiter.cpp \
     sdk/src/mega_utf8proc.cpp \
+    sdk/src/mega_ccronexpr.cpp \
     sdk/src/mega_evt_tls.cpp \
     sdk/src/gfx.cpp \
     sdk/src/gfx/external.cpp \

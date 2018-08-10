@@ -40,11 +40,11 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 
 // max request size for downloads
 #if defined(__ANDROID__) || defined(USE_IOS) || defined(WINDOWS_PHONE)
-    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 2097152; // 2 MB
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 2097152; // 2 MB
 #elif defined (_WIN32) || defined(HAVE_AIO_RT)
-    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 16777216; // 16 MB
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 16777216; // 16 MB
 #else
-    const m_off_t TransferSlot::MAX_DOWNLOAD_REQ_SIZE = 4194304; // 4 MB
+    const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
@@ -71,8 +71,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     transfer->state = TRANSFERSTATE_ACTIVE;
 
     connections = transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1;
-    LOG_debug << "Creating transfer slot with " << connections << " connections";
-
     reqs = new HttpReqXfer*[connections]();
     asyncIO = new AsyncIOContext*[connections]();
 
@@ -80,7 +78,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 
     slots_it = transfer->client->tslots.end();
 
-    maxDownloadRequestSize = MAX_DOWNLOAD_REQ_SIZE;
+    maxRequestSize = MAX_REQ_SIZE;
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     MEMORYSTATUSEX statex;
     memset(&statex, 0, sizeof (statex));
@@ -88,30 +86,30 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     if (GlobalMemoryStatusEx(&statex))
     {
         LOG_debug << "RAM stats. Free physical: " << statex.ullAvailPhys << "   Free virtual: " << statex.ullAvailVirtual;
-        if (statex.ullAvailPhys < 536870912 // 512 MB
-                || statex.ullAvailVirtual < 536870912)
+        if (statex.ullAvailPhys < 1073741824 // 1024 MB
+                || statex.ullAvailVirtual < 1073741824)
         {
-            if (statex.ullAvailPhys < 268435456 // 256 MB
-                    || statex.ullAvailVirtual < 268435456)
+            if (statex.ullAvailPhys < 536870912 // 512 MB
+                    || statex.ullAvailVirtual < 536870912)
             {
-                if (statex.ullAvailPhys < 134217728 // 128 MB
-                        || statex.ullAvailVirtual < 134217728)
+                if (statex.ullAvailPhys < 268435456 // 256 MB
+                        || statex.ullAvailVirtual < 268435456)
                 {
-                    maxDownloadRequestSize = 2097152; // 2 MB
+                    maxRequestSize = 2097152; // 2 MB
                 }
                 else
                 {
-                    maxDownloadRequestSize = 4194304; // 4 MB
+                    maxRequestSize = 4194304; // 4 MB
                 }
             }
             else
             {
-                maxDownloadRequestSize = 8388608; // 8 MB
+                maxRequestSize = 8388608; // 8 MB
             }
         }
         else
         {
-            maxDownloadRequestSize = 16777216; // 16 MB
+            maxRequestSize = 16777216; // 16 MB
         }
     }
     else
@@ -119,6 +117,8 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
         LOG_warn << "Error getting RAM usage info";
     }
 #endif
+
+    LOG_debug << "Creating transfer slot with " << connections << " connections and a max request size of " << maxRequestSize << " bytes";
 }
 
 // delete slot and associated resources, but keep transfer intact (can be
@@ -416,7 +416,16 @@ void TransferSlot::doio(MegaClient* client)
                                 {
                                     errorcount = 0;
                                     transfer->failcount = 0;
-                                    transfer->chunkmacs[reqs[i]->pos].finished = true;
+
+                                    m_off_t startpos = reqs[i]->pos;
+                                    m_off_t finalpos = startpos + reqs[i]->size;
+                                    while (startpos < finalpos)
+                                    {
+                                        transfer->chunkmacs[startpos].finished = true;
+                                        LOG_verbose << "Upload chunk completed: " << startpos;
+                                        startpos = ChunkedHash::chunkceil(startpos, finalpos);
+                                    }
+
                                     transfer->progresscompleted += reqs[i]->size;
                                     memcpy(transfer->filekey, transfer->transferkey, sizeof transfer->transferkey);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
@@ -476,7 +485,14 @@ void TransferSlot::doio(MegaClient* client)
                             return transfer->failed(e);
                         }
 
-                        transfer->chunkmacs[reqs[i]->pos].finished = true;
+                        m_off_t startpos = reqs[i]->pos;
+                        m_off_t finalpos = startpos + reqs[i]->size;
+                        while (startpos < finalpos)
+                        {
+                            transfer->chunkmacs[startpos].finished = true;
+                            LOG_verbose << "Upload chunk completed: " << startpos;
+                            startpos = ChunkedHash::chunkceil(startpos, finalpos);
+                        }
                         transfer->progresscompleted += reqs[i]->size;
 
                         if (transfer->progresscompleted == transfer->size)
@@ -625,7 +641,7 @@ void TransferSlot::doio(MegaClient* client)
                             if (transfer->type == PUT)
                             {
                                 LOG_verbose << "Async read succeeded";
-                                m_off_t npos = ChunkedHash::chunkceil(asyncIO[i]->pos, transfer->size);
+                                m_off_t npos = asyncIO[i]->pos + asyncIO[i]->len;
 
                                 string finaltempurl = tempurl;
                                 if (client->usealtupport && !memcmp(tempurl.c_str(), "http:", 5))
@@ -830,12 +846,12 @@ void TransferSlot::doio(MegaClient* client)
 
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
-                    if (transfer->type == GET && transfer->size)
+                    if (transfer->size && (transfer->type == GET || !asyncIO[i]))
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
-                        if (maxReqSize > maxDownloadRequestSize)
+                        if (maxReqSize > maxRequestSize)
                         {
-                            maxReqSize = maxDownloadRequestSize;
+                            maxReqSize = maxRequestSize;
                         }
 
                         if (maxReqSize > 0x100000)
@@ -864,7 +880,7 @@ void TransferSlot::doio(MegaClient* client)
                             reqSize = npos - transfer->pos;
                             it = transfer->chunkmacs.find(npos);
                         }
-                        LOG_debug << "Downloading chunk of size " << reqSize;
+                        LOG_debug << "Starting chunk of size " << reqSize;
                     }
 
                     if (!reqs[i])
@@ -885,7 +901,7 @@ void TransferSlot::doio(MegaClient* client)
                                 LOG_warn << "Retrying a failed read";
                                 pos = asyncIO[i]->pos;
                                 size = asyncIO[i]->len;
-                                npos = ChunkedHash::chunkceil(pos, transfer->size);
+                                npos = pos + size;
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
                             }

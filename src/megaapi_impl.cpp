@@ -126,6 +126,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->duration = node->getDuration();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
+    this->restorehandle = node->getRestoreHandle();
     this->type = node->getType();
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
@@ -222,6 +223,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
+    this->restorehandle = UNDEF;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -287,6 +289,14 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                        latitude = INVALID_COORDINATE;
                    }
                }
+            }
+            else if (it->first == AttrMap::string2nameid("rr"))
+            {
+                handle rr = 0;
+                if (Base64::atob(it->second.c_str(), (byte *)&rr, sizeof(rr)) == MegaClient::NODEHANDLE)
+                {
+                    restorehandle = rr;
+                }
             }
         }
     }
@@ -698,6 +708,11 @@ int64_t MegaNodePrivate::getCreationTime()
 int64_t MegaNodePrivate::getModificationTime()
 {
     return mtime;
+}
+
+MegaHandle MegaNodePrivate::getRestoreHandle()
+{
+    return restorehandle;
 }
 
 MegaHandle MegaNodePrivate::getParentHandle()
@@ -1123,6 +1138,69 @@ char *MegaApiImpl::getBlockedPath()
 }
 #endif
 
+MegaBackup *MegaApiImpl::getBackupByTag(int tag)
+{
+    sdkMutex.lock();
+    if (backupsMap.find(tag) == backupsMap.end())
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+    MegaBackup *result = backupsMap.at(tag)->copy();
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaBackup *MegaApiImpl::getBackupByNode(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    MegaBackup *result = NULL;
+    MegaHandle nodeHandle = node->getHandle();
+    sdkMutex.lock();
+    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    while(it != backupsMap.end())
+    {
+        MegaBackupController* backup = it->second;
+        if (backup->getMegaHandle() == nodeHandle)
+        {
+            result = backup->copy();
+            break;
+        }
+        it++;
+    }
+
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaBackup *MegaApiImpl::getBackupByPath(const char *localPath)
+{
+    if (!localPath)
+    {
+        return NULL;
+    }
+
+    MegaBackup *result = NULL;
+    sdkMutex.lock();
+    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    while(it != backupsMap.end())
+    {
+        MegaBackupController* backup = it->second;
+        if (!strcmp(localPath, backup->getLocalFolder()))
+        {
+            result = backup->copy();
+            break;
+        }
+        it++;
+    }
+
+    sdkMutex.unlock();
+    return result;
+}
 bool MegaNodePrivate::hasThumbnail()
 {
 	return thumbnailAvailable;
@@ -2115,7 +2193,7 @@ const char * MegaTransferPrivate::getTransferString() const
         return "UPLOAD";
     case TYPE_DOWNLOAD:
         return "DOWNLOAD";
-    case TYPE_LOCAL_HTTP_DOWNLOAD:
+    case TYPE_LOCAL_TCP_DOWNLOAD:
         return "LOCAL_HTTP_DOWNLOAD";
     }
 
@@ -2292,6 +2370,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->syncListener = NULL;
     this->regExp = NULL;
 #endif
+    this->backupListener = NULL;
 	this->nodeHandle = UNDEF;
 	this->link = NULL;
 	this->parentHandle = UNDEF;
@@ -2407,6 +2486,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->setRegExp(request->getRegExp());
     this->syncListener = request->getSyncListener();
 #endif
+    this->backupListener = request->getBackupListener();
     this->megaPricing = (MegaPricingPrivate *)request->getPricing();
 
     this->accountDetails = NULL;
@@ -2541,6 +2621,16 @@ void MegaRequestPrivate::setRegExp(MegaRegExp *regExp)
     }
 }
 #endif
+
+MegaBackupListener *MegaRequestPrivate::getBackupListener() const
+{
+    return backupListener;
+}
+
+void MegaRequestPrivate::setBackupListener(MegaBackupListener *value)
+{
+    backupListener = value;
+}
 
 MegaAccountDetails *MegaRequestPrivate::getMegaAccountDetails() const
 {
@@ -2974,6 +3064,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
         case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
         case TYPE_MULTI_FACTOR_AUTH_SET: return "MULTI_FACTOR_AUTH_SET";
+        case TYPE_ADD_BACKUP: return "ADD_BACKUP";
+        case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
+        case TYPE_TIMER: return "SET_TIMER";
+        case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
     }
     return "UNKNOWN";
 }
@@ -3892,8 +3986,13 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpServerEnableFiles = true;
     httpServerEnableFolders = false;
     httpServerOfflineAttributeEnabled = false;
-    httpServerRestrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    httpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     httpServerSubtitlesSupportEnabled = false;
+
+    ftpServer = NULL;
+    ftpServerMaxBufferSize = 0;
+    ftpServerMaxOutputSize = 0;
+    ftpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
 #endif
 
     httpio = new MegaHttpIO();
@@ -3963,6 +4062,12 @@ MegaApiImpl::~MegaApiImpl()
     thread.join();
 
     requestMap.erase(request->getTag());
+
+    for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
+    {
+        delete it->second;
+    }
+
     for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
     {
         delete it->second;
@@ -4386,6 +4491,11 @@ void MegaApiImpl::setStatsID(const char *id)
     }
 
     MegaClient::statsid = MegaApi::strdup(id);
+}
+
+bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
+{
+    return client->ssrs_enabled;
 }
 
 bool MegaApiImpl::multiFactorAuthAvailable()
@@ -4904,6 +5014,7 @@ void MegaApiImpl::loop()
         if (r & Waiter::NEEDEXEC)
         {
             WAIT_CLASS::bumpds();
+            updateBackups();
             sendPendingTransfers();
             sendPendingRequests();
             if(threadExit)
@@ -6267,6 +6378,137 @@ MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
     return result;
 }
 
+MegaTransferList *MegaApiImpl::getTansfersByFolderTag(int folderTransferTag)
+{
+    sdkMutex.lock();
+    vector<MegaTransfer *> transfers;
+    for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+    {
+        MegaTransferPrivate *t = it->second;
+        if (t->getFolderTransferTag() == folderTransferTag)
+        {
+            transfers.push_back(t);
+        }
+    }
+
+    MegaTransferList *result = new MegaTransferListPrivate(transfers.data(), transfers.size());
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
+{
+    MegaStringListPrivate * backupFolders;
+
+    map<int64_t, string> backupTimesPaths;
+    sdkMutex.lock();
+
+    map<int, MegaBackupController *>::iterator itr = backupsMap.find(backuptag) ;
+    if (itr == backupsMap.end())
+    {
+        LOG_err << "Failed to find backup with tag " << backuptag;
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    MegaBackupController *mbc = itr->second;
+
+    MegaNode * parentNode = getNodeByHandle(mbc->getMegaHandle());
+    if (parentNode)
+    {
+        MegaNodeList* children = getChildren(parentNode);
+        if (children)
+        {
+            for (int i = 0; i < children->size(); i++)
+            {
+                MegaNode *childNode = children->get(i);
+                string childname = childNode->getName();
+                if (mbc->isBackup(childname, mbc->getBackupName()) )
+                {
+                    int64_t timeofbackup = mbc->getTimeOfBackup(childname);
+                    if (timeofbackup)
+                    {
+                        backupTimesPaths[timeofbackup]=getNodePath(childNode);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                    }
+                }
+            }
+
+            delete children;
+        }
+        delete parentNode;
+    }
+    sdkMutex.unlock();
+
+    vector<char*> listofpaths;
+
+    for(map<int64_t, string>::iterator itr = backupTimesPaths.begin(); itr != backupTimesPaths.end(); itr++)
+    {
+        listofpaths.push_back(MegaApi::strdup(itr->second.c_str()));
+    }
+    backupFolders = new MegaStringListPrivate(listofpaths.data(),listofpaths.size());
+
+    return backupFolders;
+}
+
+void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
+    if(parent) request->setNodeHandle(parent->getHandle());
+    if(localFolder)
+    {
+        string path(localFolder);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+        request->setFile(path.data());
+    }
+
+    request->setNumRetry(numBackups);
+    request->setNumber(period);
+    request->setText(periodstring.c_str());
+    request->setFlag(attendPastBackups);
+
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::removeBackup(int tag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_BACKUP);
+    request->setNumber(tag);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+
+void MegaApiImpl::abortCurrentBackup(int tag, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_BACKUP);
+    request->setNumber(tag);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_TIMER);
+    request->setNumber(period);
+
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+
+
 void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
@@ -7126,6 +7368,12 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     }
     #endif
 
+    if (useTLS && (!certificatepath || !keypath || !strlen(certificatepath) || !strlen(keypath)))
+    {
+        LOG_err << "Could not start HTTP server: No certificate/key provided";
+        return false;
+    }
+
     sdkMutex.lock();
     if (httpServer && httpServer->getPort() == port && httpServer->isLocalOnly() == localOnly)
     {
@@ -7167,6 +7415,7 @@ void MegaApiImpl::httpServerStop()
         MegaHTTPServer *server = httpServer;
         httpServer = NULL;
         sdkMutex.unlock();
+        server->stop();
         delete server;
     }
     else
@@ -7220,7 +7469,7 @@ char *MegaApiImpl::httpServerGetLocalWebDavLink(MegaNode *node)
         return NULL;
     }
 
-    char *result = httpServer->getLink(node, true);
+    char *result = httpServer->getWebDavLink(node);
     sdkMutex.unlock();
     return result;
 }
@@ -7247,8 +7496,7 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
         MegaNode *n = getNodeByHandle(h);
         if (n)
         {
-            listoflinks.push_back(httpServer->getLink(n, true));
-
+            listoflinks.push_back(httpServer->getWebDavLink(n));
         }
     }
     sdkMutex.unlock();
@@ -7295,6 +7543,16 @@ void MegaApiImpl::httpServerRemoveWebDavAllowedNode(MegaHandle handle)
     if (httpServer)
     {
         httpServer->removeAllowedWebDavHandle(handle);
+    }
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::httpServerRemoveWebDavAllowedNodes()
+{
+    sdkMutex.lock();
+    if (httpServer)
+    {
+        httpServer->clearAllowedHandles();
     }
     sdkMutex.unlock();
 }
@@ -7403,10 +7661,10 @@ bool MegaApiImpl::httpServerIsOfflineAttributeEnabled()
 
 void MegaApiImpl::httpServerSetRestrictedMode(int mode)
 {
-    if (mode != MegaApi::HTTP_SERVER_DENY_ALL
-            && mode != MegaApi::HTTP_SERVER_ALLOW_ALL
-            && mode != MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-            && mode != MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK)
+    if (mode != MegaApi::TCP_SERVER_DENY_ALL
+            && mode != MegaApi::TCP_SERVER_ALLOW_ALL
+            && mode != MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+            && mode != MegaApi::TCP_SERVER_ALLOW_LAST_LOCAL_LINK)
     {
         return;
     }
@@ -7505,6 +7763,322 @@ void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, MegaError
 
     delete transfer;
 }
+
+bool MegaApiImpl::ftpServerStart(bool localOnly, int port, int dataportBegin, int dataPortEnd, bool useTLS, const char *certificatepath, const char *keypath)
+{
+    #ifndef ENABLE_EVT_TLS
+    if (useTLS)
+    {
+        LOG_err << "Could not start FTP server: TLS is not supported in current compilation";
+        return false;
+    }
+    #endif
+
+    sdkMutex.lock();
+    if (ftpServer && ftpServer->getPort() == port && ftpServer->isLocalOnly() == localOnly)
+    {
+        ftpServer->clearAllowedHandles();
+        sdkMutex.unlock();
+        return true;
+    }
+
+    ftpServerStop();
+    ftpServer = new MegaFTPServer(this, basePath, dataportBegin, dataPortEnd, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
+    ftpServer->setRestrictedMode(MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS);
+    ftpServer->setRestrictedMode(ftpServerRestrictedMode);
+    ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
+    ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
+
+    bool result = ftpServer->start(port, localOnly);
+    if (!result)
+    {
+        MegaFTPServer *server = ftpServer;
+        ftpServer = NULL;
+        sdkMutex.unlock();
+        delete server;
+    }
+    else
+    {
+        sdkMutex.unlock();
+    }
+    return result;
+}
+
+void MegaApiImpl::ftpServerStop()
+{
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        MegaFTPServer *server = ftpServer;
+        ftpServer = NULL;
+        sdkMutex.unlock();
+        server->stop();
+        delete server;
+    }
+    else
+    {
+        sdkMutex.unlock();
+    }
+}
+
+int MegaApiImpl::ftpServerIsRunning()
+{
+    bool result = false;
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        result = ftpServer->getPort();
+    }
+    sdkMutex.unlock();
+    return result;
+}
+
+char *MegaApiImpl::ftpServerGetLocalLink(MegaNode *node)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+    if (!ftpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    char *result = ftpServer->getLink(node, "ftp");
+    sdkMutex.unlock();
+    return result;
+}
+
+MegaStringList *MegaApiImpl::ftpServerGetLinks()
+{
+
+    MegaStringListPrivate * links;
+
+    sdkMutex.lock();
+    if (!ftpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    set<handle> handles = ftpServer->getAllowedHandles();
+
+    vector<char *> listoflinks;
+
+    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+    {
+        handle h = *it;
+        MegaNode *n = getNodeByHandle(h);
+        if (n)
+        {
+            listoflinks.push_back(ftpServer->getLink(n));
+
+        }
+    }
+    sdkMutex.unlock();
+
+    links = new MegaStringListPrivate(listoflinks.data(),listoflinks.size());
+
+    return links;
+}
+
+MegaNodeList *MegaApiImpl::ftpServerGetAllowedNodes()
+{
+    MegaNodeListPrivate * nodes;
+
+    sdkMutex.lock();
+    if (!ftpServer)
+    {
+        sdkMutex.unlock();
+        return NULL;
+    }
+
+    set<handle> handles = ftpServer->getAllowedHandles();
+
+    vector<Node *> listofnodes;
+
+    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+    {
+        handle h = *it;
+        Node *n = client->nodebyhandle(h);
+        if (n)
+        {
+            listofnodes.push_back(n);
+        }
+    }
+    sdkMutex.unlock();
+
+    nodes = new MegaNodeListPrivate(listofnodes.data(),listofnodes.size());
+
+    return nodes;
+}
+
+void MegaApiImpl::ftpServerRemoveAllowedNode(MegaHandle handle)
+{
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        ftpServer->removeAllowedHandle(handle);
+    }
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::ftpServerRemoveAllowedNodes()
+{
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        ftpServer->clearAllowedHandles();
+    }
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::ftpServerSetMaxBufferSize(int bufferSize)
+{
+    sdkMutex.lock();
+    ftpServerMaxBufferSize = bufferSize <= 0 ? 0 : bufferSize;
+    if (ftpServer)
+    {
+        ftpServer->setMaxBufferSize(ftpServerMaxBufferSize);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::ftpServerGetMaxBufferSize()
+{
+    int value;
+    sdkMutex.lock();
+    if (ftpServerMaxBufferSize)
+    {
+        value = ftpServerMaxBufferSize;
+    }
+    else
+    {
+        value = StreamingBuffer::MAX_BUFFER_SIZE;
+    }
+    sdkMutex.unlock();
+    return value;
+}
+
+void MegaApiImpl::ftpServerSetMaxOutputSize(int outputSize)
+{
+    sdkMutex.lock();
+    ftpServerMaxOutputSize = outputSize <= 0 ? 0 : outputSize;
+    if (ftpServer)
+    {
+        ftpServer->setMaxOutputSize(ftpServerMaxOutputSize);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::ftpServerGetMaxOutputSize()
+{
+    int value;
+    sdkMutex.lock();
+    if (ftpServerMaxOutputSize)
+    {
+        value = ftpServerMaxOutputSize;
+    }
+    else
+    {
+        value = StreamingBuffer::MAX_OUTPUT_SIZE;
+    }
+    sdkMutex.unlock();
+    return value;
+}
+
+void MegaApiImpl::ftpServerSetRestrictedMode(int mode)
+{
+    if (mode != MegaApi::TCP_SERVER_DENY_ALL
+            && mode != MegaApi::TCP_SERVER_ALLOW_ALL
+            && mode != MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+            && mode != MegaApi::TCP_SERVER_ALLOW_LAST_LOCAL_LINK)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    ftpServerRestrictedMode = mode;
+    if (ftpServer)
+    {
+        ftpServer->setRestrictedMode(ftpServerRestrictedMode);
+    }
+    sdkMutex.unlock();
+}
+
+int MegaApiImpl::ftpServerGetRestrictedMode()
+{
+    return ftpServerRestrictedMode;
+}
+
+bool MegaApiImpl::ftpServerIsLocalOnly()
+{
+    bool localOnly = true;
+    sdkMutex.lock();
+    if (ftpServer)
+    {
+        localOnly = ftpServer->isLocalOnly();
+    }
+    sdkMutex.unlock();
+    return localOnly;
+}
+
+void MegaApiImpl::ftpServerAddListener(MegaTransferListener *listener)
+{
+    if (!listener)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    ftpServerListeners.insert(listener);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::ftpServerRemoveListener(MegaTransferListener *listener)
+{
+    if (!listener)
+    {
+        return;
+    }
+
+    sdkMutex.lock();
+    ftpServerListeners.erase(listener);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::fireOnFtpStreamingStart(MegaTransferPrivate *transfer)
+{
+    for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
+        (*it)->onTransferStart(api, transfer);
+}
+
+void MegaApiImpl::fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, MegaError e)
+{
+    for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
+        (*it)->onTransferTemporaryError(api, transfer, &e);
+}
+
+void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaError e)
+{
+    if(e.getErrorCode())
+    {
+        LOG_warn << "Streaming request finished with error: " << e.getErrorString();
+    }
+    else
+    {
+        LOG_info << "Streaming request finished";
+    }
+
+    for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
+        (*it)->onTransferFinish(api, transfer, &e);
+
+    delete transfer;
+}
+
 #endif
 
 #ifdef ENABLE_CHAT
@@ -10416,10 +10990,10 @@ void MegaApiImpl::fetchnodes_result(error e)
             request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
         }
 
-        if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
+        if (!e && client->loggedin() == FULLACCOUNT && client->isNewSession)
         {
             updatePwdReminderData(false, false, false, false, true);
-            client->tsLogin = false;
+            client->isNewSession = false;
         }
 
         fireOnRequestFinish(request, megaError);
@@ -10453,10 +11027,10 @@ void MegaApiImpl::fetchnodes_result(error e)
             }
         }
 
-        if (!e && client->loggedin() == FULLACCOUNT && client->tsLogin)
+        if (!e && client->loggedin() == FULLACCOUNT && client->isNewSession)
         {
             updatePwdReminderData(false, false, false, false, true);
-            client->tsLogin = false;
+            client->isNewSession = false;
         }
 
         fireOnRequestFinish(request, megaError);
@@ -11120,6 +11694,23 @@ void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
     fireOnRequestFinish(request, MegaError(e));
 }
 
+
+void MegaApiImpl::timer_result(error e)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_TIMER))
+    {
+        return;
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 // callback for non-EAGAIN request-level errors
 // retrying is futile
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
@@ -11178,7 +11769,8 @@ void MegaApiImpl::login_result(error result)
     if (result == API_OK && request->getEmail() &&
             (request->getPassword() || request->getPrivateKey()))
     {
-        client->tsLogin = true;
+        client->isNewSession = true;
+        client->tsLogin = m_time();
     }
 
     fireOnRequestFinish(request, megaError);
@@ -11194,7 +11786,14 @@ void MegaApiImpl::logout_result(error e)
     {
         requestMap.erase(request->getTag());
 
-        error preverror = (error)request->getParamType();
+        error preverror = (error)request->getParamType();       
+        while (!backupsMap.empty())
+        {
+            std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
+            delete it->second;
+            backupsMap.erase(it);
+        }
+
         while (!requestMap.empty())
         {
             std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
@@ -11680,10 +12279,14 @@ void MegaApiImpl::getua_result(error e)
                 client->putua(ATTR_PWD_REMINDER, (byte*) newValue.data(), newValue.size(), client->restag);
                 return;
             }
-            else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER
-                 && (m_time() - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE)
+            else if (request->getType() == MegaRequest::TYPE_GET_ATTR_USER)
             {
-                request->setFlag(true); // the password reminder dialog should be shown
+                m_time_t currenttime = m_time();
+                if ((currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
+                        && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
+                {
+                    request->setFlag(true); // the password reminder dialog should be shown
+                }
             }
         }
         else if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS &&
@@ -11797,7 +12400,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_LOGIN, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTLOGIN
-                            && (currenttime - User::getPwdReminderData(User::PWD_LAST_SKIPPED, (const char*)data, len)) > (request->getNumber() ? User::PWD_SHOW_AFTER_LASTSKIP_LOGOUT : User::PWD_SHOW_AFTER_LASTSKIP))
+                            && (currenttime - User::getPwdReminderData(User::PWD_LAST_SKIPPED, (const char*)data, len)) > (request->getNumber() ? User::PWD_SHOW_AFTER_LASTSKIP_LOGOUT : User::PWD_SHOW_AFTER_LASTSKIP)
+                            && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
@@ -11962,7 +12566,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
 
         MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
         logoutRequest->setFlag(false);
-        request->setParamType(API_EBLOCKED);
+        logoutRequest->setParamType(API_EBLOCKED);
         requestQueue.push(logoutRequest);
         waiter->notify();
     }
@@ -12290,6 +12894,15 @@ void MegaApiImpl::addTransferListener(MegaTransferListener* listener)
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::addBackupListener(MegaBackupListener* listener)
+{
+    if(!listener) return;
+
+    sdkMutex.lock();
+    backupListeners.insert(listener);
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::addGlobalListener(MegaGlobalListener* listener)
 {
     if(!listener) return;
@@ -12379,6 +12992,27 @@ void MegaApiImpl::removeTransferListener(MegaTransferListener* listener)
     }
 
     transferQueue.removeListener(listener);
+    sdkMutex.unlock();
+}
+
+void MegaApiImpl::removeBackupListener(MegaBackupListener* listener)
+{
+    if(!listener) return;
+
+    sdkMutex.lock();
+    backupListeners.erase(listener);
+
+    std::map<int, MegaBackupController*>::iterator it = backupsMap.begin();
+    while(it != backupsMap.end())
+    {
+        MegaBackupController* backup = it->second;
+        if(backup->getBackupListener() == listener)
+            backup->setBackupListener(NULL);
+
+        it++;
+    }
+
+    requestQueue.removeListener(listener);
     sdkMutex.unlock();
 }
 
@@ -12838,6 +13472,114 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *loca
 }
 
 #endif
+
+void MegaApiImpl::fireOnBackupStateChanged(MegaBackupController *backup)
+{
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupStateChanged(api, backup);
+    }
+
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupStateChanged(api, backup);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupStateChanged(api, backup);
+    }
+}
+
+
+void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
+{
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupStart(api, backup);
+    }
+
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupStart(api, backup);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupStart(api, backup);
+    }
+
+}
+
+void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, MegaError e)
+{
+    MegaError *megaError = new MegaError(e);
+
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupFinish(api, backup, megaError);
+    }
+
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupFinish(api, backup, megaError);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupFinish(api, backup, megaError);
+    }
+
+    delete megaError;
+}
+
+void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e)
+{
+    MegaError *megaError = new MegaError(e);
+
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupTemporaryError(api, backup, megaError);
+    }
+
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupTemporaryError(api, backup, megaError);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupTemporaryError(api, backup, megaError);
+    }
+
+    delete megaError;
+}
+
+void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
+{
+//    notificationNumber++; //TODO: should we use notificationNumber for backups??
+
+    for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
+    {
+        (*it++)->onBackupUpdate(api, backup);
+    }
+
+    for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
+    {
+        (*it++)->onBackupUpdate(api, backup);
+    }
+
+    MegaBackupListener* listener = backup->getBackupListener();
+    if(listener)
+    {
+        listener->onBackupUpdate(api, backup);
+    }
+}
+
 
 #ifdef ENABLE_CHAT
 
@@ -13833,6 +14575,54 @@ FileFingerprint *MegaApiImpl::getFileFingerprintInternal(const char *fingerprint
     return fp;
 }
 
+char *MegaApiImpl::getMegaFingerprintFromSdkFingerprint(const char *sdkFingerprint)
+{
+    if (!sdkFingerprint || !sdkFingerprint[0])
+    {
+        return NULL;
+    }
+
+    unsigned int sizelen = sdkFingerprint[0] - 'A';
+    if (sizelen > (sizeof(m_off_t) * 4 / 3 + 4) || strlen(sdkFingerprint) <= (sizelen + 1))
+    {
+        return NULL;
+    }
+
+    FileFingerprint ffp;
+    string result = sdkFingerprint + sizelen + 1;
+    if (!ffp.unserializefingerprint(&result))
+    {
+        return NULL;
+    }
+    return MegaApi::strdup(result.c_str());
+}
+
+char *MegaApiImpl::getSdkFingerprintFromMegaFingerprint(const char *megaFingerprint, m_off_t size)
+{
+    if (!megaFingerprint || !megaFingerprint[0] || size < 0)
+    {
+        return NULL;
+    }
+
+    FileFingerprint ffp;
+    string sMegaFingerprint = megaFingerprint;
+    if (!ffp.unserializefingerprint(&sMegaFingerprint))
+    {
+        return NULL;
+    }
+
+    char bsize[sizeof(size) + 1];
+    int l = Serialize64::serialize((byte *)bsize, size);
+    char *buf = new char[l * 4 / 3 + 4];
+    char sizelen = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+    string result(1, sizelen);
+    result.append(buf);
+    result.append(megaFingerprint);
+    delete [] buf;
+
+    return MegaApi::strdup(result.c_str());
+}
+
 MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
 {
     if(!n) return NULL;
@@ -14144,6 +14934,15 @@ MegaContactRequest *MegaApiImpl::getContactRequestByHandle(MegaHandle handle)
     MegaContactRequest* request = MegaContactRequestPrivate::fromContactRequest(client->pcrindex.at(handle));
     sdkMutex.unlock();
     return request;
+}
+
+void MegaApiImpl::updateBackups()
+{
+    for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
+    {
+        MegaBackupController *backupController=it->second;
+        backupController->update();
+    }
 }
 
 void MegaApiImpl::sendPendingTransfers()
@@ -14619,6 +15418,54 @@ void MegaApiImpl::removeRecursively(const char *path)
 }
 
 
+error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error e)
+{
+    int tag = int(request->getNumber());
+    bool found = false;
+
+    map<int, MegaBackupController *>::iterator itr = backupsMap.find(tag) ;
+    if (itr != backupsMap.end())
+    {
+        found = true;
+
+        MegaBackupController *backup = itr->second;
+
+        bool flag = request->getFlag();
+        if (!flag)
+        {
+            if (backup->getState() == MegaBackup::BACKUP_ONGOING)
+            {
+                for (std::map<int, MegaTransferPrivate *>::iterator it = transferMap.begin(); it != transferMap.end(); it++)
+                {
+                    MegaTransferPrivate *t = it->second;
+                    if (t->getFolderTransferTag() == backup->getFolderTransferTag())
+                    {
+                        api->cancelTransferByTag(t->getTag()); //what if any of these fail? (Although I don't think that's possible)
+                    }
+                }
+                request->setFlag(true);
+                requestQueue.push(request);
+            }
+            else
+            {
+                LOG_debug << "Abort failed: no ongoing backup";
+                fireOnRequestFinish(request, MegaError(API_ENOENT));
+            }
+        }
+        else
+        {
+            backup->abortCurrent(); //TODO: THIS MAY CAUSE NEW REQUESTS, should we consider them before fireOnRequestFinish?!!!
+            fireOnRequestFinish(request, MegaError(API_OK));
+        }
+
+    }
+    if (!found)
+    {
+        e = API_ENOENT;
+    }
+    return e;
+}
+
 void MegaApiImpl::sendPendingRequests()
 {
     MegaRequestPrivate *request;
@@ -14673,6 +15520,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             requestMap.erase(request->getTag());
+
+            while (!backupsMap.empty())
+            {
+                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
+                delete it->second;
+                backupsMap.erase(it);
+            }
+
             while (!requestMap.empty())
             {
                 std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
@@ -14809,11 +15664,38 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			Node *node = client->nodebyhandle(request->getNodeHandle());
 			Node *newParent = client->nodebyhandle(request->getParentHandle());
-			if(!node || !newParent) { e = API_EARGS; break; }
+            if (!node || !newParent)
+            {
+                e = API_EARGS;
+                break;
+            }
 
-            if(node->parent == newParent)
+            if (node->parent == newParent)
             {
                 fireOnRequestFinish(request, MegaError(API_OK));
+                break;
+            }
+
+            if (node->type == ROOTNODE
+                    || node->type == INCOMINGNODE
+                    || node->type == RUBBISHNODE
+                    || !node->parent) // rootnodes cannot be moved
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            // old versions cannot be moved
+            if (node->parent->type == FILENODE)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            // target must be a folder with enough permissions
+            if (newParent->type == FILENODE || !client->checkaccess(newParent, RDWR))
+            {
+                e = API_EACCESS;
                 break;
             }
 
@@ -16011,6 +16893,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             requestMap.erase(request->getTag());
+
+            while (!backupsMap.empty())
+            {
+                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
+                delete it->second;
+                backupsMap.erase(it);
+            }
+
             while (!requestMap.empty())
             {
                 std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
@@ -16502,7 +17392,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if (megaTransfer->getType() == MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD)
+            if (megaTransfer->getType() == MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD)
             {
                 e = API_EACCESS;
                 break;
@@ -16612,6 +17502,140 @@ void MegaApiImpl::sendPendingRequests()
             {
                 fireOnRequestFinish(request, MegaError(API_OK));
             }
+            break;
+        }
+        case MegaRequest::TYPE_ADD_BACKUP:
+        {
+            Node *parent = client->nodebyhandle(request->getNodeHandle());
+            const char *localPath = request->getFile();
+            if(!parent || (parent->type==FILENODE) || !localPath)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            string utf8name(localPath);
+            MegaBackupController *mbc = NULL;
+            int tagexisting;
+            bool existing = false;
+            for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
+            {
+                if (!strcmp(it->second->getLocalFolder(), utf8name.c_str()) && it->second->getMegaHandle() == request->getNodeHandle())
+                {
+                    existing = true;
+                    mbc = it->second;
+                    tagexisting = it->first;
+                }
+            }
+
+            if (existing){
+                LOG_debug << "Updating existing backup parameters: " <<  utf8name.c_str() << " to " << request->getNodeHandle();
+                mbc->setPeriod(request->getNumber());
+                mbc->setPeriodstring(request->getText());
+                mbc->setMaxBackups(request->getNumRetry());
+                mbc->setAttendPastBackups(request->getFlag());
+
+                request->setTransferTag(tagexisting);
+                if (!mbc->isValid())
+                {
+                    LOG_err << "Failed to update backup parameters: Invalid parameters";
+                    e = API_EARGS;
+                    break;
+                }
+            }
+            else
+            {
+                int tag = request->getTag();
+                int tagForFolderTansferTag = client->nextreqtag();
+                string speriod = request->getText();
+                bool attendPastBackups= request->getFlag();
+                //TODO: add existence of local folder check (optional??)
+
+                MegaBackupController *mbc = new MegaBackupController(this, tag, tagForFolderTansferTag, request->getNodeHandle(),
+                                                                     utf8name.c_str(), attendPastBackups, speriod.c_str(),
+                                                                     request->getNumber(), request->getNumRetry());
+                mbc->setBackupListener(request->getBackupListener()); //TODO: should we add this in setBackup?
+                if (mbc->isValid())
+                {
+                    backupsMap[tag] = mbc;
+                    request->setTransferTag(tag);
+                }
+                else
+                {
+                    delete mbc;
+                    e = API_EARGS;
+                    break;
+                }
+            }
+
+            fireOnRequestFinish(request, MegaError(API_OK));
+
+            break;
+        }
+        case MegaRequest::TYPE_REMOVE_BACKUP:
+        {
+            int backuptag = int(request->getNumber());
+            bool found = false;
+            bool flag = request->getFlag();
+
+
+            map<int, MegaBackupController *>::iterator itr = backupsMap.find(backuptag) ;
+            if (itr != backupsMap.end())
+            {
+                found = true;
+            }
+
+            if (found)
+            {
+                if (!flag)
+                {
+                    MegaRequestPrivate *requestabort = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_BACKUP);
+                    requestabort->setNumber(backuptag);
+
+                    nextTag = client->nextreqtag();
+                    requestabort->setTag(nextTag);
+                    requestMap[nextTag]=requestabort;
+                    fireOnRequestStart(requestabort);
+
+                    e = processAbortBackupRequest(requestabort, e);
+                    if (e)
+                    {
+                        LOG_err << "Failed to abort backup upon remove request";
+                        fireOnRequestFinish(requestabort, MegaError(API_OK));
+                    }
+                    else
+                    {
+                        request->setFlag(true);
+                        requestQueue.push(request);
+                    }
+                }
+                else
+                {
+                    MegaBackupController * todelete = itr->second;
+                    backupsMap.erase(backuptag);
+                    fireOnRequestFinish(request, MegaError(API_OK));
+                    delete todelete;
+                }
+            }
+            else
+            {
+                e = API_ENOENT;
+            }
+
+            break;
+        }
+        case MegaRequest::TYPE_ABORT_CURRENT_BACKUP:
+        {
+            e = processAbortBackupRequest(request, e);
+
+            break;
+        }
+        case MegaRequest::TYPE_TIMER:
+        {
+            int delta = int(request->getNumber());
+            TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
+            twb->backoff(delta);
+            e = client->addtimer(twb);
             break;
         }
 #ifdef ENABLE_SYNC
@@ -16738,14 +17762,10 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_DELETE:
         {
 #ifdef HAVE_LIBUV
-            if (httpServer)
-            {
-                MegaHTTPServer *server = httpServer;
-                httpServer = NULL;
-                sdkMutex.unlock();
-                delete server;
-                sdkMutex.lock();
-            }
+            sdkMutex.unlock();
+            httpServerStop();
+            ftpServerStop();
+            sdkMutex.lock();
 #endif
             threadExit = 1;
             break;
@@ -17466,7 +18486,17 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		{
 			key.setkey((const byte*)t->nodekey.data(),n->type);
 
-			n->attrs.getjson(&attrstring);
+            AttrMap tattrs;
+            tattrs.map = n->attrs.map;
+            nameid rrname = AttrMap::string2nameid("rr");
+            attr_map::iterator it = tattrs.map.find(rrname);
+            if (it != tattrs.map.end())
+            {
+                LOG_debug << "Removing rr attribute";
+                tattrs.map.erase(it);
+            }
+
+            tattrs.getjson(&attrstring);
 			client->makeattr(&key,t->attrstring,attrstring.c_str());
 		}
 	}
@@ -17588,6 +18618,22 @@ void RequestQueue::removeListener(MegaSyncListener *listener)
     mutex.unlock();
 }
 #endif
+
+void RequestQueue::removeListener(MegaBackupListener *listener)
+{
+    mutex.lock();
+
+    std::deque<MegaRequestPrivate *>::iterator it = requests.begin();
+    while(it != requests.end())
+    {
+        MegaRequestPrivate *request = (*it);
+        if(request->getBackupListener()==listener)
+            request->setBackupListener(NULL);
+        it++;
+    }
+
+    mutex.unlock();
+}
 
 MegaHashSignatureImpl::MegaHashSignatureImpl(const char *base64Key)
 {
@@ -19069,6 +20115,1079 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     checkCompletion();
 }
 
+MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
+{
+    LOG_info << "Registering backup for folder " << filename << " period=" << period << " speriod=" << speriod << " Number-of-Backups=" << maxBackups;
+
+    this->basepath = filename;
+    size_t found = basepath.find_last_of("/\\");
+    string aux = basepath;
+    while (aux.size() && (found == (aux.size()-1)))
+    {
+        aux = aux.substr(0, found - 1);
+        found = aux.find_last_of("/\\");
+    }
+    this->backupName = aux.substr((found == string::npos)?0:found+1);
+
+    this->parenthandle = parenthandle;
+
+    this->megaApi = megaApi;
+    this->client = megaApi->getMegaClient();
+
+    this->attendPastBackups = attendPastBackups;
+
+    clearCurrentBackupData();
+
+    lastbackuptime = getLastBackupTime();
+
+    this->backupListener = NULL;
+
+    this->maxBackups = maxBackups;
+
+    this->pendingremovals = 0;
+
+    this->lastwakeuptime = 0;
+
+    this->tag = tag;
+    this->folderTransferTag = folderTransferTag;
+
+    valid = true;
+    this->setPeriod(period);
+    this->setPeriodstring(speriod);
+    if (!backupName.size())
+    {
+        valid = false;
+    }
+
+    if (valid)
+    {
+        megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
+        this->state = MegaBackup::BACKUP_ACTIVE;
+        megaApi->fireOnBackupStateChanged(this);
+        removeexceeding();
+    }
+    else
+    {
+        this->state = MegaBackup::BACKUP_FAILED;;
+    }
+}
+
+MegaBackupController::MegaBackupController(MegaBackupController *backup)
+{
+    this->pendingremovals = backup->pendingremovals;
+    this->setTag(backup->getTag());
+    this->setLocalFolder(backup->getLocalFolder());
+    this->setMegaHandle(backup->getMegaHandle());
+
+    this->setFolderTransferTag(backup->getFolderTransferTag());
+
+    this->megaApi = backup->megaApi;
+    this->client = backup->client;
+    this->setBackupListener(backup->getBackupListener());
+
+
+    //copy currentBackup data
+    this->recursive = backup->recursive;
+    this->pendingTransfers = backup->pendingTransfers;
+    this->pendingTags = backup->pendingTags;
+    for (std::list<string>::iterator it = backup->pendingFolders.begin(); it != backup->pendingFolders.end(); it++)
+    {
+        this->pendingFolders.push_back(*it);
+    }
+
+    for (std::list<MegaTransfer *>::iterator it = backup->failedTransfers.begin(); it != backup->failedTransfers.end(); it++)
+    {
+        this->failedTransfers.push_back(((MegaTransfer *)*it)->copy());
+    }
+    this->currentHandle = backup->currentHandle;
+    this->currentBKStartTime = backup->currentBKStartTime;
+    this->updateTime = backup->updateTime;
+    this->transferredBytes = backup->transferredBytes;
+    this->totalBytes = backup->totalBytes;
+    this->speed = backup->speed;
+    this->meanSpeed = backup->meanSpeed;
+    this->numberFiles = backup->numberFiles;
+    this->totalFiles = backup->totalFiles;
+    this->numberFolders = backup->numberFolders;
+    this->attendPastBackups = backup->attendPastBackups;
+
+    this->offsetds=backup->getOffsetds();
+    this->lastbackuptime=backup->getLastBackupTime();
+    this->state=backup->getState();
+    this->startTime=backup->getStartTime();
+    this->period=backup->getPeriod();
+    this->ccronexpr=backup->getCcronexpr();
+    this->periodstring=backup->getPeriodString();
+    this->valid=backup->isValid();
+
+    this->setLocalFolder(backup->getLocalFolder());
+    this->setBackupName(backup->getBackupName());
+    this->setMegaHandle(backup->getMegaHandle());
+    this->setMaxBackups(backup->getMaxBackups());
+}
+
+
+long long MegaBackupController::getNextStartTime(long long oldStartTimeAbsolute) const
+{
+    if (oldStartTimeAbsolute == -1)
+    {
+        return (getNextStartTimeDs() + this->offsetds)/10;
+    }
+    else
+    {
+        return (getNextStartTimeDs(oldStartTimeAbsolute*10 - this->offsetds) + this->offsetds)/10;
+    }
+}
+
+long long MegaBackupController::getNextStartTimeDs(long long oldStartTimeds) const
+{
+    if (oldStartTimeds == -1)
+    {
+        return startTime;
+    }
+    if (period != -1)
+    {
+        return oldStartTimeds + period;
+    }
+    else
+    {
+        if (!valid)
+        {
+            return oldStartTimeds;
+        }
+        long long current_ds = oldStartTimeds + this->offsetds;  // 64 bit
+
+        long long newt = cron_next(&ccronexpr, time_t(current_ds/10));  // time_t is 32 bit still on many systems
+        long long newStarTimeds = newt*10-offsetds;  // 64 bit again
+        return newStarTimeds;
+    }
+}
+
+void MegaBackupController::update()
+{
+    if (!valid)
+    {
+        if (!isBusy())
+        {
+            state = BACKUP_FAILED;
+        }
+        return;
+    }
+    if (Waiter::ds > startTime)
+    {
+        if (!isBusy())
+        {
+            long long nextStartTime = getNextStartTimeDs(startTime);
+            if (nextStartTime <= startTime)
+            {
+                LOG_err << "Invalid calculated NextStartTime" ;
+                valid = false;
+                state = BACKUP_FAILED;
+                return;
+            }
+
+            if (nextStartTime > Waiter::ds)
+            {
+                start();
+            }
+            else
+            {
+                LOG_warn << " BACKUP discarded (too soon, time for the next): " << basepath;
+                start(true);
+                megaApi->startTimer(1); //wake sdk
+            }
+
+            startTime = nextStartTime;
+        }
+        else
+        {
+            LOG_verbose << "Backup busy: " << basepath <<
+                           ". State=" << ((state==MegaBackup::BACKUP_ONGOING)?"On Going":"Removing exeeding") << ". Postponing ...";
+            if ((lastwakeuptime+10) < Waiter::ds )
+            {
+                megaApi->startTimer(10); //give it a while
+                lastwakeuptime = Waiter::ds+10;
+            }
+        }
+    }
+    else
+    {
+        if (lastwakeuptime < Waiter::ds || ((this->startTime + 1) < lastwakeuptime))
+        {
+            LOG_debug << " Waking in " << (this->startTime - Waiter::ds + 1) << " deciseconds to do backup";
+            megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
+            lastwakeuptime = this->startTime + 1;
+        }
+    }
+}
+
+void MegaBackupController::removeexceeding()
+{
+    map<int64_t, MegaNode *> backupTimesNodes;
+    int ncompleted=0;
+
+    MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
+
+    if (parentNode)
+    {
+        MegaNodeList* children = megaApi->getChildren(parentNode);
+        if (children)
+        {
+            for (int i = 0; i < children->size(); i++)
+            {
+                MegaNode *childNode = children->get(i);
+                string childname = childNode->getName();
+
+                if (isBackup(childname, backupName) )
+                {
+                    const char *backstvalue = childNode->getCustomAttr("BACKST");
+
+                    if ( ( !backstvalue || !strcmp(backstvalue,"ONGOING") ) && ( childNode->getHandle() != currentHandle ) )
+                    {
+                        LOG_err << "Found unexpected ONGOING backup (probably from previous executions). Changing status to MISCARRIED";
+                        this->pendingTags++;
+                        megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
+                    }
+
+                    if (backstvalue && !strcmp(backstvalue,"COMPLETE"))
+                    {
+                        ncompleted++;
+                    }
+
+                    int64_t timeofbackup = getTimeOfBackup(childname);
+                    if (timeofbackup)
+                    {
+                        backupTimesNodes[timeofbackup]=childNode;
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                    }
+                }
+            }
+        }
+        while (backupTimesNodes.size() > (unsigned int)maxBackups)
+        {
+            map<int64_t, MegaNode *>::iterator itr = backupTimesNodes.begin();
+            const char *backstvalue = itr->second->getCustomAttr("BACKST");
+            if ( (ncompleted == 1) && backstvalue && (!strcmp(backstvalue,"COMPLETE")) && backupTimesNodes.size() > 1)
+            {
+                itr++;
+            }
+
+            MegaNode * nodeToDelete = itr->second;
+            int64_t timetodelete = itr->first;
+            backstvalue = nodeToDelete->getCustomAttr("BACKST");
+            if (backstvalue && !strcmp(backstvalue,"COMPLETE"))
+            {
+                ncompleted--;
+            }
+
+            char * nodepath = megaApi->getNodePath(nodeToDelete);
+            LOG_info << " Removing exceeding backup " << nodepath;
+            delete []nodepath;
+            state = BACKUP_REMOVING_EXCEEDING;
+            megaApi->fireOnBackupStateChanged(this);
+            pendingremovals++;
+            megaApi->remove(nodeToDelete, false, this);
+
+            backupTimesNodes.erase(timetodelete);
+        }
+
+        delete children;
+    }
+    delete parentNode;
+}
+
+int64_t MegaBackupController::getLastBackupTime()
+{
+    map<int64_t, MegaNode *> backupTimesPaths;
+    int64_t latesttime=0;
+
+    MegaNode * parentNode = megaApi->getNodeByHandle(parenthandle);
+    if (parentNode)
+    {
+        MegaNodeList* children = megaApi->getChildren(parentNode);
+        if (children)
+        {
+            for (int i = 0; i < children->size(); i++)
+            {
+                MegaNode *childNode = children->get(i);
+                string childname = childNode->getName();
+                if (isBackup(childname, backupName) )
+                {
+                    int64_t timeofbackup = getTimeOfBackup(childname);
+                    if (timeofbackup)
+                    {
+                        backupTimesPaths[timeofbackup]=childNode;
+                        latesttime = max(latesttime, timeofbackup);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to get backup time for folder: " << childname << ". Discarded.";
+                    }
+                }
+            }
+            delete children;
+        }
+        delete parentNode;
+    }
+    return latesttime;
+}
+
+bool MegaBackupController::isBackup(string localname, string backupname) const
+{
+    return ( localname.compare(0, backupname.length(), backupname) == 0) && (localname.find("_bk_") != string::npos);
+}
+
+int64_t MegaBackupController::getTimeOfBackup(string localname) const
+{
+    size_t pos = localname.find("_bk_");
+    if (pos == string::npos || ( (pos+4) >= (localname.size()-1) ) )
+    {
+        return 0;
+    }
+    string rest = localname.substr(pos + 4).c_str();
+
+//    int64_t toret = atol(rest.c_str());
+    int64_t toret = stringTimeTods(rest);
+    return toret;
+}
+
+bool MegaBackupController::getAttendPastBackups() const
+{
+    return attendPastBackups;
+}
+
+void MegaBackupController::setAttendPastBackups(bool value)
+{
+    attendPastBackups = value;
+}
+
+bool MegaBackupController::isValid() const
+{
+    return valid;
+}
+
+void MegaBackupController::setValid(bool value)
+{
+    valid = value;
+}
+
+cron_expr MegaBackupController::getCcronexpr() const
+{
+    return ccronexpr;
+}
+
+void MegaBackupController::setCcronexpr(const cron_expr &value)
+{
+    ccronexpr = value;
+}
+
+MegaBackupListener *MegaBackupController::getBackupListener() const
+{
+    return backupListener;
+}
+
+void MegaBackupController::setBackupListener(MegaBackupListener *value)
+{
+    backupListener = value;
+}
+
+long long MegaBackupController::getTotalFiles() const
+{
+    return totalFiles;
+}
+
+void MegaBackupController::setTotalFiles(long long value)
+{
+    totalFiles = value;
+}
+
+int64_t MegaBackupController::getCurrentBKStartTime() const
+{
+    return currentBKStartTime;
+}
+
+void MegaBackupController::setCurrentBKStartTime(const int64_t &value)
+{
+    currentBKStartTime = value;
+}
+
+int64_t MegaBackupController::getUpdateTime() const
+{
+    return updateTime;
+}
+
+void MegaBackupController::setUpdateTime(const int64_t &value)
+{
+    updateTime = value;
+}
+
+long long MegaBackupController::getTransferredBytes() const
+{
+    return transferredBytes;
+}
+
+void MegaBackupController::setTransferredBytes(long long value)
+{
+    transferredBytes = value;
+}
+
+long long MegaBackupController::getTotalBytes() const
+{
+    return totalBytes;
+}
+
+void MegaBackupController::setTotalBytes(long long value)
+{
+    totalBytes = value;
+}
+
+long long MegaBackupController::getSpeed() const
+{
+    return speed;
+}
+
+void MegaBackupController::setSpeed(long long value)
+{
+    speed = value;
+}
+
+long long MegaBackupController::getMeanSpeed() const
+{
+    return meanSpeed;
+}
+
+void MegaBackupController::setMeanSpeed(long long value)
+{
+    meanSpeed = value;
+}
+
+long long MegaBackupController::getNumberFiles() const
+{
+    return numberFiles;
+}
+
+void MegaBackupController::setNumberFiles(long long value)
+{
+    numberFiles = value;
+}
+
+long long MegaBackupController::getNumberFolders() const
+{
+    return numberFolders;
+}
+
+void MegaBackupController::setNumberFolders(long long value)
+{
+    numberFolders = value;
+}
+
+int64_t MegaBackupController::getLastbackuptime() const
+{
+    return lastbackuptime;
+}
+
+void MegaBackupController::setLastbackuptime(const int64_t &value)
+{
+    lastbackuptime = value;
+}
+
+void MegaBackupController::setState(int value)
+{
+    state = value;
+}
+
+bool MegaBackupController::isBusy() const
+{
+    return (state == BACKUP_ONGOING) || (state == BACKUP_REMOVING_EXCEEDING || (state == BACKUP_SKIPPING));
+}
+
+std::string MegaBackupController::epochdsToString(const int64_t rawtimeds) const
+{
+    struct tm dt;
+    char buffer [40];
+    time_t rawtime = rawtimeds/10;
+    m_localtime(rawtime, &dt);
+
+    strftime(buffer, sizeof( buffer ), "%Y%m%d%H%M%S", &dt);
+
+    return std::string(buffer);
+}
+
+int64_t MegaBackupController::stringTimeTods(string stime) const
+{
+    struct tm dt;
+    memset(&dt, 0, sizeof(struct tm));
+#ifdef _WIN32
+    if (stime.size() != 14)
+    {
+        return 0; //better control of this?
+    }
+    for(int i=0;i<14;i++)
+    {
+        if ( (stime.at(i) < '0') || (stime.at(i) > '9') )
+        {
+            return 0; //better control of this?
+        }
+    }
+
+    dt.tm_year = atoi(stime.substr(0,4).c_str()) - 1900;
+    dt.tm_mon = atoi(stime.substr(4,2).c_str()) - 1;
+    dt.tm_mday = atoi(stime.substr(6,2).c_str());
+    dt.tm_hour = atoi(stime.substr(8,2).c_str());
+    dt.tm_min = atoi(stime.substr(10,2).c_str());
+    dt.tm_sec = atoi(stime.substr(12,2).c_str());
+#else
+    strptime(stime.c_str(), "%Y%m%d%H%M%S", &dt);
+#endif
+    dt.tm_isdst = -1; //let mktime interprete if time has Daylight Saving Time flag correction
+                        //TODO: would this work cross platformly? At least I believe it'll be consistent with localtime. Otherwise, we'd need to save that
+    return (mktime(&dt))*10;
+}
+
+void MegaBackupController::clearCurrentBackupData()
+{
+    this->recursive = 0;
+    this->pendingTransfers = 0;
+    this->pendingTags = 0;
+    this->pendingFolders.clear();
+    for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
+    {
+        delete *it;
+    }
+    this->failedTransfers.clear();
+    this->currentHandle = UNDEF;
+    this->currentBKStartTime = 0;
+    this->updateTime = 0;
+    this->transferredBytes = 0;
+    this->totalBytes = 0;
+    this->speed = 0;
+    this->meanSpeed = 0;
+    this->numberFiles = 0;
+    this->totalFiles = 0;
+    this->numberFolders = 0;
+}
+
+
+void MegaBackupController::start(bool skip)
+{
+    LOG_info << "starting backup of " << basepath << ". Next one will be in " << getNextStartTimeDs(startTime)-offsetds << " ds" ;
+    clearCurrentBackupData();
+    this->setCurrentBKStartTime(Waiter::ds); //notice: this is != StarTime
+
+    size_t plastsep = basepath.find_last_of("\\/");
+    if(plastsep == string::npos)
+        plastsep = -1;
+    string name = basepath.substr(plastsep+1);
+
+    std::ostringstream ossremotename;
+    ossremotename << name;
+    ossremotename << "_bk_";
+    ossremotename << epochdsToString(offsetds+startTime);
+    string backupname = ossremotename.str();
+    currentName = backupname;
+
+    lastbackuptime = max(lastbackuptime,offsetds+startTime);
+
+    megaApi->fireOnBackupStart(this);
+
+    MegaNode *parent = megaApi->getNodeByHandle(parenthandle);
+    if(!parent)
+    {
+        LOG_err << "Could not start backup: "<< name << ". Parent node not found";
+        megaApi->fireOnBackupFinish(this, MegaError(API_ENOENT));
+
+    }
+    else
+    {
+        if (skip)
+        {
+            state = BACKUP_SKIPPING;
+        }
+        else
+        {
+            state = BACKUP_ONGOING;
+        }
+        megaApi->fireOnBackupStateChanged(this);
+
+        string path = basepath;
+        string localpath;
+        client->fsaccess->path2local(&path, &localpath);
+
+        MegaNode *child = megaApi->getChildNode(parent, backupname.c_str());
+
+        if(!child || !child->isFolder())
+        {
+            pendingFolders.push_back(localpath);
+            megaApi->createFolder(backupname.c_str(), parent, this);
+        }
+        else
+        {
+            LOG_err << "Could not start backup: "<< backupname << ". Backup already exists";
+            megaApi->fireOnBackupFinish(this, MegaError(API_EEXIST));
+            state = BACKUP_ACTIVE;
+
+        }
+
+        delete child;
+        delete parent;
+    }
+}
+
+void MegaBackupController::onFolderAvailable(MegaHandle handle)
+{
+    MegaNode *parent = megaApi->getNodeByHandle(handle);
+    if(currentHandle == UNDEF)//main folder of the backup instance
+    {
+        currentHandle = handle;
+        if (state == BACKUP_ONGOING)
+        {
+            this->pendingTags++;
+            megaApi->setCustomNodeAttribute(parent, "BACKST", "ONGOING", this);
+        }
+        else
+        {
+            this->pendingTags++;
+            megaApi->setCustomNodeAttribute(parent, "BACKST", "SKIPPED", this);
+        }
+    }
+    else
+    {
+        numberFolders++;
+    }
+    recursive++;
+    string localPath = pendingFolders.front();
+    pendingFolders.pop_front();
+
+    if (state == BACKUP_ONGOING)
+    {
+        string localname;
+        DirAccess* da;
+        da = client->fsaccess->newdiraccess();
+        if (da->dopen(&localPath, NULL, false))
+        {
+            size_t t = localPath.size();
+
+            while (da->dnext(&localPath, &localname, client->followsymlinks))
+            {
+                if (t)
+                {
+                    localPath.append(client->fsaccess->localseparator);
+                }
+
+                localPath.append(localname);
+
+                //TODO: add exclude filters here
+
+                FileAccess *fa = client->fsaccess->newfileaccess();
+                if(fa->fopen(&localPath, true, false))
+                {
+                    string name = localname;
+                    client->fsaccess->local2name(&name);
+                    if(fa->type == FILENODE)
+                    {
+                        pendingTransfers++;
+                        string utf8path;
+                        client->fsaccess->local2path(&localPath, &utf8path);
+
+                        totalFiles++;
+                        megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, NULL, false, this);
+                    }
+                    else
+                    {
+                        MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                        if(!child || !child->isFolder())
+                        {
+                            pendingFolders.push_back(localPath);
+                            megaApi->createFolder(name.c_str(), parent, this);
+                        }
+                        else
+                        {
+                            pendingFolders.push_front(localPath);
+                            onFolderAvailable(child->getHandle());
+                        }
+                        delete child;
+                    }
+                }
+
+                localPath.resize(t);
+                delete fa;
+            }
+        }
+
+        delete da;
+    }
+    else if (state == BACKUP_SKIPPING)
+    {
+        //do nth
+    }
+    else
+    {
+        LOG_warn << " Backup folder created while not ONGOING: " << localPath;
+    }
+
+    delete parent;
+    recursive--;
+
+    checkCompletion();
+}
+
+bool MegaBackupController::checkCompletion()
+{
+    if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingTags)
+    {
+        LOG_debug << "Folder transfer finished - " << this->getTransferredBytes() << " of " << this->getTotalBytes();
+        MegaNode *node = megaApi->getNodeByHandle(currentHandle);
+        if (node)
+        {
+            if (failedTransfers.size())
+            {
+                this->pendingTags++;
+                megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this);
+            }
+            else if (state != BACKUP_SKIPPING)
+            {
+                this->pendingTags++;
+                megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
+            }
+            delete node;
+        }
+        else
+        {
+            LOG_err << "Could not set backup attribute, node not found for: " << currentName;
+        }
+
+        state = BACKUP_ACTIVE;
+        megaApi->fireOnBackupFinish(this, MegaError(API_OK));
+        megaApi->fireOnBackupStateChanged(this);
+
+        removeexceeding();
+
+        return true;
+    }
+    return false;
+}
+
+int MegaBackupController::getFolderTransferTag() const
+{
+    return folderTransferTag;
+}
+
+void MegaBackupController::setFolderTransferTag(int value)
+{
+    folderTransferTag = value;
+}
+
+int64_t MegaBackupController::getOffsetds() const
+{
+    return offsetds;
+}
+
+void MegaBackupController::setOffsetds(const int64_t &value)
+{
+    offsetds = value;
+}
+
+void MegaBackupController::abortCurrent()
+{
+    LOG_debug << "Setting backup as aborted: " << currentName;
+
+    if (state == BACKUP_ONGOING || state == BACKUP_SKIPPING)
+    {
+        megaApi->fireOnBackupFinish(this, MegaError(API_EINCOMPLETE));
+    }
+
+    state = BACKUP_ACTIVE;
+    megaApi->fireOnBackupStateChanged(this);
+
+    MegaNode *node = megaApi->getNodeByHandle(currentHandle);
+    if (node)
+    {
+        this->pendingTags++;
+        megaApi->setCustomNodeAttribute(node, "BACKST", "ABORTED");
+        delete node;
+    }
+    else
+    {
+        LOG_err << "Could not set backup attribute, node not found for: " << currentName;
+    }
+
+    clearCurrentBackupData();
+
+}
+
+void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
+{
+    int type = request->getType();
+    int errorCode = e->getErrorCode();
+
+    if(type == MegaRequest::TYPE_CREATE_FOLDER)
+    {
+        if(!errorCode)
+        {
+            onFolderAvailable(request->getNodeHandle());
+            megaApi->fireOnBackupUpdate(this);
+        }
+        else
+        {
+            pendingFolders.pop_front();
+            megaApi->fireOnBackupUpdate(this);
+            checkCompletion();
+        }
+    }
+    else if(type == MegaRequest::TYPE_REMOVE)
+    {
+        pendingremovals--;
+        if (!pendingremovals)
+        {
+            if (!pendingTags)
+            {
+                state = BACKUP_ACTIVE;
+            }
+            megaApi->fireOnBackupStateChanged(this);
+        }
+    }
+    else if(type == MegaRequest::TYPE_SET_ATTR_NODE)
+    {
+        pendingTags--;
+
+        if (!pendingTags)
+        {
+            if (state == BACKUP_ONGOING || state == BACKUP_SKIPPING)
+            {
+                checkCompletion();
+            }
+            else // from REMOVING OR after abort
+            {
+                if (state != BACKUP_ACTIVE)
+                {
+                    state = BACKUP_ACTIVE;
+                    megaApi->fireOnBackupStateChanged(this);
+                }
+            }
+        }
+    }
+
+}
+
+void MegaBackupController::onTransferStart(MegaApi *, MegaTransfer *t)
+{
+    LOG_verbose << " at MegaBackupController::onTransferStart: "+ string(t->getFileName());
+
+    this->setTotalBytes(this->getTotalBytes() + t->getTotalBytes());
+    this->setUpdateTime(Waiter::ds);
+
+    megaApi->fireOnBackupUpdate(this);
+}
+
+void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
+{
+    LOG_verbose << " at MegaBackupController::onTransferUpdate";
+
+    this->setTransferredBytes(this->getTransferredBytes() + t->getDeltaSize());
+    this->setUpdateTime(Waiter::ds);
+    this->setSpeed(t->getSpeed());
+    this->setMeanSpeed(t->getMeanSpeed());
+
+    megaApi->fireOnBackupUpdate(this);
+}
+
+void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
+{
+    LOG_verbose << " at MegaackupController::onTransferFinish";
+
+    pendingTransfers--;
+//    this->setTransferredBytes(this->getTransferredBytes() + t->getDeltaSize()); //TODO: THIS was in MegaUploaderController (which seems wrong)
+    this->setUpdateTime(Waiter::ds);
+    this->setSpeed(t->getSpeed());
+    this->setMeanSpeed(t->getMeanSpeed());
+
+    if (e->getErrorCode() != MegaError::API_OK)
+    {
+        failedTransfers.push_back(t->copy());
+    }
+    else
+    {
+        numberFiles++;
+    }
+
+    megaApi->fireOnBackupUpdate(this);
+
+    checkCompletion();
+}
+
+MegaBackup *MegaBackupController::copy()
+{
+    return new MegaBackupController(this);
+}
+
+
+int MegaBackupController::getMaxBackups() const
+{
+    return maxBackups;
+}
+
+void MegaBackupController::setMaxBackups(int value)
+{
+    maxBackups = value;
+}
+
+string MegaBackupController::getBackupName() const
+{
+    return backupName;
+}
+
+void MegaBackupController::setBackupName(const string &value)
+{
+    backupName = value;
+}
+
+int64_t MegaBackupController::getPeriod() const
+{
+    return period;
+}
+
+const char *MegaBackupController::getPeriodString() const
+{
+    return periodstring.c_str();
+}
+
+void MegaBackupController::setPeriod(const int64_t &value)
+{
+    period = value;
+    if (value != -1)
+    {
+        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+        this->startTime = lastbackuptime?(lastbackuptime+period-offsetds):Waiter::ds;
+        if (this->startTime < Waiter::ds)
+            this->startTime = Waiter::ds;
+    }
+}
+
+void MegaBackupController::setPeriodstring(const string &value)
+{
+    periodstring = value;
+    valid = true;
+    if (value.size())
+    {
+        const char* err = NULL;
+        memset((cron_expr *)&ccronexpr, 0, sizeof(ccronexpr));
+        cron_parse_expr(periodstring.c_str(), &ccronexpr, &err);
+
+        if (err != NULL)
+        {
+            valid = false;
+            return;
+        }
+
+        this->offsetds=std::time(NULL)*10 - Waiter::ds;
+
+        if (!lastbackuptime)
+        {
+            this->startTime = Waiter::ds;
+        }
+        else
+        {
+            this->startTime = this->getNextStartTimeDs(lastbackuptime-offsetds);
+        }
+        if (this->startTime < Waiter::ds)
+        {
+            //to avoid skipping (do empty backups with SKIPPED attr) for a long while (e.g: period too short or downtime too long)
+            // we determine a max number of executions to skip.
+
+            int maxBackupToSkip = maxBackups + 10;
+            int64_t* starttimes = new int64_t[maxBackupToSkip];
+            int64_t next = lastbackuptime-offsetds;
+            int64_t previousnext = next;
+
+            for (int i = 0; i < maxBackupToSkip; i++)
+            {
+                starttimes[i] = startTime;
+            }
+
+            int j = 0;
+
+            do
+            {
+                previousnext = next;
+                next = this->getNextStartTimeDs(next);
+                starttimes[j] = next;
+                j = (j==(maxBackupToSkip-1))?0:j+1;
+            } while (next > previousnext && next < Waiter::ds);
+
+            if (!attendPastBackups)
+            {
+                this->startTime = next;
+            }
+            else
+            {
+                this->startTime = starttimes[j]; //starttimes[j] should have the oldest time
+            }
+            delete [] starttimes;
+        }
+        LOG_debug << " Next Backup set in " << startTime - Waiter::ds << " deciseconds. At: " << epochdsToString((this->startTime+this->offsetds));
+    }
+}
+
+int64_t MegaBackupController::getStartTime() const
+{
+    return startTime;
+}
+
+void MegaBackupController::setStartTime(const int64_t &value)
+{
+    startTime = value;
+}
+
+int MegaBackupController::getTag() const
+{
+    return this->tag;
+}
+
+void MegaBackupController::setTag(int value)
+{
+    tag = value;
+}
+
+MegaHandle MegaBackupController::getMegaHandle() const
+{
+    return this->parenthandle;
+}
+
+void MegaBackupController::setMegaHandle(const MegaHandle &value)
+{
+    parenthandle = value;
+}
+
+const char *MegaBackupController::getLocalFolder() const
+{
+    return this->basepath.c_str();
+}
+
+void MegaBackupController::setLocalFolder(const string &value)
+{
+    basepath = value;
+}
+
+int MegaBackupController::getState() const
+{
+    return state;
+}
+
+MegaBackupController::~MegaBackupController()
+{
+    megaApi->removeRequestListener(this);
+    megaApi->removeTransferListener(this);
+
+    for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
+    {
+        delete *it;
+    }
+
+}
+
 MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
 {
     this->megaApi = megaApi;
@@ -19428,9 +21547,9 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 }
 
 // http_parser settings
-http_parser_settings MegaHTTPServer::parsercfg;
+http_parser_settings MegaTCPServer::parsercfg;
 
-MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
+MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
 {
     this->megaApi = megaApi;
     this->localOnly = true;
@@ -19438,16 +21557,18 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTL
     this->port = 0;
     this->maxBufferSize = 0;
     this->maxOutputSize = 0;
-    this->fileServerEnabled = true;
-    this->folderServerEnabled = true;
-    this->offlineAttribute = false;
-    this->restrictedMode = MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    this->restrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     this->lastHandle = INVALID_HANDLE;
-    this->subtitlesSupportEnabled = false;
+    this->remainingcloseevents = 0;
+    this->closing = false;
+    this->thread = new MegaThread();
 #ifdef ENABLE_EVT_TLS
     this->useTLS = useTLS;
     this->certificatepath = certificatepath;
     this->keypath = keypath;
+    this->closing = false;
+    this->remainingcloseevents = 0;
+    this->evtrequirescleaning = false;
 #else
     this->useTLS = false;
 #endif
@@ -19465,66 +21586,78 @@ MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTL
         }
         this->basePath = sBasePath;
     }
+    semaphoresdestroyed = false;
+    uv_sem_init(&semaphoreEnd, 0);
+    uv_sem_init(&semaphoreStartup, 0);
 }
 
-MegaHTTPServer::~MegaHTTPServer()
+MegaTCPServer::~MegaTCPServer()
 {
     stop();
+    semaphoresdestroyed = true;
+    uv_sem_destroy(&semaphoreStartup);
+    uv_sem_destroy(&semaphoreEnd);
     delete fsAccess;
+
+    LOG_verbose << " MegaTCPServer::~MegaTCPServer joining uv thread";
+    thread->join();
+    LOG_verbose << " MegaTCPServer::~MegaTCPServer deleting uv thread";
+    delete thread;
 }
 
-bool MegaHTTPServer::start(int port, bool localOnly)
+bool MegaTCPServer::start(int port, bool localOnly)
 {
     if (started && this->port == port && this->localOnly == localOnly)
     {
+        LOG_verbose << "MegaTCPServer::start Alread started at that port, returning " << started;
         return true;
     }
-    stop();
+    if (started)
+    {
+        stop();
+    }
 
     this->port = port;
     this->localOnly = localOnly;
-    uv_sem_init(&semaphore, 0);
-    thread.start(threadEntryPoint, this);
-    uv_sem_wait(&semaphore);
-    uv_sem_destroy(&semaphore);
+
+    thread->start(threadEntryPoint, this);
+    uv_sem_wait(&semaphoreStartup);
+
+    LOG_verbose << "MegaTCPServer::start. port = " << port << ", returning " << started;
     return started;
 }
 
 #ifdef ENABLE_EVT_TLS
-int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
+int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 {
     int rv = 0;
     uv_buf_t b;
     b.base = (char*)bfr;
     b.len = sz;
 
-    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
-    assert(httpctx != NULL);
+    MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
+    assert(tcpctx != NULL);
 
-    if (uv_is_writable((uv_stream_t*)(&httpctx->tcphandle)))
+    if (uv_is_writable((uv_stream_t*)(&tcpctx->tcphandle)))
     {
         uv_write_t *req = new uv_write_t();
-        httpctx->writePointers.push_back((char*)bfr);
-        req->data = httpctx;
-        LOG_debug << "Sending " << sz << " bytes of TLS data";
-        if (int err = uv_write(req, (uv_stream_t*)&httpctx->tcphandle, &b, 1, onWriteFinished_tls_async))
+        tcpctx->writePointers.push_back((char*)bfr);
+        req->data = tcpctx;
+        LOG_verbose << "Sending " << sz << " bytes of TLS data on port = " << tcpctx->server->port;
+        if (int err = uv_write(req, (uv_stream_t*)&tcpctx->tcphandle, &b, 1, onWriteFinished_tls_async))
         {
             LOG_warn << "At uv_tls_writer: Finishing due to an error sending the response: " << err;
-            httpctx->writePointers.pop_back();
-            delete [] bfr;
+            tcpctx->writePointers.pop_back();
+            delete [] (char*)bfr;
             delete req;
 
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
+            closeTCPConnection(tcpctx);
         }
         rv = sz; //writer should return the written size
     }
     else
     {
-        delete [] bfr;
+        delete [] (char*)bfr;
         LOG_debug << " uv_is_writable returned false";
     }
 
@@ -19532,16 +21665,9 @@ int MegaHTTPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 }
 #endif
 
-void MegaHTTPServer::run()
+void MegaTCPServer::run()
 {
-    // parser callbacks
-    parsercfg.on_url = onUrlReceived;
-    parsercfg.on_message_begin = onMessageBegin;
-    parsercfg.on_headers_complete = onHeadersComplete;
-    parsercfg.on_message_complete = onMessageComplete;
-    parsercfg.on_header_field = onHeaderField;
-    parsercfg.on_header_value = onHeaderValue;
-    parsercfg.on_body = onBody;
+    LOG_debug << " Running tcp server: " << port << " TLS=" << useTLS;
 
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -19550,18 +21676,20 @@ void MegaHTTPServer::run()
         {
             LOG_err << "Unable to init evt ctx";
             port = 0;
-            uv_sem_post(&semaphore);
+            uv_sem_post(&semaphoreStartup);
+            uv_sem_post(&semaphoreEnd);
             return;
         }
         evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
     }
 #endif
-    uv_loop_t *uv_loop = uv_default_loop();
 
-    uv_async_init(uv_loop, &exit_handle, onCloseRequested);
+    uv_loop_init(&uv_loop);
+
+    uv_async_init(&uv_loop, &exit_handle, onCloseRequested);
     exit_handle.data = this;
 
-    uv_tcp_init(uv_loop, &server);
+    uv_tcp_init(&uv_loop, &server);
     server.data = this;
 
     uv_tcp_keepalive(&server, 0, 0);
@@ -19592,60 +21720,146 @@ void MegaHTTPServer::run()
     if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
         || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
     {
+        LOG_err << "TCP failed to bind/listen port = " << port;
         port = 0;
-        uv_sem_post(&semaphore);
+
+        uv_close((uv_handle_t *)&exit_handle,NULL);
+        uv_close((uv_handle_t *)&server,NULL);
+        uv_sem_post(&semaphoreStartup);
+        uv_run(&uv_loop, UV_RUN_ONCE); // so that resources are cleaned peacefully
+        uv_sem_post(&semaphoreEnd);
         return;
     }
 
-    LOG_info << "HTTP" << (useTLS ? "S" : "") << " server started on port " << port;
+    LOG_info << "TCP" << (useTLS ? "(tls)" : "") << " server started on port " << port;
     started = true;
-    uv_sem_post(&semaphore);
-    uv_run(uv_loop, UV_RUN_DEFAULT);
+    uv_sem_post(&semaphoreStartup);
+
+    LOG_info << "Starting uv loop ...";
+    uv_run(&uv_loop, UV_RUN_DEFAULT);
+
+    LOG_info << "UV loop ended";
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
     {
-        evt_ctx_free(&evtctx);
+        //evt_ctx_free(&evtctx); //This causes invalid free when called second time!! collides with memory allocated elsewhere (e.g: via curl_global_init!)
+        SSL_CTX_free(evtctx.ctx);
     }
 #endif
-    uv_loop_close(uv_loop);
+    uv_loop_close(&uv_loop);
     started = false;
     port = 0;
-
-    LOG_debug << "HTTP server thread exit";
+    LOG_debug << "UV loop thread exit";
 }
 
-void MegaHTTPServer::stop()
+void MegaTCPServer::initializeAndStartListening()
 {
-    if (!started)
+#ifdef ENABLE_EVT_TLS
+    if (useTLS)
     {
+        if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
+        {
+            LOG_err << "Unable to init evt ctx";
+            port = 0;
+            uv_sem_post(&semaphoreStartup);
+            uv_sem_post(&semaphoreEnd);
+            return;
+        }
+        evtrequirescleaning = true;
+        evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
+    }
+#endif
+
+    uv_loop_init(&uv_loop);
+
+    uv_async_init(&uv_loop, &exit_handle, onCloseRequested);
+    exit_handle.data = this;
+
+    uv_tcp_init(&uv_loop, &server);
+    server.data = this;
+
+    uv_tcp_keepalive(&server, 0, 0);
+
+    struct sockaddr_in address;
+    if (localOnly)
+    {
+        uv_ip4_addr("127.0.0.1", port, &address);
+    }
+    else
+    {
+        uv_ip4_addr("0.0.0.0", port, &address);
+    }
+    uv_connection_cb onNewClientCB;
+#ifdef ENABLE_EVT_TLS
+    if (useTLS)
+    {
+         onNewClientCB = onNewClient_tls;
+    }
+    else
+    {
+#endif
+        onNewClientCB = onNewClient;
+#ifdef ENABLE_EVT_TLS
+    }
+#endif
+
+    if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
+        || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
+    {
+        LOG_err << "TCP failed to bind/listen port = " << port;
+        port = 0;
+        uv_async_send(&exit_handle);
+        //This is required in case uv_loop was already running so as to free references to "this".
+        // a uv_sem_post will be required there, so that we can delete the server accordingly
         return;
     }
 
-    uv_async_send(&exit_handle);
-    thread.join();
+    LOG_info << "TCP" << (useTLS ? "(tls)" : "") << " server started on port " << port;
+    started = true;
+    uv_sem_post(&semaphoreStartup);
+    LOG_debug << "UV loop already alive!";
 }
 
-int MegaHTTPServer::getPort()
+void MegaTCPServer::stop(bool doNotWait)
+{
+    if (!started)
+    {
+        LOG_verbose << "Stopping non started MegaTCPServer port=" << port;
+        return;
+    }
+
+    LOG_debug << "Stopping MegaTCPServer port = " << port;
+    uv_async_send(&exit_handle);
+    if (!doNotWait)
+    {
+        LOG_verbose << "Waiting for sempahoreEnd to conclude server stop port = " << port;
+        uv_sem_wait(&semaphoreEnd); //this is signaled when closed my last connection
+    }
+    LOG_debug << "Stopped MegaTCPServer port = " << port;
+    started = false;
+}
+
+int MegaTCPServer::getPort()
 {
     return port;
 }
 
-bool MegaHTTPServer::isLocalOnly()
+bool MegaTCPServer::isLocalOnly()
 {
     return localOnly;
 }
 
-void MegaHTTPServer::setMaxBufferSize(int bufferSize)
+void MegaTCPServer::setMaxBufferSize(int bufferSize)
 {
     this->maxBufferSize = bufferSize <= 0 ? 0 : bufferSize;
 }
 
-void MegaHTTPServer::setMaxOutputSize(int outputSize)
+void MegaTCPServer::setMaxOutputSize(int outputSize)
 {
     this->maxOutputSize = outputSize <= 0 ? 0 : outputSize;
 }
 
-int MegaHTTPServer::getMaxBufferSize()
+int MegaTCPServer::getMaxBufferSize()
 {
     if (maxBufferSize)
     {
@@ -19655,7 +21869,7 @@ int MegaHTTPServer::getMaxBufferSize()
     return StreamingBuffer::MAX_BUFFER_SIZE;
 }
 
-int MegaHTTPServer::getMaxOutputSize()
+int MegaTCPServer::getMaxOutputSize()
 {
     if (maxOutputSize)
     {
@@ -19665,67 +21879,30 @@ int MegaHTTPServer::getMaxOutputSize()
     return StreamingBuffer::MAX_OUTPUT_SIZE;
 }
 
-void MegaHTTPServer::enableFileServer(bool enable)
-{
-    this->fileServerEnabled = enable;
-}
-
-void MegaHTTPServer::enableFolderServer(bool enable)
-{
-    this->folderServerEnabled = enable;
-}
-
-void MegaHTTPServer::enableOfflineAttribute(bool enable)
-{
-    this->offlineAttribute = enable;
-}
-
-void MegaHTTPServer::setRestrictedMode(int mode)
+void MegaTCPServer::setRestrictedMode(int mode)
 {
     this->restrictedMode = mode;
 }
 
-bool MegaHTTPServer::isFileServerEnabled()
-{
-    return fileServerEnabled;
-}
-
-bool MegaHTTPServer::isFolderServerEnabled()
-{
-    return folderServerEnabled;
-}
-
-bool MegaHTTPServer::isOfflineAttributeEnabled()
-{
-    return offlineAttribute;
-}
-
-int MegaHTTPServer::getRestrictedMode()
+int MegaTCPServer::getRestrictedMode()
 {
     return restrictedMode;
 }
 
-bool MegaHTTPServer::isHandleAllowed(handle h)
+bool MegaTCPServer::isHandleAllowed(handle h)
 {
-    return restrictedMode == MegaApi::HTTP_SERVER_ALLOW_ALL
-            || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS && allowedHandles.count(h))
-            || (restrictedMode == MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
+    return restrictedMode == MegaApi::TCP_SERVER_ALLOW_ALL
+            || (restrictedMode == MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS && allowedHandles.count(h))
+            || (restrictedMode == MegaApi::TCP_SERVER_ALLOW_LAST_LOCAL_LINK && h == lastHandle);
 }
 
-bool MegaHTTPServer::isHandleWebDavAllowed(handle h)
-{
-    return allowedWebDavHandles.count(h);
-}
-
-
-void MegaHTTPServer::clearAllowedHandles()
+void MegaTCPServer::clearAllowedHandles()
 {
     allowedHandles.clear();
-    allowedWebDavHandles.clear();
     lastHandle = INVALID_HANDLE;
 }
 
-char *MegaHTTPServer::getLink(MegaNode *node, bool enablewebdav)
+char *MegaTCPServer::getLink(MegaNode *node, string protocol)
 {
     if (!node)
     {
@@ -19734,13 +21911,9 @@ char *MegaHTTPServer::getLink(MegaNode *node, bool enablewebdav)
 
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
-    if (enablewebdav)
-    {
-       allowedWebDavHandles.insert(lastHandle);
-    }
 
     ostringstream oss;
-    oss << "http" << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
+    oss << protocol << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
     char *base64handle = node->getBase64Handle();
     oss << base64handle;
     delete [] base64handle;
@@ -19767,17 +21940,17 @@ char *MegaHTTPServer::getLink(MegaNode *node, bool enablewebdav)
     return MegaApi::strdup(link.c_str());
 }
 
-bool MegaHTTPServer::isSubtitlesSupportEnabled()
+set<handle> MegaTCPServer::getAllowedHandles()
 {
-    return subtitlesSupportEnabled;
+    return allowedHandles;
 }
 
-void MegaHTTPServer::enableSubtitlesSupport(bool enable)
+void MegaTCPServer::removeAllowedHandle(MegaHandle handle)
 {
-    this->subtitlesSupportEnabled = enable;
+    allowedHandles.erase(handle);
 }
 
-void *MegaHTTPServer::threadEntryPoint(void *param)
+void *MegaTCPServer::threadEntryPoint(void *param)
 {
 #ifndef _WIN32
     struct sigaction noaction;
@@ -19786,52 +21959,61 @@ void *MegaHTTPServer::threadEntryPoint(void *param)
     ::sigaction(SIGPIPE, &noaction, 0);
 #endif
 
-    MegaHTTPServer *httpServer = (MegaHTTPServer *)param;
-    httpServer->run();
+    MegaTCPServer *tcpServer = (MegaTCPServer *)param;
+    tcpServer->run();
     return NULL;
 }
 
-set<handle> MegaHTTPServer::getAllowedWebDavHandles()
-{
-    return allowedWebDavHandles;
-}
-
-void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
-{
-    allowedWebDavHandles.erase(handle);
-}
-
 #ifdef ENABLE_EVT_TLS
-void MegaHTTPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
+void MegaTCPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
 {
-    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
-    assert(httpctx != NULL);
+    MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
+    assert(tcpctx != NULL);
 
     uv_buf_t data;
     data.base = bfr;
     data.len = sz;
-    onDataReceived_tls(httpctx, sz, &data);
-}
 
-void MegaHTTPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
-{
-    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
-    assert(httpctx != NULL);
-
-    LOG_debug << "TLS connection closed";
-    httpctx->finished = true;
-    if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
+    if (!tcpctx->invalid)
     {
-        uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
+        tcpctx->server->processReceivedData(tcpctx, sz, &data);
+    }
+    else
+    {
+        LOG_debug << " Not procesing invalid data after failed evt_close";
     }
 }
 
-void MegaHTTPServer::on_hd_complete(evt_tls_t *evt_tls, int status)
+void MegaTCPServer::on_evt_tls_close(evt_tls_t *evt_tls, int status)
 {
-    LOG_debug << "TLS handshake finished. Status: " << status;
+    MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
+    assert(tcpctx != NULL);
+
+    LOG_debug << "TLS connection closed. status = " << status;
+
+    if (status == 1)
+    {
+        closeTCPConnection(tcpctx);
+    }
+    else
+    {
+        LOG_debug << "TLS connection closed failed!!! status = " << status;
+        tcpctx->invalid = true;
+    }
+}
+
+void MegaTCPServer::on_hd_complete( evt_tls_t *evt_tls, int status)
+{
+    MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
+    LOG_debug << "TLS handshake finished in port = " << tcpctx->server->port << ". Status: " << status;
+
     if (status)
     {
-        evt_tls_read(evt_tls, evt_on_rd);
+        evt_tls_read(evt_tls, evt_on_rd); //this only stablish callback
+        if ( tcpctx->server->respondNewConnection(tcpctx) )
+        {
+            // we dont need to explicitally start reading. on_tcp_read will be called
+        }
     }
     else
     {
@@ -19839,60 +22021,67 @@ void MegaHTTPServer::on_hd_complete(evt_tls_t *evt_tls, int status)
     }
 }
 
-void MegaHTTPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
+void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
 {
     if (status < 0)
     {
+        LOG_warn << " onNewClient_tls unexpected status: " << status;
         return;
     }
 
     // Create an object to save context information
-    MegaHTTPContext* httpctx = new MegaHTTPContext();
+    MegaTCPContext* tcpctx = ((MegaTCPServer *)server_handle->data)->initializeContext(server_handle);
 
-    // Initialize the parser
-    http_parser_init(&httpctx->parser, HTTP_REQUEST);
+    LOG_debug << "Connection received at port " << tcpctx->server->port << " ! " << tcpctx->server->connections.size();
 
-    // Set connection data
-    httpctx->server = (MegaHTTPServer *)(server_handle->data);
-    httpctx->megaApi = httpctx->server->megaApi;
-    httpctx->parser.data = httpctx;
-    httpctx->tcphandle.data = httpctx;
-    httpctx->asynchandle.data = httpctx;
-    httpctx->server->connections.push_back(httpctx);
-    LOG_debug << "Connection received! " << httpctx->server->connections.size();
-
-    // Mutexes to protect the data buffer and responses
-    uv_mutex_init(&httpctx->mutex);
-    uv_mutex_init(&httpctx->mutex_responses);
+    // Mutex to protect the data buffer
+    uv_mutex_init(&tcpctx->mutex);
 
     // Async handle to perform writes
-    uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
+    uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
 
     // Accept the connection
-    uv_tcp_init(uv_default_loop(), &httpctx->tcphandle);
-    if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle))
+    uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
+    if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
     {
         LOG_err << "uv_accept failed";
-        onClose((uv_handle_t*)&httpctx->tcphandle);
+        onClose((uv_handle_t*)&tcpctx->tcphandle);
         return;
     }
 
-    httpctx->evt_tls = evt_ctx_get_tls(&httpctx->server->evtctx);
-    assert(httpctx->evt_tls != NULL);
-    httpctx->evt_tls->data = httpctx;
-    if (evt_tls_accept(httpctx->evt_tls, on_hd_complete))
+    tcpctx->evt_tls = evt_ctx_get_tls(&tcpctx->server->evtctx);
+    assert(tcpctx->evt_tls != NULL);
+    tcpctx->evt_tls->data = tcpctx;
+    if (evt_tls_accept(tcpctx->evt_tls, on_hd_complete))
     {
         LOG_err << "evt_tls_accept failed";
-        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
         return;
     }
 
-    // Start reading
-    uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
+    tcpctx->server->connections.push_back(tcpctx);
+
+    tcpctx->server->readData(tcpctx);
 }
 #endif
 
-void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
+void MegaTCPServer::readData(MegaTCPContext* tcpctx)
+{
+#ifdef ENABLE_EVT_TLS
+    if (useTLS)
+    {
+        uv_read_start((uv_stream_t*)(&tcpctx->tcphandle), allocBuffer, on_tcp_read);
+    }
+    else
+    {
+#endif
+        uv_read_start((uv_stream_t*)&tcpctx->tcphandle, allocBuffer, onDataReceived);
+#ifdef ENABLE_EVT_TLS
+    }
+#endif
+}
+
+void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
 {
     if (status < 0)
     {
@@ -19900,53 +22089,363 @@ void MegaHTTPServer::onNewClient(uv_stream_t* server_handle, int status)
     }
 
     // Create an object to save context information
-    MegaHTTPContext* httpctx = new MegaHTTPContext();
+    MegaTCPContext* tcpctx = ((MegaTCPServer *)server_handle->data)->initializeContext(server_handle);
 
-    // Initialize the parser
-    http_parser_init(&httpctx->parser, HTTP_REQUEST);
+    LOG_debug << "Connection received at port " << tcpctx->server->port << "! " << tcpctx->server->connections.size() << " tcpctx = " << tcpctx;
 
-    // Set connection data
-    httpctx->server = (MegaHTTPServer *)(server_handle->data);
-    httpctx->megaApi = httpctx->server->megaApi;
-    httpctx->parser.data = httpctx;
-    httpctx->tcphandle.data = httpctx;
-    httpctx->asynchandle.data = httpctx;
-    httpctx->server->connections.push_back(httpctx);
-    LOG_debug << "Connection received! " << httpctx->server->connections.size();
-
-    // Mutexes to protect the data buffer and responses
-    uv_mutex_init(&httpctx->mutex);
-    uv_mutex_init(&httpctx->mutex_responses);
+    // Mutex to protect the data buffer
+    uv_mutex_init(&tcpctx->mutex);
 
     // Async handle to perform writes
-    uv_async_init(uv_default_loop(), &httpctx->asynchandle, onAsyncEvent);
+    uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
 
     // Accept the connection
-    uv_tcp_init(uv_default_loop(), &httpctx->tcphandle);
-
-    if (uv_accept(server_handle, (uv_stream_t*)&httpctx->tcphandle))
+    uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
+    if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
     {
         LOG_err << "uv_accept failed";
-        onClose((uv_handle_t*)&httpctx->tcphandle);
+        onClose((uv_handle_t*)&tcpctx->tcphandle);
         return;
     }
 
-    // Start reading
-    uv_read_start((uv_stream_t*)&httpctx->tcphandle, allocBuffer, onDataReceived);
+    tcpctx->server->connections.push_back(tcpctx);
+    if (tcpctx->server->respondNewConnection(tcpctx))
+    {
+        // Start reading
+        tcpctx->server->readData(tcpctx);
+    }
 }
 
-void MegaHTTPServer::allocBuffer(uv_handle_t *, size_t suggested_size, uv_buf_t* buf)
+void MegaTCPServer::allocBuffer(uv_handle_t *, size_t suggested_size, uv_buf_t* buf)
 {
     // Reserve a buffer with the suggested size
     *buf = uv_buf_init(new char[suggested_size], suggested_size);
 }
 
-void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf)
+void MegaTCPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_buf_t * buf)
 {
+    MegaTCPContext *tcpctx = (MegaTCPContext*) tcp->data;
+    tcpctx->server->processReceivedData(tcpctx, nread, buf);
+    delete [] buf->base;
+}
+
+#ifdef ENABLE_EVT_TLS
+void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *data)
+{
+    MegaTCPContext *tcpctx = (MegaTCPContext*) tcp->data;
+    assert( tcpctx != NULL);
+
+    LOG_debug << "Received " << nrd << " bytes at port " << tcpctx->server->port;
+    if (!nrd)
+    {
+        return;
+    }
+
+    if (nrd < 0)
+    {
+        if (evt_tls_is_handshake_over(tcpctx->evt_tls))
+        {
+            LOG_verbose << "MegaTCPServer::on_tcp_read calling processReceivedData";
+            tcpctx->server->processReceivedData(tcpctx, nrd, data);
+            evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
+        }
+        else
+        {
+            //if handshake is not over, simply tear down without close_notify
+            closeTCPConnection(tcpctx);
+        }
+        delete[] data->base;
+        return;
+    }
+
+    evt_tls_feed_data(tcpctx->evt_tls, data->base, nrd);
+    delete[] data->base;
+}
+#endif
+
+void MegaTCPServer::onClose(uv_handle_t* handle)
+{
+    MegaTCPContext* tcpctx = (MegaTCPContext*) handle->data;
+
+    // streaming transfers are automatically stopped when their listener is removed
+    tcpctx->megaApi->removeTransferListener(tcpctx);
+    tcpctx->megaApi->removeRequestListener(tcpctx);
+
+    tcpctx->server->connections.remove(tcpctx);
+    LOG_debug << "Connection closed: " << tcpctx->server->connections.size() << " port = " << tcpctx->server->port << " closing async handle";
+    uv_close((uv_handle_t *)&tcpctx->asynchandle, onAsyncEventClose);
+}
+
+void MegaTCPServer::onAsyncEventClose(uv_handle_t *handle)
+{
+    MegaTCPContext* tcpctx = (MegaTCPContext*) handle->data;
+    assert(!tcpctx->writePointers.size());
+
+    int port = tcpctx->server->port;
+
+    tcpctx->server->remainingcloseevents--;
+    tcpctx->server->processOnAsyncEventClose(tcpctx);
+
+    LOG_verbose << "At onAsyncEventClose port = " << tcpctx->server->port << " remaining=" << tcpctx->server->remainingcloseevents;
+
+    if (!tcpctx->server->remainingcloseevents && tcpctx->server->closing && !tcpctx->server->semaphoresdestroyed)
+    {
+        uv_sem_post(&tcpctx->server->semaphoreStartup);
+        uv_sem_post(&tcpctx->server->semaphoreEnd);
+    }
+
+    uv_mutex_destroy(&tcpctx->mutex);
+    delete tcpctx;
+    LOG_debug << "Connection deleted, port = " << port;
+}
+
+#ifdef ENABLE_EVT_TLS
+void MegaTCPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
+{
+    MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
+    assert(tcpctx != NULL);
+
+    if (status < 0)
+    {
+        LOG_warn << " error received at onWriteFinished_tls: " << status;
+    }
+
+    if (tcpctx->finished)
+    {
+        LOG_debug << "At onWriteFinished_tls; TCP link closed, ignoring the result of the write";
+        return;
+    }
+    tcpctx->server->processWriteFinished(tcpctx, status);
+}
+
+void MegaTCPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
+{
+    MegaTCPContext *tcpctx = (MegaTCPContext*)req->data;
+    assert(tcpctx->writePointers.size());
+    delete [] tcpctx->writePointers.front();
+    tcpctx->writePointers.pop_front();
+    delete req;
+
+    if (tcpctx->finished)
+    {
+        if (tcpctx->size == tcpctx->bytesWritten && !tcpctx->writePointers.size())
+        {
+            LOG_debug << "TCP link closed, shutdown result: " << status << " port = " << tcpctx->server->port;
+        }
+        else
+        {
+            LOG_debug << "TCP link closed, ignoring the result of the async TLS write: " << status << " port = " << tcpctx->server->port;
+        }
+        return;
+    }
+
+    if (status < 0)
+    {
+        LOG_warn << "Finishing request. Async TLS write failed: " << status;
+        evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
+        return;
+    }
+
+    if (tcpctx->size == tcpctx->bytesWritten && !tcpctx->writePointers.size())
+    {
+        LOG_debug << "Finishing request. All data delivered";
+        evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
+        return;
+    }
+
+    LOG_verbose << "Async TLS write finished";
+    uv_async_send(&tcpctx->asynchandle);
+}
+#endif
+
+void MegaTCPServer::onWriteFinished(uv_write_t* req, int status)
+{
+    MegaTCPContext* tcpctx = (MegaTCPContext*) req->data;
+    assert(tcpctx != NULL);
+    if (tcpctx->finished)
+    {
+        LOG_debug << "At onWriteFinished; TCP link closed, ignoring the result of the write";
+        delete req;
+        return;
+    }
+
+    tcpctx->server->processWriteFinished(tcpctx, status);
+    delete req;
+}
+
+MegaTCPContext::MegaTCPContext()
+{
+    size = -1;
+    finished = false;
+    bytesWritten = 0;
+#ifdef ENABLE_EVT_TLS
+    evt_tls = NULL;
+    invalid = false;
+#endif
+    server = NULL;
+    megaApi = NULL;
+}
+
+MegaTCPContext::~MegaTCPContext()
+{
+#ifdef ENABLE_EVT_TLS
+    if (evt_tls)
+    {
+        evt_tls_free(evt_tls);
+    }
+#endif
+}
+
+void MegaTCPServer::onAsyncEvent(uv_async_t* handle)
+{
+    MegaTCPContext* tcpctx = (MegaTCPContext*) handle->data;
+
+    assert(tcpctx->server != NULL);
+#ifdef ENABLE_EVT_TLS
+    if (tcpctx->server->useTLS && !evt_tls_is_handshake_over(tcpctx->evt_tls))
+    {
+        LOG_debug << " skipping processAsyncEvent due to handshake not over on port = " << tcpctx->server->port;
+        return;
+    }
+#endif
+    tcpctx->server->processAsyncEvent(tcpctx);
+}
+
+void MegaTCPServer::onExitHandleClose(uv_handle_t *handle)
+{
+    MegaTCPServer *tcpServer = (MegaTCPServer*) handle->data;
+    assert(tcpServer != NULL);
+
+    tcpServer->remainingcloseevents--;
+    LOG_verbose << "At onExitHandleClose port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
+
+    tcpServer->processOnExitHandleClose(tcpServer);
+
+    if (!tcpServer->remainingcloseevents && !tcpServer->semaphoresdestroyed)
+    {
+        uv_sem_post(&tcpServer->semaphoreStartup);
+        uv_sem_post(&tcpServer->semaphoreEnd);
+    }
+}
+
+void MegaTCPServer::onCloseRequested(uv_async_t *handle)
+{
+    MegaTCPServer *tcpServer = (MegaTCPServer*) handle->data;
+    LOG_debug << "TCP server stopping port=" << tcpServer->port;
+
+    tcpServer->closing = true;
+
+    for (list<MegaTCPContext*>::iterator it = tcpServer->connections.begin(); it != tcpServer->connections.end(); it++)
+    {
+        MegaTCPContext *tcpctx = (*it);
+        closeTCPConnection(tcpctx);
+    }
+
+    tcpServer->remainingcloseevents++;
+    LOG_verbose << "At onCloseRequested: closing server port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
+    uv_close((uv_handle_t *)&tcpServer->server, onExitHandleClose);
+    tcpServer->remainingcloseevents++;
+    LOG_verbose << "At onCloseRequested: closing exit_handle port = " << tcpServer->port << " remainingcloseevent = " << tcpServer->remainingcloseevents;
+    uv_close((uv_handle_t *)&tcpServer->exit_handle, onExitHandleClose);
+}
+
+void MegaTCPServer::closeConnection(MegaTCPContext *tcpctx)
+{
+    LOG_verbose << "At closeConnection port = " << tcpctx->server->port;
+#ifdef ENABLE_EVT_TLS
+    if (tcpctx->server->useTLS)
+    {
+        evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
+    }
+    else
+    {
+#endif
+        closeTCPConnection(tcpctx);
+        return;
+#ifdef ENABLE_EVT_TLS
+    }
+#endif
+}
+
+void MegaTCPServer::closeTCPConnection(MegaTCPContext *tcpctx)
+{
+    tcpctx->finished = true;
+    if (!uv_is_closing((uv_handle_t*)&tcpctx->tcphandle))
+    {
+        tcpctx->server->remainingcloseevents++;
+        LOG_verbose << "At closeTCPConnection port = " << tcpctx->server->port << " remainingcloseevent = " << tcpctx->server->remainingcloseevents;
+        uv_close((uv_handle_t*)&tcpctx->tcphandle, onClose);
+    }
+}
+
+void MegaTCPServer::processOnAsyncEventClose(MegaTCPContext *tcpctx) // without this closing breaks!
+{
+    LOG_debug << "At supposed to be virtual processOnAsyncEventClose";
+}
+
+void MegaTCPServer::processOnExitHandleClose(MegaTCPServer *tcpServer) // without this closing breaks!
+{
+    LOG_debug << "At supposed to be virtual processOnExitHandleClose";
+}
+
+void MegaTCPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t *buf)
+{
+    LOG_debug << "At supposed to be virtual processReceivedData";
+}
+
+void MegaTCPServer::processAsyncEvent(MegaTCPContext *tcpctx)
+{
+    LOG_debug << "At supposed to be virtual processAsyncEvent";
+}
+
+///////////////////////////////
+//  MegaHTTPServer specifics //
+///////////////////////////////
+
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
+    : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath)
+{
+    // parser callbacks
+    parsercfg.on_url = onUrlReceived;
+    parsercfg.on_message_begin = onMessageBegin;
+    parsercfg.on_headers_complete = onHeadersComplete;
+    parsercfg.on_message_complete = onMessageComplete;
+    parsercfg.on_header_field = onHeaderField;
+    parsercfg.on_header_value = onHeaderValue;
+    parsercfg.on_body = onBody;
+
+    this->fileServerEnabled = true;
+    this->folderServerEnabled = true;
+    this->offlineAttribute = false;
+    this->subtitlesSupportEnabled = false;
+}
+
+MegaTCPContext * MegaHTTPServer::initializeContext(uv_stream_t *server_handle)
+{
+    MegaHTTPContext* httpctx = new MegaHTTPContext();
+
+    // Initialize the parser
+    http_parser_init(&httpctx->parser, HTTP_REQUEST);
+
+    // Set connection data
+    MegaHTTPServer *server = (MegaHTTPServer *)(server_handle->data);
+
+    httpctx->server = server;
+    httpctx->megaApi = server->megaApi;
+    httpctx->parser.data = httpctx;
+    httpctx->tcphandle.data = httpctx;
+    httpctx->asynchandle.data = httpctx;
+
+    return httpctx;
+}
+
+void MegaHTTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf)
+{
+    MegaHTTPContext* httpctx = dynamic_cast<MegaHTTPContext *>(tcpctx);
+
     LOG_debug << "Received " << nread << " bytes";
 
     ssize_t parsed = -1;
-    MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
     if (nread >= 0)
     {
         if (nread == 0 && httpctx->parser.method == HTTP_PUT) //otherwise it will fail for files >65k in GVFS-DAV
@@ -19964,86 +22463,72 @@ void MegaHTTPServer::onDataReceived(uv_stream_t* tcp, ssize_t nread, const uv_bu
 
     if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
     {
-        httpctx->finished = true;
         LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-        {
-            uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-        }
+        closeConnection(httpctx);
     }
-    delete [] buf->base;
 }
 
-#ifdef ENABLE_EVT_TLS
-void MegaHTTPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *data)
+void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
 {
-    MegaHTTPContext *httpctx = (MegaHTTPContext*) tcp->data;
-    assert(httpctx != NULL);
-
-    LOG_debug << "Received " << nrd << " bytes";
-    if (!nrd)
+    MegaHTTPContext* httpctx = dynamic_cast<MegaHTTPContext *>(tcpctx);
+    if (httpctx->finished)
     {
+        LOG_debug << "HTTP link closed, ignoring the result of the write";
         return;
     }
 
-    if (nrd < 0)
+    httpctx->bytesWritten += httpctx->lastBufferLen;
+    LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
+    httpctx->lastBuffer = NULL;
+
+    if (status < 0 || httpctx->size == httpctx->bytesWritten)
     {
-        if (evt_tls_is_handshake_over(httpctx->evt_tls))
+        if (status < 0)
         {
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+            LOG_warn << "Finishing request. Write failed: " << status;
         }
         else
         {
-            //if handshake is not over, simply tear down without close_notify
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)tcp))
+            LOG_debug << "Finishing request. All data sent";
+            if (httpctx->resultCode == API_EINTERNAL)
             {
-                uv_close((uv_handle_t*)tcp, onClose);
+                httpctx->resultCode = API_OK;
             }
         }
-        delete[] data->base;
+
+        closeConnection(httpctx);
         return;
     }
 
-    evt_tls_feed_data(httpctx->evt_tls, data->base, nrd);
-    delete[] data->base;
-}
-
-void MegaHTTPServer::onDataReceived_tls(MegaHTTPContext *httpctx, ssize_t nread, const uv_buf_t* buf)
-{
-    LOG_debug << "Decrypted " << nread << " bytes";
-
-    ssize_t parsed = -1;
-    if (nread >= 0)
+    uv_mutex_lock(&httpctx->mutex);
+    if (httpctx->lastBufferLen)
     {
-        parsed = http_parser_execute(&httpctx->parser, &parsercfg, buf->base, nread);
+        httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
+        httpctx->lastBufferLen = 0;
     }
 
-    if (parsed < 0 || nread < 0 || parsed < nread || httpctx->parser.upgrade)
+    if (httpctx->pause)
     {
-        LOG_debug << "Finishing request. Connection reset by peer or unsupported data";
-        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
+        {
+            httpctx->pause = false;
+            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
+            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
+
+            LOG_debug << "Resuming streaming from " << start << " len: " << len
+                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
+                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
+            httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
+        }
     }
-}
-#endif
-void MegaHTTPServer::onClose(uv_handle_t* handle)
-{
-    MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+    uv_mutex_unlock(&httpctx->mutex);
 
-    // streaming transfers are automatically stopped when their listener is removed
-    httpctx->megaApi->removeTransferListener(httpctx);
-    httpctx->megaApi->removeRequestListener(httpctx);
-
-    httpctx->server->connections.remove(httpctx);
-    LOG_debug << "Connection closed: " << httpctx->server->connections.size();
-
-    uv_close((uv_handle_t *)&httpctx->asynchandle, onAsyncEventClose);
+    uv_async_send(&httpctx->asynchandle);
 }
 
-void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
+void MegaHTTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
 {
-    MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
-    assert(!httpctx->writePointers.size());
+    MegaHTTPContext* httpctx = dynamic_cast<MegaHTTPContext *>(tcpctx);
 
     if (httpctx->resultCode == API_EINTERNAL)
     {
@@ -20054,13 +22539,94 @@ void MegaHTTPServer::onAsyncEventClose(uv_handle_t *handle)
     {
         httpctx->megaApi->cancelTransfer(httpctx->transfer);
         httpctx->megaApi->fireOnStreamingFinish(httpctx->transfer, MegaError(httpctx->resultCode));
+        httpctx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
     }
 
     delete httpctx->node;
-    uv_mutex_destroy(&httpctx->mutex);
-    uv_mutex_destroy(&httpctx->mutex_responses);
-    delete httpctx;
-    LOG_debug << "Connection deleted";
+    httpctx->node = NULL;
+}
+
+bool MegaHTTPServer::respondNewConnection(MegaTCPContext* tcpctx)
+{
+    return true;
+}
+
+void MegaHTTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
+{
+}
+
+MegaHTTPServer::~MegaHTTPServer()
+{
+    // if not stopped, the uv thread might want to access a pointer to this.
+    // though this is done in the parent destructor, it could try to access it after vtable has been erased
+    stop();
+}
+
+bool MegaHTTPServer::isHandleWebDavAllowed(handle h)
+{
+    return allowedWebDavHandles.count(h);
+}
+
+void MegaHTTPServer::clearAllowedHandles()
+{
+    allowedWebDavHandles.clear();
+    MegaTCPServer::clearAllowedHandles();
+}
+
+set<handle> MegaHTTPServer::getAllowedWebDavHandles()
+{
+    return allowedWebDavHandles;
+}
+
+void MegaHTTPServer::removeAllowedWebDavHandle(MegaHandle handle)
+{
+    allowedWebDavHandles.erase(handle);
+}
+
+void MegaHTTPServer::enableFileServer(bool enable)
+{
+    this->fileServerEnabled = enable;
+}
+
+void MegaHTTPServer::enableFolderServer(bool enable)
+{
+    this->folderServerEnabled = enable;
+}
+
+void MegaHTTPServer::enableOfflineAttribute(bool enable)
+{
+    this->offlineAttribute = enable;
+}
+
+bool MegaHTTPServer::isFileServerEnabled()
+{
+    return fileServerEnabled;
+}
+
+bool MegaHTTPServer::isFolderServerEnabled()
+{
+    return folderServerEnabled;
+}
+
+bool MegaHTTPServer::isOfflineAttributeEnabled()
+{
+    return offlineAttribute;
+}
+
+bool MegaHTTPServer::isSubtitlesSupportEnabled()
+{
+    return subtitlesSupportEnabled;
+}
+
+void MegaHTTPServer::enableSubtitlesSupport(bool enable)
+{
+    this->subtitlesSupportEnabled = enable;
+}
+
+char *MegaHTTPServer::getWebDavLink(MegaNode *node)
+{
+    allowedWebDavHandles.insert(node->getHandle());
+    return getLink(node);
 }
 
 int MegaHTTPServer::onMessageBegin(http_parser *)
@@ -20323,8 +22889,9 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
     {
         subbaseURL.append("/");
     }
+    MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(httpctx->server);
 
-    web << getWebDavProfFindNodeContents(node, subbaseURL, httpctx->server->isOfflineAttributeEnabled());
+    web << getWebDavProfFindNodeContents(node, subbaseURL, httpserver->isOfflineAttributeEnabled());
     if (node->isFolder() && (httpctx->depth != 0))
     {
         MegaNodeList *children = httpctx->megaApi->getChildren(node);
@@ -20332,7 +22899,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
         {
             MegaNode *child = children->get(i);
             string childURL = subbaseURL + child->getName();
-            web << getWebDavProfFindNodeContents(child, childURL, httpctx->server->isOfflineAttributeEnabled());
+            web << getWebDavProfFindNodeContents(child, childURL, httpserver->isOfflineAttributeEnabled());
         }
         delete children;
     }
@@ -20346,11 +22913,7 @@ string MegaHTTPServer::getWebDavPropFindResponseForNode(string baseURL, string s
                                                      "content-type: application/xml; charset=utf-8\r\n"
                                                      "server: MEGAsdk\r\n"
                                                      "\r\n";
-
-    if (httpctx->parser.method != HTTP_HEAD)
-    {
-        response << sweb;
-    }
+    response << sweb;
     httpctx->resultCode = API_OK;
     return response.str();
 }
@@ -20449,8 +23012,16 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
     {
         web << "<tr><td>";
         char *base64Handle = parent->getBase64Handle();
-        web << "<a href=\"/" << base64Handle << "/" << parent->getName()
-            << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
+        if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::TCP_SERVER_ALLOW_ALL)
+        {
+            web << "<a href=\"/" << base64Handle << "/" << parent->getName();
+        }
+        else
+        {
+            web << "<a href=\"" << "../" << parent->getName();
+        }
+
+        web << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
         delete [] base64Handle;
         delete parent;
         web << "</td></tr>";
@@ -20461,8 +23032,15 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
         web << "<tr><td>";
         MegaNode *child = children->get(i);
         char *base64Handle = child->getBase64Handle();
-        web << "<a href=\"/" << base64Handle << "/" << child->getName()
-            << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
+        if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::TCP_SERVER_ALLOW_ALL)
+        {
+            web << "<a href=\"/" << base64Handle << "/" << child->getName();
+        }
+        else
+        {
+            web << "<a href=\"" << node->getName() << "/" << child->getName();
+        }
+        web << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
             << child->getName() << "</span></a>";
         delete [] base64Handle;
 
@@ -20698,6 +23276,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     httpctx->streamingBuffer.setMaxBufferSize(httpctx->server->getMaxBufferSize());
     httpctx->streamingBuffer.setMaxOutputSize(httpctx->server->getMaxOutputSize());
 
+    MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(httpctx->server);
+
     switch (parser->method)
     {
     case HTTP_GET:
@@ -20783,10 +23363,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
     if (parser->method == HTTP_OPTIONS)
     {
-        LOG_debug << "Returning HTTP_OPTIONS for a " << (httpctx->server->isHandleWebDavAllowed(h) ? "" : "non ") << "WEBDAV URI";
+        LOG_debug << "Returning HTTP_OPTIONS for a " << (httpserver->isHandleWebDavAllowed(h) ? "" : "non ") << "WEBDAV URI";
         response << "HTTP/1.1 200 OK\r\n";
 
-        if (httpctx->server->isHandleWebDavAllowed(h))
+        if (httpserver->isHandleWebDavAllowed(h))
         {
             response << "Allow: GET, POST, HEAD, OPTIONS, PROPFIND, MOVE, PUT, DELETE, MKCOL, COPY, LOCK, UNLOCK, PROPPATCH\r\n"
                         "dav: 1, 2 \r\n"; // 2 requires LOCK to be fully functional
@@ -20810,7 +23390,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     //if webdav method, check is handle is a valid webdav
     if ((parser->method != HTTP_GET) && (parser->method != HTTP_POST)
             && (parser->method != HTTP_PUT) && (parser->method != HTTP_HEAD)
-            && !httpctx->server->isHandleWebDavAllowed(h))
+            && !httpserver->isHandleWebDavAllowed(h))
     {
         LOG_debug << "Forbidden due to not webdav allowed";
         returnHttpCode(httpctx, 405);
@@ -20849,7 +23429,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             link.append(httpctx->nodekey);
             LOG_debug << "Getting public link: " << link;
             httpctx->megaApi->getPublicNode(link.c_str(), httpctx);
-            httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+            httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
             httpctx->transfer->setPath(httpctx->path.c_str());
             httpctx->transfer->setFileName(httpctx->nodename.c_str());
             httpctx->transfer->setNodeHandle(MegaApi::base64ToHandle(httpctx->nodehandle.c_str()));
@@ -20877,7 +23457,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             //Subtitles support
             bool subtitles = false;
 
-            if (httpctx->server->isSubtitlesSupportEnabled())
+            if (httpserver->isSubtitlesSupportEnabled())
             {
                 string originalname = node->getName();
                 string::size_type dotpos = originalname.find_last_of('.');
@@ -21015,7 +23595,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     {
         std::ostringstream web;
 
-        // let's create a minimum lock compliant response //TODO: do actually provide locking functionality based on URL
+        // let's create a minimum lock compliant response. we should actually provide locking functionality based on URL
         web << "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\r\n"
           "<D:prop xmlns:D=\"DAV:\">\r\n"
             "<D:lockdiscovery>\r\n"
@@ -21024,7 +23604,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 "<D:lockscope><D:exclusive/></D:lockscope>\r\n"
 //                "<D:depth>infinity</D:depth>\r\n" // read from req?
                 "<D:owner>\r\n"
-//                  "<D:href>" << owner << "</D:href>\r\n" //TODO: should be read from req body
+//                  "<D:href>" << owner << "</D:href>\r\n" // should be read from req body
                 "</D:owner>\r\n"
 //                "<D:timeout>Second-604800</D:timeout>\r\n"
                 "<D:locktoken>\r\n"
@@ -21032,7 +23612,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                "<D:href>urn:uuid:this-is-a-fake-lock</D:href>\r\n" //An unique identifier is required
                 "</D:locktoken>\r\n"
                 "<D:lockroot>\r\n"
-//                  "<D:href>" << urlelement << "</D:href>\r\n"  //TODO: should be read from req body
+//                  "<D:href>" << urlelement << "</D:href>\r\n"  // should be read from req body
                 "</D:lockroot>\r\n"
               "</D:activelock>\r\n"
             "</D:lockdiscovery>\r\n"
@@ -21431,7 +24011,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     }
     else //GET/POST/HEAD
     {
-        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD);
+        httpctx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
         httpctx->transfer->setPath(httpctx->path.c_str());
         if (httpctx->nodename.size())
         {
@@ -21445,7 +24025,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
 
         if (node->isFolder())
         {
-            if (!httpctx->server->isFolderServerEnabled())
+            if (!httpserver->isFolderServerEnabled())
             {
                 response << "HTTP/1.1 403 Forbidden\r\n"
                             "Connection: close\r\n"
@@ -21459,8 +24039,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 return 0;
             }
 
-            string resstr;
-            resstr = getResponseForNode(node, httpctx);
+            string resstr = getResponseForNode(node, httpctx);
+
             sendHeaders(httpctx, &resstr);
             delete node;
             delete baseNode;
@@ -21468,7 +24048,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
 
         //File node
-        if (!httpctx->server->isFileServerEnabled())
+        if (!httpserver->isFileServerEnabled())
         {
             response << "HTTP/1.1 403 Forbidden\r\n"
                         "Connection: close\r\n"
@@ -21481,7 +24061,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             delete baseNode;
             return 0;
         }
-
+        delete httpctx->node;
         httpctx->node = node;
         streamNode(httpctx);
     }
@@ -21588,7 +24168,16 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
 
     LOG_debug << "Requesting range. From " << start << "  size " << len;
     httpctx->rangeWritten = 0;
-    httpctx->megaApi->startStreaming(node, start, len, httpctx);
+    if (start || len)
+    {
+        httpctx->megaApi->startStreaming(node, start, len, httpctx);
+    }
+    else
+    {
+        MegaHTTPServer *httpserver = ((MegaHTTPServer *)httpctx->server);
+        LOG_debug << "Skipping startStreaming call since empty file";
+        httpserver->processWriteFinished(httpctx, 0);
+    }
     return 0;
 }
 
@@ -21610,11 +24199,12 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
 #ifdef ENABLE_EVT_TLS
     if (httpctx->server->useTLS)
     {
+        assert (resbuf.len);
         int err = evt_tls_write(httpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
         if (err <= 0)
         {
             LOG_warn << "Finishing due to an error sending the response: " << err;
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
+            closeConnection(httpctx);
         }
     }
     else
@@ -21626,20 +24216,17 @@ void MegaHTTPServer::sendHeaders(MegaHTTPContext *httpctx, string *headers)
         {
             delete req;
             LOG_warn << "Finishing due to an error sending the response: " << err;
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
+            closeTCPConnection(httpctx);
         }
 #ifdef ENABLE_EVT_TLS
     }
 #endif
 }
 
-void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
+void MegaHTTPServer::processAsyncEvent(MegaTCPContext* tcpctx)
 {
-    MegaHTTPContext* httpctx = (MegaHTTPContext*) handle->data;
+    MegaHTTPContext* httpctx = dynamic_cast<MegaHTTPContext *>(tcpctx);
+
     if (httpctx->finished)
     {
         LOG_debug << "HTTP link closed, ignoring async event";
@@ -21649,22 +24236,7 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
     if (httpctx->failed)
     {
         LOG_warn << "Streaming transfer failed. Closing connection.";
-#ifdef ENABLE_EVT_TLS
-        if (httpctx->server->useTLS)
-        {
-            evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-        }
-        else
-        {
-#endif
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
-#ifdef ENABLE_EVT_TLS
-        }
-#endif
+        closeConnection(httpctx);
         return;
     }
 
@@ -21701,25 +24273,6 @@ void MegaHTTPServer::onAsyncEvent(uv_async_t* handle)
     }
 
     sendNextBytes(httpctx);
-}
-
-void MegaHTTPServer::onCloseRequested(uv_async_t *handle)
-{
-    LOG_debug << "HTTP server stopping";
-    MegaHTTPServer *httpServer = (MegaHTTPServer*) handle->data;
-
-    for (list<MegaHTTPContext*>::iterator it = httpServer->connections.begin(); it != httpServer->connections.end(); it++)
-    {
-        MegaHTTPContext *httpctx = (*it);
-        httpctx->finished = true;
-        if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-        {
-            uv_close((uv_handle_t *)&httpctx->tcphandle, onClose);
-        }
-    }
-
-    uv_close((uv_handle_t *)&httpServer->server, NULL);
-    uv_close((uv_handle_t *)&httpServer->exit_handle, NULL);
 }
 
 void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
@@ -21796,205 +24349,19 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
 #endif
 }
 
-#ifdef ENABLE_EVT_TLS
-void MegaHTTPServer::onWriteFinished_tls(evt_tls_t *evt_tls, int status)
-{
-    MegaHTTPContext *httpctx = (MegaHTTPContext*)evt_tls->data;
-    assert(httpctx != NULL);
-    if (httpctx->finished)
-    {
-        LOG_debug << "HTTP link closed, ignoring the result of the TLS write";
-        return;
-    }
-
-    httpctx->bytesWritten += httpctx->lastBufferLen;
-    LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
-
-    if (status < 0 || httpctx->size == httpctx->bytesWritten)
-    {
-        if (status < 0)
-        {
-            LOG_warn << "Finishing request. Write failed: " << status;
-            evt_tls_close(evt_tls, on_evt_tls_close);
-        }
-        else
-        {
-            LOG_debug << "Finishing request. All data sent";
-            if (httpctx->resultCode == API_EINTERNAL)
-            {
-                httpctx->resultCode = API_OK;
-            }
-        }
-
-        return;
-    }
-
-    httpctx->lastBuffer = NULL;
-    uv_mutex_lock(&httpctx->mutex);
-    if (httpctx->lastBufferLen)
-    {
-        httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
-        httpctx->lastBufferLen = 0;
-    }
-
-    if (httpctx->pause)
-    {
-        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
-        {
-            httpctx->pause = false;
-            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
-            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
-
-            LOG_debug << "Resuming streaming from " << start << " len: " << len
-                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
-                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
-            httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
-        }
-    }
-    uv_mutex_unlock(&httpctx->mutex);
-
-    uv_async_send(&httpctx->asynchandle);
-}
-
-void MegaHTTPServer::onWriteFinished_tls_async(uv_write_t* req, int status)
-{
-    MegaHTTPContext *httpctx = (MegaHTTPContext*)req->data;
-    assert(httpctx->writePointers.size());
-    delete [] httpctx->writePointers.front();
-    httpctx->writePointers.pop_front();
-    delete req;
-
-    if (httpctx->finished)
-    {
-        if (httpctx->size == httpctx->bytesWritten && !httpctx->writePointers.size())
-        {
-            LOG_debug << "HTTP link closed, shutdown result: " << status;
-        }
-        else
-        {
-            LOG_debug << "HTTP link closed, ignoring the result of the async TLS write: " << status;
-        }
-        return;
-    }
-
-    if (status < 0)
-    {
-        LOG_warn << "Finishing request. Async TLS write failed: " << status;
-        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-        return;
-    }
-
-    if (httpctx->size == httpctx->bytesWritten && !httpctx->writePointers.size())
-    {
-        LOG_debug << "Finishing request. All data delivered";
-        evt_tls_close(httpctx->evt_tls, on_evt_tls_close);
-        return;
-    }
-
-    LOG_debug << "Async TLS write finished";
-    uv_async_send(&httpctx->asynchandle);
-}
-#endif
-void MegaHTTPServer::onWriteFinished(uv_write_t* req, int status)
-{
-    MegaHTTPContext* httpctx = (MegaHTTPContext*) req->data;
-    assert(httpctx != NULL);
-    if (httpctx->finished)
-    {
-        LOG_debug << "HTTP link closed, ignoring the result of the write";
-        return;
-    }
-
-    httpctx->bytesWritten += httpctx->lastBufferLen;
-    LOG_verbose << "Bytes written: " << httpctx->lastBufferLen << " Remaining: " << (httpctx->size - httpctx->bytesWritten);
-    delete req;
-
-    if (status < 0 || httpctx->size == httpctx->bytesWritten)
-    {
-        if (status < 0)
-        {
-            LOG_warn << "Finishing request. Write failed: " << status;
-        }
-        else
-        {
-            LOG_debug << "Finishing request. All data sent";
-            if (httpctx->resultCode == API_EINTERNAL)
-            {
-                httpctx->resultCode = API_OK;
-            }
-        }
-
-        if (false && http_should_keep_alive(&httpctx->parser)) //If we ever want to support Keep-Alive server, this is the place to start
-        {
-            // Keeop on reading
-            if (httpctx->lastBufferLen)
-            {
-                httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
-                httpctx->lastBufferLen = 0;
-            }
-            // there should be more stuff to clean. maybe we should restart the whole httpctx
-            uv_read_start((uv_stream_t*)&httpctx->tcphandle, allocBuffer, onDataReceived);
-            // tls version of this!?
-            //uv_read_start((uv_stream_t*)(&httpctx->tcphandle), allocBuffer, on_tcp_read);
-        }
-        else
-        {
-            httpctx->finished = true;
-            if (!uv_is_closing((uv_handle_t*)&httpctx->tcphandle))
-            {
-                uv_close((uv_handle_t*)&httpctx->tcphandle, onClose);
-            }
-        }
-        return;
-    }
-
-    httpctx->lastBuffer = NULL;
-    uv_mutex_lock(&httpctx->mutex);
-    if (httpctx->lastBufferLen)
-    {
-        httpctx->streamingBuffer.freeData(httpctx->lastBufferLen);
-        httpctx->lastBufferLen = 0;
-    }
-
-    if (httpctx->pause)
-    {
-        if (httpctx->streamingBuffer.availableSpace() > httpctx->streamingBuffer.availableCapacity() / 2)
-        {
-            httpctx->pause = false;
-            m_off_t start = httpctx->rangeStart + httpctx->rangeWritten + httpctx->streamingBuffer.availableData();
-            m_off_t len =  httpctx->rangeEnd - httpctx->rangeStart - httpctx->rangeWritten - httpctx->streamingBuffer.availableData();
-
-            LOG_debug << "Resuming streaming from " << start << " len: " << len
-                     << " Buffer status: " << httpctx->streamingBuffer.availableSpace()
-                     << " of " << httpctx->streamingBuffer.availableCapacity() << " bytes free";
-            httpctx->megaApi->startStreaming(httpctx->node, start, len, httpctx);
-        }
-    }
-    uv_mutex_unlock(&httpctx->mutex);
-
-    sendNextBytes(httpctx);
-}
-
-
 MegaHTTPContext::MegaHTTPContext()
 {
     rangeStart = -1;
     rangeEnd = -1;
     rangeWritten = -1;
-    size = -1;
     range = false;
-    finished = false;
     failed = false;
     pause = false;
     nodereceived = false;
     resultCode = API_EINTERNAL;
-    bytesWritten = 0;
     node = NULL;
     transfer = NULL;
     nodesize = -1;
-#ifdef ENABLE_EVT_TLS
-    evt_tls = NULL;
-#endif
     messageBody = NULL;
     messageBodySize = 0;
     tmpFileAccess = NULL;
@@ -22002,21 +24369,17 @@ MegaHTTPContext::MegaHTTPContext()
     nodeToMove = UNDEF;
     depth = -1;
     overwrite = true; //GVFS-DAV via command line does not include this header (assumed true)
-
-    server = NULL;
-    megaApi = NULL;
     lastBuffer = NULL;
     lastBufferLen = 0;
+
+    // Mutex to protect the data buffer
+    uv_mutex_init(&mutex_responses);
 }
 
 MegaHTTPContext::~MegaHTTPContext()
 {
-#ifdef ENABLE_EVT_TLS
-    if (evt_tls)
-    {
-        evt_tls_free(evt_tls);
-    }
-#endif
+    delete transfer;
+    delete node;
     if (tmpFileAccess)
     {
         delete tmpFileAccess;
@@ -22026,6 +24389,7 @@ MegaHTTPContext::~MegaHTTPContext()
         server->fsAccess->unlinklocal(&localPath);
     }
     delete [] messageBody;
+    uv_mutex_destroy(&mutex_responses);
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
@@ -22076,17 +24440,19 @@ void MegaHTTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
         return;
     }
 
+    MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(server);
+
     int ecode = e->getErrorCode();
 
     if (parser.method == HTTP_PUT)
     {
         if (ecode == API_OK)
         {
-            server->returnHttpCodeAsync(this, 201); //TODO actually if resource already existed this should be 200
+            httpserver->returnHttpCodeAsync(this, 201); //TODO actually if resource already existed this should be 200
         }
         else
         {
-            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+            httpserver->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
 
@@ -22105,6 +24471,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         LOG_debug << "HTTP link closed, ignoring the result of the request";
         return;
     }
+    MegaHTTPServer* httpserver = dynamic_cast<MegaHTTPServer *>(server);
 
     if (request->getType() == MegaRequest::TYPE_MOVE)
     {
@@ -22115,7 +24482,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
                 MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
                 if (!nodetoRename || !strcmp(nodetoRename->getName(), newname.c_str()))
                 {
-                    server->returnHttpCodeAsync(this, 204);
+                    httpserver->returnHttpCodeAsync(this, 204);
                 }
                 else
                 {
@@ -22125,23 +24492,23 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
             }
             else
             {
-                server->returnHttpCodeAsync(this, 204);
+                httpserver->returnHttpCodeAsync(this, 204);
             }
         }
         else
         {
-            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+            httpserver->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_RENAME)
     {
         if (e->getErrorCode() == MegaError::API_OK )
         {
-            server->returnHttpCodeAsync(this, 204);
+            httpserver->returnHttpCodeAsync(this, 204);
         }
         else
         {
-            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+            httpserver->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_REMOVE)
@@ -22156,7 +24523,7 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
             }
             else
             {
-                server->returnHttpCodeAsync(this, 204); // Standard success response
+                httpserver->returnHttpCodeAsync(this, 204); // Standard success response
             }
 
             nodeToMove = UNDEF;
@@ -22166,29 +24533,29 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
         }
         else
         {
-            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+            httpserver->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER)
     {
         if (e->getErrorCode() == MegaError::API_OK)
         {
-            server->returnHttpCodeAsync(this, 201);
+            httpserver->returnHttpCodeAsync(this, 201);
         }
         else
         {
-            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+            httpserver->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_COPY)
     {
         if (e->getErrorCode() == MegaError::API_OK)
         {
-            server->returnHttpCodeAsync(this, 201);
+            httpserver->returnHttpCodeAsync(this, 201);
         }
         else
         {
-            server->returnHttpCodeAsyncBasedOnRequestError(this, e);
+            httpserver->returnHttpCodeAsyncBasedOnRequestError(this, e);
         }
     }
     else if (request->getType() == MegaRequest::TYPE_GET_PUBLIC_NODE)
@@ -22198,6 +24565,2413 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
     }
     uv_async_send(&asynchandle);
 }
+
+
+//////////////////////////////
+//  MegaFTPServer specifics //
+//////////////////////////////
+
+/**
+ * Gets permissions string: e.g: 777 -> rwxrwxrwx
+ * @param perm numeric permissions
+ * @param str_perm out permission string buffer
+ */
+void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
+{
+    string ps = "";
+    for(int i = 0; i<3; i++) // user, group, others
+    {
+        int curperm = permissions%10;
+        permissions = permissions / 10;
+
+        bool read = (curperm >> 2) & 0x1;
+        bool write = (curperm >> 1) & 0x1;
+        bool exec = (curperm >> 0) & 0x1;
+
+        char rwx[3];
+        sprintf(rwx,"%c%c%c",read?'r':'-' ,write?'w':'-', exec?'x':'-');
+        ps = rwx + ps;
+    }
+    strcat(permsString, ps.c_str());
+}
+
+//ftp_parser_settings MegaTCPServer::parsercfg;
+MegaFTPServer::MegaFTPServer(MegaApiImpl *megaApi, string basePath, int dataportBegin, int dataPortEnd, bool useTLS, string certificatepath, string keypath)
+: MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath)
+{
+    nodeHandleToRename = UNDEF;
+    this->pport = dataportBegin;
+    this->dataportBegin = dataportBegin;
+    this->dataPortEnd = dataPortEnd;
+
+    crlfout = "\r\n";
+}
+
+MegaFTPServer::~MegaFTPServer()
+{
+    // if not stopped, the uv thread might want to access a pointer to this.
+    // though this is done in the parent destructor, it could try to access it after vtable has been erased
+    stop();
+}
+
+MegaTCPContext* MegaFTPServer::initializeContext(uv_stream_t *server_handle)
+{
+    MegaFTPContext* ftpctx = new MegaFTPContext();
+
+    // Set connection data
+    MegaFTPServer *server = (MegaFTPServer *)(server_handle->data);
+    ftpctx->server = server;
+    ftpctx->megaApi = server->megaApi;
+    ftpctx->tcphandle.data = ftpctx;
+    ftpctx->asynchandle.data = ftpctx;
+
+    return ftpctx;
+}
+
+void MegaFTPServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
+{
+    LOG_verbose << "MegaFTPServer::processWriteFinished. status=" << status;
+}
+
+string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
+{
+    char perms[10];
+    memset(perms,0,10);
+    //str_perm((statbuf.st_mode & ALLPERMS), perms);
+    getPermissionsString(child->isFolder() ? 777 : 664, perms);
+
+    char timebuff[80];
+    time_t rawtime = (child->isFolder()?child->getCreationTime():child->getModificationTime());
+    struct tm time;
+    m_localtime(rawtime, &time);
+    strftime(timebuff,80,"%b %d %H:%M",&time);
+
+    char toprint[3000];
+    sprintf(toprint,
+            "%c%s %5d %4d %4d %8"
+            PRId64
+            " %s %s",
+            (child->isFolder())?'d':'-',
+            perms,
+            1,//number of contents for folders
+            1000, //uid
+            1000, //gid
+             (child->isFolder())?4:child->getSize(),
+            timebuff,
+            nameToShow.size()?nameToShow.c_str():child->getName());
+
+    return toprint;
+}
+
+
+string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
+{
+    switch (errorcode)
+    {
+    case 110:
+        return "Restart marker reply.";
+    case 120:
+        return "Service ready in " + argument + " minutes.";
+    case 125:
+        return "Data connection already open; transfer starting.";
+    case 150:
+        return "File status okay; about to open data connection.";
+    case 200:
+        return "Command okay.";
+    case 202:
+        return "Command not implemented, superfluous at this site.";
+    case 211:
+        return "System status, or system help reply.";
+    case 212:
+        return "Directory status.";
+    case 213:
+        return "File status.";
+    case 214:
+        return "Help message.";
+    case 215:
+        return "NAME system type.";
+    case 220:
+        return "Service ready for new user.";
+    case 221:
+        return "Service closing control connection.";
+    case 225:
+        return "Data connection open; no transfer in progress.";
+    case 226:
+        return "Closing data connection. Requested file action successful.";
+    case 227:
+        return "Entering Passive Mode (h1,h2,h3,h4,p1,p2).";
+    case 230:
+        return "User logged in, proceed.";
+    case 250:
+        return "Requested file action okay, completed.";
+    case 257:
+        return argument + " created.";
+    case 331:
+        return "User name okay, need password.";
+    case 332:
+        return "Need account for login.";
+    case 350:
+        return "Requested file action pending further information.";
+    case 421:
+        return "Service not available, closing control connection.";
+    case 425:
+        return "Can't open data connection.";
+    case 426:
+        return "Connection closed; transfer aborted.";
+    case 450:
+        return "Requested file action not taken. File unavailable (e.g., file busy).";
+    case 451:
+        return "Requested action aborted: local error in processing.";
+    case 452:
+        return "Requested action not taken. Insufficient storage space in system.";
+    case 500:
+        return "Syntax error, command unrecognized.";
+    case 501:
+        return "Syntax error in parameters or arguments.";
+    case 502:
+        return "Command not implemented.";
+    case 503:
+        return "Bad sequence of commands.";
+    case 504:
+        return "Command not implemented for that parameter.";
+    case 530:
+        return "Not logged in.";
+    case 532:
+        return "Need account for storing files.";
+    case 550:
+        return "Requested action not taken. File unavailable (e.g., file not found, no access).";
+    case 551:
+        return "Requested action aborted: page type unknown.";
+    case 552:
+        return "Requested file action aborted. Exceeded storage allocation."; // (for current directory or dataset).
+    case 553:
+        return "Requested action not taken. File name not allowed.";
+    default:
+        return "Unknown Error";
+    }
+}
+
+void MegaFTPServer::returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e)
+{
+    int reqError = e->getErrorCode();
+    int ftpreturncode = 500;
+
+    switch(reqError)
+    {
+    case API_OK:
+        ftpreturncode = 300;
+        break;
+    case API_EACCESS:
+        ftpreturncode = 550; //this might not be accurate
+        break;
+    case API_EOVERQUOTA:
+    case API_EGOINGOVERQUOTA:
+        ftpreturncode = 452; // 552?
+        break;
+    case API_EAGAIN:
+    case API_ERATELIMIT:
+    case API_ETEMPUNAVAIL:
+        ftpreturncode = 120;
+        break;
+    case API_EREAD:
+        ftpreturncode = 450;
+        break;
+    case API_ECIRCULAR:
+        ftpreturncode = 508;
+        break;
+    default:
+        ftpreturncode = 503;
+        break;
+    }
+
+    LOG_debug << "FTP petition failed. request error = " << reqError << " FTP status to return = " << ftpreturncode;
+    string errorMessage = e->getErrorString(reqError);
+    return returnFtpCode(ftpctx, ftpreturncode, errorMessage);
+}
+
+void MegaFTPServer::returnFtpCode(MegaFTPContext* ftpctx, int errorCode, string errorMessage)
+{
+    MegaFTPServer* ftpserver = dynamic_cast<MegaFTPServer *>(ftpctx->server);
+
+    std::ostringstream response;
+    response << errorCode << " " << (errorMessage.size() ? errorMessage : getFTPErrorString(errorCode))
+             << ftpserver->crlfout;
+
+    string resstr = response.str();
+    uv_mutex_lock(&ftpctx->mutex_responses);
+    ftpctx->responses.push_back(resstr);
+    uv_mutex_unlock(&ftpctx->mutex_responses);
+    uv_async_send(&ftpctx->asynchandle);
+}
+
+void MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e)
+{
+    return returnFtpCodeBasedOnRequestError(ftpctx, e);
+}
+
+void MegaFTPServer::returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, string errorMessage)
+{
+    return returnFtpCode(ftpctx, errorCode, errorMessage);
+}
+
+// you get the ownership
+MegaNode *MegaFTPServer::getBaseFolderNode(string path)
+{
+    if (path.size() && path.at(0) == '/')
+    {
+        string rest = path.substr(1);
+        size_t possep = rest.find('/');
+        handle h = megaApi->base64ToHandle(rest.substr(0,possep).c_str());
+        MegaNode *n = megaApi->getNodeByHandle(h);
+        if (possep != string::npos && possep != (rest.size() - 1) )
+        {
+            if (n)
+            {
+                if (rest.size() > (possep + 1))
+                {
+                    rest = rest.substr(possep + 1);
+                    if (rest == n->getName())
+                    {
+                        return n;
+                    }
+                    if (rest.size() > strlen(n->getName()) && (rest.at(strlen(n->getName())) == '/' ) && (rest.find(n->getName()) == 0) )
+                    {
+                        return n;
+                    }
+                }
+                delete n;
+            }
+        }
+        else
+        {
+            return n;
+        }
+    }
+    return NULL;
+}
+
+// you get the ownership
+MegaNode *MegaFTPServer::getNodeByFullFtpPath(string path)
+{
+    if (path.size() && path.at(0) == '/')
+    {
+        string rest = path.substr(1);
+        size_t possep = rest.find('/');
+        handle h = megaApi->base64ToHandle(rest.substr(0,possep).c_str());
+        MegaNode *n = megaApi->getNodeByHandle(h);
+        if (possep != string::npos && possep != (rest.size() - 1) )
+        {
+            if (n)
+            {
+                if (rest.size() > possep)
+                {
+                    rest = rest.substr(possep + 1);
+                    if (rest == n->getName())
+                    {
+                        return n;
+                    }
+                    if (rest.size() > strlen(n->getName()) && (rest.at(strlen(n->getName())) == '/' ) && (rest.find(n->getName()) == 0) )
+                    {
+                        string relpath = rest.substr(strlen(n->getName())+1);
+                        MegaNode *toret = megaApi->getNodeByPath(relpath.c_str(), n);
+                        delete n;
+                        return toret;
+                    }
+                }
+                delete n;
+            }
+        }
+        else
+        {
+            return n;
+        }
+    }
+    return NULL;
+}
+
+MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
+{
+    if (ftpctx->atroot && path.size() && path.at(0) != '/')
+    {
+        path= "/" + path;
+    }
+    else if (ftpctx->athandle && path.size() && path.at(0) != '/')
+    {
+        char *cshandle = ftpctx->megaApi->handleToBase64(ftpctx->cwd);
+        string handle(cshandle);
+        delete []cshandle;
+
+        path= "/" + handle + "/" + path;
+    }
+    else if (path.size() && path.at(0) != '/')
+    {
+        path = ftpctx->cwdpath + "/" + path;
+        path = shortenpath(path);
+    }
+
+    if (path.find("..") == 0)
+    {
+        string fullpath = ftpctx->cwdpath + "/" + path;
+        size_t seppos = fullpath.find("/");
+        int count = 0;
+        while (seppos != string::npos && fullpath.size() > (seppos +1) )
+        {
+            string part = fullpath.substr(0,seppos);
+            if (part.size() && part != "..")
+            {
+                count++;
+            }
+            if (part == "..")
+            {
+                count--;
+                if (count < 2)
+                {
+                    return NULL; // do not allow to escalate in the path
+                }
+            }
+
+            fullpath = fullpath.substr(seppos+1);
+            if (fullpath == ".." && count == 2)
+            {
+                return NULL; // do not allow to escalate in the path
+            }
+            seppos = fullpath.find("/");
+        }
+    }
+
+    if (path.size() && path.at(0) == '/')
+    {
+        MegaNode *baseFolderNode = getBaseFolderNode(path);
+        if (!baseFolderNode)
+        {
+            return NULL;
+        }
+        if (!isHandleAllowed(baseFolderNode->getHandle()) )
+        {
+            return NULL;
+        }
+        delete baseFolderNode;
+
+        return getNodeByFullFtpPath(path);
+    }
+    else //it should only enter here if path == ""
+    {
+        MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+        if (!n)
+        {
+            return NULL;
+        }
+        MegaNode *toret = ftpctx->megaApi->getNodeByPath(path.c_str(), n);
+        delete n;
+        return toret;
+    }
+}
+
+std::string MegaFTPServer::shortenpath(std::string path)
+{
+    string orig = path;
+
+    while ((path.size() > 1) && path.at(path.size() - 1) == '/') // remove trailing /
+    {
+        path = path.substr(0,path.size()-1);
+    }
+    list<string> parts;
+    size_t seppos = path.find("/");
+    while (seppos != string::npos && path.size() > (seppos +1) )
+    {
+        string part = path.substr(0,seppos);
+        if (part.size() && part != "..")
+        {
+            parts.push_back(part);
+        }
+        if (part == "..")
+        {
+            if (!parts.size())
+            {
+                return "INVALIDPATH"; // FAILURE!
+            }
+            parts.pop_back();
+        }
+
+        path = path.substr(seppos+1);
+        if (path == "..")
+        {
+            if (!parts.size())
+            {
+                return "INVALIDPATH"; // FAILURE!
+            }
+            parts.pop_back();
+            path = "";
+        }
+        seppos = path.find("/");
+    }
+    if (path.size() && path != "..")
+    {
+        parts.push_back(path);
+    }
+
+    string toret;
+    if (!parts.size() && orig.size() && orig.at(0) == '/')
+    {
+        toret = "/";
+    }
+    else
+    {
+        while (parts.size())
+        {
+            toret.append("/");
+            toret.append(parts.front());
+            parts.pop_front();
+        }
+    }
+    return toret;
+}
+
+std::string MegaFTPServer::cdup(handle parentHandle, MegaFTPContext* ftpctx)
+{
+    string response;
+    MegaNode *newcwd = ftpctx->megaApi->getNodeByHandle(parentHandle);
+    if (newcwd)
+    {
+        bool allowed = isHandleAllowed(newcwd->getHandle()) || isHandleAllowed(newcwd->getParentHandle());
+        MegaNode *pn = ftpctx->megaApi->getNodeByHandle(newcwd->getHandle());
+        while (!allowed && pn)
+        {
+            MegaNode *aux = pn;
+            pn = ftpctx->megaApi->getNodeByHandle(pn->getParentHandle());
+            delete aux;
+            if (pn)
+            {
+                allowed = isHandleAllowed(pn->getParentHandle());
+            }
+        }
+        delete pn;
+
+        if (!allowed)
+        {
+            LOG_warn << "Ftp client trying to access not allowed path";
+            response = "550 Path not allowed";
+        }
+        else if (newcwd->isFolder() && newcwd->getHandle() != UNDEF)
+        {
+            ftpctx->cwd = newcwd->getHandle();
+            ftpctx->cwdpath = ftpctx->cwdpath + "/..";
+            ftpctx->cwdpath = shortenpath(ftpctx->cwdpath);
+            ftpctx->athandle = false;
+            ftpctx->atroot = false;
+            size_t seps = std::count(ftpctx->cwdpath.begin(), ftpctx->cwdpath.end(), '/');
+            if (seps < 2)
+            {
+                ftpctx->cwdpath = string("/") + megaApi->handleToBase64(newcwd->getHandle()) + "/" + newcwd->getName();
+            }
+            ftpctx->parentcwd = newcwd->getParentHandle();
+
+            response = "250 Directory successfully changed";
+        }
+        else
+        {
+            response = "550 CDUP failed.";
+        }
+
+        delete newcwd;
+    }
+    else
+    {
+        response = "550 Not Found";
+    }
+    return response;
+}
+
+std::string MegaFTPServer::cd(string newpath, MegaFTPContext* ftpctx)
+{
+    string response;
+    if (newpath == "/")
+    {
+        MegaNode *rootNode = megaApi->getRootNode();
+        if (rootNode)
+        {
+            ftpctx->cwd = rootNode->getHandle();
+            ftpctx->cwdpath = "/";
+            ftpctx->atroot = true;
+            ftpctx->athandle = false;
+            response = "250 Directory successfully changed";
+            delete rootNode;
+            return response;
+        }
+        response = "550 CWD not Found.";
+        return response;
+    }
+
+    MegaNode *newcwd = getNodeByFtpPath(ftpctx, newpath);
+    if (!newcwd)
+    {
+        response = "550 CWD not Found.";
+        return response;
+    }
+
+    ftpctx->cwd = newcwd->getHandle();
+    if (newpath.size() && newpath.at(0) == '/')
+    {
+        ftpctx->cwdpath = newpath;
+    }
+    else // relative paths!
+    {
+        ftpctx->cwdpath = (ftpctx->cwdpath == "/"?"":ftpctx->cwdpath) + "/" + newpath;
+    }
+    ftpctx->cwdpath = shortenpath(ftpctx->cwdpath);
+    ftpctx->athandle = false;
+    string handlepath = "/";
+
+    char *cshandle = megaApi->handleToBase64(newcwd->getHandle());
+    string shandle(cshandle);
+    delete []cshandle;
+
+    handlepath.append(shandle);
+    if (ftpctx->cwdpath == handlepath || ftpctx->cwdpath == shandle || ftpctx->cwdpath == (handlepath +"/") )
+    {
+        ftpctx->cwdpath = handlepath;
+        ftpctx->athandle = true;
+    }
+    ftpctx->atroot = false;
+    ftpctx->parentcwd = newcwd->getParentHandle();
+
+    if (ftpctx->athandle || newcwd->isFolder())
+    {
+        response = "250 Directory successfully changed";
+    }
+    else
+    {
+        response = "550 CWD failed."; //chrome requires this
+    }
+    delete newcwd;
+    return response;
+}
+
+void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf)
+{
+    MegaFTPContext* ftpctx = dynamic_cast<MegaFTPContext *>(tcpctx);
+
+    ssize_t parsed = -1;
+    string petition;
+    std::string command;
+    string response;
+    bool delayresponse = false;
+
+    if (!nread)
+    {
+        LOG_debug << " Discarding processReceivedData read = " << nread;
+        return;
+    }
+
+    uv_mutex_lock(&tcpctx->mutex);
+
+    if (nread >= 0)
+    {
+        bool failed = false;
+        const char *separators = " ";
+        const char *crlf = "\r\n";
+
+        petition = string(buf->base, nread);
+
+        LOG_verbose << "FTP Server received: " << petition << " at port = " << port;
+
+        size_t psep = petition.find_first_of(separators);
+        size_t psepend = petition.find(crlf);
+
+        if (psepend != petition.size()-strlen(crlf))
+        {
+            parsed = -1;
+            failed = true;
+
+            LOG_warn << " Failed to parse petition:<" << petition << ">" << " psep=" << psep << " psepend=" << psepend
+                     << " petition.size=" << petition.size() << " tcpctx=" << tcpctx;
+        }
+        else
+        {
+            parsed = petition.size();
+            petition = petition.substr(0,psepend);
+            command = petition.substr(0,psep);
+            transform(command.begin(), command.end(), command.begin(), ::toupper);
+        }
+
+        if (failed)
+        {
+            ftpctx->command = FTP_CMD_INVALID;
+        }
+        else if(command == "USER")
+        {
+            ftpctx->command = FTP_CMD_USER;
+        }
+        else if(command == "PASS")
+        {
+            ftpctx->command = FTP_CMD_PASS;
+        }
+        else if(command == "ACCT")
+        {
+            ftpctx->command = FTP_CMD_ACCT;
+        }
+        else if(command == "CWD")
+        {
+            ftpctx->command = FTP_CMD_CWD;
+        }
+        else if(command == "CDUP")
+        {
+            ftpctx->command = FTP_CMD_CDUP;
+        }
+        else if(command == "SMNT")
+        {
+            ftpctx->command = FTP_CMD_SMNT;
+        }
+        else if(command == "QUIT")
+        {
+            ftpctx->command = FTP_CMD_QUIT;
+        }
+        else if(command == "REIN")
+        {
+            ftpctx->command = FTP_CMD_REIN;
+        }
+        else if(command == "PORT")
+        {
+            ftpctx->command = FTP_CMD_PORT;
+        }
+        else if(command == "PASV")
+        {
+            ftpctx->command = FTP_CMD_PASV;
+        }
+        else if(command == "TYPE")
+        {
+            ftpctx->command = FTP_CMD_TYPE;
+        }
+        else if(command == "STRU")
+        {
+            ftpctx->command = FTP_CMD_STRU;
+        }
+        else if(command == "MODE")
+        {
+            ftpctx->command = FTP_CMD_MODE;
+        }
+        else if(command == "RETR")
+        {
+            ftpctx->command = FTP_CMD_RETR;
+        }
+        else if(command == "STOR")
+        {
+            ftpctx->command = FTP_CMD_STOR;
+        }
+        else if(command == "STOU")
+        {
+            ftpctx->command = FTP_CMD_STOU;
+        }
+        else if(command == "APPE")
+        {
+            ftpctx->command = FTP_CMD_APPE;
+        }
+        else if(command == "ALLO")
+        {
+            ftpctx->command = FTP_CMD_ALLO;
+        }
+        else if(command == "REST")
+        {
+            ftpctx->command = FTP_CMD_REST;
+        }
+        else if(command == "RNFR")
+        {
+            ftpctx->command = FTP_CMD_RNFR;
+        }
+        else if(command == "RNTO")
+        {
+            ftpctx->command = FTP_CMD_RNTO;
+        }
+        else if(command == "ABOR")
+        {
+            ftpctx->command = FTP_CMD_ABOR;
+        }
+        else if(command == "DELE")
+        {
+            ftpctx->command = FTP_CMD_DELE;
+        }
+        else if(command == "RMD")
+        {
+            ftpctx->command = FTP_CMD_RMD;
+        }
+        else if(command == "MKD")
+        {
+            ftpctx->command = FTP_CMD_MKD;
+        }
+        else if(command == "PWD")
+        {
+            ftpctx->command = FTP_CMD_PWD;
+        }
+        else if(command == "LIST")
+        {
+            ftpctx->command = FTP_CMD_LIST;
+        }
+        else if(command == "NLST")
+        {
+            ftpctx->command = FTP_CMD_NLST;
+        }
+        else if(command == "SITE")
+        {
+            ftpctx->command = FTP_CMD_SITE;
+        }
+        else if(command == "SYST")
+        {
+            ftpctx->command = FTP_CMD_SYST;
+        }
+        else if(command == "STAT")
+        {
+            ftpctx->command = FTP_CMD_STAT;
+        }
+        else if(command == "HELP")
+        {
+            ftpctx->command = FTP_CMD_HELP;
+        }
+        else if(command == "FEAT")
+        {
+            ftpctx->command = FTP_CMD_FEAT;
+        }
+        else if(command == "SIZE")
+        {
+            ftpctx->command = FTP_CMD_SIZE;
+        }
+        else if(command == "PROT")
+        {
+            ftpctx->command = FTP_CMD_PROT;
+        }
+        else if(command == "NOOP")
+        {
+            ftpctx->command = FTP_CMD_NOOP;
+        }
+        else if(command == "EPSV")
+        {
+            ftpctx->command = FTP_CMD_EPSV;
+        }
+        else if(command == "PBSZ")
+        {
+            ftpctx->command = FTP_CMD_PBSZ;
+        }
+        else if(command == "OPTS")
+        {
+            ftpctx->command = FTP_CMD_OPTS;
+        }
+        else
+        {
+            LOG_warn << " Could not match command: " << command;
+            ftpctx->command = FTP_CMD_INVALID;
+        }
+
+        LOG_debug << " parsed command = " << ftpctx->command << " tcpctx=" << tcpctx;
+        ftpctx->arg1 = "";
+        ftpctx->arg2 = "";
+
+        switch (ftpctx->command)
+        {
+        // no args
+        case FTP_CMD_ABOR:
+        case FTP_CMD_STOU:
+        case FTP_CMD_QUIT:
+        case FTP_CMD_REIN:
+        case FTP_CMD_CDUP:
+        case FTP_CMD_PASV:
+        case FTP_CMD_EPSV:
+        case FTP_CMD_PWD:
+        case FTP_CMD_SYST:
+        case FTP_CMD_FEAT:
+        case FTP_CMD_NOOP:
+            if (psep != string::npos)
+            {
+                parsed = -1;
+            }
+            break;
+        // single arg
+        case FTP_CMD_USER:
+        case FTP_CMD_PASS:
+        case FTP_CMD_ACCT:
+        case FTP_CMD_CWD:
+        case FTP_CMD_SMNT:
+        case FTP_CMD_PORT:
+        case FTP_CMD_TYPE:
+        case FTP_CMD_STRU:
+        case FTP_CMD_MODE:
+        case FTP_CMD_RETR:
+        case FTP_CMD_STOR:
+        case FTP_CMD_APPE:
+        case FTP_CMD_DELE:
+        case FTP_CMD_RMD:
+        case FTP_CMD_MKD:
+        case FTP_CMD_REST:
+        case FTP_CMD_RNFR:
+        case FTP_CMD_RNTO:
+        case FTP_CMD_SITE:
+        case FTP_CMD_SIZE:
+        case FTP_CMD_PBSZ:
+        case FTP_CMD_PROT:
+            if (psep != string::npos && ( (psep + 1)< petition.size()) )
+            {
+                string rest = petition.substr(psep+1);
+                ftpctx->arg1 = rest;
+            }
+            else
+            {
+                parsed = -1;
+            }
+
+            break;
+            //optional arg
+        case FTP_CMD_LIST:
+        case FTP_CMD_NLST:
+        case FTP_CMD_STAT:
+        case FTP_CMD_HELP:
+            if (psep != string::npos)
+            {
+                string rest = petition.substr(psep+1);
+                ftpctx->arg1 = rest;
+            }
+            break;
+
+        case FTP_CMD_ALLO: //ALLO <SP> <decimal-integer> [<SP> R <SP> <decimal-integer>] <CRLF>
+            if (psep != string::npos && ((psep + 1) < petition.size()))
+            {
+                string rest = petition.substr(psep+1);
+                psep = rest.find_first_of(separators);
+                ftpctx->arg1 = rest.substr(0,psep);
+                if (psep != string::npos && ((psep + 1) < petition.size()))
+                {  //optional R <SP> <decimal-integer>
+                    rest = petition.substr(psep+1);
+                    psep = rest.find_first_of(separators);
+                    if (psep != 1 && (rest.at(0) != 'R' || rest.at(0) != 'r'))
+                    {
+                        parsed = -1;
+                    }
+                    else if ((psep + 1) < petition.size())
+                    {
+                        rest = petition.substr(psep+1);
+                        ftpctx->arg2 = rest;
+                    }
+                    else
+                    {
+                        parsed = -1;
+                    }
+                }
+            }
+            else
+            {
+                parsed = -1;
+            }
+            break;
+        case FTP_CMD_OPTS:
+            if (psep != string::npos)
+            {
+                string rest = petition.substr(psep+1);
+                psep = rest.find_first_of(separators);
+                ftpctx->arg1 = rest.substr(0,psep);
+                if (psep != string::npos && ((psep + 1) < rest.size()))
+                {
+                    ftpctx->arg2 = rest.substr(psep+1);
+                }
+                else
+                {
+                    parsed = -1;
+                }
+            }
+            break;
+        default:
+            parsed = -1;
+            break;
+        };
+
+        switch (ftpctx->command)
+        {
+        case FTP_CMD_USER:
+        {
+            response = "331 User name okay, need password";
+            break;
+        }
+        case FTP_CMD_PASS:
+        {
+            response = "230 User logged in, proceed";
+
+            MegaNode *n = ftpctx->megaApi->getRootNode();
+            if (n)
+            {
+                ftpctx->cwd = n->getHandle();
+                ftpctx->cwdpath = "/";
+                ftpctx->atroot = true;
+                ftpctx->athandle = false;
+                delete n;
+            }
+            break;
+        }
+        case FTP_CMD_NOOP:
+        {
+            response = "200 NOOP from MEGA!";
+            break;
+        }
+        case FTP_CMD_TYPE:
+        case FTP_CMD_PROT: // we might want to require that arg1 = "P". or disable useTLS in data channel otherwise
+        {
+            response = "200 OK";
+            break;
+        }
+        case FTP_CMD_PBSZ: //we don't use received buffer size (some client might fail)
+        {
+            response = "200 PBSZ=0";
+            break;
+        }
+        case FTP_CMD_PASV:
+        case FTP_CMD_EPSV:
+        {
+            if (!ftpctx->ftpDataServer)
+            {
+                if (pport > (dataPortEnd))
+                {
+                    pport = dataportBegin;
+                }
+                ftpctx->pasiveport = pport++;
+
+                LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
+#ifdef ENABLE_EVT_TLS
+                MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, certificatepath, keypath);
+#else
+                MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, string(), string());
+#endif
+                bool result = fds->start(ftpctx->pasiveport, localOnly);
+                if (result)
+                {
+                    ftpctx->ftpDataServer = fds;
+                }
+                else
+                {
+                    response = "421 Failed to initialize data channel";
+                    break;
+                }
+            }
+            else
+            {
+                LOG_debug << "Reusing FTP Data connection with port: " << ftpctx->pasiveport;
+            }
+
+            // gathering IP connected to
+            struct sockaddr_in addr;
+            int sadrlen = sizeof (struct sockaddr_in);
+            uv_tcp_getsockname(&ftpctx->tcphandle,(struct sockaddr*)&addr, &sadrlen);
+#ifdef WIN32
+            string sIPtoPASV = inet_ntoa(addr.sin_addr);
+#else
+            char strIP[INET_ADDRSTRLEN];
+            inet_ntop( AF_INET, &addr.sin_addr.s_addr, strIP, INET_ADDRSTRLEN);
+            string sIPtoPASV = strIP;
+#endif
+            replace( sIPtoPASV.begin(), sIPtoPASV.end(), '.', ',');
+
+            if (ftpctx->command == FTP_CMD_PASV)
+            {
+                char url[30];
+                sprintf(url, "%s,%d,%d", sIPtoPASV.c_str(), ftpctx->pasiveport/256, ftpctx->pasiveport%256);
+                response = "227 Entering Passive Mode (";
+                response.append(url);
+                response.append(")");
+            }
+            else // FTP_CMD_EPSV
+            {
+                char url[30];
+                sprintf(url, "%d", ftpctx->pasiveport);
+                response = "229 Entering Extended Passive Mode (|||";
+                response.append(url);
+                response.append("|)");
+            }
+            break;
+        }
+        case FTP_CMD_OPTS:
+        {
+            transform(ftpctx->arg1.begin(), ftpctx->arg1.end(), ftpctx->arg1.begin(), ::toupper);
+            transform(ftpctx->arg2.begin(), ftpctx->arg2.end(), ftpctx->arg2.begin(), ::toupper);
+            if (ftpctx->arg1 == "UTF8" && ftpctx->arg2 == "ON")
+            {
+                response = "200 All good";
+            }
+            else
+            {
+                response = "501 Unrecognized OPTS " + ftpctx->arg1 + " " + ftpctx->arg2;
+            }
+            break;
+        }
+        case FTP_CMD_PWD:
+        {
+            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            if (n)
+            {
+                response = "257 ";
+                response.append("\"");
+                response.append(ftpctx->cwdpath);
+                response.append("\"");
+                delete n;
+            }
+            else
+            {
+                response = "550 Not Found";
+            }
+            break;
+        }
+        case FTP_CMD_CWD:
+        {
+            response = cd(ftpctx->arg1, ftpctx);
+            break;
+        }
+        case FTP_CMD_CDUP:
+        {
+            MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            if (n)
+            {
+                handle parentHandle = n->getParentHandle();
+                response = cdup(parentHandle, ftpctx);
+                delete n;
+            }
+            else
+            {
+                response = "550 CWD not Found.";
+            }
+            break;
+        }
+        case FTP_CMD_LIST:
+        case FTP_CMD_NLST:
+        {
+            if (!ftpctx->ftpDataServer)
+            {
+                response = "425 No Data Connection available";
+                break;
+            }
+
+            MegaNode *node = NULL;
+            if (ftpctx->arg1.size() && ftpctx->arg1 != "-l" && ftpctx->arg1 != "-a")
+            {
+                node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+            }
+            else
+            {
+                if (ftpctx->atroot)
+                {
+                    assert(!ftpctx->ftpDataServer->resultmsj.size());
+                    set<handle> handles = getAllowedHandles();
+                    for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
+                    {
+                        string name = megaApi->handleToBase64(*it);
+                        MegaNode *n = megaApi->getNodeByHandle(*it);
+                        if (n)
+                        {
+                            string toret = getListingLineFromNode(n, name);
+                            toret.append(crlfout);
+                            ftpctx->ftpDataServer->resultmsj.append(toret);
+                            delete n;
+                        }
+                    }
+
+                    ftpctx->ftpDataServer->resultmsj.append(crlfout);
+
+                    response = "150 Here comes the directory listing";
+                    break;
+                }
+                else if (ftpctx->athandle)
+                {
+                    MegaNode *n = megaApi->getNodeByHandle(ftpctx->cwd);
+                    if (n)
+                    {
+                        string toret = getListingLineFromNode(n);
+                        toret.append(crlfout);
+                        assert(!ftpctx->ftpDataServer->resultmsj.size());
+                        ftpctx->ftpDataServer->resultmsj.append(toret);
+                        delete n;
+                    }
+                    ftpctx->ftpDataServer->resultmsj.append(crlfout);
+
+                    response = "150 Here comes the directory listing";
+                    break;
+                }
+
+                node = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+            }
+            if (node)
+            {
+                if (node->isFolder())
+                {
+                    MegaNodeList *children = ftpctx->megaApi->getChildren(node);
+                    assert(!ftpctx->ftpDataServer->resultmsj.size());
+                    for (int i = 0; i < children->size(); i++)
+                    {
+                        MegaNode *child = children->get(i);
+                        //string childURL = subbaseURL + child->getName();
+                        string toret;
+                        if (ftpctx->command == FTP_CMD_LIST)
+                        {
+                            toret = getListingLineFromNode(child);
+                        }
+                        else //NLST
+                        {
+                            toret = child->getName();
+                        }
+                        toret.append(crlfout);
+                        ftpctx->ftpDataServer->resultmsj.append(toret);
+                    }
+                    delete children;
+
+                    ftpctx->ftpDataServer->resultmsj.append(crlfout);
+
+                    response = "150 Here comes the directory listing";
+                }
+                else
+                {
+                    string toret;
+                    if (ftpctx->command == FTP_CMD_LIST)
+                    {
+                        toret = getListingLineFromNode(node);
+                    }
+                    else //NLST
+                    {
+                        toret = node->getName();
+                    }
+                    toret.append(crlfout);
+                    assert(!ftpctx->ftpDataServer->resultmsj.size());
+                    ftpctx->ftpDataServer->resultmsj.append(toret);
+                    response = "150 Here comes the file listing";
+                }
+                delete node;
+            }
+            else
+            {
+                response = "550 Not Found";
+            }
+            break;
+        }
+        case FTP_CMD_RETR:
+        {
+            if (!ftpctx->ftpDataServer)
+            {
+                response = "425 No Data Connection available";
+                break;
+            }
+
+            MegaNode *node = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+            if (node)
+            {
+                if (node->isFile())
+                {
+                    uv_mutex_lock(&ftpctx->mutex_nodeToDownload);
+
+                    MegaNode *oldNodeToDownload = ftpctx->ftpDataServer->nodeToDownload;
+                    ftpctx->ftpDataServer->nodeToDownload = node;
+                    delete oldNodeToDownload;
+
+                    uv_mutex_unlock(&ftpctx->mutex_nodeToDownload);
+
+                    response = "150 Here comes the file: ";
+                    response.append(node->getName());
+                }
+                else
+                {
+                    response = "501 Not a file";
+                    delete node;
+                }
+            }
+            else
+            {
+                response = "550 Not Found";
+            }
+            break;
+        }
+//        case FTP_CMD_STOU: //do create random unique name
+        case FTP_CMD_STOR:
+        {
+            //We might want to deal with foreign node / public link and so on ?
+            if (!ftpctx->ftpDataServer)
+            {
+                response = "425 No Data Connection available";
+                break;
+            }
+
+            MegaNode *newParentNode = NULL;
+            size_t seppos = ftpctx->arg1.find_last_of("/");
+            ftpctx->ftpDataServer->newNameToUpload = ftpctx->arg1;
+            if (seppos == string::npos)
+            {
+                ftpctx->ftpDataServer->newParentNodeHandle = ftpctx->cwd;
+            }
+            else
+            {
+                if (!seppos) //new folder structure does not allow this
+                {
+                    response = "550 Not Found";
+                    break;
+                }
+
+                if ((seppos + 1) < ftpctx->ftpDataServer->newNameToUpload.size())
+                {
+                    ftpctx->ftpDataServer->newNameToUpload = ftpctx->ftpDataServer->newNameToUpload.substr(seppos + 1);
+                }
+                string newparentpath = ftpctx->arg1.substr(0, seppos);
+                newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
+                if (newParentNode)
+                {
+                    ftpctx->ftpDataServer->newParentNodeHandle = newParentNode->getHandle();
+                    delete newParentNode;
+                }
+                else
+                {
+                    ftpctx->ftpDataServer->newNameToUpload = ""; //empty
+                }
+            }
+
+            if (ftpctx->ftpDataServer->newNameToUpload.size())
+            {
+                ftpctx->ftpDataServer->remotePathToUpload = ftpctx->arg1;
+                response = "150 Opening data connection for storing ";
+                response.append(ftpctx->arg1);
+            }
+            else
+            {
+                response = "550 Destiny Not Found";
+            }
+            break;
+        }
+        case FTP_CMD_RNFR:
+        {
+            MegaNode *nodetoRename = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+            if (nodetoRename)
+            {
+                this->nodeHandleToRename = nodetoRename->getHandle();
+                response = "350 Pending RNTO";
+                delete nodetoRename;
+            }
+            else
+            {
+                response = "550 Not Found";
+            }
+            break;
+        }
+        case FTP_CMD_RMD:
+        case FTP_CMD_DELE:
+        {
+            MegaNode *nodeToDelete = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+
+            if (nodeToDelete)
+            {
+                if ((ftpctx->command == FTP_CMD_DELE) ? nodeToDelete->isFile() : nodeToDelete->isFolder())
+                {
+                    ftpctx->megaApi->remove(nodeToDelete, false, ftpctx);
+                    delayresponse = true;
+                }
+                else
+                {
+                    response = "501 Wrong type";
+                }
+                delete nodeToDelete;
+            }
+            else
+            {
+                response = "550 Not Found";
+            }
+            break;
+        }
+        case FTP_CMD_RNTO:
+        {
+            if (this->nodeHandleToRename == UNDEF)
+            {
+                response = "503 Bad sequence of commands, required RNFR first";
+            }
+            else
+            {
+                MegaNode *nodeToRename = ftpctx->megaApi->getNodeByHandle(this->nodeHandleToRename);
+                if (nodeToRename)
+                {
+                    MegaNode *n = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+                    if (n)
+                    {
+                        ftpctx->nodeToDeleteAfterMove = n;
+                    }
+
+                    MegaNode *newParentNode = NULL;
+                    size_t seppos = ftpctx->arg1.find_last_of("/");
+                    string newName = ftpctx->arg1;
+
+                    if (seppos != string::npos)
+                    {
+                        if (!seppos) //new folder structure does not allow this
+                        {
+                            response = "553 Requested action not taken: Invalid destiny";
+                            delete n;
+                            ftpctx->nodeToDeleteAfterMove = NULL;
+                            delete nodeToRename;
+                            break;
+                        }
+
+                        if ((seppos + 1) < newName.size())
+                        {
+                            newName = newName.substr(seppos + 1);
+                        }
+                        string newparentpath = ftpctx->arg1.substr(0, seppos);
+                        newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
+                        if (!newParentNode)
+                        {
+                            newName = ""; //empty
+                        }
+                    }
+
+                    if (newName.size())
+                    {
+                        if (newParentNode && newParentNode->getHandle() != nodeToRename->getParentHandle())
+                        {
+                            newNameAfterMove = newName;
+                            ftpctx->megaApi->moveNode(nodeToRename, newParentNode, ftpctx);
+                            delayresponse = true;
+                        }
+                        else
+                        {
+                            ftpctx->megaApi->renameNode(nodeToRename, newName.c_str(), ftpctx);
+                            delayresponse = true;
+                        }
+                    }
+                    else
+                    {
+                        response = "553 Requested action not taken. Invalid destiny";
+                        delete n;
+                        ftpctx->nodeToDeleteAfterMove = NULL;
+                    }
+                    delete newParentNode;
+                    delete nodeToRename;
+                }
+                else
+                {
+                    response = "553 Requested action not taken. Origin not found: no longer available";
+                }
+
+                nodeHandleToRename = UNDEF;
+            }
+            break;
+        }
+        case FTP_CMD_MKD:
+        {
+            MegaNode *newParentNode = NULL;
+            size_t seppos = ftpctx->arg1.find_last_of("/");
+            string newNameFolder = ftpctx->arg1;
+            MegaNode *n = getNodeByFtpPath(ftpctx, newNameFolder);
+            if (n)
+            {
+                response = "550 already existing!";
+                delete n;
+            }
+            else
+            {
+                if (!seppos) //new folder structure does not allow this
+                {
+                    response = "550 Not Found";
+                    break;
+                }
+
+                if (seppos != string::npos)
+                {
+                    if ((seppos + 1) < newNameFolder.size())
+                    {
+                        newNameFolder = newNameFolder.substr(seppos + 1);
+                    }
+                    string newparentpath = ftpctx->arg1.substr(0, seppos);
+                    newParentNode = getNodeByFtpPath(ftpctx, newparentpath);
+                    if (!newParentNode)
+                    {
+                        newNameFolder = ""; //empty
+                    }
+                }
+
+                if (newNameFolder.size())
+                {
+                    MegaNode *nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+                    ftpctx->megaApi->createFolder(newNameFolder.c_str(),newParentNode ? newParentNode : nodecwd, ftpctx);
+                    delete nodecwd;
+                    delayresponse = true;
+                }
+                else
+                {
+                    response = "550 Not Found";
+                }
+                delete newParentNode;
+            }
+            break;
+        }
+        case FTP_CMD_REST:
+        {
+            if (ftpctx->ftpDataServer && ftpctx->ftpDataServer->nodeToDownload)
+            {
+                unsigned long long number = strtoull(ftpctx->arg1.c_str(), NULL, 10);
+                if (number != ULLONG_MAX)
+                {
+                    ftpctx->ftpDataServer->rangeStartREST = number;
+                    response = "350 Restarting at: ";
+                    response.append(ftpctx->arg1);
+                }
+                else
+                {
+                    response = "500 Syntax error, invalid start point";
+                }
+            }
+            else
+            {
+                response = "350 Requested file action pending further information: Download file not available";
+            }
+            break;
+        }
+        case FTP_CMD_FEAT:
+        {
+            response = "211-Features:";
+            response.append(crlfout);
+            response.append(" SIZE");
+            response.append(crlfout);
+            response.append(" PROT");
+            response.append(crlfout);
+            response.append(" EPSV");
+            response.append(crlfout);
+            response.append(" PBSZ");
+            response.append(crlfout);
+//            response.append(" OPTS"); // This is actually compulsory when FEAT exists (no need to return it)
+//            response.append(crlfout);
+            response.append(" UTF8 ON");
+            response.append(crlfout);
+            response.append("211 End");
+            break;
+        }
+        case FTP_CMD_SIZE: //This has to be exact, and depends ond STRU, MODE & TYPE!! (since assumed TYPE I, it's ok)
+        {
+            MegaNode *nodeToGetSize = getNodeByFtpPath(ftpctx, ftpctx->arg1);
+            if (nodeToGetSize)
+            {
+                if (nodeToGetSize->isFile())
+                {
+                    response = "213 ";
+
+                    ostringstream sizenumber;
+                    sizenumber << nodeToGetSize->getSize();
+                    response.append(sizenumber.str());
+                }
+                else
+                {
+                    response = "213 ";
+                    response.append("0");
+                }
+                delete nodeToGetSize;
+            }
+            else
+            {
+                response = "550 Not Found";
+            }
+            break;
+        }
+        case FTP_CMD_INVALID:
+        {
+            response = "500 Syntax error, command unrecognized";
+            break;
+        }
+        default:
+            response = "502 Command not implemented";
+            break;
+        }
+
+        response += crlfout;
+    }
+
+    if (nread < 0)
+    {
+        LOG_debug << "FTP Control Server received invalid read size. Closing connection";
+        closeConnection(ftpctx);
+    }
+    else
+    {
+        if (!delayresponse)
+        {
+            LOG_verbose << " Processed: " << petition << ". command="<< ftpctx->command << ".\n   Responding: " << response << " tpctx=" << ftpctx;
+            answer(ftpctx,response.c_str(),response.size());
+        }
+        else
+        {
+            LOG_verbose << " Processed: " << petition << ". command="<< ftpctx->command << ".\n   Delaying response. tpctx=" << ftpctx;
+        }
+
+        // Initiate data transfer for required commands
+        if (ftpctx->ftpDataServer &&
+                ( ftpctx->command == FTP_CMD_LIST
+                  || ftpctx->command == FTP_CMD_NLST
+                  || ftpctx->command == FTP_CMD_REST
+                  || ftpctx->command == FTP_CMD_STOR
+                  || ftpctx->command == FTP_CMD_RETR )
+            )
+        {
+            LOG_debug << " calling sending data... ";
+            ftpctx->ftpDataServer->sendData(); //rename to sth more sensefull: like wake data channel
+        }
+    }
+    uv_mutex_unlock(&tcpctx->mutex);
+}
+
+void MegaFTPServer::processAsyncEvent(MegaTCPContext *tcpctx)
+{
+    LOG_verbose << "Processing FTP Server async event";
+    if (tcpctx->finished)
+    {
+        LOG_debug << "FTP link closed, ignoring async event";
+        return;
+    }
+
+    MegaFTPContext* ftpctx = dynamic_cast<MegaFTPContext *>(tcpctx);
+
+    uv_mutex_lock(&ftpctx->mutex_responses);
+    while (ftpctx->responses.size())
+    {
+        answer(tcpctx,ftpctx->responses.front().c_str(),ftpctx->responses.front().size());
+        ftpctx->responses.pop_front();
+    }
+    uv_mutex_unlock(&ftpctx->mutex_responses);
+}
+
+void MegaFTPServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
+{
+    LOG_verbose << "At MegaFTPServer::processOnAsyncEventClose";
+}
+
+void MegaTCPServer::answer(MegaTCPContext* tcpctx, const char *rsp, int rlen)
+{
+    LOG_verbose << " answering in port " << tcpctx->server->port << " : " << string(rsp,rlen);
+
+    uv_buf_t resbuf = uv_buf_init((char *)rsp, rlen);
+#ifdef ENABLE_EVT_TLS
+    if (tcpctx->server->useTLS)
+    {
+        // we are sending the response as a whole
+        int err = evt_tls_write(tcpctx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        if (err <= 0)
+        {
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            closeConnection(tcpctx);
+        }
+    }
+    else
+    {
+#endif
+        uv_write_t *req = new uv_write_t();
+        req->data = tcpctx;
+        if (int err = uv_write(req, (uv_stream_t*)&tcpctx->tcphandle, &resbuf, 1, onWriteFinished))
+        {
+            delete req;
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            closeTCPConnection(tcpctx);
+        }
+#ifdef ENABLE_EVT_TLS
+    }
+#endif
+}
+
+bool MegaFTPServer::respondNewConnection(MegaTCPContext* tcpctx)
+{
+    MegaFTPContext* ftpctx = dynamic_cast<MegaFTPContext *>(tcpctx);
+
+    string response = "220 Wellcome to FTP MEGA Server";
+    response.append(crlfout);
+
+    answer(ftpctx, response.c_str(), response.size());
+    return true;
+
+}
+
+void MegaFTPServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
+{
+
+}
+
+MegaFTPContext::MegaFTPContext()
+{
+    command = 0;
+    resultcode = 0;
+
+    cwd = UNDEF;
+    atroot = false;
+    athandle = false;
+    parentcwd = UNDEF;
+    pasiveport = -1;
+    ftpDataServer = NULL;
+    nodeToDeleteAfterMove = NULL;
+    uv_mutex_init(&mutex_responses);
+    uv_mutex_init(&mutex_nodeToDownload);
+}
+
+MegaFTPContext::~MegaFTPContext()
+{
+    if (ftpDataServer)
+    {
+        LOG_verbose << "Deleting ftpDataServer associated with ftp context";
+        delete ftpDataServer;
+    }
+    if (tmpFileName.size())
+    {
+        string localPath;
+        server->fsAccess->path2local(&tmpFileName, &localPath);
+        server->fsAccess->unlinklocal(&localPath);
+        tmpFileName = "";
+    }
+    uv_mutex_destroy(&mutex_responses);
+    uv_mutex_destroy(&mutex_nodeToDownload);
+}
+
+void MegaFTPContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
+{
+}
+
+bool MegaFTPContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
+{
+    LOG_verbose << "MegaFTPContext::onTransferData";
+    return true;
+}
+
+void MegaFTPContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
+{
+    if (finished)
+    {
+        LOG_debug << "FTP link closed, ignoring the result of the transfer";
+        return;
+    }
+
+    if (e->getErrorCode() == MegaError::API_OK)
+    {
+        MegaFTPServer::returnFtpCodeAsync(this, 250);
+    }
+    else
+    {
+        MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
+    }
+    if (tmpFileName.size())
+    {
+        string localPath;
+        server->fsAccess->path2local(&tmpFileName, &localPath);
+        server->fsAccess->unlinklocal(&localPath);
+        tmpFileName = "";
+    }
+}
+
+void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
+{
+    if (finished)
+    {
+        LOG_debug << "HTTP link closed, ignoring the result of the request";
+        return;
+    }
+
+    MegaFTPServer* ftpserver = dynamic_cast<MegaFTPServer *>(this->server);
+
+    if (request->getType() == MegaRequest::TYPE_REMOVE)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+            if (cwd == request->getNodeHandle())
+            {
+                LOG_verbose << " Removing cwd node, going back to parent";
+                ftpserver->cdup(parentcwd, this);
+            }
+            else // This could be unexpected if CWD is removed elsewhere by the time this RequestFinish completes //TODO: decide upon revision: is this OK?
+            {
+                MegaNode *n = megaApi->getNodeByHandle(cwd);
+                size_t seps = std::count(cwdpath.begin(), cwdpath.end(), '/');
+                unsigned int isep = 0;
+                string sup = cwdpath;
+                while (!n && (isep++ < seps))
+                {
+                    sup.append("/..");
+                    string nsup = ftpserver->shortenpath(sup);
+                    ftpserver->cd(nsup, this);
+                    n = megaApi->getNodeByHandle(cwd);
+                }
+                delete n;
+            }
+            MegaFTPServer::returnFtpCodeAsync(this, 250);
+        }
+        else
+        {
+            MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+            MegaFTPServer::returnFtpCodeAsync(this, 257, request->getName());
+        }
+        else
+        {
+            MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_RENAME)
+    {
+        if (e->getErrorCode() == MegaError::API_OK )
+        {
+            if (nodeToDeleteAfterMove)
+            {
+                this->megaApi->remove(nodeToDeleteAfterMove, false, this);
+                nodeToDeleteAfterMove = NULL;
+                delete nodeToDeleteAfterMove;
+            }
+            else
+            {
+                MegaFTPServer::returnFtpCodeAsync(this, 250);
+            }
+        }
+        else
+        {
+            MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+    else  if (request->getType() == MegaRequest::TYPE_MOVE)
+    {
+        if (e->getErrorCode() == MegaError::API_OK)
+        {
+            if (ftpserver->newNameAfterMove.size())
+            {
+                MegaNode *nodetoRename = this->megaApi->getNodeByHandle(request->getNodeHandle());
+                if (!nodetoRename)
+                {
+                    MegaFTPServer::returnFtpCodeAsync(this, 550, "Moved node not found");
+                }
+                else if (!strcmp(nodetoRename->getName(), ftpserver->newNameAfterMove.c_str()))
+                {
+                    if (nodeToDeleteAfterMove)
+                    {
+                        this->megaApi->remove(nodeToDeleteAfterMove, false, this);
+                        nodeToDeleteAfterMove = NULL;
+                        delete nodeToDeleteAfterMove;
+                    }
+                    else
+                    {
+                        MegaFTPServer::returnFtpCodeAsync(this, 250);
+                    }
+                }
+                else
+                {
+                    this->megaApi->renameNode(nodetoRename, ftpserver->newNameAfterMove.c_str(), this);
+                }
+                delete nodetoRename;
+            }
+            else
+            {
+                if (nodeToDeleteAfterMove)
+                {
+                    this->megaApi->remove(nodeToDeleteAfterMove, false, this);
+                    nodeToDeleteAfterMove = NULL;
+                    delete nodeToDeleteAfterMove;
+                }
+                else
+                {
+                    MegaFTPServer::returnFtpCodeAsync(this, 250);
+                }
+            }
+        }
+        else
+        {
+            MegaFTPServer::returnFtpCodeAsyncBasedOnRequestError(this, e);
+        }
+    }
+
+    uv_async_send(&asynchandle);
+}
+
+
+// FTP DATA Server
+MegaFTPDataServer::MegaFTPDataServer(MegaApiImpl *megaApi, string basePath, MegaFTPContext * controlftpctx, bool useTLS, string certificatepath, string keypath)
+: MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath)
+{
+    this->controlftpctx = controlftpctx;
+    this->nodeToDownload = NULL;
+    this->rangeStartREST = 0;
+    this->notifyNewConnectionRequired = false;
+    this->newParentNodeHandle = UNDEF;
+}
+
+MegaFTPDataServer::~MegaFTPDataServer()
+{
+    LOG_verbose << "MegaFTPDataServer::~MegaFTPDataServer";
+    delete nodeToDownload;
+
+    // if not stopped, the uv thread might want to access a pointer to this.
+    // though this is done in the parent destructor, it could try to access it after vtable has been erased
+    stop();
+    LOG_verbose << "MegaFTPDataServer::~MegaFTPDataServer. end";
+}
+
+MegaTCPContext* MegaFTPDataServer::initializeContext(uv_stream_t *server_handle)
+{
+    MegaFTPDataContext* ftpctx = new MegaFTPDataContext();
+
+    // Set connection data
+    MegaFTPDataServer *server = (MegaFTPDataServer *)(server_handle->data);
+    ftpctx->server = server;
+    ftpctx->megaApi = server->megaApi;
+    ftpctx->tcphandle.data = ftpctx;
+    ftpctx->asynchandle.data = ftpctx;
+
+    return ftpctx;
+}
+
+void MegaFTPDataServer::processWriteFinished(MegaTCPContext *tcpctx, int status)
+{
+    if (status < 0)
+    {
+        LOG_warn << " error received at processWriteFinished: " << status << ": " << uv_err_name(status);
+    }
+
+    MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
+
+    LOG_debug << " processWriteFinished on MegaFTPDataServer. status = " << status;
+    if (resultmsj.size())
+    {
+        resultmsj = ""; // empty result msj // this would be incorrect if we used partial writes (does not seem to be required)
+
+        if (this->controlftpctx)
+        {
+            ftpdatactx->setControlCodeUponDataClose(226);
+        }
+        else
+        {
+            LOG_verbose << "Avoiding waking controlftp aync handle, ftpctx already closed";
+        }
+        closeConnection(tcpctx);
+    }
+    else // transfering node (download)
+    {
+        ftpdatactx->bytesWritten += ftpdatactx->lastBufferLen;
+        LOG_verbose << "Bytes written: " << ftpdatactx->lastBufferLen << " Remaining: " << (ftpdatactx->size - ftpdatactx->bytesWritten);
+        ftpdatactx->lastBuffer = NULL;
+
+        if (status < 0 || ftpdatactx->size == ftpdatactx->bytesWritten)
+        {
+            if (status < 0)
+            {
+                LOG_warn << "Finishing request. Write failed: " << status << ": " << uv_err_name(status);
+            }
+            else
+            {
+                LOG_debug << "Finishing request. All data sent";
+            }
+
+            if (this->controlftpctx)
+            {
+                ftpdatactx->setControlCodeUponDataClose(226);
+            }
+            else
+            {
+                LOG_verbose << "Avoiding waking controlftp aync handle, ftpctx already closed";
+            }
+            closeConnection(ftpdatactx);
+            return;
+        }
+
+        uv_mutex_lock(&ftpdatactx->mutex);
+        if (ftpdatactx->lastBufferLen)
+        {
+            ftpdatactx->streamingBuffer.freeData(ftpdatactx->lastBufferLen);
+            ftpdatactx->lastBufferLen = 0;
+        }
+
+        if (ftpdatactx->pause)
+        {
+            if (ftpdatactx->streamingBuffer.availableSpace() > ftpdatactx->streamingBuffer.availableCapacity() / 2)
+            {
+                ftpdatactx->pause = false;
+                m_off_t start = ftpdatactx->rangeStart + ftpdatactx->rangeWritten + ftpdatactx->streamingBuffer.availableData();
+                m_off_t len =  ftpdatactx->rangeEnd - ftpdatactx->rangeStart -  ftpdatactx->rangeWritten - ftpdatactx->streamingBuffer.availableData();
+
+                LOG_debug << "Resuming streaming from " << start << " len: " << len
+                         << " Buffer status: " << ftpdatactx->streamingBuffer.availableSpace()
+                         << " of " << ftpdatactx->streamingBuffer.availableCapacity() << " bytes free";
+                ftpdatactx->megaApi->startStreaming(ftpdatactx->node, start, len, ftpdatactx);
+            }
+        }
+        uv_mutex_unlock(&ftpdatactx->mutex);
+
+        uv_async_send(&ftpdatactx->asynchandle);
+    }
+}
+
+void MegaFTPDataServer::sendData()
+{
+    MegaTCPContext * tcpctx = NULL;
+
+    this->notifyNewConnectionRequired = true;
+
+    if (connections.size())
+    {
+        tcpctx = connections.back(); //only interested in the last connection received (the one that needs response)
+    }
+    //Some client might create connections before receiving a 150 in the control channel (e.g: ftp linux command)
+    // This could cause never answered / never closed connections.
+    //assert(connections.size() <= 1); //This might not be true due to that
+
+    if (tcpctx)
+    {
+        LOG_verbose << "MegaFTPDataServer::sendData. triggering asyncsend for tcpctx=" << tcpctx;
+#ifdef ENABLE_EVT_TLS
+        if (tcpctx->evt_tls == NULL)
+        {
+            LOG_warn << "MegaFTPDataServer::sendData, evt_tls is NULL";
+        }
+
+        if (useTLS && (!tcpctx->evt_tls || tcpctx->finished || !evt_tls_is_handshake_over(tcpctx->evt_tls)))
+        {
+            if (!tcpctx->evt_tls)
+            {
+                LOG_verbose << "MegaFTPDataServer::sendData. no evt_tls";
+            }
+            else if (tcpctx->finished)
+            {
+                LOG_verbose << "MegaFTPDataServer::sendData. tcpctx->finished";
+                this->notifyNewConnectionRequired = false;
+            }
+            else
+            {
+                LOG_verbose << "MegaFTPDataServer::sendData. handshake not over";
+            }
+        }
+        else
+        {
+#endif
+            LOG_verbose << "MegaFTPDataServer::sendData. do triggering asyncsend 03";
+            this->notifyNewConnectionRequired = false;
+            uv_async_send(&tcpctx->asynchandle);
+#ifdef ENABLE_EVT_TLS
+        }
+#endif
+    }
+    else
+    {
+        LOG_verbose << "MegaFTPDataServer::sendData. no tcpctx. notifyNewConnectionRequired";
+        this->notifyNewConnectionRequired = true;
+    }
+}
+
+void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf)
+{
+    MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
+    MegaFTPDataServer* fds = dynamic_cast<MegaFTPDataServer *>(ftpdatactx->server);
+
+    if (fds->newNameToUpload.size())
+    {
+        //create tmp file with contents in messageBody
+        if (!ftpdatactx->tmpFileAccess)
+        {
+            ftpdatactx->tmpFileName = fds->basePath;
+            ftpdatactx->tmpFileName.append("ftpstorfile");
+            string suffix, utf8suffix;
+            fds->fsAccess->tmpnamelocal(&suffix);
+            fds->fsAccess->local2path(&suffix, &utf8suffix);
+            ftpdatactx->tmpFileName.append(utf8suffix);
+
+            char ext[8];
+            if (ftpdatactx->server->fsAccess->getextension(&fds->controlftpctx->arg1, ext, sizeof ext))
+            {
+                ftpdatactx->tmpFileName.append(ext);
+            }
+
+            ftpdatactx->tmpFileAccess = fds->fsAccess->newfileaccess();
+            string localPath;
+            fds->fsAccess->path2local(&ftpdatactx->tmpFileName, &localPath);
+            fds->fsAccess->unlinklocal(&localPath);
+
+            if (!ftpdatactx->tmpFileAccess->fopen(&localPath, false, true))
+            {
+                ftpdatactx->setControlCodeUponDataClose(450);
+                remotePathToUpload = ""; //empty, so that we don't read in the next connections
+                closeConnection(tcpctx);
+                return;
+            }
+        }
+
+        if (nread > 0)
+        {
+            LOG_verbose << " Writting " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
+            if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
+            {
+                ftpdatactx->setControlCodeUponDataClose(450);
+                remotePathToUpload = ""; //empty, so that we don't read in the next connections
+                closeConnection(tcpctx);
+            }
+            ftpdatactx->tmpFileSize += nread;
+        }
+    }
+    else
+    {
+        LOG_err << "FTPData server receiving unexpected data: " << nread << " bytes";
+    }
+
+
+    if (nread < 0) //transfer finish
+    {
+        LOG_verbose << "FTP Data Channel received invalid read size: " << nread << ". Closing connection";
+        if (ftpdatactx->tmpFileName.size())
+        {
+            MegaNode *newParentNode = ftpdatactx->megaApi->getNodeByHandle(fds->newParentNodeHandle);
+            if (newParentNode)
+            {
+                LOG_debug << "Starting upload of file " << fds->newNameToUpload;
+                fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
+                ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(), fds->controlftpctx);
+                ftpdatactx->controlRespondedElsewhere = true;
+            }
+            else
+            {
+                LOG_err << "Unable to start upload: " << fds->newNameToUpload;
+                ftpdatactx->setControlCodeUponDataClose(550, "Destination folder not available");
+            }
+            ftpdatactx->tmpFileName="";
+        }
+        else
+        {
+            LOG_err << "Data channel received close without tmp file created!";
+            ftpdatactx->setControlCodeUponDataClose(426);
+        }
+
+        ftpdatactx->tmpFileName = ""; // empty so that we don't try to upload it
+        remotePathToUpload = ""; //empty, so that we don't read in the next connections
+        closeConnection(tcpctx);
+        return;
+    }
+}
+
+void MegaFTPDataServer::processAsyncEvent(MegaTCPContext *tcpctx)
+{
+    LOG_verbose << "MegaFTPDataServer::processAsyncEvent. tcptcx= " << tcpctx;
+    MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
+    MegaFTPDataServer* fds = dynamic_cast<MegaFTPDataServer *>(tcpctx->server);
+
+    if (ftpdatactx->finished)
+    {
+        LOG_debug << "FTP DATA link closed, ignoring async event";
+        return;
+    }
+
+    if (ftpdatactx->failed)
+    {
+        LOG_warn << "Streaming transfer failed. Closing connection.";
+        closeConnection(ftpdatactx);
+        return;
+    }
+
+
+    uv_mutex_lock(&fds->controlftpctx->mutex_nodeToDownload);
+
+    if (resultmsj.size())
+    {
+        LOG_debug << " responding DATA: " << resultmsj;
+        answer(ftpdatactx, resultmsj.c_str(), resultmsj.size());
+    }
+    else if (remotePathToUpload.size())
+    {
+        LOG_debug << " receive data to store in tmp file:";
+        readData(ftpdatactx);
+    }
+    else if (nodeToDownload)
+    {
+        if (!ftpdatactx->node || rangeStartREST) //alterantive to || rangeStart, define aborted?
+        {
+            if (!rangeStartREST)
+            {
+                LOG_debug << "Initiating node download via port " << fds->port;
+            }
+            else
+            {
+                LOG_debug << "Initiating node download from: " << rangeStartREST << " via port " << fds->port;
+            }
+
+            ftpdatactx->rangeStart = rangeStartREST;
+            rangeStartREST = 0;// so as not to start again
+            ftpdatactx->bytesWritten = 0;
+            ftpdatactx->size = 0;
+            ftpdatactx->streamingBuffer.setMaxBufferSize(ftpdatactx->server->getMaxBufferSize());
+            ftpdatactx->streamingBuffer.setMaxOutputSize(ftpdatactx->server->getMaxOutputSize());
+
+            ftpdatactx->transfer = new MegaTransferPrivate(MegaTransfer::TYPE_LOCAL_TCP_DOWNLOAD);
+
+            ftpdatactx->transfer->setPath(fds->controlftpctx->arg1.c_str());
+            if (ftpdatactx->nodename.size())
+            {
+                ftpdatactx->transfer->setFileName(ftpdatactx->nodename.c_str());
+            }
+            if (ftpdatactx->nodehandle.size())
+            {
+                ftpdatactx->transfer->setNodeHandle(MegaApi::base64ToHandle(ftpdatactx->nodehandle.c_str()));
+            }
+
+            ftpdatactx->transfer->setStartTime(Waiter::ds);
+
+            m_off_t totalSize = nodeToDownload->getSize();
+            m_off_t start = 0;
+            m_off_t end = totalSize - 1;
+            if (ftpdatactx->rangeStart > 0)
+            {
+                start = ftpdatactx->rangeStart;
+            }
+            ftpdatactx->rangeEnd = end + 1;
+            ftpdatactx->rangeStart = start;
+
+            //bool rangeRequested = (/*ftpdatactx->rangeEnd*/ - ftpdatactx->rangeStart) != totalSize;
+            m_off_t len = end - start + 1;
+
+            ftpdatactx->pause = false;
+            ftpdatactx->lastBuffer = NULL;
+            ftpdatactx->lastBufferLen = 0;
+            ftpdatactx->transfer->setStartPos(0);
+            ftpdatactx->transfer->setEndPos(end); //This will actually be override later
+            ftpdatactx->node = nodeToDownload->copy();
+
+            ftpdatactx->streamingBuffer.init(len);
+            ftpdatactx->size = len;
+
+            ftpdatactx->megaApi->fireOnFtpStreamingStart(ftpdatactx->transfer);
+
+            LOG_debug << "Requesting range. From " << start << "  size " << len;
+            ftpdatactx->rangeWritten = 0;
+            if (start || len)
+            {
+                ftpdatactx->megaApi->startStreaming(nodeToDownload, start, len, ftpdatactx);
+            }
+            else
+            {
+                LOG_debug << "Skipping startStreaming call since empty file";
+                ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaError(API_OK));
+                ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
+                fds->processWriteFinished(ftpdatactx, 0);
+            }
+        }
+        else
+        {
+            LOG_debug << "Calling sendNextBytes port = " << fds->port;
+            sendNextBytes(ftpdatactx);
+        }
+    }
+    else
+    {
+
+        LOG_err << " Async event with no result mesj!!!";
+    }
+
+    uv_mutex_unlock(&fds->controlftpctx->mutex_nodeToDownload);
+}
+
+void MegaFTPDataServer::processOnAsyncEventClose(MegaTCPContext* tcpctx)
+{
+    MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
+    MegaFTPDataServer *fds = ((MegaFTPDataServer *)ftpdatactx->server);
+
+    LOG_verbose << "MegaFTPDataServer::processOnAsyncEventClose. tcpctx=" << tcpctx << " port = " << fds->port << " remaining = " << fds->remainingcloseevents;
+
+    fds->remotePathToUpload = "";
+
+    if (ftpdatactx->transfer)
+    {
+        ftpdatactx->megaApi->cancelTransfer(ftpdatactx->transfer);
+        ftpdatactx->megaApi->fireOnFtpStreamingFinish(ftpdatactx->transfer, MegaError(ftpdatactx->ecode));
+        ftpdatactx->transfer = NULL; // this has been deleted in fireOnStreamingFinish
+    }
+
+    if (!fds->remainingcloseevents && fds->closing)
+    {
+        LOG_verbose << "MegaFTPDataServer::processOnAsyncEventClose stopping without waiting. port = " << fds->port;
+        fds->stop(true);
+    }
+
+    if (!ftpdatactx->controlRespondedElsewhere && fds->started && !this->controlftpctx->finished)
+    {
+        LOG_debug << "MegaFTPDataServer::processOnAsyncEventClose port = " << fds->port << ". Responding " << ftpdatactx->controlResponseCode << ". " << ftpdatactx->controlResponseMessage;
+        MegaFTPServer* ftpControlServer = dynamic_cast<MegaFTPServer *>(fds->controlftpctx->server);
+        ftpControlServer->returnFtpCode(this->controlftpctx, ftpdatactx->controlResponseCode, ftpdatactx->controlResponseMessage);
+    }
+}
+
+bool MegaFTPDataServer::respondNewConnection(MegaTCPContext* tcpctx)
+{
+    MegaFTPDataContext* ftpdatactx = dynamic_cast<MegaFTPDataContext *>(tcpctx);
+    if (notifyNewConnectionRequired) //in some cases, control connection tried this before the ftpdatactx was ready. this fixes that
+    {
+        LOG_verbose << "MegaFTPDataServer::respondNewConnection async sending to notify new connection";
+        uv_async_send(&ftpdatactx->asynchandle);
+        notifyNewConnectionRequired = false;
+    }
+
+    return false;
+}
+
+void MegaFTPDataServer::processOnExitHandleClose(MegaTCPServer *tcpServer)
+{
+}
+
+void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
+{
+    if (ftpdatactx->finished)
+    {
+        LOG_debug << "FTP link closed, aborting write";
+        return;
+    }
+
+    if (ftpdatactx->lastBuffer)
+    {
+        LOG_verbose << "Skipping write due to another ongoing write";
+        return;
+    }
+
+    uv_mutex_lock(&ftpdatactx->mutex);
+    if (ftpdatactx->lastBufferLen)
+    {
+        ftpdatactx->streamingBuffer.freeData(ftpdatactx->lastBufferLen);
+        ftpdatactx->lastBufferLen = 0;
+    }
+
+    if (ftpdatactx->tcphandle.write_queue_size > ftpdatactx->streamingBuffer.availableCapacity() / 8)
+    {
+        LOG_warn << "Skipping write. Too much queued data";
+        uv_mutex_unlock(&ftpdatactx->mutex);
+        return;
+    }
+
+    uv_buf_t resbuf = ftpdatactx->streamingBuffer.nextBuffer();
+    uv_mutex_unlock(&ftpdatactx->mutex);
+
+    if (!resbuf.len)
+    {
+        LOG_verbose << "Skipping write. No data available." << " buffered = " << ftpdatactx->streamingBuffer.availableData();
+        return;
+    }
+
+    LOG_verbose << "Writting " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
+    ftpdatactx->rangeWritten += resbuf.len;
+    ftpdatactx->lastBuffer = resbuf.base;
+    ftpdatactx->lastBufferLen = resbuf.len;
+
+#ifdef ENABLE_EVT_TLS
+    if (ftpdatactx->server->useTLS)
+    {
+        //notice this, contrary to !useTLS is synchronous
+        int err = evt_tls_write(ftpdatactx->evt_tls, resbuf.base, resbuf.len, onWriteFinished_tls);
+        if (err <= 0)
+        {
+            LOG_warn << "Finishing due to an error sending the response: " << err;
+            closeConnection(ftpdatactx);
+        }
+    }
+    else
+    {
+#endif
+        uv_write_t *req = new uv_write_t();
+        req->data = ftpdatactx;
+
+        if (int err = uv_write(req, (uv_stream_t*)&ftpdatactx->tcphandle, &resbuf, 1, onWriteFinished))
+        {
+            delete req;
+            LOG_warn << "Finishing due to an error in uv_write: " << err;
+            closeTCPConnection(ftpdatactx);
+        }
+#ifdef ENABLE_EVT_TLS
+    }
+#endif
+}
+
+
+MegaFTPDataContext::MegaFTPDataContext()
+{
+    transfer = NULL;
+    lastBuffer = NULL;
+    lastBufferLen = 0;
+    failed = false;
+    ecode = API_OK;
+    pause = false;
+    node = NULL;
+    rangeWritten = 0;
+    rangeStart = 0;
+    tmpFileAccess = NULL;
+    tmpFileSize = 0;
+    this->controlRespondedElsewhere = false;
+    this->controlResponseCode = 426;
+}
+
+MegaFTPDataContext::~MegaFTPDataContext()
+{
+    delete transfer;
+    delete tmpFileAccess;
+    delete node;
+}
+
+void MegaFTPDataContext::setControlCodeUponDataClose(int code, string msg)
+{
+    controlResponseCode = code;
+    controlResponseMessage = msg;
+}
+
+void MegaFTPDataContext::onTransferStart(MegaApi *, MegaTransfer *transfer)
+{
+    this->transfer->setTag(transfer->getTag());
+}
+
+bool MegaFTPDataContext::onTransferData(MegaApi *, MegaTransfer *transfer, char *buffer, size_t size)
+{
+    LOG_verbose << "Streaming data received: " << transfer->getTransferredBytes()
+                << " Size: " << size
+                << " Remaining from transfer: "   << (size + (transfer->getTotalBytes() - transfer->getTransferredBytes()) )
+                << " Remaining to write TCP: "   << (this->size - bytesWritten)
+                << " Queued: " << this->tcphandle.write_queue_size
+                << " Buffered: " << streamingBuffer.availableData()
+                << " Free: " << streamingBuffer.availableSpace();
+
+    if (finished)
+    {
+        LOG_info << "Removing streaming transfer after " << transfer->getTransferredBytes() << " bytes";
+        return false;
+    }
+
+    // append the data to the buffer
+    uv_mutex_lock(&mutex);
+    long long remaining = size + (transfer->getTotalBytes() - transfer->getTransferredBytes());
+    long long availableSpace = streamingBuffer.availableSpace();
+    if (remaining > availableSpace && availableSpace < (2 * size))
+    {
+        LOG_debug << "Buffer full: " << availableSpace << " of "
+                 << streamingBuffer.availableCapacity() << " bytes available only. Pausing streaming";
+        pause = true;
+    }
+    streamingBuffer.append(buffer, size);
+    uv_mutex_unlock(&mutex);
+
+    // notify the HTTP server
+    uv_async_send(&asynchandle);
+    return !pause;
+}
+
+void MegaFTPDataContext::onTransferFinish(MegaApi *, MegaTransfer *, MegaError *e)
+{
+    LOG_verbose << "MegaFTPDataContext::onTransferFinish";
+    if (finished)
+    {
+        LOG_debug << "FTP Data link closed";
+        return;
+    }
+    ecode = e->getErrorCode();
+    if (ecode != API_OK && ecode != API_EINCOMPLETE)
+    {
+        LOG_warn << "Transfer failed with error code: " << ecode;
+        failed = true;
+    }
+    uv_async_send(&asynchandle);
+}
+
+void MegaFTPDataContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *)
+{
+    if (finished)
+    {
+        LOG_debug << "FTP data link closed, ignoring the result of the request";
+        return;
+    }
+
+    uv_async_send(&asynchandle);
+}
+
 #endif
 
 #ifdef ENABLE_CHAT

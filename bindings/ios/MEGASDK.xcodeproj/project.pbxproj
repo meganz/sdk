@@ -20,6 +20,7 @@
 		41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */; };
 		41D98D011BD54B5200764370 /* MEGAContactRequest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D001BD54B5200764370 /* MEGAContactRequest.mm */; };
 		41D98D071BD562AD00764370 /* MEGAContactRequestList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */; };
+		5B72A14D20D3B3FB007FE4FD /* mega_ccronexpr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5B72A14C20D3B3FB007FE4FD /* mega_ccronexpr.cpp */; };
 		7765A76720528445004C2FEB /* mega_evt_tls.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 7765A76620528445004C2FEB /* mega_evt_tls.cpp */; };
 		940BEFB719ED92C2007E7FA2 /* attrmap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9819ED92C2007E7FA2 /* attrmap.cpp */; };
 		940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */; };
@@ -130,6 +131,7 @@
 		41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAContactRequestList.mm; sourceTree = "<group>"; };
 		41D98D081BD5679C00764370 /* MEGAContactRequestList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAContactRequestList+init.h"; sourceTree = "<group>"; };
 		41F01E301C087D4C001E18E6 /* GfxProcCG.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GfxProcCG.h; sourceTree = "<group>"; };
+		5B72A14C20D3B3FB007FE4FD /* mega_ccronexpr.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_ccronexpr.cpp; path = ../../src/mega_ccronexpr.cpp; sourceTree = "<group>"; };
 		7765A76620528445004C2FEB /* mega_evt_tls.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = mega_evt_tls.cpp; path = ../../src/mega_evt_tls.cpp; sourceTree = "<group>"; };
 		940BEF9819ED92C2007E7FA2 /* attrmap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = attrmap.cpp; path = ../../src/attrmap.cpp; sourceTree = "<group>"; };
 		940BEF9919ED92C2007E7FA2 /* backofftimer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = backofftimer.cpp; path = ../../src/backofftimer.cpp; sourceTree = "<group>"; };
@@ -323,6 +325,7 @@
 				940BEFA419ED92C2007E7FA2 /* json.cpp */,
 				940BEFA519ED92C2007E7FA2 /* logging.cpp */,
 				A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */,
+				5B72A14C20D3B3FB007FE4FD /* mega_ccronexpr.cpp */,
 				7765A76620528445004C2FEB /* mega_evt_tls.cpp */,
 				414820991C561CB500552E76 /* mega_http_parser.cpp */,
 				41A990721A5D305700B2094A /* mega_utf8proc.cpp */,
@@ -752,6 +755,7 @@
 				940BEFBE19ED92C2007E7FA2 /* fileattributefetch.cpp in Sources */,
 				940BEFBA19ED92C2007E7FA2 /* command.cpp in Sources */,
 				940BEFD019ED92C2007E7FA2 /* transfer.cpp in Sources */,
+				5B72A14D20D3B3FB007FE4FD /* mega_ccronexpr.cpp in Sources */,
 				41AD7A7E1A1E10F900D66856 /* DelegateMEGALoggerListener.mm in Sources */,
 				41A990731A5D305700B2094A /* mega_utf8proc.cpp in Sources */,
 				A81790101EFACE6400110E91 /* MEGAHandleList.mm in Sources */,

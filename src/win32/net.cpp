@@ -287,8 +287,9 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
                 }
                 else
                 {
-                    // data was copied direct to req->in.
-                    assert((char*)lpvStatusInformation >= req->in.data() && (char*)lpvStatusInformation + dwStatusInformationLength <= req->in.data() + req->in.size());
+                    // data was copied direct to buf or to req->in.
+                    assert(req->buf && (byte*)lpvStatusInformation >= req->buf && (byte*)lpvStatusInformation + dwStatusInformationLength <= req->buf + req->buflen ||
+                           !req->buf && (char*)lpvStatusInformation >= req->in.data() && (char*)lpvStatusInformation + dwStatusInformationLength <= req->in.data() + req->in.size());
                 }
 
                 if (!WinHttpQueryDataAvailable(httpctx->hRequest, NULL))

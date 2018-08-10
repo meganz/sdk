@@ -148,7 +148,7 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
     CFRelease(imageOptions);
     
     if (!(w && h)) { // trying to get fake size from thumbnail
-        CGImageRef thumbnail = createThumbnailWithMaxSize(100);
+        CGImageRef thumbnail = createThumbnailWithMaxSize(size);
         if (!thumbnail) {
             return false;
         }
