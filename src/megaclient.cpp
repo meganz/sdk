@@ -1711,6 +1711,9 @@ void MegaClient::exec()
                         btsc.reset();
                     }
                     break;
+
+                default:
+                    break;
                 }
             }
             else
@@ -1784,7 +1787,7 @@ void MegaClient::exec()
                         btsc.backoff();
 
                     default:
-                        ;
+                        break;
                 }
             }
         }

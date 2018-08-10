@@ -78,6 +78,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->fingerprint = MegaApi::strdup(fingerprint);
     this->customAttrs = NULL;
     this->duration = -1;
+    this->width = -1;
+    this->height = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->type = type;
@@ -124,6 +126,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
     this->duration = node->getDuration();
+    this->width = node->getWidth();
+    this->height = node->getHeight();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
@@ -220,6 +224,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     }
 
     this->duration = -1;
+    this->width = -1;
+    this->height = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
@@ -683,6 +689,48 @@ int MegaNodePrivate::getDuration()
     }
 
     return duration;
+}
+
+
+int MegaNodePrivate::getWidth()
+{
+    if (width == -1)    // not initialized yet, or not available
+    {
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+        {
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                    && mediaProperties.shortformat != 254 // 254 = No information available
+                    && mediaProperties.width > 0)
+            {
+                width = mediaProperties.width;
+            }
+        }
+    }
+    
+    return width;
+}
+
+
+int MegaNodePrivate::getHeight()
+{
+    if (height == -1)    // not initialized yet, or not available
+    {
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+        {
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                    && mediaProperties.shortformat != 254 // 254 = No information available
+                    && mediaProperties.height > 0)
+            {
+                height = mediaProperties.height;
+            }
+        }
+    }
+    
+    return height;
 }
 
 double MegaNodePrivate::getLatitude()
@@ -12394,7 +12442,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 else if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
                 {
                     m_time_t currenttime = m_time();
-                    if (!User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len)
+                    bool isMasterKeyExported = User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len);
+                    if (!isMasterKeyExported
                             && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
@@ -12404,6 +12453,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
+                    request->setAccess(isMasterKeyExported ? 1 : 0);
                 }
             }
             break;
@@ -13921,11 +13971,11 @@ bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
 {
     if (i->type < j->type)
     {
-        return 1;
+        return 0;
     }
     if (i->type > j->type)
     {
-        return 0;
+        return 1;
     }
     if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
     {
@@ -17876,7 +17926,7 @@ void MegaApiImpl::sendPendingRequests()
             int number = int(request->getNumber());
             const char *text = request->getText();
 
-            if(number < 99500 || number >= 99600 || !text)
+            if(number < 99000 || (number >= 99150 && (number < 99500 || number >= 99600)) || !text)
             {
                 e = API_EARGS;
                 break;
