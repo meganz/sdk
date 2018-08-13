@@ -501,6 +501,18 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if multi-factor authentication can be enabled for the current account.
+     *
+     * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
+     * using this function. Otherwise it will always return false.
+     *
+     * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
+     */
+    public boolean multiFactorAuthAvailable () {
+        return megaApi.multiFactorAuthAvailable();
+    }
+
+    /**
      * Check if multi-factor authentication is enabled for an account
      *
      * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
