@@ -536,6 +536,16 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 #pragma mark - Login Requests
 
 /**
+ * @brief Check if multi-factor authentication can be enabled for the current account.
+ *
+ * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
+ * using this function. Otherwise it will always return false.
+ *
+ * @return YES if multi-factor authentication can be enabled for the current account, otherwise false.
+ */
+- (BOOL)multiFactorAuthAvailable;
+
+/**
  * @brief Check if multi-factor authentication is enabled for an account
  *
  * The associated request type with this request is MEGARequestTypeMultiFactorAuthCheck
