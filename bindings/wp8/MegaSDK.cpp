@@ -398,6 +398,11 @@ void MegaSDK::setStatsID(String^ id)
     MegaApi::setStatsID((id != nullptr) ? utf8id.c_str() : NULL);
 }
 
+bool MegaSDK::multiFactorAuthAvailable()
+{
+    return megaApi->multiFactorAuthAvailable();
+}
+
 void MegaSDK::multiFactorAuthCheck(String^ email, MRequestListenerInterface^ listener)
 {
     std::string utf8email;
