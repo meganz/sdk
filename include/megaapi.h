@@ -516,6 +516,20 @@ class MegaNode
          * @return The number of seconds, or -1 if this attribute is not set.
          */
         virtual int getDuration();
+    
+        /**
+         * @brief Get the attribute of the node representing its width.
+         *
+         * @return The number of pixels for width, or -1 if this attribute is not set.
+         */
+        virtual int getWidth();
+    
+        /**
+         * @brief Get the attribute of the node representing its height.
+         *
+         * @return The number of pixels for height, or -1 if this attribute is not set.
+         */
+        virtual int getHeight();
 
         /**
          * @brief Get the attribute of the node representing the latitude.
@@ -7861,6 +7875,24 @@ class MegaApi
         void shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Check if the master key has been exported
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getAccess - Returns true if the master key has been exported
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void isMasterKeyExported(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Enable or disable the generation of rich previews
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
@@ -8096,6 +8128,11 @@ class MegaApi
          *
          * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
          * is sent to MEGA servers.
+         *
+         * @note Event types are restricted to the following ranges:
+         *  - MEGAchat: [99000, 99150)
+         *  - MEGA SDK: [99400, 99500)
+         *  - MEGAsync: [99500, 99600)
          */
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 

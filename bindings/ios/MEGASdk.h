@@ -525,6 +525,16 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 #pragma mark - Login Requests
 
 /**
+ * @brief Check if multi-factor authentication can be enabled for the current account.
+ *
+ * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
+ * using this function. Otherwise it will always return false.
+ *
+ * @return YES if multi-factor authentication can be enabled for the current account, otherwise false.
+ */
+- (BOOL)multiFactorAuthAvailable;
+
+/**
  * @brief Check if multi-factor authentication is enabled for an account
  *
  * The associated request type with this request is MEGARequestTypeMultiFactorAuthCheck
@@ -3324,6 +3334,41 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param atLogout YES if the check is being done just before a logout
  */
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout;
+
+/**
+ * @brief Check if the master key has been exported
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest access] - Returns true if the master key has been exported
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)isMasterKeyExportedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the master key has been exported
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest access] - Returns true if the master key has been exported
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent.
+ *
+ */
+- (void)isMasterKeyExported;
 
 /**
  * @brief Enable or disable the generation of rich previews

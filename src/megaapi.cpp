@@ -239,6 +239,16 @@ int MegaNode::getDuration()
     return -1;
 }
 
+int MegaNode::getWidth()
+{
+    return -1;
+}
+
+int MegaNode::getHeight()
+{
+    return -1;
+}
+
 double MegaNode::getLatitude()
 {
     return INVALID_COORDINATE;
@@ -2022,6 +2032,11 @@ void MegaApi::passwordReminderDialogBlocked(MegaRequestListener *listener)
 void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener)
 {
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, atLogout, listener);
+}
+
+void MegaApi::isMasterKeyExported(MegaRequestListener *listener)
+{
+    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, 0, listener);
 }
 
 void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)

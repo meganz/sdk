@@ -389,6 +389,10 @@ using namespace mega;
 
 #pragma mark - Login Requests
 
+- (BOOL)multiFactorAuthAvailable {
+    return self.megaApi->multiFactorAuthAvailable();
+}
+
 - (void)multiFactorAuthCheckWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->multiFactorAuthCheck((email ? email.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1077,6 +1081,14 @@ using namespace mega;
 
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout {
     self.megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
+- (void)isMasterKeyExportedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->isMasterKeyExported([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)isMasterKeyExported {
+    self.megaApi->isMasterKeyExported();
 }
 
 - (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {

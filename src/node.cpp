@@ -1103,6 +1103,11 @@ void LocalNode::bumpnagleds()
     nagleds = sync->client->waiter->ds + 11;
 }
 
+LocalNode::LocalNode()
+{
+    checked = false;
+}
+
 // initialize fresh LocalNode object - must be called exactly once
 void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* cfullpath)
 {
@@ -1113,7 +1118,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     deleted = false;
     created = false;
     reported = false;
-    checked = false;
     syncxfer = true;
     newnode = NULL;
     parent_dbid = 0;
@@ -1604,6 +1608,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
     // FIXME: serialize/unserialize
     l->created = false;
     l->reported = false;
+    l->checked = h != UNDEF;
 
     return l;
 }

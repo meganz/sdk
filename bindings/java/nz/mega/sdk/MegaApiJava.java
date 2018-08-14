@@ -485,6 +485,18 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if multi-factor authentication can be enabled for the current account.
+     *
+     * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
+     * using this function. Otherwise it will always return false.
+     *
+     * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
+     */
+    public boolean multiFactorAuthAvailable () {
+        return megaApi.multiFactorAuthAvailable();
+    }
+
+    /**
      * Check if multi-factor authentication is enabled for an account
      *
      * The associated request type with this request is MegaRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
@@ -3537,6 +3549,27 @@ public class MegaApiJava {
      */
     public void masterKeyExported(MegaRequestListenerInterface listener){
         megaApi.masterKeyExported(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the master key has been exported
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getAccess - Returns true if the master key has been exported
+     *
+     * If the corresponding user attribute is not set yet, the request will fail with the
+     * error code MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+
+    public void isMasterKeyExported (MegaRequestListenerInterface listener) {
+        megaApi.isMasterKeyExported(createDelegateRequestListener(listener));
     }
 
     /**
