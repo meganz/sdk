@@ -175,6 +175,16 @@ namespace mega
         static void setStatsID(String^ id);
 
         /**
+        * @brief Check if multi-factor authentication can be enabled for the current account.
+        *
+        * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
+        * using this function. Otherwise it will always return false.
+        *
+        * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
+        */
+        bool multiFactorAuthAvailable();
+
+        /**
          * @brief Check if multi-factor authentication is enabled for an account
          *
          * The associated request type with this request is MRequest::TYPE_MULTI_FACTOR_AUTH_CHECK
@@ -904,6 +914,40 @@ namespace mega
         * @param atLogout True if the check is being done just before a logout
         */
         void shouldShowPasswordReminderDialog(bool atLogout);
+
+        /**
+        * @brief Check if the master key has been exported
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getAccess - Returns true if the master key has been exported
+        *
+        * If the corresponding user attribute is not set yet, the request will fail with the
+        * error code MError::API_ENOENT.
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void isMasterKeyExported(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Check if the master key has been exported
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getAccess - Returns true if the master key has been exported
+        *
+        * If the corresponding user attribute is not set yet, the request will fail with the
+        * error code MError::API_ENOENT.
+        */
+        void isMasterKeyExported();
 
         /**
         * @brief Change the password of the MEGA account

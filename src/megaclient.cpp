@@ -87,7 +87,7 @@ bool MegaClient::decryptkey(const char* sk, byte* tk, int tl, SymmCipher* sc, in
         ptr++;
     }
 
-    sl = ptr - sk;
+    sl = int(ptr - sk);
 
     if (sl > 4 * FILENODEKEYLENGTH / 3 + 1)
     {
@@ -471,7 +471,7 @@ void MegaClient::setsid(const byte* newsid, unsigned len)
 {
     auth = "&sid=";
 
-    int t = auth.size();
+    size_t t = auth.size();
     auth.resize(t + len * 4 / 3 + 4);
     auth.resize(t + Base64::btoa(newsid, len, (char*)(auth.c_str() + t)));
     
@@ -1098,7 +1098,7 @@ void MegaClient::exec()
                     app->http_result(req->httpstatus ? API_OK : API_EFAILED,
                                      req->httpstatus,
                                      req->buf ? (byte *)req->buf : (byte *)req->in.data(),
-                                     req->buf ? req->bufpos : req->in.size());
+                                     int(req->buf ? req->bufpos : req->in.size()));
                     delete req;
                     pendinghttp.erase(it++);
                     break;
@@ -1659,6 +1659,7 @@ void MegaClient::exec()
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
                     }
+                    break;
                 }
 
                 // fall through
@@ -1705,6 +1706,8 @@ void MegaClient::exec()
                     pendingsc = NULL;
                     btsc.reset();
                 }
+                break;
+            default:
                 break;
             }
         }
@@ -2070,8 +2073,8 @@ void MegaClient::exec()
                     }
                 }
 
-                unsigned totalpending = 0;
-                unsigned scanningpending = 0;
+                size_t totalpending = 0;
+                size_t scanningpending = 0;
                 for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
                 {
                     for (it = syncs.begin(); it != syncs.end(); )
@@ -3647,11 +3650,11 @@ bool MegaClient::procsc()
                         reqtag = creqtag;
 
                         // NULL vector: "notify all elements"
-                        app->nodes_updated(NULL, nodes.size());
-                        app->users_updated(NULL, users.size());
-                        app->pcrs_updated(NULL, pcrindex.size());
+                        app->nodes_updated(NULL, int(nodes.size()));
+                        app->users_updated(NULL, int(users.size()));
+                        app->pcrs_updated(NULL, int(pcrindex.size()));
 #ifdef ENABLE_CHAT
-                        app->chats_updated(NULL, chats.size());
+                        app->chats_updated(NULL, int(chats.size()));
 #endif
                         for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
                         {
@@ -4236,7 +4239,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool 
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
-    key->cbc_encrypt((byte*)data->data(), data->size());
+    key->cbc_encrypt((byte*)data->data(), int(data->size()));
 
     queuedfa.push_back(new HttpReqCommandPutFA(this, th, t, data, checkAccess));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
@@ -5680,7 +5683,7 @@ void MegaClient::notifypurge(void)
 #endif
     }
 
-    if ((t = nodenotify.size()))
+    if ((t = int(nodenotify.size())))
     {
 #ifdef ENABLE_SYNC
         // check for deleted syncs
@@ -5738,7 +5741,7 @@ void MegaClient::notifypurge(void)
         nodenotify.clear();
     }
 
-    if ((t = pcrnotify.size()))
+    if ((t = int(pcrnotify.size())))
     {
         if (!fetchingnodes)
         {
@@ -5766,7 +5769,7 @@ void MegaClient::notifypurge(void)
     }
 
     // users are never deleted (except at account cancellation)
-    if ((t = usernotify.size()))
+    if ((t = int(usernotify.size())))
     {
         if (!fetchingnodes)
         {
@@ -5805,7 +5808,7 @@ void MegaClient::notifypurge(void)
     }
 
 #ifdef ENABLE_CHAT
-    if ((t = chatnotify.size()))
+    if ((t = int(chatnotify.size())))
     {
         if (!fetchingnodes)
         {
@@ -5893,7 +5896,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
 {
     if (l < 0)
     {
-        l = strlen(json);
+        l = int(strlen(json));
     }
     int ll = (l + 6 + SymmCipher::KEYLENGTH - 1) & - SymmCipher::KEYLENGTH;
     byte* buf = new byte[ll];
@@ -6179,7 +6182,7 @@ char* MegaClient::str_to_a32(const char* str, int* len)
         return NULL;
     }
 
-    int t = strlen(str);
+    int t = int(strlen(str));
     int t2 = 4 * ((t + 3) >> 2);
     char* result = new char[t2]();
     uint32_t* a32 = (uint32_t*)result;
@@ -6627,7 +6630,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     }
 
     // any child nodes that arrived before their parents?
-    for (int i = dp.size(); i--; )
+    for (size_t i = dp.size(); i--; )
     {
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
@@ -7322,7 +7325,7 @@ int MegaClient::dumpsession(byte* session, size_t size)
 
         byte k[SymmCipher::KEYLENGTH];
         SymmCipher cipher;
-        cipher.setkey((const byte *)sessionkey.data(), sessionkey.size());
+        cipher.setkey((const byte *)sessionkey.data(), int(sessionkey.size()));
         cipher.ecb_encrypt(key.key, k);
         memcpy(session, k, sizeof k);
     }
@@ -7334,7 +7337,7 @@ int MegaClient::dumpsession(byte* session, size_t size)
 
     memcpy(session + sizeof key.key, sid.data(), sid.size());
     
-    return size;
+    return int(size);
 }
 
 void MegaClient::copysession()
@@ -7368,7 +7371,7 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
     {
         string sids;
         sids.resize(sid.size() * 4 / 3 + 4);
-        sids.resize(Base64::btoa((byte *)sid.data(), sid.size(), (char *)sids.data()));
+        sids.resize(Base64::btoa((byte *)sid.data(), int(sid.size()), (char *)sids.data()));
         ss << sids;
     }
     ss << "\",\"";
@@ -7384,7 +7387,7 @@ string *MegaClient::sessiontransferdata(const char *url, string *session)
     string json = ss.str();
     string *base64 = new string;
     base64->resize(json.size() * 4 / 3 + 4);
-    base64->resize(Base64::btoa((byte *)json.data(), json.size(), (char *)base64->data()));
+    base64->resize(Base64::btoa((byte *)json.data(), int(json.size()), (char *)base64->data()));
     std::replace(base64->begin(), base64->end(), '-', '+');
     std::replace(base64->begin(), base64->end(), '_', '/');
     return base64;
@@ -7837,7 +7840,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
 // otherwise, queue and request public key if not already pending
 void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char* personal_representation)
 {
-    int total = n->outshares ? n->outshares->size() : 0;
+    size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
     if (a == ACCESS_UNKNOWN && total == 1)
     {
@@ -7940,7 +7943,7 @@ error MegaClient::creditcardstore(const char *ccplain)
 
     //Luhn algorithm
     int odd = 1, sum = 0;
-    for (int i = ccnumber.size(); i--; odd = !odd)
+    for (size_t i = ccnumber.size(); i--; odd = !odd)
     {
         int digit = ccnumber[i] - '0';
         sum += odd ? digit : ((digit < 5) ? 2 * digit : 2 * (digit - 5) + 1);
@@ -7977,7 +7980,7 @@ error MegaClient::creditcardstore(const char *ccplain)
 
     HashSHA256 hash;
     string binaryhash;
-    hash.add((byte *)hashstring, strlen(hashstring));
+    hash.add((byte *)hashstring, int(strlen(hashstring)));
     hash.get(&binaryhash);
 
     static const char hexchars[] = "0123456789abcdef";
@@ -7992,7 +7995,7 @@ error MegaClient::creditcardstore(const char *ccplain)
 
     string base64cc;
     base64cc.resize(ccenc.size()*4/3+4);
-    base64cc.resize(Base64::btoa((byte *)ccenc.data(), ccenc.size(), (char *)base64cc.data()));
+    base64cc.resize(Base64::btoa((byte *)ccenc.data(), int(ccenc.size()), (char *)base64cc.data()));
     std::replace( base64cc.begin(), base64cc.end(), '-', '+');
     std::replace( base64cc.begin(), base64cc.end(), '_', '/');
 
@@ -8057,7 +8060,7 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
         }
 
         av = (const byte*) data.data();
-        avl = data.size();
+        avl = unsigned(data.size());
     }
 
     int tag = (ctag != -1) ? ctag : reqtag;
@@ -8160,7 +8163,7 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
             else
             {
                 restag = tag;
-                app->getua_result((byte*) cachedav->data(), cachedav->size());
+                app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()));
                 return;
             }
         }
@@ -8206,7 +8209,7 @@ void MegaClient::notifynode(Node* n)
             // report a "NO_KEY" event
 
             char* buf = new char[n->nodekey.size() * 4 / 3 + 4];
-            Base64::btoa((byte *)n->nodekey.data(), n->nodekey.size(), buf);
+            Base64::btoa((byte *)n->nodekey.data(), int(n->nodekey.size()), buf);
 
             int changed = 0;
             changed |= (int)n->changed.removed;
@@ -8219,10 +8222,10 @@ void MegaClient::notifynode(Node* n)
             changed |= n->changed.parent << 7;
             changed |= n->changed.publiclink << 8;
 
-            int attrlen = n->attrstring->size();
+            int attrlen = int(n->attrstring->size());
             string base64attrstring;
             base64attrstring.resize(attrlen * 4 / 3 + 4);
-            base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), n->attrstring->size(), (char *)base64attrstring.data()));
+            base64attrstring.resize(Base64::btoa((byte *)n->attrstring->data(), int(n->attrstring->size()), (char *)base64attrstring.data()));
 
             char report[512];
             Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
@@ -8494,9 +8497,9 @@ void MegaClient::procsnk(JSON* j)
                 {
                     byte keybuf[FILENODEKEYLENGTH];
 
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
+                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, unsigned(n->nodekey.size()));
 
-                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, n->nodekey.size()));
+                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, unsigned(n->nodekey.size())));
                 }
             }
 
@@ -8800,7 +8803,7 @@ unsigned MegaClient::addnode(node_vector* v, Node* n) const
 {
     // linear search not particularly scalable, but fine for the relatively
     // small real-world requests
-    for (int i = v->size(); i--; )
+    for (unsigned i = unsigned(v->size()); i--; )
     {
         if ((*v)[i] == n)
         {
@@ -8809,7 +8812,7 @@ unsigned MegaClient::addnode(node_vector* v, Node* n) const
     }
 
     v->push_back(n);
-    return v->size() - 1;
+    return unsigned(v->size() - 1);
 }
 
 // generate crypto key response
@@ -8827,7 +8830,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
 
     // for security reasons, we only respond to key requests affecting our own
     // shares
-    for (si = shares->size(); si--; )
+    for (si = unsigned(shares->size()); si--; )
     {
         if ((*shares)[si] && ((*shares)[si]->inshare || !(*shares)[si]->sharekey))
         {
@@ -8899,7 +8902,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 {
                     if (setkey == (int)n->nodekey.size())
                     {
-                        sn->sharekey->ecb_decrypt(keybuf, n->nodekey.size());
+                        sn->sharekey->ecb_decrypt(keybuf, unsigned(n->nodekey.size()));
                         n->setkey(keybuf);
                         setkey = -1;
                     }
@@ -8918,8 +8921,8 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         sprintf(buf, "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
-                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
-                        Base64::btoa(keybuf, n->nodekey.size(), strchr(buf + 7, 0));
+                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, unsigned(n->nodekey.size()));
+                        Base64::btoa(keybuf, int(n->nodekey.size()), strchr(buf + 7, 0));
                         crkeys.append(buf);
                     }
                     else
@@ -9173,7 +9176,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
     {
         // verify HMAC with macKey(alg, f/F, ph, salt, encKey)
         HMACSHA256 hmacsha256(derivedKey + 32, 32);
-        hmacsha256.add((byte *)linkBin.data(), 40 + encKeyLen);
+        hmacsha256.add((byte *)linkBin.data(), unsigned(40 + encKeyLen));
         hmacsha256.get(hmacComputed);
     }
     if (memcmp(hmac, hmacComputed, 32))
@@ -9196,7 +9199,7 @@ error MegaClient::decryptlink(const char *link, const char *pwd, string* decrypt
         char keyStr[FILENODEKEYLENGTH*4/3+3];
 
         Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, phStr);
-        Base64::btoa(key, encKeyLen, keyStr);
+        Base64::btoa(key, int(encKeyLen), keyStr);
 
         decryptedLink->clear();
         decryptedLink->append("https://mega.nz/#");
@@ -9268,7 +9271,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     size_t linkKeySize = isFolder ? FOLDERNODEKEYLENGTH : FILENODEKEYLENGTH;
     string linkKey;
     linkKey.resize(linkKeySize);
-    if ((size_t) Base64::atob(ptr, (byte *)linkKey.data(), linkKey.size()) != linkKeySize)
+    if ((size_t) Base64::atob(ptr, (byte *)linkKey.data(), int(linkKey.size())) != linkKeySize)
     {
         LOG_err << "Invalid encryption key in the public link";
         return API_EKEY;
@@ -9317,7 +9320,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         else if (algorithm == 2) // fix legacy Webclient bug: swap data and key
         {
             HMACSHA256 hmacsha256(derivedKey + 32, 32);
-            hmacsha256.add((byte *)payload.data(), payload.size());
+            hmacsha256.add((byte *)payload.data(), unsigned(payload.size()));
             hmacsha256.get(hmac);
         }
         else
@@ -9460,18 +9463,18 @@ void MegaClient::setkeypair()
     AsymmCipher::serializeintarray(asymkey.key, AsymmCipher::PRIVKEY, &privks);
 
     // add random padding and ECB-encrypt with master key
-    unsigned t = privks.size();
+    unsigned t = unsigned(privks.size());
 
     privks.resize((t + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE);
-    PrnGen::genblock((byte*)(privks.data() + t), privks.size() - t);
+    PrnGen::genblock((byte*)(privks.data() + t), int(privks.size() - t));
 
     key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), (unsigned)privks.size());
 
     reqs.add(new CommandSetKeyPair(this,
                                       (const byte*)privks.data(),
-                                      privks.size(),
+                                      unsigned(privks.size()),
                                       (const byte*)pubks.data(),
-                                      pubks.size()));
+                                      unsigned(pubks.size())));
 }
 
 bool MegaClient::fetchsc(DbTable* sctable)
@@ -9562,7 +9565,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
 
     // any child nodes arrived before their parents?
-    for (int i = dp.size(); i--; )
+    for (size_t i = dp.size(); i--; )
     {
         if ((n = nodebyhandle(dp[i]->parenthandle)))
         {
@@ -9655,7 +9658,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
         string lok;
         Hash hash;
-        hash.add((const byte *)dbname.c_str(), dbname.size() + 1);
+        hash.add((const byte *)dbname.c_str(), unsigned(dbname.size() + 1));
         hash.get(&lok);
         tckey.setkey((const byte*)lok.data());
     }
@@ -10534,11 +10537,11 @@ error MegaClient::addsync(string* rootpath, const char* debris, string* localdeb
     }
 
     if (rootpath->size() >= fsaccess->localseparator.size()
-     && !memcmp(rootpath->data() + (rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size(),
+     && !memcmp(rootpath->data() + (int(rootpath->size()) & -int(fsaccess->localseparator.size())) - fsaccess->localseparator.size(),
                 fsaccess->localseparator.data(),
                 fsaccess->localseparator.size()))
     {
-        rootpath->resize((rootpath->size() & -fsaccess->localseparator.size()) - fsaccess->localseparator.size());
+        rootpath->resize((int(rootpath->size()) & -int(fsaccess->localseparator.size())) - fsaccess->localseparator.size());
     }
     
     bool isnetwork = false;
@@ -11041,7 +11044,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     if (!l->reported)
                     {
                         char* buf = new char[(*it)->nodekey.size() * 4 / 3 + 4];
-                        Base64::btoa((byte *)(*it)->nodekey.data(), (*it)->nodekey.size(), buf);
+                        Base64::btoa((byte *)(*it)->nodekey.data(), int((*it)->nodekey.size()), buf);
 
                         LOG_warn << "Sync: Undecryptable child node. " << buf;
 
@@ -11246,7 +11249,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         string lpath;
                         ll->getlocalpath(&lpath);
                         string stream = lpath;
-                        stream.append((char *)L":$CmdTcID:$DATA", 30);
+                        stream.append((const char *)(const wchar_t*)L":$CmdTcID:$DATA", 30);
                         if (f->fopen(&stream))
                         {
                             LOG_warn << "COMODO detected";
@@ -11275,7 +11278,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                             }
                         }
 
-                        lpath.append((char *)L":OECustomProperty", 34);
+                        lpath.append((const char *)(const wchar_t*)L":OECustomProperty", 34);
                         if (f->fopen(&lpath))
                         {
                             LOG_warn << "Windows Search detected";
@@ -11480,7 +11483,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
 
                     if ((ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end())
                     {
-                        namelen = ait->second.size();
+                        namelen = int(ait->second.size());
                     }
                     else
                     {
@@ -11660,7 +11663,7 @@ void MegaClient::syncupdate()
 
                 reqs.add(new CommandPutNodes(this,
                                                 synccreate[start]->parent->node->nodehandle,
-                                                NULL, nn, nnp - nn,
+                                                NULL, nn, int(nnp - nn),
                                                 synccreate[start]->sync->tag,
                                                 PUTNODES_SYNC));
 
@@ -12234,7 +12237,7 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 
         if (connections[d] != num)
         {
-            connections[d] = num;
+            connections[d] = (unsigned char)num;
             for (transferslot_list::iterator it = tslots.begin(); it != tslots.end(); )
             {
                 TransferSlot *slot = *it++;
@@ -12361,7 +12364,7 @@ void MegaClient::userfeedbackstore(const char *message)
 
     string base64userAgent;
     base64userAgent.resize(useragent.size() * 4 / 3 + 4);
-    Base64::btoa((byte *)useragent.data(), useragent.size(), (char *)base64userAgent.data());
+    Base64::btoa((byte *)useragent.data(), int(useragent.size()), (char *)base64userAgent.data());
     type.append(base64userAgent);
 
     reqs.add(new CommandUserFeedbackStore(this, type.c_str(), message, NULL));

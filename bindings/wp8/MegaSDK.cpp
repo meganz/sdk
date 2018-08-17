@@ -398,6 +398,11 @@ void MegaSDK::setStatsID(String^ id)
     MegaApi::setStatsID((id != nullptr) ? utf8id.c_str() : NULL);
 }
 
+bool MegaSDK::multiFactorAuthAvailable()
+{
+    return megaApi->multiFactorAuthAvailable();
+}
+
 void MegaSDK::multiFactorAuthCheck(String^ email, MRequestListenerInterface^ listener)
 {
     std::string utf8email;
@@ -2409,6 +2414,16 @@ void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout, MRequestListenerIn
 void MegaSDK::shouldShowPasswordReminderDialog(bool atLogout)
 {
     megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
+void MegaSDK::isMasterKeyExported(MRequestListenerInterface^ listener)
+{
+    megaApi->isMasterKeyExported(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::isMasterKeyExported()
+{
+    megaApi->isMasterKeyExported();
 }
 
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
