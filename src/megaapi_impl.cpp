@@ -67,7 +67,7 @@
 
 #include "mega/mega_zxcvbn.h"
 
-using namespace mega;
+namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, MegaHandle parentHandle,
@@ -20470,7 +20470,7 @@ int64_t MegaBackupController::getLastBackupTime()
                     if (timeofbackup)
                     {
                         backupTimesPaths[timeofbackup]=childNode;
-                        latesttime = std::max(latesttime, timeofbackup);
+                        latesttime = (std::max)(latesttime, timeofbackup);
                     }
                     else
                     {
@@ -20739,7 +20739,7 @@ void MegaBackupController::start(bool skip)
     string backupname = ossremotename.str();
     currentName = backupname;
 
-    lastbackuptime = std::max(lastbackuptime,offsetds+startTime);
+    lastbackuptime = (std::max)(lastbackuptime,offsetds+startTime);
 
     megaApi->fireOnBackupStart(this);
 
@@ -27928,4 +27928,6 @@ void TreeProcFolderInfo::proc(MegaClient *, Node *node)
 MegaFolderInfo *TreeProcFolderInfo::getResult()
 {
     return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+}
+
 }
