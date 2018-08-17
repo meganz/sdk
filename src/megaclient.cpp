@@ -1659,7 +1659,6 @@ void MegaClient::exec()
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
                     }
-                    break;
                 }
 
                 // fall through
