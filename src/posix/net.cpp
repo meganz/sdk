@@ -1993,7 +1993,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
 
-                LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus;
+                LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
+                          << (req->httpiohandle ? ((CurlHttpContext*)req->httpiohandle)->hostname : "(unknown)");
                 if (req->httpstatus)
                 {
                     if (req->method == METHOD_NONE)
