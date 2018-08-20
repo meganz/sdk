@@ -2498,6 +2498,7 @@ class MegaRequest
          * - MegaApi::abortCurrentBackup - Returns the tag of the aborted backup
          * - MegaApi::removeBackup - Returns the tag of the deleted backup
          * - MegaApi::startTimer - Returns the selected period
+         * - MegaApi::sendChatStats - Returns the connection port
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -12091,6 +12092,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the data provided.
          * - MegaRequest::getParamType - Returns number 1
+         * - MegaRequest::getNumber - Returns the connection port
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -12099,9 +12101,10 @@ class MegaApi
          * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
          *
          * @param data JSON data to send to the stats server
+         * @param port Server port to connect
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatStats(const char *data, int port = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Send logs related to MEGAchat to the logs server

@@ -21,8 +21,9 @@
 
 #include "mega/proxy.h"
 
-using namespace mega;
 using namespace std;
+
+namespace mega {
 
 Proxy::Proxy()
 {
@@ -68,4 +69,6 @@ string Proxy::getUsername()
 string Proxy::getPassword()
 {
     return password;
+}
+
 }

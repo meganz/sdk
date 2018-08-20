@@ -23,7 +23,7 @@
 #include "megaapi.h"
 #include "megaapi_impl.h"
 
-using namespace mega;
+namespace mega {
 
 MegaProxy::MegaProxy()
 {
@@ -4149,9 +4149,9 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
     pImpl->registerPushNotification(deviceType, token, listener);
 }
 
-void MegaApi::sendChatStats(const char *data, MegaRequestListener *listener)
+void MegaApi::sendChatStats(const char *data, int port, MegaRequestListener *listener)
 {
-    pImpl->sendChatStats(data, listener);
+    pImpl->sendChatStats(data, port, listener);
 }
 
 void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
@@ -5343,4 +5343,6 @@ long long MegaFolderInfo::getCurrentSize() const
 long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
+}
+
 }

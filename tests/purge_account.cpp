@@ -28,6 +28,16 @@ static const string APP_KEY = "V8ZGDDBA";
 static const unsigned int pollingT      = 500000;   // (microseconds) to check if response from server is received
 static const unsigned int maxTimeout    = 300;      // Maximum time (seconds) to wait for response from server
 
+
+void WaitMillisec(unsigned n)
+{
+#ifdef _WIN32
+    Sleep(n);
+#else
+    usleep(n * 1000);
+#endif
+}
+
 class PurgeAcc: public MegaListener, MegaRequestListener {
 
 public:
@@ -183,7 +193,7 @@ void PurgeAcc::waitForResponse(bool *responseReceived, int timeout)
     int tWaited = 0;    // microseconds
     while(!(*responseReceived))
     {
-        usleep(pollingT);
+        WaitMillisec(pollingT/1000);
 
         if (timeout)
         {

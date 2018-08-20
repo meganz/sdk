@@ -22,6 +22,8 @@
 #include "mega.h"
 
 namespace mega {
+using namespace std;
+
 PosixConsole::PosixConsole()
 {
     // set up the console

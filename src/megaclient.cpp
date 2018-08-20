@@ -21,6 +21,7 @@
 
 #include "mega.h"
 #include "mega/mediafileattribute.h"
+#include <cctype>
 
 namespace mega {
 
@@ -38,7 +39,7 @@ string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 
 // root URL for chat stats
-string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz/";
+string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
@@ -3629,14 +3630,21 @@ void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
     req->get(this);
 }
 
-void MegaClient::sendchatstats(const char *json)
+void MegaClient::sendchatstats(const char *json, int port)
 {
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
-    req->posturl.append("stats");
+    if (port > 0)
+    {
+        req->posturl.append(":");
+        char stringPort[6];
+        sprintf(stringPort, "%d", port);
+        req->posturl.append(stringPort);
+    }
+    req->posturl.append("/stats");
     req->protect = true;
     req->out->assign(json);
     req->post(this);
@@ -3649,7 +3657,7 @@ void MegaClient::sendchatlogs(const char *json, const char *aid)
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
-    req->posturl.append("msglog?aid=");
+    req->posturl.append("/msglog?aid=");
     req->posturl.append(aid);
     req->posturl.append("&t=e");
     req->protect = true;
@@ -8090,25 +8098,25 @@ error MegaClient::creditcardstore(const char *ccplain)
         return API_EARGS;
     }
 
-    string::iterator it = find_if(ccnumber.begin(), ccnumber.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    string::iterator it = find_if(ccnumber.begin(), ccnumber.end(), char_is_not_digit);
     if (it != ccnumber.end())
     {
         return API_EARGS;
     }
 
-    it = find_if(expm.begin(), expm.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(expm.begin(), expm.end(), char_is_not_digit);
     if (it != expm.end() || atol(expm.c_str()) > 12)
     {
         return API_EARGS;
     }
 
-    it = find_if(expy.begin(), expy.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(expy.begin(), expy.end(), char_is_not_digit);
     if (it != expy.end() || atol(expy.c_str()) < 2015)
     {
         return API_EARGS;
     }
 
-    it = find_if(cv2.begin(), cv2.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(cv2.begin(), cv2.end(), char_is_not_digit);
     if (it != cv2.end())
     {
         return API_EARGS;

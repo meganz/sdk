@@ -67,7 +67,7 @@
 
 #include "mega/mega_zxcvbn.h"
 
-using namespace mega;
+namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, MegaHandle parentHandle,
@@ -5595,8 +5595,7 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
         if (creditcard)
         {
             screditcard = creditcard;
-            screditcard.erase(remove_if(screditcard.begin(), screditcard.end(),
-                                     not1(ptr_fun(static_cast<int(*)(int)>(isdigit)))), screditcard.end());
+            screditcard.erase(std::remove_if(screditcard.begin(), screditcard.end(), char_is_not_digit), screditcard.end());
         }
 
         if (expire_month)
@@ -8255,10 +8254,11 @@ void MegaApiImpl::registerPushNotification(int deviceType, const char *token, Me
     waiter->notify();
 }
 
-void MegaApiImpl::sendChatStats(const char *data, MegaRequestListener *listener)
+void MegaApiImpl::sendChatStats(const char *data, int port, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
+    request->setNumber(port);
     request->setParamType(1);
     requestQueue.push(request);
     waiter->notify();
@@ -15674,8 +15674,8 @@ void MegaApiImpl::sendPendingRequests()
             if (login)
             {
                 slogin = login;
-                slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
-                slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), slogin.end());
+                slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), char_is_not_space));
+                slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), char_is_not_space).base(), slogin.end());
             }
 
             requestMap.erase(request->getTag());
@@ -18373,7 +18373,14 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             if (type == 1)
             {
-                client->sendchatstats(json);
+               int port = request->getNumber();
+               if (port < 0 || port > 65535)
+               {
+                   e = API_EARGS;
+                   break;
+               }
+
+               client->sendchatstats(json, port);
             }
             else if (type == 2)
             {
@@ -19154,7 +19161,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 
     if (logToConsole)
     {
-        cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
     }
     mutex.unlock();
 }
@@ -20586,7 +20593,7 @@ int64_t MegaBackupController::getLastBackupTime()
                     if (timeofbackup)
                     {
                         backupTimesPaths[timeofbackup]=childNode;
-                        latesttime = max(latesttime, timeofbackup);
+                        latesttime = (std::max)(latesttime, timeofbackup);
                     }
                     else
                     {
@@ -20855,7 +20862,7 @@ void MegaBackupController::start(bool skip)
     string backupname = ossremotename.str();
     currentName = backupname;
 
-    lastbackuptime = max(lastbackuptime,offsetds+startTime);
+    lastbackuptime = (std::max)(lastbackuptime,offsetds+startTime);
 
     megaApi->fireOnBackupStart(this);
 
@@ -28044,4 +28051,6 @@ void TreeProcFolderInfo::proc(MegaClient *, Node *node)
 MegaFolderInfo *TreeProcFolderInfo::getResult()
 {
     return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+}
+
 }
