@@ -10089,7 +10089,7 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
 
             if (!checkPassword(request->getPassword()))
             {
-                fireOnRequestFinish(request, MegaError(API_EACCESS));
+                fireOnRequestFinish(request, MegaError(API_ENOENT));
                 return;
             }
 
@@ -17330,7 +17330,7 @@ void MegaApiImpl::sendPendingRequests()
             
             if (!checkPassword(pwd))
             {
-                e = API_EACCESS;
+                e = API_ENOENT;
                 break;
             }
 
