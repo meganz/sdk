@@ -462,7 +462,7 @@ public:
     void gelbrequest(const char*, int, int);
 
     // send chat stats
-    void sendchatstats(const char*);
+    void sendchatstats(const char*, long long port);
 
     // send chat logs with user's annonymous id
     void sendchatlogs(const char*, const char*);

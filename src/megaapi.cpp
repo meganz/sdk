@@ -4159,9 +4159,9 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
     pImpl->registerPushNotification(deviceType, token, listener);
 }
 
-void MegaApi::sendChatStats(const char *data, MegaRequestListener *listener)
+void MegaApi::sendChatStats(const char *data, long long port, MegaRequestListener *listener)
 {
-    pImpl->sendChatStats(data, listener);
+    pImpl->sendChatStats(data, port, listener);
 }
 
 void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
