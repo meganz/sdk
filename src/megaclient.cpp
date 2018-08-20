@@ -3572,7 +3572,7 @@ void MegaClient::sendchatstats(const char *json, long long port)
     if (port > 0)
     {
         req->posturl.append(":");
-        req->posturl.append(to_string(port));
+        req->posturl.append(std::to_string(port));
     }
     req->posturl.append("/stats");
     req->protect = true;
