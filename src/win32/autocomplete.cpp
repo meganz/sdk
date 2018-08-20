@@ -31,6 +31,7 @@ namespace fs = std::experimental::filesystem;
 
 namespace mega {
 namespace autocomplete {
+using namespace std;
 
 template<class T>
 static T clamp(T v, T lo, T hi)

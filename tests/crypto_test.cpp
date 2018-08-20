@@ -205,7 +205,7 @@ TEST(Crypto, Ed25519_Signing)
 
     // Initialize variables
 
-    int keySeedLen = EdDSA::SEED_KEY_LENGTH;
+    const int keySeedLen = EdDSA::SEED_KEY_LENGTH;
     unsigned char keySeed[keySeedLen];
     ASSERT_EQ(keySeedLen, Base64::atob(prEd255str.data(), keySeed, keySeedLen))
             << "Failed to convert Ed25519 private key to binary";
@@ -306,7 +306,7 @@ TEST(Crypto, Ed25519_Signing)
 
     // ____ Create and verify signatures of random messages ____
 
-    unsigned keylen = SymmCipher::KEYLENGTH;
+    const unsigned keylen = SymmCipher::KEYLENGTH;
     byte key[keylen];
     string sig;
     for (int i = 0; i < 100; i++)

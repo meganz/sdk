@@ -23,7 +23,7 @@
 #include "megaapi.h"
 #include "megaapi_impl.h"
 
-using namespace mega;
+namespace mega {
 
 MegaProxy::MegaProxy()
 {
@@ -5353,4 +5353,6 @@ long long MegaFolderInfo::getCurrentSize() const
 long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
+}
+
 }

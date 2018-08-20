@@ -34,6 +34,8 @@
 
 namespace mega {
 
+using namespace std;
+
 #ifdef NO_READLINE
 template<class T>
 static T clamp(T v, T lo, T hi)

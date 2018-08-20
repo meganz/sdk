@@ -21,6 +21,7 @@
 
 #include "mega.h"
 #include "mega/mediafileattribute.h"
+#include <cctype>
 
 namespace mega {
 
@@ -8001,25 +8002,25 @@ error MegaClient::creditcardstore(const char *ccplain)
         return API_EARGS;
     }
 
-    string::iterator it = find_if(ccnumber.begin(), ccnumber.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    string::iterator it = find_if(ccnumber.begin(), ccnumber.end(), char_is_not_digit);
     if (it != ccnumber.end())
     {
         return API_EARGS;
     }
 
-    it = find_if(expm.begin(), expm.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(expm.begin(), expm.end(), char_is_not_digit);
     if (it != expm.end() || atol(expm.c_str()) > 12)
     {
         return API_EARGS;
     }
 
-    it = find_if(expy.begin(), expy.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(expy.begin(), expy.end(), char_is_not_digit);
     if (it != expy.end() || atol(expy.c_str()) < 2015)
     {
         return API_EARGS;
     }
 
-    it = find_if(cv2.begin(), cv2.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(cv2.begin(), cv2.end(), char_is_not_digit);
     if (it != cv2.end())
     {
         return API_EARGS;
