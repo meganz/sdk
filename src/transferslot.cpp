@@ -453,11 +453,18 @@ void TransferSlot::doio(MegaClient* client)
 
                             LOG_debug << "Error uploading chunk: " << reqs[i]->in;
                             error e = (error)atoi(reqs[i]->in.c_str());
-                            if (e == API_EKEY)
+                            if (e == API_EKEY || e == API_EAGAIN || e == API_ERATELIMIT)
                             {
                                 int creqtag = client->reqtag;
                                 client->reqtag = 0;
-                                client->sendevent(99429, "Integrity check failed in upload");
+                                if (e == API_EKEY)
+                                {
+                                    client->sendevent(99429, "Integrity check failed in upload");
+                                }
+                                else
+                                {
+                                    client->sendevent(99440, "Retry requested by storage server");
+                                }
                                 client->reqtag = creqtag;
 
                                 lasterror = e;
