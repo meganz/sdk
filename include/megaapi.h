@@ -12131,7 +12131,7 @@ class MegaApi
          * @param port Server port to connect
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatStats(const char *data, long long port = 0, MegaRequestListener *listener = NULL);
+        void sendChatStats(const char *data, int port = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Send logs related to MEGAchat to the logs server

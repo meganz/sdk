@@ -3562,7 +3562,7 @@ void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
     req->get(this);
 }
 
-void MegaClient::sendchatstats(const char *json, long long port)
+void MegaClient::sendchatstats(const char *json, int port)
 {
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;

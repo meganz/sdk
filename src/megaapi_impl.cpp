@@ -8244,7 +8244,7 @@ void MegaApiImpl::registerPushNotification(int deviceType, const char *token, Me
     waiter->notify();
 }
 
-void MegaApiImpl::sendChatStats(const char *data, long long port, MegaRequestListener *listener)
+void MegaApiImpl::sendChatStats(const char *data, int port, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
@@ -18259,7 +18259,7 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             if (type == 1)
             {
-               long long port = request->getNumber();
+               int port = request->getNumber();
                if (port < 0 || port > 65535)
                {
                    e = API_EARGS;
