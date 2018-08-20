@@ -2132,7 +2132,7 @@ class MegaApiImpl : public MegaApp
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
-        void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatStats(const char *data, int port, MegaRequestListener *listener = NULL);
         void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
