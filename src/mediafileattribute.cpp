@@ -693,17 +693,27 @@ void MediaProperties::extractMediaPropertyFileAttributes(const std::string& loca
                 ZenLib::Ztring vw = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Width"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vh = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Height"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vd = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text);
-                ZenLib::Ztring vr = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vfr = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vrm = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("FrameRate_Mode"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vci = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("CodecID"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring vcf = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Format"), MediaInfoLib::Info_Text);
+                ZenLib::Ztring vr = minfo.Get(MediaInfoLib::Stream_Video, 0, __T("Rotation"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring aci = minfo.Get(MediaInfoLib::Stream_Audio, 0, __T("CodecID"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring acf = minfo.Get(MediaInfoLib::Stream_Audio, 0, __T("Format"), MediaInfoLib::Info_Text);
                 ZenLib::Ztring ad = minfo.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text);
 
-                width = vw.To_int32u();
-                height = vh.To_int32u();
-                fps = vr.To_int32u();
+                if (vr.To_int32u() == 90 || vr.To_int32u() == 270)
+                {
+                    width = vh.To_int32u();
+                    height = vw.To_int32u();
+                }
+                else
+                {
+                    width = vw.To_int32u();
+                    height = vh.To_int32u();
+                }
+                
+                fps = vfr.To_int32u();
                 playtime = (coalesce(gd.To_int32u(), coalesce(vd.To_int32u(), ad.To_int32u()))) / 1000;
                 videocodecNames = vci.To_Local();
                 videocodecFormat = vcf.To_Local();
