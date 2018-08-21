@@ -5594,7 +5594,7 @@ void CommandRichLink::procresult()
     }
 }
 
-CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del)
+CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bool createifmissing)
 {
     mDelete = del;
 
@@ -5604,6 +5604,11 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del)
     if (del)
     {
         arg("d", 1);
+    }
+
+    if (!createifmissing)
+    {
+        arg("cim", (m_off_t)0);
     }
 
     notself(client);

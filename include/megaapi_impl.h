@@ -2146,8 +2146,7 @@ class MegaApiImpl : public MegaApp
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
-        void chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener = NULL);
-        void chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener = NULL);
+        void chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener = NULL);
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
         void chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, MegaRequestListener *listener = NULL);

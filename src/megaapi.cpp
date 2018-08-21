@@ -4204,14 +4204,19 @@ void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)
     pImpl->requestRichPreview(url, listener);
 }
 
+void MegaApi::chatLinkQuery(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->chatLinkHandle(chatid, false, false, listener);
+}
+
 void MegaApi::chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener)
 {
-    pImpl->chatLinkCreate(chatid, listener);
+    pImpl->chatLinkHandle(chatid, false, true, listener);
 }
 
 void MegaApi::chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener)
 {
-    pImpl->chatLinkDelete(chatid, listener);
+    pImpl->chatLinkHandle(chatid, true, false, listener);
 }
 
 void MegaApi::getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener)

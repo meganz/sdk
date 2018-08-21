@@ -3108,7 +3108,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
-        case TYPE_CHAT_LINK: return "CHAT_LINK";
+        case TYPE_CHAT_LINK_HANDLE: return "CHAT_LINK_HANDLE";
         case TYPE_CHAT_LINK_URL: return "CHAT_LINK_URL";
         case TYPE_CHAT_LINK_CLOSE: return "CHAT_LINK_CLOSE";
         case TYPE_CHAT_LINK_JOIN: return "CHAT_LINK_JOIN";
@@ -8379,20 +8379,12 @@ void MegaApiImpl::requestRichPreview(const char *url, MegaRequestListener *liste
     waiter->notify();
 }
 
-void MegaApiImpl::chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener)
+void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_HANDLE, listener);
     request->setNodeHandle(chatid);
-    request->setFlag(false);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK, listener);
-    request->setNodeHandle(chatid);
-    request->setFlag(true);
+    request->setFlag(del);
+    request->setAccess(createifmissing ? 1 : 0);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10665,7 +10657,7 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
     if(it == requestMap.end()       ||
             !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_LINK)
+            request->getType() != MegaRequest::TYPE_CHAT_LINK_HANDLE)
     {
         return;
     }
@@ -18521,11 +18513,12 @@ void MegaApiImpl::sendPendingRequests()
             client->richlinkrequest(url);
             break;
         }
-        case MegaRequest::TYPE_CHAT_LINK:
+        case MegaRequest::TYPE_CHAT_LINK_HANDLE:
         {
             MegaHandle chatid = request->getNodeHandle();
             bool del = request->getFlag();
-            if (chatid == INVALID_HANDLE)
+            bool createifmissing = request->getAccess();
+            if (chatid == INVALID_HANDLE || del && createifmissing)
             {
                 e = API_EARGS;
                 break;
@@ -18544,7 +18537,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->chatlink(chatid, del);
+            client->chatlink(chatid, del, createifmissing);
             break;
         }
 

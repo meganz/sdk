@@ -565,7 +565,7 @@ public:
     void richlinkrequest(const char*);
 
     // create/get or delete chat-link
-    void chatlink(handle chatid, bool del);
+    void chatlink(handle chatid, bool del, bool createifmissing);
 
     // get the URL for chat-link
     void chatlinkurl(handle publichandle);

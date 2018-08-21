@@ -12628,9 +12628,9 @@ void MegaClient::richlinkrequest(const char *url)
     reqs.add(new CommandRichLink(this, url));
 }
 
-void MegaClient::chatlink(handle chatid, bool del)
+void MegaClient::chatlink(handle chatid, bool del, bool createifmissing)
 {
-    reqs.add(new CommandChatLink(this, chatid, del));
+    reqs.add(new CommandChatLink(this, chatid, del, createifmissing));
 }
 
 void MegaClient::chatlinkurl(handle publichandle)

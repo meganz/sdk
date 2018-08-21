@@ -2120,7 +2120,7 @@ class MegaRequest
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
-            TYPE_CHAT_LINK, TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
+            TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TOTAL_OF_REQUEST_TYPES
         };
@@ -12304,16 +12304,43 @@ class MegaApi
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Query if there is a chat link for this chatroom
+         *
+         * This function can be called by a chat operator to check and retrieve the current
+         * public handle for the specified chat without creating it.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_HANDLE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getAccess - Returns 0
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the public handle of the chat link, if any
+         *
+         * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
+         * will return API_EACCESS.
+         * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkQuery(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Create or retrieve the public handle of a chat link
          *
          * This function can be called by a chat operator to create or retrieve the current
          * public handle for the specified chat. It will create a management message.
          *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK.
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_HANDLE.
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getAccess - Returns 1
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -12333,11 +12360,12 @@ class MegaApi
          * This function can be called by a chat operator to remove the current public handle
          * for the specified chat. It will create a management message.
          *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK.
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_HANDLE.
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getFlag - Returns true
+         * - MegaRequest::getAccess - Returns 0
          *
          * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
          * will return MegaError::API_EACCESS.

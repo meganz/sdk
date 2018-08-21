@@ -907,7 +907,7 @@ class MEGA_API CommandChatLink : public Command
 public:
     void procresult();
 
-    CommandChatLink(MegaClient*, handle chatid, bool del);
+    CommandChatLink(MegaClient*, handle chatid, bool del, bool createifmissing);
 
 protected:
     bool mDelete;
