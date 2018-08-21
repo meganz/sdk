@@ -83,6 +83,12 @@ endif(NOT CMAKE_BUILD_TYPE)
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 
+# accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
+if(WIN32)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
+add_definitions( -DNOMINMAX )  # also don't allow min and max macros from windows.h, use the std functions like on linux/g++
+endif()
+
 IF(WIN32)
     #Link against the static C/C++ libraries on windows
     foreach(flag_var
@@ -291,13 +297,16 @@ add_executable(test_misc            ${MegaDir}/tests/tests.cpp
                                     ${MegaDir}/tests/paycrypt_test.cpp 
                                     ${MegaDir}/tests/crypto_test.cpp)
 add_executable(test_purge_account   ${MegaDir}/tests/purge_account.cpp)
+add_executable(test_sync            ${MegaDir}/tests/synctests.cpp)
 
 target_compile_definitions(test_sdk PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_misc PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(test_sync PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_sdk gtest Mega )
 target_link_libraries(test_misc gtest Mega )
 target_link_libraries(test_purge_account gtest Mega )
+target_link_libraries(test_sync gtest Mega )
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)

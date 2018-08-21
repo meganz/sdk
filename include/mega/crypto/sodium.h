@@ -27,7 +27,6 @@
 #include <sodium.h>
 
 namespace mega {
-using namespace std;
 
 /**
  * @brief Asymmetric cryptographic signature using EdDSA with Edwards 25519.

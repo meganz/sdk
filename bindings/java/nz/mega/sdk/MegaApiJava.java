@@ -371,22 +371,6 @@ public class MegaApiJava {
     /****************************************************************************************************/
 
     /**
-     * Generates a private key based on the access password.
-     * <p>
-     * This is a time consuming operation (particularly for low-end mobile devices). As the resulting key is
-     * required to log in, this function allows to do this step in a separate function. You should run this function
-     * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApiJava.fastLogin().
-     * 
-     * @param password
-     *            Access password.
-     * @return Base64-encoded private key.
-     * @deprecated Legacy function soon to be removed.
-     */
-    @Deprecated public String getBase64PwKey(String password) {
-        return megaApi.getBase64PwKey(password);
-    }
-
-    /**
      * Generates a hash based in the provided private key and email.
      * <p>
      * This is a time consuming operation (especially for low-end mobile devices). Since the resulting key is
@@ -1204,52 +1188,6 @@ public class MegaApiJava {
      */
     public void resumeCreateAccount(String sid) {
         megaApi.resumeCreateAccount(sid);
-    }
-
-    /**
-     * Initialize the creation of a new MEGA account with precomputed keys.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_CREATE_ACCOUNT.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getEmail() - Returns the email for the account. <br>
-     * - MegaRequest.getPrivateKey() - Returns the private key calculated with MegaApiJava.getBase64PwKey(). <br>
-     * - MegaRequest.getName() - Returns the name of the user.
-     * <p>
-     * If this request succeed, a confirmation email will be sent to the users.
-     * If an account with the same email already exists, you will get the error code
-     * MegaError.API_EEXIST in onRequestFinish().
-     * 
-     * @param email
-     *            Email for the account.
-     * @param base64pwkey
-     *            Private key calculated with MegMegaApiJavaaApi.getBase64PwKey().
-     * @param name
-     *            Name of the user.
-     * @param listener
-     *            MegaRequestListener to track this request.
-     *
-     * @deprecated This function is deprecated and will eventually be removed. Instead,
-     * use the new version with firstname and lastname.
-     */
-    public void fastCreateAccount(String email, String base64pwkey, String name, MegaRequestListenerInterface listener) {
-        megaApi.fastCreateAccount(email, base64pwkey, name, createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Initialize the creation of a new MEGA account with precomputed keys.
-     *
-     * @param email
-     *            Email for the account.
-     * @param base64pwkey
-     *            Private key calculated with MegaApiJava.getBase64PwKey().
-     * @param name
-     *            Name of the user.
-     *
-     * @deprecated This function is deprecated and will eventually be removed. Instead,
-     * use the new version with firstname and lastname.
-     */
-    public void fastCreateAccount(String email, String base64pwkey, String name) {
-        megaApi.fastCreateAccount(email, base64pwkey, name);
     }
 
     /**

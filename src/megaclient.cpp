@@ -21,6 +21,7 @@
 
 #include "mega.h"
 #include "mega/mediafileattribute.h"
+#include <cctype>
 
 namespace mega {
 
@@ -38,7 +39,7 @@ string MegaClient::APIURL = "https://g.api.mega.co.nz/";
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
 
 // root URL for chat stats
-string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz/";
+string MegaClient::CHATSTATSURL = "https://stats.karere.mega.nz";
 
 // maximum number of concurrent transfers (uploads + downloads)
 const unsigned MegaClient::MAXTOTALTRANSFERS = 30;
@@ -663,38 +664,95 @@ void MegaClient::getprivatekey(const char *code)
     reqs.add(new CommandGetPrivateKey(this, code));
 }
 
-void MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
+void MegaClient::confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey, int accountversion)
 {
-    SymmCipher pwcipher(pwkey);
-
-    string emailstr = email;
-    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
-
-    if (masterkey)
+    if (accountversion == 1)
     {
-        // encrypt provided masterkey using the new password
-        byte encryptedMasterKey[SymmCipher::KEYLENGTH];
-        memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
-        pwcipher.ecb_encrypt(encryptedMasterKey);
+        byte pwkey[SymmCipher::KEYLENGTH];
+        pw_key(password, pwkey);
+        SymmCipher pwcipher(pwkey);
 
-        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, encryptedMasterKey, NULL));
+        string emailstr = email;
+        uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+        if (masterkey)
+        {
+            // encrypt provided masterkey using the new password
+            byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            pwcipher.ecb_encrypt(encryptedMasterKey);
+
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, encryptedMasterKey, NULL));
+        }
+        else
+        {
+            // create a new masterkey
+            byte masterkey[SymmCipher::KEYLENGTH];
+            PrnGen::genblock(masterkey, sizeof masterkey);
+
+            // generate a new session
+            byte initialSession[2 * SymmCipher::KEYLENGTH];
+            PrnGen::genblock(initialSession, sizeof initialSession);
+            key.setkey(masterkey);
+            key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+            // and encrypt the master key to the new password
+            pwcipher.ecb_encrypt(masterkey);
+
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, masterkey, initialSession));
+        }
     }
     else
     {
-        // create a new masterkey
-        byte masterkey[SymmCipher::KEYLENGTH];
-        PrnGen::genblock(masterkey, sizeof masterkey);
+        byte clientkey[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(clientkey, sizeof(clientkey));
 
-        // generate a new session
-        byte initialSession[2 * SymmCipher::KEYLENGTH];
-        PrnGen::genblock(initialSession, sizeof initialSession);
-        key.setkey(masterkey);
-        key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+        string salt;
+        HashSHA256 hasher;
+        string buffer = "mega.nz";
+        buffer.resize(200, 'P');
+        buffer.append((char *)clientkey, sizeof(clientkey));
+        hasher.add((const byte*)buffer.data(), buffer.size());
+        hasher.get(&salt);
 
-        // and encrypt the master key to the new password
-        pwcipher.ecb_encrypt(masterkey);
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                         (const byte *)salt.data(), salt.size(), 100000);
 
-        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, masterkey, initialSession));
+        string hashedauthkey;
+        byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+        hasher.add(authkey, SymmCipher::KEYLENGTH);
+        hasher.get(&hashedauthkey);
+        hashedauthkey.resize(SymmCipher::KEYLENGTH);
+
+        SymmCipher cipher;
+        cipher.setkey(derivedKey);
+
+        if (masterkey)
+        {
+            // encrypt provided masterkey using the new password
+            byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            cipher.ecb_encrypt(encryptedMasterKey);
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, encryptedMasterKey, NULL));
+        }
+        else
+        {
+            // create a new masterkey
+            byte masterkey[SymmCipher::KEYLENGTH];
+            PrnGen::genblock(masterkey, sizeof masterkey);
+
+            // generate a new session
+            byte initialSession[2 * SymmCipher::KEYLENGTH];
+            PrnGen::genblock(initialSession, sizeof initialSession);
+            key.setkey(masterkey);
+            key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+            // and encrypt the master key to the new password
+            cipher.ecb_encrypt(masterkey);
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, masterkey, initialSession));
+        }
     }
 }
 
@@ -715,12 +773,17 @@ void MegaClient::getemaillink(const char *email, const char *pin)
 
 void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
 {
-    SymmCipher pwcipher(pwkey);
-
-    string emailstr = email;
-    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
-
-    reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
+    if (pwkey)
+    {
+        SymmCipher pwcipher(pwkey);
+        string emailstr = email;
+        uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+        reqs.add(new CommandConfirmEmailLink(this, code, email, (const byte*)&loginHash, true));
+    }
+    else
+    {
+        reqs.add(new CommandConfirmEmailLink(this, code, email, NULL, true));
+    }
 }
 
 void MegaClient::contactlinkcreate(bool renew)
@@ -876,9 +939,11 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tsLogin = 0;
     versions_disabled = false;
     accountsince = 0;
+    accountversion = 0;
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
+    nsr_enabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3316,6 +3381,7 @@ void MegaClient::locallogout()
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
+    nsr_enabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -3389,6 +3455,8 @@ void MegaClient::locallogout()
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
+    accountversion = 0;
+    accountsalt.clear();
     sid.clear();
     k.clear();
 
@@ -3478,14 +3546,21 @@ void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
     req->get(this);
 }
 
-void MegaClient::sendchatstats(const char *json)
+void MegaClient::sendchatstats(const char *json, int port)
 {
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
-    req->posturl.append("stats");
+    if (port > 0)
+    {
+        req->posturl.append(":");
+        char stringPort[6];
+        sprintf(stringPort, "%d", port);
+        req->posturl.append(stringPort);
+    }
+    req->posturl.append("/stats");
     req->protect = true;
     req->out->assign(json);
     req->post(this);
@@ -3498,7 +3573,7 @@ void MegaClient::sendchatlogs(const char *json, const char *aid)
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
-    req->posturl.append("msglog?aid=");
+    req->posturl.append("/msglog?aid=");
     req->posturl.append(aid);
     req->posturl.append("&t=e");
     req->protect = true;
@@ -3573,6 +3648,7 @@ bool MegaClient::procsc()
                     break;
                     
                 case EOO:
+                    LOG_debug << "Processing of action packets finished";
                     mergenewshares(1);
                     applykeys();
 
@@ -3665,6 +3741,7 @@ bool MegaClient::procsc()
                 case 'a':
                     if (jsonsc.enterarray())
                     {
+                        LOG_debug << "Processing action packets";
                         insca = true;
                         break;
                     }
@@ -7173,8 +7250,6 @@ error MegaClient::folderaccess(const char *folderlink)
     handle h = 0;
     byte folderkey[SymmCipher::KEYLENGTH];
 
-    locallogout();
-
     if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
     {
         return API_EARGS;
@@ -7191,11 +7266,14 @@ error MegaClient::folderaccess(const char *folderlink)
     return API_OK;
 }
 
+void MegaClient::prelogin(const char *email)
+{
+    reqs.add(new CommandPrelogin(this, email));
+}
+
 // create new session
 void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
 {
-    locallogout();
-
     string lcemail(email);
 
     key.setkey((byte*)pwkey);
@@ -7205,19 +7283,42 @@ void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, emailhash, sek, 0, pin));
+    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek, 0, pin));
+}
+
+// create new session (v2)
+void MegaClient::login2(const char *email, const char *password, string *salt, const char *pin)
+{
+    string bsalt;
+    Base64::atob(*salt, bsalt);
+
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)bsalt.data(), bsalt.size(), 100000);
+
+    login2(email, derivedKey, pin);
+}
+
+void MegaClient::login2(const char *email, const byte *derivedKey, const char* pin)
+{
+    key.setkey((byte*)derivedKey);
+    const byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
+
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
+
+    reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
 {
-    locallogout();
-
     key.setkey((byte*)pwkey);
 
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, emailhash, sek));
+    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
 }
 
 void MegaClient::getuserdata()
@@ -7232,9 +7333,7 @@ void MegaClient::getpubkey(const char *user)
 
 // resume session - load state from local cache, if available
 void MegaClient::login(const byte* session, int size)
-{
-    locallogout();
-   
+{   
     int sessionversion = 0;
     if (size == sizeof key.key + SIDLEN + 1)
     {
@@ -7268,7 +7367,7 @@ void MegaClient::login(const byte* session, int size)
         byte sek[SymmCipher::KEYLENGTH];
         PrnGen::genblock(sek, sizeof sek);
 
-        reqs.add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
+        reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
         getuserdata();
     }
     else
@@ -7915,25 +8014,25 @@ error MegaClient::creditcardstore(const char *ccplain)
         return API_EARGS;
     }
 
-    string::iterator it = find_if(ccnumber.begin(), ccnumber.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    string::iterator it = find_if(ccnumber.begin(), ccnumber.end(), char_is_not_digit);
     if (it != ccnumber.end())
     {
         return API_EARGS;
     }
 
-    it = find_if(expm.begin(), expm.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(expm.begin(), expm.end(), char_is_not_digit);
     if (it != expm.end() || atol(expm.c_str()) > 12)
     {
         return API_EARGS;
     }
 
-    it = find_if(expy.begin(), expy.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(expy.begin(), expy.end(), char_is_not_digit);
     if (it != expy.end() || atol(expy.c_str()) < 2015)
     {
         return API_EARGS;
     }
 
-    it = find_if(cv2.begin(), cv2.end(), not1(ptr_fun(static_cast<int(*)(int)>(isdigit))));
+    it = find_if(cv2.begin(), cv2.end(), char_is_not_digit);
     if (it != cv2.end())
     {
         return API_EARGS;
@@ -9375,7 +9474,7 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-error MegaClient::changepw(const byte* newpwkey, const char *pin)
+error MegaClient::changepw(const char* password, const char *pin)
 {
     User* u;
 
@@ -9384,14 +9483,56 @@ error MegaClient::changepw(const byte* newpwkey, const char *pin)
         return API_EACCESS;
     }
 
-    byte newkey[SymmCipher::KEYLENGTH];
-    SymmCipher pwcipher;
-    memcpy(newkey, key.key,  sizeof newkey);
-    pwcipher.setkey(newpwkey);
-    pwcipher.ecb_encrypt(newkey);
+    if (accountversion == 1)
+    {
+        error e;
+        byte newpwkey[SymmCipher::KEYLENGTH];
+        if ((e = pw_key(password, newpwkey)))
+        {
+            return e;
+        }
 
-    string email = u->email;
-    reqs.add(new CommandSetMasterKey(this, newkey, stringhash64(&email, &pwcipher), pin));
+        byte newkey[SymmCipher::KEYLENGTH];
+        SymmCipher pwcipher;
+        memcpy(newkey, key.key,  sizeof newkey);
+        pwcipher.setkey(newpwkey);
+        pwcipher.ecb_encrypt(newkey);
+
+        string email = u->email;
+        uint64_t stringhash = stringhash64(&email, &pwcipher);
+        reqs.add(new CommandSetMasterKey(this, newkey, (const byte *)&stringhash, sizeof(stringhash), NULL, pin));
+        return API_OK;
+    }
+
+    byte clientRandomValue[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(clientRandomValue, sizeof(clientRandomValue));
+
+    string salt;
+    HashSHA256 hasher;
+    string buffer = "mega.nz";
+    buffer.resize(200, 'P');
+    buffer.append((char *)clientRandomValue, sizeof(clientRandomValue));
+    hasher.add((const byte*)buffer.data(), buffer.size());
+    hasher.get(&salt);
+
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)salt.data(), salt.size(), 100000);
+
+    byte encmasterkey[SymmCipher::KEYLENGTH];
+    SymmCipher cipher;
+    cipher.setkey(derivedKey);
+    cipher.ecb_encrypt(key.key, encmasterkey);
+
+    string hashedauthkey;
+    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    hasher.add(authkey, SymmCipher::KEYLENGTH);
+    hasher.get(&hashedauthkey);
+    hashedauthkey.resize(SymmCipher::KEYLENGTH);
+
+    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
+    reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
     return API_OK;
 }
 
@@ -9401,8 +9542,6 @@ void MegaClient::createephemeral()
     byte keybuf[SymmCipher::KEYLENGTH];
     byte pwbuf[SymmCipher::KEYLENGTH];
     byte sscbuf[2 * SymmCipher::KEYLENGTH];
-
-    locallogout();
 
     PrnGen::genblock(keybuf, sizeof keybuf);
     PrnGen::genblock(pwbuf, sizeof pwbuf);
@@ -9437,6 +9576,46 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
     reqs.add(new CommandSendSignupLink(this, email, name, c));
 }
 
+string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
+{
+    byte clientrandomvalue[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(clientrandomvalue, sizeof(clientrandomvalue));
+
+    string salt;
+    HashSHA256 hasher;
+    string buffer = "mega.nz";
+    buffer.resize(200, 'P');
+    buffer.append((char *)clientrandomvalue, sizeof(clientrandomvalue));
+    hasher.add((const byte*)buffer.data(), buffer.size());
+    hasher.get(&salt);
+
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)salt.data(), salt.size(), 100000);
+
+    byte encmasterkey[SymmCipher::KEYLENGTH];
+    SymmCipher cipher;
+    cipher.setkey(derivedKey);
+    cipher.ecb_encrypt(key.key, encmasterkey);
+
+    string hashedauthkey;
+    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    hasher.add(authkey, SymmCipher::KEYLENGTH);
+    hasher.get(&hashedauthkey);
+    hashedauthkey.resize(SymmCipher::KEYLENGTH);
+
+    accountversion = 2;
+    accountsalt = salt;
+    reqs.add(new CommandSendSignupLink2(this, email, name, clientrandomvalue, encmasterkey, (byte*)hashedauthkey.data()));
+    return string((const char*)derivedKey, 2 * SymmCipher::KEYLENGTH);
+}
+
+void MegaClient::resendsignuplink2(const char *email, const char *name)
+{
+    reqs.add(new CommandSendSignupLink2(this, email, name));
+}
+
 // if query is 0, actually confirm account; just decode/query signup link
 // details otherwise
 void MegaClient::querysignuplink(const byte* code, unsigned len)
@@ -9447,6 +9626,11 @@ void MegaClient::querysignuplink(const byte* code, unsigned len)
 void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emailhash)
 {
     reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
+}
+
+void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
+{
+    reqs.add(new CommandConfirmSignupLink2(this, code, len));
 }
 
 // generate and configure encrypted private key, plaintext public key

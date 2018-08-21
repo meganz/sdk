@@ -23,7 +23,7 @@
 #include "megaapi.h"
 #include "megaapi_impl.h"
 
-using namespace mega;
+namespace mega {
 
 MegaProxy::MegaProxy()
 {
@@ -1452,19 +1452,14 @@ void MegaApi::log(int logLevel, const char *message, const char *filename, int l
     MegaApiImpl::log(logLevel, message, filename, line);
 }
 
-char *MegaApi::getBase64PwKey(const char *password)
+long long MegaApi::getSDKtime()
 {
-    return pImpl->getBase64PwKey(password);
+    return pImpl->getSDKtime();
 }
 
 char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
 {
     return pImpl->getStringHash(base64pwkey, inBuf);
-}
-
-long long MegaApi::getSDKtime()
-{
-    return pImpl->getSDKtime();
 }
 
 void MegaApi::getSessionTransferURL(const char *path, MegaRequestListener *listener)
@@ -1637,11 +1632,6 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
 {
     pImpl->resumeCreateAccount(sid, listener);
-}
-
-void MegaApi::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
-{
-    pImpl->fastCreateAccount(email, base64pwkey, name, listener);
 }
 
 void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
@@ -4159,9 +4149,9 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
     pImpl->registerPushNotification(deviceType, token, listener);
 }
 
-void MegaApi::sendChatStats(const char *data, MegaRequestListener *listener)
+void MegaApi::sendChatStats(const char *data, int port, MegaRequestListener *listener)
 {
-    pImpl->sendChatStats(data, listener);
+    pImpl->sendChatStats(data, port, listener);
 }
 
 void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
@@ -5353,4 +5343,6 @@ long long MegaFolderInfo::getCurrentSize() const
 long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
+}
+
 }

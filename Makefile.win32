@@ -38,7 +38,6 @@
 # In order to build megacli application, additional libraries are required:
 # \FreeImage            compiled FreeImage library, http://freeimage.sourceforge.net/
 #   \readline           compiled The GNU Readline Library, http://cnswww.cns.cwru.edu/php/chet/readline/rltop.html
-#   \termcap            compiled The Termcap Library, http://ftp.gnu.org/gnu/termcap/
 #
 # To compile Mega DLL and all applications:
 #   make -f Makefile.win32 all
@@ -56,7 +55,7 @@ MEGACLI_CXXFLAGS=-isystem ../FreeImage/Dist
 # common linked libraries for all apps
 LIB=-lwinhttp -lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -L../zlib -lz -L../cryptopp -lcryptopp -L../sodium/src/libsodium/.libs -lsodium -L../db/build_windows -L../ -L../FreeImage/Dist -lfreeimage
 # megacli specific linked libraries
-MEGACLI_LIB=-L../FreeImage/Dist -lfreeimage -L../readline -lreadline -L../termcap -ltermcap
+MEGACLI_LIB=-L../FreeImage/Dist -lfreeimage -L../readline -lreadline
 
 LDFLAGS=
 
@@ -98,7 +97,7 @@ COMMON_SRC=\
 		src/win32/fs.cpp src/win32/console.cpp src/win32/net.cpp src/win32/waiter.cpp src/win32/consolewaiter.cpp \
 		src/db/sqlite.cpp \
 		src/mega_utf8proc.cpp \
-		src/mega_ccronexpr.cpp
+		src/mega_ccronexpr.cpp \
 		src/mega_evt_tls.cpp
 
 MEGACLI_SRC=examples/megacli.cpp

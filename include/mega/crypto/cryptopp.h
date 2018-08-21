@@ -39,7 +39,7 @@
 #include <cryptopp/pwdbased.h>
 
 namespace mega {
-using namespace std;
+using std::string;
 
 /**
  * @brief A generic pseudo-random number generator.
