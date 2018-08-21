@@ -9691,6 +9691,8 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     hasher.get(&hashedauthkey);
     hashedauthkey.resize(SymmCipher::KEYLENGTH);
 
+    accountversion = 2;
+    accountsalt = salt;
     reqs.add(new CommandSendSignupLink2(this, email, name, clientrandomvalue, encmasterkey, (byte*)hashedauthkey.data()));
     return string((const char*)derivedKey, 2 * SymmCipher::KEYLENGTH);
 }
