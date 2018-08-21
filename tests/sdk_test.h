@@ -57,7 +57,7 @@ public:
     ~MegaLoggerSDK();
 
 private:
-    ofstream sdklog;
+    std::ofstream sdklog;
 
 protected:
     void log(const char *time, int loglevel, const char *source, const char *message);

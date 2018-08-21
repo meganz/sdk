@@ -48,6 +48,15 @@ namespace fs = std::experimental::filesystem;
 #include <iomanip>
 
 using namespace mega;
+using std::cout;
+using std::cerr;
+using std::endl;
+using std::flush;
+using std::ifstream;
+using std::ofstream;
+using std::setw;
+using std::hex;
+using std::dec;
 
 MegaClient* client;
 MegaClient* clientFolder;

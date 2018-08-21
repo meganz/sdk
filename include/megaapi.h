@@ -517,6 +517,20 @@ class MegaNode
          * @return The number of seconds, or -1 if this attribute is not set.
          */
         virtual int getDuration();
+    
+        /**
+         * @brief Get the attribute of the node representing its width.
+         *
+         * @return The number of pixels for width, or -1 if this attribute is not set.
+         */
+        virtual int getWidth();
+    
+        /**
+         * @brief Get the attribute of the node representing its height.
+         *
+         * @return The number of pixels for height, or -1 if this attribute is not set.
+         */
+        virtual int getHeight();
 
         /**
          * @brief Get the attribute of the node representing the latitude.
@@ -2524,6 +2538,7 @@ class MegaRequest
          * - MegaApi::abortCurrentBackup - Returns the tag of the aborted backup
          * - MegaApi::removeBackup - Returns the tag of the deleted backup
          * - MegaApi::startTimer - Returns the selected period
+         * - MegaApi::sendChatStats - Returns the connection port
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -7925,6 +7940,24 @@ class MegaApi
         void shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Check if the master key has been exported
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getAccess - Returns true if the master key has been exported
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void isMasterKeyExported(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Enable or disable the generation of rich previews
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
@@ -12165,6 +12198,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the data provided.
          * - MegaRequest::getParamType - Returns number 1
+         * - MegaRequest::getNumber - Returns the connection port
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -12173,9 +12207,10 @@ class MegaApi
          * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
          *
          * @param data JSON data to send to the stats server
+         * @param port Server port to connect
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatStats(const char *data, int port = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Send logs related to MEGAchat to the logs server

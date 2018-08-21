@@ -23,7 +23,7 @@
 #include "megaapi.h"
 #include "megaapi_impl.h"
 
-using namespace mega;
+namespace mega {
 
 MegaProxy::MegaProxy()
 {
@@ -235,6 +235,16 @@ const char *MegaNode::getCustomAttr(const char* /*attrName*/)
 }
 
 int MegaNode::getDuration()
+{
+    return -1;
+}
+
+int MegaNode::getWidth()
+{
+    return -1;
+}
+
+int MegaNode::getHeight()
 {
     return -1;
 }
@@ -2032,6 +2042,11 @@ void MegaApi::passwordReminderDialogBlocked(MegaRequestListener *listener)
 void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener)
 {
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, atLogout, listener);
+}
+
+void MegaApi::isMasterKeyExported(MegaRequestListener *listener)
+{
+    pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, 0, listener);
 }
 
 void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
@@ -4149,9 +4164,9 @@ void MegaApi::registerPushNotifications(int deviceType, const char *token, MegaR
     pImpl->registerPushNotification(deviceType, token, listener);
 }
 
-void MegaApi::sendChatStats(const char *data, MegaRequestListener *listener)
+void MegaApi::sendChatStats(const char *data, int port, MegaRequestListener *listener)
 {
-    pImpl->sendChatStats(data, listener);
+    pImpl->sendChatStats(data, port, listener);
 }
 
 void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
@@ -5383,4 +5398,6 @@ long long MegaFolderInfo::getCurrentSize() const
 long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
+}
+
 }

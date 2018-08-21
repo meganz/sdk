@@ -67,7 +67,7 @@
 
 #include "mega/mega_zxcvbn.h"
 
-using namespace mega;
+namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, MegaHandle parentHandle,
@@ -78,6 +78,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->fingerprint = MegaApi::strdup(fingerprint);
     this->customAttrs = NULL;
     this->duration = -1;
+    this->width = -1;
+    this->height = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->type = type;
@@ -124,6 +126,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
     this->duration = node->getDuration();
+    this->width = node->getWidth();
+    this->height = node->getHeight();
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
@@ -220,6 +224,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     }
 
     this->duration = -1;
+    this->width = -1;
+    this->height = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
@@ -683,6 +689,48 @@ int MegaNodePrivate::getDuration()
     }
 
     return duration;
+}
+
+
+int MegaNodePrivate::getWidth()
+{
+    if (width == -1)    // not initialized yet, or not available
+    {
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+        {
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                    && mediaProperties.shortformat != 254 // 254 = No information available
+                    && mediaProperties.width > 0)
+            {
+                width = mediaProperties.width;
+            }
+        }
+    }
+    
+    return width;
+}
+
+
+int MegaNodePrivate::getHeight()
+{
+    if (height == -1)    // not initialized yet, or not available
+    {
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+        {
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                    && mediaProperties.shortformat != 254 // 254 = No information available
+                    && mediaProperties.height > 0)
+            {
+                height = mediaProperties.height;
+            }
+        }
+    }
+    
+    return height;
 }
 
 double MegaNodePrivate::getLatitude()
@@ -5545,8 +5593,7 @@ void MegaApiImpl::creditCardStore(const char* address1, const char* address2, co
         if (creditcard)
         {
             screditcard = creditcard;
-            screditcard.erase(remove_if(screditcard.begin(), screditcard.end(),
-                                     not1(ptr_fun(static_cast<int(*)(int)>(isdigit)))), screditcard.end());
+            screditcard.erase(std::remove_if(screditcard.begin(), screditcard.end(), char_is_not_digit), screditcard.end());
         }
 
         if (expire_month)
@@ -8210,10 +8257,11 @@ void MegaApiImpl::registerPushNotification(int deviceType, const char *token, Me
     waiter->notify();
 }
 
-void MegaApiImpl::sendChatStats(const char *data, MegaRequestListener *listener)
+void MegaApiImpl::sendChatStats(const char *data, int port, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
+    request->setNumber(port);
     request->setParamType(1);
     requestQueue.push(request);
     waiter->notify();
@@ -12525,7 +12573,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 else if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
                 {
                     m_time_t currenttime = m_time();
-                    if (!User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len)
+                    bool isMasterKeyExported = User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len);
+                    if (!isMasterKeyExported
                             && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
@@ -12535,6 +12584,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
+                    request->setAccess(isMasterKeyExported ? 1 : 0);
                 }
             }
             break;
@@ -14052,11 +14102,11 @@ bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
 {
     if (i->type < j->type)
     {
-        return 1;
+        return 0;
     }
     if (i->type > j->type)
     {
-        return 0;
+        return 1;
     }
     if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
     {
@@ -15645,8 +15695,8 @@ void MegaApiImpl::sendPendingRequests()
             if(login)
             {
                 slogin = login;
-                slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), std::not1(std::ptr_fun<int, int>(std::isspace))));
-                slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), std::not1(std::ptr_fun<int, int>(std::isspace))).base(), slogin.end());
+                slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), char_is_not_space));
+                slogin.erase(std::find_if(slogin.rbegin(), slogin.rend(), char_is_not_space).base(), slogin.end());
             }
 
             requestMap.erase(request->getTag());
@@ -18432,7 +18482,14 @@ void MegaApiImpl::sendPendingRequests()
             int type = request->getParamType();
             if (type == 1)
             {
-                client->sendchatstats(json);
+               int port = request->getNumber();
+               if (port < 0 || port > 65535)
+               {
+                   e = API_EARGS;
+                   break;
+               }
+
+               client->sendchatstats(json, port);
             }
             else if (type == 2)
             {
@@ -19302,7 +19359,7 @@ void ExternalLogger::log(const char *time, int loglevel, const char *source, con
 
     if (logToConsole)
     {
-        cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
+        std::cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << std::endl;
     }
     mutex.unlock();
 }
@@ -20734,7 +20791,7 @@ int64_t MegaBackupController::getLastBackupTime()
                     if (timeofbackup)
                     {
                         backupTimesPaths[timeofbackup]=childNode;
-                        latesttime = max(latesttime, timeofbackup);
+                        latesttime = (std::max)(latesttime, timeofbackup);
                     }
                     else
                     {
@@ -21003,7 +21060,7 @@ void MegaBackupController::start(bool skip)
     string backupname = ossremotename.str();
     currentName = backupname;
 
-    lastbackuptime = max(lastbackuptime,offsetds+startTime);
+    lastbackuptime = (std::max)(lastbackuptime,offsetds+startTime);
 
     megaApi->fireOnBackupStart(this);
 
@@ -28216,4 +28273,6 @@ void TreeProcFolderInfo::proc(MegaClient *, Node *node)
 MegaFolderInfo *TreeProcFolderInfo::getResult()
 {
     return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+}
+
 }

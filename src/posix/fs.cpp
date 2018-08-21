@@ -40,7 +40,8 @@ extern JavaVM *MEGAjvm;
 #endif
 
 namespace mega {
-    
+using namespace std;
+
 #ifdef USE_IOS
     char* PosixFileSystemAccess::appbasepath = NULL;
 #endif

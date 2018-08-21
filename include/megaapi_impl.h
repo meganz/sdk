@@ -402,6 +402,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaStringList *getCustomAttrNames();
         virtual const char *getCustomAttr(const char* attrName);
         virtual int getDuration();
+        virtual int getWidth();
+        virtual int getHeight();
         virtual double getLatitude();
         virtual double getLongitude();
         virtual char *getBase64Handle();
@@ -488,6 +490,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         PublicLink *plink;
         std::string *sharekey;   // for plinks of folders
         int duration;
+        int width;
+        int height;
         double latitude;
         double longitude;
         MegaNodeList *children;
@@ -2134,7 +2138,7 @@ class MegaApiImpl : public MegaApp
         void setChatUnifiedKey(MegaHandle chatid, const char *unifiedKey, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
-        void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatStats(const char *data, int port, MegaRequestListener *listener = NULL);
         void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);

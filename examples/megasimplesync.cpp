@@ -26,6 +26,9 @@
 #endif
 
 using namespace mega;
+using std::cout;
+using std::cerr;
+using std::endl;
 
 class SyncApp : public MegaApp, public Logger
 {
