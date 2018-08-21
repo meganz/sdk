@@ -9265,6 +9265,7 @@ void MegaApiImpl::setPublicKeyPinning(bool enable)
 void MegaApiImpl::pauseActionPackets()
 {
     sdkMutex.lock();
+    LOG_debug << "Pausing action packets";
     client->scpaused = true;
     sdkMutex.unlock();
 }
@@ -9272,6 +9273,7 @@ void MegaApiImpl::pauseActionPackets()
 void MegaApiImpl::resumeActionPackets()
 {
     sdkMutex.lock();
+    LOG_debug << "Resuming action packets";
     client->scpaused = false;
     sdkMutex.unlock();
 }

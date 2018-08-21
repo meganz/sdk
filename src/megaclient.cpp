@@ -3819,6 +3819,7 @@ bool MegaClient::procsc()
                     break;
                     
                 case EOO:
+                    LOG_debug << "Processing of action packets finished";
                     mergenewshares(1);
                     applykeys();
                     return true;
@@ -3826,6 +3827,7 @@ bool MegaClient::procsc()
                 case 'a':
                     if (jsonsc.enterarray())
                     {
+                        LOG_debug << "Processing action packets";
                         insca = true;
                         break;
                     }
