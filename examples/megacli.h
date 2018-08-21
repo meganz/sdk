@@ -91,6 +91,9 @@ struct DemoApp : public MegaApp
     void request_response_progress(m_off_t, m_off_t);
     
     void login_result(error);
+    void multifactorauthdisable_result(error);
+    void multifactorauthsetup_result(string *code, error e);
+    void multifactorauthcheck_result(int enabled);
 
     void ephemeral_result(error);
     void ephemeral_result(handle, const byte*);

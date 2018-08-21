@@ -4225,20 +4225,49 @@ bool MegaApiImpl::isAchievementsEnabled()
 
 bool MegaApiImpl::checkPassword(const char *password)
 {
-    byte pwkey[SymmCipher::KEYLENGTH];
-
     sdkMutex.lock();
-    if (!password || !password[0]
-            || client->k.size() < SymmCipher::KEYLENGTH
-            || client->pw_key(password, pwkey))
+    if (!password || !password[0] || client->k.size() != SymmCipher::KEYLENGTH)
     {
         sdkMutex.unlock();
         return false;
     }
 
     string k = client->k;
-    SymmCipher cipher(pwkey);
-    cipher.ecb_decrypt((byte *)k.data());
+    if (client->accountversion == 1)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+        if (client->pw_key(password, pwkey))
+        {
+            sdkMutex.unlock();
+            return false;
+        }
+
+        SymmCipher cipher(pwkey);
+        cipher.ecb_decrypt((byte *)k.data());
+    }
+    else if (client->accountversion == 2)
+    {
+        if (client->accountsalt.size() != 32) // SHA256
+        {
+            sdkMutex.unlock();
+            return false;
+        }
+
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                         (const byte *)client->accountsalt.data(), client->accountsalt.size(), 100000);
+
+        SymmCipher cipher(derivedKey);
+        cipher.ecb_decrypt((byte *)k.data());
+    }
+    else
+    {
+        LOG_warn << "Version of account not supported";
+        sdkMutex.unlock();
+        return false;
+    }
+
     bool result = !memcmp(k.data(), client->key.key, SymmCipher::KEYLENGTH);
     sdkMutex.unlock();
     return result;
@@ -4290,43 +4319,9 @@ void MegaApiImpl::log(int logLevel, const char *message, const char *filename, i
     externalLogger.postLog(logLevel, message, filename, line);
 }
 
-char* MegaApiImpl::getBase64PwKey(const char *password)
-{
-	if(!password) return NULL;
-
-	byte pwkey[SymmCipher::KEYLENGTH];
-	error e = client->pw_key(password,pwkey);
-	if(e)
-		return NULL;
-
-	char* buf = new char[SymmCipher::KEYLENGTH*4/3+4];
-	Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
-	return buf;
-}
-
 long long MegaApiImpl::getSDKtime()
 {
     return Waiter::ds;
-}
-
-char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
-{
-	if(!base64pwkey || !inBuf) return NULL;
-
-	char pwkey[SymmCipher::KEYLENGTH];
-	Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-
-	SymmCipher key;
-	key.setkey((byte*)pwkey);
-
-    uint64_t strhash;
-	string neBuf = inBuf;
-
-    strhash = client->stringhash64(&neBuf, &key);
-
-	char* buf = new char[8*4/3+4];
-    Base64::btoa((byte*)&strhash, 8, buf);
-    return buf;
 }
 
 void MegaApiImpl::getSessionTransferURL(const char *path, MegaRequestListener *listener)
@@ -4336,6 +4331,32 @@ void MegaApiImpl::getSessionTransferURL(const char *path, MegaRequestListener *l
     request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
+}
+
+char* MegaApiImpl::getStringHash(const char* base64pwkey, const char* inBuf)
+{
+    if (!base64pwkey || !inBuf)
+    {
+        return NULL;
+    }
+
+    char pwkey[2 * SymmCipher::KEYLENGTH];
+    if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != SymmCipher::KEYLENGTH)
+    {
+        return MegaApi::strdup("");
+    }
+
+    SymmCipher key;
+    key.setkey((byte*)pwkey);
+
+    uint64_t strhash;
+    string neBuf = inBuf;
+
+    strhash = client->stringhash64(&neBuf, &key);
+
+    char* buf = new char[8*4/3+4];
+    Base64::btoa((byte*)&strhash, 8, buf);
+    return buf;
 }
 
 MegaHandle MegaApiImpl::base32ToHandle(const char *base32Handle)
@@ -4624,10 +4645,10 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
 void MegaApiImpl::fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
-	request->setEmail(email);
-	request->setPassword(stringHash);
-	request->setPrivateKey(base64pwkey);
-	requestQueue.push(request);
+    request->setEmail(email);
+    request->setPassword(stringHash);
+    request->setPrivateKey(base64pwkey);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -4781,16 +4802,6 @@ void MegaApiImpl::createAccount(const char* email, const char* password, const c
     request->setName(firstname);
     request->setText(lastname);
     requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
-	request->setEmail(email);
-	request->setPrivateKey(base64pwkey);
-	request->setName(name);
-	requestQueue.push(request);
     waiter->notify();
 }
 
@@ -5737,7 +5748,7 @@ void MegaApiImpl::invalidateCache()
 
 int MegaApiImpl::getPasswordStrength(const char *password)
 {
-    if (!password || strlen(password) < 4)
+    if (!password || strlen(password) < 8)
     {
         return MegaApi::PASSWORD_STRENGTH_VERYWEAK;
     }
@@ -9254,6 +9265,7 @@ void MegaApiImpl::setPublicKeyPinning(bool enable)
 void MegaApiImpl::pauseActionPackets()
 {
     sdkMutex.lock();
+    LOG_debug << "Pausing action packets";
     client->scpaused = true;
     sdkMutex.unlock();
 }
@@ -9261,6 +9273,7 @@ void MegaApiImpl::pauseActionPackets()
 void MegaApiImpl::resumeActionPackets()
 {
     sdkMutex.lock();
+    LOG_debug << "Resuming action packets";
     client->scpaused = false;
     sdkMutex.unlock();
 }
@@ -10048,12 +10061,6 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     request->setText(ip);       // not specified in MegaApi documentation
     request->setNodeHandle(uh); // not specified in MegaApi documentation
 
-    const char *link = request->getLink();
-    const char* code;
-
-    byte pwkey[SymmCipher::KEYLENGTH];
-    const char *mk64;
-
     if (reqType == MegaRequest::TYPE_QUERY_RECOVERY_LINK)
     {
         fireOnRequestFinish(request, MegaError());
@@ -10061,50 +10068,11 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
     }
     else if (reqType == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
     {
-        if ((code = strstr(link, "#recover")))
-        {
-            code += strlen("#recover");
-        }
-        else
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-            return;
-        }
-
-        switch (type)
-        {
-        case RECOVER_WITH_MASTERKEY:
-            {
-                mk64 = request->getPrivateKey();
-                if (!mk64)
-                {
-                    fireOnRequestFinish(request, MegaError(API_EARGS));
-                    return;
-                }
-
-                int creqtag = client->reqtag;
-                client->reqtag = client->restag;
-                client->getprivatekey(code);
-                client->reqtag = creqtag;
-                break;
-            }
-
-        case RECOVER_WITHOUT_MASTERKEY:
-            {
-                client->pw_key(request->getPassword(), pwkey);
-                int creqtag = client->reqtag;
-                client->reqtag = client->restag;
-                client->confirmrecoverylink(code, email, pwkey);
-                client->reqtag = creqtag;
-                break;
-            }
-
-        default:
-            LOG_debug << "Unknown type of recovery link";
-
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-            return;
-        }
+        int creqtag = client->reqtag;
+        client->reqtag = client->restag;
+        client->prelogin(email);
+        client->reqtag = creqtag;
+        return;
     }
     else if (reqType == MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)
     {
@@ -10115,23 +10083,41 @@ void MegaApiImpl::queryrecoverylink_result(int type, const char *email, const ch
             fireOnRequestFinish(request, MegaError(API_EARGS));
             return;
         }
-
-        if ((code = strstr(link, "#verify")))
+                
+        const char* code;
+        if ((code = strstr(request->getLink(), "#verify")))
         {
             code += strlen("#verify");
+
+            if (!checkPassword(request->getPassword()))
+            {
+                fireOnRequestFinish(request, MegaError(API_ENOENT));
+                return;
+            }
+
+            int creqtag = client->reqtag;
+            client->reqtag = client->restag;
+            if (client->accountversion == 1)
+            {
+                byte pwkey[SymmCipher::KEYLENGTH];
+                client->pw_key(request->getPassword(), pwkey);
+                client->confirmemaillink(code, request->getEmail(), pwkey);
+            }
+            else if (client->accountversion == 2)
+            {
+                client->confirmemaillink(code, request->getEmail(), NULL);
+            }
+            else
+            {
+                LOG_warn << "Version of account not supported";
+                fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+            }
+            client->reqtag = creqtag;
         }
         else
         {
             fireOnRequestFinish(request, MegaError(API_EARGS));
-            return;
         }
-
-        client->pw_key(request->getPassword(), pwkey);
-
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        client->validatepwd(pwkey);
-        client->reqtag = creqtag;
     }
 }
 
@@ -10159,9 +10145,6 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
         return;
     }
 
-    byte pwkey[SymmCipher::KEYLENGTH];
-    client->pw_key(request->getPassword(), pwkey);
-
     byte mk[SymmCipher::KEYLENGTH];
     Base64::atob(request->getPrivateKey(), mk, sizeof mk);
 
@@ -10177,14 +10160,13 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
     if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
     {
         fireOnRequestFinish(request, MegaError(API_EKEY));
+        return;
     }
-    else
-    {
-        int creqtag = client->reqtag;
-        client->reqtag = client->restag;
-        client->confirmrecoverylink(code, request->getEmail(), pwkey, mk);
-        client->reqtag = creqtag;
-    }
+
+    int creqtag = client->reqtag;
+    client->reqtag = client->restag;
+    client->confirmrecoverylink(code, request->getEmail(), request->getPassword(), mk, request->getParamType());
+    client->reqtag = creqtag;
 }
 
 void MegaApiImpl::confirmrecoverylink_result(error e)
@@ -10203,57 +10185,6 @@ void MegaApiImpl::confirmcancellink_result(error e)
     if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK)) return;
 
     fireOnRequestFinish(request, MegaError(e));
-}
-
-void MegaApiImpl::validatepassword_result(error e)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_CONFIRM_CANCEL_LINK) &&
-                    (request->getType() != MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK))) return;
-
-    if (e)
-    {
-        fireOnRequestFinish(request, MegaError(e));
-        return;
-    }
-
-    if (request->getType() == MegaRequest::TYPE_CONFIRM_CANCEL_LINK)
-    {
-        const char *link = request->getLink();
-        const char* code;
-        if ((code = strstr(link, "#cancel")))
-        {
-            code += strlen("#cancel");
-            int creqtag = client->reqtag;
-            client->reqtag = client->restag;
-            client->confirmcancellink(code);
-            client->reqtag = creqtag;
-        }
-        else
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-        }
-    }
-    else if (request->getType() == MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK)
-    {
-        byte pwkey[SymmCipher::KEYLENGTH];
-        client->pw_key(request->getPassword(), pwkey);
-
-        const char* code;
-        if ((code = strstr(request->getLink(), "#verify")))
-        {
-            code += strlen("#verify");
-            int creqtag = client->reqtag;
-            client->reqtag = client->restag;
-            client->confirmemaillink(code, request->getEmail(), pwkey);
-            client->reqtag = creqtag;
-        }
-        else
-        {
-            fireOnRequestFinish(request, MegaError(API_EARGS));
-        }
-    }
 }
 
 void MegaApiImpl::getemaillink_result(error e)
@@ -11104,24 +11035,43 @@ void MegaApiImpl::fetchnodes_result(error e)
                 client->putua(ATTR_LASTNAME, (const byte*) request->getText(), strlen(request->getText()));
             }
 
+            // ...and finally send confirmation link
+            client->reqtag = client->restag;
             byte pwkey[SymmCipher::KEYLENGTH];
             if (!request->getPrivateKey())
             {
-                client->pw_key(request->getPassword(), pwkey);
+                if (client->nsr_enabled)
+                {
+                    string derivedKey = client->sendsignuplink2(request->getEmail(), request->getPassword(), request->getName());
+                    string b64derivedKey;
+                    Base64::btoa(derivedKey, b64derivedKey);
+                    request->setPrivateKey(b64derivedKey.c_str());
 
-                char* buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
-                Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
-                request->setPrivateKey(buf);
-                delete [] buf;
+                    char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
+                    Base64::btoa((byte*) &client->me, sizeof client->me, buf);
+                    string sid;
+                    sid.append(buf);
+                    sid.append("#");
+                    Base64::btoa((byte *)derivedKey.data(), SymmCipher::KEYLENGTH, buf);
+                    sid.append(buf);
+                    request->setSessionKey(sid.c_str());
+                }
+                else
+                {
+                    client->pw_key(request->getPassword(), pwkey);
+                    client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
+
+                    char* buf = new char[SymmCipher::KEYLENGTH * 4 / 3 + 4];
+                    Base64::btoa((byte *)pwkey, SymmCipher::KEYLENGTH, buf);
+                    request->setPrivateKey(buf);
+                    delete [] buf;
+                }
             }
             else
             {
                 Base64::atob(request->getPrivateKey(), (byte *)pwkey, sizeof pwkey);
+                client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
             }
-
-            // ...and finally send confirmation link
-            client->reqtag = client->restag;
-            client->sendsignuplink(request->getEmail(), request->getName(), pwkey);
             client->reqtag = creqtag;
         }
     }
@@ -11500,7 +11450,11 @@ void MegaApiImpl::additem_result(error e)
 
     //MegaRequest::TYPE_UPGRADE_ACCOUNT
     int method = int(request->getNumber());
+
+    int creqtag = client->reqtag;
+    client->reqtag = client->restag;
     client->purchase_checkout(method);
+    client->reqtag = creqtag;
 }
 
 void MegaApiImpl::checkout_result(const char *errortype, error e)
@@ -11801,6 +11755,147 @@ void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t tot
                 request->setTotalBytes(totalProgress);
             }
             fireOnRequestUpdate(request);
+        }
+    }
+}
+
+void MegaApiImpl::prelogin_result(int version, string* email, string *salt, error e)
+{
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_LOGIN)
+                    && (request->getType() != MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)))
+    {
+        return;
+    }
+
+    if (e)
+    {
+        fireOnRequestFinish(request, MegaError(e));
+        return;
+    }
+
+    if (request->getType() == MegaRequest::TYPE_LOGIN)
+    {
+        const char* pin = request->getText();
+        if (version == 1)
+        {
+            const char *password = request->getPassword();
+            const char* base64pwkey = request->getPrivateKey();
+            if (base64pwkey)
+            {
+                byte pwkey[SymmCipher::KEYLENGTH];
+                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
+                if (password)
+                {
+                    uint64_t emailhash;
+                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
+
+                    int creqtag = client->reqtag;
+                    client->reqtag = client->restag;
+                    client->fastlogin(email->c_str(), pwkey, emailhash);
+                    client->reqtag = creqtag;
+                }
+                else
+                {
+                    int creqtag = client->reqtag;
+                    client->reqtag = client->restag;
+                    client->login(email->c_str(), pwkey, pin);
+                    client->reqtag = creqtag;
+                }
+            }
+            else
+            {
+                error e;
+                byte pwkey[SymmCipher::KEYLENGTH];
+                if ((e = client->pw_key(password, pwkey)))
+                {
+                    fireOnRequestFinish(request, MegaError(e));
+                    return;
+                }
+
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->login(email->c_str(), pwkey, pin);
+                client->reqtag = creqtag;
+            }
+        }
+        else if (version == 2 && salt)
+        {
+            const char *password = request->getPassword();
+            const char* base64pwkey = request->getPrivateKey();
+            if (base64pwkey)
+            {
+                byte derivedKey[2 * SymmCipher::KEYLENGTH];
+                Base64::atob(base64pwkey, derivedKey, sizeof derivedKey);
+
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->login2(email->c_str(), derivedKey, pin);
+                client->reqtag = creqtag;
+            }
+            else
+            {
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->login2(email->c_str(), password, salt, pin);
+                client->reqtag = creqtag;
+            }
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+        }
+    }
+    else if (request->getType() == MegaRequest::TYPE_CONFIRM_RECOVERY_LINK)
+    {
+        request->setParamType(version);
+        const char *link = request->getLink();
+        const char* code;
+        const char *mk64;
+
+        if ((code = strstr(link, "#recover")))
+        {
+            code += strlen("#recover");
+        }
+        else
+        {
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
+        }
+
+        int type = request->getNumber();
+        switch (type)
+        {
+            case RECOVER_WITH_MASTERKEY:
+            {
+                mk64 = request->getPrivateKey();
+                if (!mk64)
+                {
+                    fireOnRequestFinish(request, MegaError(API_EARGS));
+                    return;
+                }
+
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->getprivatekey(code);
+                client->reqtag = creqtag;
+                break;
+            }
+            case RECOVER_WITHOUT_MASTERKEY:
+            {
+                int creqtag = client->reqtag;
+                client->reqtag = client->restag;
+                client->confirmrecoverylink(code, email->c_str(), request->getPassword(), NULL, version);
+                client->reqtag = creqtag;
+                break;
+            }
+
+        default:
+            LOG_debug << "Unknown type of recovery link";
+
+            fireOnRequestFinish(request, MegaError(API_EARGS));
+            return;
         }
     }
 }
@@ -12855,7 +12950,7 @@ void MegaApiImpl::querysignuplink_result(handle, const char* email, const char* 
 
 	if (*(uint64_t*)(signuppwchallenge+4))
 	{
-        fireOnRequestFinish(request, MegaError(API_ENOENT));
+        fireOnRequestFinish(request, MegaError(API_EKEY));
 	}
 	else
     {
@@ -12873,8 +12968,25 @@ void MegaApiImpl::confirmsignuplink_result(error e)
 	MegaError megaError(e);
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request) return;
+    if(!request || (request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT)) return;
 
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
+{
+    MegaError megaError(e);
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_CONFIRM_ACCOUNT) &&
+                    (request->getType() != MegaRequest::TYPE_QUERY_SIGNUP_LINK))) return;
+
+    if (!e)
+    {
+        request->setName(name);
+        request->setEmail(email);
+        request->setFlag(true);
+    }
     fireOnRequestFinish(request, megaError);
 }
 
@@ -15553,7 +15665,6 @@ void MegaApiImpl::sendPendingRequests()
             const char* megaFolderLink = request->getLink();
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
-            const char* pin = request->getText();
 
             if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
             {
@@ -15562,7 +15673,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             string slogin;
-            if(login)
+            if (login)
             {
                 slogin = login;
                 slogin.erase(slogin.begin(), std::find_if(slogin.begin(), slogin.end(), char_is_not_space));
@@ -15598,33 +15709,16 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            if(sessionKey)
+            client->locallogout();
+            if (sessionKey)
             {
                 byte session[MAX_SESSION_LENGTH];
                 int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
                 client->login(session, size);
             }
-            else if(login && base64pwkey)
+            else if (login && (base64pwkey || password))
             {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey);
-
-                if(password)
-                {
-                    uint64_t emailhash;
-                    Base64::atob(password, (byte *)&emailhash, sizeof emailhash);
-                    client->fastlogin(slogin.c_str(), pwkey, emailhash);
-                }
-                else
-                {
-                    client->login(slogin.c_str(), pwkey);
-                }
-            }
-            else if(login && password)
-            {
-                byte pwkey[SymmCipher::KEYLENGTH];
-                if((e = client->pw_key(password,pwkey))) break;
-                client->login(slogin.c_str(), pwkey, pin);
+                client->prelogin(slogin.c_str());
             }
             else
             {
@@ -16269,18 +16363,14 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-			byte newpwkey[SymmCipher::KEYLENGTH];
             if (oldPassword && !checkPassword(oldPassword))
             {
                 e = API_EARGS;
                 break;
             }
-            if ((e = client->pw_key(newPassword, newpwkey)))
-            {
-                break;
-            }
-            e = client->changepw(newpwkey, pin);
-			break;
+
+            e = client->changepw(newPassword, pin);
+            break;
 		}
 		case MegaRequest::TYPE_LOGOUT:
 		{
@@ -16971,6 +17061,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
+            client->locallogout();
             if (resumeProcess)
             {
                 client->resumeephemeral(uh, pwbuf);
@@ -16988,38 +17079,41 @@ void MegaApiImpl::sendPendingRequests()
             const char *base64pwkey = request->getPrivateKey();
             const char *name = request->getName();
 
-            if(client->loggedin() != EPHEMERALACCOUNT)
+            if (client->loggedin() != EPHEMERALACCOUNT)
             {
                 e = API_EACCESS;
                 break;
             }
 
-            if (!email || !name || (!password && !base64pwkey))
+            if (!email || !name || (client->accountversion == 1 && !base64pwkey && !password))
             {
                 e = API_EARGS;
                 break;
             }
 
-
-            byte pwkey[SymmCipher::KEYLENGTH];
-            if (password)
+            if (client->accountversion == 1)
             {
-                e = client->pw_key(password, pwkey);
-            }
-            else    // pwcipher provided
-            {
-                if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != sizeof pwkey)
+                byte pwkey[SymmCipher::KEYLENGTH];
+                if (password)
+                {
+                    client->pw_key(password, pwkey);
+                }
+                else if (Base64::atob(base64pwkey, (byte *)pwkey, sizeof pwkey) != SymmCipher::KEYLENGTH)
                 {
                     e = API_EARGS;
+                    break;
                 }
+                client->sendsignuplink(email, name, pwkey);
             }
-
-            if (e)
+            else if (client->accountversion == 2)
             {
+                client->resendsignuplink2(email, name);
+            }
+            else
+            {
+                e = API_EINTERNAL;
                 break;
             }
-
-            client->sendsignuplink(email, name, pwkey);
             break;
         }
         case MegaRequest::TYPE_QUERY_SIGNUP_LINK:
@@ -17043,7 +17137,14 @@ void MegaApiImpl::sendPendingRequests()
                 len = Base64::atob(ptr,c,len);
                 if (len)
                 {
-                    client->querysignuplink(c,len);
+                    if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                    {
+                        client->confirmsignuplink2(c, len);
+                    }
+                    else
+                    {
+                        client->querysignuplink(c, len);
+                    }
                 }
                 else
                 {
@@ -17096,7 +17197,7 @@ void MegaApiImpl::sendPendingRequests()
 			const char *password = request->getPassword();
 			const char *pwkey = request->getPrivateKey();
 
-            if(!link || (request->getType() == MegaRequest::TYPE_CONFIRM_ACCOUNT && !password && !pwkey))
+            if (!link)
 			{
 				e = API_EARGS;
 				break;
@@ -17112,7 +17213,18 @@ void MegaApiImpl::sendPendingRequests()
             len = Base64::atob(ptr,c,len);
             if (len)
             {
-                client->querysignuplink(c,len);
+                if (len > 13 && !memcmp("ConfirmCodeV2", c, 13))
+                {
+                    client->confirmsignuplink2(c, len);
+                }
+                else if (!password && !pwkey)
+                {
+                    e = API_EARGS;
+                }
+                else
+                {
+                    client->querysignuplink(c, len);
+                }
             }
             else
             {
@@ -17208,6 +17320,7 @@ void MegaApiImpl::sendPendingRequests()
             if (client->loggedin() != FULLACCOUNT)
             {
                 e = API_EACCESS;
+                break;
             }
 
             const char* code;
@@ -17216,12 +17329,15 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
                 break;
             }
+            
+            if (!checkPassword(pwd))
+            {
+                e = API_ENOENT;
+                break;
+            }
 
-            byte pwkey[SymmCipher::KEYLENGTH];
-            client->pw_key(pwd, pwkey);
-
-            // concatenate login + confirm requests
-            e = client->validatepwd(pwkey);
+            code += strlen("#cancel");
+            client->confirmcancellink(code);
             break;
         }
         case MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK:
@@ -17251,6 +17367,7 @@ void MegaApiImpl::sendPendingRequests()
             if (client->loggedin() != FULLACCOUNT)
             {
                 e = API_EACCESS;
+                break;
             }
 
             const char* code;

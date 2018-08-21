@@ -194,14 +194,23 @@ public:
     // encrypted master key
     string k;
 
+    // version of the account
+    int accountversion;
+
+    // salt of the account (for v2 accounts)
+    string accountsalt;
+
     // timestamp of the creation of the account
     m_time_t accountsince;
 
-    // multi-factor authentication globally enabled
+    // Global Multi-Factor Authentication enabled
     bool gmfa_enabled;
 
-    // server-side Rubbish-bin autopurging enabled
+    // Server-Side Rubbish-bin Scheduler enabled (autopurging)
     bool ssrs_enabled;
+
+    // New Secure Registration method enabled
+    bool nsr_enabled;
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -234,12 +243,26 @@ public:
 
     // full account confirmation/creation support
     void sendsignuplink(const char*, const char*, const byte*);
+
+    string sendsignuplink2(const char*, const char *, const char*);
+    void resendsignuplink2(const char*, const char *);
+
     void querysignuplink(const byte*, unsigned);
     void confirmsignuplink(const byte*, unsigned, uint64_t);
+    void confirmsignuplink2(const byte*, unsigned);
     void setkeypair();
+
+    // prelogin: e-mail
+    void prelogin(const char*);
 
     // user login: e-mail, pwkey
     void login(const char*, const byte*, const char* = NULL);
+
+    // user login: e-mail, password, salt
+    void login2(const char*, const char*, string *, const char* = NULL);
+
+    // user login: e-mail, derivedkey, 2FA pin
+    void login2(const char*, const byte*, const char* = NULL);
 
     // user login: e-mail, pwkey, emailhash
     void fastlogin(const char*, const byte*, uint64_t);
@@ -292,7 +315,7 @@ public:
     error encryptlink(const char* link, const char* pwd, string *encryptedLink);
 
     // change login password
-    error changepw(const byte*, const char *pin = NULL);
+    error changepw(const char *password, const char *pin = NULL);
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);
@@ -1295,7 +1318,7 @@ public:
     void getprivatekey(const char *code);
 
     // confirm a recovery link to restore the account
-    void confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
+    void confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey = NULL, int accountversion = 1);
 
     // request a link to cancel the account
     void getcancellink(const char *email, const char* = NULL);

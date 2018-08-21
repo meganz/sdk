@@ -262,26 +262,6 @@ void MegaSDK::removeGlobalListener(MGlobalListenerInterface^ listener)
     }
 }
 
-String^ MegaSDK::getBase64PwKey(String^ password)
-{
-	if (password == nullptr) return nullptr;
-
-	std::string utf8password;
-	MegaApi::utf16ToUtf8(password->Data(), password->Length(), &utf8password);
-
-	std::string utf16base64PwKey;
-	const char *utf8base64PwKey = megaApi->getBase64PwKey(utf8password.c_str());
-	if (!utf8base64PwKey)
-	{
-		return nullptr;
-	}
-
-	MegaApi::utf8ToUtf16(utf8base64PwKey, &utf16base64PwKey);
-	delete[] utf8base64PwKey;
-
-	return ref new String((wchar_t *)utf16base64PwKey.c_str());
-}
-
 String^ MegaSDK::getStringHash(String^ base64pwkey, String^ inBuf)
 {
 	if (base64pwkey == nullptr || inBuf == nullptr) return nullptr;
@@ -822,45 +802,6 @@ void MegaSDK::createAccount(String^ email, String^ password, String^ firstname, 
         (firstname != nullptr) ? utf8firstname.c_str() : NULL,
         (lastname != nullptr) ? utf8lastname.c_str() : NULL,
         createDelegateMRequestListener(listener));
-}
-
-void MegaSDK::fastCreateAccount(String^ email, String^ base64pwkey, String^ name)
-{
-	std::string utf8email;
-	if (email != nullptr)
-		MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
-
-	std::string utf8base64pwkey;
-	if (base64pwkey != nullptr)
-		MegaApi::utf16ToUtf8(base64pwkey->Data(), base64pwkey->Length(), &utf8base64pwkey);
-
-	std::string utf8name;
-	if (name != nullptr)
-		MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
-
-	megaApi->fastCreateAccount((email != nullptr) ? utf8email.c_str() : NULL,
-		(base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
-		(name != nullptr) ? utf8name.c_str() : NULL);
-}
-
-void MegaSDK::fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener)
-{
-	std::string utf8email;
-	if (email != nullptr)
-		MegaApi::utf16ToUtf8(email->Data(), email->Length(), &utf8email);
-
-	std::string utf8base64pwkey;
-	if (base64pwkey != nullptr)
-		MegaApi::utf16ToUtf8(base64pwkey->Data(), base64pwkey->Length(), &utf8base64pwkey);
-
-	std::string utf8name;
-	if (name != nullptr)
-		MegaApi::utf16ToUtf8(name->Data(), name->Length(), &utf8name);
-
-	megaApi->fastCreateAccount((email != nullptr) ? utf8email.c_str() : NULL,
-		(base64pwkey != nullptr) ? utf8base64pwkey.c_str() : NULL,
-		(name != nullptr) ? utf8name.c_str() : NULL,
-		createDelegateMRequestListener(listener));
 }
 
 void MegaSDK::resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener)
