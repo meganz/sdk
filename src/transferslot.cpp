@@ -466,17 +466,10 @@ void TransferSlot::doio(MegaClient* client)
                                 break;
                             }
 
-                            if (e == API_ERATELIMIT || (reqs[i]->contenttype.find("text/html") != string::npos
-                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5)))
+                            if (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                             {
-                                if (e == API_ERATELIMIT)
-                                {
-                                    LOG_warn << "Delayed chunk during upload";
-                                }
-                                else
-                                {
-                                    LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
-                                }
+                                LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
