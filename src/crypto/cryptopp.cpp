@@ -378,7 +378,7 @@ int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
         *ptr++ = t.GetByte(i);
     }
 
-    return ptr - buf;
+    return int(ptr - buf);
 }
 
 static void rsadecrypt(Integer* key, Integer* m)

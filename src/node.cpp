@@ -697,6 +697,53 @@ const char* Node::displayname() const
     return it->second.c_str();
 }
 
+string Node::displaypath() const
+{
+    // factored from nearly identical functions in megapi_impl and megacli
+    string path;
+    const Node* n = this;
+    for (; n; n = n->parent)
+    {
+        switch (n->type)
+        {
+        case FOLDERNODE:
+            path.insert(0, n->displayname());
+
+            if (n->inshare)
+            {
+                path.insert(0, ":");
+                if (n->inshare->user)
+                {
+                    path.insert(0, n->inshare->user->email);
+                }
+                else
+                {
+                    path.insert(0, "UNKNOWN");
+                }
+                return path;
+            }
+            break;
+
+        case INCOMINGNODE:
+            path.insert(0, "//in");
+            return path;
+
+        case ROOTNODE:
+            return path.empty() ? "/" : path;
+
+        case RUBBISHNODE:
+            path.insert(0, "//bin");
+            return path;
+
+        case TYPE_UNKNOWN:
+        case FILENODE:
+            path.insert(0, n->displayname());
+        }
+        path.insert(0, "/");
+    }
+    return path;
+}
+
 // returns position of file attribute or 0 if not present
 int Node::hasfileattribute(fatype t) const
 {

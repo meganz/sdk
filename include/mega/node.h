@@ -118,6 +118,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // display name (UTF-8)
     const char* displayname() const;
 
+    // display path from its root in the cloud (UTF-8)
+    string displaypath() const;
+
     // node attributes
     AttrMap attrs;
 

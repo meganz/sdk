@@ -712,7 +712,7 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         string buffer = "mega.nz";
         buffer.resize(200, 'P');
         buffer.append((char *)clientkey, sizeof(clientkey));
-        hasher.add((const byte*)buffer.data(), buffer.size());
+        hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
         hasher.get(&salt);
 
         byte derivedKey[2 * SymmCipher::KEYLENGTH];
@@ -3034,7 +3034,7 @@ bool MegaClient::dispatch(direction_t d)
                 nexttransfer->pos = 0;
                 nexttransfer->progresscompleted = 0;
 
-                if (d == GET || nexttransfer->cachedtempurl.size())
+                if (d == GET || nexttransfer->tempurl.size())
                 {
                     m_off_t p = 0;
 
@@ -3123,11 +3123,9 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                if (nexttransfer->cachedtempurl.size())
+                if (nexttransfer->tempurl.size())
                 {
                     app->transfer_prepare(nexttransfer);
-                    ts->tempurl =  nexttransfer->cachedtempurl;
-                    nexttransfer->cachedtempurl.clear();
                 }
                 else
                 {
@@ -9512,7 +9510,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     string buffer = "mega.nz";
     buffer.resize(200, 'P');
     buffer.append((char *)clientRandomValue, sizeof(clientRandomValue));
-    hasher.add((const byte*)buffer.data(), buffer.size());
+    hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
     byte derivedKey[2 * SymmCipher::KEYLENGTH];
@@ -9586,7 +9584,7 @@ string MegaClient::sendsignuplink2(const char *email, const char *password, cons
     string buffer = "mega.nz";
     buffer.resize(200, 'P');
     buffer.append((char *)clientrandomvalue, sizeof(clientrandomvalue));
-    hasher.add((const byte*)buffer.data(), buffer.size());
+    hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
     hasher.get(&salt);
 
     byte derivedKey[2 * SymmCipher::KEYLENGTH];
@@ -12246,7 +12244,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
-                    t->cachedtempurl.clear();
+                    t->tempurl.clear();
 
                     if (d == PUT)
                     {
@@ -12283,7 +12281,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                         if (f->genfingerprint(fa))
                         {
                             LOG_warn << "The local file has been modified";
-                            t->cachedtempurl.clear();
+                            t->tempurl.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             delete [] t->ultoken;
@@ -12428,7 +12426,6 @@ void MegaClient::setmaxconnections(direction_t d, int num)
                 {
                     slot->transfer->state = TRANSFERSTATE_QUEUED;
                     slot->transfer->bt.arm();
-                    slot->transfer->cachedtempurl = slot->tempurl;
                     delete slot;
                 }
             }

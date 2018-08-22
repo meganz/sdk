@@ -72,7 +72,7 @@ int EdDSA::sign(const unsigned char* msg, const unsigned long long msglen,
 
     int result = crypto_sign_detached(sig, NULL, msg, msglen, (const unsigned char*)privKey);
 
-    return (result == 0) ? (crypto_sign_BYTES + msglen) : 0;
+    return int( (result == 0) ? (crypto_sign_BYTES + msglen) : 0 );
 }
 
 
@@ -144,7 +144,7 @@ void EdDSA::signKey(const unsigned char *key, const unsigned long long keyLength
 
     string keyString = "keyauth";
     keyString.append(tsstr);
-    keyString.append((char*)key, keyLength);
+    keyString.append((char*)key, size_t(keyLength));
 
     byte sigBuf[crypto_sign_BYTES];
     sign((unsigned char *)keyString.data(), keyString.size(), sigBuf);
@@ -166,7 +166,7 @@ bool EdDSA::verifyKey(const unsigned char *pubk, const unsigned long long pubkLe
 
     string message = "keyauth";
     message.append(sig->data(), 8);
-    message.append((char*)pubk, pubkLen);
+    message.append((char*)pubk, size_t(pubkLen));
 
     string signature = sig->substr(8);
 

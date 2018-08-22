@@ -71,9 +71,6 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // storage server access URL
-    string tempurl;
-
     // maximum number of parallel connections and connection aray
     int connections;
     HttpReqXfer** reqs;

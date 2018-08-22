@@ -600,7 +600,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
     if (initializing || fullscan)
     {
         // find corresponding LocalNode by file-/foldername
-        int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
+        size_t lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
 
         string fname(localname ? *localpath : tmppath,
                      lastpart,
