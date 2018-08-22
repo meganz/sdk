@@ -162,18 +162,9 @@ bool Transfer::serialize(string *d)
         d->append((const char*)&hasUltoken, sizeof(char));
     }
 
-    if (slot)
-    {
-        ll = (unsigned short)slot->tempurl.size();
-        d->append((char*)&ll, sizeof(ll));
-        d->append(slot->tempurl.data(), ll);
-    }
-    else
-    {
-        ll = (unsigned short)cachedtempurl.size();
-        d->append((char*)&ll, sizeof(ll));
-        d->append(cachedtempurl.data(), ll);
-    }
+    ll = (unsigned short)tempurl.size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(tempurl.data(), ll);
 
     char s = state;
     d->append((const char*)&s, sizeof(s));
@@ -307,7 +298,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
         return NULL;
     }
 
-    t->cachedtempurl.assign(ptr, ll);
+    t->tempurl.assign(ptr, ll);
     ptr += ll;
 
     char state = MemAccess::get<char>(ptr);
@@ -387,14 +378,14 @@ void Transfer::failed(error e, dstime timeleft)
         if ( (*it)->failed(e)
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
-                    && slot && slot->tempurl.empty()
+                    && slot && slot->transfer->tempurl.empty()
                     && failcount < 16) )
         {
             defer = true;
         }
     }
 
-    cachedtempurl.clear();
+    tempurl.clear();
     if (type == PUT)
     {
         chunkmacs.clear();
@@ -1717,7 +1708,6 @@ error TransferList::pause(Transfer *transfer, bool enable)
         if (transfer->slot)
         {
             transfer->bt.arm();
-            transfer->cachedtempurl = transfer->slot->tempurl;
             delete transfer->slot;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
@@ -1805,7 +1795,6 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
         if (lastActiveTransfer)
         {
             lastActiveTransfer->bt.arm();
-            lastActiveTransfer->cachedtempurl = lastActiveTransfer->slot->tempurl;
             delete lastActiveTransfer->slot;
             lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
             client->transfercacheadd(lastActiveTransfer);
@@ -1824,7 +1813,6 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
             if (!(*cit)->slot && isReady(*cit))
             {
                 transfer->bt.arm();
-                transfer->cachedtempurl = (*it)->slot->tempurl;
                 delete transfer->slot;
                 transfer->state = TRANSFERSTATE_QUEUED;
                 break;

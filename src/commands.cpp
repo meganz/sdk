@@ -359,13 +359,13 @@ void CommandPutFile::procresult()
         switch (client->json.getnameid())
         {
             case 'p':
-                client->json.storeobject(canceled ? NULL : &tslot->tempurl);
+                client->json.storeobject(canceled ? NULL : &tslot->transfer->tempurl);
                 break;
 
             case EOO:
                 if (canceled) return;
 
-                if (tslot->tempurl.size())
+                if (tslot->transfer->tempurl.size())
                 {
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
                     return tslot->progress();
@@ -567,7 +567,7 @@ void CommandGetFile::procresult()
         switch (client->json.getnameid())
         {
             case 'g':
-                client->json.storeobject(tslot ? &tslot->tempurl : NULL);
+                client->json.storeobject(tslot ? &tslot->transfer->tempurl : NULL);
                 e = API_OK;
                 break;
 
@@ -712,7 +712,7 @@ void CommandGetFile::procresult()
 
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
-                                        if (tslot->tempurl.size() && s >= 0)
+                                        if (tslot->transfer->tempurl.size() && s >= 0)
                                         {
                                             return tslot->progress();
                                         }
@@ -1452,7 +1452,7 @@ void CommandPrelogin::procresult()
         switch (client->json.getnameid())
         {
             case 'v':
-                v = client->json.getint();
+                v = int(client->json.getint());
                 break;
             case 's':
                 client->json.storeobject(&salt);
@@ -3977,8 +3977,8 @@ void CommandSendSignupLink::procresult()
 CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name)
 {
     cmd("uc2");
-    arg("n", (byte*)name, strlen(name));
-    arg("m", (byte*)email, strlen(email));
+    arg("n", (byte*)name, int(strlen(name)));
+    arg("m", (byte*)email, int(strlen(email)));
     arg("v", 2);
     tag = client->reqtag;
 }
@@ -3986,8 +3986,8 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
 CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientrandomvalue, byte *encmasterkey, byte *hashedauthkey)
 {
     cmd("uc2");
-    arg("n", (byte*)name, strlen(name));
-    arg("m", (byte*)email, strlen(email));
+    arg("n", (byte*)name, int(strlen(name)));
+    arg("m", (byte*)email, int(strlen(email)));
     arg("crv", clientrandomvalue, SymmCipher::KEYLENGTH);
     arg("hak", hashedauthkey, SymmCipher::KEYLENGTH);
     arg("k", encmasterkey, SymmCipher::KEYLENGTH);
@@ -4080,7 +4080,7 @@ void CommandConfirmSignupLink2::procresult()
     if (client->json.storebinary(&email) && client->json.storebinary(&name))
     {
         uh = client->json.gethandle(MegaClient::USERHANDLE);
-        version = client->json.getint();
+        version = int(client->json.getint());
     }
     while (client->json.storeobject());
 

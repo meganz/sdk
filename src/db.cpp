@@ -32,7 +32,7 @@ DbTable::DbTable()
 // add or update record from string
 bool DbTable::put(uint32_t index, string* data)
 {
-    return put(index, (char*)data->data(), data->size());
+    return put(index, (char*)data->data(), unsigned(data->size()));
 }
 
 // add or update record with padding and encryption

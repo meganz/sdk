@@ -116,8 +116,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // transfer state
     bool finished;
 
-    // cached temp URL for upload/download data
-    string cachedtempurl;
+    // temp URL for upload/download data.  It can be cached.  For uploads, a new url means any previously uploaded data is abandoned.
+    string tempurl;
 
     // context of the async fopen operation
     AsyncIOContext* asyncopencontext;

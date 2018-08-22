@@ -176,7 +176,7 @@ TransferSlot::~TransferSlot()
                 downloadRequest->finalize(transfer);
                 m_off_t dlpos = downloadRequest->dlpos;
                 m_off_t bufsize = downloadRequest->bufpos;
-                if (fa->fwrite(downloadRequest->buf, bufsize, dlpos))
+                if (fa->fwrite(downloadRequest->buf, unsigned(bufsize), dlpos))
                 {
                     LOG_verbose << "Sync write succeeded";
                     for (chunkmac_map::iterator it = downloadRequest->chunkmacs.begin(); it != downloadRequest->chunkmacs.end(); it++)
@@ -347,7 +347,7 @@ void TransferSlot::doio(MegaClient* client)
 
     retrying = false;
 
-    if (!tempurl.size())
+    if (!transfer->tempurl.size())
     {
         return;
     }
@@ -531,13 +531,13 @@ void TransferSlot::doio(MegaClient* client)
                                 p += reqs[i]->size;
 
                                 LOG_debug << "Writting data asynchronously at " << downloadRequest->dlpos;
-                                asyncIO[i] = fa->asyncfwrite(downloadRequest->buf, downloadRequest->bufpos, downloadRequest->dlpos);
+                                asyncIO[i] = fa->asyncfwrite(downloadRequest->buf, unsigned(downloadRequest->bufpos), downloadRequest->dlpos);
                                 reqs[i]->status = REQ_ASYNCIO;
                             }
                             else
                             {
                                 downloadRequest->finalize(transfer);
-                                if (fa->fwrite(downloadRequest->buf, downloadRequest->bufpos, downloadRequest->dlpos))
+                                if (fa->fwrite(downloadRequest->buf, unsigned(downloadRequest->bufpos), downloadRequest->dlpos))
                                 {
                                     LOG_verbose << "Sync write succeeded";
                                     for (chunkmac_map::iterator it = downloadRequest->chunkmacs.begin(); it != downloadRequest->chunkmacs.end(); it++)
@@ -643,11 +643,11 @@ void TransferSlot::doio(MegaClient* client)
                                 LOG_verbose << "Async read succeeded";
                                 m_off_t npos = asyncIO[i]->pos + asyncIO[i]->len;
 
-                                string finaltempurl = tempurl;
-                                if (client->usealtupport && !memcmp(tempurl.c_str(), "http:", 5))
+                                string finaltempurl = transfer->tempurl;
+                                if (client->usealtupport && !memcmp(finaltempurl.c_str(), "http:", 5))
                                 {
-                                    size_t index = tempurl.find("/", 8);
-                                    if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                                    size_t index = finaltempurl.find("/", 8);
+                                    if(index != string::npos && finaltempurl.find(":", 8) == string::npos)
                                     {
                                         finaltempurl.insert(index, ":8080");
                                     }
@@ -784,7 +784,7 @@ void TransferSlot::doio(MegaClient* client)
                         LOG_warn << "Bandwidth overquota from storage server";
                         if (reqs[i]->timeleft > 0)
                         {
-                            backoff = reqs[i]->timeleft * 10;
+                            backoff = dstime(reqs[i]->timeleft * 10);
                         }
                         else
                         {
@@ -805,13 +805,13 @@ void TransferSlot::doio(MegaClient* client)
                             failure = true;
                             bool changeport = false;
 
-                            if (transfer->type == GET && client->autodownport && !memcmp(tempurl.c_str(), "http:", 5))
+                            if (transfer->type == GET && client->autodownport && !memcmp(transfer->tempurl.c_str(), "http:", 5))
                             {
                                 LOG_debug << "Automatically changing download port";
                                 client->usealtdownport = !client->usealtdownport;
                                 changeport = true;
                             }
-                            else if (transfer->type == PUT && client->autoupport && !memcmp(tempurl.c_str(), "http:", 5))
+                            else if (transfer->type == PUT && client->autoupport && !memcmp(transfer->tempurl.c_str(), "http:", 5))
                             {
                                 LOG_debug << "Automatically changing upload port";
                                 client->usealtupport = !client->usealtupport;
@@ -930,22 +930,22 @@ void TransferSlot::doio(MegaClient* client)
 
                     if (prepare)
                     {
-                        string finaltempurl = tempurl;
+                        string finaltempurl = transfer->tempurl;
                         if (transfer->type == GET && client->usealtdownport
-                                && !memcmp(tempurl.c_str(), "http:", 5))
+                                && !memcmp(finaltempurl.c_str(), "http:", 5))
                         {
-                            size_t index = tempurl.find("/", 8);
-                            if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                            size_t index = finaltempurl.find("/", 8);
+                            if(index != string::npos && finaltempurl.find(":", 8) == string::npos)
                             {
                                 finaltempurl.insert(index, ":8080");
                             }
                         }
 
                         if (transfer->type == PUT && client->usealtupport
-                                && !memcmp(tempurl.c_str(), "http:", 5))
+                                && !memcmp(finaltempurl.c_str(), "http:", 5))
                         {
-                            size_t index = tempurl.find("/", 8);
-                            if(index != string::npos && tempurl.find(":", 8) == string::npos)
+                            size_t index = finaltempurl.find("/", 8);
+                            if(index != string::npos && finaltempurl.find(":", 8) == string::npos)
                             {
                                 finaltempurl.insert(index, ":8080");
                             }
@@ -1020,13 +1020,13 @@ void TransferSlot::doio(MegaClient* client)
         failure = true;
         bool changeport = false;
 
-        if (transfer->type == GET && client->autodownport && !memcmp(tempurl.c_str(), "http:", 5))
+        if (transfer->type == GET && client->autodownport && !memcmp(transfer->tempurl.c_str(), "http:", 5))
         {
             LOG_debug << "Automatically changing download port due to a timeout";
             client->usealtdownport = !client->usealtdownport;
             changeport = true;
         }
-        else if (transfer->type == PUT && client->autoupport && !memcmp(tempurl.c_str(), "http:", 5))
+        else if (transfer->type == PUT && client->autoupport && !memcmp(transfer->tempurl.c_str(), "http:", 5))
         {
             LOG_debug << "Automatically changing upload port due to a timeout";
             client->usealtupport = !client->usealtupport;
