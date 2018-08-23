@@ -212,6 +212,7 @@ struct MEGA_API HttpReq
     string posturl;
 
     bool protect;
+    bool minspeed;
 
     bool sslcheckfailed;
     string sslfakeissuer;

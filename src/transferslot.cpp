@@ -1020,6 +1020,7 @@ void TransferSlot::doio(MegaClient* client)
 
             if (reqs[i] && (reqs[i]->status == REQ_PREPARED))
             {
+                reqs[i]->minspeed = true;
                 reqs[i]->post(client);
             }
         }
