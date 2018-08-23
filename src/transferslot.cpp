@@ -53,6 +53,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     lastprogressreport = 0;
     progressreported = 0;
     speed = meanSpeed = 0;
+    progresscontiguous = 0;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -382,7 +383,7 @@ void TransferSlot::doio(MegaClient* client)
                     lastdata = Waiter::ds;
                     transfer->lastaccesstime = m_time();
 
-                    LOG_debug << "Chunk finished OK (" << transfer->type << ") Pos: " << transfer->pos
+                    LOG_debug << "Transfer request finished (" << transfer->type << ") Position: " << reqs[i]->pos << " (" << transfer->pos << ") Size: " << reqs[i]->size
                               << " Completed: " << (transfer->progresscompleted + reqs[i]->size) << " of " << transfer->size;
 
                     if (transfer->type == PUT)
@@ -425,6 +426,15 @@ void TransferSlot::doio(MegaClient* client)
                                         LOG_verbose << "Upload chunk completed: " << startpos;
                                         startpos = ChunkedHash::chunkceil(startpos, finalpos);
                                     }
+
+                                    chunkmac_map::iterator pcit;
+                                    chunkmac_map &pcchunkmacs = transfer->chunkmacs;
+                                    while ((pcit = pcchunkmacs.find(progresscontiguous)) != pcchunkmacs.end()
+                                           && pcit->second.finished)
+                                    {
+                                        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, transfer->size);
+                                    }
+                                    LOG_debug << "Contiguous progress: " << progresscontiguous << " (" << (transfer->pos - progresscontiguous) << ")";
 
                                     transfer->progresscompleted += reqs[i]->size;
                                     memcpy(transfer->filekey, transfer->transferkey, sizeof transfer->transferkey);
@@ -495,6 +505,15 @@ void TransferSlot::doio(MegaClient* client)
                         }
                         transfer->progresscompleted += reqs[i]->size;
 
+                        chunkmac_map::iterator pcit;
+                        chunkmac_map &pcchunkmacs = transfer->chunkmacs;
+                        while ((pcit = pcchunkmacs.find(progresscontiguous)) != pcchunkmacs.end()
+                               && pcit->second.finished)
+                        {
+                            progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, transfer->size);
+                        }
+                        LOG_debug << "Contiguous progress: " << progresscontiguous << " (" << (transfer->pos - progresscontiguous) << ")";
+
                         if (transfer->progresscompleted == transfer->size)
                         {
                             int creqtag = client->reqtag;
@@ -550,6 +569,15 @@ void TransferSlot::doio(MegaClient* client)
                                     LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
                                     errorcount = 0;
                                     transfer->failcount = 0;
+
+                                    chunkmac_map::iterator pcit;
+                                    chunkmac_map &pcchunkmacs = transfer->chunkmacs;
+                                    while ((pcit = pcchunkmacs.find(progresscontiguous)) != pcchunkmacs.end()
+                                           && pcit->second.finished)
+                                    {
+                                        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, transfer->size);
+                                    }
+                                    LOG_debug << "Contiguous progress: " << progresscontiguous << " (" << (transfer->pos - progresscontiguous) << ")";
                                 }
                                 else
                                 {
@@ -673,6 +701,15 @@ void TransferSlot::doio(MegaClient* client)
                                 LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
                                 errorcount = 0;
                                 transfer->failcount = 0;
+
+                                chunkmac_map::iterator pcit;
+                                chunkmac_map &pcchunkmacs = transfer->chunkmacs;
+                                while ((pcit = pcchunkmacs.find(progresscontiguous)) != pcchunkmacs.end()
+                                       && pcit->second.finished)
+                                {
+                                    progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, transfer->size);
+                                }
+                                LOG_debug << "Contiguous progress: " << progresscontiguous << " (" << (transfer->pos - progresscontiguous) << ")";
 
                                 if (transfer->progresscompleted == transfer->size)
                                 {

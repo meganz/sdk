@@ -52,6 +52,8 @@ struct MEGA_API TransferSlot
 
     m_off_t progressreported;
 
+    m_off_t progresscontiguous;
+
     m_time_t lastprogressreport;
 
     dstime starttime, lastdata;
