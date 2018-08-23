@@ -1000,11 +1000,11 @@ void Transfer::completefiles()
 
 m_off_t Transfer::nextpos()
 {
-    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end())
+    while (chunkmacs.find(ChunkedHash::chunkfloor(pos)) != chunkmacs.end() && pos < size)
     {    
         if (chunkmacs[ChunkedHash::chunkfloor(pos)].finished)
         {
-            pos = ChunkedHash::chunkceil(pos);
+            pos = ChunkedHash::chunkceil(pos, size);
         }
         else
         {
