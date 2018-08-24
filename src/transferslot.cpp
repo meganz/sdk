@@ -914,7 +914,6 @@ void TransferSlot::doio(MegaClient* client)
                             unsigned size = asyncIO[i]->len;
                             npos = pos + size;
                             delete asyncIO[i];
-                            asyncIO[i] = NULL;
                             asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos);
                             reqs[i]->status = REQ_ASYNCIO;
                         }
