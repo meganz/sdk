@@ -4847,16 +4847,17 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
         beginobject();
 
         handle uh = itupl->first;
-        char uid[12];
-        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-        uid[11] = 0;
-
         privilege_t priv = itupl->second;
 
-        arg("u", uid);
+        arg("u", (byte *)&uh, MegaClient::USERHANDLE);
         arg("p", priv);
+
         if (publicchat)
         {
+            char uid[12];
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+            uid[11] = 0;
+
             string_map::const_iterator ituk = ukm->find(uid);
             if(ituk != ukm->end())
             {
@@ -4966,14 +4967,10 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
     this->title = title ? string(title) : "";
     this->mUnifiedKey = unifiedkey ? string(unifiedkey) : "";
 
-    char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-    uid[11] = 0;
-
     cmd("mci");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("u", uid);
+    arg("u", (byte *)&uh, MegaClient::USERHANDLE);
     arg("p", priv);
     arg("v", 1);
 
@@ -5044,11 +5041,7 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle u
 
     if (uh != client->me)
     {
-        char uid[12];
-        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-        uid[11] = 0;
-
-        arg("u", uid);
+        arg("u", (byte *)&uh, MegaClient::USERHANDLE);
     }
     arg("v", 1);
     notself(client);
@@ -5252,15 +5245,11 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
     this->uh = uh;
     this->priv = priv;
 
-    char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-    uid[11] = 0;
-
     cmd("mcup");
     arg("v", 1);
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("u", uid);
+    arg("u", (byte *)&uh, MegaClient::USERHANDLE);
     arg("p", priv);
     notself(client);
 
