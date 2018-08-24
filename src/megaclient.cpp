@@ -12358,7 +12358,7 @@ void MegaClient::stopxfer(File* f)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
-            if (transfer->slot && transfer->slot->delayedchunkreported)
+            if (transfer->slot && transfer->slot->delayedchunk)
             {
                 int creqtag = reqtag;
                 reqtag = 0;

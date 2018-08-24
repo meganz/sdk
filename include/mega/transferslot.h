@@ -52,7 +52,7 @@ struct MEGA_API TransferSlot
     // max allowed difference between the next chunk and the first unfinished chunk
     static const m_off_t MAX_UPLOAD_GAP;
 
-    bool delayedchunkreported;
+    bool delayedchunk;
 
     m_off_t maxRequestSize;
 

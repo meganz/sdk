@@ -56,7 +56,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     progressreported = 0;
     speed = meanSpeed = 0;
     progresscontiguous = 0;
-    delayedchunkreported = false;
+    delayedchunk = false;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -898,13 +898,13 @@ void TransferSlot::doio(MegaClient* client)
 
                     if (transfer->type == PUT && (npos - progresscontiguous) > MAX_UPLOAD_GAP)
                     {
-                        if (!delayedchunkreported)
+                        if (!delayedchunk)
                         {
                             int creqtag = client->reqtag;
                             client->reqtag = 0;
                             client->sendevent(99441, "Management of delayed chunks active");
                             client->reqtag = creqtag;
-                            delayedchunkreported = true;
+                            delayedchunk = true;
                         }
 
                         if (fa->asyncavailable() && asyncIO[i])

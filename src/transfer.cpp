@@ -358,7 +358,7 @@ void Transfer::failed(error e, dstime timeleft)
 
     LOG_debug << "Transfer failed with error " << e;
 
-    if (slot && slot->delayedchunkreported)
+    if (slot && slot->delayedchunk)
     {
         int creqtag = client->reqtag;
         client->reqtag = 0;
@@ -895,7 +895,7 @@ void Transfer::complete()
 
         if (slot->fa)
         {
-            if (slot->delayedchunkreported)
+            if (slot->delayedchunk)
             {
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
