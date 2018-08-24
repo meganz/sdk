@@ -373,7 +373,8 @@ void TransferSlot::doio(MegaClient* client)
                     break;
 
                 case REQ_SUCCESS:
-                    if (client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != ((HttpReqDL *)reqs[i])->dlpos)
+                    if ((client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != ((HttpReqDL *)reqs[i])->dlpos)
+                            || (transfer->type == PUT && (transfer->pos - progresscontiguous) > 62914560)) // 60 MB since the first gap
                     {
                         // postponing unsorted chunk
                         p += reqs[i]->size;
@@ -890,7 +891,7 @@ void TransferSlot::doio(MegaClient* client)
 
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
-                    if (transfer->size && (transfer->type == GET || !asyncIO[i]))
+                    if (transfer->size && transfer->type == GET)
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
                         if (maxReqSize > maxRequestSize)
