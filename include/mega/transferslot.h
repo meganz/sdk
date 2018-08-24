@@ -95,6 +95,9 @@ struct MEGA_API TransferSlot
     // indicate progress
     void progress();
 
+    // update the contiguous progress
+    void updatecontiguousprogress();
+
     // compute the meta MAC based on the chunk MACs
     int64_t macsmac(chunkmac_map*);
 
