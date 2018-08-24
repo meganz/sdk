@@ -47,6 +47,8 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
+const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB
+
 TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
@@ -54,6 +56,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     progressreported = 0;
     speed = meanSpeed = 0;
     progresscontiguous = 0;
+    delayedchunkreported = false;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -358,6 +361,14 @@ void TransferSlot::doio(MegaClient* client)
 
     if (errorcount > 4)
     {
+        if ((transfer->pos - progresscontiguous) > MAX_UPLOAD_GAP)
+        {
+            int creqtag = client->reqtag;
+            client->reqtag = 0;
+            client->sendevent(99442, "Aborting upload with delayed chunks");
+            client->reqtag = creqtag;
+        }
+
         LOG_warn << "Failed transfer: too many errors";
         return transfer->failed(lasterror);
     }
@@ -373,8 +384,7 @@ void TransferSlot::doio(MegaClient* client)
                     break;
 
                 case REQ_SUCCESS:
-                    if ((client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != ((HttpReqDL *)reqs[i])->dlpos)
-                            || (transfer->type == PUT && (transfer->pos - progresscontiguous) > 62914560)) // 60 MB since the first gap
+                    if (client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != ((HttpReqDL *)reqs[i])->dlpos)
                     {
                         // postponing unsorted chunk
                         p += reqs[i]->size;
@@ -480,19 +490,19 @@ void TransferSlot::doio(MegaClient* client)
                             if (e == API_ERATELIMIT || (reqs[i]->contenttype.find("text/html") != string::npos
                                     && !memcmp(reqs[i]->posturl.c_str(), "http:", 5)))
                             {
-                                if (e == API_ERATELIMIT)
-                                {
-                                    LOG_warn << "Delayed chunk during upload";
-                                }
-                                else
-                                {
-                                    LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
-                                }
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
                                 int creqtag = client->reqtag;
                                 client->reqtag = 0;
+                                if (e == API_ERATELIMIT)
+                                {
+                                    client->sendevent(99440, "Retry requested by storage server");
+                                }
+                                else
+                                {
+                                    LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                }
                                 client->sendevent(99436, "Automatic change to HTTPS");
                                 client->reqtag = creqtag;
 
@@ -884,13 +894,33 @@ void TransferSlot::doio(MegaClient* client)
             if (!reqs[i] || (reqs[i]->status == REQ_READY))
             {
                 m_off_t npos = ChunkedHash::chunkceil(transfer->nextpos(), transfer->size);
-                if (!transfer->size)
-                {
-                    transfer->pos = 0;
-                }
-
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
+                    if (transfer->type == PUT && (transfer->pos - progresscontiguous) > MAX_UPLOAD_GAP)
+                    {
+                        if (!delayedchunkreported)
+                        {
+                            int creqtag = client->reqtag;
+                            client->reqtag = 0;
+                            client->sendevent(99441, "Management of delayed chunks active");
+                            client->reqtag = creqtag;
+                            delayedchunkreported = true;
+                        }
+
+                        if (fa->asyncavailable() && asyncIO[i])
+                        {
+                            LOG_warn << "Retrying a failed read";
+                            m_off_t pos = asyncIO[i]->pos;
+                            unsigned size = asyncIO[i]->len;
+                            npos = pos + size;
+                            delete asyncIO[i];
+                            asyncIO[i] = NULL;
+                            asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos);
+                            reqs[i]->status = REQ_ASYNCIO;
+                        }
+                        continue;
+                    }
+
                     if (transfer->size && transfer->type == GET)
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
