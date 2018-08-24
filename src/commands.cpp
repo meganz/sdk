@@ -316,7 +316,11 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
 
     cmd("u");
 
-    arg("ssl", 2);
+    if (client->usehttps)
+    {
+        arg("ssl", 2);
+    }
+
     arg("v", 2);
     arg("s", tslot->fa->size);
     arg("ms", ms);
