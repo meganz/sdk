@@ -3068,8 +3068,10 @@ bool MegaClient::dispatch(direction_t d)
                         nexttransfer->progresscompleted = nexttransfer->size;
                     }
 
+                    ts->updatecontiguousprogress();
                     LOG_debug << "Resuming transfer at " << nexttransfer->pos
                               << " Completed: " << nexttransfer->progresscompleted
+                              << " Contiguous: " << ts->progresscontiguous
                               << " Partial: " << p << " Size: " << nexttransfer->size
                               << " ultoken: " << (nexttransfer->ultoken != NULL);
                 }
