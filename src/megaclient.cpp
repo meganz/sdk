@@ -12358,6 +12358,14 @@ void MegaClient::stopxfer(File* f)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
+            if (transfer->slot && transfer->slot->delayedchunkreported)
+            {
+                int creqtag = reqtag;
+                reqtag = 0;
+                sendevent(99444, "Upload with delayed chunks cancelled");
+                reqtag = creqtag;
+            }
+
             looprequested = true;
             transfer->finished = true;
             transfer->state = TRANSFERSTATE_CANCELLED;
