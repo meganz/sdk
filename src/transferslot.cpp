@@ -361,22 +361,6 @@ void TransferSlot::doio(MegaClient* client)
 
     if (errorcount > 4)
     {
-        if (delayedchunkreported)
-        {
-            m_off_t npos = ChunkedHash::chunkfloor(transfer->pos + maxRequestSize);
-            if (npos > transfer->size)
-            {
-                npos = transfer->size;
-            }
-            if ((npos - progresscontiguous) > MAX_UPLOAD_GAP)
-            {
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99442, "Aborting upload with delayed chunks");
-                client->reqtag = creqtag;
-            }
-        }
-
         LOG_warn << "Failed transfer: too many errors";
         return transfer->failed(lasterror);
     }
