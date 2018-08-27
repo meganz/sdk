@@ -12328,15 +12328,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 filecacheadd(f);
             }
 
-            transferlist.addtransfer(t);
+            transferlist.addtransfer(t, startfirst);
             app->transfer_added(t);
             app->file_added(f);
             looprequested = true;
-
-            if (startfirst)
-            {
-                transferlist.movetofirst(t);
-            }
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
