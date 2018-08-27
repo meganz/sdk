@@ -860,7 +860,7 @@ void TransferSlot::doio(MegaClient* client)
                 m_off_t npos = ChunkedHash::chunkceil(transfer->nextpos(), transfer->size);
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
-                    if (transfer->size && (transfer->type == GET || !asyncIO[i]))
+                    if (transfer->size && transfer->type == GET)
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
                         if (maxReqSize > maxRequestSize)
