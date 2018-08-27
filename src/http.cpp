@@ -420,6 +420,7 @@ HttpReq::HttpReq(bool b)
     type = REQ_JSON;
     buflen = 0;
     protect = false;
+    minspeed = false;
 
     init();
 }

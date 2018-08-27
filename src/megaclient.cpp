@@ -3068,8 +3068,10 @@ bool MegaClient::dispatch(direction_t d)
                         nexttransfer->progresscompleted = nexttransfer->size;
                     }
 
+                    ts->updatecontiguousprogress();
                     LOG_debug << "Resuming transfer at " << nexttransfer->pos
                               << " Completed: " << nexttransfer->progresscompleted
+                              << " Contiguous: " << ts->progresscontiguous
                               << " Partial: " << p << " Size: " << nexttransfer->size
                               << " ultoken: " << (nexttransfer->ultoken != NULL);
                 }
@@ -12356,6 +12358,14 @@ void MegaClient::stopxfer(File* f)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
+            if (transfer->slot && transfer->slot->delayedchunk)
+            {
+                int creqtag = reqtag;
+                reqtag = 0;
+                sendevent(99444, "Upload with delayed chunks cancelled");
+                reqtag = creqtag;
+            }
+
             looprequested = true;
             transfer->finished = true;
             transfer->state = TRANSFERSTATE_CANCELLED;
