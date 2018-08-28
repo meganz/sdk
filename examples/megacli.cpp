@@ -2448,7 +2448,7 @@ static void process_line(char* l)
                 cout << "      chatra chatid nodehandle uid" << endl;
                 cout << "      chatst chatid title64" << endl;
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
-                cout << "      chatl chatid [del] [query]" << endl;     // get public handle
+                cout << "      chatl chatid [del|query]" << endl;     // get public handle
                 cout << "      chatsm chatid [title64]" << endl;          // set private mode
                 cout << "      chatlu publichandle" << endl;    // get chat-link URL
                 cout << "      chatlj publichandle unifiedkey" << endl;    // join chat-link
@@ -4330,20 +4330,20 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "chatl")
                     {
-                        if (words.size() >= 2 && words.size() <= 4)
+                        if (words.size() == 2 || words.size() == 3)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
                             bool del = (words.size() == 3 && words[2] == "del");
-                            bool query = !(words.size() == 4 && words[3] == "query");
+                            bool createifmissing = words.size() == 2 || (words.size() == 3 && words[2] != "query");
 
-                            client->chatlink(chatid, del, query);
+                            client->chatlink(chatid, del, createifmissing);
                             return;
                         }
                         else
                         {
                             cout << "Invalid syntax for chat link" << endl;
-                            cout << "      chatl chatid [del]" << endl;
+                            cout << "      chatl chatid [del|query]" << endl;
                             return;
                         }
                     }
