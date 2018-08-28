@@ -274,13 +274,13 @@ fi
 # MEGA API
 AC_ARG_ENABLE(megaapi,
     AS_HELP_STRING([--disable-megaapi], [disable MEGA API support]),
-    [enable_megaapi=no],
-    [enable_megaapi=yes])
-if test x$enable_megaapi = xyes; then
+    [enable_megaapi=${enableval}],
+    [enable_megaapi=${enableval}])
+if test "x$enable_megaapi" != "xno"; then
+    [enable_megaapi=yes]
     AC_DEFINE(USE_MEGAAPI, 1, [Defined if MEGA API enabled])
 fi
-AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
-
+AM_CONDITIONAL([BUILD_MEGAAPI], [test "x$enable_megaapi" = "xyes"])
 
 # Java
 AC_MSG_CHECKING([if building Java bindings])
