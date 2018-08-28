@@ -41,7 +41,7 @@ extern "C" {
 #endif
 
 #ifdef HAVE_LIBRAW
-#include <libraw.h>
+#include <libraw/libraw.h>
 #endif
 
 namespace mega {
@@ -470,9 +470,10 @@ QImage GfxProcQT::createThumbnail(QString imagePath)
 
 QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &imageType, QString imagePath)
 {
-#ifdef HAVE_FFMPEG
     QFileInfo info(imagePath);
     QString ext = QString::fromUtf8(".%1.").arg(info.suffix()).toLower();
+
+#ifdef HAVE_FFMPEG
     if (strstr(GfxProcQT::supportedformatsFfmpeg(), ext.toUtf8().constData()))
     {
         imageType = TYPE_VIDEO;

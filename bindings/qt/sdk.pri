@@ -119,7 +119,6 @@ CONFIG(USE_MEDIAINFO) {
 
 CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
-    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/libraw
 
     win32 {
         LIBS += -llibraw
