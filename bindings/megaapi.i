@@ -82,7 +82,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
         applicationClass = (jclass)jenv->NewGlobalRef(megaApplicationClass);
         jenv->DeleteLocalRef(megaApplicationClass);
 
-        startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "startVideoCapture", "(JLorg/webrtc/SurfaceTextureHelper;)V");
+        startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "startVideoCapture", "(IIIJLorg/webrtc/SurfaceTextureHelper;)V");
         if (!startVideoCaptureMID)
         {
             jenv->ExceptionClear();
