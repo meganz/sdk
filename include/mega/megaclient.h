@@ -537,6 +537,7 @@ public:
 
     // send event
     void sendevent(int, const char *);
+    void sendevent(int, const char *, int tag);
 
     // clean rubbish bin
     void cleanrubbishbin();
@@ -604,6 +605,7 @@ public:
 
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
+    void reportevent(const char*, const char*, int tag);
 
     // set max download speed
     bool setmaxdownloadspeed(m_off_t bpslimit);
