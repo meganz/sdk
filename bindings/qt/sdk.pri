@@ -130,10 +130,10 @@ CONFIG(USE_LIBRAW) {
 
     unix:!macx {
         exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a) {
-            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a
+            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libraw.a -fopenmp
         }
         else {
-            LIBS += -lraw
+            LIBS += -lraw -fopenmp
         }
     }
 }
