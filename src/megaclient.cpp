@@ -8950,6 +8950,10 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
             {
                 setkey = selector->storebinary(keybuf, sizeof keybuf);
             }
+            else
+            {
+                setkey = -1;
+            }
         }
         else
         {
