@@ -8910,7 +8910,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     if (!selector)
     {
         si = 0;
-        ni = 0;
+        ni = -1;
         if (shares->empty() || nodes->empty())
         {
             return;
