@@ -196,10 +196,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 {
                     if (!fetchingnodes)
                     {
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99428,"Replacing share key");
-                        reqtag = creqtag;
+                        sendevent(99428,"Replacing share key", 0);
                     }
                     delete n->sharekey;
                 }
@@ -1092,10 +1089,7 @@ void MegaClient::exec()
     {
         if (disconnecttimestamp <= Waiter::ds)
         {
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99427, "Timeout (server idle)");
-            reqtag = creqtag;
+            sendevent(99427, "Timeout (server idle)", 0);
 
             disconnect();
         }
@@ -1286,10 +1280,7 @@ void MegaClient::exec()
                                 // reduce the number of required attributes to let the upload continue
                                 transfer->minfa--;
                                 checkfacompletion(fa->th);
-                                int creqtag = reqtag;
-                                reqtag = 0;
-                                sendevent(99407,"Attribute attach failed during active upload");
-                                reqtag = creqtag;
+                                sendevent(99407,"Attribute attach failed during active upload", 0);
                             }
                             else
                             {
@@ -1360,10 +1351,7 @@ void MegaClient::exec()
                             usehttps = true;
                             app->notify_change_to_https();
 
-                            int creqtag = reqtag;
-                            reqtag = 0;
-                            sendevent(99436, "Automatic change to HTTPS");
-                            reqtag = creqtag;
+                            sendevent(99436, "Automatic change to HTTPS", 0);
                         }
                         else
                         {
@@ -1409,10 +1397,7 @@ void MegaClient::exec()
                             usehttps = true;
                             app->notify_change_to_https();
 
-                            int creqtag = reqtag;
-                            reqtag = 0;
-                            sendevent(99436, "Automatic change to HTTPS");
-                            reqtag = creqtag;
+                            sendevent(99436, "Automatic change to HTTPS", 0);
                         }
 
                         fc->failed(this);
@@ -1867,10 +1852,7 @@ void MegaClient::exec()
                 }
                 else if (workinglockcs->in == "0")
                 {
-                    int creqtag = reqtag;
-                    reqtag = 0;
-                    sendevent(99425, "Timeout (server busy)");
-                    reqtag = creqtag;
+                    sendevent(99425, "Timeout (server busy)", 0);
 
                     pendingcs->lastdata = Waiter::ds;
                 }
@@ -3719,10 +3701,7 @@ bool MegaClient::procsc()
                         string report;
                         fnstats.toJsonArray(&report);
 
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99426, report.c_str());
-                        reqtag = creqtag;
+                        sendevent(99426, report.c_str(), 0);
 
                         // NULL vector: "notify all elements"
                         app->nodes_updated(NULL, int(nodes.size()));
@@ -4767,11 +4746,9 @@ void MegaClient::sc_keys()
                 break;
 
             case 'h':
-                // security feature: we only distribute node keys for our own
-                // outgoing shares
-                if (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)) && n->sharekey && !n->inshare)
+                if (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)) && n->sharekey)
                 {
-                    kshares.push_back(n);
+                    kshares.push_back(n);   // n->inshare is checked in cr_response
                 }
                 break;
 
@@ -5868,10 +5845,7 @@ void MegaClient::notifypurge(void)
                     Node *n = nodebyhandle(*it);
                     if (n && !n->changed.removed)
                     {
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99435, "Orphan incoming share");
-                        reqtag = creqtag;
+                        sendevent(99435, "Orphan incoming share", 0);
                     }
                 }
                 u->sharing.clear();
@@ -6567,10 +6541,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         static bool reloadnotified = false;
                         if (!reloadnotified)
                         {
-                            int creqtag = reqtag;
-                            reqtag = 0;
-                            sendevent(99437, "Node inconsistency");
-                            reqtag = creqtag;
+                            sendevent(99437, "Node inconsistency", 0);
                             reloadnotified = true;
                         }
                     }
@@ -8329,11 +8300,8 @@ void MegaClient::notifynode(Node* n)
             Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
             sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            reportevent("NK", report);
-            sendevent(99400, report);
-            reqtag = creqtag;
+            reportevent("NK", report, 0);
+            sendevent(99400, report, 0);
 
             delete [] buf;
         }
@@ -8932,15 +8900,21 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     {
         if ((*shares)[si] && ((*shares)[si]->inshare || !(*shares)[si]->sharekey))
         {
+            // security feature: we only distribute node keys for our own outgoing shares.  
             LOG_warn << "Attempt to obtain node key for invalid/third-party share foiled";
             (*shares)[si] = NULL;
+            sendevent(99445, "Inshare key request rejected", 0);
         }
     }
 
     if (!selector)
     {
         si = 0;
-        ni = 0;
+        ni = -1;
+        if (shares->empty() || nodes->empty())
+        {
+            return;
+        }
     }
 
     // estimate required size for requested keys
@@ -8975,6 +8949,10 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
             if (selector->pos[1] == '"')
             {
                 setkey = selector->storebinary(keybuf, sizeof keybuf);
+            }
+            else
+            {
+                setkey = -1;
             }
         }
         else
@@ -10156,10 +10134,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Public key for Ed25519 mismatch.";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99417, "Ed25519 public key mismatch");
-            reqtag = creqtag;
+            sendevent(99417, "Ed25519 public key mismatch", 0);
 
             clearKeys();
             resetKeyring();
@@ -10171,10 +10146,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Public key for Cu25519 mismatch.";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99412, "Cu25519 public key mismatch");
-            reqtag = creqtag;
+            sendevent(99412, "Cu25519 public key mismatch", 0);
 
             clearKeys();
             resetKeyring();
@@ -10190,10 +10162,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Signature of public key for Cu25519 not found or mismatch";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99413, "Signature of Cu25519 public key mismatch");
-            reqtag = creqtag;
+            sendevent(99413, "Signature of Cu25519 public key mismatch", 0);
 
             clearKeys();
             resetKeyring();
@@ -10209,20 +10178,16 @@ void MegaClient::initializekeys()
         }
         if (!pubkstr.size() || !sigPubk.size())
         {
-            int creqtag = reqtag;
-            reqtag = 0;
-
             if (!pubkstr.size())
             {
                 LOG_warn << "Error serializing RSA public key";
-                sendevent(99421, "Error serializing RSA public key");
+                sendevent(99421, "Error serializing RSA public key", 0);
             }
             if (!sigPubk.size())
             {
                 LOG_warn << "Signature of public key for RSA not found";
-                sendevent(99422, "Signature of public key for RSA not found");
+                sendevent(99422, "Signature of public key for RSA not found", 0);
             }
-            reqtag = creqtag;
 
             clearKeys();
             resetKeyring();
@@ -10235,10 +10200,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Verification of signature of public key for RSA failed";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99414, "Verification of signature of public key for RSA failed");
-            reqtag = creqtag;
+            sendevent(99414, "Verification of signature of public key for RSA failed", 0);
 
             clearKeys();
             resetKeyring();
@@ -10257,10 +10219,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Public keys and/or signatures found witout their respective private key.";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99415, "Incomplete keypair detected");
-            reqtag = creqtag;
+            sendevent(99415, "Incomplete keypair detected", 0);
 
             clearKeys();
             return;
@@ -10326,17 +10285,14 @@ void MegaClient::initializekeys()
     {
         LOG_warn << "Keyring exists, but it's incomplete.";
 
-        int creqtag = reqtag;
-        reqtag = 0;
         if (!chatkey)
         {
-            sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.");
+            sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.", 0);
         }
         else // !signkey
         {
-            sendevent(99423, "Incomplete keyring detected: private key for Ed25519 not found.");
+            sendevent(99423, "Incomplete keyring detected: private key for Ed25519 not found.", 0);
         }
-        reqtag = creqtag;
 
         resetKeyring();
         clearKeys();
@@ -11240,10 +11196,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         sprintf(report + 8, " %d %.200s", (*it)->type, buf);
 
                         // report an "undecrypted child" event
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        reportevent("CU", report);
-                        reqtag = creqtag;
+                        reportevent("CU", report, 0);
 
                         delete [] buf;
                     }
@@ -11261,10 +11214,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         l->reported = true;
 
                         // report a "no-name child" event
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        reportevent("CN");
-                        reqtag = creqtag;
+                        reportevent("CN", NULL, 0);
                     }
 
                     continue;
@@ -11299,10 +11249,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 sprintf(report, "%d %d %d %d", (int)lit->first->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
 
                 // report a "no-name localnode" event
-                int creqtag = reqtag;
-                reqtag = 0;
-                reportevent("LN", report);
-                reqtag = creqtag;
+                reportevent("LN", report, 0);
             }
             continue;
         }
@@ -11679,10 +11626,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 }
 
                 // report a "dupe" event
-                int creqtag = reqtag;
-                reqtag = 0;
-                reportevent("D2", report);
-                reqtag = creqtag;
+                reportevent("D2", report, 0);
             }
             else
             {
@@ -12512,6 +12456,14 @@ void MegaClient::reportevent(const char* event, const char* details)
     reqs.add(new CommandReportEvent(this, event, details));
 }
 
+void MegaClient::reportevent(const char* event, const char* details, int tag)
+{
+    int creqtag = reqtag;
+    reqtag = tag;
+    reportevent(event, details);
+    reqtag = creqtag;
+}
+
 bool MegaClient::setmaxdownloadspeed(m_off_t bpslimit)
 {
     return httpio->setmaxdownloadspeed(bpslimit >= 0 ? bpslimit : 0);
@@ -12564,6 +12516,14 @@ void MegaClient::sendevent(int event, const char *desc)
 {
     LOG_warn << "Event " << event << ": " << desc;
     reqs.add(new CommandSendEvent(this, event, desc));
+}
+
+void MegaClient::sendevent(int event, const char *message, int tag)
+{
+    int creqtag = reqtag;
+    reqtag = tag;
+    sendevent(event, message);
+    reqtag = creqtag;
 }
 
 void MegaClient::cleanrubbishbin()
