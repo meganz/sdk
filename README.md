@@ -96,6 +96,7 @@ Debian and RedHat derivatives, respectively):
 * pthread
 
 Optional dependency:
+* Libraw (`libraw-dev`, `libraw-devel`)
 * Sodium (`libsodium-dev`, `libsodium-devel`), configure `--with-sodium`
 * MediaInfoLib (optional, see third_party/README_MediaInfo.txt)
 
