@@ -941,6 +941,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     gfxdisabled = false;
     ssrs_enabled = false;
     nsr_enabled = false;
+    loggingout = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1658,7 +1659,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && pendingsc)
+        if (!jsonsc.pos && pendingsc && !loggingout)
         {
             switch (pendingsc->status)
             {
@@ -3342,6 +3343,7 @@ void MegaClient::logout()
         return;
     }
 
+    loggingout++;
     reqs.add(new CommandLogout(this));
 }
 
@@ -3364,6 +3366,7 @@ void MegaClient::locallogout()
     gmfa_enabled = false;
     ssrs_enabled = false;
     nsr_enabled = false;
+    loggingout = 0;
 
     freeq(GET);
     freeq(PUT);

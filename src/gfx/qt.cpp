@@ -854,7 +854,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     }
 
     AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
-    AVPixelFormat targetPixelFormat = AV_PIX_FMT_RGBA;
+    AVPixelFormat targetPixelFormat = AV_PIX_FMT_RGB32;
     SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
                                             width, height, targetPixelFormat,
                                             SWS_FAST_BILINEAR, NULL, NULL, NULL);
@@ -989,8 +989,8 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
 
                 if (scalingResult > 0)
                 {
-                    QImage image(width, height, QImage::Format_RGBA8888);
-                    if (avpicture_layout((AVPicture *)targetFrame, AV_PIX_FMT_RGBA,
+                    QImage image(width, height, QImage::Format_ARGB32);
+                    if (avpicture_layout((AVPicture *)targetFrame, targetPixelFormat,
                                     width, height, image.bits(), image.byteCount()) <= 0)
                     {
                         LOG_warn << "Error copying frame";
