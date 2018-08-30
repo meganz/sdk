@@ -599,7 +599,7 @@ libraw=undef
 AC_ARG_WITH(libraw,
   AS_HELP_STRING(--with-libraw=PATH, base of libraw installation),
   [
-   case $with_raw in
+   case $with_libraw in
    no)
     libraw=false
      ;;
