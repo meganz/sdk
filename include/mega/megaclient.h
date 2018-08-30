@@ -1365,6 +1365,9 @@ public:
     // true if user has disabled fileversioning
     bool versions_disabled;
 
+    // the SDK is trying to log out
+    int loggingout;
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };
