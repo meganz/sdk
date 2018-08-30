@@ -118,7 +118,7 @@ void GfxProc::loop()
             // (this assumes that the width of the largest dimension is max)
             if (readbitmap(NULL, &job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
             {
-                for (int i = 0; i < job->imagetypes.size(); i++)
+                for (unsigned i = 0; i < job->imagetypes.size(); i++)
                 {
                     // successively downscale the original image
                     string* jpeg = new string();
@@ -143,7 +143,7 @@ void GfxProc::loop()
             }
             else
             {
-                for (int i = 0; i < job->imagetypes.size(); i++)
+                for (unsigned i = 0; i < job->imagetypes.size(); i++)
                 {
                     job->images.push_back(NULL);
                 }
@@ -162,7 +162,7 @@ void GfxProc::loop()
 
     while (job = responses.pop())
     {
-        for (int i = 0; i < job->imagetypes.size(); i++)
+        for (unsigned i = 0; i < job->imagetypes.size(); i++)
         {
             delete job->images[i];
         }
@@ -182,7 +182,7 @@ int GfxProc::checkevents(Waiter *)
     SymmCipher key;
     while (job = responses.pop())
     {
-        for (int i = 0; i < job->images.size(); i++)
+        for (unsigned i = 0; i < job->images.size(); i++)
         {
             if (job->images[i])
             {
@@ -314,7 +314,7 @@ int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th
 
     requests.push(job);
     waiter.notify();
-    return job->imagetypes.size();
+    return int(job->imagetypes.size());
 }
 
 bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)
@@ -358,7 +358,7 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
         return false;
     }
 
-    if (!f->fwrite((const byte*)jpeg.data(), jpeg.size(), 0))
+    if (!f->fwrite((const byte*)jpeg.data(), unsigned(jpeg.size()), 0))
     {
         delete f;
         return false;

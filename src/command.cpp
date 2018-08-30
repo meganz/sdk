@@ -149,6 +149,14 @@ void Command::beginobject()
     json.append("{");
 }
 
+void Command::beginobject(const char *name)
+{
+    addcomma();
+    json.append("\"");
+    json.append(name);
+    json.append("\":{");
+}
+
 // end JSON object
 void Command::endobject()
 {

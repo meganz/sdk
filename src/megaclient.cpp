@@ -196,10 +196,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 {
                     if (!fetchingnodes)
                     {
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99428,"Replacing share key");
-                        reqtag = creqtag;
+                        sendevent(99428,"Replacing share key", 0);
                     }
                     delete n->sharekey;
                 }
@@ -664,38 +661,95 @@ void MegaClient::getprivatekey(const char *code)
     reqs.add(new CommandGetPrivateKey(this, code));
 }
 
-void MegaClient::confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey)
+void MegaClient::confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey, int accountversion)
 {
-    SymmCipher pwcipher(pwkey);
-
-    string emailstr = email;
-    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
-
-    if (masterkey)
+    if (accountversion == 1)
     {
-        // encrypt provided masterkey using the new password
-        byte encryptedMasterKey[SymmCipher::KEYLENGTH];
-        memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
-        pwcipher.ecb_encrypt(encryptedMasterKey);
+        byte pwkey[SymmCipher::KEYLENGTH];
+        pw_key(password, pwkey);
+        SymmCipher pwcipher(pwkey);
 
-        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, encryptedMasterKey, NULL));
+        string emailstr = email;
+        uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+
+        if (masterkey)
+        {
+            // encrypt provided masterkey using the new password
+            byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            pwcipher.ecb_encrypt(encryptedMasterKey);
+
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, encryptedMasterKey, NULL));
+        }
+        else
+        {
+            // create a new masterkey
+            byte masterkey[SymmCipher::KEYLENGTH];
+            PrnGen::genblock(masterkey, sizeof masterkey);
+
+            // generate a new session
+            byte initialSession[2 * SymmCipher::KEYLENGTH];
+            PrnGen::genblock(initialSession, sizeof initialSession);
+            key.setkey(masterkey);
+            key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+            // and encrypt the master key to the new password
+            pwcipher.ecb_encrypt(masterkey);
+
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, masterkey, initialSession));
+        }
     }
     else
     {
-        // create a new masterkey
-        byte masterkey[SymmCipher::KEYLENGTH];
-        PrnGen::genblock(masterkey, sizeof masterkey);
+        byte clientkey[SymmCipher::KEYLENGTH];
+        PrnGen::genblock(clientkey, sizeof(clientkey));
 
-        // generate a new session
-        byte initialSession[2 * SymmCipher::KEYLENGTH];
-        PrnGen::genblock(initialSession, sizeof initialSession);
-        key.setkey(masterkey);
-        key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+        string salt;
+        HashSHA256 hasher;
+        string buffer = "mega.nz";
+        buffer.resize(200, 'P');
+        buffer.append((char *)clientkey, sizeof(clientkey));
+        hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
+        hasher.get(&salt);
 
-        // and encrypt the master key to the new password
-        pwcipher.ecb_encrypt(masterkey);
+        byte derivedKey[2 * SymmCipher::KEYLENGTH];
+        CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+        pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                         (const byte *)salt.data(), salt.size(), 100000);
 
-        reqs.add(new CommandConfirmRecoveryLink(this, code, loginHash, masterkey, initialSession));
+        string hashedauthkey;
+        byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+        hasher.add(authkey, SymmCipher::KEYLENGTH);
+        hasher.get(&hashedauthkey);
+        hashedauthkey.resize(SymmCipher::KEYLENGTH);
+
+        SymmCipher cipher;
+        cipher.setkey(derivedKey);
+
+        if (masterkey)
+        {
+            // encrypt provided masterkey using the new password
+            byte encryptedMasterKey[SymmCipher::KEYLENGTH];
+            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            cipher.ecb_encrypt(encryptedMasterKey);
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, encryptedMasterKey, NULL));
+        }
+        else
+        {
+            // create a new masterkey
+            byte masterkey[SymmCipher::KEYLENGTH];
+            PrnGen::genblock(masterkey, sizeof masterkey);
+
+            // generate a new session
+            byte initialSession[2 * SymmCipher::KEYLENGTH];
+            PrnGen::genblock(initialSession, sizeof initialSession);
+            key.setkey(masterkey);
+            key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
+
+            // and encrypt the master key to the new password
+            cipher.ecb_encrypt(masterkey);
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, masterkey, initialSession));
+        }
     }
 }
 
@@ -716,12 +770,17 @@ void MegaClient::getemaillink(const char *email, const char *pin)
 
 void MegaClient::confirmemaillink(const char *code, const char *email, const byte *pwkey)
 {
-    SymmCipher pwcipher(pwkey);
-
-    string emailstr = email;
-    uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
-
-    reqs.add(new CommandConfirmEmailLink(this, code, email, loginHash, true));
+    if (pwkey)
+    {
+        SymmCipher pwcipher(pwkey);
+        string emailstr = email;
+        uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
+        reqs.add(new CommandConfirmEmailLink(this, code, email, (const byte*)&loginHash, true));
+    }
+    else
+    {
+        reqs.add(new CommandConfirmEmailLink(this, code, email, NULL, true));
+    }
 }
 
 void MegaClient::contactlinkcreate(bool renew)
@@ -877,9 +936,11 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tsLogin = 0;
     versions_disabled = false;
     accountsince = 0;
+    accountversion = 0;
     gmfa_enabled = false;
     gfxdisabled = false;
     ssrs_enabled = false;
+    nsr_enabled = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1028,10 +1089,7 @@ void MegaClient::exec()
     {
         if (disconnecttimestamp <= Waiter::ds)
         {
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99427, "Timeout (server idle)");
-            reqtag = creqtag;
+            sendevent(99427, "Timeout (server idle)", 0);
 
             disconnect();
         }
@@ -1222,10 +1280,7 @@ void MegaClient::exec()
                                 // reduce the number of required attributes to let the upload continue
                                 transfer->minfa--;
                                 checkfacompletion(fa->th);
-                                int creqtag = reqtag;
-                                reqtag = 0;
-                                sendevent(99407,"Attribute attach failed during active upload");
-                                reqtag = creqtag;
+                                sendevent(99407,"Attribute attach failed during active upload", 0);
                             }
                             else
                             {
@@ -1296,10 +1351,7 @@ void MegaClient::exec()
                             usehttps = true;
                             app->notify_change_to_https();
 
-                            int creqtag = reqtag;
-                            reqtag = 0;
-                            sendevent(99436, "Automatic change to HTTPS");
-                            reqtag = creqtag;
+                            sendevent(99436, "Automatic change to HTTPS", 0);
                         }
                         else
                         {
@@ -1345,10 +1397,7 @@ void MegaClient::exec()
                             usehttps = true;
                             app->notify_change_to_https();
 
-                            int creqtag = reqtag;
-                            reqtag = 0;
-                            sendevent(99436, "Automatic change to HTTPS");
-                            reqtag = creqtag;
+                            sendevent(99436, "Automatic change to HTTPS", 0);
                         }
 
                         fc->failed(this);
@@ -1611,184 +1660,104 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && pendingsc)
         {
-            if (scnotifyurl.size())
+            switch (pendingsc->status)
             {
-                // pendingsc is a scnotifyurl connection
-                switch (pendingsc->status)
+            case REQ_SUCCESS:
+                if (pendingsc->contentlength == 1
+                        && pendingsc->in.size()
+                        && pendingsc->in[0] == '0')
                 {
-                case REQ_SUCCESS:
-                    if (pendingsc->contenttype.find("text/html") != string::npos
-                        && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
+                    LOG_debug << "Waitd keep-alive received";
+                    delete pendingsc;
+                    pendingsc = NULL;
+                    btsc.reset();
+                    break;
+                }
+
+                if (*pendingsc->in.c_str() == '{')
+                {
+                    jsonsc.begin(pendingsc->in.c_str());
+                    jsonsc.enterobject();
+                    break;
+                }
+                else
+                {
+                    error e = (error)atoi(pendingsc->in.c_str());
+                    if (e == API_ESID)
                     {
-                        LOG_warn << "Invalid Content-Type detected in connection to waitd: " << pendingsc->contenttype;
-                        usehttps = true;
-                        app->notify_change_to_https();
-
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99436, "Automatic change to HTTPS");
-                        reqtag = creqtag;
-
-                        // go to API
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        scnotifyurl.clear();
-                        btsc.reset();
-                        break;
+                        app->request_error(API_ESID);
+                        *scsn = 0;
                     }
-
-                    if (pendingsc->contentlength == 1
-                            && pendingsc->in.size()
-                            && pendingsc->in[0] == '0')
+                    else if (e == API_ETOOMANY)
                     {
-                        LOG_debug << "Waitd keep-alive received";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
+                        LOG_warn << "Too many pending updates - reloading local state";
+                        int creqtag = reqtag;
+                        reqtag = fetchnodestag; // associate with ongoing request, if any
+                        fetchingnodes = false;
+                        fetchnodestag = 0;
+                        fetchnodes(true);
+                        reqtag = creqtag;
+                    }
+                    else if (e == API_EAGAIN || e == API_ERATELIMIT)
+                    {
+                        if (!statecurrent)
                         {
-                            LOG_debug << "Waitd timeout expired after keep-alive";
-                            scnotifyurl.clear();
+                            fnstats.eAgainCount++;
                         }
-                        btsc.reset();
-                        break;
+                    }
+                    else
+                    {
+                        LOG_err << "Unexpected sc response: " << pendingsc->in;
+                    }
+                }
+
+                // fall through
+            case REQ_FAILURE:
+                if (pendingsc)
+                {
+                    if (!statecurrent && pendingsc->httpstatus != 200)
+                    {
+                        if (pendingsc->httpstatus == 500)
+                        {
+                            fnstats.e500Count++;
+                        }
+                        else
+                        {
+                            fnstats.eOthersCount++;
+                        }
                     }
 
-                    if (pendingsc->contentlength == 0)
+                    if (pendingsc->sslcheckfailed)
                     {
-                        LOG_debug << "Waitd connection closed";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        scnotifyurl.clear();
-                        btsc.reset();
-                        break;
-                    }
+                        sslfakeissuer = pendingsc->sslfakeissuer;
+                        app->request_error(API_ESSL);
+                        sslfakeissuer.clear();
 
-                    LOG_err << "Unexpected response from waitd";
-                    // fall through
-                case REQ_FAILURE:
-                    if (pendingsc->contenttype.find("text/html") != string::npos
-                        && !memcmp(pendingsc->posturl.c_str(), "http:", 5))
-                    {
-                        LOG_warn << "Invalid Content-Type detected in failed connection to waitd: " << pendingsc->contenttype;
-                        usehttps = true;
-                        app->notify_change_to_https();
-
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99436, "Automatic change to HTTPS");
-                        reqtag = creqtag;
-
-                        // go to API
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        scnotifyurl.clear();
-                        btsc.reset();
-                        break;
+                        if (!retryessl)
+                        {
+                            *scsn = 0;
+                        }
                     }
 
                     delete pendingsc;
                     pendingsc = NULL;
-                    if (Waiter::ds >= (scnotifyurlts + HttpIO::NETWORKTIMEOUT))
-                    {
-                        LOG_debug << "Waitd timeout expired after a failed request";
-                        scnotifyurl.clear();
-                        btsc.reset();
-                    }
-                    else
-                    {
-                        LOG_debug << "Waitd request error, retrying...";
-                        btsc.backoff();
-                    }
-                    break;
-
-                case REQ_INFLIGHT:
-                    if (Waiter::ds >= (pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT))
-                    {
-                        LOG_debug << "Waitd timeout expired";
-                        delete pendingsc;
-                        pendingsc = NULL;
-                        scnotifyurl.clear();
-                        btsc.reset();
-                    }
-                    break;
-
-                default:
-                    break;
                 }
-            }
-            else
-            {
-                // pendingsc is a server-client API request
-                switch (pendingsc->status)
+
+                // failure, repeat with capped exponential backoff
+                btsc.backoff();
+                break;
+
+            case REQ_INFLIGHT:
+                if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
-                    case REQ_SUCCESS:
-                        if (*pendingsc->in.c_str() == '{')
-                        {
-                            jsonsc.begin(pendingsc->in.c_str());
-                            jsonsc.enterobject();
-                            break;
-                        }
-                        else
-                        {
-                            error e = (error)atoi(pendingsc->in.c_str());
-                            if (e == API_ESID)
-                            {
-                                app->request_error(API_ESID);
-                                *scsn = 0;
-                            }
-                            else if (e == API_ETOOMANY)
-                            {
-                                LOG_warn << "Too many pending updates - reloading local state";
-                                int creqtag = reqtag;
-                                reqtag = fetchnodestag; // associate with ongoing request, if any
-                                fetchingnodes = false;
-                                fetchnodestag = 0;
-                                fetchnodes(true);
-                                reqtag = creqtag;
-                            }
-                            else if (e == API_EAGAIN || e == API_ERATELIMIT)
-                            {
-                                if (!statecurrent)
-                                {
-                                    fnstats.eAgainCount++;
-                                }
-                            }
-                        }
-                        // fall through
-                    case REQ_FAILURE:
-                        if (pendingsc && !statecurrent && pendingsc->httpstatus != 200)
-                        {
-                            if (pendingsc->httpstatus == 500)
-                            {
-                                fnstats.e500Count++;
-                            }
-                            else
-                            {
-                                fnstats.eOthersCount++;
-                            }
-                        }
-
-                        if (pendingsc && pendingsc->sslcheckfailed)
-                        {
-                            sslfakeissuer = pendingsc->sslfakeissuer;
-                            app->request_error(API_ESSL);
-                            sslfakeissuer.clear();
-
-                            if (!retryessl)
-                            {
-                                *scsn = 0;
-                            }
-                        }
-
-                        // failure, repeat with capped exponential backoff
-                        delete pendingsc;
-                        pendingsc = NULL;
-
-                        btsc.backoff();
-
-                    default:
-                        break;
+                    LOG_debug << "sc timeout expired";
+                    delete pendingsc;
+                    pendingsc = NULL;
+                    btsc.reset();
                 }
+                break;
+            default:
+                break;
             }
         }
 
@@ -1835,21 +1804,17 @@ void MegaClient::exec()
             }
             else
             {
-                pendingsc->protect = true;
                 pendingsc->posturl = APIURL;
-                pendingsc->posturl.append("sc?sn=");
-                pendingsc->posturl.append(scsn);
-                pendingsc->posturl.append(auth);
-
-                if (usehttps)
-                {
-                    pendingsc->posturl.append("&ssl=1");
-                }
+                pendingsc->posturl.append("wsc");
+                scnotifyurl = pendingsc->posturl;
             }
 
+            pendingsc->protect = true;
+            pendingsc->posturl.append("?sn=");
+            pendingsc->posturl.append(scsn);
+            pendingsc->posturl.append(auth);
             pendingsc->type = REQ_JSON;
             pendingsc->post(this);
-
             jsonsc.pos = NULL;
         }
 
@@ -1887,10 +1852,7 @@ void MegaClient::exec()
                 }
                 else if (workinglockcs->in == "0")
                 {
-                    int creqtag = reqtag;
-                    reqtag = 0;
-                    sendevent(99425, "Timeout (server busy)");
-                    reqtag = creqtag;
+                    sendevent(99425, "Timeout (server busy)", 0);
 
                     pendingcs->lastdata = Waiter::ds;
                 }
@@ -2756,9 +2718,9 @@ int MegaClient::preparewait()
             }
         }
 
-        if (!jsonsc.pos && scnotifyurl.size() && pendingsc && pendingsc->status == REQ_INFLIGHT)
+        if (!jsonsc.pos && pendingsc && pendingsc->status == REQ_INFLIGHT)
         {
-            dstime timeout = pendingsc->lastdata + HttpIO::WAITREQUESTTIMEOUT;
+            dstime timeout = pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT;
             if (timeout > Waiter::ds && timeout < nds)
             {
                 nds = timeout;
@@ -3054,7 +3016,7 @@ bool MegaClient::dispatch(direction_t d)
                 nexttransfer->pos = 0;
                 nexttransfer->progresscompleted = 0;
 
-                if (d == GET || nexttransfer->cachedtempurl.size())
+                if (d == GET || nexttransfer->tempurl.size())
                 {
                     m_off_t p = 0;
 
@@ -3088,8 +3050,10 @@ bool MegaClient::dispatch(direction_t d)
                         nexttransfer->progresscompleted = nexttransfer->size;
                     }
 
+                    ts->updatecontiguousprogress();
                     LOG_debug << "Resuming transfer at " << nexttransfer->pos
                               << " Completed: " << nexttransfer->progresscompleted
+                              << " Contiguous: " << ts->progresscontiguous
                               << " Partial: " << p << " Size: " << nexttransfer->size
                               << " ultoken: " << (nexttransfer->ultoken != NULL);
                 }
@@ -3143,11 +3107,9 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                if (nexttransfer->cachedtempurl.size())
+                if (nexttransfer->tempurl.size())
                 {
                     app->transfer_prepare(nexttransfer);
-                    ts->tempurl =  nexttransfer->cachedtempurl;
-                    nexttransfer->cachedtempurl.clear();
                 }
                 else
                 {
@@ -3401,6 +3363,7 @@ void MegaClient::locallogout()
     accountsince = 0;
     gmfa_enabled = false;
     ssrs_enabled = false;
+    nsr_enabled = false;
 
     freeq(GET);
     freeq(PUT);
@@ -3474,6 +3437,8 @@ void MegaClient::locallogout()
     memset((char*)auth.c_str(), 0, auth.size());
     auth.clear();
     sessionkey.clear();
+    accountversion = 0;
+    accountsalt.clear();
     sid.clear();
     k.clear();
 
@@ -3640,6 +3605,35 @@ bool MegaClient::procsc()
             switch (jsonsc.getnameid())
             {
                 case 'w':
+                    jsonsc.storeobject(&scnotifyurl);
+                    break;
+
+                case MAKENAMEID2('s', 'n'):
+                    // the sn element is guaranteed to be the last in sequence
+                    setscsn(&jsonsc);
+                    notifypurge();
+                    if (sctable)
+                    {
+                        if (!pendingcs && !csretrying && !reqs.cmdspending())
+                        {
+                            sctable->commit();
+                            sctable->begin();
+                            app->notify_dbcommit();
+                            pendingsccommit = false;
+                        }
+                        else
+                        {
+                            LOG_debug << "Postponing DB commit until cs requests finish";
+                            pendingsccommit = true;
+                        }
+                    }
+                    break;
+                    
+                case EOO:
+                    LOG_debug << "Processing of action packets finished";
+                    mergenewshares(1);
+                    applykeys();
+
                     if (!statecurrent)
                     {
                         if (fetchingnodes)
@@ -3707,10 +3701,7 @@ bool MegaClient::procsc()
                         string report;
                         fnstats.toJsonArray(&report);
 
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99426, report.c_str());
-                        reqtag = creqtag;
+                        sendevent(99426, report.c_str(), 0);
 
                         // NULL vector: "notify all elements"
                         app->nodes_updated(NULL, int(nodes.size()));
@@ -3724,41 +3715,12 @@ bool MegaClient::procsc()
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
                     }
-                
-                    jsonsc.storeobject(&scnotifyurl);
-                    scnotifyurlts = Waiter::ds;
-                    scnotifyurl.append("/1");
-                    break;
-
-                case MAKENAMEID2('s', 'n'):
-                    // the sn element is guaranteed to be the last in sequence
-                    setscsn(&jsonsc);
-                    notifypurge();
-                    if (sctable)
-                    {
-                        if (!pendingcs && !csretrying && !reqs.cmdspending())
-                        {
-                            sctable->commit();
-                            sctable->begin();
-                            app->notify_dbcommit();
-                            pendingsccommit = false;
-                        }
-                        else
-                        {
-                            LOG_debug << "Postponing DB commit until cs requests finish";
-                            pendingsccommit = true;
-                        }
-                    }
-                    break;
-                    
-                case EOO:
-                    mergenewshares(1);
-                    applykeys();
                     return true;
 
                 case 'a':
                     if (jsonsc.enterarray())
                     {
+                        LOG_debug << "Processing action packets";
                         insca = true;
                         break;
                     }
@@ -4784,11 +4746,9 @@ void MegaClient::sc_keys()
                 break;
 
             case 'h':
-                // security feature: we only distribute node keys for our own
-                // outgoing shares
-                if (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)) && n->sharekey && !n->inshare)
+                if (!ISUNDEF(h = jsonsc.gethandle()) && (n = nodebyhandle(h)) && n->sharekey)
                 {
-                    kshares.push_back(n);
+                    kshares.push_back(n);   // n->inshare is checked in cr_response
                 }
                 break;
 
@@ -5904,10 +5864,7 @@ void MegaClient::notifypurge(void)
                     Node *n = nodebyhandle(*it);
                     if (n && !n->changed.removed)
                     {
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        sendevent(99435, "Orphan incoming share");
-                        reqtag = creqtag;
+                        sendevent(99435, "Orphan incoming share", 0);
                     }
                 }
                 u->sharing.clear();
@@ -6603,10 +6560,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         static bool reloadnotified = false;
                         if (!reloadnotified)
                         {
-                            int creqtag = reqtag;
-                            reqtag = 0;
-                            sendevent(99437, "Node inconsistency");
-                            reqtag = creqtag;
+                            sendevent(99437, "Node inconsistency", 0);
                             reloadnotified = true;
                         }
                     }
@@ -7286,8 +7240,6 @@ error MegaClient::folderaccess(const char *folderlink)
     handle h = 0;
     byte folderkey[SymmCipher::KEYLENGTH];
 
-    locallogout();
-
     if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
     {
         return API_EARGS;
@@ -7304,11 +7256,14 @@ error MegaClient::folderaccess(const char *folderlink)
     return API_OK;
 }
 
+void MegaClient::prelogin(const char *email)
+{
+    reqs.add(new CommandPrelogin(this, email));
+}
+
 // create new session
 void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
 {
-    locallogout();
-
     string lcemail(email);
 
     key.setkey((byte*)pwkey);
@@ -7318,19 +7273,42 @@ void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, emailhash, sek, 0, pin));
+    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek, 0, pin));
+}
+
+// create new session (v2)
+void MegaClient::login2(const char *email, const char *password, string *salt, const char *pin)
+{
+    string bsalt;
+    Base64::atob(*salt, bsalt);
+
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)bsalt.data(), bsalt.size(), 100000);
+
+    login2(email, derivedKey, pin);
+}
+
+void MegaClient::login2(const char *email, const byte *derivedKey, const char* pin)
+{
+    key.setkey((byte*)derivedKey);
+    const byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
+
+    byte sek[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(sek, sizeof sek);
+
+    reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
 }
 
 void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailhash)
 {
-    locallogout();
-
     key.setkey((byte*)pwkey);
 
     byte sek[SymmCipher::KEYLENGTH];
     PrnGen::genblock(sek, sizeof sek);
 
-    reqs.add(new CommandLogin(this, email, emailhash, sek));
+    reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
 }
 
 void MegaClient::getuserdata()
@@ -7345,9 +7323,7 @@ void MegaClient::getpubkey(const char *user)
 
 // resume session - load state from local cache, if available
 void MegaClient::login(const byte* session, int size)
-{
-    locallogout();
-   
+{   
     int sessionversion = 0;
     if (size == sizeof key.key + SIDLEN + 1)
     {
@@ -7381,7 +7357,7 @@ void MegaClient::login(const byte* session, int size)
         byte sek[SymmCipher::KEYLENGTH];
         PrnGen::genblock(sek, sizeof sek);
 
-        reqs.add(new CommandLogin(this, NULL, UNDEF, sek, sessionversion));
+        reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
         getuserdata();
     }
     else
@@ -8343,11 +8319,8 @@ void MegaClient::notifynode(Node* n)
             Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
             sprintf(report + 8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            reportevent("NK", report);
-            sendevent(99400, report);
-            reqtag = creqtag;
+            reportevent("NK", report, 0);
+            sendevent(99400, report, 0);
 
             delete [] buf;
         }
@@ -8958,15 +8931,21 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     {
         if ((*shares)[si] && ((*shares)[si]->inshare || !(*shares)[si]->sharekey))
         {
+            // security feature: we only distribute node keys for our own outgoing shares.  
             LOG_warn << "Attempt to obtain node key for invalid/third-party share foiled";
             (*shares)[si] = NULL;
+            sendevent(99445, "Inshare key request rejected", 0);
         }
     }
 
     if (!selector)
     {
         si = 0;
-        ni = 0;
+        ni = -1;
+        if (shares->empty() || nodes->empty())
+        {
+            return;
+        }
     }
 
     // estimate required size for requested keys
@@ -9001,6 +8980,10 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
             if (selector->pos[1] == '"')
             {
                 setkey = selector->storebinary(keybuf, sizeof keybuf);
+            }
+            else
+            {
+                setkey = -1;
             }
         }
         else
@@ -9500,7 +9483,7 @@ void MegaClient::whyamiblocked()
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
-error MegaClient::changepw(const byte* newpwkey, const char *pin)
+error MegaClient::changepw(const char* password, const char *pin)
 {
     User* u;
 
@@ -9509,14 +9492,56 @@ error MegaClient::changepw(const byte* newpwkey, const char *pin)
         return API_EACCESS;
     }
 
-    byte newkey[SymmCipher::KEYLENGTH];
-    SymmCipher pwcipher;
-    memcpy(newkey, key.key,  sizeof newkey);
-    pwcipher.setkey(newpwkey);
-    pwcipher.ecb_encrypt(newkey);
+    if (accountversion == 1)
+    {
+        error e;
+        byte newpwkey[SymmCipher::KEYLENGTH];
+        if ((e = pw_key(password, newpwkey)))
+        {
+            return e;
+        }
 
-    string email = u->email;
-    reqs.add(new CommandSetMasterKey(this, newkey, stringhash64(&email, &pwcipher), pin));
+        byte newkey[SymmCipher::KEYLENGTH];
+        SymmCipher pwcipher;
+        memcpy(newkey, key.key,  sizeof newkey);
+        pwcipher.setkey(newpwkey);
+        pwcipher.ecb_encrypt(newkey);
+
+        string email = u->email;
+        uint64_t stringhash = stringhash64(&email, &pwcipher);
+        reqs.add(new CommandSetMasterKey(this, newkey, (const byte *)&stringhash, sizeof(stringhash), NULL, pin));
+        return API_OK;
+    }
+
+    byte clientRandomValue[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(clientRandomValue, sizeof(clientRandomValue));
+
+    string salt;
+    HashSHA256 hasher;
+    string buffer = "mega.nz";
+    buffer.resize(200, 'P');
+    buffer.append((char *)clientRandomValue, sizeof(clientRandomValue));
+    hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
+    hasher.get(&salt);
+
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)salt.data(), salt.size(), 100000);
+
+    byte encmasterkey[SymmCipher::KEYLENGTH];
+    SymmCipher cipher;
+    cipher.setkey(derivedKey);
+    cipher.ecb_encrypt(key.key, encmasterkey);
+
+    string hashedauthkey;
+    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    hasher.add(authkey, SymmCipher::KEYLENGTH);
+    hasher.get(&hashedauthkey);
+    hashedauthkey.resize(SymmCipher::KEYLENGTH);
+
+    // Pass the salt and apply to this->accountsalt if the command succeed to allow posterior checks of the password without getting it from the server
+    reqs.add(new CommandSetMasterKey(this, encmasterkey, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientRandomValue, pin, &salt));
     return API_OK;
 }
 
@@ -9526,8 +9551,6 @@ void MegaClient::createephemeral()
     byte keybuf[SymmCipher::KEYLENGTH];
     byte pwbuf[SymmCipher::KEYLENGTH];
     byte sscbuf[2 * SymmCipher::KEYLENGTH];
-
-    locallogout();
 
     PrnGen::genblock(keybuf, sizeof keybuf);
     PrnGen::genblock(pwbuf, sizeof pwbuf);
@@ -9562,6 +9585,46 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
     reqs.add(new CommandSendSignupLink(this, email, name, c));
 }
 
+string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
+{
+    byte clientrandomvalue[SymmCipher::KEYLENGTH];
+    PrnGen::genblock(clientrandomvalue, sizeof(clientrandomvalue));
+
+    string salt;
+    HashSHA256 hasher;
+    string buffer = "mega.nz";
+    buffer.resize(200, 'P');
+    buffer.append((char *)clientrandomvalue, sizeof(clientrandomvalue));
+    hasher.add((const byte*)buffer.data(), unsigned(buffer.size()));
+    hasher.get(&salt);
+
+    byte derivedKey[2 * SymmCipher::KEYLENGTH];
+    CryptoPP::PKCS5_PBKDF2_HMAC<CryptoPP::SHA512> pbkdf2;
+    pbkdf2.DeriveKey(derivedKey, sizeof(derivedKey), 0, (byte *)password, strlen(password),
+                     (const byte *)salt.data(), salt.size(), 100000);
+
+    byte encmasterkey[SymmCipher::KEYLENGTH];
+    SymmCipher cipher;
+    cipher.setkey(derivedKey);
+    cipher.ecb_encrypt(key.key, encmasterkey);
+
+    string hashedauthkey;
+    byte *authkey = derivedKey + SymmCipher::KEYLENGTH;
+    hasher.add(authkey, SymmCipher::KEYLENGTH);
+    hasher.get(&hashedauthkey);
+    hashedauthkey.resize(SymmCipher::KEYLENGTH);
+
+    accountversion = 2;
+    accountsalt = salt;
+    reqs.add(new CommandSendSignupLink2(this, email, name, clientrandomvalue, encmasterkey, (byte*)hashedauthkey.data()));
+    return string((const char*)derivedKey, 2 * SymmCipher::KEYLENGTH);
+}
+
+void MegaClient::resendsignuplink2(const char *email, const char *name)
+{
+    reqs.add(new CommandSendSignupLink2(this, email, name));
+}
+
 // if query is 0, actually confirm account; just decode/query signup link
 // details otherwise
 void MegaClient::querysignuplink(const byte* code, unsigned len)
@@ -9572,6 +9635,11 @@ void MegaClient::querysignuplink(const byte* code, unsigned len)
 void MegaClient::confirmsignuplink(const byte* code, unsigned len, uint64_t emailhash)
 {
     reqs.add(new CommandConfirmSignupLink(this, code, len, emailhash));
+}
+
+void MegaClient::confirmsignuplink2(const byte *code, unsigned len)
+{
+    reqs.add(new CommandConfirmSignupLink2(this, code, len));
 }
 
 // generate and configure encrypted private key, plaintext public key
@@ -10097,10 +10165,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Public key for Ed25519 mismatch.";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99417, "Ed25519 public key mismatch");
-            reqtag = creqtag;
+            sendevent(99417, "Ed25519 public key mismatch", 0);
 
             clearKeys();
             resetKeyring();
@@ -10112,10 +10177,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Public key for Cu25519 mismatch.";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99412, "Cu25519 public key mismatch");
-            reqtag = creqtag;
+            sendevent(99412, "Cu25519 public key mismatch", 0);
 
             clearKeys();
             resetKeyring();
@@ -10131,10 +10193,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Signature of public key for Cu25519 not found or mismatch";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99413, "Signature of Cu25519 public key mismatch");
-            reqtag = creqtag;
+            sendevent(99413, "Signature of Cu25519 public key mismatch", 0);
 
             clearKeys();
             resetKeyring();
@@ -10150,20 +10209,16 @@ void MegaClient::initializekeys()
         }
         if (!pubkstr.size() || !sigPubk.size())
         {
-            int creqtag = reqtag;
-            reqtag = 0;
-
             if (!pubkstr.size())
             {
                 LOG_warn << "Error serializing RSA public key";
-                sendevent(99421, "Error serializing RSA public key");
+                sendevent(99421, "Error serializing RSA public key", 0);
             }
             if (!sigPubk.size())
             {
                 LOG_warn << "Signature of public key for RSA not found";
-                sendevent(99422, "Signature of public key for RSA not found");
+                sendevent(99422, "Signature of public key for RSA not found", 0);
             }
-            reqtag = creqtag;
 
             clearKeys();
             resetKeyring();
@@ -10176,10 +10231,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Verification of signature of public key for RSA failed";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99414, "Verification of signature of public key for RSA failed");
-            reqtag = creqtag;
+            sendevent(99414, "Verification of signature of public key for RSA failed", 0);
 
             clearKeys();
             resetKeyring();
@@ -10198,10 +10250,7 @@ void MegaClient::initializekeys()
         {
             LOG_warn << "Public keys and/or signatures found witout their respective private key.";
 
-            int creqtag = reqtag;
-            reqtag = 0;
-            sendevent(99415, "Incomplete keypair detected");
-            reqtag = creqtag;
+            sendevent(99415, "Incomplete keypair detected", 0);
 
             clearKeys();
             return;
@@ -10267,17 +10316,14 @@ void MegaClient::initializekeys()
     {
         LOG_warn << "Keyring exists, but it's incomplete.";
 
-        int creqtag = reqtag;
-        reqtag = 0;
         if (!chatkey)
         {
-            sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.");
+            sendevent(99416, "Incomplete keyring detected: private key for Cu25519 not found.", 0);
         }
         else // !signkey
         {
-            sendevent(99423, "Incomplete keyring detected: private key for Ed25519 not found.");
+            sendevent(99423, "Incomplete keyring detected: private key for Ed25519 not found.", 0);
         }
-        reqtag = creqtag;
 
         resetKeyring();
         clearKeys();
@@ -11181,10 +11227,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         sprintf(report + 8, " %d %.200s", (*it)->type, buf);
 
                         // report an "undecrypted child" event
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        reportevent("CU", report);
-                        reqtag = creqtag;
+                        reportevent("CU", report, 0);
 
                         delete [] buf;
                     }
@@ -11202,10 +11245,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         l->reported = true;
 
                         // report a "no-name child" event
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        reportevent("CN");
-                        reqtag = creqtag;
+                        reportevent("CN", NULL, 0);
                     }
 
                     continue;
@@ -11240,10 +11280,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 sprintf(report, "%d %d %d %d", (int)lit->first->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
 
                 // report a "no-name localnode" event
-                int creqtag = reqtag;
-                reqtag = 0;
-                reportevent("LN", report);
-                reqtag = creqtag;
+                reportevent("LN", report, 0);
             }
             continue;
         }
@@ -11620,10 +11657,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 }
 
                 // report a "dupe" event
-                int creqtag = reqtag;
-                reqtag = 0;
-                reportevent("D2", report);
-                reqtag = creqtag;
+                reportevent("D2", report, 0);
             }
             else
             {
@@ -12187,7 +12221,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
-                    t->cachedtempurl.clear();
+                    t->tempurl.clear();
 
                     if (d == PUT)
                     {
@@ -12224,7 +12258,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                         if (f->genfingerprint(fa))
                         {
                             LOG_warn << "The local file has been modified";
-                            t->cachedtempurl.clear();
+                            t->tempurl.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             delete [] t->ultoken;
@@ -12299,6 +12333,14 @@ void MegaClient::stopxfer(File* f)
         // last file for this transfer removed? shut down transfer.
         if (!transfer->files.size())
         {
+            if (transfer->slot && transfer->slot->delayedchunk)
+            {
+                int creqtag = reqtag;
+                reqtag = 0;
+                sendevent(99444, "Upload with delayed chunks cancelled");
+                reqtag = creqtag;
+            }
+
             looprequested = true;
             transfer->finished = true;
             transfer->state = TRANSFERSTATE_CANCELLED;
@@ -12369,7 +12411,6 @@ void MegaClient::setmaxconnections(direction_t d, int num)
                 {
                     slot->transfer->state = TRANSFERSTATE_QUEUED;
                     slot->transfer->bt.arm();
-                    slot->transfer->cachedtempurl = slot->tempurl;
                     delete slot;
                 }
             }
@@ -12446,6 +12487,14 @@ void MegaClient::reportevent(const char* event, const char* details)
     reqs.add(new CommandReportEvent(this, event, details));
 }
 
+void MegaClient::reportevent(const char* event, const char* details, int tag)
+{
+    int creqtag = reqtag;
+    reqtag = tag;
+    reportevent(event, details);
+    reqtag = creqtag;
+}
+
 bool MegaClient::setmaxdownloadspeed(m_off_t bpslimit)
 {
     return httpio->setmaxdownloadspeed(bpslimit >= 0 ? bpslimit : 0);
@@ -12498,6 +12547,14 @@ void MegaClient::sendevent(int event, const char *desc)
 {
     LOG_warn << "Event " << event << ": " << desc;
     reqs.add(new CommandSendEvent(this, event, desc));
+}
+
+void MegaClient::sendevent(int event, const char *message, int tag)
+{
+    int creqtag = reqtag;
+    reqtag = tag;
+    sendevent(event, message);
+    reqtag = creqtag;
 }
 
 void MegaClient::cleanrubbishbin()

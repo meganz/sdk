@@ -64,6 +64,7 @@ public:
     void beginarray(const char*);
     void endarray();
     void beginobject();
+    void beginobject(const char*);
     void endobject();
     void element(int);
     void element(handle, int = sizeof(handle));
@@ -110,6 +111,16 @@ public:
     CommandGetFA(MegaClient *client, int, handle);
 };
 
+class MEGA_API CommandPrelogin : public Command
+{
+    string email;
+
+public:
+    void procresult();
+
+    CommandPrelogin(MegaClient*, const char*);
+};
+
 class MEGA_API CommandLogin : public Command
 {
     bool checksession;
@@ -118,17 +129,18 @@ class MEGA_API CommandLogin : public Command
 public:
     void procresult();
 
-    CommandLogin(MegaClient*, const char*, uint64_t, const byte* = NULL,  int = 0, const char* = NULL);
+    CommandLogin(MegaClient*, const char*, const byte *, int, const byte* = NULL,  int = 0, const char* = NULL);
 };
 
 class MEGA_API CommandSetMasterKey : public Command
 {
     byte newkey[SymmCipher::KEYLENGTH];
+    string salt;
 
 public:
     void procresult();
 
-    CommandSetMasterKey(MegaClient*, const byte*, uint64_t, const char* = NULL);
+    CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* clientrandomvalue = NULL, const char* = NULL, string* = NULL);
 };
 
 class MEGA_API CommandCreateEphemeralSession : public Command
@@ -168,6 +180,15 @@ public:
     CommandSendSignupLink(MegaClient*, const char*, const char*, byte*);
 };
 
+class MEGA_API CommandSendSignupLink2 : public Command
+{
+public:
+    void procresult();
+
+    CommandSendSignupLink2(MegaClient*, const char*, const char*);
+    CommandSendSignupLink2(MegaClient*, const char*, const char*, byte *, byte*, byte*);
+};
+
 class MEGA_API CommandQuerySignupLink : public Command
 {
     string confirmcode;
@@ -176,6 +197,14 @@ public:
     void procresult();
 
     CommandQuerySignupLink(MegaClient*, const byte*, unsigned);
+};
+
+class MEGA_API CommandConfirmSignupLink2 : public Command
+{
+public:
+    void procresult();
+
+    CommandConfirmSignupLink2(MegaClient*, const byte*, unsigned);
 };
 
 class MEGA_API CommandConfirmSignupLink : public Command
@@ -709,7 +738,7 @@ class MEGA_API CommandConfirmRecoveryLink : public Command
 public:
     void procresult();
 
-    CommandConfirmRecoveryLink(MegaClient*, const char*, uint64_t, const byte*, const byte*);
+    CommandConfirmRecoveryLink(MegaClient*, const char*, const byte*, int, const byte*, const byte*, const byte*);
 };
 
 class MEGA_API CommandConfirmCancelLink : public Command
@@ -743,7 +772,7 @@ class MEGA_API CommandConfirmEmailLink : public Command
 public:
     void procresult();
 
-    CommandConfirmEmailLink(MegaClient*, const char*, const char *, uint64_t, bool);
+    CommandConfirmEmailLink(MegaClient*, const char*, const char *, const byte *, bool);
 };
 
 class MEGA_API CommandGetVersion : public Command

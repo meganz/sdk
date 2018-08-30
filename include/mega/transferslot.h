@@ -48,9 +48,17 @@ struct MEGA_API TransferSlot
 
     // max request size for downloads and uploads
     static const m_off_t MAX_REQ_SIZE;
+
+    // max allowed difference between the next chunk and the first unfinished chunk
+    static const m_off_t MAX_UPLOAD_GAP;
+
+    bool delayedchunk;
+
     m_off_t maxRequestSize;
 
     m_off_t progressreported;
+
+    m_off_t progresscontiguous;
 
     m_time_t lastprogressreport;
 
@@ -71,9 +79,6 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // storage server access URL
-    string tempurl;
-
     // maximum number of parallel connections and connection aray
     int connections;
     HttpReqXfer** reqs;
@@ -89,6 +94,9 @@ struct MEGA_API TransferSlot
 
     // indicate progress
     void progress();
+
+    // update the contiguous progress
+    void updatecontiguousprogress();
 
     // compute the meta MAC based on the chunk MACs
     int64_t macsmac(chunkmac_map*);

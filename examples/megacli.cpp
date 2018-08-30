@@ -99,6 +99,9 @@ Console* console;
 // loading progress of lengthy API responses
 int responseprogress = -1;
 
+//2FA pin attempts
+int attempts = 0;
+
 static const char* getAccessLevelStr(int access)
 {
     switch(access)
@@ -172,6 +175,8 @@ const char* errorstring(error e)
             return "Invalid application key";
         case API_EGOINGOVERQUOTA:
             return "Not enough quota";
+        case API_EMFAREQUIRED:
+            return "Required 2FA pin";
         default:
             return "Unknown error";
     }
@@ -1779,12 +1784,12 @@ static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
-    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):"
+    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:", "Type pin to enable 2FA:"
 };
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY, LOGINTFA, SETTFA
 };
 
 static prompttype prompt = COMMAND;
@@ -1973,6 +1978,7 @@ void xferq(direction_t d, int cancel)
 static byte pwkey[SymmCipher::KEYLENGTH];
 static byte pwkeybuf[SymmCipher::KEYLENGTH];
 static byte newpwkey[SymmCipher::KEYLENGTH];
+static string newpassword;
 
 // readline callback - exit if EOF, add to history unless password
 static void store_line(char* l)
@@ -2159,6 +2165,16 @@ static void process_line(char* l)
 {
     switch (prompt)
     {
+        case LOGINTFA:
+                client->login(login.c_str(), pwkey, l);
+                setprompt(COMMAND);
+                return;
+
+        case SETTFA:
+                client->multifactorauthsetup(l);
+                setprompt(COMMAND);
+                return;
+
         case LOGINPASSWORD:
             client->pw_key(l, pwkey);
 
@@ -2213,6 +2229,7 @@ static void process_line(char* l)
             return;
 
         case NEWPASSWORD:
+            newpassword = l;
             client->pw_key(l, newpwkey);
 
             cout << endl;
@@ -2240,11 +2257,11 @@ static void process_line(char* l)
 
                     if (hasMasterKey)
                     {
-                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, masterkey);
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpassword.c_str(), masterkey);
                     }
                     else
                     {
-                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpwkey, NULL);
+                        client->confirmrecoverylink(recoverycode.c_str(), recoveryemail.c_str(), newpassword.c_str(), NULL);
                     }
 
                     recoverycode.clear();
@@ -2254,7 +2271,7 @@ static void process_line(char* l)
                 }
                 else
                 {
-                    if ((e = client->changepw(newpwkey)) == API_OK)
+                    if ((e = client->changepw(newpassword.c_str())) == API_OK)
                     {
                         memcpy(pwkey, newpwkey, sizeof pwkey);
                         cout << endl << "Changing password..." << endl;
@@ -2454,6 +2471,9 @@ static void process_line(char* l)
                 cout << "      chatlj publichandle unifiedkey" << endl;    // join chat-link
 #endif
                 cout << "      httpsonly on | off" << endl;
+                cout << "      mfac" << endl;
+                cout << "      mfae" << endl;
+                cout << "      mfad pin" << endl;
                 cout << "      quit" << endl;
 #endif
                 return;
@@ -3375,8 +3395,44 @@ static void process_line(char* l)
                     else if (words[0] == "test")
                     {
                     }
-                    break;
 
+                    else if (words[0] == "mfad")
+                    {
+                        if (words.size() == 2)
+                        {
+                            client->multifactorauthdisable(words[1].c_str());
+                        }
+                        else
+                        {
+                            cout << "      mfad pin" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "mfac")
+                    {
+                        if (words.size() == 1)
+                        {
+                            client->multifactorauthcheck(login.c_str());
+                        }
+                        else
+                        {
+                            cout << "      mfac" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "mfae")
+                    {
+                        if (words.size() == 1)
+                        {
+                            client->multifactorauthsetup();
+                        }
+                        else
+                        {
+                            cout << "      mfae" << endl;
+                        }
+                        return;
+                    }
+                    break;
                 case 5:
                     if (words[0] == "login")
                     {
@@ -5483,17 +5539,85 @@ void DemoApp::request_response_progress(m_off_t current, m_off_t total)
     }
 }
 
-// login result
-void DemoApp::login_result(error e)
+//2FA disable result
+void DemoApp::multifactorauthdisable_result(error e)
 {
-    if (e)
+    if (!e)
     {
-        cout << "Login failed: " << errorstring(e) << endl;
+        cout << "2FA, disabled succesfully..." << endl;
     }
     else
     {
+        cout << "Error enabling 2FA : " << errorstring(e) << endl;
+    }
+    setprompt(COMMAND);
+}
+
+//2FA check result
+void DemoApp::multifactorauthcheck_result(int enabled)
+{
+    if (enabled)
+    {
+        cout << "2FA is enabled for this account" << endl;
+    }
+    else
+    {
+        cout << "2FA is disabled for this account" << endl;
+    }
+    setprompt(COMMAND);
+}
+
+//2FA enable result
+void DemoApp::multifactorauthsetup_result(string *code, error e)
+{
+    if (!e)
+    {
+        if (!code)
+        {
+            cout << "2FA enabled successfully" << endl;
+            setprompt(COMMAND);
+            attempts = 0;
+        }
+        else
+        {
+            cout << "2FA code: " << *code << endl;
+            setprompt(SETTFA);
+        }
+    }
+    else
+    {
+        cout << "Error enabling 2FA : " << errorstring(e) << endl;
+        if (e == API_EFAILED)
+        {
+            if (++attempts >= 3)
+            {
+                attempts = 0;
+                cout << "Two many attempts"<< endl;
+                setprompt(COMMAND);
+            }
+            else
+            {
+                setprompt(SETTFA);
+            }
+        }
+    }
+}
+
+// login result
+void DemoApp::login_result(error e)
+{
+    if (!e)
+    {
         cout << "Login successful, retrieving account..." << endl;
         client->fetchnodes();
+    }
+    else if (e == API_EMFAREQUIRED)
+    {
+        setprompt(LOGINTFA);
+    }
+    else
+    {
+        cout << "Login failed: " << errorstring(e) << endl;
     }
 }
 

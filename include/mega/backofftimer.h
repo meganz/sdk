@@ -70,8 +70,8 @@ public:
 class MEGA_API TimerWithBackoff: public BackoffTimer {
 
 public:
-    long long tag;
-    TimerWithBackoff(long long tag);
+    int tag;
+    TimerWithBackoff(int tag);
 };
 
 } // namespace

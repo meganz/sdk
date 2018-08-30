@@ -274,13 +274,13 @@ fi
 # MEGA API
 AC_ARG_ENABLE(megaapi,
     AS_HELP_STRING([--disable-megaapi], [disable MEGA API support]),
-    [enable_megaapi=no],
+    [enable_megaapi=${enableval}],
     [enable_megaapi=yes])
-if test x$enable_megaapi = xyes; then
+if test "x$enable_megaapi" != "xno"; then
+    [enable_megaapi=yes]
     AC_DEFINE(USE_MEGAAPI, 1, [Defined if MEGA API enabled])
 fi
-AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
-
+AM_CONDITIONAL([BUILD_MEGAAPI], [test "x$enable_megaapi" = "xyes"])
 
 # Java
 AC_MSG_CHECKING([if building Java bindings])
@@ -1016,7 +1016,12 @@ AC_ARG_WITH(libzen,
         AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
     ])
     AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [LIBZEN_LIBS="-lzen"],[
+        SAVE_LIBS="$LIBS"
+        LIBS="$LIBS -pthread"
+        AC_CHECK_LIB(zen, [_ZN6ZenLib19int48s2LittleEndianEPcx], [LIBZEN_LIBS="-lzen -pthread"],[ #different symbol to avoid cached value
             AC_MSG_ERROR([Could not find libzen])
+            ])
+        LIBS="$SAVE_LIBS"
     ])
     libzen=true
      ;;
@@ -1049,7 +1054,12 @@ AC_ARG_WITH(libzen,
     fi
 
     AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [LIBZEN_LIBS="-lzen"],[
+        SAVE_LIBS="$LIBS"
+        LIBS="$LIBS -pthread"
+        AC_CHECK_LIB(zen, [_ZN6ZenLib19int48s2LittleEndianEPcx], [LIBZEN_LIBS="-lzen -pthread"],[
             AC_MSG_ERROR([Could not find libzen])
+            ])
+        LIBS="$SAVE_LIBS"
     ])
 
     libzen=true
@@ -1067,6 +1077,16 @@ AC_ARG_WITH(libzen,
         LIBZEN_LIBS="-lzen"
         libzen=true
         ],)
+
+	if test "x$libzen" != "xtrue"; then
+	SAVE_LIBS="$LIBS"
+	LIBS="$LIBS -pthread"
+	AC_CHECK_LIB(zen, [_ZN6ZenLib19int48s2LittleEndianEPcx], [
+	LIBZEN_LIBS="-lzen"
+	libzen=true
+	],)
+	LIBS="$SAVE_LIBS"
+	fi
     ,)
     
   ]
@@ -1092,7 +1112,6 @@ if test "x$libzen" = "xtrue" && test "$pthread_available" = "yes"; then
         ])
 
         LIBS="$LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
-        AC_MSG_RESULT(["AQUIITO LDFLAGS=$LDFLAGS CXXFLAGS=$CXXFLAGS CPPFLAGS=$CPPFLAGS LIBS=$LIBS" ]) #TODO: delete
 
         AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo $LIBZEN_LIBS"],[
                 AC_MSG_ERROR([Could not find libmediainfo])

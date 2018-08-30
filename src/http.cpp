@@ -44,7 +44,7 @@ const int HttpIO::NETWORKTIMEOUT = 6000;
 const int HttpIO::REQUESTTIMEOUT = 1200;
 
 // wait request timeout (ds)
-const int HttpIO::WAITREQUESTTIMEOUT = 450;
+const int HttpIO::SCREQUESTTIMEOUT = 400;
 
 // connect timeout (ds)
 const int HttpIO::CONNECTTIMEOUT = 120;
@@ -420,6 +420,7 @@ HttpReq::HttpReq(bool b)
     type = REQ_JSON;
     buflen = 0;
     protect = false;
+    minspeed = false;
 
     init();
 }

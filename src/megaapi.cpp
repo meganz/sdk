@@ -1452,19 +1452,14 @@ void MegaApi::log(int logLevel, const char *message, const char *filename, int l
     MegaApiImpl::log(logLevel, message, filename, line);
 }
 
-char *MegaApi::getBase64PwKey(const char *password)
+long long MegaApi::getSDKtime()
 {
-    return pImpl->getBase64PwKey(password);
+    return pImpl->getSDKtime();
 }
 
 char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
 {
     return pImpl->getStringHash(base64pwkey, inBuf);
-}
-
-long long MegaApi::getSDKtime()
-{
-    return pImpl->getSDKtime();
 }
 
 void MegaApi::getSessionTransferURL(const char *path, MegaRequestListener *listener)
@@ -1637,11 +1632,6 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
 {
     pImpl->resumeCreateAccount(sid, listener);
-}
-
-void MegaApi::fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener)
-{
-    pImpl->fastCreateAccount(email, base64pwkey, name, listener);
 }
 
 void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)

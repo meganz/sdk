@@ -29,8 +29,9 @@
 #include <map>
 #include <future>
 //#include <mega/tsthooks.h>
+#include <fstream>
 
-//std::string parentofinterest;
+bool suppressfiles = false;
 
 using namespace ::mega;
 using namespace ::std;
@@ -39,7 +40,9 @@ namespace {
 
 typedef ::mega::byte byte;
 
+#if defined(WIN32) && defined(NO_READLINE)
 WinConsole* wc = NULL;
+#endif
 
 void WaitMillisec(unsigned n)
 {
@@ -55,6 +58,8 @@ struct Model
 
     struct ModelNode
     {
+        enum nodetype { file, folder };
+        nodetype type = folder;
         string name;
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
@@ -70,6 +75,15 @@ struct Model
             p->parent = this;
             kids.emplace_back(move(p));
         }
+        bool typematchesnodetype(nodetype_t nodetype)
+        {
+            switch (type)
+            {
+            case file: return nodetype == FILENODE;
+            case folder: return nodetype == FOLDERNODE;
+            }
+            return false;
+        }
     };
 
     unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name)
@@ -79,14 +93,30 @@ struct Model
         return n;
     }
 
-    unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel)
+    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name)
     {
+        unique_ptr<ModelNode> n(new ModelNode);
+        n->name = utf8Name;
+        n->type = ModelNode::file;
+        return n;
+    }
+
+    unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir)
+    {
+        if (suppressfiles) filesperdir = 0;
+
         unique_ptr<ModelNode> nn = makeModelSubfolder(prefix);
+        
+        for (int i = 0; i < filesperdir; ++i)
+        {
+            nn->addkid(makeModelSubfile("file" + to_string(i) + "_" + prefix));
+        }
+
         if (recurselevel > 0)
         {
             for (int i = 0; i < n; ++i)
             {
-                unique_ptr<ModelNode> sn = buildModelSubdirs(prefix + "_" + to_string(i), n, recurselevel - 1);
+                unique_ptr<ModelNode> sn = buildModelSubdirs(prefix + "_" + to_string(i), n, recurselevel - 1, filesperdir);
                 sn->parent = nn.get();
                 nn->addkid(move(sn));
             }
@@ -187,6 +217,36 @@ struct Model
         return false;
     }
 
+    void ensureLocalDebrisTmpLock(const string& syncrootpath)
+    {
+        // if we've downloaded a file then it's put in debris/tmp initially, and there is a lock file
+        ModelNode* syncroot;
+        if (syncroot = findnode(syncrootpath))
+        {
+            ModelNode* trash;
+            if (!(trash = childnodebyname(syncroot, DEBRISFOLDER)))
+            {
+                auto uniqueptr = makeModelSubfolder(DEBRISFOLDER);
+                trash = uniqueptr.get();
+                syncroot->addkid(move(uniqueptr));
+            }
+
+            ModelNode* tmpfolder;
+            if (!(tmpfolder = findnode("tmp", trash)))
+            {
+                auto uniqueptr = makeModelSubfolder("tmp");
+                tmpfolder = uniqueptr.get();
+                trash->addkid(move(uniqueptr));
+            }
+
+            ModelNode* lockfile;
+            if (!(lockfile = findnode("lock", tmpfolder)))
+            {
+                tmpfolder->addkid(makeModelSubfile("lock"));
+            }
+        }
+    }
+
     bool removesynctrash(const string& syncrootpath, const string& subpath = "")
     {
         if (subpath.empty())
@@ -272,7 +332,7 @@ struct StandardClient : public MegaApp
         , fsBasePath(basepath / name)
         , clientthread([this]() { threadloop(); })
     {
-        //client.clientname = " " + clientname;
+        //client.clientname = clientname + " ";
     }
 
     ~StandardClient()
@@ -557,8 +617,6 @@ struct StandardClient : public MegaApp
                 if (basenode->type == FOLDERNODE)
                 {
                     basefolderhandle = basenode->nodehandle;
-                    //cout << clientname << " Base folder: " << Base64Str<MegaClient::NODEHANDLE>(basefolderhandle) << endl;
-                    //parentofinterest = Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
                     pb.set_value(true);
                     return;
                 }
@@ -592,7 +650,7 @@ struct StandardClient : public MegaApp
         return nn;
     }
 
-    void makeTestSubdirs(const string& prefix, int depth, int fanout, promise<bool>& pb, const string& atpath = "")
+    void makeCloudSubdirs(const string& prefix, int depth, int fanout, promise<bool>& pb, const string& atpath = "")
     {
         assert(basefolderhandle != UNDEF);
 
@@ -672,7 +730,12 @@ struct StandardClient : public MegaApp
         if (!mn || !n) return false;
         if (depth && mn->name != n->displayname())
         {
-            //cout << "LocalNode name mismatch: " << mn->path() << " " << n->displaypath() << endl;
+            cout << "Node name mismatch: " << mn->path() << " " << n->displaypath() << endl;
+            return false;
+        }
+        if (!mn->typematchesnodetype(n->type))
+        {
+            cout << "Node type mismatch: " << mn->path() << ":" << mn->type << " " << n->displaypath() << ":" << n->type << endl;
             return false;
         }
 
@@ -742,6 +805,11 @@ struct StandardClient : public MegaApp
             cout << "LocalNode name mismatch: " << mn->path() << " " << n->name << endl;
             return false;
         }
+        if (!mn->typematchesnodetype(n->type))
+        {
+            cout << "LocalNode type mismatch: " << mn->path() << ":" << mn->type << " " << n->name << ":" << n->type << endl;
+            return false;
+        }
 
         multimap<string, Model::ModelNode*> ms;
         multimap<string, LocalNode*> ns;
@@ -807,6 +875,17 @@ struct StandardClient : public MegaApp
         {
             cout << "filesystem name mismatch: " << mn->path() << " " << p << endl;
             return false;
+        }
+        nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
+        if (!mn->typematchesnodetype(pathtype))
+        {
+            cout << "Path type mismatch: " << mn->path() << ":" << mn->type << " " << p.u8string() << ":" << pathtype << endl;
+            return false;
+        }
+
+        if (pathtype != FOLDERNODE)
+        {
+            return true;
         }
 
         multimap<string, Model::ModelNode*> ms;
@@ -1039,17 +1118,17 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_reset_makeremotenodes(const string& user, const string& pw)
+    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout)
     {
         if (!login_reset(user, pw))
         {
             cout << "login_reset failed" << endl;
             return false;
         }
-        future<bool> p1 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeTestSubdirs("f", 3, 3, pb); });
+        future<bool> p1 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs(prefix, depth, fanout, pb); });
         if (!waitonresults(&p1))
         {
-            cout << "makeTestSubdirs failed" << endl;
+            cout << "makeCloudSubdirs failed" << endl;
             return false;
         }
         return true;
@@ -1206,17 +1285,27 @@ fs::path makeNewTestRoot(fs::path p)
     return p;
 }
 
-bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel)
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
 {
+    if (suppressfiles) filesperfolder = 0;
+
     fs::path p = targetfolder / prefix;
     if (!fs::create_directory(p))
         return false;
+
+    for (int i = 0; i < filesperfolder; ++i)
+    {
+        string filename = "file" + to_string(i) + "_" + prefix;
+        fs::path fp = p / filename;
+        ofstream fs(fp.string());
+        fs << filename;
+    }
 
     if (recurselevel > 0)
     {
         for (int i = 0; i < n; ++i)
         {
-            if (!buildLocalFolders(p, prefix + "_" + to_string(i), n, recurselevel - 1))
+            if (!buildLocalFolders(p, prefix + "_" + to_string(i), n, recurselevel - 1, filesperfolder))
                 return false;
         }
     }
@@ -1227,13 +1316,11 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
 GTEST_TEST(BasicSync, DelRemoteFolder)
 {
     // delete a remote folder and confirm the client sending the request and another also synced both correctly update the disk
-    ASSERT_TRUE(wc->log("synctest_DelRemoteFolder", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
@@ -1243,7 +1330,7 @@ GTEST_TEST(BasicSync, DelRemoteFolder)
     clientA1.logcb = clientA2.logcb = true;
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
@@ -1263,13 +1350,11 @@ GTEST_TEST(BasicSync, DelRemoteFolder)
 GTEST_TEST(BasicSync, DelLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    ASSERT_TRUE(wc->log("synctest_DelLocalFolder", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
@@ -1281,7 +1366,7 @@ GTEST_TEST(BasicSync, DelLocalFolder)
 
     // check everything matches (model has expected state of remote and local)
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
@@ -1302,18 +1387,16 @@ GTEST_TEST(BasicSync, DelLocalFolder)
 GTEST_TEST(BasicSync, MoveLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    ASSERT_TRUE(wc->log("synctest_MoveLocalFolder", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
     ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
@@ -1342,14 +1425,12 @@ GTEST_TEST(BasicSync, MoveLocalFolder)
 GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    ASSERT_TRUE(wc->log("synctest_MoveLocalFolderBetweenSyncs", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
     StandardClient clientA3(localtestroot, "clientA3");   // user 1 client 3
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_TRUE(clientA3.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
@@ -1365,7 +1446,7 @@ GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
 
     // check everything matches (model has expected state of remote and local)
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_0"), 11));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f/f_2"), 12));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f/f_0"), 21));
@@ -1396,18 +1477,55 @@ GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
 GTEST_TEST(BasicSync, AddLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    ASSERT_TRUE(wc->log("synctest_AddLocalFolder", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    // make new folders (and files) in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
+    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath / "f_2", "newkid", 2, 2, 2));
+
+    // let them catch up
+    waitonsyncs(120s, &clientA1, &clientA2);  // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
+
+    // check everything matches (model has expected state of remote and local)
+    model.findnode("f/f_2")->addkid(model.buildModelSubdirs("newkid", 2, 2, 2));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+
+
+GTEST_TEST(BasicSync, MAX_NEWNODES1)
+{
+    // create more nodes than we can upload in one putnodes.
+    // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
+    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
     ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
@@ -1420,118 +1538,70 @@ GTEST_TEST(BasicSync, AddLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // make new folders in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
-    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath / "f_2", "newkid", 2, 2));
+    assert(MegaClient::MAX_NEWNODES < 3125);
+    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "g", 5, 5, 0));  // 5^5=3125 leaf folders, 625 pre-leaf etc
 
     // let them catch up
-    waitonsyncs(4s, &clientA1, &clientA2);
+    waitonsyncs(300s, &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
-    model.findnode("f/f_2")->addkid(model.buildModelSubdirs("newkid", 2, 2));
+    model.findnode("f")->addkid(model.buildModelSubdirs("g", 5, 5, 0));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
-}
-
-/*
-GTEST_TEST(BasicSync, MAX_NEWNODES1)
-{
-    // create more nodes than we can upload in one putnodes.
-    // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
-    ASSERT_TRUE(wc->log("synctest_MAX_NEWNODES1", WinConsole::utf8_log));
-
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
-    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
-    //StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
-
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
-    //ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
-    //ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
-
-    Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
-
-    // set up sync for A1, it should build matching local folders
-    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
-    //ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f_3_999", 2));
-    clientA1.waitonsyncs();
-    //clientA2.waitonsyncs();
-    //clientA1.logcb = clientA2.logcb = true;
-
-    // check everything matches (model has expected state of remote and local)
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
-
-    // make new folders in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
-    assert(MegaClient::MAX_NEWNODES < 3125);
-    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "f", 5, 5));  // 5^5=3125 leaf folders, 625 pre-leaf etc
-
-    // let them catch up
-    clientA1.waitonsyncs(30s);
-    //clientA2.waitonsyncs(30s);
-
-    // check everything matches (model has expected state of remote and local)
-    model.findnode("")->addkid(model.buildModelSubdirs("f", 5, 5));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
 GTEST_TEST(BasicSync, MAX_NEWNODES2)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
-    ASSERT_TRUE(wc->log("synctest_MAX_NEWNODES2", WinConsole::utf8_log));
-
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
-    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
-                                                          //StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
-
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
-    //ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
-    //ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
-
-    Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
-
-    // set up sync for A1, it should build matching local folders
-    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
-    //ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
-    clientA1.waitonsyncs();
-    //clientA2.waitonsyncs();
-    //clientA1.logcb = clientA2.logcb = true;
-
-    // check everything matches (model has expected state of remote and local)
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
-
-    // make new folders in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
-    assert(MegaClient::MAX_NEWNODES < 3125);
-    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "f", 3000, 1));  // 5^5=3125 leaf folders, 625 pre-leaf etc
-
-                                                                              // let them catch up
-    clientA1.waitonsyncs(30s);
-    //clientA2.waitonsyncs(30s);
-
-    // check everything matches (model has expected state of remote and local)
-    model.findnode("")->addkid(model.buildModelSubdirs("f", 3000, 1));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
-}
-*/
-
-GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
-{
-    // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
-    ASSERT_TRUE(wc->log("synctest_MoveExistingIntoNewLocalFolder", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    // make new folders in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
+    assert(MegaClient::MAX_NEWNODES < 3000);
+    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "g", 3000, 1, 0));  
+
+    // let them catch up
+    waitonsyncs(300s, &clientA1, &clientA2);
+
+    // check everything matches (model has expected state of remote and local)
+    model.findnode("f")->addkid(model.buildModelSubdirs("g", 3000, 1, 0));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+
+
+GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
+{
+    // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
+    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
     ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
@@ -1544,11 +1614,11 @@ GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // make new folder in the local filesystem
-    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "new", 1, 0));
+    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "new", 1, 0, 0));
     // move an already synced folder into it
     error_code rename_error;
-    fs::path path1 = clientA1.syncSet[1].localpath / "f_2";
-    fs::path path2 = clientA1.syncSet[1].localpath / "new" / "f_2";
+    fs::path path1 = clientA1.syncSet[1].localpath / "f_2"; // / "f_2_0" / "f_2_0_0";
+    fs::path path2 = clientA1.syncSet[1].localpath / "new" / "f_2"; // "f_2_0_0";
     fs::rename(path1, path2, rename_error);
     ASSERT_TRUE(!rename_error) << rename_error;
 
@@ -1557,17 +1627,63 @@ GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
 
     // check everything matches (model has expected state of remote and local)
     auto f = model.makeModelSubfolder("new");
-    f->addkid(model.removenode("f/f_2"));
+    f->addkid(model.removenode("f/f_2")); // / f_2_0 / f_2_0_0"));
     model.findnode("f")->addkid(move(f));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+
+GTEST_TEST(BasicSync, MoveSeveralExistingIntoDeepNewLocalFolders)
+{
+    // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
+    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    // make new folder tree in the local filesystem
+    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "new", 3, 3, 3));
+    // move already synced folders to serveral parts of it - one under another moved folder too
+    error_code rename_error;
+    fs::rename(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "new" / "new_0" / "new_0_1" / "new_0_1_2" / "f_0", rename_error);
+    ASSERT_TRUE(!rename_error) << rename_error;
+    fs::rename(clientA1.syncSet[1].localpath / "f_1", clientA1.syncSet[1].localpath / "new" / "new_1" / "new_1_2" / "f_1", rename_error);
+    ASSERT_TRUE(!rename_error) << rename_error;
+    fs::rename(clientA1.syncSet[1].localpath / "f_2", clientA1.syncSet[1].localpath / "new" / "new_1" / "new_1_2" / "f_1" / "f_1_2" / "f_2", rename_error);
+    ASSERT_TRUE(!rename_error) << rename_error;
+
+    // let them catch up
+    waitonsyncs(30s, &clientA1, &clientA2);
+
+    // check everything matches (model has expected state of remote and local)
+    model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));
+    model.findnode("f/new/new_0/new_0_1/new_0_1_2")->addkid(model.removenode("f/f_0"));
+    model.findnode("f/new/new_1/new_1_2")->addkid(model.removenode("f/f_1"));
+    model.findnode("f/new/new_1/new_1_2/f_1/f_1_2")->addkid(model.removenode("f/f_2"));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
 
 GTEST_TEST(BasicSync, SyncDuplicateNames)
 {
-    ASSERT_TRUE(wc->log("synctest_SyncDuplicateNames", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
@@ -1593,28 +1709,25 @@ GTEST_TEST(BasicSync, SyncDuplicateNames)
 
     // check everything matches (model has expected state of remote and local)
     Model model;
-    model.root->addkid(model.makeModelSubfolder("root"));
     model.root->addkid(model.makeModelSubfolder("samename"));
     model.root->addkid(model.makeModelSubfolder("samename"));
     model.root->addkid(model.makeModelSubfolder("Samename"));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
 }
 
 GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
 {
-    ASSERT_TRUE(wc->log("synctest_RemoveLocalNodeBeforeSessionResume", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     auto pclientA1 = make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
     ASSERT_TRUE(pclientA1->setupSync_mainthread("sync1", "f", 1));
@@ -1651,11 +1764,13 @@ GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), 1));
 }
 
+/*
+// SN tagging needed for this one
+
 GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    ASSERT_TRUE(wc->log("synctest_RemoteFolderCreationRaceSamename", WinConsole::utf8_log));
-
+    
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
@@ -1671,8 +1786,8 @@ GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
     clientA1.logcb = clientA2.logcb = true;
 
     // now have both clients create the same remote folder structure simultaneously.  We should end up with just one copy of it on the server and in both syncs
-    future<bool> p1 = clientA1.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeTestSubdirs("f", 3, 3, pb); });
-    future<bool> p2 = clientA2.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeTestSubdirs("f", 3, 3, pb); });
+    future<bool> p1 = clientA1.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("f", 3, 3, pb); });
+    future<bool> p2 = clientA2.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("f", 3, 3, pb); });
     ASSERT_TRUE(waitonresults(&p1, &p2));
 
     // let them catch up
@@ -1680,16 +1795,19 @@ GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
 
     // check everything matches (model has expected state of remote and local)
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
 }
+*/
+
+/*
+// SN tagging needed for this one
 
 GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    ASSERT_TRUE(wc->log("synctest_LocalFolderCreationRaceSamename", WinConsole::utf8_log));
-
+    // SN tagging needed for this one
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
@@ -1705,8 +1823,8 @@ GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
     clientA1.logcb = clientA2.logcb = true;
 
     // now have both clients create the same folder structure simultaneously.  We should end up with just one copy of it on the server and in both syncs
-    future<bool> p1 = clientA1.thread_do([=](StandardClient& sc, promise<bool>& pb) { buildLocalFolders(sc.syncSet[1].localpath, "f", 3, 3); pb.set_value(true); });
-    future<bool> p2 = clientA2.thread_do([=](StandardClient& sc, promise<bool>& pb) { buildLocalFolders(sc.syncSet[2].localpath, "f", 3, 3); pb.set_value(true); });
+    future<bool> p1 = clientA1.thread_do([=](StandardClient& sc, promise<bool>& pb) { buildLocalFolders(sc.syncSet[1].localpath, "f", 3, 3, 0); pb.set_value(true); });
+    future<bool> p2 = clientA2.thread_do([=](StandardClient& sc, promise<bool>& pb) { buildLocalFolders(sc.syncSet[2].localpath, "f", 3, 3, 0); pb.set_value(true); });
     ASSERT_TRUE(waitonresults(&p1, &p2));
 
     // let them catch up
@@ -1714,21 +1832,19 @@ GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
 
     // check everything matches (model has expected state of remote and local)
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
 }
-
+*/
 
 GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges )
 {
-    ASSERT_TRUE(wc->log("synctest_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
@@ -1740,8 +1856,8 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
 
     // check everything matches (model has expected state of remote and local)
     Model model1, model2;
-    model1.root->addkid(model1.buildModelSubdirs("f", 3, 3));
-    model2.root->addkid(model2.buildModelSubdirs("f", 3, 3));
+    model1.root->addkid(model1.buildModelSubdirs("f", 3, 3, 0));
+    model2.root->addkid(model2.buildModelSubdirs("f", 3, 3, 0));
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model1.findnode("f"), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 
@@ -1754,9 +1870,9 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
     pclientA1.reset();
 
     // add remote folders via A2
-    future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.makeTestSubdirs("newremote", 2, 2, pb, "f/f_1/f_1_0"); });
-    model1.findnode("f/f_1/f_1_0")->addkid(model1.buildModelSubdirs("newremote", 2, 2));
-    model2.findnode("f/f_1/f_1_0")->addkid(model2.buildModelSubdirs("newremote", 2, 2));
+    future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("newremote", 2, 2, pb, "f/f_1/f_1_0"); });
+    model1.findnode("f/f_1/f_1_0")->addkid(model1.buildModelSubdirs("newremote", 2, 2, 0));
+    model2.findnode("f/f_1/f_1_0")->addkid(model2.buildModelSubdirs("newremote", 2, 2, 0));
     ASSERT_TRUE(waitonresults(&p1));
 
     // remove remote folders via A2
@@ -1766,9 +1882,9 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
     ASSERT_TRUE(waitonresults(&p1));
 
     // add local folders in A1
-    ASSERT_TRUE(buildLocalFolders(sync1path / "f_1/f_1_2", "newlocal", 2, 2));
-    model1.findnode("f/f_1/f_1_2")->addkid(model1.buildModelSubdirs("newlocal", 2, 2));
-    model2.findnode("f/f_1/f_1_2")->addkid(model2.buildModelSubdirs("newlocal", 2, 2));
+    ASSERT_TRUE(buildLocalFolders(sync1path / "f_1/f_1_2", "newlocal", 2, 2, 2));
+    model1.findnode("f/f_1/f_1_2")->addkid(model1.buildModelSubdirs("newlocal", 2, 2, 0));
+    model2.findnode("f/f_1/f_1_2")->addkid(model2.buildModelSubdirs("newlocal", 2, 2, 0));
 
     // remove local folders in A1
     error_code e;
@@ -1783,7 +1899,8 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes_resumesync(string((char*)session, sessionsize), sync1path.u8string(), "f", 1));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
-    waitonsyncs(4s, pclientA1.get(), &clientA2);
+    waitonsyncs(60s, pclientA1.get(), &clientA2);
+    waitonsyncs(60s, pclientA1.get(), &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model1.findnode("f"), 1));
@@ -1792,18 +1909,16 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
 
 GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
 {
-    ASSERT_TRUE(wc->log("synctest_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete", WinConsole::utf8_log));
-
     fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
-    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
 
     Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3));
+    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
     ASSERT_TRUE(pclientA1->setupSync_mainthread("sync1", "f", 1));
@@ -1828,7 +1943,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
     ASSERT_TRUE(waitonresults(&p1));
 
     // add local folders in A1 on disk folder
-    ASSERT_TRUE(buildLocalFolders(sync1path / "f_1/f_1_2", "newlocal", 2, 2));
+    ASSERT_TRUE(buildLocalFolders(sync1path / "f_1/f_1_2", "newlocal", 2, 2, 2));
 
     // get sync2 activity out of the way
     waitonsyncs(4s, &clientA2);
@@ -1840,7 +1955,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
     waitonsyncs(4s, pclientA1.get(), &clientA2);
 
     // check everything matches (model has expected state of remote and local)
-    model.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2));
+    model.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 0));
     ASSERT_TRUE(model.movetosynctrash("f/f_1", "f"));
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), 1));
     ASSERT_TRUE(model.removesynctrash("f", "f_1/f_1_2/newlocal"));

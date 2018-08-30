@@ -166,8 +166,8 @@ struct MEGA_API HttpIO : public EventTrigger
     // request timeout (ds)
     static const int REQUESTTIMEOUT;
 
-    // request timeout (ds)
-    static const int WAITREQUESTTIMEOUT;
+    // sc request timeout (ds)
+    static const int SCREQUESTTIMEOUT;
 
     // connection timeout (ds)
     static const int CONNECTTIMEOUT;
@@ -212,6 +212,7 @@ struct MEGA_API HttpReq
     string posturl;
 
     bool protect;
+    bool minspeed;
 
     bool sslcheckfailed;
     string sslfakeissuer;
