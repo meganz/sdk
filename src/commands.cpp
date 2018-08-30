@@ -1421,6 +1421,7 @@ void CommandLogout::procresult()
 {
     error e = (error)client->json.getint();
     MegaApp *app = client->app;
+    client->loggingout--;
     if(!e)
     {
         client->removecaches();
