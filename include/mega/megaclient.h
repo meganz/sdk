@@ -1127,6 +1127,10 @@ public:
 
     // process localnode subtree
     void proclocaltree(LocalNode*, LocalTreeProc*);
+
+    // unlink the LocalNode from the corresponding node
+    // if the associated local file or folder still exists
+    void unlinkifexists(LocalNode*, FileAccess*, string*);
 #endif
 
     // recursively cancel transfers in a subtree

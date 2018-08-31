@@ -1191,10 +1191,13 @@ dstime Sync::procscanq(int q)
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
 void Sync::deletemissing(LocalNode* l)
 {
+    string path;
+    FileAccess *fa = client->fsaccess->newfileaccess();
     for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
     {
         if (scanseqno-it->second->scanseqno > 1)
         {
+            client->unlinkifexists(it->second, fa, &path);
             delete it++->second;
         }
         else
@@ -1203,6 +1206,7 @@ void Sync::deletemissing(LocalNode* l)
             it++;
         }
     }
+    delete fa;
 }
 
 bool Sync::movetolocaldebris(string* localpath)
