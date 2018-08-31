@@ -7224,6 +7224,39 @@ class MegaApi
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get an attribute of a user when we are in anonymous mode.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+         * - MegaRequest::getSessionKey - Returns the public handle of the chat
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the value for public attributes
+         * - MegaRequest::getMegaStringMap - Returns the value for private attributes
+         *
+         * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
+         * This parameter Cannot be NULL.
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user (public)
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get an attribute of any user in MEGA.
          *
          * User attributes can be private or public. Private attributes are accessible only by

@@ -5365,6 +5365,11 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
     getUserAttr(email_or_handle, type ? type : -1, NULL, 0, listener);
 }
 
+void MegaApiImpl::getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener)
+{
+    getChatUserAttr(email_or_handle, type ? type : -1, NULL, ph, 0, listener);
+}
+
 void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
 {
     setUserAttr(type ? type : -1, value, listener);
@@ -5914,6 +5919,41 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
         request->setFile(path.c_str());
     }
 
+    request->setParamType(type);
+    request->setNumber(number);
+    if(email_or_handle)
+    {
+        request->setEmail(email_or_handle);
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getChatUserAttr(const char *email_or_handle, int type, const char *dstFilePath, const char *ph, int number, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+
+    if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath)
+    {
+        string path(dstFilePath);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+
+        int c = path[path.size()-1];
+        if((c=='/') || (c == '\\'))
+        {
+            path.append(email_or_handle);
+            path.push_back('0' + type);
+            path.append(".jpg");
+        }
+
+        request->setFile(path.c_str());
+    }
+
+    request->setSessionKey(ph);
     request->setParamType(type);
     request->setNumber(number);
     if(email_or_handle)
@@ -16590,9 +16630,22 @@ void MegaApiImpl::sendPendingRequests()
             const char* value = request->getFile();
             attr_t type = attr_t(request->getParamType());
             const char *email = request->getEmail();
+            const char *ph = request->getSessionKey();
 
             string attrname = MegaApiImpl::userAttributeToString(type);
             char scope = MegaApiImpl::userAttributeToScope(type);
+
+            if (client->loggedin() && ph != NULL)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            if (!client->loggedin() && ph == NULL)
+            {
+                e = API_EARGS;
+                break;
+            }
 
             User *user = email ? client->finduser(email, 0) : client->finduser(client->me, 0);
 
@@ -16605,7 +16658,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->getua(email, type);
+                client->getua(email, type, ph);
                 break;
             }
 
@@ -16623,7 +16676,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->getua(user, type);
+            client->getua(user, type, ph);
             break;
 		}
 		case MegaRequest::TYPE_SET_ATTR_USER:

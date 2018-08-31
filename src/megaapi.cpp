@@ -1879,6 +1879,11 @@ void MegaApi::getUserAttribute(MegaUser* user, int type, MegaRequestListener *li
     pImpl->getUserAttribute(user, type, listener);
 }
 
+void MegaApi::getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener)
+{
+    pImpl->getChatUserAttribute(email_or_handle, type, ph, listener);
+}
+
 void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
 {
     pImpl->getUserAttribute((MegaUser*)NULL, type, listener);

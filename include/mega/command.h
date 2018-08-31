@@ -276,7 +276,7 @@ class MEGA_API CommandGetUA : public Command
     attr_t at;  // attribute type
 
 public:
-    CommandGetUA(MegaClient*, const char*, attr_t, int);
+    CommandGetUA(MegaClient*, const char*, attr_t, const char *, int);
 
     void procresult();
 };

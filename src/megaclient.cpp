@@ -8226,7 +8226,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
  * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::getua(User* u, const attr_t at, int ctag)
+void MegaClient::getua(User* u, const attr_t at, const char *ph, int ctag)
 {
     if (at != ATTR_UNKNOWN)
     {
@@ -8257,16 +8257,16 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, tag));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, ph, tag));
         }
     }
 }
 
-void MegaClient::getua(const char *email_handle, const attr_t at, int ctag)
+void MegaClient::getua(const char *email_handle, const attr_t at, const char *ph, int ctag)
 {
     if (email_handle && at != ATTR_UNKNOWN)
     {
-        reqs.add(new CommandGetUA(this, email_handle, at, (ctag != -1) ? ctag : reqtag));
+        reqs.add(new CommandGetUA(this, email_handle, at, ph,(ctag != -1) ? ctag : reqtag));
     }
 }
 
@@ -10077,7 +10077,7 @@ void MegaClient::fetchnodes(bool nocache)
 
         char me64[12];
         Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, 0));
+        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, NULL, 0));
     }
 }
 

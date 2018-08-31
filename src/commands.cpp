@@ -2690,16 +2690,24 @@ void CommandPutUA::procresult()
     client->app->putua_result(e);
 }
 
-CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, int ctag)
+CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, const char* ph, int ctag)
 {
     this->uid = uid;
     this->at = at;
 
-    cmd("uga");
+    if (!client->loggedin())
+    {
+        cmd("mcuga");
+        arg("ph", ph);
+    }
+    else
+    {
+        cmd("uga");
+    }
+
     arg("u", uid);
     arg("ua", User::attr2string(at).c_str());
     arg("v", 1);
-
     tag = ctag;
 }
 
@@ -2712,17 +2720,20 @@ void CommandGetUA::procresult()
         error e = (error)client->json.getint();
         client->app->getua_result(e);
 
+        if (client->loggedin())
+        {
 #ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-        {
-            client->initializekeys(); // we have now all the required data
-        }
+            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
+            {
+                client->initializekeys(); // we have now all the required data
+            }
 #endif
-        // if the attr does not exist, initialize it
-        if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
-        {
-            LOG_info << "File versioning is enabled";
-            client->versions_disabled = false;
+            // if the attr does not exist, initialize it
+            if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
+            {
+                LOG_info << "File versioning is enabled";
+                client->versions_disabled = false;
+            }
         }
         return;
     }
@@ -2731,6 +2742,27 @@ void CommandGetUA::procresult()
         const char* ptr;
         const char* end;
         string value, version, buf;
+
+        //If we are in anonymous mode we only can retrieve atributes with mcuga and the response format is different
+        if (!client->loggedin())
+        {
+            ptr = client->json.getvalue();
+            if (!ptr || !(end = strchr(ptr, '"')))
+            {
+                client->app->getua_result(API_EINTERNAL);
+                return;
+            }
+            else
+            {
+                // convert from ASCII to binary the received data
+                buf.assign(ptr, (end-ptr));
+                value.resize(buf.size() / 4 * 3 + 3);
+                value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
+                client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                return;
+            }
+        }
+
         for (;;)
         {
             switch (client->json.getnameid())
@@ -2882,7 +2914,7 @@ void CommandGetUA::procresult()
                 default:
                     if (!client->json.storeobject())
                     {
-                        LOG_err << "Error in CommandPutUA. Parse error";
+                        LOG_err << "Error in CommandGetUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
 #ifdef  ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
