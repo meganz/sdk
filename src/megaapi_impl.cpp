@@ -15989,6 +15989,7 @@ void MegaApiImpl::sendPendingRequests()
                         {
                             if (fp->isvalid && ovn->isvalid && *fp == *(FileFingerprint*)ovn)
                             {
+                                request->setNodeHandle(ovn->nodehandle);
                                 fireOnRequestFinish(request, MegaError(API_OK));
                                 delete fp;
                                 break;
@@ -16069,6 +16070,7 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                         {
+                            request->setNodeHandle(ovn->nodehandle);
                             fireOnRequestFinish(request, MegaError(API_OK));
                             break;
                         }
