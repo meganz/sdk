@@ -1192,11 +1192,15 @@ dstime Sync::procscanq(int q)
 void Sync::deletemissing(LocalNode* l)
 {
     string path;
-    FileAccess *fa = client->fsaccess->newfileaccess();
+    FileAccess *fa = NULL;
     for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
     {
         if (scanseqno-it->second->scanseqno > 1)
         {
+            if (!fa)
+            {
+                fa = client->fsaccess->newfileaccess();
+            }
             client->unlinkifexists(it->second, fa, &path);
             delete it++->second;
         }
