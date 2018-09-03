@@ -25,22 +25,33 @@
 #include <mega.h>
 #include "gtest/gtest.h"
 #include <stdio.h>
-#include <filesystem>
 #include <map>
 #include <future>
 //#include <mega/tsthooks.h>
 #include <fstream>
 
+
+
 bool suppressfiles = false;
 
 using namespace ::mega;
 using namespace ::std;
-namespace fs = ::std::filesystem;
+
+#ifdef WIN32
+ #include <filesystem>
+ namespace fs = ::std::filesystem;
+ #define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
+#else
+ #include <experimental/filesystem>
+ namespace fs = ::std::experimental::filesystem;
+ #define LOCAL_TEST_FOLDER "/home/mattw/synctests_mega_auto"
+#endif
+
 namespace {
 
 typedef ::mega::byte byte;
 
-#if defined(WIN32) && defined(NO_READLINE)
+#ifdef WIN32
 WinConsole* wc = NULL;
 #endif
 
@@ -159,7 +170,7 @@ struct Model
             parent->kids.erase(newend, parent->kids.end());
             return std::move(extracted);
         }
-        return false;
+        return nullptr;
     }
 
     bool movenode(const string& sourcepath, const string& destpath)
@@ -282,12 +293,12 @@ bool waitonresults(future<bool>* r1 = nullptr, future<bool>* r2 = nullptr, futur
 
 struct StandardClient : public MegaApp
 {
-    HANDLE functionEventMC, functionEventSC;
     WAIT_CLASS waiter;
 #ifdef GFX_CLASS
     GFX_CLASS gfx;
 #endif
 
+    string client_dbaccess_path; 
     MegaClient client;
     bool clientthreadexit = false;
     bool fatalerror = false;
@@ -314,11 +325,10 @@ struct StandardClient : public MegaApp
     }
 
     StandardClient(const fs::path& basepath, const string& name)
-        : functionEventMC(CreateEvent(NULL, TRUE, FALSE, NULL))
-        , functionEventSC(CreateEvent(NULL, TRUE, FALSE, NULL))
+        : client_dbaccess_path(ensureDir(basepath / name / "").u8string())
         , client(this, &waiter, new HTTPIO_CLASS, new FSACCESS_CLASS,
 #ifdef DBACCESS_CLASS
-            new DBACCESS_CLASS(&(ensureDir(basepath / name).u8string() + "\\")),   // client takes ownership of this one
+            new DBACCESS_CLASS(&client_dbaccess_path),
 #else
             NULL,
 #endif
@@ -332,7 +342,7 @@ struct StandardClient : public MegaApp
         , fsBasePath(basepath / name)
         , clientthread([this]() { threadloop(); })
     {
-        //client.clientname = clientname + " ";
+        client.clientname = clientname + " ";
     }
 
     ~StandardClient()
@@ -341,7 +351,7 @@ struct StandardClient : public MegaApp
         thread_do([](MegaClient& mc, promise<bool>&) { mc.locallogout(); /* mc.purgenodesusersabortsc();*/ }); 
 
         clientthreadexit = true;
-        SetEvent(functionEventMC);
+        waiter.notify();
         clientthread.join();
     }
 
@@ -349,29 +359,29 @@ struct StandardClient : public MegaApp
     bool logcb = false;
     chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
     string lp(LocalNode* ln) { string lp;  ln->getlocalpath(&lp); client.fsaccess->local2name(&lp); return lp; }
-    void syncupdate_state(Sync*, syncstate_t state) override { if (logcb) { lock_guard g(om);  cout << clientname << " syncupdate_state() " << state << endl; } }
-    void syncupdate_scanning(bool b) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_scanning()" << b << endl; } }
-    //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
-    //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { lock_guard g(om);  cout << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
+    void syncupdate_state(Sync*, syncstate_t state) override { if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_state() " << state << endl; } }
+    void syncupdate_scanning(bool b) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_scanning()" << b << endl; } }
+    //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
+    //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
     void syncupdate_local_folder_addition(Sync*, LocalNode* ln, const char* cp) override { lastcb = chrono::steady_clock::now(); }
     void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { lastcb = chrono::steady_clock::now(); }
-    void syncupdate_local_file_addition(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_local_file_addition() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_file_deletion(Sync*, LocalNode* ln) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_local_file_deletion() " << lp(ln) << endl; }}
-    void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_local_move() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_lockretry(bool b) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_local_lockretry() " << b << endl; }}
-    //void syncupdate_get(Sync*, Node* n, const char* cp) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
-    void syncupdate_put(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_put()" << lp(ln) << " " << cp << endl; }}
-    //void syncupdate_remote_file_addition(Sync*, Node* n) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_file_deletion(Sync*, Node* n) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_remote_file_deletion() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_folder_addition(Sync*, Node* n) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_folder_deletion(Sync*, Node* n) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
+    void syncupdate_local_file_addition(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_addition() " << lp(ln) << " " << cp << endl; }}
+    void syncupdate_local_file_deletion(Sync*, LocalNode* ln) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_deletion() " << lp(ln) << endl; }}
+    void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
+    void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_move() " << lp(ln) << " " << cp << endl; }}
+    void syncupdate_local_lockretry(bool b) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_lockretry() " << b << endl; }}
+    //void syncupdate_get(Sync*, Node* n, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
+    void syncupdate_put(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_put()" << lp(ln) << " " << cp << endl; }}
+    //void syncupdate_remote_file_addition(Sync*, Node* n) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
+    //void syncupdate_remote_file_deletion(Sync*, Node* n) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_file_deletion() " << n->displaypath() << endl; }}
+    //void syncupdate_remote_folder_addition(Sync*, Node* n) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
+    //void syncupdate_remote_folder_deletion(Sync*, Node* n) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
     void syncupdate_remote_folder_addition(Sync*, Node* n) override { lastcb = chrono::steady_clock::now(); }
     void syncupdate_remote_folder_deletion(Sync*, Node* n) override { lastcb = chrono::steady_clock::now(); }
-    void syncupdate_remote_copy(Sync*, const char* cp) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_remote_copy() " << cp << endl; }}
-    //void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_remote_move() " << n1->displaypath() << " " << n2->displaypath() << endl; }}
-    //void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { if (logcb) { lock_guard g(om); cout << clientname << " syncupdate_remote_rename() " << n->displaypath() << " " << cp << endl; }}
-    //void syncupdate_treestate(LocalNode* ln) override { if (logcb) { lock_guard g(om);   cout << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln) << endl; }}
+    void syncupdate_remote_copy(Sync*, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_copy() " << cp << endl; }}
+    //void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_move() " << n1->displaypath() << " " << n2->displaypath() << endl; }}
+    //void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_rename() " << n->displaypath() << " " << cp << endl; }}
+    //void syncupdate_treestate(LocalNode* ln) override { if (logcb) { lock_guard<mutex> g(om);   cout << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln) << endl; }}
 
 
 
@@ -380,24 +390,24 @@ struct StandardClient : public MegaApp
     {
         while (!clientthreadexit)
         {
-            waiter.addhandle(functionEventMC, Waiter::HAVESTDIN);
-            waiter.addhandle(functionEventSC, Waiter::HAVESTDIN);
             int r = client.wait();
-            if (WAIT_OBJECT_0 == WaitForSingleObject(functionEventMC, 0))
+
             {
-                nextfunctionMC(client, nextfunctionMCpromise);
-                unique_lock<mutex> guard(functionDoneMutex);
-                ResetEvent(functionEventMC);
-                functionDone.notify_all();
-                r = Waiter::NEEDEXEC;
-            }
-            if (WAIT_OBJECT_0 == WaitForSingleObject(functionEventSC, 0))
-            {
-                nextfunctionSC(*this, nextfunctionSCpromise);
-                unique_lock<mutex> guard(functionDoneMutex);
-                ResetEvent(functionEventSC);
-                functionDone.notify_all();
-                r = Waiter::NEEDEXEC;
+                std::lock_guard<mutex> g(functionDoneMutex);
+                if (nextfunctionMC)
+                {
+                    nextfunctionMC(client, nextfunctionMCpromise);
+                    nextfunctionMC = nullptr;
+                    functionDone.notify_all();
+                    r = Waiter::NEEDEXEC;
+                }
+                if (nextfunctionSC)
+                {
+                    nextfunctionSC(*this, nextfunctionSCpromise);
+                    nextfunctionSC = nullptr;
+                    functionDone.notify_all();
+                    r = Waiter::NEEDEXEC;
+                }
             }
             if (r & Waiter::NEEDEXEC)
             {
@@ -419,12 +429,11 @@ struct StandardClient : public MegaApp
 
     future<bool> thread_do(std::function<void(MegaClient&, promise<bool>&)>&& f)
     {
+        unique_lock<mutex> guard(functionDoneMutex);
         nextfunctionMCpromise = promise<bool>();
         nextfunctionMC = std::move(f);
-        SetEvent(functionEventMC);
-        std::mutex functionDoneMutex;
-        unique_lock<mutex> guard(functionDoneMutex);
-        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + 600s, [this]() { return WAIT_TIMEOUT == WaitForSingleObject(functionEventMC, 0); }))
+        waiter.notify();
+        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + 600s, [this]() { return !nextfunctionMC; }))
         {
             if (!debugging)
             {
@@ -437,11 +446,11 @@ struct StandardClient : public MegaApp
 
     future<bool> thread_do(std::function<void(StandardClient&, promise<bool>&)>&& f)
     {
+        unique_lock<mutex> guard(functionDoneMutex);
         nextfunctionSCpromise = promise<bool>();
         nextfunctionSC = std::move(f);
-        SetEvent(functionEventSC);
-        unique_lock<mutex> guard(functionDoneMutex);
-        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + 600s, [this]() { return WAIT_TIMEOUT == WaitForSingleObject(functionEventSC, 0); }))
+        waiter.notify();
+        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + 600s, [this]() { return !nextfunctionSC; }))
         {
             if (!debugging)
             {
@@ -452,7 +461,7 @@ struct StandardClient : public MegaApp
         return nextfunctionSCpromise.get_future();
     }
 
-    enum resultprocenum { LOGIN, FETCHNODES, PUTNODES, UNLINK };
+    enum resultprocenum { LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE };
 
     void loginFromEnv(const string& userenv, const string& pwdenv, promise<bool>& pb)
     {
@@ -546,25 +555,41 @@ struct StandardClient : public MegaApp
 
         return newnode;
     }
-
+     
 
     struct ResultProc
     {
-        map<resultprocenum, deque<std::function<void(error)>>> m;
+        struct id_callback
+        {
+            handle h = UNDEF;
+            std::function<void(error)> f;
+            id_callback(std::function<void(error)> cf, handle ch = UNDEF) : f(cf), h(ch) {}
+        };
 
-        void prepresult(resultprocenum rpe, std::function<void(error)>&& f)
+        map<resultprocenum, deque<id_callback>> m;
+
+        void prepresult(resultprocenum rpe, std::function<void(error)>&& f, handle h = UNDEF)
         {
             auto& entry = m[rpe];
-            entry.emplace_back(move(f));
+            entry.emplace_back(move(f), h);
         }
 
-        void processresult(resultprocenum rpe, error e)
+        void processresult(resultprocenum rpe, error e, handle h = UNDEF)
         {
             //cout << "procenum " << rpe << " result " << e << endl;
             auto& entry = m[rpe];
+            if (rpe == MOVENODE)
+            {
+                // rename_result is called back for our app requests but also for sync objects as well, so we need to skip those... todo: should we change that?
+                if (entry.empty() || entry.front().h != h)
+                {
+                    cout << "received unsolicited rename_result call" << endl;
+                    return;
+                }
+            }
             if (!entry.empty())
             {
-                entry.front()(e);
+                entry.front().f(e);
                 entry.pop_front();
             }
             else
@@ -617,6 +642,8 @@ struct StandardClient : public MegaApp
                 if (basenode->type == FOLDERNODE)
                 {
                     basefolderhandle = basenode->nodehandle;
+                    //cout << clientname << " Base folder: " << Base64Str<MegaClient::NODEHANDLE>(basefolderhandle) << endl;
+                    //parentofinterest = Base64Str<MegaClient::NODEHANDLE>(basefolderhandle);
                     pb.set_value(true);
                     return;
                 }
@@ -692,6 +719,21 @@ struct StandardClient : public MegaApp
     struct SyncInfo { handle h; fs::path localpath; };
     map<int, SyncInfo> syncSet;
 
+    Node* getcloudrootnode()
+    {
+        return client.nodebyhandle(client.rootnodes[0]);
+    }
+
+    Node* gettestbasenode()
+    {
+        return client.childnodebyname(getcloudrootnode(), "mega_test_sync", false);
+    }
+
+    Node* getcloudrubbishnode()
+    {
+        return client.nodebyhandle(client.rootnodes[RUBBISHNODE - ROOTNODE]);
+    }
+
     Node* drillchildnodebyname(Node* n, const string& path)
     {
         for (size_t p = 0; n && p < path.size(); )
@@ -702,6 +744,30 @@ struct StandardClient : public MegaApp
             p = pos == string::npos ? path.size() : pos + 1;
         }
         return n;
+    }
+
+    vector<Node*> drillchildnodesbyname(Node* n, const string& path)
+    {
+        auto pos = path.find("/");
+        if (pos == string::npos)
+        {
+            return client.childnodesbyname(n, path.c_str(), false);
+        }
+        else
+        {
+            vector<Node*> subnodes;
+            vector<Node*> results;
+            return client.childnodesbyname(n, path.c_str(), false);
+            for (int i = subnodes.size(); i--; )
+            {
+                if (subnodes[i]->type != FILENODE)
+                {
+                    vector<Node*> v = drillchildnodesbyname(subnodes[i], path.substr(pos + 1));
+                    results.insert(results.end(), v.begin(), v.end());
+                }
+            }
+            return results;
+        }
     }
 
     bool setupSync_inthread(int syncid, const string& subfoldername, const fs::path& localpath)
@@ -811,6 +877,38 @@ struct StandardClient : public MegaApp
             return false;
         }
 
+        string localpath;
+        n->getlocalpath(&localpath, false);
+        client.fsaccess->local2name(&localpath);
+        string n_localname = n->localname;
+        client.fsaccess->local2name(&n_localname);
+        if (n_localname.size())
+        {
+            EXPECT_EQ(n->name, n_localname);
+        }
+        EXPECT_TRUE(n->node != nullptr);
+        if (depth && n->node)
+        {
+            EXPECT_EQ(n->node->displayname(), n->name);
+        }
+        if (depth && mn->parent)
+        {
+            EXPECT_EQ(mn->parent->type, Model::ModelNode::folder);
+            EXPECT_EQ(n->parent->type, FOLDERNODE);
+
+            string parentpath;
+            n->parent->getlocalpath(&parentpath, false);
+            client.fsaccess->local2name(&parentpath);
+            EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
+        }
+        if (n->node && n->parent && n->parent->node)
+        {
+            string p = n->node->displaypath();
+            string pp = n->parent->node->displaypath();
+            EXPECT_EQ(p.substr(0, pp.size()), pp);
+            EXPECT_EQ(n->parent->node, n->node->parent);
+        }
+
         multimap<string, Model::ModelNode*> ms;
         multimap<string, LocalNode*> ns;
         for (auto& m : mn->kids) ms.emplace(m->name, m.get());
@@ -883,6 +981,15 @@ struct StandardClient : public MegaApp
             return false;
         }
 
+        if (pathtype == FILENODE && p.filename().u8string() != "lock")
+        {
+            ifstream fs(p, ios::binary);
+            char filedata[1024];
+            fs.read(filedata, sizeof(filedata));
+            EXPECT_EQ(fs.gcount(), p.filename().u8string().size()) << " file is not expected size " << p;
+            EXPECT_TRUE(!memcmp(filedata, p.filename().u8string().data(), p.filename().u8string().size())) << " file data mismatch " << p;
+        }
+
         if (pathtype != FOLDERNODE)
         {
             return true;
@@ -940,15 +1047,6 @@ struct StandardClient : public MegaApp
             cout << endl;
             return false;
         };
-    }
-
-    Node* getBaseNode()
-    {
-        if (Node* root = client.nodebyhandle(client.rootnodes[0]))
-        {
-            return client.childnodebyname(root, "mega_test_sync", false);
-        }
-        return nullptr;
     }
 
     Sync* syncByTag(int tag)
@@ -1025,16 +1123,14 @@ struct StandardClient : public MegaApp
         }
     }
 
+    void rename_result(handle h, error e)  override
+    { 
+        resultproc.processresult(MOVENODE, e, h);
+    }
+
     void deleteremote(string path, promise<bool>& pb )
     {
-        Node* n = getBaseNode();
-        while (n && !path.empty())
-        {
-            auto pos = path.find("/");
-            n = client.childnodebyname(n, path.substr(0, pos).c_str(), false);
-            path.erase(0, pos == string::npos ? path.size() : pos + 1);
-        }
-        if (n)
+        if (Node* n = drillchildnodebyname(gettestbasenode(), path))
         {
             resultproc.prepresult(UNLINK, [this, &pb](error e) { pb.set_value(!e); });
             client.unlink(n);
@@ -1044,6 +1140,59 @@ struct StandardClient : public MegaApp
             pb.set_value(false);
         }
     }
+
+    void deleteremotenodes(vector<Node*> ns, promise<bool>& pb)
+    {
+        for (int i = ns.size(); i--; )
+        {
+            resultproc.prepresult(UNLINK, [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
+            client.unlink(ns[i]);
+        }
+    }
+
+    void movenode(string path, string newparentpath, promise<bool>& pb)
+    {
+        Node* n = drillchildnodebyname(gettestbasenode(), path);
+        Node* p = drillchildnodebyname(gettestbasenode(), path);
+        if (n && p)
+        {
+            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.rename(n, p);
+            return;
+        }
+        cout << "node or new parent not found" << endl;
+        pb.set_value(false);
+    }
+
+    void movenode(handle h1, handle h2, promise<bool>& pb)
+    {
+        Node* n = client.nodebyhandle(h1);
+        Node* p = client.nodebyhandle(h2);
+        if (n && p)
+        {
+            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.rename(n, p);
+            return;
+        }
+        cout << "node or new parent not found by handle" << endl;
+        pb.set_value(false);
+    }
+
+    void movenodetotrash(string path, promise<bool>& pb)
+    {
+        Node* n = drillchildnodebyname(gettestbasenode(), path);
+        Node* p = getcloudrubbishnode();
+        if (n && p && n->parent)
+        {
+            resultproc.prepresult(MOVENODE, [this, &pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle);
+            return;
+        }
+        cout << "node or rubbish or node parent not found" << endl;
+        pb.set_value(false);
+    }
+
+
 
     void waitonsyncs(chrono::seconds d = 2s)
     {
@@ -1068,7 +1217,7 @@ struct StandardClient : public MegaApp
             });
             bool allactive = true;
             {
-                lock_guard g(StandardClient::om);
+                lock_guard<mutex> g(StandardClient::om);
                 //std::cout << "sync state: ";
                 //for (auto n : syncstates)
                 //{
@@ -1084,9 +1233,11 @@ struct StandardClient : public MegaApp
             }
 
             if (allactive && ((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - lastcb) > d))
-                break;
-
-            Sleep(500);
+            {
+               break;
+            }
+//cout << "waiting 500" << endl;
+            WaitMillisec(500);
         }
 
     }
@@ -1216,7 +1367,8 @@ void waitonsyncs(chrono::seconds d = 4s, StandardClient* c1 = nullptr, StandardC
                     if (sync->deleteq.size() || sync->insertq.size())
                         any_add_del = true;
                 }
-                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty()))
+                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty() 
+                    && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                 {
                     any_add_del = true;
                 }
@@ -1225,7 +1377,7 @@ void waitonsyncs(chrono::seconds d = 4s, StandardClient* c1 = nullptr, StandardC
 
         bool allactive = true;
         {
-            //lock_guard g(StandardClient::om);
+            //lock_guard<mutex> g(StandardClient::om);
             //std::cout << "sync state: ";
             //for (auto n : syncstates)
             //{
@@ -1240,7 +1392,7 @@ void waitonsyncs(chrono::seconds d = 4s, StandardClient* c1 = nullptr, StandardC
             start = chrono::steady_clock::now();
         }
 
-        if (onelastsyncdown && (chrono::steady_clock::now() - start + 1s) > d)
+        if (onelastsyncdown && (chrono::steady_clock::now() - start + d/2) > d)
         {
             // synced folders that were removed remotely don't have the corresponding local folder removed unless we prompt an extra syncdown.  // todo:  do we need to fix
             for (auto vn : v) if (vn) vn->client.syncdownrequired = true;
@@ -1250,10 +1402,12 @@ void waitonsyncs(chrono::seconds d = 4s, StandardClient* c1 = nullptr, StandardC
         for (auto vn : v) if (vn)
         {
             if (allactive && ((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - vn->lastcb) > d))
+            {
                 return;
+            }
         }
 
-        Sleep(400);
+        WaitMillisec(400);
     }
 
 }
@@ -1285,6 +1439,8 @@ fs::path makeNewTestRoot(fs::path p)
     return p;
 }
 
+//std::atomic<int> fileSizeCount = 20;
+
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int recurselevel, int filesperfolder)
 {
     if (suppressfiles) filesperfolder = 0;
@@ -1297,8 +1453,10 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
     {
         string filename = "file" + to_string(i) + "_" + prefix;
         fs::path fp = p / filename;
-        ofstream fs(fp.string());
+        ofstream fs(fp.string()/*, ios::binary*/);
         fs << filename;
+        //int thisSize = (++fileSizeCount)/2;
+        //for (int j = 0; j < thisSize; ++j) fs << ('0' + j % 10);
     }
 
     if (recurselevel > 0)
@@ -1316,9 +1474,10 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
 GTEST_TEST(BasicSync, DelRemoteFolder)
 {
     // delete a remote folder and confirm the client sending the request and another also synced both correctly update the disk
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
 
     ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
@@ -1339,7 +1498,7 @@ GTEST_TEST(BasicSync, DelRemoteFolder)
     // delete something remotely and let sync catch up
     future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_2/f_2_1", pb); });
     ASSERT_TRUE(waitonresults(&fb));
-    waitonsyncs(4s, &clientA1, &clientA2);
+    waitonsyncs(60s, &clientA1, &clientA2);
 
     // check everything matches in both syncs (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));
@@ -1350,7 +1509,7 @@ GTEST_TEST(BasicSync, DelRemoteFolder)
 GTEST_TEST(BasicSync, DelLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1375,7 +1534,7 @@ GTEST_TEST(BasicSync, DelLocalFolder)
     ASSERT_TRUE(fs::remove_all(clientA1.syncSet[1].localpath / "f_2" / "f_2_1", e) != static_cast<std::uintmax_t>(-1)) << e;
 
     // let them catch up
-    waitonsyncs(4s, &clientA1, &clientA2);
+    waitonsyncs(60s, &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));
@@ -1387,7 +1546,7 @@ GTEST_TEST(BasicSync, DelLocalFolder)
 GTEST_TEST(BasicSync, MoveLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1425,7 +1584,7 @@ GTEST_TEST(BasicSync, MoveLocalFolder)
 GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
     StandardClient clientA3(localtestroot, "clientA3");   // user 1 client 3
@@ -1477,7 +1636,7 @@ GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
 GTEST_TEST(BasicSync, AddLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1502,7 +1661,7 @@ GTEST_TEST(BasicSync, AddLocalFolder)
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath / "f_2", "newkid", 2, 2, 2));
 
     // let them catch up
-    waitonsyncs(120s, &clientA1, &clientA2);  // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
+    waitonsyncs(30s, &clientA1, &clientA2);  // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
 
     // check everything matches (model has expected state of remote and local)
     model.findnode("f/f_2")->addkid(model.buildModelSubdirs("newkid", 2, 2, 2));
@@ -1511,12 +1670,12 @@ GTEST_TEST(BasicSync, AddLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-
+/* this one is too slow for regular testing with the current algorithm
 GTEST_TEST(BasicSync, MAX_NEWNODES1)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1542,19 +1701,21 @@ GTEST_TEST(BasicSync, MAX_NEWNODES1)
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "g", 5, 5, 0));  // 5^5=3125 leaf folders, 625 pre-leaf etc
 
     // let them catch up
-    waitonsyncs(300s, &clientA1, &clientA2);
+    waitonsyncs(30s, &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     model.findnode("f")->addkid(model.buildModelSubdirs("g", 5, 5, 0));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
+*/
 
+/* this one is too slow for regular testing with the current algorithm
 GTEST_TEST(BasicSync, MAX_NEWNODES2)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1580,19 +1741,19 @@ GTEST_TEST(BasicSync, MAX_NEWNODES2)
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "g", 3000, 1, 0));  
 
     // let them catch up
-    waitonsyncs(300s, &clientA1, &clientA2);
+    waitonsyncs(30s, &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     model.findnode("f")->addkid(model.buildModelSubdirs("g", 3000, 1, 0));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
-
+*/
 
 GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1636,7 +1797,7 @@ GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
 GTEST_TEST(BasicSync, MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1681,10 +1842,10 @@ GTEST_TEST(BasicSync, MoveSeveralExistingIntoDeepNewLocalFolders)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-
+/* not expected to work yet
 GTEST_TEST(BasicSync, SyncDuplicateNames)
 {
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1714,11 +1875,11 @@ GTEST_TEST(BasicSync, SyncDuplicateNames)
     model.root->addkid(model.makeModelSubfolder("Samename"));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
-}
+}*/
 
 GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
 {
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     auto pclientA1 = make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1764,14 +1925,12 @@ GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), 1));
 }
 
-/*
-// SN tagging needed for this one
-
+/* not expected to work yet 
 GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
-    
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    // SN tagging needed for this one
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1798,17 +1957,14 @@ GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
     model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
-}
-*/
+}*/
 
-/*
-// SN tagging needed for this one
-
+/* not expected to work yet
 GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     // SN tagging needed for this one
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1835,12 +1991,12 @@ GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
     model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
-}
-*/
+}*/
+
 
 GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges )
 {
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1861,55 +2017,55 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model1.findnode("f"), 1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 
-    // save session A1
+    cout << "********************* save session A1" << endl;
     byte session[64];
     int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
 
-    // logout A1 (but keep caches on disk)
+    cout << "*********************  logout A1 (but keep caches on disk)" << endl;
     fs::path sync1path = pclientA1->syncSet[1].localpath;
     pclientA1.reset();
 
-    // add remote folders via A2
+    cout << "*********************  add remote folders via A2" << endl;
     future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("newremote", 2, 2, pb, "f/f_1/f_1_0"); });
     model1.findnode("f/f_1/f_1_0")->addkid(model1.buildModelSubdirs("newremote", 2, 2, 0));
     model2.findnode("f/f_1/f_1_0")->addkid(model2.buildModelSubdirs("newremote", 2, 2, 0));
     ASSERT_TRUE(waitonresults(&p1));
 
-    // remove remote folders via A2
+    cout << "*********************  remove remote folders via A2" << endl;
     p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_0", pb); });
     model1.movetosynctrash("f/f_0", "f");
     model2.movetosynctrash("f/f_0", "f");
     ASSERT_TRUE(waitonresults(&p1));
 
-    // add local folders in A1
+    cout << "*********************  add local folders in A1" << endl;
     ASSERT_TRUE(buildLocalFolders(sync1path / "f_1/f_1_2", "newlocal", 2, 2, 2));
-    model1.findnode("f/f_1/f_1_2")->addkid(model1.buildModelSubdirs("newlocal", 2, 2, 0));
-    model2.findnode("f/f_1/f_1_2")->addkid(model2.buildModelSubdirs("newlocal", 2, 2, 0));
+    model1.findnode("f/f_1/f_1_2")->addkid(model1.buildModelSubdirs("newlocal", 2, 2, 2));
+    model2.findnode("f/f_1/f_1_2")->addkid(model2.buildModelSubdirs("newlocal", 2, 2, 2));
 
-    // remove local folders in A1
+    cout << "*********************  remove local folders in A1" << endl;
     error_code e;
     ASSERT_TRUE(fs::remove_all(sync1path / "f_2", e) != static_cast<std::uintmax_t>(-1)) << e;
     model1.removenode("f/f_2");
     model2.movetosynctrash("f/f_2", "f");
 
-    // get sync2 activity out of the way
-    waitonsyncs(4s, &clientA2);
+    cout << "*********************  get sync2 activity out of the way" << endl;
+    waitonsyncs(20s, &clientA2);
 
-    // resume A1 session (with sync), see if A2 nodes and localnodes get in sync again
+    cout << "*********************  resume A1 session (with sync), see if A2 nodes and localnodes get in sync again" << endl;
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes_resumesync(string((char*)session, sessionsize), sync1path.u8string(), "f", 1));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
-    waitonsyncs(60s, pclientA1.get(), &clientA2);
-    waitonsyncs(60s, pclientA1.get(), &clientA2);
+    waitonsyncs(20s, pclientA1.get(), &clientA2);
 
-    // check everything matches (model has expected state of remote and local)
+    cout << "*********************  check everything matches (model has expected state of remote and local)" << endl;
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model1.findnode("f"), 1));
+    model2.ensureLocalDebrisTmpLock("f"); // since we downloaded files
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 }
 
 GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
 {
-    fs::path localtestroot = makeNewTestRoot("c:\\tmp\\synctests");
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
     StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
 
@@ -1955,13 +2111,67 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
     waitonsyncs(4s, pclientA1.get(), &clientA2);
 
     // check everything matches (model has expected state of remote and local)
-    model.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 0));
+    model.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 2));
     ASSERT_TRUE(model.movetosynctrash("f/f_1", "f"));
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), 1));
     ASSERT_TRUE(model.removesynctrash("f", "f_1/f_1_2/newlocal"));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
+
+GTEST_TEST(CmdChecks, RRAttributeAfterMoveNode)
+{
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
+
+    ASSERT_TRUE(pclientA1->login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 3, 3));
+
+    Node* f = pclientA1->drillchildnodebyname(pclientA1->gettestbasenode(), "f");
+    handle original_f_handle = f->nodehandle;
+    handle original_f_parent_handle = f->parent->nodehandle;
+
+    // make sure there are no 'f' in the rubbish
+    auto fv = pclientA1->drillchildnodesbyname(pclientA1->getcloudrubbishnode(), "f");
+    future<bool> fb = pclientA1->thread_do([&fv](StandardClient& sc, promise<bool>& pb) { sc.deleteremotenodes(fv, pb); });
+    ASSERT_TRUE(waitonresults(&fb));
+
+    f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
+    ASSERT_TRUE(f == nullptr);
+
+
+    // remove remote folder via A2
+    future<bool> p1 = pclientA1->thread_do([](StandardClient& sc, promise<bool>& pb)
+        { 
+            sc.movenodetotrash("f", pb);
+        });
+    ASSERT_TRUE(waitonresults(&p1));
+
+    WaitMillisec(3000);  // allow for attribute delivery too
+
+    f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
+    ASSERT_TRUE(f != nullptr);
+
+    // check the restore-from-trash handle got set, and correctly
+    nameid rrname = AttrMap::string2nameid("rr");
+    ASSERT_EQ(f->nodehandle, original_f_handle);
+    ASSERT_EQ(f->attrs.map[rrname], string(Base64Str<MegaClient::NODEHANDLE>(original_f_parent_handle)));
+    ASSERT_EQ(f->attrs.map[rrname], string(Base64Str<MegaClient::NODEHANDLE>(pclientA1->gettestbasenode()->nodehandle)));
+
+    // move it back
+
+    p1 = pclientA1->thread_do([&](StandardClient& sc, promise<bool>& pb)
+    {
+        sc.movenode(f->nodehandle, pclientA1->basefolderhandle, pb);
+    });
+    ASSERT_TRUE(waitonresults(&p1));
+
+    WaitMillisec(3000);  // allow for attribute delivery too
+
+    // check it's back and the rr attribute is gone 
+    f = pclientA1->drillchildnodebyname(pclientA1->gettestbasenode(), "f");
+    ASSERT_TRUE(f != nullptr);
+    ASSERT_EQ(f->attrs.map[rrname], string());
+}
 
 
 class MegaCLILogger : public ::mega::Logger {
@@ -1983,8 +2193,21 @@ public:
 MegaCLILogger logger;
 };  // unnamed namespace
 
+
 int main (int argc, char *argv[])
 {
+    //assert(false);
+    //MegaClient::APIURL = "https://staging.api.mega.co.nz/";
+    //MegaClient::disablepkp = true;
+    //MegaClient::APIURL = "https://api-sandbox3.developers.mega.co.nz/";
+    //MegaClient::disablepkp = true;
+
+    if (!getenv("MEGAAUTOTESTUSER1") || !getenv("MEGAAUTOTESTPWD1") || !getenv("MEGAAUTOTESTUSER2") || !getenv("MEGAAUTOTESTPWD2"))
+    {
+        cout << "please set username and password env variables for test" << endl;
+        exit(1);
+    }
+
     remove("synctests.log");
 
 #ifdef _WIN32
@@ -1992,8 +2215,8 @@ int main (int argc, char *argv[])
     SimpleLogger::setOutputClass(&logger);
 #else
     SimpleLogger::setAllOutputs(&std::cout);
+    SimpleLogger::setLogLevel(logDebug);
 #endif
-
 
 #if defined(WIN32) && defined(NO_READLINE)
     wc = new CONSOLE_CLASS;
@@ -2004,3 +2227,4 @@ int main (int argc, char *argv[])
     auto x = RUN_ALL_TESTS();
     return x;
 }
+

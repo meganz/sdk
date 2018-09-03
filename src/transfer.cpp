@@ -655,7 +655,7 @@ void Transfer::complete()
                                 LocalNode *localNode = sync->localnodebypath(NULL, &localname);
                                 if (localNode)
                                 {
-                                    LOG_debug << "Overwritting a local synced file. Moving the previous one to debris";
+                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
 
                                     // try to move to local debris
                                     if(!sync->movetolocaldebris(&localname))

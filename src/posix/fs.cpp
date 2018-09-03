@@ -974,8 +974,10 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool o
     transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
-    LOG_warn << "Unable to move file: " << oldname->c_str() << " to " << newname->c_str() << ". Error code: " << e;
-
+    if (!skip_errorreport)
+    {
+        LOG_warn << "Unable to move file: " << oldname->c_str() << " to " << newname->c_str() << ". Error code: " << e;
+    }
     return false;
 }
 

@@ -196,17 +196,17 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
             {
                 if (req->binary)
                 {
-                    LOG_debug << "[received " << (req->buf ? req->buflen : req->in.size()) << " bytes of raw data]";
+                    LOG_debug << req->logname << "[received " << (req->buf ? req->buflen : req->in.size()) << " bytes of raw data]";
                 }
                 else
                 {
                     if(req->in.size() < 2048)
                     {
-                        LOG_debug << "Received: " << req->in.c_str();
+                        LOG_debug << req->logname << "Received: " << req->in.c_str();
                     }
                     else
                     {
-                        LOG_debug << "Received: " << req->in.substr(0,2048).c_str();
+                        LOG_debug << req->logname << "Received: " << req->in.substr(0,2048).c_str();
                     }
                 }
 
@@ -510,7 +510,7 @@ VOID CALLBACK WinHttpIO::asynccallback(HINTERNET hInternet, DWORD_PTR dwContext,
 
                 if (!WinHttpWriteData(httpctx->hRequest, (LPVOID)(httpctx->postdata + pos), t, NULL))
                 {
-                    LOG_err << "Error writting data. Code: " << GetLastError();
+                    LOG_err << "Error writing data. Code: " << GetLastError();
                     req->httpio->cancel(req);
                 }
 
@@ -555,11 +555,11 @@ void WinHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     if (req->binary)
     {
-        LOG_debug << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
+        LOG_debug << req->logname << "[sending " << (data ? len : req->out->size()) << " bytes of raw data]";
     }
     else
     {
-        LOG_debug << "Sending: " << *req->out;
+        LOG_debug << req->logname << "Sending: " << *req->out;
     }
 
     WinHttpContext* httpctx;

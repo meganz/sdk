@@ -1244,11 +1244,14 @@ bool Sync::movetolocaldebris(string* localpath)
         localdebris.append(client->fsaccess->localseparator);
         localdebris.append(*localpath, client->fsaccess->lastpartlocal(localpath), string::npos);
 
+        client->fsaccess->skip_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
         if (client->fsaccess->renamelocal(localpath, &localdebris, false))
         {
+            client->fsaccess->skip_errorreport = false;
             localdebris.resize(t);
             return true;
         }
+        client->fsaccess->skip_errorreport = false;
 
         localdebris.resize(t);
 

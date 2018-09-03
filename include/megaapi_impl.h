@@ -82,7 +82,7 @@ public:
     MegaMutex(bool recursive) : PosixMutex(recursive) { }
 };
 class MegaSemaphore : public PosixSemaphore {};
-#elif defined(_WIN32) && !defined(WINDOWS_PHONE)
+#elif defined(_WIN32) && !defined(USE_CPPTHREAD) && !defined(WINDOWS_PHONE)
 class MegaThread : public Win32Thread {};
 class MegaMutex : public Win32Mutex
 {

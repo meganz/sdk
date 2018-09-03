@@ -24487,7 +24487,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         return;
     }
 
-    LOG_verbose << "Writting " << resbuf.len << " bytes";
+    LOG_verbose << "Writing " << resbuf.len << " bytes";
     httpctx->rangeWritten += resbuf.len;
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
@@ -26763,7 +26763,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
 
         if (nread > 0)
         {
-            LOG_verbose << " Writting " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
+            LOG_verbose << " Writing " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
             if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
@@ -27016,7 +27016,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
         return;
     }
 
-    LOG_verbose << "Writting " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
+    LOG_verbose << "Writing " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
     ftpdatactx->rangeWritten += resbuf.len;
     ftpdatactx->lastBuffer = resbuf.base;
     ftpdatactx->lastBufferLen = resbuf.len;
