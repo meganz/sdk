@@ -1265,7 +1265,7 @@ public:
     User* finduser(handle, int = 0);
     User* ownuser();
     void mapuser(handle, const char*);
-    void discarduser(handle);
+    void discarduser(handle, bool = true);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
     bool discardnotifieduser(User *);
