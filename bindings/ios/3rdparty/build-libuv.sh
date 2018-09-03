@@ -1,6 +1,6 @@
 #!/bin/sh
 
-UV_VERSION="1.19.2"
+UV_VERSION="1.23.0"
 SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
 
 ##############################################
@@ -86,7 +86,7 @@ mkdir lib || true
 lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libuv.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libuv.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libuv.a -output ${CURRENTPATH}/lib/libuv.a
 
 mkdir -p include || true
-cp -f libuv-v${UV_VERSION}/include/*.h include/
+cp -f -R libuv-v${UV_VERSION}/include/ include/
 
 rm -rf bin
 rm -rf libuv-v${UV_VERSION}
