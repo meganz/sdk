@@ -137,8 +137,23 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     if (!GetFileAttributesExW((LPCWSTR)localname.data(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
+        errorcode = e;
         retry = WinFileSystemAccess::istransient(e);
         return false;
+    }
+
+    errorcode = 0;
+    if (SimpleLogger::logCurrentLevel >= logDebug && skipattributes(fad.dwFileAttributes))
+    {
+        string utf8path;
+        utf8path.resize((localname.size() + 1) * 4 / sizeof(wchar_t));
+        utf8path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)localname.data(),
+                                         localname.size() / sizeof(wchar_t),
+                                         (char*)utf8path.data(),
+                                         utf8path.size() + 1,
+                                         NULL, NULL));
+
+        LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << utf8path;
     }
 
     if (fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)

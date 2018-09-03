@@ -137,5 +137,14 @@ void LocalTreeProcUpdateTransfers::proc(MegaClient *, LocalNode *localnode)
     }
 }
 
+void LocalTreeProcUnlinkNodes::proc(MegaClient *, LocalNode *localnode)
+{
+    if (localnode->node)
+    {
+        localnode->node->localnode = NULL;
+        localnode->node = NULL;
+    }
+}
+
 #endif
 } // namespace

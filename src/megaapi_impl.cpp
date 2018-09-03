@@ -11082,9 +11082,9 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
     handle h = UNDEF;
     Node *n = NULL;
 
-    if(!e && t != USER_HANDLE)
+    if (!e && t != USER_HANDLE)
     {
-        if(client->nodenotify.size())
+        if (client->nodenotify.size())
         {
             n = client->nodenotify.back();
         }
@@ -11109,6 +11109,18 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         if(pendingUploads > 0)
         {
             pendingUploads--;
+        }
+
+        //scale to get the handle of the new node
+        Node *ntmp;
+        if (n)
+        {
+            handle ph = transfer->getParentHandle();
+            for (ntmp = n; ((ntmp->parent != NULL) && (ntmp->parent->nodehandle != ph) ); ntmp = ntmp->parent);
+            if ((ntmp->parent != NULL) && (ntmp->parent->nodehandle == ph))
+            {
+                h = ntmp->nodehandle;
+            }
         }
 
         transfer->setNodeHandle(h);
@@ -11150,8 +11162,10 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         if (n)
         {
             for (ntmp = n; ((ntmp->parent != NULL) && (ntmp->parent->nodehandle != request->getParentHandle()) ); ntmp = ntmp->parent);
-            if ((ntmp->parent != NULL) && (ntmp->parent->nodehandle == request->getParentHandle()) )
+            if ((ntmp->parent != NULL) && (ntmp->parent->nodehandle == request->getParentHandle()))
+            {
                 h = ntmp->nodehandle;
+            }
         }
     }
 
@@ -15989,6 +16003,7 @@ void MegaApiImpl::sendPendingRequests()
                         {
                             if (fp->isvalid && ovn->isvalid && *fp == *(FileFingerprint*)ovn)
                             {
+                                request->setNodeHandle(ovn->nodehandle);
                                 fireOnRequestFinish(request, MegaError(API_OK));
                                 delete fp;
                                 break;
@@ -16069,6 +16084,7 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                         {
+                            request->setNodeHandle(ovn->nodehandle);
                             fireOnRequestFinish(request, MegaError(API_OK));
                             break;
                         }
