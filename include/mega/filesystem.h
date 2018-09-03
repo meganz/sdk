@@ -87,6 +87,9 @@ struct MEGA_API FileAccess
     // if the open failed, retry indicates a potentially transient reason
     bool retry;
 
+    //error code related to the last call to fopen() without parameters
+    int errorcode;
+
     // for files "opened" in nonblocking mode, the current local filename
     string localname;
 

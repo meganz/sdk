@@ -2229,10 +2229,15 @@ void MegaClient::exec()
                         if (localsyncnotseen.size() && !synccreate.size())
                         {
                             // ... execute all pending deletions
+                            string path;
+                            FileAccess *fa = fsaccess->newfileaccess();
                             while (localsyncnotseen.size())
                             {
-                                delete *localsyncnotseen.begin();
+                                LocalNode* l = *localsyncnotseen.begin();
+                                unlinkifexists(l, fa, &path);
+                                delete l;
                             }
+                            delete fa;
                         }
 
                         // process filesystem notifications for active syncs unless we
@@ -11080,9 +11085,9 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 bool download = true;
                 FileAccess *f = fsaccess->newfileaccess();
                 if (rit->second->localnode != (LocalNode*)~0
-                        && f->fopen(localpath, true, false))
+                        && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
-                    LOG_debug << "Skipping download over an unscanned file/folder";
+                    LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                     download = false;
                 }
                 delete f;
@@ -11106,9 +11111,13 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             else
             {
                 LOG_debug << "Creating local folder";
-
+                FileAccess *f = fsaccess->newfileaccess();
+                if (f->fopen(localpath) || f->type == FOLDERNODE)
+                {
+                    LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                }
                 // create local path, add to LocalNodes and recurse
-                if (fsaccess->mkdirlocal(localpath))
+                else if (fsaccess->mkdirlocal(localpath))
                 {
                     LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
 
@@ -11140,6 +11149,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 {
                     LOG_debug << "Non transient error creating folder";
                 }
+                delete f;
             }
         }
 
@@ -11907,6 +11917,41 @@ void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     }
 
     tp->proc(this, n);
+}
+
+void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, std::string *path)
+{
+    l->getlocalpath(path);
+    if (fa->fopen(path) || fa->type == FOLDERNODE)
+    {
+        LOG_warn << "Deletion of existing file avoided";
+        static bool reported99446 = false;
+        if (!reported99446)
+        {
+            sendevent(99446, "Deletion of existing file avoided", 0);
+            reported99446 = true;
+        }
+
+        // The local file or folder seems to be still there, but invisible
+        // for the sync engine, so we just stop syncing it
+        LocalTreeProcUnlinkNodes tpunlink;
+        proclocaltree(l, &tpunlink);
+    }
+#ifdef _WIN32
+    else if (fa->errorcode != ERROR_FILE_NOT_FOUND && fa->errorcode != ERROR_PATH_NOT_FOUND)
+    {
+        LOG_warn << "Unexpected error code for deleted file: " << fa->errorcode;
+        static bool reported99447 = false;
+        if (!reported99447)
+        {
+            ostringstream oss;
+            oss << fa->errorcode;
+            string message = oss.str();
+            sendevent(99447, message.c_str(), 0);
+            reported99447 = true;
+        }
+    }
+#endif
 }
 
 void MegaClient::execsyncunlink()
