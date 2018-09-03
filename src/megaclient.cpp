@@ -11087,7 +11087,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 if (rit->second->localnode != (LocalNode*)~0
                         && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
-                    LOG_debug << "Skipping download over an unscanned file/folder";
+                    LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                     download = false;
                 }
                 delete f;
@@ -11114,7 +11114,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 FileAccess *f = fsaccess->newfileaccess();
                 if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
-                    LOG_debug << "Skipping folder creation over an unscanned file/folder";
+                    LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                 }
                 // create local path, add to LocalNodes and recurse
                 else if (fsaccess->mkdirlocal(localpath))
