@@ -24838,8 +24838,9 @@ void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
         bool write = (curperm >> 1) & 0x1;
         bool exec = (curperm >> 0) & 0x1;
 
-        char rwx[3];
+        char rwx[4];
         sprintf(rwx,"%c%c%c",read?'r':'-' ,write?'w':'-', exec?'x':'-');
+        rwx[3]='\0';
         ps = rwx + ps;
     }
     strcat(permsString, ps.c_str());
