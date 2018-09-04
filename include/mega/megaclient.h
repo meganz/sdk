@@ -417,7 +417,7 @@ public:
     void putua(userattr_map *attrs, int ctag = -1);
 
     // queue a user attribute retrieval
-    void getua(User* u, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);
+    void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 
     // queue a user attribute retrieval (for non-contacts)
     void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);

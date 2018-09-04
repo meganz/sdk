@@ -16676,7 +16676,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->getua(user, type, ph);
+            client->getua(user, type);
             break;
 		}
 		case MegaRequest::TYPE_SET_ATTR_USER:

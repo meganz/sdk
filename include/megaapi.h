@@ -7224,7 +7224,7 @@ class MegaApi
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get an attribute of a user when we are in anonymous mode.
+         * @brief Get any public attribute of an user when we are in preview mode.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -7235,7 +7235,6 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value for public attributes
-         * - MegaRequest::getMegaStringMap - Returns the value for private attributes
          *
          * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
          * This parameter Cannot be NULL.
@@ -7243,6 +7242,8 @@ class MegaApi
          *
          * Valid values are:
          *
+         * MegaApi::USER_ATTR_AVATAR = 0
+         * Get the avatar of the user (public)
          * MegaApi::USER_ATTR_FIRSTNAME = 1
          * Get the firstname of the user (public)
          * MegaApi::USER_ATTR_LASTNAME = 2

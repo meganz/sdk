@@ -2694,8 +2694,9 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, const
 {
     this->uid = uid;
     this->at = at;
+    this->ph = ph;
 
-    if (!client->loggedin())
+    if (ph)
     {
         cmd("mcuga");
         arg("ph", ph);
@@ -2720,7 +2721,7 @@ void CommandGetUA::procresult()
         error e = (error)client->json.getint();
         client->app->getua_result(e);
 
-        if (client->loggedin())
+        if (!ph)
         {
 #ifdef  ENABLE_CHAT
             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
@@ -2744,7 +2745,7 @@ void CommandGetUA::procresult()
         string value, version, buf;
 
         //If we are in anonymous mode we only can retrieve atributes with mcuga and the response format is different
-        if (!client->loggedin())
+        if (ph)
         {
             ptr = client->json.getvalue();
             if (!ptr || !(end = strchr(ptr, '"')))

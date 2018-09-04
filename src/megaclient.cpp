@@ -8226,7 +8226,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
  * @param ctag Tag to identify the request at intermediate layer
  * @return Void.
  */
-void MegaClient::getua(User* u, const attr_t at, const char *ph, int ctag)
+void MegaClient::getua(User* u, const attr_t at, int ctag)
 {
     if (at != ATTR_UNKNOWN)
     {
@@ -8257,7 +8257,7 @@ void MegaClient::getua(User* u, const attr_t at, const char *ph, int ctag)
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, ph, tag));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag));
         }
     }
 }
