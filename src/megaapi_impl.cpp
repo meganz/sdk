@@ -12314,6 +12314,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         {
             if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn)
             {
+                request->setNodeHandle(ovn->nodehandle);
                 fireOnRequestFinish(request, MegaError(API_OK));
                 return;
             }
