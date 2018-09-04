@@ -404,6 +404,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int getDuration();
         virtual int getWidth();
         virtual int getHeight();
+        virtual int getShortformat();
+        virtual int getVideocodecid();
         virtual double getLatitude();
         virtual double getLongitude();
         virtual char *getBase64Handle();
@@ -492,6 +494,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int duration;
         int width;
         int height;
+        int shortformat;
+        int videocodecid;
         double latitude;
         double longitude;
         MegaNodeList *children;

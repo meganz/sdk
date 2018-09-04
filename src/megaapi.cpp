@@ -249,6 +249,16 @@ int MegaNode::getHeight()
     return -1;
 }
 
+int MegaNode::getShortformat()
+{
+    return -1;
+}
+
+int MegaNode::getVideocodecid()
+{
+    return -1;
+}
+
 double MegaNode::getLatitude()
 {
     return INVALID_COORDINATE;
