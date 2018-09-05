@@ -499,7 +499,7 @@ bool Sync::scan(string* localpath, FileAccess* fa)
 // path references a new FOLDERNODE: returns created node
 // path references a existing FILENODE: returns node
 // otherwise, returns NULL
-LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, dstime *backoffds)
+LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, dstime *backoffds, bool wejustcreatedthisfolder)
 {
     LocalNode* ll = l;
     FileAccess* fa;
@@ -839,10 +839,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         #endif
                             )
                        )
-                    && ((it->second->type != FILENODE)
+                    && ((it->second->type != FILENODE && !wejustcreatedthisfolder)
                         || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
-                    LOG_debug << "Move detected by fsid in checkpath. Type: " << it->second->type;
+                    string displayname;
+                    client->fsaccess->local2path(localname ? localpath : &tmppath, &displayname);
+                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << it->second->type << " new path: " << displayname << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
 
                     if (fa->type == FILENODE && backoffds)
                     {

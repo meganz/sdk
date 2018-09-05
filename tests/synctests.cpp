@@ -44,7 +44,7 @@ using namespace ::std;
 #else
  #include <experimental/filesystem>
  namespace fs = ::std::experimental::filesystem;
- #define LOCAL_TEST_FOLDER "/home/mattw/synctests_mega_auto"
+ #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 
 namespace {
