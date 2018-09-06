@@ -55,7 +55,7 @@ namespace mega {
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
 #if USE_CRYPTOPP && (CRYPTOPP_VERSION >= 600) && (__cplusplus >= 201103L)
 using byte = CryptoPP::byte;
-#else
+#elif __RPCNDR_H_VERSION__ != 500
 typedef unsigned char byte;
 #endif
 }
