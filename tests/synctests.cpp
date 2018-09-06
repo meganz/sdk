@@ -1143,10 +1143,17 @@ struct StandardClient : public MegaApp
 
     void deleteremotenodes(vector<Node*> ns, promise<bool>& pb)
     {
-        for (int i = ns.size(); i--; )
+        if (ns.empty())
         {
-            resultproc.prepresult(UNLINK, [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
-            client.unlink(ns[i]);
+            pb.set_value(true);
+        }
+        else
+        {
+            for (int i = ns.size(); i--; )
+            {
+                resultproc.prepresult(UNLINK, [this, &pb, i](error e) { if (!i) pb.set_value(!e); });
+                client.unlink(ns[i]);
+            }
         }
     }
 
