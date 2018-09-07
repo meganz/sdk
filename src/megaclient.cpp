@@ -3378,12 +3378,6 @@ void MegaClient::logout()
 
 void MegaClient::locallogout()
 {
-    if (sctable && pendingsccommit)
-    {
-        sctable->commit();
-        app->notify_dbcommit();
-    }
-
     delete sctable;
     sctable = NULL;
     pendingsccommit = false;

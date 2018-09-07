@@ -842,9 +842,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     && ((it->second->type != FILENODE && !wejustcreatedthisfolder)
                         || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
-                    string displayname;
-                    client->fsaccess->local2path(localname ? localpath : &tmppath, &displayname);
-                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << it->second->type << " new path: " << displayname << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
+                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << it->second->type << " new path: " << path << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
 
                     if (fa->type == FILENODE && backoffds)
                     {
