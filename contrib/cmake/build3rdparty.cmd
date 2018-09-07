@@ -30,6 +30,8 @@ CALL :build_one c-ares
 CALL :build_one sqlite3
 CALL :build_one libevent
 CALL :build_one gtest
+CALL :build_one freeimage
+CALL :build_one ffmpeg
 
 REM for megachat:
 REM CALL :build_one libuv

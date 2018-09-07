@@ -1200,6 +1200,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
@@ -1253,6 +1254,9 @@ public:
 
     // binary session ID
     string sid;
+
+    // distinguish activity from different MegaClients in logs
+    string clientname;
 
     // apply keys
     int applykeys();

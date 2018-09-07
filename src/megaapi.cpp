@@ -448,7 +448,7 @@ MegaNode *MegaNode::unserialize(const char *d)
 
     string data;
     data.resize(strlen(d) * 3 / 4 + 3);
-    data.resize(Base64::atob(d, (byte*)data.data(), data.size()));
+    data.resize(Base64::atob(d, (byte*)data.data(), int(data.size())));
 
     return MegaNodePrivate::unserialize(&data);
 }
@@ -2929,7 +2929,7 @@ char *MegaApi::base64ToBase32(const char *base64)
         return NULL;
     }
 
-    unsigned binarylen = strlen(base64) * 3/4 + 4;
+    unsigned binarylen = unsigned(strlen(base64) * 3/4 + 4);
     byte *binary = new byte[binarylen];
     binarylen = Base64::atob(base64, binary, binarylen);
 
@@ -2947,7 +2947,7 @@ char *MegaApi::base32ToBase64(const char *base32)
         return NULL;
     }
 
-    unsigned binarylen = strlen(base32) * 5/8 + 8;
+    unsigned binarylen = unsigned(strlen(base32) * 5/8 + 8);
     byte *binary = new byte[binarylen];
     binarylen = Base32::atob(base32, binary, binarylen);
 
@@ -4195,7 +4195,7 @@ char* MegaApi::strdup(const char* buffer)
 {
     if(!buffer)
         return NULL;
-    int tam = strlen(buffer)+1;
+    int tam = int(strlen(buffer)+1);
     char *newbuffer = new char[tam];
     memcpy(newbuffer, buffer, tam);
     return newbuffer;
@@ -4217,7 +4217,7 @@ void MegaApi::utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* utf8s
     utf8string->resize(WideCharToMultiByte(CP_UTF8, 0, utf16data,
         utf16size,
         (char*)utf8string->data(),
-        utf8string->size() + 1,
+        int(utf8string->size() + 1),
         NULL, NULL));
 }
 
@@ -4230,14 +4230,14 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
         return;
     }
 
-    int size = strlen(utf8data) + 1;
+    int size = int(strlen(utf8data) + 1);
 
     // make space for the worst case
     utf16string->resize(size * sizeof(wchar_t));
 
     // resize to actual result
     utf16string->resize(sizeof(wchar_t) * MultiByteToWideChar(CP_UTF8, 0, utf8data, size, (wchar_t*)utf16string->data(),
-                                                              utf16string->size() / sizeof(wchar_t) + 1));
+                                                              int(utf16string->size() / sizeof(wchar_t) + 1)));
     if (utf16string->size())
     {
         utf16string->resize(utf16string->size() - 1);
