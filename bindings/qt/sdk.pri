@@ -140,15 +140,15 @@ CONFIG(USE_LIBRAW) {
 }
 
 CONFIG(USE_FFMPEG) {
-    DEFINES += HAVE_FFMPEG
 
     unix:!macx {
         exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
+        DEFINES += HAVE_FFMPEG
             INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
             FFMPEGLIBPATH = $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib
         }
         else:exists(/usr/include/ffmpeg-mega) {
-
+            DEFINES += HAVE_FFMPEG
             INCLUDEPATH += /usr/include/ffmpeg-mega
             exists(/usr/lib64/libavcodec.a) {
                 FFMPEGLIBPATH = /usr/lib64
@@ -161,10 +161,8 @@ CONFIG(USE_FFMPEG) {
             }
         }
         else:packagesExist(ffmpeg)|packagesExist(libavcodec) {
+            DEFINES += HAVE_FFMPEG
             LIBS += -lavcodec -lavformat -lavutil -lswscale
-        }
-        else {
-            DEFINES -= HAVE_FFMPEG
         }
 
         FFMPEGSTATICLIBS = libavformat.a libavcodec.a libavutil.a libswscale.a
@@ -186,6 +184,7 @@ CONFIG(USE_FFMPEG) {
 
     }
     else { #win/mac
+        DEFINES += HAVE_FFMPEG
         INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
     }
