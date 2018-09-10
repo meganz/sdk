@@ -1495,6 +1495,7 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
 
+                                notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
                                     LOG_debug << "Executing postponed DB commit";
