@@ -127,11 +127,25 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->name = MegaApi::strdup(node->getName());
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
-    this->duration = node->getDuration();
-    this->width = node->getWidth();
-    this->height = node->getHeight();
-    this->shortformat = node->getShortformat();
-    this->videocodecid = node->getVideocodecid();
+
+    MegaNodePrivate *np = dynamic_cast<MegaNodePrivate *>(node);
+    if (np)
+    {
+        this->duration = np->duration;
+        this->width = np->width;
+        this->height = np->height;
+        this->shortformat = np->shortformat;
+        this->videocodecid = np->videocodecid;
+    }
+    else
+    {
+        this->duration = node->getDuration();
+        this->width = node->getWidth();
+        this->height = node->getHeight();
+        this->shortformat = node->getShortformat();
+        this->videocodecid = node->getVideocodecid();
+    }
+
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
