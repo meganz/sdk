@@ -4505,6 +4505,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
             attrname = "*!rp";
             break;
+
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
+            attrname = "^!rubbishtime";
+            break;
     }
 
     return attrname;
@@ -4540,6 +4544,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
             scope = '^';
             break;
 
@@ -16504,7 +16509,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if ( attrname.empty() ||    // unknown attribute type
+            if (attrname.empty() ||    // unknown attribute type
                  (type == ATTR_AVATAR && !value) ) // no destination file for avatar
             {
                 e = API_EARGS;
