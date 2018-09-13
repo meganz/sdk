@@ -1890,10 +1890,74 @@ namespace mega
         void startUploadWithData(String^ localPath, MNode^ parent, String^ appData);
         void startUploadWithDataTempSource(String^ localPath, MNode^ parent, String^ appData, bool isSourceTemporary, MTransferListenerInterface^ listener);
         void startUploadWithDataTempSource(String^ localPath, MNode^ parent, String^ appData, bool isSourceTemporary);
+
+        /**
+        * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+        * @param localPath Local path of the file or folder
+        * @param parent Parent node for the file or folder in the MEGA account
+        * @param appData Custom app data to save in the MTransfer object
+        * The data in this parameter can be accessed using MTransfer::getAppData in callbacks
+        * related to the transfer. If a transfer is started with exactly the same data
+        * (local path and target parent) as another one in the transfer queue, the new transfer
+        * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+        * the appData of the old transfer, using a '!' separator if the old transfer had already
+        * appData.
+        * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+        * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+        * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+        * @param listener MTransferListener to track this transfer
+        */
+        void startUploadWithTopPriority(String^ localPath, MNode^ parent, String^ appData, bool isSourceTemporary, MTransferListenerInterface^ listener);
+
+        /**
+        * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+        * @param localPath Local path of the file or folder
+        * @param parent Parent node for the file or folder in the MEGA account
+        * @param appData Custom app data to save in the MTransfer object
+        * The data in this parameter can be accessed using MTransfer::getAppData in callbacks
+        * related to the transfer. If a transfer is started with exactly the same data
+        * (local path and target parent) as another one in the transfer queue, the new transfer
+        * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+        * the appData of the old transfer, using a '!' separator if the old transfer had already
+        * appData.
+        * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+        * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+        * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+        */
+        void startUploadWithTopPriority(String^ localPath, MNode^ parent, String^ appData, bool isSourceTemporary);
+
         void startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener);
         void startDownload(MNode^ node, String^ localPath);
         void startDownloadWithAppData(MNode^ node, String^ localPath, String^ appData, MTransferListenerInterface^ listener);
         void startDownloadWithAppData(MNode^ node, String^ localPath, String^ appData);
+
+        /**
+        * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+        * @param node MNode that identifies the file or folder
+        * @param localPath Destination path for the file or folder
+        * If this path is a local folder, it must end with a '\' or '/' character and the file name
+        * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+        * one of these characters, the file will be downloaded to a file in that path.
+        * @param appData Custom app data to save in the MTransfer object
+        * The data in this parameter can be accessed using MTransfer::getAppData in callbacks
+        * related to the transfer.
+        * @param listener MTransferListener to track this transfer
+        */
+        void startDownloadWithTopPriority(MNode^ node, String^ localPath, String^ appData, MTransferListenerInterface^ listener);
+
+        /**
+        * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+        * @param node MNode that identifies the file or folder
+        * @param localPath Destination path for the file or folder
+        * If this path is a local folder, it must end with a '\' or '/' character and the file name
+        * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+        * one of these characters, the file will be downloaded to a file in that path.
+        * @param appData Custom app data to save in the MTransfer object
+        * The data in this parameter can be accessed using MTransfer::getAppData in callbacks
+        * related to the transfer.
+        */
+        void startDownloadWithTopPriority(MNode^ node, String^ localPath, String^ appData);
+
         void startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener);
         void retryTransfer(MTransfer^ transfer, MTransferListenerInterface^ listener);
         void retryTransfer(MTransfer^ transfer);
