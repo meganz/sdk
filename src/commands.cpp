@@ -1169,27 +1169,27 @@ void CommandMoveNode::procresult()
                         do {
                             if (n == syncn)
                             {
-                                if(syncop)
+                                if (syncop)
                                 {
                                     Sync* sync = NULL;
-                                    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
                                     {
-                                        if((*it)->tag == tag)
+                                        if ((*its)->tag == tag)
                                         {
-                                            sync = (*it);
+                                            sync = (*its);
                                             break;
                                         }
                                     }
 
-                                    if(sync)
+                                    if (sync)
                                     {
-                                        if (n->type == FOLDERNODE)
+                                        if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
                                         }
                                     }
                                 }
