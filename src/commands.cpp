@@ -1169,14 +1169,14 @@ void CommandMoveNode::procresult()
                         do {
                             if (n == syncn)
                             {
-                                if(syncop)
+                                if (syncop)
                                 {
                                     Sync* sync = NULL;
-                                    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
                                     {
-                                        if((*it)->tag == tag)
+                                        if ((*its)->tag == tag)
                                         {
-                                            sync = (*it);
+                                            sync = (*its);
                                             break;
                                         }
                                     }
