@@ -5886,7 +5886,7 @@ void MegaClient::notifypurge(void)
                 }
                 u->sharing.clear();
 
-                discarduser(u->userhandle);
+                discarduser(u->userhandle, false);
             }
         }
 
@@ -7705,7 +7705,7 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
-void MegaClient::discarduser(handle uh)
+void MegaClient::discarduser(handle uh, bool discardnotified)
 {
     User *u = finduser(uh);
     if (!u)
@@ -7725,7 +7725,10 @@ void MegaClient::discarduser(handle uh)
         u->pkrs.pop_front();
     }
 
-    discardnotifieduser(u);
+    if (discardnotified)
+    {
+        discardnotifieduser(u);
+    }
 
     umindex.erase(u->email);
     users.erase(uhindex[uh]);

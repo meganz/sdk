@@ -121,6 +121,7 @@ CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
 
     win32 {
+        DEFINES += LIBRAW_NODLL
         LIBS += -llibraw
     }
 
