@@ -1181,15 +1181,15 @@ void CommandMoveNode::procresult()
                                         }
                                     }
 
-                                    if(sync)
+                                    if (sync)
                                     {
-                                        if (n->type == FOLDERNODE)
+                                        if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
                                         }
                                     }
                                 }
