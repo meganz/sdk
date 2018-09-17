@@ -2497,6 +2497,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->totalBytes = -1;
     this->transferredBytes = 0;
     this->number = 0;
+    this->timeZoneDetails = NULL;
 
     if (type == MegaRequest::TYPE_ACCOUNT_DETAILS)
     {
@@ -2609,6 +2610,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         *(this->achievementsDetails) = *(request->getAchievementsDetails());
     }
 
+    this->timeZoneDetails = NULL;
+    this->setTimeZoneDetails(request->getMegaTimeZoneDetails());
+
 #ifdef ENABLE_CHAT   
     this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
     this->chatList = request->getMegaTextChatList() ? request->chatList->copy() : NULL;
@@ -2635,6 +2639,11 @@ MegaAchievementsDetails *MegaRequestPrivate::getMegaAchievementsDetails() const
 AchievementsDetails *MegaRequestPrivate::getAchievementsDetails() const
 {
     return achievementsDetails;
+}
+
+MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
+{
+    return timeZoneDetails ? timeZoneDetails->copy() : NULL;
 }
 
 #ifdef ENABLE_CHAT
@@ -2764,6 +2773,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete [] text;
     delete stringMap;
     delete folderInfo;
+    delete timeZoneDetails;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -3044,6 +3054,15 @@ Proxy *MegaRequestPrivate::getProxy()
     return proxy;
 }
 
+void MegaRequestPrivate::setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails)
+{
+    if (this->timeZoneDetails)
+    {
+        delete this->timeZoneDetails;
+    }
+    this->timeZoneDetails = timeZoneDetails;
+}
+
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
 {
     if (this->publicNode)
@@ -3174,6 +3193,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
         case TYPE_TIMER: return "SET_TIMER";
         case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
+        case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
     }
     return "UNKNOWN";
 }
@@ -4696,6 +4716,13 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
     request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchTimeZone(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_TIMEZONE, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12953,6 +12980,26 @@ void MegaApiImpl::multifactorauthdisable_result(error e)
     fireOnRequestFinish(request, MegaError(e));
 }
 
+void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, vector<int> *timezoneoffsets, int defaulttz)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_FETCH_TIMEZONE)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        MegaTimeZoneDetails *tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
+        request->setTimeZoneDetails(tzDetails);
+    }
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 void MegaApiImpl::sendsignuplink_result(error e)
 {
 	MegaError megaError(e);
@@ -15838,6 +15885,11 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->multifactorauthdisable(pin);
             }
+            break;
+        }
+        case MegaRequest::TYPE_FETCH_TIMEZONE:
+        {
+            client->fetchtimezone();
             break;
         }
         case MegaRequest::TYPE_CREATE_FOLDER:
@@ -28128,6 +28180,58 @@ void TreeProcFolderInfo::proc(MegaClient *, Node *node)
 MegaFolderInfo *TreeProcFolderInfo::getResult()
 {
     return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+}
+
+MegaTimeZoneDetailsPrivate::MegaTimeZoneDetailsPrivate(vector<std::string> *timeZones, vector<int> *timeZoneOffsets, int defaultTimeZone)
+{
+    this->timeZones = *timeZones;
+    this->timeZoneOffsets = *timeZoneOffsets;
+    this->defaultTimeZone = defaultTimeZone;
+}
+
+MegaTimeZoneDetailsPrivate::MegaTimeZoneDetailsPrivate(const MegaTimeZoneDetailsPrivate *timeZoneDetails)
+{
+    this->timeZones = timeZoneDetails->timeZones;
+    this->timeZoneOffsets = timeZoneDetails->timeZoneOffsets;
+    this->defaultTimeZone = timeZoneDetails->defaultTimeZone;
+}
+
+MegaTimeZoneDetailsPrivate::~MegaTimeZoneDetailsPrivate()
+{
+
+}
+
+MegaTimeZoneDetails *MegaTimeZoneDetailsPrivate::copy() const
+{
+    return new MegaTimeZoneDetailsPrivate(this);
+}
+
+int MegaTimeZoneDetailsPrivate::getNumTimeZones() const
+{
+    return timeZones.size();
+}
+
+const char *MegaTimeZoneDetailsPrivate::getTimeZone(int index) const
+{
+    if (index >= 0 && index < timeZones.size())
+    {
+        return timeZones[index].c_str();
+    }
+    return "";
+}
+
+int MegaTimeZoneDetailsPrivate::getTimeOffset(int index) const
+{
+    if (index >= 0 && index < timeZoneOffsets.size())
+    {
+        return timeZoneOffsets[index];
+    }
+    return 0;
+}
+
+int MegaTimeZoneDetailsPrivate::getDefault() const
+{
+    return defaultTimeZone;
 }
 
 }

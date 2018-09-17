@@ -813,6 +813,28 @@ void MegaClient::multifactorauthdisable(const char *pin)
     reqs.add(new CommandMultiFactorAuthDisable(this, pin));
 }
 
+void MegaClient::fetchtimezone()
+{
+    struct tm lt, ut;
+    m_time_t rawtime = m_time(NULL);
+    m_localtime(rawtime, &lt);
+    m_gmtime(rawtime, &ut);
+    double foffset = difftime(m_mktime(&lt), m_mktime(&ut));
+    int offset = int(fabs(foffset));
+
+    ostringstream oss;
+    oss << ((foffset >= 0) ? "+" : "-");
+    oss << (offset / 3600) << ":";
+    int minutes = ((offset % 3600) / 60);
+    if (minutes < 10)
+    {
+        oss << "0";
+    }
+    oss << minutes;
+    string timeoffset = oss.str();
+    reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
+}
+
 void MegaClient::keepmealive(int type, bool enable)
 {
     reqs.add(new CommandKeepMeAlive(this, type, enable));

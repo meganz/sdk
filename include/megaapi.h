@@ -74,6 +74,7 @@ class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
 class MegaFolderInfo;
+class MegaTimeZoneDetails;
 class MegaApi;
 
 class MegaSemaphore;
@@ -2099,6 +2100,7 @@ class MegaRequest
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
+            TYPE_FETCH_TIMEZONE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -2614,6 +2616,21 @@ class MegaRequest
          * @return Details related to the MEGA Achievements of this account
          */
         virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
+
+        /**
+         * @brief Get details about timezones and the current default
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::fetchTimeZone - Details about timezones and the current default
+         *
+         * In any other case, this function returns NULL.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Details about timezones and the current default
+         */
+        virtual MegaTimeZoneDetails *getMegaTimeZoneDetails() const;
 
         /**
          * @brief Returns the tag of a transfer related to the request
@@ -3242,6 +3259,70 @@ public:
      * @return Total size of file versions inside the folder
      */
     virtual long long getVersionsSize() const;
+};
+
+/**
+ * @brief Provides information about timezones
+ *
+ * This object is related to results of the function MegaApi::fetchTimeZone
+ *
+ * Objects of this class aren't live, they are snapshots of the state of the contents of the
+ * folder when the object is created, they are immutable.
+ *
+ */
+class MegaTimeZoneDetails
+{
+public:
+    virtual ~MegaTimeZoneDetails();
+
+    /**
+     * @brief Creates a copy of this MegaTimeZoneDetails object
+     *
+     * The resulting object is fully independent of the source MegaTimeZoneDetails,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTimeZoneDetails object
+     */
+    virtual MegaTimeZoneDetails *copy() const;
+
+    /**
+     * @brief Returns the number of timezones in this object
+     *
+     * @return Number of timezones in this object
+     */
+    virtual int getNumTimeZones() const;
+
+    /**
+     * @brief Returns the timezone at an index
+     *
+     * The MegaTimeZoneDetails object retains the ownership of the returned string.
+     * It will be only valid until the MegaTimeZoneDetails object is deleted.
+     *
+     * @param index Index in the list (it must be lower than MegaTimeZoneDetails::getNumTimeZones)
+     * @return Timezone at an index
+     */
+    virtual const char *getTimeZone(int index) const;
+
+    /**
+     * @brief Returns the current time offset of the time zone at an index, respect to UTC (in seconds, it can be negative)
+     *
+     * @param index Index in the list (it must be lower than MegaTimeZoneDetails::getNumTimeZones)
+     * @return Current time offset of the time zone at an index, respect to UTC (in seconds, it can be negative)
+     * @see MegaTimeZoneDetails::getTimeZone
+     */
+    virtual int getTimeOffset(int index) const;
+
+    /**
+     * @brief Get the default time zone index
+     *
+     * If there isn't any good default known, this function will return -1
+     *
+     * @return Default time zone index, or -1 if there isn't a good default known
+     */
+    virtual int getDefault() const;
 };
 
 /**
@@ -5840,6 +5921,19 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetch details related to time zones and the current default
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_TIMEZONE.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTimeZoneDetails - Returns details about timezones and the current default
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchTimeZone(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a MEGA account
