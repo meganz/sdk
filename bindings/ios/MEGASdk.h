@@ -92,8 +92,9 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
     MEGAUserAttributeLanguage                = 14, // private - char array
     MEGAUserAttributePwdReminder             = 15, // private - char array
-    MEGAUserAttributeContactLinkVerification = 17, // private - byte array
-    MEGAUserAttributeRichPreviews            = 18  // private - byte array
+    MEGAUserAttributeContactLinkVerification = 17, // private - char array
+    MEGAUserAttributeRichPreviews            = 18, // private - byte array
+    MEGAUserAttributeRubbishTime             = 19  // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -521,6 +522,12 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - [MEGARequest number] - Returns the second parameter
  */
 - (void)reconnect;
+
+/**
+ * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
+ * @return YES if this feature is enabled. Otherwise NO.
+ */
+- (BOOL)serverSideRubbishBinAutopurgeEnabled;
 
 #pragma mark - Login Requests
 
@@ -2815,6 +2822,9 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 /**
  * @brief Get an attribute of a MEGAUser.
  *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type
@@ -2837,10 +2847,13 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
-
 
 /**
  * @brief Get an attribute of a MEGAUser.
@@ -2867,6 +2880,11 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -2875,6 +2893,9 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 /**
  * @brief Get an attribute of the current account.
  *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type
@@ -2895,12 +2916,20 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ *
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
 
 /**
  * @brief Get an attribute of the current account.
  *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type
@@ -2921,11 +2950,14 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
-
 
 /**
  * @brief Set an attribute of the current user.
@@ -2943,6 +2975,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
  * Set the lastname of the user
+ * MEGAUserAttributeRubbishTime = 19
+ * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param value New attribute value
  */
@@ -2964,6 +2998,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
  * Set the lastname of the user
+ * MEGAUserAttributeRubbishTime = 19
+ * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param value New attribute value
  * @param delegate MEGARequestDelegate to track this request
