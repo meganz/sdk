@@ -5488,9 +5488,16 @@ void MegaClient::sc_chatupdate()
                 }
                 else
                 {
+                    bool mustHaveUK = false;
+                    privilege_t oldPriv = PRIV_UNKNOWN;
                     if (chats.find(chatid) == chats.end())
                     {
                         chats[chatid] = new TextChat();
+                        mustHaveUK = true;
+                    }
+                    else
+                    {
+                        oldPriv = chats[chatid]->priv;
                     }
 
                     TextChat *chat = chats[chatid];
@@ -5500,15 +5507,6 @@ void MegaClient::sc_chatupdate()
                     chat->priv = PRIV_UNKNOWN;
                     chat->ou = ou;
                     chat->title = title;
-                    chat->setMode(publicchat);
-                    if (!unifiedkey.empty())
-                    {
-                        chat->unifiedKey = unifiedkey;
-                    }
-                    else if (publicchat)
-                    {
-                        LOG_err << "Public chat without unified key detected";
-                    }
                     // chat->flags = ?; --> flags are received in other AP: mcfc
                     if (ts != -1)
                     {
@@ -5525,6 +5523,7 @@ void MegaClient::sc_chatupdate()
                             if (upvit->first == me)
                             {
                                 found = true;
+                                mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
                                 chat->priv = upvit->second;
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
@@ -5544,6 +5543,7 @@ void MegaClient::sc_chatupdate()
                         {
                             if (upvit->first == me)
                             {
+                                mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
                                 chat->priv = upvit->second;
                                 break;
                             }
@@ -5551,6 +5551,16 @@ void MegaClient::sc_chatupdate()
                     }
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
+
+                    chat->setMode(publicchat);
+                    if (!unifiedkey.empty())
+                    {
+                        chat->unifiedKey = unifiedkey;
+                    }
+                    else if (publicchat && mustHaveUK)
+                    {
+                        LOG_err << "Public chat without unified key detected";
+                    }
 
                     chat->setTag(0);    // external change
                     notifychat(chat);
