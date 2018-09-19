@@ -21,6 +21,9 @@
 
 #import "MEGAInputStream.h"
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 MEGAInputStream::MEGAInputStream(ALAssetRepresentation *assetRepresentation) {
     this->assetRepresentation = assetRepresentation;
     this->data = NULL;
@@ -55,7 +58,7 @@ bool MEGAInputStream::read(char *buffer, size_t size) {
     if (assetRepresentation) {
         int numBytesToRead = (int)size;
         while (numBytesToRead > 0) {
-            int n = [assetRepresentation getBytes:(uint8_t *)buffer fromOffset:offset length:numBytesToRead error:nil];
+            int n = (int) [assetRepresentation getBytes:(uint8_t *)buffer fromOffset:offset length:numBytesToRead error:nil];
             if (n == 0) {
                 return false;
             }
@@ -70,3 +73,5 @@ bool MEGAInputStream::read(char *buffer, size_t size) {
     
     return true;
 }
+
+#pragma clang diagnostic pop

@@ -22,6 +22,8 @@
 #include "mega.h"
 
 namespace mega {
+using namespace std;
+
 PosixConsole::PosixConsole()
 {
     // set up the console
@@ -51,7 +53,6 @@ PosixConsole::~PosixConsole()
     if (tcsetattr(STDIN_FILENO, TCSANOW, &term) < 0)
     {
         perror("tcsetattr");
-        throw runtime_error("tcsetattr at dtor");
     }
 }
 

@@ -39,8 +39,9 @@ Win32Thread::Win32Thread()
 
 DWORD WINAPI Win32Thread::run(LPVOID lpParameter)
 {
-	Win32Thread *object = (Win32Thread *)lpParameter;
-	return (DWORD)object->start_routine(object->pointer);
+    Win32Thread *object = (Win32Thread *)lpParameter;
+    object->start_routine(object->pointer);
+    return 0;
 }
 
 void Win32Thread::start(void *(*start_routine)(void*), void *parameter)

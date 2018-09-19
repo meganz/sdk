@@ -129,7 +129,7 @@ void BackoffTimer::update(dstime* waituntil)
     }
 }
 
-TimerWithBackoff::TimerWithBackoff(long long tag)
+TimerWithBackoff::TimerWithBackoff(int tag)
 {
     this->tag = tag;
 }

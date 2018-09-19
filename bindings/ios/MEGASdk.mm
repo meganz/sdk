@@ -341,18 +341,6 @@ using namespace mega;
 
 #pragma mark - Utils
 
-- (NSString *)base64pwkeyForPassword:(NSString *)password {
-    if(password == nil) return nil;
-    
-    const char *val = self.megaApi->getBase64PwKey([password UTF8String]);
-    if (!val) return nil;
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
-}
-
 - (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email {
     if(base64pwkey == nil || email == nil)  return  nil;
     
@@ -400,6 +388,10 @@ using namespace mega;
 }
 
 #pragma mark - Login Requests
+
+- (BOOL)multiFactorAuthAvailable {
+    return self.megaApi->multiFactorAuthAvailable();
+}
 
 - (void)multiFactorAuthCheckWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->multiFactorAuthCheck((email ? email.UTF8String : NULL), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -573,14 +565,6 @@ using namespace mega;
     self.megaApi->resumeCreateAccount((sessionId != nil) ? [sessionId UTF8String] : NULL);
 }
 
-- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name {
-    self.megaApi->fastCreateAccount((email != nil) ? [email UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL);
-}
-
-- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->fastCreateAccount((email != nil) ? [email UTF8String] : NULL, (base64pwkey != nil) ? [base64pwkey UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->sendSignupLink((email != nil) ? [email UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -714,7 +698,7 @@ using namespace mega;
     self.megaApi->contactLinkDelete(INVALID_HANDLE, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)contactLinkDeleteWithHandle:(uint64_t)handle {
+- (void)contactLinkDelete {
     self.megaApi->contactLinkDelete();
 }
 
@@ -993,6 +977,14 @@ using namespace mega;
     self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type {
+    self.megaApi->getUserAttribute((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, type);
+}
+
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAttribute((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (void)getUserAttributeType:(MEGAUserAttribute)type {
     self.megaApi->getUserAttribute(type);
 }
@@ -1097,6 +1089,14 @@ using namespace mega;
 
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout {
     self.megaApi->shouldShowPasswordReminderDialog(atLogout);
+}
+
+- (void)isMasterKeyExportedWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->isMasterKeyExported([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)isMasterKeyExported {
+    self.megaApi->isMasterKeyExported();
 }
 
 - (void)enableRichPreviews:(BOOL)enable delegate:(id<MEGARequestDelegate>)delegate {
@@ -1534,6 +1534,9 @@ using namespace mega;
     return ret;
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 - (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime {
     if (assetRepresentation == nil) return nil;
     
@@ -1545,6 +1548,8 @@ using namespace mega;
     delete [] val;
     return ret;
 }
+
+#pragma clang diagnostic pop
 
 - (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime {
     if (data == nil) return nil;

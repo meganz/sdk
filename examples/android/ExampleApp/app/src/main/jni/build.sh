@@ -58,11 +58,11 @@ OPENSSL_PREFIX=${JNI_PATH}/${OPENSSL}/${OPENSSL_SOURCE_FOLDER}
 OPENSSL_SHA1="577585f5f5d299c44dd3c993d3c0ac7a219e4949"
 
 SODIUM=sodium
-SODIUM_VERSION=1.0.13
+SODIUM_VERSION=1.0.16
 SODIUM_SOURCE_FILE=libsodium-${SODIUM_VERSION}.tar.gz
 SODIUM_SOURCE_FOLDER=libsodium-${SODIUM_VERSION}
 SODIUM_DOWNLOAD_URL=https://download.libsodium.org/libsodium/releases/${SODIUM_SOURCE_FILE}
-SODIUM_SHA1="ba6062fa723e653c6d85a80c3616128e797482ec"
+SODIUM_SHA1="c7ea321d7b8534e51c5e3d86055f6c1aa1e48ee9"
 
 LIBUV=libuv
 LIBUV_VERSION=1.8.0
@@ -250,6 +250,7 @@ if [ ! -f ${SODIUM}/${SODIUM_SOURCE_FILE}.ready ]; then
     pushd ${SODIUM}/${SODIUM} &>> ${LOG_FILE}
     export ANDROID_NDK_HOME=${NDK_ROOT}
     ./autogen.sh &>> ${LOG_FILE}
+    echo "#include <limits.h>" >>  src/libsodium/include/sodium/export.h
     sed -i 's/enable-minimal/enable-minimal --disable-pie/g' dist-build/android-build.sh
     echo "* Prebuilding libsodium for ARMv7"
     dist-build/android-armv7-a.sh &>> ${LOG_FILE}

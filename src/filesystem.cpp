@@ -25,6 +25,17 @@
 #include "mega/mega_utf8proc.h"
 
 namespace mega {
+FileSystemAccess::FileSystemAccess()
+    : waiter(NULL)
+    , skip_errorreport(false)
+    , transient_error(false)
+    , notifyerr(false)
+    , notifyfailed(false)
+    , target_exists(false)
+    , client(NULL)
+{
+}
+
 void FileSystemAccess::captimestamp(m_time_t* t)
 {
     // FIXME: remove upper bound before the year 2100 and upgrade server-side timestamps to BIGINT

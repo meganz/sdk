@@ -274,13 +274,13 @@ fi
 # MEGA API
 AC_ARG_ENABLE(megaapi,
     AS_HELP_STRING([--disable-megaapi], [disable MEGA API support]),
-    [enable_megaapi=no],
+    [enable_megaapi=${enableval}],
     [enable_megaapi=yes])
-if test x$enable_megaapi = xyes; then
+if test "x$enable_megaapi" != "xno"; then
+    [enable_megaapi=yes]
     AC_DEFINE(USE_MEGAAPI, 1, [Defined if MEGA API enabled])
 fi
-AM_CONDITIONAL([BUILD_MEGAAPI], [test "$enable_megaapi" = "yes"])
-
+AM_CONDITIONAL([BUILD_MEGAAPI], [test "x$enable_megaapi" = "xyes"])
 
 # Java
 AC_MSG_CHECKING([if building Java bindings])
@@ -587,6 +587,87 @@ if test "x$pcre" = "xtrue" ; then
 fi
 AM_CONDITIONAL([USE_PCRE], [test "x$pcre" = "xtrue"])
 
+#
+# LIBRAW
+#
+
+#libraw
+SAVE_LIBS="$LIBS"
+LIBS="$LIBS -fopenmp"
+AC_MSG_CHECKING(for libraw)
+libraw=undef
+AC_ARG_WITH(libraw,
+  AS_HELP_STRING(--with-libraw=PATH, base of libraw installation),
+  [
+   case $with_libraw in
+   no)
+    libraw=false
+     ;;
+   yes)
+    AC_CHECK_HEADERS([libraw/libraw.h],, [
+        AC_MSG_ERROR([libraw/libraw.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(raw, [libraw_init], [LIBRAW_LIBS="$LIBRAW_LIBS -lraw -fopenmp"],[
+            AC_MSG_ERROR([Could not find libraw])
+    ])
+    libraw=true
+     ;;
+   *)
+
+    # determine if library is installed
+    if test -d "$with_libraw/lib"; then
+        LDFLAGS="-L$with_libraw/lib $LDFLAGS"
+        CXXFLAGS="-I$with_libraw/include $CXXFLAGS"
+        CPPFLAGS="-I$with_libraw/include $CPPFLAGS"
+
+        AC_CHECK_HEADERS(libraw/libraw.h,
+         LIBRAW_CXXFLAGS="-I$with_libraw/include"
+         LIBRAW_CPPFLAGS="-I$with_libraw/include"
+         LIBRAW_LDFLAGS="-L$with_libraw/lib",
+         AC_MSG_ERROR([libraw/libraw.h header not found or not usable])
+         )
+    fi
+
+    AC_CHECK_LIB(raw, [libraw_init], [LIBRAW_LIBS="$LIBRAW_LIBS -lraw -fopenmp"],[
+            AC_MSG_ERROR([Could not find libraw])
+    ])
+
+    libraw=true
+
+    #restore
+    LDFLAGS=$SAVE_LDFLAGS
+    CXXFLAGS=$SAVE_CXXFLAGS
+    CPPFLAGS=$SAVE_CPPFLAGS
+    ;;
+   esac
+  ],
+)
+AC_SUBST(LIBRAW_CXXFLAGS)
+AC_SUBST(LIBRAW_CPPFLAGS)
+AC_SUBST(LIBRAW_LDFLAGS)
+AC_SUBST(LIBRAW_LIBS)
+
+if test "x$libraw" = "xundef" ; then
+    AC_CHECK_HEADERS([libraw/libraw.h],
+    [
+        AC_CHECK_LIB(raw, [libraw_init],
+        [
+        libraw=true
+        LIBRAW_LIBS="$LIBRAW_LIBS -lraw -fopenmp"
+        ],[
+                AC_MSG_NOTICE([Could not find libraw])
+        ])
+    ]
+    , [
+        AC_MSG_NOTICE([libraw/libraw.h header not found or not usable])
+    ])
+fi
+
+if test "x$libraw" = "xtrue" ; then
+    AC_DEFINE(HAVE_LIBRAW, [1], [Define to use libraw])
+fi
+AM_CONDITIONAL([USE_LIBRAW], [test "x$libraw" = "xtrue"])
+LIBS="$SAVE_LIBS"
 
 #
 # LIBUV
@@ -647,7 +728,12 @@ AC_ARG_WITH(libuv,
     fi
 
     AC_CHECK_LIB(uv, [uv_run], [LIBUV_LIBS="-luv"],[
+        SAVE_LIBS="$LIBS"
+        LIBS="$LIBS -pthread"
+        AC_CHECK_LIB(uv, [uv_close], [LIBUV_LIBS="-luv -pthread"],[ #different symbol to avoid cached value
             AC_MSG_ERROR([Could not find libuv])
+            ])
+        LIBS="$SAVE_LIBS"
     ])
 
     libuv=true
@@ -668,8 +754,19 @@ AC_ARG_WITH(libuv,
           LIBUV_LIBS="-luv"
           libuv=true
           ],[
-            AC_MSG_RESULT([Could not find libuv])
-            libuv=false
+            if test "x$libuv" != "xtrue"; then
+                SAVE_LIBS="$LIBS"
+                LIBS="$LIBS -pthread"
+                AC_CHECK_LIB(uv, [uv_close], [ #different symbol to avoid cached value
+                LIBUV_LIBS="-luv -pthread"
+                libuv=true
+                ],
+                [
+                AC_MSG_RESULT([Could not find libuv])
+                libuv=false
+                ])
+                LIBS="$SAVE_LIBS"
+            fi
            ]
         )
       ,)
@@ -1016,7 +1113,12 @@ AC_ARG_WITH(libzen,
         AC_MSG_ERROR([ZenLib/Ztring.h header not found or not usable])
     ])
     AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [LIBZEN_LIBS="-lzen"],[
+        SAVE_LIBS="$LIBS"
+        LIBS="$LIBS -pthread"
+        AC_CHECK_LIB(zen, [_ZN6ZenLib19int48s2LittleEndianEPcx], [LIBZEN_LIBS="-lzen -pthread"],[ #different symbol to avoid cached value
             AC_MSG_ERROR([Could not find libzen])
+            ])
+        LIBS="$SAVE_LIBS"
     ])
     libzen=true
      ;;
@@ -1049,7 +1151,12 @@ AC_ARG_WITH(libzen,
     fi
 
     AC_CHECK_LIB(zen, [_ZN6ZenLib15int8u2BigEndianEPch], [LIBZEN_LIBS="-lzen"],[
+        SAVE_LIBS="$LIBS"
+        LIBS="$LIBS -pthread"
+        AC_CHECK_LIB(zen, [_ZN6ZenLib19int48s2LittleEndianEPcx], [LIBZEN_LIBS="-lzen -pthread"],[
             AC_MSG_ERROR([Could not find libzen])
+            ])
+        LIBS="$SAVE_LIBS"
     ])
 
     libzen=true
@@ -1067,6 +1174,16 @@ AC_ARG_WITH(libzen,
         LIBZEN_LIBS="-lzen"
         libzen=true
         ],)
+
+	if test "x$libzen" != "xtrue"; then
+	SAVE_LIBS="$LIBS"
+	LIBS="$LIBS -pthread"
+	AC_CHECK_LIB(zen, [_ZN6ZenLib19int48s2LittleEndianEPcx], [
+	LIBZEN_LIBS="-lzen -pthread"
+	libzen=true
+	],)
+	LIBS="$SAVE_LIBS"
+	fi
     ,)
     
   ]
@@ -1092,7 +1209,6 @@ if test "x$libzen" = "xtrue" && test "$pthread_available" = "yes"; then
         ])
 
         LIBS="$LIBS $LIBZEN_LIBS $ZLIB_LIBS -pthread"
-        AC_MSG_RESULT(["AQUIITO LDFLAGS=$LDFLAGS CXXFLAGS=$CXXFLAGS CPPFLAGS=$CPPFLAGS LIBS=$LIBS" ]) #TODO: delete
 
         AC_CHECK_LIB(mediainfo, [MediaInfo_Info_Version], [LIBMEDIAINFO_LIBS="-lmediainfo $LIBZEN_LIBS"],[
                 AC_MSG_ERROR([Could not find libmediainfo])
@@ -2008,6 +2124,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   Termcap:          $TERMCAP_CXXFLAGS $TERMCAP_LDFLAGS $TERMCAP_LIBS
   PCRE:             $PCRE_CXXFLAGS $PCRE_LDFLAGS $PCRE_LIBS
   LIBUV:            $LIBUV_CXXFLAGS $LIBUV_LDFLAGS $LIBUV_LIBS
+  LIBRAW:           $LIBRAW_CXXFLAGS $LIBRAW_LDFLAGS $LIBRAW_LIBS
   LIBMEDIAINFO:     $LIBMEDIAINFO_CXXFLAGS $LIBMEDIAINFO_LDFLAGS $LIBMEDIAINFO_LIBS
   FFMPEG:           $FFMPEG_CXXFLAGS $FFMPEG_LDFLAGS $FFMPEG_LIBS
 ])

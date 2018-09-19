@@ -128,7 +128,7 @@ void HttpReqCommandPutFA::procresult()
                         Node::copystring(&posturl, p);
                         progressreported = 0;
                         HttpReq::type = REQ_BINARY;
-                        post(client, data->data(), data->size());
+                        post(client, data->data(), unsigned(data->size()));
                     }
                     return;
 
@@ -359,13 +359,13 @@ void CommandPutFile::procresult()
         switch (client->json.getnameid())
         {
             case 'p':
-                client->json.storeobject(canceled ? NULL : &tslot->tempurl);
+                client->json.storeobject(canceled ? NULL : &tslot->transfer->tempurl);
                 break;
 
             case EOO:
                 if (canceled) return;
 
-                if (tslot->tempurl.size())
+                if (tslot->transfer->tempurl.size())
                 {
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
                     return tslot->progress();
@@ -567,7 +567,7 @@ void CommandGetFile::procresult()
         switch (client->json.getnameid())
         {
             case 'g':
-                client->json.storeobject(tslot ? &tslot->tempurl : NULL);
+                client->json.storeobject(tslot ? &tslot->transfer->tempurl : NULL);
                 e = API_OK;
                 break;
 
@@ -643,7 +643,7 @@ void CommandGetFile::procresult()
                     key.setkey(filekey, FILENODE);
 
                     if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
-                                                 at, eos ? eos - at : strlen(at))))
+                                                 at, int(eos ? eos - at : strlen(at)))))
                     {
                         JSON json;
 
@@ -712,7 +712,7 @@ void CommandGetFile::procresult()
 
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
-                                        if (tslot->tempurl.size() && s >= 0)
+                                        if (tslot->transfer->tempurl.size() && s >= 0)
                                         {
                                             return tslot->progress();
                                         }
@@ -790,10 +790,10 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     string at;
 
     n->attrs.getjson(&at);
-    client->makeattr(cipher, &at, at.c_str(), at.size());
+    client->makeattr(cipher, &at, at.c_str(), int(at.size()));
 
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
-    arg("at", (byte*)at.c_str(), at.size());
+    arg("at", (byte*)at.c_str(), int(at.size()));
 
     h = n->nodehandle;
     tag = client->reqtag;
@@ -917,16 +917,16 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
         }
 
         arg("t", nn[i].type);
-        arg("a", (byte*)nn[i].attrstring->data(), nn[i].attrstring->size());
+        arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
 
         if (nn[i].nodekey.size() <= sizeof key)
         {
-            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
-            arg("k", key, nn[i].nodekey.size());
+            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, unsigned(nn[i].nodekey.size()));
+            arg("k", key, int(nn[i].nodekey.size()));
         }
         else
         {
-            arg("k", (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size());
+            arg("k", (const byte*)nn[i].nodekey.data(), int(nn[i].nodekey.size()));
         }
 
         endobject();
@@ -1169,27 +1169,27 @@ void CommandMoveNode::procresult()
                         do {
                             if (n == syncn)
                             {
-                                if(syncop)
+                                if (syncop)
                                 {
                                     Sync* sync = NULL;
-                                    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
                                     {
-                                        if((*it)->tag == tag)
+                                        if ((*its)->tag == tag)
                                         {
-                                            sync = (*it);
+                                            sync = (*its);
                                             break;
                                         }
                                     }
 
-                                    if(sync)
+                                    if (sync)
                                     {
-                                        if (n->type == FOLDERNODE)
+                                        if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
                                         }
                                     }
                                 }
@@ -1421,6 +1421,7 @@ void CommandLogout::procresult()
 {
     error e = (error)client->json.getint();
     MegaApp *app = client->app;
+    client->loggingout--;
     if(!e)
     {
         client->removecaches();
@@ -1429,8 +1430,65 @@ void CommandLogout::procresult()
     app->logout_result(e);
 }
 
+CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
+{
+    cmd("us0");
+    arg("user", email);
+
+    this->email = email;
+    tag = client->reqtag;
+}
+
+void CommandPrelogin::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->prelogin_result(0, NULL, NULL, (error)client->json.getint());
+    }
+
+    int v = 0;
+    string salt;
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'v':
+                v = int(client->json.getint());
+                break;
+            case 's':
+                client->json.storeobject(&salt);
+                break;
+            case EOO:
+                if (v == 0)
+                {
+                    LOG_err << "No version returned";
+                    return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                }
+                else if (v > 2)
+                {
+                    LOG_err << "Version of account not supported";
+                    return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                }
+                else if (v == 2 && !salt.size())
+                {
+                    LOG_err << "No salt returned";
+                    return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                }
+                client->accountversion = v;
+                Base64::atob(salt, client->accountsalt);
+                client->app->prelogin_result(v, &email, &salt, API_OK);
+                return;
+            default:
+                if (!client->json.storeobject())
+                {
+                    return client->app->prelogin_result(0, NULL, NULL, API_EINTERNAL);
+                }
+        }
+    }
+}
+
 // login request with user e-mail address and user hash
-CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t emailhash, const byte *sessionkey, int csessionversion, const char *pin)
+CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion, const char *pin)
 {
     cmd("us");
 
@@ -1441,7 +1499,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
     if (!checksession)
     {
         arg("user", email);
-        arg("uh", (byte*)&emailhash, sizeof emailhash);
+        arg("uh", emailhash, emailhashsize);
         if (pin)
         {
             arg("mfa", pin);
@@ -1472,7 +1530,7 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
         client->fsaccess->statsid(&id);
         if (id.size())
         {
-            int len = id.size() + 1;
+            size_t len = id.size() + 1;
             char *buff = new char[len];
             memcpy(buff, id.c_str(), len);
             MegaClient::statsid = buff;
@@ -1487,9 +1545,9 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, uint64_t email
     {
         string hash;
         HashSHA256 hasher;
-        hasher.add((const byte*)id.data(), id.size());
+        hasher.add((const byte*)id.data(), unsigned(id.size()));
         hasher.get(&hash);
-        arg("si", (const byte*)hash.data(), hash.size());
+        arg("si", (const byte*)hash.data(), int(hash.size()));
     }
 
     tag = client->reqtag;
@@ -1626,16 +1684,27 @@ void CommandLogin::procresult()
                     // account has RSA keypair: decrypt server-provided session ID
                     if (len_privk < 256)
                     {
-                        return client->app->login_result(API_EINTERNAL);
+                        if (!checksession)
+                        {
+                            return client->app->login_result(API_EINTERNAL);
+                        }
+                        else
+                        {
+                            // logging in with tsid to an account without a RSA keypair
+                            LOG_info << "Generating and adding missing RSA keypair";
+                            client->setkeypair();
+                        }
                     }
-
-                    // decrypt and set private key
-                    client->key.ecb_decrypt(privkbuf, len_privk);
-
-                    if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+                    else
                     {
-                        LOG_warn << "Error checking private key";
-                        return client->app->login_result(API_ENOENT);
+                        // decrypt and set private key
+                        client->key.ecb_decrypt(privkbuf, len_privk);
+
+                        if (!client->asymkey.setkey(AsymmCipher::PRIVKEY, privkbuf, len_privk))
+                        {
+                            LOG_warn << "Error checking private key";
+                            return client->app->login_result(API_ENOENT);
+                        }
                     }
 
                     if (!checksession)
@@ -1694,7 +1763,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
     cmd("k");
     beginarray("sr");
 
-    for (int i = v->size(); i--;)
+    for (size_t i = v->size(); i--;)
     {
         handle h = (*v)[i];
 
@@ -2368,7 +2437,7 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
 
         beginarray(User::attr2string(type).c_str());
 
-        element((const byte *) it->second.data(), it->second.size());
+        element((const byte *) it->second.data(), int(it->second.size()));
 
         const string *attrv = client->ownuser()->getattrversion(type);
         if (attrv)
@@ -2713,7 +2782,7 @@ void CommandGetUA::procresult()
 
                     // convert from ASCII to binary the received data
                     value.resize(buf.size() / 4 * 3 + 3);
-                    value.resize(Base64::atob(buf.data(), (byte *)value.data(), value.size()));
+                    value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
 
                     // Some attributes don't keep historic records, ie. *!authring or *!lstint
                     // (none of those attributes are used by the SDK yet)
@@ -2724,7 +2793,7 @@ void CommandGetUA::procresult()
 
                     if (!u) // retrieval of attributes without contact-relationship
                     {
-                        client->app->getua_result((byte*) value.data(), value.size());
+                        client->app->getua_result((byte*) value.data(), unsigned(value.size()));
                         return;
                     }
 
@@ -2753,7 +2822,7 @@ void CommandGetUA::procresult()
                         case '+':   // public
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), value.size());
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
 #ifdef  ENABLE_CHAT
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
@@ -2765,14 +2834,14 @@ void CommandGetUA::procresult()
                         case '#':   // protected
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), value.size());
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
                             break;
 
                         case '^': // private, non-encrypted
 
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), value.size());
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
 
                             if (at == ATTR_DISABLE_VERSIONS)
                             {
@@ -2802,7 +2871,7 @@ void CommandGetUA::procresult()
                             }
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), value.size());
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
                             break;
                     }
 
@@ -2905,7 +2974,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
     cmd("k");
     beginarray("nk");
 
-    for (int i = v->size(); i--;)
+    for (size_t i = v->size(); i--;)
     {
         handle h = (*v)[i];
 
@@ -2913,10 +2982,10 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 
         if ((n = client->nodebyhandle(h)))
         {
-            client->key.ecb_encrypt((byte*)n->nodekey.data(), nodekey, n->nodekey.size());
+            client->key.ecb_encrypt((byte*)n->nodekey.data(), nodekey, unsigned(n->nodekey.size()));
 
             element(h, MegaClient::NODEHANDLE);
-            element(nodekey, n->nodekey.size());
+            element(nodekey, int(n->nodekey.size()));
         }
     }
 
@@ -3093,9 +3162,16 @@ void CommandGetUserData::procresult()
     string name;
     string pubk;
     string privk;
+    string k;
     handle jid = UNDEF;
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     int len_privk = 0;
+    m_time_t since = 0;
+    int v = 0;
+    string salt;
+    bool gmfa = false;
+    bool ssrs = false;
+    bool nsre = false;
 
     if (client->json.isnumeric())
     {
@@ -3106,6 +3182,14 @@ void CommandGetUserData::procresult()
     {
         switch (client->json.getnameid())
         {
+        case MAKENAMEID3('a', 'a', 'v'):    // account authentication version
+            v = (int)client->json.getint();
+            break;
+
+        case MAKENAMEID3('a', 'a', 's'):    // account authentication salt
+            client->json.storeobject(&salt);
+            break;
+
         case MAKENAMEID4('n', 'a', 'm', 'e'):
             client->json.storeobject(&name);
             break;
@@ -3115,12 +3199,12 @@ void CommandGetUserData::procresult()
             break;
 
         case 'k':
-            client->k.resize(SymmCipher::KEYLENGTH);
-            client->json.storebinary((byte *)client->k.data(), client->k.size());
+            k.resize(SymmCipher::KEYLENGTH);
+            client->json.storebinary((byte *)k.data(), int(k.size()));
             break;
 
         case MAKENAMEID5('s', 'i', 'n', 'c', 'e'):
-            client->accountsince = client->json.getint();
+            since = client->json.getint();
             break;
 
         case MAKENAMEID4('p', 'u', 'b', 'k'):
@@ -3129,9 +3213,6 @@ void CommandGetUserData::procresult()
 
         case MAKENAMEID5('p', 'r', 'i', 'v', 'k'):
             len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
-            client->key.ecb_decrypt(privkbuf, len_privk);
-            privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
-            privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
             break;
 
         case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
@@ -3142,11 +3223,14 @@ void CommandGetUserData::procresult()
                 {
                     switch (client->json.getnameid())
                     {
-                    case MAKENAMEID4('m', 'f', 'a', 'e'):
-                        client->gmfa_enabled = bool(client->json.getint());
+                    case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
+                        gmfa = bool(client->json.getint());
                         break;
-                    case MAKENAMEID4('s', 's', 'r', 's'):
-                        client->ssrs_enabled = bool(client->json.getint());
+                    case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
+                        ssrs = bool(client->json.getint());
+                        break;
+                    case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
+                        nsre = bool(client->json.getint());
                         break;
                     case EOO:
                         endobject = true;
@@ -3162,7 +3246,29 @@ void CommandGetUserData::procresult()
             }
             break;
 
-        case EOO:
+        case EOO:            
+            if (v)
+            {
+                client->accountversion = v;
+            }
+
+            if (salt.size())
+            {
+                Base64::atob(salt, client->accountsalt);
+            }
+
+            client->accountsince = since;
+            client->gmfa_enabled = gmfa;
+            client->ssrs_enabled = ssrs;
+            client->nsr_enabled = nsre;
+            client->k = k;
+            if (len_privk)
+            {
+                client->key.ecb_decrypt(privkbuf, len_privk);
+                privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
+            }
+
             client->app->userdata_result(&name, &pubk, &privk, jid, API_OK);
             return;
 
@@ -3412,7 +3518,7 @@ void CommandGetUserQuota::procresult()
                     {
                         if ((amount = client->json.getvalue()) && (cur = client->json.getvalue()))
                         {
-                            int t = details->balances.size();
+                            size_t t = details->balances.size();
                             details->balances.resize(t + 1);
                             details->balances[t].amount = atof(amount);
                             memcpy(details->balances[t].currency, cur, 3);
@@ -3484,7 +3590,7 @@ void CommandGetUserTransactions::procresult()
 
         if (handle && (ts > 0) && delta && cur)
         {
-            int t = details->transactions.size();
+            size_t t = details->transactions.size();
             details->transactions.resize(t + 1);
             memcpy(details->transactions[t].handle, handle, 11);
             details->transactions[t].handle[11] = 0;
@@ -3524,7 +3630,7 @@ void CommandGetUserPurchases::procresult()
 
         if (handle && (ts > 0) && amount && cur && (method >= 0))
         {
-            int t = details->purchases.size();
+            size_t t = details->purchases.size();
             details->purchases.resize(t + 1);
             memcpy(details->purchases[t].handle, handle, 11);
             details->purchases[t].handle[11] = 0;
@@ -3556,7 +3662,7 @@ void CommandGetUserSessions::procresult()
 
     while (client->json.enterarray())
     {
-        int t = details->sessions.size();
+        size_t t = details->sessions.size();
         details->sessions.resize(t + 1);
 
         details->sessions[t].timestamp = client->json.getint();
@@ -3669,7 +3775,7 @@ void CommandGetPH::procresult()
                 // we want at least the attributes
                 if (s >= 0)
                 {
-                    a.resize(Base64::atob(a.c_str(), (byte*)a.data(), a.size()));
+                    a.resize(Base64::atob(a.c_str(), (byte*)a.data(), int(a.size())));
                     if (havekey)
                     {
                         client->app->openfilelink_result(ph, key, s, &a, &fa, op);
@@ -3694,16 +3800,25 @@ void CommandGetPH::procresult()
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, uint64_t hash, const char *pin)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientrandomvalue, const char *pin, string *salt)
 {
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
     cmd("up");
     arg("k", newkey, SymmCipher::KEYLENGTH);
-    arg("uh", (byte*)&hash, sizeof hash);
+    if (clientrandomvalue)
+    {
+        arg("crv", clientrandomvalue, SymmCipher::KEYLENGTH);
+    }
+    arg("uh", hash, hashsize);
     if (pin)
     {
         arg("mfa", pin);
+    }
+
+    if (salt)
+    {
+        this->salt = *salt;
     }
 
     tag = client->reqtag;
@@ -3717,8 +3832,9 @@ void CommandSetMasterKey::procresult()
     }
     else
     {
-        // update encrypted MK for further checkups
+        // update encrypted MK and salt for further checkups
         client->k.assign((const char *) newkey, SymmCipher::KEYLENGTH);
+        client->accountsalt = salt;
 
         client->json.storeobject();
         client->app->changepw_result(API_OK);
@@ -3841,13 +3957,47 @@ CommandSendSignupLink::CommandSendSignupLink(MegaClient* client, const char* ema
 {
     cmd("uc");
     arg("c", c, 2 * SymmCipher::KEYLENGTH);
-    arg("n", (byte*)name, strlen(name));
-    arg("m", (byte*)email, strlen(email));
+    arg("n", (byte*)name, int(strlen(name)));
+    arg("m", (byte*)email, int(strlen(email)));
 
     tag = client->reqtag;
 }
 
 void CommandSendSignupLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->sendsignuplink_result((error)client->json.getint());
+    }
+
+    client->json.storeobject();
+
+    client->app->sendsignuplink_result(API_EINTERNAL);
+}
+
+CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name)
+{
+    cmd("uc2");
+    arg("n", (byte*)name, int(strlen(name)));
+    arg("m", (byte*)email, int(strlen(email)));
+    arg("v", 2);
+    tag = client->reqtag;
+}
+
+CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name, byte *clientrandomvalue, byte *encmasterkey, byte *hashedauthkey)
+{
+    cmd("uc2");
+    arg("n", (byte*)name, int(strlen(name)));
+    arg("m", (byte*)email, int(strlen(email)));
+    arg("crv", clientrandomvalue, SymmCipher::KEYLENGTH);
+    arg("hak", hashedauthkey, SymmCipher::KEYLENGTH);
+    arg("k", encmasterkey, SymmCipher::KEYLENGTH);
+    arg("v", 2);
+
+    tag = client->reqtag;
+}
+
+void CommandSendSignupLink2::procresult()
 {
     if (client->json.isnumeric())
     {
@@ -3904,6 +4054,45 @@ void CommandQuerySignupLink::procresult()
     }
 
     client->app->querysignuplink_result(API_EINTERNAL);
+}
+
+CommandConfirmSignupLink2::CommandConfirmSignupLink2(MegaClient* client,
+                                                   const byte* code,
+                                                   unsigned len)
+{
+    cmd("ud2");
+    arg("c", code, len);
+
+    tag = client->reqtag;
+}
+
+void CommandConfirmSignupLink2::procresult()
+{
+    string name;
+    string email;
+    handle uh;
+    int version = 0;
+
+    if (client->json.isnumeric())
+    {
+        client->app->confirmsignuplink2_result(UNDEF, NULL, NULL, (error)client->json.getint());
+    }
+
+    if (client->json.storebinary(&email) && client->json.storebinary(&name))
+    {
+        uh = client->json.gethandle(MegaClient::USERHANDLE);
+        version = int(client->json.getint());
+    }
+    while (client->json.storeobject());
+
+    if (!ISUNDEF(uh) && version == 2)
+    {
+        client->app->confirmsignuplink2_result(uh, name.c_str(), email.c_str(), API_OK);
+    }
+    else
+    {
+        client->app->confirmsignuplink2_result(UNDEF, NULL, NULL, API_EINTERNAL);
+    }
 }
 
 CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
@@ -4518,7 +4707,7 @@ void CommandGetPrivateKey::procresult()
     }
 }
 
-CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, uint64_t newLoginHash, const byte *encMasterKey, const byte *initialSession)
+CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientrandomvalue, const byte *encMasterKey, const byte *initialSession)
 {
     cmd("erx");
 
@@ -4530,7 +4719,17 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
     arg("c", code);
 
     arg("x", encMasterKey, SymmCipher::KEYLENGTH);
-    arg("y", (byte*)&newLoginHash, sizeof newLoginHash);
+    if (!clientrandomvalue)
+    {
+        arg("y", hash, hashsize);
+    }
+    else
+    {
+        beginobject("y");
+        arg("crv", clientrandomvalue, SymmCipher::KEYLENGTH);
+        arg("hak", hash, hashsize); //hashed authentication key
+        endobject();
+    }
 
     if (initialSession)
     {
@@ -4639,7 +4838,7 @@ void CommandGetEmailLink::procresult()
     }
 }
 
-CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, uint64_t newLoginHash, bool replace)
+CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
 {
     this->email = email;
     this->replace = replace;
@@ -4648,7 +4847,10 @@ CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char 
 
     arg("c", code);
     arg("e", email);
-    arg("uh", (byte*)&newLoginHash, sizeof newLoginHash);
+    if (newLoginHash)
+    {
+        arg("uh", newLoginHash, sizeof(uint64_t));
+    }
     if (replace)
     {
         arg("r", 1);    // replace the current email address by this one

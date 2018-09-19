@@ -92,6 +92,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
     MEGAUserAttributeLanguage                = 14, // private - char array
     MEGAUserAttributePwdReminder             = 15, // private - char array
+    MEGAUserAttributeDisableVersions         = 16, // private - byte array
     MEGAUserAttributeContactLinkVerification = 17, // private - byte array
     MEGAUserAttributeRichPreviews            = 18  // private - byte array
 };
@@ -449,19 +450,6 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 #pragma mark - Utils
 
 /**
- * @brief Generates a private key based on the access password.
- *
- * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
- * required to log in, this function allows to do this step in a separate function. You should run this function
- * in a background thread, to prevent UI hangs. The resulting key can be used in 
- * [MEGASdk fastLoginWithEmail:stringHash:base64pwKey:].
- *
- * @param password Access password.
- * @return Base64-encoded private key
- */
-- (NSString *)base64pwkeyForPassword:(NSString *)password;
-
-/**
  * @brief Generates a hash based in the provided private key and email.
  *
  * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
@@ -469,11 +457,13 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * in a background thread, to prevent UI hangs. The resulting key can be used in 
  * [MEGASdk fastLoginWithEmail:stringHash:base64pwKey:].
  *
- * @param base64pwkey Private key returned by [MEGASdk base64PwKeybase64pwkeyForPassword:]
+ * @param base64pwkey Private key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
  * @param email Email to create the hash
  * @return Base64-encoded hash
+ * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
+ * this function will return an empty string for new accounts and will be removed few time after.
  */
-- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email;
+- (NSString *)hashForBase64pwkey:(NSString *)base64pwkey email:(NSString *)email __attribute__((deprecated("This function will return an empty string for new accounts and will be removed few time after")));
 
 /**
  * @brief Converts a Base64-encoded node handle to a MegaHandle.
@@ -534,6 +524,16 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (void)reconnect;
 
 #pragma mark - Login Requests
+
+/**
+ * @brief Check if multi-factor authentication can be enabled for the current account.
+ *
+ * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
+ * using this function. Otherwise it will always return false.
+ *
+ * @return YES if multi-factor authentication can be enabled for the current account, otherwise false.
+ */
+- (BOOL)multiFactorAuthAvailable;
 
 /**
  * @brief Check if multi-factor authentication is enabled for an account
@@ -1156,45 +1156,6 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
 
 /**
- * @brief Initialize the creation of a new MEGA account with precomputed keys
- *
- * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyForPassword:]
- * - [MEGARequest name] - Returns the name of the user
- *
- * If this request succeed, a confirmation email will be sent to the users.
- * If an account with the same email already exists, you will get the error code
- * MEGAErrorTypeApiEExist in onRequestFinish
- *
- * @param email Email for the account.
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:].
- * @param name Name of the user.
- * @param delegate Delegate to track this request.
- */
-- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Initialize the creation of a new MEGA account with precomputed keys.
- *
- * The associated request type with this request is MEGARequestTypeCreateAccount.
- * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest email] - Returns the email for the account
- * - [MEGARequest privateKey] - Returns the private key calculated with [MEGASdk base64pwkeyForPassword:]
- * - [MEGARequest name] - Returns the name of the user
- *
- * If this request succeed, a confirmation email will be sent to the users.
- * If an account with the same email already exists, you will get the error code
- * MEGAErrorTypeApiEExist in onRequestFinish.
- *
- * @param email Email for the account.
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:].
- * @param name Name of the user.
- */
-- (void)fastCreateAccountWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
-
-/**
  * @brief Sends the confirmation email for a new account
  *
  * This function is useful to send the confirmation link again or to send it to a different
@@ -1227,7 +1188,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param email Email for the account
  * @param name Firstname of the user
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:]
+ * @param base64pwkeyPrivate key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
@@ -1240,7 +1201,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param email Email for the account
  * @param name Firstname of the user
- * @param base64pwkey Private key calculated with [MEGASdk base64pwkeyForPassword:]
+ * @param base64pwkeyPrivate key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
  */
 - (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
 
@@ -1330,8 +1291,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param link Confirmation link.
  * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyForPassword:].
  * @param delegate Delegate to track this request.
+ * @deprecated This function only works using the old registration method and will be removed soon.
+ * Please use [MEGASdk confirmAccountWithLink:password:delegate] instead.
  */
-- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegate;
+- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function only works using the old registration method and will be removed soon.")));
 
 /**
  * @brief Confirm a MEGA account using a confirmation link and a precomputed key.
@@ -1348,8 +1311,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param link Confirmation link.
  * @param base64pwkey Private key precomputed with [MEGASdk base64pwkeyForPassword:].
+ * @deprecated This function only works using the old registration method and will be removed soon.
+ * Please use [MEGASdk confirmAccountWithLink:password] instead.
  */
-- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey;
+- (void)fastConfirmAccountWithLink:(NSString *)link base64pwkey:(NSString *)base64pwkey __attribute__((deprecated("This function only works using the old registration method and will be removed soon.")));
 
 /**
  * @brief Initialize the reset of the existing password, with and without the Master Key.
@@ -1531,6 +1496,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 /**
  * @brief Effectively parks the user's account without creating a new fresh account.
  *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
  * The contents of the account will then be purged after 60 days. Once the account is
  * parked, the user needs to contact MEGA support to restore the account.
  *
@@ -1551,6 +1518,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 
 /**
  * @brief Effectively parks the user's account without creating a new fresh account.
+ *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
  *
  * The contents of the account will then be purged after 60 days. Once the account is
  * parked, the user needs to contact MEGA support to restore the account.
@@ -1636,6 +1605,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 /**
  * @brief Effectively changes the email address associated to the account.
  *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
+ *
  * The associated request type with this request is MEGARequestTypeConfirmChangeEmailLink.
  * Valid data in the MEGARequest object received on all callbacks:
  * - [MEGARequest link] - Returns the recovery link
@@ -1653,6 +1624,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 
 /**
  * @brief Effectively changes the email address associated to the account.
+ *
+ * If no user is logged in, you will get the error code MEGAErrorTypeApiEAccess in onRequestFinish.
  *
  * The associated request type with this request is MEGARequestTypeConfirmChangeEmailLink.
  * Valid data in the MEGARequest object received on all callbacks:
@@ -2861,14 +2834,31 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
-
 
 /**
  * @brief Get an attribute of a MEGAUser.
@@ -2891,14 +2881,133 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get an attribute of any user in MEGA.
+ *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value for public attributes
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the attribute.
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user (public)
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ *
+ */
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type;
+
+/**
+ * @brief Get an attribute of any user in MEGA.
+ *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value for public attributes
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the attribute.
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user (public)
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get an attribute of the current account.
@@ -3362,6 +3471,41 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param atLogout YES if the check is being done just before a logout
  */
 - (void)shouldShowPasswordReminderDialogAtLogout:(BOOL)atLogout;
+
+/**
+ * @brief Check if the master key has been exported
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest access] - Returns true if the master key has been exported
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)isMasterKeyExportedWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the master key has been exported
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributePwdReminder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest access] - Returns true if the master key has been exported
+ *
+ * If the corresponding user attribute is not set yet, the request will fail with the
+ * error code MEGAErrorTypeApiENoent.
+ *
+ */
+- (void)isMasterKeyExported;
 
 /**
  * @brief Enable or disable the generation of rich previews
@@ -4808,6 +4952,9 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (NSString *)fingerprintForFilePath:(NSString *)filePath;
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 /**
  * @brief Get a Base64-encoded fingerprint from an ALAssetRepresentation and a modification time
  *
@@ -4818,6 +4965,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @return Base64-encoded fingerprint
  */
 - (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
+
+#pragma clang diagnostic pop
 
 /**
  * @brief Get a Base64-encoded fingerprint from a NSData and a modification time

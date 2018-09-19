@@ -71,6 +71,22 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getDuration() : -1;
 }
 
+- (NSInteger)width {
+    return self.megaNode ? self.megaNode->getWidth() : -1;
+}
+
+- (NSInteger)height {
+    return self.megaNode ? self.megaNode->getHeight(): -1;
+}
+
+- (NSInteger)shortFormat {
+    return self.megaNode ? self.megaNode->getShortformat() : -1;
+}
+
+- (NSInteger)videoCodecId {
+    return self.megaNode ? self.megaNode->getVideocodecid(): -1;
+}
+
 - (NSNumber *)latitude {
     if (!self.megaNode) return nil;
     double latitude = self.megaNode->getLatitude();

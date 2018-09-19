@@ -25,6 +25,10 @@
 class MEGAInputStream : public mega::MegaInputStream {
 
 public:
+    
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    
     MEGAInputStream(ALAssetRepresentation *assetRepresentation);
     MEGAInputStream(NSData *data);
     int64_t getSize();
@@ -32,6 +36,9 @@ public:
     
 private:
     ALAssetRepresentation *assetRepresentation;
+    
+#pragma clang diagnostic pop
+    
     NSData *data;
     long offset;
 };

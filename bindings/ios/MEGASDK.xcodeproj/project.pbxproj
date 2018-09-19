@@ -903,7 +903,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					"3rdparty/include/**",
+					3rdparty/include,
 					../../third_party/utf8proc,
 					3rdparty/webrtc/third_party/boringssl/src/include,
 				);
@@ -930,7 +930,7 @@
 				HEADER_SEARCH_PATHS = (
 					"$(inherited)",
 					/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include,
-					"3rdparty/include/**",
+					3rdparty/include,
 					../../third_party/utf8proc,
 					3rdparty/webrtc/third_party/boringssl/src/include,
 				);

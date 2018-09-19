@@ -51,11 +51,14 @@ typedef int64_t m_off_t;
 // opaque filesystem fingerprint
 typedef uint64_t fsfp_t;
 
+namespace mega {
+// within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
 #if USE_CRYPTOPP && (CRYPTOPP_VERSION >= 600) && (__cplusplus >= 201103L)
-    using byte = CryptoPP::byte;
-#else
-    typedef unsigned char byte;
+using byte = CryptoPP::byte;
+#elif __RPCNDR_H_VERSION__ != 500
+typedef unsigned char byte;
 #endif
+}
 
 #ifdef USE_CRYPTOPP
 #include "mega/crypto/cryptopp.h"
@@ -65,8 +68,24 @@ typedef uint64_t fsfp_t;
 
 #include "mega/crypto/sodium.h"
 
+#include <string>
+
 namespace mega {
-using namespace std;
+
+// import these select types into the namespace directly, to avoid adding std::byte from c++17
+using std::string;
+using std::map;
+using std::set;
+using std::list;
+using std::vector;
+using std::pair;
+using std::multimap;
+using std::deque;
+using std::multiset;
+using std::queue;
+using std::streambuf;
+using std::ostringstream;
+
 
 // forward declaration
 struct AttrMap;

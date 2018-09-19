@@ -34,6 +34,9 @@ struct MEGA_API MegaApp
     // request response progress
     virtual void request_response_progress(m_off_t, m_off_t) { }
 
+    // prelogin result
+    virtual void prelogin_result(int, string*, string*, error) { }
+
     // login result
     virtual void login_result(error) { }
 
@@ -60,6 +63,7 @@ struct MEGA_API MegaApp
                                         const byte*, const byte*, const byte*,
                                         size_t) { }
     virtual void confirmsignuplink_result(error) { }
+    virtual void confirmsignuplink2_result(handle, const char*, const char*, error) { }
     virtual void setkeypair_result(error) { }
 
     // account credentials, properties and history

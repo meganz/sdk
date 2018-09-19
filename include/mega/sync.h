@@ -34,7 +34,11 @@ public:
     MegaClient* client;
 
     // sync-wide directory notification provider
+#if __cplusplus >= 201100L
+    std::unique_ptr<DirNotify> dirnotify;
+#else
     std::auto_ptr<DirNotify> dirnotify;
+#endif
 
     // root of local filesystem tree, holding the sync's root folder
     LocalNode localroot;
@@ -76,7 +80,7 @@ public:
     void deletemissing(LocalNode*);
 
     // scan specific path
-    LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL);
+    LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL, bool wejustcreatedthisfolder = false);
 
     m_off_t localbytes;
     unsigned localnodes[2];

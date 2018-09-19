@@ -159,9 +159,26 @@ namespace mega
         void removeTransferListener(MTransferListenerInterface^ listener);
         void removeGlobalListener(MGlobalListenerInterface^ listener);
 
-        //Utils
-        String^ getBase64PwKey(String^ password);
+        // UTILS
+
+        /**
+        * @brief Generates a hash based in the provided private key and email
+        *
+        * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
+        * required to log in, this function allows to do this step in a separate function. You should run this function
+        * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param base64pwkey Private key returned by MRequest::getPrivateKey in the onRequestFinish callback of createAccount
+        * @param email Email to create the hash
+        * @return Base64-encoded hash
+        *
+        * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
+        * this function will return an empty string for new accounts and will be removed few time after.
+        */
         String^ getStringHash(String^ base64pwkey, String^ inBuf);
+
         void getSessionTransferURL(String^ path, MRequestListenerInterface^ listener);
         static MegaHandle base32ToHandle(String^ base32Handle);
         static uint64 base64ToHandle(String^ base64Handle);
@@ -173,6 +190,16 @@ namespace mega
         void retryPendingConnections();
         void reconnect();
         static void setStatsID(String^ id);
+
+        /**
+        * @brief Check if multi-factor authentication can be enabled for the current account.
+        *
+        * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
+        * using this function. Otherwise it will always return false.
+        *
+        * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
+        */
+        bool multiFactorAuthAvailable();
 
         /**
          * @brief Check if multi-factor authentication is enabled for an account
@@ -450,16 +477,111 @@ namespace mega
          */
         void multiFactorAuthCancelAccount(String^ pin);
 
-        //API requests
+        //API REQUESTS
+
+        /**
+        * @brief Log in to a MEGA account
+        *
+        * The associated request type with this request is MRequest::TYPE_LOGIN.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getEmail - Returns the first parameter
+        * - MRequest::getPassword - Returns the second parameter
+        *
+        * If the email/password aren't valid the error code provided in onRequestFinish is
+        * MError::API_ENOENT.
+        *
+        * @param email Email of the user
+        * @param password Password
+        * @param listener MRequestListener to track this request
+        */
         void login(String^ email, String^ password, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Log in to a MEGA account
+        *
+        * The associated request type with this request is MRequest::TYPE_LOGIN.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getEmail - Returns the first parameter
+        * - MRequest::getPassword - Returns the second parameter
+        *
+        * If the email/password aren't valid the error code provided in onRequestFinish is
+        * MError::API_ENOENT.
+        *
+        * @param email Email of the user
+        * @param password Password
+        */
         void login(String^ email, String^ password);
+
         String^ getSequenceNumber();
         String^ dumpSession();
         String^ dumpXMPPSession();
+
+        /**
+        * @brief Log in to a MEGA account using precomputed keys
+        *
+        * The associated request type with this request is MRequest::TYPE_LOGIN.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getEmail - Returns the first parameter
+        * - MRequest::getPassword - Returns the second parameter
+        * - MRequest::getPrivateKey - Returns the third parameter
+        *
+        * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
+        * MError::API_ENOENT.
+        *
+        * @param email Email of the user
+        * @param stringHash Hash of the email returned by MegaSDK::getStringHash
+        * @param base64pwkey Private key returned by MRequest::getPrivateKey in the onRequestFinish callback of createAccount
+        * @param listener MRequestListener to track this request
+        *
+        * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
+        * one soon. Please use MegaSDK::login (with email and password) or MegaSDK::fastLogin (with session) instead when possible.
+        */
         void fastLogin(String^ email, String^ stringHash, String^ base64pwkey, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Log in to a MEGA account using precomputed keys
+        *
+        * The associated request type with this request is MRequest::TYPE_LOGIN.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getEmail - Returns the first parameter
+        * - MRequest::getPassword - Returns the second parameter
+        * - MRequest::getPrivateKey - Returns the third parameter
+        *
+        * If the email/stringHash/base64pwKey aren't valid the error code provided in onRequestFinish is
+        * MError::API_ENOENT.
+        *
+        * @param email Email of the user
+        * @param stringHash Hash of the email returned by MegaSDK::getStringHash
+        * @param base64pwkey Private key returned by MRequest::getPrivateKey in the onRequestFinish callback of createAccount
+        *
+        * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
+        * one soon. Please use MegaSDK::login (with email and password) or MegaSDK::fastLogin (with session) instead when possible.
+        */
         void fastLogin(String^ email, String^ stringHash, String^ base64pwkey);
+
+        /**
+        * @brief Log in to a MEGA account using a session key
+        *
+        * The associated request type with this request is MRequest::TYPE_LOGIN.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getSessionKey - Returns the session key
+        *
+        * @param session Session key previously dumped with MegaSDK::dumpSession
+        * @param listener MRequestListener to track this request
+        */
         void fastLogin(String^ session, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Log in to a MEGA account using a session key
+        *
+        * The associated request type with this request is MRequest::TYPE_LOGIN.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getSessionKey - Returns the session key
+        *
+        * @param session Session key previously dumped with MegaSDK::dumpSession
+        */
         void fastLogin(String^ session);
+        
         void killSession(MegaHandle sessionHandle, MRequestListenerInterface^ listener);
         void killSession(MegaHandle sessionHandle);
         void killAllSessions(MRequestListenerInterface^ listener);
@@ -472,42 +594,685 @@ namespace mega
         void getUserDataById(String^ user);
         String^ getAccountAuth();
         void setAccountAuth(String^ auth);
+
+        /**
+        * @brief Initialize the creation of a new MEGA account, with firstname and lastname
+        *
+        * The associated request type with this request is MRequest::TYPE_CREATE_ACCOUNT.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getEmail - Returns the email for the account
+        * - MRequest::getPassword - Returns the password for the account
+        * - MRequest::getName - Returns the firstname of the user
+        * - MRequest::getText - Returns the lastname of the user
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getSessionKey - Returns the session id to resume the process
+        *
+        * If this request succeeds, a new ephemeral session will be created for the new user
+        * and a confirmation email will be sent to the specified email address. The app may
+        * resume the create-account process by using MegaSDK::resumeCreateAccount.
+        *
+        * If an account with the same email already exists, you will get the error code
+        * MError::API_EEXIST in onRequestFinish
+        *
+        * @param email Email for the account
+        * @param password Password for the account
+        * @param firstname Firstname of the user
+        * @param lastname Lastname of the user
+        * @param listener MRequestListener to track this request
+        */
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Initialize the creation of a new MEGA account, with firstname and lastname
+        *
+        * The associated request type with this request is MRequest::TYPE_CREATE_ACCOUNT.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getEmail - Returns the email for the account
+        * - MRequest::getPassword - Returns the password for the account
+        * - MRequest::getName - Returns the firstname of the user
+        * - MRequest::getText - Returns the lastname of the user
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getSessionKey - Returns the session id to resume the process
+        *
+        * If this request succeeds, a new ephemeral session will be created for the new user
+        * and a confirmation email will be sent to the specified email address. The app may
+        * resume the create-account process by using MegaSDK::resumeCreateAccount.
+        *
+        * If an account with the same email already exists, you will get the error code
+        * MError::API_EEXIST in onRequestFinish
+        *
+        * @param email Email for the account
+        * @param password Password for the account
+        * @param firstname Firstname of the user
+        * @param lastname Lastname of the user
+        */
         void createAccount(String^ email, String^ password, String^ firstname, String^ lastname);
-        void fastCreateAccount(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
-        void fastCreateAccount(String^ email, String^ base64pwkey, String^ name);
+
+        /**
+        * @brief Resume a registration process
+        *
+        * When a user begins the account registration process by calling MegaSDK::createAccount,
+        * an ephemeral account is created.
+        *
+        * Until the user successfully confirms the signup link sent to the provided email address,
+        * you can resume the ephemeral session in order to change the email address, resend the
+        * signup link (@see MegaSDK::sendSignupLink) and also to receive notifications in case the
+        * user confirms the account using another client (MGlobalListener::onAccountUpdate or
+        * MListener::onAccountUpdate).
+        *
+        * The associated request type with this request is MRequest::TYPE_CREATE_ACCOUNT.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getSessionKey - Returns the session id to resume the process
+        * - MRequest::getParamType - Returns the value 1
+        *
+        * In case the account is already confirmed, the associated request will fail with
+        * error MError::API_EARGS.
+        *
+        * @param sid Session id valid for the ephemeral account (@see MegaSDK::createAccount)
+        * @param listener MRequestListener to track this request
+        */
         void resumeCreateAccount(String^ sid, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Resume a registration process
+        *
+        * When a user begins the account registration process by calling MegaSDK::createAccount,
+        * an ephemeral account is created.
+        *
+        * Until the user successfully confirms the signup link sent to the provided email address,
+        * you can resume the ephemeral session in order to change the email address, resend the
+        * signup link (@see MegaSDK::sendSignupLink) and also to receive notifications in case the
+        * user confirms the account using another client (MGlobalListener::onAccountUpdate or
+        * MListener::onAccountUpdate).
+        *
+        * The associated request type with this request is MRequest::TYPE_CREATE_ACCOUNT.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getSessionKey - Returns the session id to resume the process
+        * - MRequest::getParamType - Returns the value 1
+        *
+        * In case the account is already confirmed, the associated request will fail with
+        * error MError::API_EARGS.
+        *
+        * @param sid Session id valid for the ephemeral account (@see MegaSDK::createAccount)
+        */
         void resumeCreateAccount(String^ sid);
+        
+        /**
+        * @brief Sends the confirmation email for a new account
+        *
+        * This function is useful to send the confirmation link again or to send it to a different
+        * email address, in case the user mistyped the email at the registration form.
+        *
+        * @param email Email for the account
+        * @param name Firstname of the user
+        * @param password Password for the account
+        * @param listener MRequestListener to track this request
+        */
         void sendSignupLink(String^ email, String^ name, String^ password, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Sends the confirmation email for a new account
+        *
+        * This function is useful to send the confirmation link again or to send it to a different
+        * email address, in case the user mistyped the email at the registration form.
+        *
+        * @param email Email for the account
+        * @param name Firstname of the user
+        * @param password Password for the account
+        */
         void sendSignupLink(String^ email, String^ name, String^ password);
+        
+        /**
+        * @brief Sends the confirmation email for a new account
+        *
+        * This function is useful to send the confirmation link again or to send it to a different
+        * email address, in case the user mistyped the email at the registration form.
+        *
+        * @param email Email for the account
+        * @param name Firstname of the user
+        * @param base64pwkey Private key returned by MRequest::getPrivateKey in the onRequestFinish callback of createAccount
+        * @param listener MRequestListener to track this request
+        *
+        * @deprecated This function only works using the old registration method and will be removed soon.
+        * Please use MegaSDK::sendSignupLink (with email and password) instead.
+        */
         void fastSendSignupLink(String^ email, String^ base64pwkey, String^ name, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Sends the confirmation email for a new account
+        *
+        * This function is useful to send the confirmation link again or to send it to a different
+        * email address, in case the user mistyped the email at the registration form.
+        *
+        * @param email Email for the account
+        * @param name Firstname of the user
+        * @param base64pwkey Private key returned by MRequest::getPrivateKey in the onRequestFinish callback of createAccount
+        *
+        * @deprecated This function only works using the old registration method and will be removed soon.
+        * Please use MegaSDK::sendSignupLink (with email and password) instead.
+        */
         void fastSendSignupLink(String^ email, String^ base64pwkey, String^ name);
+        
+        /**
+        * @brief Get information about a confirmation link or a new signup link
+        *
+        * The associated request type with this request is MRequest::TYPE_QUERY_SIGNUP_LINK.
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the confirmation link
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        * - MRequest::getName - Returns the name associated with the link (available only for confirmation links)
+        * - MRequest::getFlag - Returns true if the account was automatically confirmed, otherwise false
+        *
+        * If MRequest::getFlag returns true, the account was automatically confirmed and it's not needed
+        * to call MegaSDK::confirmAccount. If it returns false, it's needed to call MegaSDK::confirmAccount
+        * as usual. New accounts do not require a confirmation with the password, but old confirmation links
+        * require it, so it's needed to check that parameter in onRequestFinish to know how to proceed.
+        *
+        * @param link Confirmation link (#confirm) or new signup link (#newsignup)
+        * @param listener MRequestListener to track this request
+        */
         void querySignupLink(String^ link, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get information about a confirmation link or a new signup link
+        *
+        * The associated request type with this request is MRequest::TYPE_QUERY_SIGNUP_LINK.
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the confirmation link
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        * - MRequest::getName - Returns the name associated with the link (available only for confirmation links)
+        * - MRequest::getFlag - Returns true if the account was automatically confirmed, otherwise false
+        *
+        * If MRequest::getFlag returns true, the account was automatically confirmed and it's not needed
+        * to call MegaSDK::confirmAccount. If it returns false, it's needed to call MegaSDK::confirmAccount
+        * as usual. New accounts do not require a confirmation with the password, but old confirmation links
+        * require it, so it's needed to check that parameter in onRequestFinish to know how to proceed.
+        *
+        * @param link Confirmation link (#confirm) or new signup link (#newsignup)
+        */
         void querySignupLink(String^ link);
+
+        /**
+        * @brief Confirm a MEGA account using a confirmation link and the user password
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_ACCOUNT
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getLink - Returns the confirmation link
+        * - MRequest::getPassword - Returns the password
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Email of the account
+        * - MRequest::getName - Name of the user
+        *
+        * As a result of a successfull confirmation, the app will receive the callback
+        * MListener::onEvent and MGlobalListener::onEvent with an event of type
+        * MEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+        * the account by checking MEvent::getText. @see MListener::onEvent.
+        *
+        * @param link Confirmation link
+        * @param password Password of the account
+        * @param listener MRequestListener to track this request
+        */
         void confirmAccount(String^ link, String^ password, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Confirm a MEGA account using a confirmation link and the user password
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_ACCOUNT
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getLink - Returns the confirmation link
+        * - MRequest::getPassword - Returns the password
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Email of the account
+        * - MRequest::getName - Name of the user
+        *
+        * As a result of a successfull confirmation, the app will receive the callback
+        * MListener::onEvent and MGlobalListener::onEvent with an event of type
+        * MEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+        * the account by checking MEvent::getText. @see MListener::onEvent.
+        *
+        * @param link Confirmation link
+        * @param password Password of the account
+        */
         void confirmAccount(String^ link, String^ password);
+
+        /**
+        * @brief Confirm a MEGA account using a confirmation link and a precomputed key
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_ACCOUNT
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getLink - Returns the confirmation link
+        * - MRequest::getPrivateKey - Returns the base64pwkey parameter
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Email of the account
+        * - MRequest::getName - Name of the user
+        *
+        * As a result of a successfull confirmation, the app will receive the callback
+        * MListener::onEvent and MGlobalListener::onEvent with an event of type
+        * MEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+        * the account by checking MEvent::getText. @see MListener::onEvent.
+        *
+        * @param link Confirmation link
+        * @param base64pwkey Private key precomputed with MegaSDK::getBase64PwKey
+        * @param listener MRequestListener to track this request
+        *
+        * @deprecated This function only works using the old registration method and will be removed soon.
+        * Please use MegaSDK::confirmAccount instead.
+        */
         void fastConfirmAccount(String^ link, String^ base64pwkey, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Confirm a MEGA account using a confirmation link and a precomputed key
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_ACCOUNT
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getLink - Returns the confirmation link
+        * - MRequest::getPrivateKey - Returns the base64pwkey parameter
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Email of the account
+        * - MRequest::getName - Name of the user
+        *
+        * As a result of a successfull confirmation, the app will receive the callback
+        * MListener::onEvent and MGlobalListener::onEvent with an event of type
+        * MEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
+        * the account by checking MEvent::getText. @see MListener::onEvent.
+        *
+        * @param link Confirmation link
+        * @param base64pwkey Private key precomputed with MegaSDK::getBase64PwKey
+        *
+        * @deprecated This function only works using the old registration method and will be removed soon.
+        * Please use MegaSDK::confirmAccount instead.
+        */
         void fastConfirmAccount(String^ link, String^ base64pwkey);
+
+        /**
+        * @brief Initialize the reset of the existing password, with and without the Master Key.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_RECOVERY_LINK.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getEmail - Returns the email for the account
+        * - MRequest::getFlag - Returns whether the user has a backup of the master key or not.
+        *
+        * If this request succeeds, a recovery link will be sent to the user.
+        * If no account is registered under the provided email, you will get the error code
+        * MError::API_ENOENT in onRequestFinish
+        *
+        * @param email Email used to register the account whose password wants to be reset.
+        * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
+        * @param listener MRequestListener to track this request
+        */
         void resetPassword(String^ email, bool hasMasterKey, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Initialize the reset of the existing password, with and without the Master Key.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_RECOVERY_LINK.
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getEmail - Returns the email for the account
+        * - MRequest::getFlag - Returns whether the user has a backup of the master key or not.
+        *
+        * If this request succeeds, a recovery link will be sent to the user.
+        * If no account is registered under the provided email, you will get the error code
+        * MError::API_ENOENT in onRequestFinish
+        *
+        * @param email Email used to register the account whose password wants to be reset.
+        * @param hasMasterKey True if the user has a backup of the master key. Otherwise, false.
+        */
         void resetPassword(String^ email, bool hasMasterKey);
+
+        /**
+        * @brief Get information about a recovery link created by MegaSDK::resetPassword.
+        *
+        * The associated request type with this request is MRequest::TYPE_QUERY_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the recovery link
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        * - MRequest::getFlag - Return whether the link requires masterkey to reset password.
+        *
+        * @param link Recovery link (#recover)
+        * @param listener MRequestListener to track this request
+        */
         void queryResetPasswordLink(String^ link, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get information about a recovery link created by MegaSDK::resetPassword.
+        *
+        * The associated request type with this request is MRequest::TYPE_QUERY_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the recovery link
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        * - MRequest::getFlag - Return whether the link requires masterkey to reset password.
+        *
+        * @param link Recovery link (#recover)
+        */
         void queryResetPasswordLink(String^ link);
+
+        /**
+        * @brief Set a new password for the account pointed by the recovery link.
+        *
+        * Recovery links are created by calling MegaSDK::resetPassword and may or may not
+        * require to provide the Master Key.
+        *
+        * @see The flag of the MRequest::TYPE_QUERY_RECOVERY_LINK in MegaSDK::queryResetPasswordLink.
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the recovery link
+        * - MRequest::getPassword - Returns the new password
+        * - MRequest::getPrivateKey - Returns the Master Key
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        * - MRequest::getFlag - Return whether the link requires masterkey to reset password.
+        *
+        * @param link The recovery link sent to the user's email address.
+        * @param newPwd The new password to be set.
+        * @param masterKey Base64-encoded string containing the master key.
+        * @param listener MRequestListener to track this request
+        */
         void confirmResetPassword(String^ link, String^ newPwd, String^ masterKey, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Set a new password for the account pointed by the recovery link.
+        *
+        * Recovery links are created by calling MegaSDK::resetPassword and may or may not
+        * require to provide the Master Key.
+        *
+        * @see The flag of the MRequest::TYPE_QUERY_RECOVERY_LINK in MegaSDK::queryResetPasswordLink.
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the recovery link
+        * - MRequest::getPassword - Returns the new password
+        * - MRequest::getPrivateKey - Returns the Master Key
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        * - MRequest::getFlag - Return whether the link requires masterkey to reset password.
+        *
+        * @param link The recovery link sent to the user's email address.
+        * @param newPwd The new password to be set.
+        * @param masterKey Base64-encoded string containing the master key.
+        */
         void confirmResetPassword(String^ link, String^ newPwd, String^ masterKey);
+
+        /**
+        * @brief Set a new password for the account pointed by the recovery link.
+        *
+        * Recovery links are created by calling MegaSDK::resetPassword and may or may not
+        * require to provide the Master Key.
+        *
+        * @see The flag of the MRequest::TYPE_QUERY_RECOVERY_LINK in MegaSDK::queryResetPasswordLink.
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the recovery link
+        * - MRequest::getPassword - Returns the new password
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        * - MRequest::getFlag - Return whether the link requires masterkey to reset password.
+        *
+        * @param link The recovery link sent to the user's email address.
+        * @param newPwd The new password to be set.
+        * @param listener MRequestListener to track this request
+        */
         void confirmResetPasswordWithoutMasterKey(String^ link, String^ newPwd, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Set a new password for the account pointed by the recovery link.
+        *
+        * Recovery links are created by calling MegaSDK::resetPassword and may or may not
+        * require to provide the Master Key.
+        *
+        * @see The flag of the MRequest::TYPE_QUERY_RECOVERY_LINK in MegaSDK::queryResetPasswordLink.
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the recovery link
+        * - MRequest::getPassword - Returns the new password
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        * - MRequest::getFlag - Return whether the link requires masterkey to reset password.
+        *
+        * @param link The recovery link sent to the user's email address.
+        * @param newPwd The new password to be set.
+        */
         void confirmResetPasswordWithoutMasterKey(String^ link, String^ newPwd);
+
+        /**
+        * @brief Initialize the cancellation of an account.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_CANCEL_LINK.
+        *
+        * If this request succeeds, a cancellation link will be sent to the email address of the user.
+        * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+        *
+        * @see MegaSDK::confirmCancelAccount
+        *
+        * @param listener MRequestListener to track this request
+        */
         void cancelAccount(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Initialize the cancellation of an account.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_CANCEL_LINK.
+        *
+        * If this request succeeds, a cancellation link will be sent to the email address of the user.
+        * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+        *
+        * @see MegaSDK::confirmCancelAccount
+        */
         void cancelAccount();
+
+        /**
+        * @brief Get information about a cancel link created by MegaSDK::cancelAccount.
+        *
+        * The associated request type with this request is MRequest::TYPE_QUERY_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the cancel link
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        *
+        * @param link Cancel link (#cancel)
+        * @param listener MRequestListener to track this request
+        */
         void queryCancelLink(String^ link, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get information about a cancel link created by MegaSDK::cancelAccount.
+        *
+        * The associated request type with this request is MRequest::TYPE_QUERY_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the cancel link
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        *
+        * @param link Cancel link (#cancel)
+        */
         void queryCancelLink(String^ link);
+
+        /**
+        * @brief Effectively parks the user's account without creating a new fresh account.
+        *
+        * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+        *
+        * The contents of the account will then be purged after 60 days. Once the account is
+        * parked, the user needs to contact MEGA support to restore the account.
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_CANCEL_LINK.
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the recovery link
+        * - MRequest::getPassword - Returns the new password
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        *
+        * @param link Cancellation link sent to the user's email address;
+        * @param pwd Password for the account.
+        * @param listener MRequestListener to track this request
+        */
         void confirmCancelAccount(String^ link, String^ pwd, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Effectively parks the user's account without creating a new fresh account.
+        *
+        * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+        *
+        * The contents of the account will then be purged after 60 days. Once the account is
+        * parked, the user needs to contact MEGA support to restore the account.
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_CANCEL_LINK.
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the recovery link
+        * - MRequest::getPassword - Returns the new password
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        *
+        * @param link Cancellation link sent to the user's email address;
+        * @param pwd Password for the account.
+        */
         void confirmCancelAccount(String^ link, String^ pwd);
+
+        /**
+        * @brief Initialize the change of the email address associated to the account.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getEmail - Returns the email for the account
+        *
+        * If this request succeeds, a change-email link will be sent to the specified email address.
+        * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+        *
+        * @param email The new email to be associated to the account.
+        * @param listener MRequestListener to track this request
+        */
         void changeEmail(String^ email, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Initialize the change of the email address associated to the account.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_CHANGE_EMAIL_LINK.
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getEmail - Returns the email for the account
+        *
+        * If this request succeeds, a change-email link will be sent to the specified email address.
+        * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+        *
+        * @param email The new email to be associated to the account.
+        */
         void changeEmail(String^ email);
+
+        /**
+        * @brief Get information about a change-email link created by MegaSDK::changeEmail.
+        *
+        * The associated request type with this request is MRequest::TYPE_QUERY_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the change-email link
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        *
+        * @param link Change-email link (#verify)
+        * @param listener MRequestListener to track this request
+        */
         void queryChangeEmailLink(String^ link, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Get information about a change-email link created by MegaSDK::changeEmail.
+        *
+        * The associated request type with this request is MRequest::TYPE_QUERY_RECOVERY_LINK
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the change-email link
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        *
+        * @param link Change-email link (#verify)
+        */
         void queryChangeEmailLink(String^ link);
+
+        /**
+        * @brief Effectively changes the email address associated to the account.
+        *
+        * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK.
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the change-email link
+        * - MRequest::getPassword - Returns the password
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        *
+        * @param link Change-email link sent to the user's email address.
+        * @param pwd Password for the account.
+        * @param listener MRequestListener to track this request
+        */
         void confirmChangeEmail(String^ link, String^ pwd, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Effectively changes the email address associated to the account.
+        *
+        * If no user is logged in, you will get the error code MError::API_EACCESS in onRequestFinish().
+        *
+        * The associated request type with this request is MRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK.
+        * Valid data in the MRequest object received on all callbacks:
+        * - MRequest::getLink - Returns the change-email link
+        * - MRequest::getPassword - Returns the password
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Return the email associated with the link
+        *
+        * @param link Change-email link sent to the user's email address.
+        * @param pwd Password for the account.
+        */
         void confirmChangeEmail(String^ link, String^ pwd);
+
+        /**
+        * @brief Check if the MegaApi object is logged in
+        * @return 0 if not logged in, Otherwise, a number >= 0
+        */
         int isLoggedIn();
 
         /**
@@ -595,7 +1360,7 @@ namespace mega
          * @param handle Handle of the contact link to delete
          * If the parameter is INVALID_HANDLE, the active contact link is deleted
          *
-         * @param listener MegaRequestListener to track this request
+         * @param listener MRequestListener to track this request
          */
         void contactLinkDelete(MegaHandle handle, MRequestListenerInterface^ listener);
 
@@ -620,7 +1385,7 @@ namespace mega
         * Valid data in the MRequest object received on all callbacks:
         * - MRequest::getNodeHandle - Returns the handle of the contact link
         *
-        * @param listener MegaRequestListener to track this request
+        * @param listener MRequestListener to track this request
         */
         void contactLinkDeleteActive(MRequestListenerInterface^ listener);
         
@@ -817,7 +1582,7 @@ namespace mega
         * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
         * - MRequest::getText - Returns the new value for the attribute
         *
-        * @param listener MegaRequestListener to track this request
+        * @param listener MRequestListener to track this request
         */
         void passwordReminderDialogSkipped(MRequestListenerInterface^ listener);
 
@@ -853,7 +1618,7 @@ namespace mega
         * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
         * - MRequest::getText - Returns the new value for the attribute
         *
-        * @param listener MegaRequestListener to track this request
+        * @param listener MRequestListener to track this request
         */
         void passwordReminderDialogBlocked(MRequestListenerInterface^ listener);
 
@@ -885,8 +1650,12 @@ namespace mega
         * is MError::API_OK:
         * - MRequest::getFlag - Returns true if the password reminder dialog should be shown
         *
+        * If the corresponding user attribute is not set yet, the request will fail with the
+        * error code MError::API_ENOENT but the value of MRequest::getFlag will still
+        * be valid.
+        *
         * @param atLogout True if the check is being done just before a logout
-        * @param listener MegaRequestListener to track this request
+        * @param listener MRequestListener to track this request
         */
         void shouldShowPasswordReminderDialog(bool atLogout, MRequestListenerInterface^ listener);
 
@@ -901,15 +1670,53 @@ namespace mega
         * is MError::API_OK:
         * - MRequest::getFlag - Returns true if the password reminder dialog should be shown
         *
+        * If the corresponding user attribute is not set yet, the request will fail with the
+        * error code MError::API_ENOENT but the value of MRequest::getFlag will still
+        * be valid.
+        *
         * @param atLogout True if the check is being done just before a logout
         */
         void shouldShowPasswordReminderDialog(bool atLogout);
 
         /**
+        * @brief Check if the master key has been exported
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getAccess - Returns true if the master key has been exported
+        *
+        * If the corresponding user attribute is not set yet, the request will fail with the
+        * error code MError::API_ENOENT.
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void isMasterKeyExported(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Check if the master key has been exported
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_PWD_REMINDER
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getAccess - Returns true if the master key has been exported
+        *
+        * If the corresponding user attribute is not set yet, the request will fail with the
+        * error code MError::API_ENOENT.
+        */
+        void isMasterKeyExported();
+
+        /**
         * @brief Change the password of the MEGA account
         *
         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
-        * Valid data in the MegaRequest object received on callbacks:
+        * Valid data in the MRequest object received on callbacks:
         * - MRequest::getPassword - Returns the old password
         * - MRequest::getNewPassword - Returns the new password
         *
@@ -923,7 +1730,7 @@ namespace mega
         * @brief Change the password of the MEGA account
         *
         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
-        * Valid data in the MegaRequest object received on callbacks:
+        * Valid data in the MRequest object received on callbacks:
         * - MRequest::getPassword - Returns the old password
         * - MRequest::getNewPassword - Returns the new password
         *
@@ -936,7 +1743,7 @@ namespace mega
         * @brief Change the password of the MEGA account without check the old password
         *
         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
-        * Valid data in the MegaRequest object received on callbacks:
+        * Valid data in the MRequest object received on callbacks:
         * - MRequest::getNewPassword - Returns the new password
         *
         * @param newPassword New password
@@ -948,7 +1755,7 @@ namespace mega
         * @brief Change the password of the MEGA account without check the old password
         *
         * The associated request type with this request is MRequest::TYPE_CHANGE_PW
-        * Valid data in the MegaRequest object received on callbacks:
+        * Valid data in the MRequest object received on callbacks:
         * - MRequest::getNewPassword - Returns the new password
         *
         * @param newPassword New password
@@ -1323,12 +2130,12 @@ namespace mega
          * Valid data in the MRequest object received on callbacks:
          * - MRequest::getParamType - Returns the value MUserAttrType::USER_ATTR_CONTACT_LINK_VERIFICATION
          *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
          * - MRequest::getText - "0" for disable, "1" for enable
          * - MRequest::getFlag - false if disabled, true if enabled
          *
-         * @param listener MegaRequestListener to track this request
+         * @param listener MRequestListener to track this request
          */
         void getContactLinksOption(MRequestListenerInterface^ listener);
         
@@ -1342,8 +2149,8 @@ namespace mega
          * Valid data in the MRequest object received on callbacks:
          * - MRequest::getParamType - Returns the value MUserAttrType::USER_ATTR_CONTACT_LINK_VERIFICATION
          *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
+         * Valid data in the MRequest object received in onRequestFinish when the error code
+         * is MError::API_OK:
          * - MRequest::getText - "0" for disable, "1" for enable
          * - MRequest::getFlag - false if disabled, true if enabled
          */
@@ -1356,7 +2163,7 @@ namespace mega
         * logout. Pass false to this function to disable that automatic logout and
         * keep the SDK retrying the request.
         *
-        * Even if the automatic logout is disabled, a request of the type MegaRequestType::TYPE_LOGOUT
+        * Even if the automatic logout is disabled, a request of the type MRequestType::TYPE_LOGOUT
         * will be automatically created and callbacks (onRequestStart, onRequestFinish) will
         * be sent. However, logout won't be really executed and in onRequestFinish the error code
         * for the request will be MError::API_EINCOMPLETE

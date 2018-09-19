@@ -26,7 +26,7 @@
 #include <filesystem>
 #endif
 
-
+using namespace std;
 
 MegaFileSystemAccess fileSystemAccess;
 

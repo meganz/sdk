@@ -82,7 +82,7 @@ public:
     MegaMutex(bool recursive) : PosixMutex(recursive) { }
 };
 class MegaSemaphore : public PosixSemaphore {};
-#elif defined(_WIN32) && !defined(WINDOWS_PHONE)
+#elif defined(_WIN32) && !defined(USE_CPPTHREAD) && !defined(WINDOWS_PHONE)
 class MegaThread : public Win32Thread {};
 class MegaMutex : public Win32Mutex
 {
@@ -402,6 +402,10 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaStringList *getCustomAttrNames();
         virtual const char *getCustomAttr(const char* attrName);
         virtual int getDuration();
+        virtual int getWidth();
+        virtual int getHeight();
+        virtual int getShortformat();
+        virtual int getVideocodecid();
         virtual double getLatitude();
         virtual double getLongitude();
         virtual char *getBase64Handle();
@@ -488,6 +492,10 @@ class MegaNodePrivate : public MegaNode, public Cachable
         PublicLink *plink;
         std::string *sharekey;   // for plinks of folders
         int duration;
+        int width;
+        int height;
+        int shortformat;
+        int videocodecid;
         double latitude;
         double longitude;
         MegaNodeList *children;
@@ -1640,7 +1648,6 @@ class MegaApiImpl : public MegaApp
         MegaUserList *getCurrentUsers();
 
         //Utils
-        char *getBase64PwKey(const char *password);
         long long getSDKtime();
         char *getStringHash(const char* base64pwkey, const char* inBuf);
         void getSessionTransferURL(const char *path, MegaRequestListener *listener);
@@ -1686,7 +1693,6 @@ class MegaApiImpl : public MegaApp
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
-        void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
         void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
@@ -2131,7 +2137,7 @@ class MegaApiImpl : public MegaApp
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
-        void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatStats(const char *data, int port, MegaRequestListener *listener = NULL);
         void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
@@ -2288,6 +2294,7 @@ protected:
         virtual void request_response_progress(m_off_t, m_off_t);
 
         // login result
+        virtual void prelogin_result(int, string*, string*, error);
         virtual void login_result(error);
         virtual void logout_result(error);
         virtual void userdata_result(string*, string*, string*, handle, error);
@@ -2321,6 +2328,7 @@ protected:
         virtual void querysignuplink_result(error);
         virtual void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t);
         virtual void confirmsignuplink_result(error);
+        virtual void confirmsignuplink2_result(handle, const char*, const char*, error);
         virtual void setkeypair_result(error);
 
         // account credentials, properties and history
@@ -2426,7 +2434,6 @@ protected:
         virtual void getprivatekey_result(error, const byte *privk = NULL, const size_t len_privk = 0);
         virtual void confirmrecoverylink_result(error);
         virtual void confirmcancellink_result(error);
-        virtual void validatepassword_result(error);
         virtual void getemaillink_result(error);
         virtual void confirmemaillink_result(error);
         virtual void getversion_result(int, const char*, error);
