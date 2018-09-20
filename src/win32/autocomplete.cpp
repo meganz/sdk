@@ -149,6 +149,18 @@ void ACState::addPathCompletion(std::string& f, const std::string& relativeRootP
     {
         f.erase(0, relativeRootPath.size());
     }
+    if (dir_sep != '\\')
+    {
+        string from = "\\";
+        string to(1,dir_sep);
+        size_t start_pos = 0;
+        while (( start_pos = f.find(from, start_pos)) != std::string::npos)
+        {
+            f.replace(start_pos, from.length(), to);
+            start_pos += to.length();
+        }
+    }
+
     if (unixStyle && isFolder)
     {
         f.push_back(dir_sep);
@@ -488,7 +500,8 @@ bool LocalFS::addCompletions(ACState& s)
 {
     if (s.atCursor())
     {
-        fs::path searchPath(s.word().s + (s.word().s.empty() || s.word().s.back() == '\\' ? "*" : ""));
+        fs::path searchPath(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
+        char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
         bool relative = !searchPath.is_absolute();
         searchPath = relative ? fs::current_path() / searchPath : searchPath;
         std::string cp = relative ? fs::current_path().u8string() + "\\" : "";
@@ -504,7 +517,7 @@ bool LocalFS::addCompletions(ACState& s)
                 if (reportFolders && fs::is_directory(iter->status()) ||
                     reportFiles && fs::is_regular_file(iter->status()))
                 {
-                    s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), '\\', true);
+                    s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep , true);
                 }
             }
         }
