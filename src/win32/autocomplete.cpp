@@ -907,6 +907,11 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
             s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, w);
             s.wordPos.second = int(w.size() + s.wordPos.first);
             s.lastAppliedIndex = index;
+
+            if (s.completions.size()==1 && c.s.size() && c.s.at(c.s.size()-1) == '=')
+            {
+                s.active = false;
+            }
         }
         else
         {
