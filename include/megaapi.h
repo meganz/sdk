@@ -7986,6 +7986,37 @@ class MegaApi
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the number of days for rubbish-bin cleaning scheduler
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RUBBISH_TIME
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler.
+         * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+         * Any negative value means that the configured value is invalid.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the number of days for rubbish-bin cleaning scheduler
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RUBBISH_TIME
+         *
+         * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+         * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Change the password of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW

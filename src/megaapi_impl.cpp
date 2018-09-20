@@ -5475,6 +5475,22 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     delete stringMap;
 }
 
+void MegaApiImpl::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
+{
+    ostringstream oss;
+    oss << days;
+    string value = oss.str();
+    setUserAttribute(MegaApi::USER_ATTR_RUBBISH_TIME, value.data(), listener);
+}
+
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_EMAIL, listener);
@@ -12632,6 +12648,21 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             }
             break;
 
+        // numbers
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
+            {
+                char *endptr;
+                string str((const char*)data, len);
+                m_off_t value = strtoll(str.c_str(), &endptr, 10);
+                if (endptr == str.c_str() || *endptr != '\0' || value == LLONG_MAX || value == LLONG_MIN)
+                {
+                    value = -1;
+                }
+
+                request->setNumber(value);
+            }
+            break;
+
         // byte arrays with possible nulls in the middle --> to Base64
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
@@ -16737,6 +16768,14 @@ void MegaApiImpl::sendPendingRequests()
                 else if (type == ATTR_RUBBISH_TIME)
                 {
                     if (!value || !strlen(value))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    char *endptr;
+                    m_off_t number = strtoll(value, &endptr, 10);
+                    if (endptr == value || *endptr != '\0' || number == LLONG_MAX || number == LLONG_MIN || number < 0)
                     {
                         e = API_EARGS;
                         break;

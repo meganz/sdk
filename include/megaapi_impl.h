@@ -1765,6 +1765,8 @@ class MegaApiImpl : public MegaApp
         void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
         void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+        void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
+        void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);

@@ -2069,6 +2069,16 @@ void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *lis
     pImpl->setRichLinkWarningCounterValue(value, listener);
 }
 
+void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
+{
+    pImpl->getRubbishBinAutopurgePeriod(listener);
+}
+
+void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
+{
+    pImpl->setRubbishBinAutopurgePeriod(days, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
