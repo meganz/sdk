@@ -92,6 +92,7 @@ public class MegaApiJava {
     public final static int USER_ATTR_DISABLE_VERSIONS = MegaApi.USER_ATTR_DISABLE_VERSIONS;
     public final static int USER_ATTR_CONTACT_LINK_VERIFICATION = MegaApi.USER_ATTR_CONTACT_LINK_VERIFICATION;
     public final static int USER_ATTR_RICH_PREVIEWS = MegaApi.USER_ATTR_RICH_PREVIEWS;
+    public final static int USER_ATTR_RUBBISH_TIME = MegaApi.USER_ATTR_RUBBISH_TIME;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -482,6 +483,14 @@ public class MegaApiJava {
      */
     public void retryPendingConnections() {
         megaApi.retryPendingConnections();
+    }
+
+    /**
+     * Check if server-side Rubbish Bin autopurging is enabled for the current account
+     * @return True if this feature is enabled. Otherwise false.
+     */
+    public boolean serverSideRubbishBinAutopurgeEnabled(){
+        return megaApi.serverSideRubbishBinAutopurgeEnabled();
     }
 
     /**
@@ -2688,21 +2697,55 @@ public class MegaApiJava {
 
     /**
      * Get an attribute of a MegaUser.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_GET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns the attribute type.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getText() - Returns the value of the attribute.
      *
-     * @param user MegaUser to get the attribute
-     * @param type Attribute type. Valid values are: <br>
-     * MegaApi.USER_ATTR_FIRSTNAME = 1 Get the firstname of the user. <br>
-     * MegaApi.USER_ATTR_LASTNAME = 2 Get the lastname of the user.
+     * User attributes can be private or public. Private attributes are accessible only by
+     * your own user, while public ones are retrievable by any of your contacts.
      *
-     * @param listener MegaRequestListenerInterface to track this request.
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the value for public attributes
+     * - MegaRequest::getMegaStringMap - Returns the value for private attributes
+     *
+     * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
+     * is obtained for the active account
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_FIRSTNAME = 1
+     * Get the firstname of the user (public)
+     * MegaApi::USER_ATTR_LASTNAME = 2
+     * Get the lastname of the user (public)
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+     * Get the public key Ed25519 of the user (public)
+     * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+     * Get the public key Cu25519 of the user (public)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+     * Get the signature of RSA public key of the user (public)
+     * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+     * Get the signature of Cu25519 public key of the user (public)
+     * MegaApi::USER_ATTR_LANGUAGE = 14
+     * Get the preferred language of the user (private, non-encrypted)
+     * MegaApi::USER_ATTR_PWD_REMINDER = 15
+     * Get the password-reminder-dialog information (private, non-encrypted)
+     * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+     * Get whether user has versions disabled or enabled (private, non-encrypted)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     *
+     * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(MegaUser user, int type, MegaRequestListenerInterface listener) {
         megaApi.getUserAttribute(user, type, createDelegateRequestListener(listener));
@@ -2719,9 +2762,12 @@ public class MegaApiJava {
     public void getUserAttribute(MegaUser user, int type) {
         megaApi.getUserAttribute(user, type);
     }
-    
+
     /**
-     * Get an attribute of any user in MEGA.
+     * @brief Get an attribute of any user in MEGA.
+     *
+     * User attributes can be private or public. Private attributes are accessible only by
+     * your own user, while public ones are retrievable by any of your contacts.
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
      * Valid data in the MegaRequest object received on callbacks:
@@ -2730,38 +2776,96 @@ public class MegaApiJava {
      *
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
-     * - MegaRequest::getText - Returns the value of the attribute
+     * - MegaRequest::getText - Returns the value for public attributes
+     * - MegaRequest::getMegaStringMap - Returns the value for private attributes
      *
-     * @param user email_or_user Email or user handle (Base64 encoded) to get the attribute.
+     * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
      * If this parameter is set to NULL, the attribute is obtained for the active account.
      * @param type Attribute type
      *
      * Valid values are:
      *
      * MegaApi::USER_ATTR_FIRSTNAME = 1
-     * Get the firstname of the user
+     * Get the firstname of the user (public)
      * MegaApi::USER_ATTR_LASTNAME = 2
-     * Get the lastname of the user
+     * Get the lastname of the user (public)
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+     * Get the public key Ed25519 of the user (public)
+     * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+     * Get the public key Cu25519 of the user (public)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+     * Get the signature of RSA public key of the user (public)
+     * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+     * Get the signature of Cu25519 public key of the user (public)
+     * MegaApi::USER_ATTR_LANGUAGE = 14
+     * Get the preferred language of the user (private, non-encrypted)
+     * MegaApi::USER_ATTR_PWD_REMINDER = 15
+     * Get the password-reminder-dialog information (private, non-encrypted)
+     * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+     * Get whether user has versions disabled or enabled (private, non-encrypted)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      *
-     * @param listener MegaRequestListenerInterface to track this request
+     * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(String email_or_handle, int type, MegaRequestListenerInterface listener) {
     	megaApi.getUserAttribute(email_or_handle, type, createDelegateRequestListener(listener));
     }
-    
+
     /**
-     * Get an attribute of any user in MEGA.
-     * 
-     * @param user email_or_user Email or user handle (Base64 encoded) to get the attribute.
+     * @brief Get an attribute of any user in MEGA.
+     *
+     * User attributes can be private or public. Private attributes are accessible only by
+     * your own user, while public ones are retrievable by any of your contacts.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the value for public attributes
+     * - MegaRequest::getMegaStringMap - Returns the value for private attributes
+     *
+     * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
      * If this parameter is set to NULL, the attribute is obtained for the active account.
      * @param type Attribute type
      *
      * Valid values are:
      *
      * MegaApi::USER_ATTR_FIRSTNAME = 1
-     * Get the firstname of the user
+     * Get the firstname of the user (public)
      * MegaApi::USER_ATTR_LASTNAME = 2
-     * Get the lastname of the user
+     * Get the lastname of the user (public)
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+     * Get the public key Ed25519 of the user (public)
+     * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+     * Get the public key Cu25519 of the user (public)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+     * Get the signature of RSA public key of the user (public)
+     * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+     * Get the signature of Cu25519 public key of the user (public)
+     * MegaApi::USER_ATTR_LANGUAGE = 14
+     * Get the preferred language of the user (private, non-encrypted)
+     * MegaApi::USER_ATTR_PWD_REMINDER = 15
+     * Get the password-reminder-dialog information (private, non-encrypted)
+     * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+     * Get whether user has versions disabled or enabled (private, non-encrypted)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      */
     public void getUserAttribute(String email_or_handle, int type) {
     	megaApi.getUserAttribute(email_or_handle, type);
@@ -2769,32 +2873,105 @@ public class MegaApiJava {
 
     /**
      * Get an attribute of the current account.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_GET_ATTR_USER.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns the attribute type.
-     * <p>
-     * Valid data in the MegaRequest object received in onRequestFinish() when the error code
-     * is MegaError.API_OK: <br>
-     * - MegaRequest.getText() - Returns the value of the attribute.
      *
-     * @param type Attribute type. Valid values are: <br>
+     * User attributes can be private or public. Private attributes are accessible only by
+     * your own user, while public ones are retrievable by any of your contacts.
      *
-     * MegaApi.USER_ATTR_FIRSTNAME = 1 Get the firstname of the user. <br>
-     * MegaApi.USER_ATTR_LASTNAME = 2 Get the lastname of the user.
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
      *
-     * @param listener MegaRequestListenerInterface to track this request.
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the value for public attributes
+     * - MegaRequest::getMegaStringMap - Returns the value for private attributes
+     *
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_FIRSTNAME = 1
+     * Get the firstname of the user (public)
+     * MegaApi::USER_ATTR_LASTNAME = 2
+     * Get the lastname of the user (public)
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+     * Get the public key Ed25519 of the user (public)
+     * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+     * Get the public key Cu25519 of the user (public)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+     * Get the signature of RSA public key of the user (public)
+     * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+     * Get the signature of Cu25519 public key of the user (public)
+     * MegaApi::USER_ATTR_LANGUAGE = 14
+     * Get the preferred language of the user (private, non-encrypted)
+     * MegaApi::USER_ATTR_PWD_REMINDER = 15
+     * Get the password-reminder-dialog information (private, non-encrypted)
+     * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+     * Get whether user has versions disabled or enabled (private, non-encrypted)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     *
+     * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(int type, MegaRequestListenerInterface listener) {
         megaApi.getUserAttribute(type, createDelegateRequestListener(listener));
     }
 
     /**
-     * Get an attribute of the current account.
+     * @brief Get an attribute of the current account.
      *
-     * @param type Attribute type. Valid values are: <br>
-     * MegaApi.USER_ATTR_FIRSTNAME = 1 Get the firstname of the user. <br>
-     * MegaApi.USER_ATTR_LASTNAME = 2 Get the lastname of the user.
+     * User attributes can be private or public. Private attributes are accessible only by
+     * your own user, while public ones are retrievable by any of your contacts.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the value for public attributes
+     * - MegaRequest::getMegaStringMap - Returns the value for private attributes
+     *
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_FIRSTNAME = 1
+     * Get the firstname of the user (public)
+     * MegaApi::USER_ATTR_LASTNAME = 2
+     * Get the lastname of the user (public)
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+     * Get the public key Ed25519 of the user (public)
+     * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+     * Get the public key Cu25519 of the user (public)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+     * Get the signature of RSA public key of the user (public)
+     * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+     * Get the signature of Cu25519 public key of the user (public)
+     * MegaApi::USER_ATTR_LANGUAGE = 14
+     * Get the preferred language of the user (private, non-encrypted)
+     * MegaApi::USER_ATTR_PWD_REMINDER = 15
+     * Get the password-reminder-dialog information (private, non-encrypted)
+     * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+     * Get whether user has versions disabled or enabled (private, non-encrypted)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      */
     public void getUserAttribute(int type) {
         megaApi.getUserAttribute(type);
@@ -2949,41 +3126,55 @@ public class MegaApiJava {
     }
 
     /**
-     * Set an attribute of the current user.
-     * <p>
-     * The associated request type with this request is MegaRequest.TYPE_SET_ATTR_USER.
-     * Valid data in the MegaRequest object received on callbacks: <br>
-     * - MegaRequest.getParamType() - Returns the attribute type. <br>
-     * - MegaRequest.getFile() - Returns the new value for the attribute.
-     * 
-     * @param type
-     *            Attribute type. Valid values are: <br>
-     * 
-     *            USER_ATTR_FIRSTNAME = 1.
-     *            Change the firstname of the user. <br>
-     *            USER_ATTR_LASTNAME = 2.
-     *            Change the lastname of the user.
-     * @param value
-     *            New attribute value.
-     * @param listener
-     *            MegaRequestListenerInterface to track this request.
+     * Set a private attribute of the current user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+     *
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     *
+     * @param value New attribute value
+     * @param listener MegaRequestListener to track this request
      */
     public void setUserAttribute(int type, String value, MegaRequestListenerInterface listener) {
         megaApi.setUserAttribute(type, value, createDelegateRequestListener(listener));
     }
 
     /**
-     * Set an attribute of the current user.
-     * 
-     * @param type
-     *            Attribute type. Valid values are: <br>
-     * 
-     *            USER_ATTR_FIRSTNAME = 1.
-     *            Change the firstname of the user. <br>
-     *            USER_ATTR_LASTNAME = 2.
-     *            Change the lastname of the user. <br>
-     * @param value
-     *            New attribute value.
+     * Set a private attribute of the current user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     * - MegaRequest::getMegaStringMap - Returns the new value for the attribute
+     *
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     *
+     * @param value New attribute value
      */
     public void setUserAttribute(int type, String value) {
         megaApi.setUserAttribute(type, value);

@@ -387,6 +387,10 @@ using namespace mega;
     self.megaApi->retryPendingConnections(true, true);
 }
 
+- (BOOL)serverSideRubbishBinAutopurgeEnabled {
+    return self.megaApi->serverSideRubbishBinAutopurgeEnabled();
+}
+
 #pragma mark - Login Requests
 
 - (BOOL)multiFactorAuthAvailable {
