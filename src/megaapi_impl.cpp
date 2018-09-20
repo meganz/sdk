@@ -16676,6 +16676,17 @@ void MegaApiImpl::sendPendingRequests()
 
                     client->putua(type, (byte *)value, 1);
                 }
+                else if (type == ATTR_RUBBISH_TIME)
+                {
+                    if (!value || !strlen(value))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    string tmp(value);
+                    client->putua(type, (byte *)tmp.data(), tmp.size());
+                }
                 else
                 {
                     e = API_EARGS;

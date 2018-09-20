@@ -7404,6 +7404,8 @@ class MegaApi
          * Set the public key Ed25519 of the user (public)
          * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
          * Set the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -7430,6 +7432,8 @@ class MegaApi
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
          * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
