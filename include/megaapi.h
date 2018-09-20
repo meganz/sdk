@@ -8008,6 +8008,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RUBBISH_TIME
+         * - MegaRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler passed as parameter
          *
          * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
          * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).

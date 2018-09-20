@@ -5488,7 +5488,12 @@ void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *li
     ostringstream oss;
     oss << days;
     string value = oss.str();
-    setUserAttribute(MegaApi::USER_ATTR_RUBBISH_TIME, value.data(), listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setText(value.data());
+    request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
+    request->setNumber(days);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
