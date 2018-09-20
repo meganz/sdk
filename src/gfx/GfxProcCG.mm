@@ -59,7 +59,7 @@ GfxProcCG::~GfxProcCG() {
 }
 
 const char* GfxProcCG::supportedformats() {
-    return ".jpg.png.bmp.tif.tiff.jpeg.gif.pdf.ico.cur.mov.mp4.m4v.3gp.heic.";
+    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.";
 }
 
 bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
@@ -101,8 +101,6 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         } else {
             LOG_err << "writeToFile failed with error: " << error.localizedDescription << "code: " << error.code << "domain: " << error.domain;
         }
-        
-        
     } else {
         dataProvider = CGDataProviderCreateWithFilename(name->c_str());
     }

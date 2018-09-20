@@ -530,6 +530,20 @@ class MegaNode
          * @return The number of pixels for height, or -1 if this attribute is not set.
          */
         virtual int getHeight();
+    
+        /**
+         * @brief Get the attribute of the node representing its shortformat.
+         *
+         * @return The shortformat, or -1 if this attribute is not set.
+         */
+        virtual int getShortformat();
+    
+        /**
+         * @brief Get the attribute of the node representing its videocodecid.
+         *
+         * @return The videocodecid, or -1 if this attribute is not set.
+         */
+        virtual int getVideocodecid();
 
         /**
          * @brief Get the attribute of the node representing the latitude.

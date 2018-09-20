@@ -80,6 +80,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->duration = -1;
     this->width = -1;
     this->height = -1;
+    this->shortformat = -1;
+    this->videocodecid = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->type = type;
@@ -125,9 +127,25 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->name = MegaApi::strdup(node->getName());
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
-    this->duration = node->getDuration();
-    this->width = node->getWidth();
-    this->height = node->getHeight();
+
+    MegaNodePrivate *np = dynamic_cast<MegaNodePrivate *>(node);
+    if (np)
+    {
+        this->duration = np->duration;
+        this->width = np->width;
+        this->height = np->height;
+        this->shortformat = np->shortformat;
+        this->videocodecid = np->videocodecid;
+    }
+    else
+    {
+        this->duration = node->getDuration();
+        this->width = node->getWidth();
+        this->height = node->getHeight();
+        this->shortformat = node->getShortformat();
+        this->videocodecid = node->getVideocodecid();
+    }
+
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
@@ -226,6 +244,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->duration = -1;
     this->width = -1;
     this->height = -1;
+    this->shortformat = -1;
+    this->videocodecid = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
@@ -691,7 +711,6 @@ int MegaNodePrivate::getDuration()
     return duration;
 }
 
-
 int MegaNodePrivate::getWidth()
 {
     if (width == -1)    // not initialized yet, or not available
@@ -712,7 +731,6 @@ int MegaNodePrivate::getWidth()
     return width;
 }
 
-
 int MegaNodePrivate::getHeight()
 {
     if (height == -1)    // not initialized yet, or not available
@@ -731,6 +749,46 @@ int MegaNodePrivate::getHeight()
     }
     
     return height;
+}
+    
+int MegaNodePrivate::getShortformat()
+{
+    if (shortformat == -1)    // not initialized yet, or not available
+    {
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+        {
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                && mediaProperties.shortformat != 254 // 254 = No information available
+                && mediaProperties.shortformat > 0)
+            {
+                shortformat = mediaProperties.shortformat;
+            }
+        }
+    }
+    
+    return shortformat;
+}
+    
+int MegaNodePrivate::getVideocodecid()
+{
+    if (videocodecid == -1)    // not initialized yet, or not available
+    {
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+        {
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                && mediaProperties.shortformat != 254 // 254 = No information available
+                && mediaProperties.videocodecid > 0)
+            {
+                videocodecid = mediaProperties.videocodecid;
+            }
+        }
+    }
+    
+    return videocodecid;
 }
 
 double MegaNodePrivate::getLatitude()
