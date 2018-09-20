@@ -45,6 +45,10 @@ typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
 #include "mega/posix/megasys.h"
 #endif
 
+#if USE_CRYPTOPP
+#include <cryptopp/config.h> // so we can test CRYPTO_VERSION below
+#endif
+
 // signed 64-bit generic offset
 typedef int64_t m_off_t;
 

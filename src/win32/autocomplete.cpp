@@ -79,6 +79,7 @@ void ACState::quoting::applyQuotes(std::string& w)
     if (quoted && quote_char != 0)
     {
         // reapply quotes as the user had them
+        w.reserve(w.size() + 2);
         w.insert(0, 1, quote_char);
         w.push_back(quote_char);
     }
@@ -104,6 +105,13 @@ ACState::quoted_word::quoted_word(const std::string &str)
 ACState::quoted_word::quoted_word(const std::string &str, const quoting& quot)
     : s (str), q(quot)
 {
+}
+
+string ACState::quoted_word::getQuoted()
+{
+    string qs = s;
+    q.applyQuotes(qs);
+    return qs;
 }
 
 void ACState::addCompletion(const std::string& s, bool caseInsensitive) 
@@ -147,8 +155,6 @@ void ACState::addPathCompletion(std::string& f, const std::string& relativeRootP
     }
     addCompletion(f, caseInsensitive);
 }
-
-
 
 std::ostream& operator<<(std::ostream& s, const ACNode& n)
 {
@@ -694,7 +700,7 @@ std::pair<int, int> identifyNextWord(const std::string& line, int startPos)
     return ret;
 }
 
-ACState prepACState(const std::string line, size_t insertPos, ACN syntax, bool unixStyle)
+ACState prepACState(const std::string line, size_t insertPos, bool unixStyle)
 {
     if (insertPos == std::string::npos)
     {
@@ -741,7 +747,7 @@ ACState prepACState(const std::string line, size_t insertPos, ACN syntax, bool u
 
 CompletionState autoComplete(const std::string line, size_t insertPos, ACN syntax, bool unixStyle)
 {
-    ACState acs = prepACState(line, insertPos, syntax, unixStyle);
+    ACState acs = prepACState(line, insertPos, unixStyle);
 
     acs.i = 0;
     syntax->addCompletions(acs);
@@ -752,14 +758,14 @@ CompletionState autoComplete(const std::string line, size_t insertPos, ACN synta
     cs.originalWord = acs.words.back();
     cs.completions = acs.completions;
     cs.unixStyle = acs.unixStyle;
-
+    cs.tidyCompletions();
 
     return cs;
 }
 
-void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput)
+bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput, bool reportNoMatch)
 {
-    ACState acs = prepACState(line, insertPos, syntax, unixStyle);
+    ACState acs = prepACState(line, insertPos, unixStyle);
 
     if (!acs.words.empty() && (acs.words[0].s.size() || acs.words.size() > 1))
     {
@@ -788,6 +794,10 @@ void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
             }
             if (v.empty())
             {
+                if (!reportNoMatch)
+                {
+                    return false;
+                }
                 conout << "Invalid syntax";
                 if (firstWordMatches.empty())
                 {
@@ -824,6 +834,7 @@ void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
             consoleOutput = conout.str();
         }
     }
+    return true;
 }
 
 
@@ -871,6 +882,13 @@ unsigned CompletionState::calcUnixColumnWidthInGlyphs(int col, int rows)
         width = std::max<unsigned>(width, utf8GlyphCount(unixColumnEntry(r, col, rows)));
     }
     return width;
+}
+
+void CompletionState::tidyCompletions()
+{
+    // sort and eliminate duplicates
+    std::sort(completions.begin(), completions.end(), [](const ACState::Completion& c1, const ACState::Completion& c2) { return c1.s < c2.s; });
+    completions.erase(std::unique(completions.begin(), completions.end(), [](const ACState::Completion& c1, const ACState::Completion& c2) { return c1.s == c2.s; }), completions.end());
 }
 
 void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, CompletionTextOut& textOut)

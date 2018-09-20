@@ -294,6 +294,21 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
             std::string u8line = WinConsole::toUtf8String(buffer);
             size_t u8InsertPos = WinConsole::toUtf8String(buffer.substr(0, insertPos)).size();
             autocompleteState = autocomplete::autoComplete(u8line, u8InsertPos, autocompleteSyntax, unixCompletions);
+
+            if (autocompleteFunction)
+            {
+                // also get additional app specific options, and merge
+                std::vector<autocomplete::ACState::Completion> appcompletions = autocompleteFunction(WinConsole::toUtf8String(getInputLineToCursor()));
+                autocomplete::ACState acs;
+                acs.words.push_back(autocompleteState.originalWord);
+                acs.completions.swap(autocompleteState.completions);
+                for (auto& c : appcompletions)
+                {
+                    acs.addCompletion(c.s, c.caseInsensitive);
+                }
+                autocompleteState.completions.swap(acs.completions);
+                autocompleteState.tidyCompletions();
+            }
             autocompleteState.active = true;
         }
 
@@ -395,6 +410,12 @@ bool ConsoleModel::checkForCompletedInputLine(std::wstring& ws)
         return true;
     }
     return false;
+}
+
+std::wstring ConsoleModel::getInputLineToCursor()
+{
+    insertPos = clamp<size_t>(insertPos, 0, buffer.size());
+    return buffer.substr(0, insertPos);
 }
 #endif
 
@@ -501,6 +522,11 @@ bool WinConsole::setShellConsole(UINT codepage, UINT failover_codepage)
 void WinConsole::setAutocompleteSyntax(autocomplete::ACN a)
 {
     model.autocompleteSyntax = a;
+}
+
+void WinConsole::setAutocompleteFunction(std::function<vector<autocomplete::ACState::Completion>(string)> f)
+{
+    model.autocompleteFunction = f;
 }
 
 void WinConsole::setAutocompleteStyle(bool unix)
