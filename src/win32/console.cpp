@@ -700,10 +700,11 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
     assert(ok);
     if (ok)
     {
-        std::string prompt = model.searchingHistory ? ("history-" + std::string(model.searchingHistoryForward ? "F:'" : "R:'") + toUtf8String(model.historySearchString) + "'> ")
+        std::string sprompt = model.searchingHistory ? ("history-" + std::string(model.searchingHistoryForward ? "F:'" : "R:'") + toUtf8String(model.historySearchString) + "'> ")
                                                     : currentPrompt;
+        std::wstring wprompt = toUtf16String(sprompt);
 
-        if (long(prompt.size() + model.buffer.size() + 1) < sbi.dwSize.X || !model.echoOn)
+        if (long(wprompt.size() + model.buffer.size() + 1) < sbi.dwSize.X || !model.echoOn)
         {
             inputLineOffset = 0;
         }
@@ -714,13 +715,13 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
             if (inputLineOffset + showleft >= model.insertPos)
             {
                 inputLineOffset = model.insertPos - std::min<size_t>(showleft, model.insertPos);
-            } else if (prompt.size() + model.insertPos + 1 >= inputLineOffset + sbi.dwSize.X)
+            } else if (wprompt.size() + model.insertPos + 1 >= inputLineOffset + sbi.dwSize.X)
             {
-                inputLineOffset = prompt.size() + model.insertPos + 1 - sbi.dwSize.X;
+                inputLineOffset = wprompt.size() + model.insertPos + 1 - sbi.dwSize.X;
             }
         }
 
-        size_t width = std::max<size_t>(prompt.size() + model.buffer.size() + 1 + inputLineOffset, sbi.dwSize.X); // +1 to show character under cursor 
+        size_t width = std::max<size_t>(wprompt.size() + model.buffer.size() + 1 + inputLineOffset, sbi.dwSize.X); // +1 to show character under cursor 
         std::unique_ptr<CHAR_INFO[]> line(new CHAR_INFO[width]);
 
         for (size_t i = width; i--; )
@@ -730,20 +731,20 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
             {
                 line[i].Char.UnicodeChar = ' ';
             }
-            else if (inputLineOffset && i + 1 == inputLineOffset + prompt.size())
+            else if (inputLineOffset && i + 1 == inputLineOffset + wprompt.size())
             {
                 line[i].Char.UnicodeChar = '|';
                 line[i].Attributes |= FOREGROUND_INTENSITY | FOREGROUND_GREEN;
                 line[i].Attributes &= ~(FOREGROUND_RED | FOREGROUND_BLUE);
             }
-            else if (i < inputLineOffset + prompt.size())
+            else if (i < inputLineOffset + wprompt.size())
             {
-                line[i].Char.UnicodeChar = prompt[i - inputLineOffset];
+                line[i].Char.UnicodeChar = wprompt[i - inputLineOffset];
                 line[i].Attributes |= FOREGROUND_INTENSITY;
             }
-            else if (i < prompt.size() + model.buffer.size() && model.echoOn)
+            else if (i < wprompt.size() + model.buffer.size() && model.echoOn)
             {
-                line[i].Char.UnicodeChar = model.buffer[i - prompt.size()];
+                line[i].Char.UnicodeChar = model.buffer[i - wprompt.size()];
             }
             else
             {
@@ -755,7 +756,7 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
         ok = WriteConsoleOutputW(hOutput, line.get(), COORD{ SHORT(width), 1 }, COORD{ SHORT(inputLineOffset), 0 }, &screenarea2);
         assert(ok);
 
-        COORD cpos{ SHORT(prompt.size() + model.insertPos - inputLineOffset), sbi.dwCursorPosition.Y };
+        COORD cpos{ SHORT(wprompt.size() + model.insertPos - inputLineOffset), sbi.dwCursorPosition.Y };
         ok = SetConsoleCursorPosition(hOutput, cpos);
         assert(ok);
 
