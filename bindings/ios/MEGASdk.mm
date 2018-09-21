@@ -1135,6 +1135,22 @@ using namespace mega;
     self.megaApi->setRichLinkWarningCounterValue((int)value);
 }
 
+- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)rubbishBinAutopurgePeriod {
+    self.megaApi->getRubbishBinAutopurgePeriod();
+}
+
+- (void)setRubbishBinAutopurgePeriod:(NSInteger)days delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setRubbishBinAutopurgePeriod((int)days, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setRubbishBinAutopurgePeriod:(NSInteger)days {
+    self.megaApi->setRubbishBinAutopurgePeriod((int)days);
+}
+
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

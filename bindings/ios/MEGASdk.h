@@ -3666,6 +3666,68 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (void)setRichLinkWarningCounterValue:(NSUInteger)value;
 
 /**
+ * @brief Get the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
+ * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+ * Any negative value means that the configured value is invalid.
+ *
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
+ * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+ * Any negative value means that the configured value is invalid.
+ *
+ */
+- (void)rubbishBinAutopurgePeriod;
+
+/**
+ * @brief Set the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+ *
+ * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+ * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+ *
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+ *
+ * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+ * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+ *
+ */
+- (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days;
+
+/**
  * @brief Use HTTPS communications only
  *
  * The default behavior is to use HTTP for transfers and the persistent connection
