@@ -16817,18 +16817,9 @@ void MegaApiImpl::sendPendingRequests()
 
                     client->putua(type, (byte *)value, 1);
                 }
-                else if (type == ATTR_LAST_PSA)
+                else if (type == ATTR_RUBBISH_TIME || type == ATTR_LAST_PSA)
                 {
-                    if (!value || !atoll(value))
-                    {
-                        e = API_EARGS;
-                        break;
-                    }
-                    client->putua(type, (byte *)value, strlen(value));
-                }
-                else if (type == ATTR_RUBBISH_TIME)
-                {
-                    if (!value || !strlen(value))
+                    if (!value || !value[0])
                     {
                         e = API_EARGS;
                         break;
