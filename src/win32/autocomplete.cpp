@@ -503,7 +503,7 @@ bool LocalFS::addCompletions(ACState& s)
         fs::path searchPath(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
         bool relative = !searchPath.is_absolute();
-        searchPath = relative ? fs::current_path() / searchPath : searchPath;
+        searchPath = relative ? fs::current_path().append("\\").append(searchPath) : searchPath;
         std::string cp = relative ? fs::current_path().u8string() + "\\" : "";
         if ((searchPath.filename() == ".." || searchPath.filename() == ".") && fs::exists(searchPath))
         {
@@ -512,6 +512,12 @@ bool LocalFS::addCompletions(ACState& s)
         else
         {
             searchPath.remove_filename(); // iterate the whole directory, and filter
+            std::string spath = searchPath.u8string();
+            if (spath.back() == ':')
+            {
+                searchPath = spath.append("\\");
+            }
+
             for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
             {
                 if (reportFolders && fs::is_directory(iter->status()) ||
