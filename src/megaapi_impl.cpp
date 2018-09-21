@@ -11842,9 +11842,9 @@ void MegaApiImpl::request_error(error e)
 
 void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t totalProgress)
 {
-    if (requestMap.size() == 1)
+    for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
     {
-        MegaRequestPrivate *request = requestMap.begin()->second;
+        MegaRequestPrivate *request = it->second;
         if (request && request->getType() == MegaRequest::TYPE_FETCH_NODES)
         {
             request->setTransferredBytes(currentProgress);
