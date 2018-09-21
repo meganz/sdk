@@ -1401,6 +1401,16 @@ void MegaApi::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
     pImpl->keepMeAlive(type, enable, listener);
 }
 
+void MegaApi::setPSA(int id, MegaRequestListener *listener)
+{
+    pImpl->setPSA(id, listener);
+}
+
+void MegaApi::getPSA(MegaRequestListener *listener)
+{
+    pImpl->getPSA(listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
@@ -2077,6 +2087,16 @@ void MegaApi::shouldShowRichLinkWarning(MegaRequestListener *listener)
 void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
 {
     pImpl->setRichLinkWarningCounterValue(value, listener);
+}
+
+void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
+{
+    pImpl->getRubbishBinAutopurgePeriod(listener);
+}
+
+void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
+{
+    pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)

@@ -333,6 +333,9 @@ struct MEGA_API MegaApp
     // keep me alive command for mobile apps
     virtual void keepmealive_result (error) { }
 
+    // get the current PSA
+    virtual void getpsa_result (error, int, string*, string*, string*, string*, string*) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

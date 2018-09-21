@@ -387,6 +387,10 @@ using namespace mega;
     self.megaApi->retryPendingConnections(true, true);
 }
 
+- (BOOL)serverSideRubbishBinAutopurgeEnabled {
+    return self.megaApi->serverSideRubbishBinAutopurgeEnabled();
+}
+
 #pragma mark - Login Requests
 
 - (BOOL)multiFactorAuthAvailable {
@@ -710,6 +714,22 @@ using namespace mega;
     self.megaApi->keepMeAlive((int) type, enable);
 }
 
+- (void)getPSAWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPSA([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getPSA{
+    self.megaApi->getPSA();
+}
+
+- (void)setPSAWithIdentifier:(NSInteger)identifier delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setPSA((int)identifier, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setPSAWithIdentifier:(NSInteger)identifier {
+    self.megaApi->setPSA((int)identifier);
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -977,6 +997,14 @@ using namespace mega;
     self.megaApi->getUserAttribute((user != nil) ? [user getCPtr] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type {
+    self.megaApi->getUserAttribute((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, type);
+}
+
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getUserAttribute((emailOrHandle != nil) ? [emailOrHandle UTF8String] : NULL, type, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (void)getUserAttributeType:(MEGAUserAttribute)type {
     self.megaApi->getUserAttribute(type);
 }
@@ -1121,6 +1149,22 @@ using namespace mega;
 
 - (void)setRichLinkWarningCounterValue:(NSUInteger)value {
     self.megaApi->setRichLinkWarningCounterValue((int)value);
+}
+
+- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)rubbishBinAutopurgePeriod {
+    self.megaApi->getRubbishBinAutopurgePeriod();
+}
+
+- (void)setRubbishBinAutopurgePeriod:(NSInteger)days delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setRubbishBinAutopurgePeriod((int)days, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setRubbishBinAutopurgePeriod:(NSInteger)days {
+    self.megaApi->setRubbishBinAutopurgePeriod((int)days);
 }
 
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {

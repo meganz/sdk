@@ -92,8 +92,11 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
     MEGAUserAttributeLanguage                = 14, // private - char array
     MEGAUserAttributePwdReminder             = 15, // private - char array
+    MEGAUserAttributeDisableVersions         = 16, // private - byte array
     MEGAUserAttributeContactLinkVerification = 17, // private - byte array
-    MEGAUserAttributeRichPreviews            = 18  // private - byte array
+    MEGAUserAttributeRichPreviews            = 18, // private - byte array
+    MEGAUserAttributeRubbishTime             = 19,  // private - byte array
+    MEGAUserAttributeLastPSA                 = 20 // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -521,6 +524,12 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - [MEGARequest number] - Returns the second parameter
  */
 - (void)reconnect;
+
+/**
+ * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
+ * @return YES if this feature is enabled. Otherwise NO.
+ */
+- (BOOL)serverSideRubbishBinAutopurgeEnabled;
 
 #pragma mark - Login Requests
 
@@ -1781,6 +1790,90 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable;
 
+/**
+ * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+ *
+ * After the PSA has been accepted or dismissed by the user, app should
+ * use [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * this event and do not get the same PSA again in the next call to this function.
+ *
+ * The associated request type with this request is MEGARequestTypeGetPSA.
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
+ *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
+ * - [MEGARequest name] - Returns the title of the PSA
+ * - [MEGARequest text] - Returns the text of the PSA
+ * - [MEGARequest file] - Returns the URL of the image of the PSA
+ * - [MEGARequest password] - Returns the text for the possitive button (or an empty string)
+ * - [MEGARequest link] - Returns the link for the possitive button (or an empty string)
+ *
+ * If there isn't any new PSA to show, onRequestFinish will be called with the error
+ * code MEGAErrorTypeApiENoent
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
+ */
+- (void)getPSAWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+ *
+ * After the PSA has been accepted or dismissed by the user, app should
+ * use [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * this event and do not get the same PSA again in the next call to this function.
+ *
+ * The associated request type with this request is MEGARequestTypeGetPSA.
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
+ *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
+ * - [MEGARequest name] - Returns the title of the PSA
+ * - [MEGARequest text] - Returns the text of the PSA
+ * - [MEGARequest file] - Returns the URL of the image of the PSA
+ * - [MEGARequest password] - Returns the text for the possitive button (or an empty string)
+ * - [MEGARequest link] - Returns the link for the possitive button (or an empty string)
+ *
+ * If there isn't any new PSA to show, onRequestFinish will be called with the error
+ * code MEGAErrorTypeApiENoent
+ *
+ * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
+ */
+- (void)getPSA;
+
+/**
+ * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser.
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeLastPSA
+ * - [MEGARequest text] - Returns the id passed in the first parameter (as a string)
+ *
+ * @param identifier Identifier of the PSA
+ * @param delegate MEGARequestDelegate to track this request
+ *
+ * @see [MEGASdk getPSA] [MEGASdk getPSAWithDelegate:]
+ */
+- (void)setPSAWithIdentifier:(NSInteger)identifier delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser.
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeLastPSA
+ * - [MEGARequest text] - Returns the id passed in the first parameter (as a string)
+ *
+ * @param identifier Identifier of the PSA
+ *
+ * @see [MEGASdk getPSA] [MEGASdk getPSAWithDelegate:]
+ */
+- (void)setPSAWithIdentifier:(NSInteger)identifier;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -2815,6 +2908,9 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 /**
  * @brief Get an attribute of a MEGAUser.
  *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type
@@ -2833,14 +2929,33 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
-
 
 /**
  * @brief Get an attribute of a MEGAUser.
@@ -2863,17 +2978,141 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Get an attribute of any user in MEGA.
+ *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value for public attributes
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the attribute.
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user (public)
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ *
+ */
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type;
+
+/**
+ * @brief Get an attribute of any user in MEGA.
+ *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value for public attributes
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the attribute.
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user (public)
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Get an attribute of the current account.
+ *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
@@ -2895,12 +3134,20 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ *
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
 
 /**
  * @brief Get an attribute of the current account.
  *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type
@@ -2921,11 +3168,14 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
-
 
 /**
  * @brief Set an attribute of the current user.
@@ -2943,6 +3193,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
  * Set the lastname of the user
+ * MEGAUserAttributeRubbishTime = 19
+ * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param value New attribute value
  */
@@ -2964,6 +3216,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
  * Set the lastname of the user
+ * MEGAUserAttributeRubbishTime = 19
+ * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param value New attribute value
  * @param delegate MEGARequestDelegate to track this request
@@ -3495,6 +3749,68 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param value Number of times "Not now" option has been selected
  */
 - (void)setRichLinkWarningCounterValue:(NSUInteger)value;
+
+/**
+ * @brief Get the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
+ * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+ * Any negative value means that the configured value is invalid.
+ *
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
+ * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+ * Any negative value means that the configured value is invalid.
+ *
+ */
+- (void)rubbishBinAutopurgePeriod;
+
+/**
+ * @brief Set the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+ *
+ * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+ * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+ *
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+ *
+ * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+ * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+ *
+ */
+- (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days;
 
 /**
  * @brief Use HTTPS communications only
