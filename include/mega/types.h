@@ -441,6 +441,7 @@ typedef enum {
     ATTR_DISABLE_VERSIONS = 16, // private, non-encrypted - char array in B64 - non-versioned
     ATTR_CONTACT_LINK_VERIFICATION = 17,  // private, non-encrypted - char array in B64 - non-versioned
     ATTR_RICH_PREVIEWS = 18,     // private - byte array
+    ATTR_RUBBISH_TIME = 19,      // private, non-encrypted - char array in B64 - non-versioned
     ATTR_LAST_PSA = 20      // private - char array
 } attr_t;
 typedef map<attr_t, string> userattr_map;

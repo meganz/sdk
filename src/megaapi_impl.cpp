@@ -4568,6 +4568,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_LAST_PSA:
             attrname = "^!lastPsa";
             break;
+
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
+            attrname = "^!rubbishtime";
+            break;
     }
 
     return attrname;
@@ -4604,6 +4608,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
         case MegaApi::USER_ATTR_LAST_PSA:
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
             scope = '^';
             break;
 
@@ -5474,6 +5479,27 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     stringMap->set("c", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
+}
+
+void MegaApiImpl::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
+{
+    ostringstream oss;
+    oss << days;
+    string value = oss.str();
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setText(value.data());
+    request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
+    request->setNumber(days);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
@@ -12648,6 +12674,21 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             }
             break;
 
+        // numbers
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
+            {
+                char *endptr;
+                string str((const char*)data, len);
+                m_off_t value = strtoll(str.c_str(), &endptr, 10);
+                if (endptr == str.c_str() || *endptr != '\0' || value == LLONG_MAX || value == LLONG_MIN)
+                {
+                    value = -1;
+                }
+
+                request->setNumber(value);
+            }
+            break;
+
         // byte arrays with possible nulls in the middle --> to Base64
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
@@ -16609,7 +16650,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if ( attrname.empty() ||    // unknown attribute type
+            if (attrname.empty() ||    // unknown attribute type
                  (type == ATTR_AVATAR && !value) ) // no destination file for avatar
             {
                 e = API_EARGS;
@@ -16783,8 +16824,26 @@ void MegaApiImpl::sendPendingRequests()
                         e = API_EARGS;
                         break;
                     }
-
                     client->putua(type, (byte *)value, strlen(value));
+                }
+                else if (type == ATTR_RUBBISH_TIME)
+                {
+                    if (!value || !strlen(value))
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    char *endptr;
+                    m_off_t number = strtoll(value, &endptr, 10);
+                    if (endptr == value || *endptr != '\0' || number == LLONG_MAX || number == LLONG_MIN || number < 0)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    string tmp(value);
+                    client->putua(type, (byte *)tmp.data(), tmp.size());
                 }
                 else
                 {
