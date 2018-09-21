@@ -1260,6 +1260,26 @@ void MegaSDK::contactLinkDeleteActive()
     megaApi->contactLinkDelete(mega::INVALID_HANDLE);
 }
 
+void MegaSDK::getPSA(MRequestListenerInterface^ listener)
+{
+    megaApi->getPSA(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getPSA()
+{
+    megaApi->getPSA();
+}
+
+void MegaSDK::setPSA(int id, MRequestListenerInterface^ listener)
+{
+    megaApi->setPSA(id, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setPSA(int id)
+{
+    megaApi->setPSA(id);
+}
+
 String^ MegaSDK::getMyEmail()
 {
 	std::string utf16email;

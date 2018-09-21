@@ -3174,6 +3174,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
         case TYPE_TIMER: return "SET_TIMER";
         case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
+        case TYPE_GET_PSA: return "GET_PSA";
     }
     return "UNKNOWN";
 }
@@ -4564,6 +4565,10 @@ string MegaApiImpl::userAttributeToString(int type)
             attrname = "*!rp";
             break;
 
+        case MegaApi::USER_ATTR_LAST_PSA:
+            attrname = "^!lastPsa";
+            break;
+
         case MegaApi::USER_ATTR_RUBBISH_TIME:
             attrname = "^!rubbishtime";
             break;
@@ -4602,6 +4607,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+        case MegaApi::USER_ATTR_LAST_PSA:
         case MegaApi::USER_ATTR_RUBBISH_TIME:
             scope = '^';
             break;
@@ -9121,6 +9127,21 @@ void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listen
     waiter->notify();
 }
 
+void MegaApiImpl::getPSA(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PSA, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setPSA(int id, MegaRequestListener *listener)
+{
+    std::ostringstream oss;
+    oss << id;
+    string value = oss.str();
+    setUserAttr(MegaApi::USER_ATTR_LAST_PSA, value.c_str(), listener);
+}
+
 void MegaApiImpl::disableGfxFeatures(bool disable)
 {
     client->gfxdisabled = disable;
@@ -12928,6 +12949,32 @@ void MegaApiImpl::keepmealive_result(error e)
     {
         return;
     }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_GET_PSA)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setNumber(id);
+        request->setName(title->c_str());
+        request->setText(text->c_str());
+        request->setFile(image->c_str());
+        request->setPassword(buttontext->c_str());
+        request->setLink(buttonlink->c_str());
+    }
+
     fireOnRequestFinish(request, e);
 }
 
@@ -16770,9 +16817,9 @@ void MegaApiImpl::sendPendingRequests()
 
                     client->putua(type, (byte *)value, 1);
                 }
-                else if (type == ATTR_RUBBISH_TIME)
+                else if (type == ATTR_RUBBISH_TIME || type == ATTR_LAST_PSA)
                 {
-                    if (!value || !strlen(value))
+                    if (!value || !value[0])
                     {
                         e = API_EARGS;
                         break;
@@ -18590,6 +18637,11 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->keepmealive(type, enable);
+            break;
+        }
+        case MegaRequest::TYPE_GET_PSA:
+        {
+            client->getpsa();
             break;
         }
         case MegaRequest::TYPE_FOLDER_INFO:

@@ -92,6 +92,7 @@ public class MegaApiJava {
     public final static int USER_ATTR_DISABLE_VERSIONS = MegaApi.USER_ATTR_DISABLE_VERSIONS;
     public final static int USER_ATTR_CONTACT_LINK_VERIFICATION = MegaApi.USER_ATTR_CONTACT_LINK_VERIFICATION;
     public final static int USER_ATTR_RICH_PREVIEWS = MegaApi.USER_ATTR_RICH_PREVIEWS;
+    public final static int USER_ATTR_LAST_PSA = MegaApi.USER_ATTR_LAST_PSA;
     public final static int USER_ATTR_RUBBISH_TIME = MegaApi.USER_ATTR_RUBBISH_TIME;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
@@ -114,6 +115,10 @@ public class MegaApiJava {
     public final static int TRANSFER_METHOD_AUTO_NORMAL = MegaApi.TRANSFER_METHOD_AUTO_NORMAL;
     public final static int TRANSFER_METHOD_AUTO_ALTERNATIVE = MegaApi.TRANSFER_METHOD_AUTO_ALTERNATIVE;
 
+    public final static int PUSH_NOTIFICATION_ANDROID = MegaApi.PUSH_NOTIFICATION_ANDROID;
+    public final static int PUSH_NOTIFICATION_IOS_VOIP = MegaApi.PUSH_NOTIFICATION_IOS_VOIP;
+    public final static int PUSH_NOTIFICATION_IOS_STD = MegaApi.PUSH_NOTIFICATION_IOS_STD;
+
     public final static int PASSWORD_STRENGTH_VERYWEAK = MegaApi.PASSWORD_STRENGTH_VERYWEAK;
     public final static int PASSWORD_STRENGTH_WEAK = MegaApi.PASSWORD_STRENGTH_WEAK;
     public final static int PASSWORD_STRENGTH_MEDIUM = MegaApi.PASSWORD_STRENGTH_MEDIUM;
@@ -128,6 +133,8 @@ public class MegaApiJava {
     public final static int RETRY_LOCAL_LOCK = MegaApi.RETRY_LOCAL_LOCK;
     public final static int RETRY_UNKNOWN = MegaApi.RETRY_UNKNOWN;
 
+    public final static int KEEP_ALIVE_CAMERA_UPLOADS = MegaApi.KEEP_ALIVE_CAMERA_UPLOADS;
+
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
     public final static int ORDER_DEFAULT_DESC = MegaApi.ORDER_DEFAULT_DESC;
@@ -139,6 +146,11 @@ public class MegaApiJava {
     public final static int ORDER_MODIFICATION_DESC = MegaApi.ORDER_MODIFICATION_DESC;
     public final static int ORDER_ALPHABETICAL_ASC = MegaApi.ORDER_ALPHABETICAL_ASC;
     public final static int ORDER_ALPHABETICAL_DESC = MegaApi.ORDER_ALPHABETICAL_DESC;
+
+    public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
+    public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
+    public final static int TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS = MegaApi.TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
+    public final static int TCP_SERVER_ALLOW_LAST_LOCAL_LINK = MegaApi.TCP_SERVER_ALLOW_LAST_LOCAL_LINK;
 
     public final static int HTTP_SERVER_DENY_ALL = MegaApi.HTTP_SERVER_DENY_ALL;
     public final static int HTTP_SERVER_ALLOW_ALL = MegaApi.HTTP_SERVER_ALLOW_ALL;
@@ -1657,6 +1669,95 @@ public class MegaApiJava {
         megaApi.contactLinkDelete(handle);
     }
 
+    /**
+     * Get the next PSA (Public Service Announcement) that should be shown to the user
+     *
+     * After the PSA has been accepted or dismissed by the user, app should
+     * use MegaApi::setPSA to notify API servers about this event and
+     * do not get the same PSA again in the next call to this function.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PSA.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
+     * - MegaRequest::getName - Returns the title of the PSA
+     * - MegaRequest::getText - Returns the text of the PSA
+     * - MegaRequest::getFile - Returns the URL of the image of the PSA
+     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
+     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
+     *
+     * If there isn't any new PSA to show, onRequestFinish will be called with the error
+     * code MegaError::API_ENOENT
+     *
+     * @param listener MegaRequestListener to track this request
+     * @see MegaApi::setPSA
+     */
+    void getPSA(MegaRequestListenerInterface listener){
+        megaApi.getPSA(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the next PSA (Public Service Announcement) that should be shown to the user
+     *
+     * After the PSA has been accepted or dismissed by the user, app should
+     * use MegaApi::setPSA to notify API servers about this event and
+     * do not get the same PSA again in the next call to this function.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PSA.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
+     * - MegaRequest::getName - Returns the title of the PSA
+     * - MegaRequest::getText - Returns the text of the PSA
+     * - MegaRequest::getFile - Returns the URL of the image of the PSA
+     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
+     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
+     *
+     * If there isn't any new PSA to show, onRequestFinish will be called with the error
+     * code MegaError::API_ENOENT
+     *
+     * @see MegaApi::setPSA
+     */
+    void getPSA(){
+        megaApi.getPSA();
+    }
+
+    /**
+     * Notify API servers that a PSA (Public Service Announcement) has been already seen
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER.
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_LAST_PSA
+     * - MegaRequest::getText - Returns the id passed in the first parameter (as a string)
+     *
+     * @param id Identifier of the PSA
+     * @param listener MegaRequestListener to track this request
+     *
+     * @see MegaApi::getPSA
+     */
+    void setPSA(int id, MegaRequestListenerInterface listener){
+        setPSA(id, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Notify API servers that a PSA (Public Service Announcement) has been already seen
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER.
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_LAST_PSA
+     * - MegaRequest::getText - Returns the id passed in the first parameter (as a string)
+     *
+     * @param id Identifier of the PSA
+     *
+     * @see MegaApi::getPSA
+     */
+    void setPSA(int id){
+        setPSA(id);
+    }
 
     /**
      * Returns the email of the currently open account.

@@ -1361,6 +1361,8 @@ public:
 
     void keepmealive(int, bool enable = true);
 
+    void getpsa();
+
     // achievements enabled for the account
     bool achievements_enabled;
 

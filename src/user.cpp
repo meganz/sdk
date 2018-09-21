@@ -400,8 +400,13 @@ string User::attr2string(attr_t type)
             attrname = "*!rp";
             break;
 
+        case ATTR_LAST_PSA:
+            attrname = "^!lastPsa";
+            break;
+
         case ATTR_RUBBISH_TIME:
             attrname = "^!rubbishtime";
+            break;
 
         case ATTR_UNKNOWN:  // empty string
             break;
@@ -488,6 +493,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_RICH_PREVIEWS;
     }
+    else if(!strcmp(name, "^!lastPsa"))
+    {
+        return ATTR_LAST_PSA;
+    }
     else if(!strcmp(name, "^!rubbishtime"))
     {
         return ATTR_RUBBISH_TIME;
@@ -513,6 +522,7 @@ bool User::needversioning(attr_t at)
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
         case ATTR_RICH_PREVIEWS:
+        case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
             return 0;
 
@@ -552,6 +562,7 @@ char User::scope(attr_t at)
         case ATTR_PWD_REMINDER:
         case ATTR_DISABLE_VERSIONS:
         case ATTR_CONTACT_LINK_VERIFICATION:
+        case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
             return '^';
 
@@ -911,6 +922,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_RICH_PREVIEWS:
             changed.richPreviews = true;
+            break;
+
+        case ATTR_LAST_PSA:
+            changed.lastPsa = true;
             break;
 
         case ATTR_RUBBISH_TIME:

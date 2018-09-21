@@ -125,6 +125,11 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeMultiFactorAuthCheck,
     MEGARequestTypeMultiFactorAuthGet,
     MEGARequestTypeMultiFactorAuthSet,
+    MEGARequestTypeAddBackup,
+    MEGARequestTypeRemoveBackup,
+    MEGARequestTypeTimer,
+    MEGARequestTypeAbortCurrentBackup,
+    MEGARequestTypeGetPSA,
     TotalOfRequestTypes
 };
 

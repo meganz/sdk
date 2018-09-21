@@ -1396,6 +1396,16 @@ void MegaApi::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
     pImpl->keepMeAlive(type, enable, listener);
 }
 
+void MegaApi::setPSA(int id, MegaRequestListener *listener)
+{
+    pImpl->setPSA(id, listener);
+}
+
+void MegaApi::getPSA(MegaRequestListener *listener)
+{
+    pImpl->getPSA(listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
