@@ -3262,12 +3262,12 @@ public:
 };
 
 /**
- * @brief Provides information about timezones
+ * @brief Provides information about timezones and the current default
  *
  * This object is related to results of the function MegaApi::fetchTimeZone
  *
- * Objects of this class aren't live, they are snapshots of the state of the contents of the
- * folder when the object is created, they are immutable.
+ * Objects of this class aren't live, they contain details about timezones and the
+ * default when the object is created, they are immutable.
  *
  */
 class MegaTimeZoneDetails
