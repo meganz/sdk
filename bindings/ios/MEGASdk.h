@@ -94,7 +94,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributePwdReminder             = 15, // private - char array
     MEGAUserAttributeDisableVersions         = 16, // private - byte array
     MEGAUserAttributeContactLinkVerification = 17, // private - byte array
-    MEGAUserAttributeRichPreviews            = 18  // private - byte array
+    MEGAUserAttributeRichPreviews            = 18, // private - byte array
+    MEGAUserAttributeLastPSA                 = 20 // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -1781,6 +1782,90 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @see [MEGASdk registeriOSdeviceToken:]
  */
 - (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable;
+
+/**
+ * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+ *
+ * After the PSA has been accepted or dismissed by the user, app should
+ * use [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * this event and do not get the same PSA again in the next call to this function.
+ *
+ * The associated request type with this request is MEGARequestTypeGetPSA.
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
+ *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
+ * - [MEGARequest name] - Returns the title of the PSA
+ * - [MEGARequest text] - Returns the text of the PSA
+ * - [MEGARequest file] - Returns the URL of the image of the PSA
+ * - [MEGARequest password] - Returns the text for the possitive button (or an empty string)
+ * - [MEGARequest link] - Returns the link for the possitive button (or an empty string)
+ *
+ * If there isn't any new PSA to show, onRequestFinish will be called with the error
+ * code MEGAErrorTypeApiENoent
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
+ */
+- (void)getPSAWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+ *
+ * After the PSA has been accepted or dismissed by the user, app should
+ * use [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * this event and do not get the same PSA again in the next call to this function.
+ *
+ * The associated request type with this request is MEGARequestTypeGetPSA.
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
+ *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
+ * - [MEGARequest name] - Returns the title of the PSA
+ * - [MEGARequest text] - Returns the text of the PSA
+ * - [MEGARequest file] - Returns the URL of the image of the PSA
+ * - [MEGARequest password] - Returns the text for the possitive button (or an empty string)
+ * - [MEGARequest link] - Returns the link for the possitive button (or an empty string)
+ *
+ * If there isn't any new PSA to show, onRequestFinish will be called with the error
+ * code MEGAErrorTypeApiENoent
+ *
+ * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
+ */
+- (void)getPSA;
+
+/**
+ * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser.
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeLastPSA
+ * - [MEGARequest text] - Returns the id passed in the first parameter (as a string)
+ *
+ * @param identifier Identifier of the PSA
+ * @param delegate MEGARequestDelegate to track this request
+ *
+ * @see [MEGASdk getPSA] [MEGASdk getPSAWithDelegate:]
+ */
+- (void)setPSAWithIdentifier:(NSInteger)identifier delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser.
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeLastPSA
+ * - [MEGARequest text] - Returns the id passed in the first parameter (as a string)
+ *
+ * @param identifier Identifier of the PSA
+ *
+ * @see [MEGASdk getPSA] [MEGASdk getPSAWithDelegate:]
+ */
+- (void)setPSAWithIdentifier:(NSInteger)identifier;
 
 #pragma mark - Filesystem changes Requests
 
