@@ -85,4 +85,33 @@
 #include "mega/gfx/freeimage.h"
 #include "mega/gfx/GfxProcCG.h"
 
+
+#if defined(REQUIRE_HAVE_FFMPEG) && !defined(HAVE_FFMPEG)
+#error compilation with HAVE_FFMPEG is required
+#endif
+#if defined(REQUIRE_HAVE_LIBUV) && !defined(HAVE_LIBUV)
+#error compilation with HAVE_LIBUV is required
+#endif
+#if defined(REQUIRE_HAVE_LIBRAW) && !defined(HAVE_LIBRAW)
+#error compilation with HAVE_LIBRAW is required
+#endif
+#if defined(REQUIRE_ENABLE_CHAT) && !defined(ENABLE_CHAT)
+#error compilation with ENABLE_CHAT is required
+#endif
+#if defined(REQUIRE_ENABLE_BACKUPS) && !defined(ENABLE_BACKUPS)
+#error compilation with ENABLE_BACKUPS is required
+#endif
+#if defined(REQUIRE_ENABLE_WEBRTC) && !defined(ENABLE_WEBRTC)
+#error compilation with ENABLE_WEBRTC is required
+#endif
+#if defined(REQUIRE_ENABLE_EVT_TLS) && !defined(ENABLE_EVT_TLS)
+#error compilation with ENABLE_EVT_TLS is required
+#endif
+#if defined(REQUIRE_USE_MEDIAINFO) && !defined(USE_MEDIAINFO)
+#error compilation with USE_MEDIAINFO is required
+#endif
+#if defined(REQUIRE_USE_PCRE) && !defined(USE_PCRE)
+#error compilation with USE_PCRE is required
+#endif
+
 #endif

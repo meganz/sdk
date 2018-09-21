@@ -45,6 +45,7 @@ enable_sodium=0
 enable_cares=0
 enable_curl=0
 enable_libuv=0
+enable_libraw=0
 android_build=0
 readline_build=0
 enable_cryptopp=0
@@ -489,6 +490,49 @@ libuv_pkg() {
 
     package_build $name $libuv_dir
     package_install $name $libuv_dir $install_dir
+}
+
+libraw_pkg() {
+    local build_dir=$1
+    local install_dir=$2
+    local name="libraw"
+    local libraw_ver="0.19.0"
+    local libraw_url="https://www.libraw.org/data/LibRaw-$libraw_ver.tar.gz"
+    local libraw_md5="789b03f0ec39eebcba3ae8a0e5b780ac"
+    local libraw_file="libraw-$libraw_ver.tar.gz"
+    local libraw_dir="LibRaw-$libraw_ver"
+    if [ $use_dynamic -eq 1 ]; then
+        local libraw_params="--enable-shared"
+    else
+        local libraw_params="--disable-shared --enable-static"
+    fi
+
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+        echo "$name already built"
+        return
+    else
+        rm -f $status_dir/$name.success
+    fi
+
+    package_download $name $libraw_url $libraw_file $libraw_md5
+    if [ $download_only -eq 1 ]; then
+        return
+    fi
+
+    package_extract $name $libraw_file $libraw_dir
+
+    local OLD_LIBS="$LIBS"
+
+    # linking with static library requires -lstdc++
+    if [ $use_dynamic -eq 0 ]; then
+        export LIBS="$LIBS -lstdc++"
+    fi
+    package_configure $name $libraw_dir $install_dir "$libraw_params"
+
+    export LIBS="$OLD_LIBS"
+
+    package_build $name $libraw_dir
+    package_install $name $libraw_dir $install_dir
 }
 
 zlib_pkg() {
@@ -999,6 +1043,7 @@ build_sdk() {
     local readline_flags=""
     local freeimage_flags=""
     local libuv_flags=""
+    local libraw_flags=""
     local megaapi_flags=""
     local openssl_flags=""
     local sodium_flags="--without-sodium"
@@ -1034,6 +1079,11 @@ build_sdk() {
         libuv_flags="--with-libuv=$install_dir"
     else
         libuv_flags="--without-libuv"
+    fi
+
+    # enable libraw
+    if [ $enable_libraw -eq 1 ]; then
+        libraw_flags="--with-libraw=$install_dir"
     fi
 
     # use local or system MediaInfo
@@ -1079,6 +1129,7 @@ build_sdk() {
             --with-curl=$install_dir \
             $freeimage_flags \
             $libuv_flags \
+            $libraw_flags \
             $readline_flags \
             $disable_posix_threads \
             $no_examples \
@@ -1104,6 +1155,7 @@ build_sdk() {
             --with-winhttp=$cwd \
             $freeimage_flags \
             $libuv_flags \
+            $libraw_flags \
             $readline_flags \
             $disable_posix_threads \
             $no_examples \
@@ -1183,7 +1235,7 @@ main() {
     local_dir=$work_dir
     status_dir=$work_dir
 
-    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyx:XC:O:wqz0" opt; do
+    while getopts ":habcdefgiIlm:no:p:rRsS:tuvyx:XC:O:wWqz0" opt; do
         case $opt in
             h)
                 display_help $0
@@ -1280,6 +1332,10 @@ main() {
             w)
                 download_only=1
                 echo "* Downloading software archives only."
+                ;;
+            W)
+                enable_libraw=1
+                echo "* Enabling external libraw."
                 ;;
             x)
                 config_opts="$OPTARG"
@@ -1388,6 +1444,10 @@ main() {
 
     if [ $enable_libuv -eq 1 ]; then
         libuv_pkg $build_dir $install_dir
+    fi
+
+    if [ $enable_libraw -eq 1 ]; then
+        libraw_pkg $build_dir $install_dir
     fi
 
     if [ $disable_freeimage -eq 0 ]; then

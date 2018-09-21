@@ -47,12 +47,16 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
+const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks)
+
 TransferSlot::TransferSlot(Transfer* ctransfer)
 {
     starttime = 0;
     lastprogressreport = 0;
     progressreported = 0;
     speed = meanSpeed = 0;
+    progresscontiguous = 0;
+    delayedchunk = false;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -382,7 +386,7 @@ void TransferSlot::doio(MegaClient* client)
                     lastdata = Waiter::ds;
                     transfer->lastaccesstime = m_time();
 
-                    LOG_debug << "Chunk finished OK (" << transfer->type << ") Pos: " << transfer->pos
+                    LOG_debug << "Transfer request finished (" << transfer->type << ") Position: " << reqs[i]->pos << " (" << transfer->pos << ") Size: " << reqs[i]->size
                               << " Completed: " << (transfer->progresscompleted + reqs[i]->size) << " of " << transfer->size;
 
                     if (transfer->type == PUT)
@@ -426,6 +430,8 @@ void TransferSlot::doio(MegaClient* client)
                                         startpos = ChunkedHash::chunkceil(startpos, finalpos);
                                     }
 
+                                    updatecontiguousprogress();
+
                                     transfer->progresscompleted += reqs[i]->size;
                                     memcpy(transfer->filekey, transfer->transferkey, sizeof transfer->transferkey);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
@@ -466,15 +472,22 @@ void TransferSlot::doio(MegaClient* client)
                                 break;
                             }
 
-                            if (reqs[i]->contenttype.find("text/html") != string::npos
-                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
+                            if (e == API_ERATELIMIT || (reqs[i]->contenttype.find("text/html") != string::npos
+                                    && !memcmp(reqs[i]->posturl.c_str(), "http:", 5)))
                             {
-                                LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
                                 int creqtag = client->reqtag;
                                 client->reqtag = 0;
+                                if (e == API_ERATELIMIT)
+                                {
+                                    client->sendevent(99440, "Retry requested by storage server");
+                                }
+                                else
+                                {
+                                    LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                }
                                 client->sendevent(99436, "Automatic change to HTTPS");
                                 client->reqtag = creqtag;
 
@@ -494,6 +507,8 @@ void TransferSlot::doio(MegaClient* client)
                             startpos = ChunkedHash::chunkceil(startpos, finalpos);
                         }
                         transfer->progresscompleted += reqs[i]->size;
+
+                        updatecontiguousprogress();
 
                         if (transfer->progresscompleted == transfer->size)
                         {
@@ -530,7 +545,7 @@ void TransferSlot::doio(MegaClient* client)
 
                                 p += reqs[i]->size;
 
-                                LOG_debug << "Writting data asynchronously at " << downloadRequest->dlpos;
+                                LOG_debug << "Writing data asynchronously at " << downloadRequest->dlpos;
                                 asyncIO[i] = fa->asyncfwrite(downloadRequest->buf, unsigned(downloadRequest->bufpos), downloadRequest->dlpos);
                                 reqs[i]->status = REQ_ASYNCIO;
                             }
@@ -550,6 +565,8 @@ void TransferSlot::doio(MegaClient* client)
                                     LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
                                     errorcount = 0;
                                     transfer->failcount = 0;
+
+                                    updatecontiguousprogress();
                                 }
                                 else
                                 {
@@ -673,6 +690,8 @@ void TransferSlot::doio(MegaClient* client)
                                 LOG_debug << "Saved data at: " << downloadRequest->dlpos << "   Size: " << downloadRequest->bufpos;
                                 errorcount = 0;
                                 transfer->failcount = 0;
+
+                                updatecontiguousprogress();
 
                                 if (transfer->progresscompleted == transfer->size)
                                 {
@@ -839,14 +858,9 @@ void TransferSlot::doio(MegaClient* client)
             if (!reqs[i] || (reqs[i]->status == REQ_READY))
             {
                 m_off_t npos = ChunkedHash::chunkceil(transfer->nextpos(), transfer->size);
-                if (!transfer->size)
-                {
-                    transfer->pos = 0;
-                }
-
                 if ((npos > transfer->pos) || !transfer->size || (transfer->type == PUT && asyncIO[i]))
                 {
-                    if (transfer->size && (transfer->type == GET || !asyncIO[i]))
+                    if (transfer->size && transfer->type == GET)
                     {
                         m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connections / 2;
                         if (maxReqSize > maxRequestSize)
@@ -880,9 +894,33 @@ void TransferSlot::doio(MegaClient* client)
                             reqSize = npos - transfer->pos;
                             it = transfer->chunkmacs.find(npos);
                         }
-                        LOG_debug << "Starting chunk of size " << reqSize;
                     }
 
+                    if (transfer->type == PUT && (npos - progresscontiguous) > MAX_UPLOAD_GAP)
+                    {
+                        if (!delayedchunk)
+                        {
+                            int creqtag = client->reqtag;
+                            client->reqtag = 0;
+                            client->sendevent(99441, "Management of delayed chunks active");
+                            client->reqtag = creqtag;
+                            delayedchunk = true;
+                        }
+
+                        if (fa->asyncavailable() && asyncIO[i])
+                        {
+                            LOG_warn << "Retrying a failed read";
+                            m_off_t pos = asyncIO[i]->pos;
+                            unsigned size = asyncIO[i]->len;
+                            npos = pos + size;
+                            delete asyncIO[i];
+                            asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos);
+                            reqs[i]->status = REQ_ASYNCIO;
+                        }
+                        continue;
+                    }
+
+                    LOG_debug << "Starting chunk of size " << (npos - transfer->pos);
                     if (!reqs[i])
                     {
                         reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();
@@ -983,6 +1021,7 @@ void TransferSlot::doio(MegaClient* client)
 
             if (reqs[i] && (reqs[i]->status == REQ_PREPARED))
             {
+                reqs[i]->minspeed = true;
                 reqs[i]->post(client);
             }
         }
@@ -1085,4 +1124,17 @@ void TransferSlot::progress()
         (*it)->progress();
     }
 }
+
+void TransferSlot::updatecontiguousprogress()
+{
+    chunkmac_map::iterator pcit;
+    chunkmac_map &pcchunkmacs = transfer->chunkmacs;
+    while ((pcit = pcchunkmacs.find(progresscontiguous)) != pcchunkmacs.end()
+           && pcit->second.finished)
+    {
+        progresscontiguous = ChunkedHash::chunkceil(progresscontiguous, transfer->size);
+    }
+    LOG_debug << "Contiguous progress: " << progresscontiguous << " (" << (transfer->pos - progresscontiguous) << ")";
+}
+
 } // namespace

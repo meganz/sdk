@@ -28,6 +28,7 @@ jmethodID ctorString = NULL;
 jmethodID getBytes = NULL;
 jclass applicationClass = NULL;
 jmethodID startVideoCaptureMID = NULL;
+jmethodID startVideoCaptureWithParametersMID = NULL;
 jmethodID stopVideoCaptureMID = NULL;
 jobject surfaceTextureHelper = NULL;
 
@@ -84,6 +85,12 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
         startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "startVideoCapture", "(JLorg/webrtc/SurfaceTextureHelper;)V");
         if (!startVideoCaptureMID)
+        {
+            jenv->ExceptionClear();
+        }
+
+        startVideoCaptureWithParametersMID = jenv->GetStaticMethodID(applicationClass, "startVideoCaptureWithParameters", "(IIIJLorg/webrtc/SurfaceTextureHelper;)V");
+        if (!startVideoCaptureWithParametersMID)
         {
             jenv->ExceptionClear();
         }

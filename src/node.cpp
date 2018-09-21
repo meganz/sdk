@@ -1452,6 +1452,15 @@ void LocalNode::getlocalpath(string* path, bool sdisable) const
     }
 }
 
+string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
+{
+    string local;
+    string path;
+    getlocalpath(&local, true);
+    fsa.local2path(&local, &path);
+    return path;
+}
+
 void LocalNode::getlocalsubpath(string* path) const
 {
     const LocalNode* l = this;

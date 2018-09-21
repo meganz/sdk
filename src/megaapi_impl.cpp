@@ -80,6 +80,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->duration = -1;
     this->width = -1;
     this->height = -1;
+    this->shortformat = -1;
+    this->videocodecid = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->type = type;
@@ -125,9 +127,25 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->name = MegaApi::strdup(node->getName());
     this->fingerprint = MegaApi::strdup(node->getFingerprint());
     this->customAttrs = NULL;
-    this->duration = node->getDuration();
-    this->width = node->getWidth();
-    this->height = node->getHeight();
+
+    MegaNodePrivate *np = dynamic_cast<MegaNodePrivate *>(node);
+    if (np)
+    {
+        this->duration = np->duration;
+        this->width = np->width;
+        this->height = np->height;
+        this->shortformat = np->shortformat;
+        this->videocodecid = np->videocodecid;
+    }
+    else
+    {
+        this->duration = node->getDuration();
+        this->width = node->getWidth();
+        this->height = node->getHeight();
+        this->shortformat = node->getShortformat();
+        this->videocodecid = node->getVideocodecid();
+    }
+
     this->latitude = node->getLatitude();
     this->longitude = node->getLongitude();
     this->restorehandle = node->getRestoreHandle();
@@ -226,6 +244,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->duration = -1;
     this->width = -1;
     this->height = -1;
+    this->shortformat = -1;
+    this->videocodecid = -1;
     this->latitude = INVALID_COORDINATE;
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
@@ -691,7 +711,6 @@ int MegaNodePrivate::getDuration()
     return duration;
 }
 
-
 int MegaNodePrivate::getWidth()
 {
     if (width == -1)    // not initialized yet, or not available
@@ -712,7 +731,6 @@ int MegaNodePrivate::getWidth()
     return width;
 }
 
-
 int MegaNodePrivate::getHeight()
 {
     if (height == -1)    // not initialized yet, or not available
@@ -731,6 +749,46 @@ int MegaNodePrivate::getHeight()
     }
     
     return height;
+}
+    
+int MegaNodePrivate::getShortformat()
+{
+    if (shortformat == -1)    // not initialized yet, or not available
+    {
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+        {
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                && mediaProperties.shortformat != 254 // 254 = No information available
+                && mediaProperties.shortformat > 0)
+            {
+                shortformat = mediaProperties.shortformat;
+            }
+        }
+    }
+    
+    return shortformat;
+}
+    
+int MegaNodePrivate::getVideocodecid()
+{
+    if (videocodecid == -1)    // not initialized yet, or not available
+    {
+        if (type == MegaNode::TYPE_FILE && nodekey.size() == FILENODEKEYLENGTH && fileattrstring.size())
+        {
+            uint32_t* attrKey = (uint32_t*)(nodekey.data() + FILENODEKEYLENGTH / 2);
+            MediaProperties mediaProperties = MediaProperties::decodeMediaPropertiesAttributes(fileattrstring, attrKey);
+            if (mediaProperties.shortformat != 255 // 255 = MediaInfo failed processing the file
+                && mediaProperties.shortformat != 254 // 254 = No information available
+                && mediaProperties.videocodecid > 0)
+            {
+                videocodecid = mediaProperties.videocodecid;
+            }
+        }
+    }
+    
+    return videocodecid;
 }
 
 double MegaNodePrivate::getLatitude()
@@ -3128,6 +3186,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
         case TYPE_TIMER: return "SET_TIMER";
         case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
+        case TYPE_GET_PSA: return "GET_PSA";
     }
     return "UNKNOWN";
 }
@@ -4517,6 +4576,14 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
             attrname = "*!rp";
             break;
+
+        case MegaApi::USER_ATTR_LAST_PSA:
+            attrname = "^!lastPsa";
+            break;
+
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
+            attrname = "^!rubbishtime";
+            break;
     }
 
     return attrname;
@@ -4552,6 +4619,8 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+        case MegaApi::USER_ATTR_LAST_PSA:
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
             scope = '^';
             break;
 
@@ -5422,6 +5491,27 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     stringMap->set("c", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
+}
+
+void MegaApiImpl::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
+{
+    ostringstream oss;
+    oss << days;
+    string value = oss.str();
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setText(value.data());
+    request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
+    request->setNumber(days);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
@@ -9051,6 +9141,21 @@ void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listen
     waiter->notify();
 }
 
+void MegaApiImpl::getPSA(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PSA, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setPSA(int id, MegaRequestListener *listener)
+{
+    std::ostringstream oss;
+    oss << id;
+    string value = oss.str();
+    setUserAttr(MegaApi::USER_ATTR_LAST_PSA, value.c_str(), listener);
+}
+
 void MegaApiImpl::disableGfxFeatures(bool disable)
 {
     client->gfxdisabled = disable;
@@ -11096,9 +11201,9 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
     handle h = UNDEF;
     Node *n = NULL;
 
-    if(!e && t != USER_HANDLE)
+    if (!e && t != USER_HANDLE)
     {
-        if(client->nodenotify.size())
+        if (client->nodenotify.size())
         {
             n = client->nodenotify.back();
         }
@@ -11123,6 +11228,18 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         if(pendingUploads > 0)
         {
             pendingUploads--;
+        }
+
+        //scale to get the handle of the new node
+        Node *ntmp;
+        if (n)
+        {
+            handle ph = transfer->getParentHandle();
+            for (ntmp = n; ((ntmp->parent != NULL) && (ntmp->parent->nodehandle != ph) ); ntmp = ntmp->parent);
+            if ((ntmp->parent != NULL) && (ntmp->parent->nodehandle == ph))
+            {
+                h = ntmp->nodehandle;
+            }
         }
 
         transfer->setNodeHandle(h);
@@ -11164,8 +11281,10 @@ void MegaApiImpl::putnodes_result(error e, targettype_t t, NewNode* nn)
         if (n)
         {
             for (ntmp = n; ((ntmp->parent != NULL) && (ntmp->parent->nodehandle != request->getParentHandle()) ); ntmp = ntmp->parent);
-            if ((ntmp->parent != NULL) && (ntmp->parent->nodehandle == request->getParentHandle()) )
+            if ((ntmp->parent != NULL) && (ntmp->parent->nodehandle == request->getParentHandle()))
+            {
                 h = ntmp->nodehandle;
+            }
         }
     }
 
@@ -12270,6 +12389,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         {
             if (ffp.isvalid && ovn->isvalid && ffp == *(FileFingerprint*)ovn)
             {
+                request->setNodeHandle(ovn->nodehandle);
                 fireOnRequestFinish(request, MegaError(API_OK));
                 return;
             }
@@ -12568,6 +12688,21 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             }
             break;
 
+        // numbers
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
+            {
+                char *endptr;
+                string str((const char*)data, len);
+                m_off_t value = strtoll(str.c_str(), &endptr, 10);
+                if (endptr == str.c_str() || *endptr != '\0' || value == LLONG_MAX || value == LLONG_MIN)
+                {
+                    value = -1;
+                }
+
+                request->setNumber(value);
+            }
+            break;
+
         // byte arrays with possible nulls in the middle --> to Base64
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
@@ -12828,6 +12963,32 @@ void MegaApiImpl::keepmealive_result(error e)
     {
         return;
     }
+    fireOnRequestFinish(request, e);
+}
+
+void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_GET_PSA)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setNumber(id);
+        request->setName(title->c_str());
+        request->setText(text->c_str());
+        request->setFile(image->c_str());
+        request->setPassword(buttontext->c_str());
+        request->setLink(buttonlink->c_str());
+    }
+
     fireOnRequestFinish(request, e);
 }
 
@@ -16005,6 +16166,7 @@ void MegaApiImpl::sendPendingRequests()
                         {
                             if (fp->isvalid && ovn->isvalid && *fp == *(FileFingerprint*)ovn)
                             {
+                                request->setNodeHandle(ovn->nodehandle);
                                 fireOnRequestFinish(request, MegaError(API_OK));
                                 delete fp;
                                 break;
@@ -16085,6 +16247,7 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                         {
+                            request->setNodeHandle(ovn->nodehandle);
                             fireOnRequestFinish(request, MegaError(API_OK));
                             break;
                         }
@@ -16503,7 +16666,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if ( attrname.empty() ||    // unknown attribute type
+            if (attrname.empty() ||    // unknown attribute type
                  (type == ATTR_AVATAR && !value) ) // no destination file for avatar
             {
                 e = API_EARGS;
@@ -16669,6 +16832,25 @@ void MegaApiImpl::sendPendingRequests()
                     }
 
                     client->putua(type, (byte *)value, 1);
+                }
+                else if (type == ATTR_RUBBISH_TIME || type == ATTR_LAST_PSA)
+                {
+                    if (!value || !value[0])
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    char *endptr;
+                    m_off_t number = strtoll(value, &endptr, 10);
+                    if (endptr == value || *endptr != '\0' || number == LLONG_MAX || number == LLONG_MIN || number < 0)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    string tmp(value);
+                    client->putua(type, (byte *)tmp.data(), tmp.size());
                 }
                 else
                 {
@@ -18471,6 +18653,11 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->keepmealive(type, enable);
+            break;
+        }
+        case MegaRequest::TYPE_GET_PSA:
+        {
+            client->getpsa();
             break;
         }
         case MegaRequest::TYPE_FOLDER_INFO:
@@ -24503,7 +24690,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         return;
     }
 
-    LOG_verbose << "Writting " << resbuf.len << " bytes";
+    LOG_verbose << "Writing " << resbuf.len << " bytes";
     httpctx->rangeWritten += resbuf.len;
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
@@ -26779,7 +26966,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
 
         if (nread > 0)
         {
-            LOG_verbose << " Writting " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
+            LOG_verbose << " Writing " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
             if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
@@ -27032,7 +27219,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
         return;
     }
 
-    LOG_verbose << "Writting " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
+    LOG_verbose << "Writing " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
     ftpdatactx->rangeWritten += resbuf.len;
     ftpdatactx->lastBuffer = resbuf.base;
     ftpdatactx->lastBufferLen = resbuf.len;

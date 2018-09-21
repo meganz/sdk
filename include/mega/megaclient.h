@@ -537,6 +537,7 @@ public:
 
     // send event
     void sendevent(int, const char *);
+    void sendevent(int, const char *, int tag);
 
     // clean rubbish bin
     void cleanrubbishbin();
@@ -604,6 +605,7 @@ public:
 
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
+    void reportevent(const char*, const char*, int tag);
 
     // set max download speed
     bool setmaxdownloadspeed(m_off_t bpslimit);
@@ -1125,6 +1127,10 @@ public:
 
     // process localnode subtree
     void proclocaltree(LocalNode*, LocalTreeProc*);
+
+    // unlink the LocalNode from the corresponding node
+    // if the associated local file or folder still exists
+    void unlinkifexists(LocalNode*, FileAccess*, string*);
 #endif
 
     // recursively cancel transfers in a subtree
@@ -1194,6 +1200,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
@@ -1248,6 +1255,9 @@ public:
     // binary session ID
     string sid;
 
+    // distinguish activity from different MegaClients in logs
+    string clientname;
+
     // apply keys
     int applykeys();
 
@@ -1259,7 +1269,7 @@ public:
     User* finduser(handle, int = 0);
     User* ownuser();
     void mapuser(handle, const char*);
-    void discarduser(handle);
+    void discarduser(handle, bool = true);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
     bool discardnotifieduser(User *);
@@ -1351,6 +1361,8 @@ public:
 
     void keepmealive(int, bool enable = true);
 
+    void getpsa();
+
     // achievements enabled for the account
     bool achievements_enabled;
 
@@ -1362,6 +1374,9 @@ public:
 
     // true if user has disabled fileversioning
     bool versions_disabled;
+
+    // the SDK is trying to log out
+    int loggingout;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

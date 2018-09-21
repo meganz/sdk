@@ -1169,27 +1169,27 @@ void CommandMoveNode::procresult()
                         do {
                             if (n == syncn)
                             {
-                                if(syncop)
+                                if (syncop)
                                 {
                                     Sync* sync = NULL;
-                                    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
                                     {
-                                        if((*it)->tag == tag)
+                                        if ((*its)->tag == tag)
                                         {
-                                            sync = (*it);
+                                            sync = (*its);
                                             break;
                                         }
                                     }
 
-                                    if(sync)
+                                    if (sync)
                                     {
-                                        if (n->type == FOLDERNODE)
+                                        if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
                                         }
                                     }
                                 }
@@ -1421,6 +1421,7 @@ void CommandLogout::procresult()
 {
     error e = (error)client->json.getint();
     MegaApp *app = client->app;
+    client->loggingout--;
     if(!e)
     {
         client->removecaches();
@@ -6227,6 +6228,68 @@ void CommandMultiFactorAuthDisable::procresult()
     {
         client->json.storeobject();
         client->app->multifactorauthdisable_result(API_EINTERNAL);
+    }
+}
+
+CommandGetPSA::CommandGetPSA(MegaClient *client)
+{
+    cmd("gpsa");
+
+    tag = client->reqtag;
+}
+
+void CommandGetPSA::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->getpsa_result((error)client->json.getint(), 0, NULL, NULL, NULL, NULL, NULL);
+    }
+
+    int id = 0;
+    string temp;
+    string title, text, imagename, imagepath;
+    string buttonlink, buttontext;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.getint();
+                break;
+            case 't':
+                client->json.storeobject(&temp);
+                Base64::atob(temp, title);
+                break;
+            case 'd':
+                client->json.storeobject(&temp);
+                Base64::atob(temp, text);
+                break;
+            case MAKENAMEID3('i', 'm', 'g'):
+                client->json.storeobject(&imagename);
+                break;
+            case 'l':
+                client->json.storeobject(&buttonlink);
+                break;
+            case 'b':
+                client->json.storeobject(&temp);
+                Base64::atob(temp, buttontext);
+                break;
+            case MAKENAMEID3('d', 's', 'p'):
+                client->json.storeobject(&imagepath);
+                break;
+            case EOO:
+                imagepath.append(imagename);
+                imagepath.append(".png");
+                return client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse get PSA response";
+                    return client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
+                }
+                break;
+        }
     }
 }
 

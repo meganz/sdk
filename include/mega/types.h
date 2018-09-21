@@ -55,7 +55,7 @@ namespace mega {
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
 #if USE_CRYPTOPP && (CRYPTOPP_VERSION >= 600) && (__cplusplus >= 201103L)
 using byte = CryptoPP::byte;
-#else
+#elif __RPCNDR_H_VERSION__ != 500
 typedef unsigned char byte;
 #endif
 }
@@ -440,7 +440,9 @@ typedef enum {
     ATTR_PWD_REMINDER = 15,     // private, non-encrypted - char array in B64 - non-versioned
     ATTR_DISABLE_VERSIONS = 16, // private, non-encrypted - char array in B64 - non-versioned
     ATTR_CONTACT_LINK_VERIFICATION = 17,  // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_RICH_PREVIEWS = 18      // private - byte array
+    ATTR_RICH_PREVIEWS = 18,     // private - byte array
+    ATTR_RUBBISH_TIME = 19,      // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_LAST_PSA = 20      // private - char array
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 

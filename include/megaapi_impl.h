@@ -82,7 +82,7 @@ public:
     MegaMutex(bool recursive) : PosixMutex(recursive) { }
 };
 class MegaSemaphore : public PosixSemaphore {};
-#elif defined(_WIN32) && !defined(WINDOWS_PHONE)
+#elif defined(_WIN32) && !defined(USE_CPPTHREAD) && !defined(WINDOWS_PHONE)
 class MegaThread : public Win32Thread {};
 class MegaMutex : public Win32Mutex
 {
@@ -404,6 +404,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int getDuration();
         virtual int getWidth();
         virtual int getHeight();
+        virtual int getShortformat();
+        virtual int getVideocodecid();
         virtual double getLatitude();
         virtual double getLongitude();
         virtual char *getBase64Handle();
@@ -492,6 +494,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int duration;
         int width;
         int height;
+        int shortformat;
+        int videocodecid;
         double latitude;
         double longitude;
         MegaNodeList *children;
@@ -1764,6 +1768,8 @@ class MegaApiImpl : public MegaApp
         void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
         void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+        void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
+        void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -2010,6 +2016,9 @@ class MegaApiImpl : public MegaApp
         void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
 
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
+
+        void getPSA(MegaRequestListener *listener = NULL);
+        void setPSA(int id, MegaRequestListener *listener = NULL);
 
         void disableGfxFeatures(bool disable);
         bool areGfxFeaturesDisabled();
@@ -2315,6 +2324,9 @@ protected:
 
         // keep me alive feature
         virtual void keepmealive_result (error);
+
+        // get the current PSA
+        virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);
 
         // account creation
         virtual void sendsignuplink_result(error);
