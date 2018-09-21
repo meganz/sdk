@@ -378,6 +378,11 @@ void MegaSDK::setStatsID(String^ id)
     MegaApi::setStatsID((id != nullptr) ? utf8id.c_str() : NULL);
 }
 
+bool MegaSDK::serverSideRubbishBinAutopurgeEnabled()
+{
+    return megaApi->serverSideRubbishBinAutopurgeEnabled();
+}
+
 bool MegaSDK::multiFactorAuthAvailable()
 {
     return megaApi->multiFactorAuthAvailable();
@@ -1899,6 +1904,31 @@ void MegaSDK::getUserAttribute(MUser^ user, int type)
     megaApi->getUserAttribute((user != nullptr) ? user->getCPtr() : NULL, type);
 }
 
+void MegaSDK::getUserAttributeByEmailOrHandle(String^ email_or_handle, int type, MRequestListenerInterface^ listener)
+{
+    std::string utf8email_or_handle;
+    if (email_or_handle != nullptr)
+        MegaApi::utf16ToUtf8(email_or_handle->Data(), email_or_handle->Length(), &utf8email_or_handle);
+
+    megaApi->getUserAttribute((email_or_handle != nullptr) ? utf8email_or_handle.c_str() : NULL,
+        type, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getUserAttributeByEmailOrHandle(String^ email_or_handle, int type)
+{
+    this->getUserAttributeByEmailOrHandle(email_or_handle, type, nullptr);
+}
+
+void MegaSDK::getOwnUserAttribute(int type, MRequestListenerInterface^ listener)
+{
+    megaApi->getUserAttribute(type, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getOwnUserAttribute(int type)
+{
+    megaApi->getUserAttribute(type);
+}
+
 void MegaSDK::getUserEmail(MegaHandle handle, MRequestListenerInterface^ listener)
 {
     if (handle == ::mega::INVALID_HANDLE) return;
@@ -1911,16 +1941,6 @@ void MegaSDK::getUserEmail(MegaHandle handle)
     if (handle == ::mega::INVALID_HANDLE) return;
 
     megaApi->getUserEmail(handle);
-}
-
-void MegaSDK::getOwnUserAttribute(int type, MRequestListenerInterface^ listener)
-{
-    megaApi->getUserAttribute(type, createDelegateMRequestListener(listener));
-}
-
-void MegaSDK::getOwnUserAttribute(int type)
-{
-    megaApi->getUserAttribute(type);
 }
 
 void MegaSDK::setUserAttribute(int type, String^ value, MRequestListenerInterface^ listener)
@@ -2365,6 +2385,26 @@ void MegaSDK::isMasterKeyExported(MRequestListenerInterface^ listener)
 void MegaSDK::isMasterKeyExported()
 {
     megaApi->isMasterKeyExported();
+}
+
+void MegaSDK::getRubbishBinAutopurgePeriod(MRequestListenerInterface^ listener)
+{
+    megaApi->getRubbishBinAutopurgePeriod(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getRubbishBinAutopurgePeriod()
+{
+    megaApi->getRubbishBinAutopurgePeriod();
+}
+
+void MegaSDK::setRubbishBinAutopurgePeriod(int days, MRequestListenerInterface^ listener)
+{
+    megaApi->setRubbishBinAutopurgePeriod(days, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setRubbishBinAutopurgePeriod(int days)
+{
+    megaApi->setRubbishBinAutopurgePeriod(days);
 }
 
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)

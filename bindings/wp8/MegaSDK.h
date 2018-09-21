@@ -102,7 +102,9 @@ namespace mega
         USER_ATTR_LANGUAGE                  = 14,   // private - char array
         USER_ATTR_PWD_REMINDER              = 15,   // private - char array
         USER_ATTR_DISABLE_VERSIONS          = 16,   // private - byte array
-        USER_ATTR_CONTACT_LINK_VERIFICATION = 17    // private - byte array
+        USER_ATTR_CONTACT_LINK_VERIFICATION = 17,   // private - byte array
+        USER_ATTR_RICH_PREVIEWS             = 18,   // private - byte array
+        USER_ATTR_RUBBISH_TIME              = 19    // private - byte array
     };
 
     public enum class MPaymentMethod {
@@ -190,6 +192,12 @@ namespace mega
         void retryPendingConnections();
         void reconnect();
         static void setStatsID(String^ id);
+
+        /**
+        * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
+        * @return True if this feature is enabled. Otherwise false.
+        */
+        bool serverSideRubbishBinAutopurgeEnabled();
 
         /**
         * @brief Check if multi-factor authentication can be enabled for the current account.
@@ -1473,14 +1481,405 @@ namespace mega
         void setAvatar(String ^dstFilePath);
         String^ getUserAvatarColor(MUser^ user);
         String^ getUserHandleAvatarColor(String^ userhandle);
+
+        /**
+        * @brief Get an attribute of a MUser.
+        *
+        * User attributes can be private or public. Private attributes are accessible only by
+        * your own user, while public ones are retrievable by any of your contacts.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getText - Returns the value for public attributes
+        * - MRequest::getMegaStringMap - Returns the value for private attributes
+        *
+        * @param user MUser to get the attribute. If this parameter is set to NULL, the attribute
+        * is obtained for the active account
+        * @param type Attribute type
+        *
+        * Valid values are:
+        *
+        * MUserAttrType::USER_ATTR_FIRSTNAME = 1
+        * Get the firstname of the user (public)
+        * MUserAttrType::USER_ATTR_LASTNAME = 2
+        * Get the lastname of the user (public)
+        * MUserAttrType::USER_ATTR_AUTHRING = 3
+        * Get the authentication ring of the user (private)
+        * MUserAttrType::USER_ATTR_LAST_INTERACTION = 4
+        * Get the last interaction of the contacts of the user (private)
+        * MUserAttrType::USER_ATTR_ED25519_PUBLIC_KEY = 5
+        * Get the public key Ed25519 of the user (public)
+        * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
+        * Get the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_KEYRING = 7
+        * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+        * MUserAttrType::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+        * Get the signature of RSA public key of the user (public)
+        * MUserAttrType::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+        * Get the signature of Cu25519 public key of the user (public)
+        * MUserAttrType::USER_ATTR_LANGUAGE = 14
+        * Get the preferred language of the user (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_PWD_REMINDER = 15
+        * Get the password-reminder-dialog information (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_DISABLE_VERSIONS = 16
+        * Get whether user has versions disabled or enabled (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_RICH_PREVIEWS = 18
+        * Get whether user generates rich-link messages or not (private)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        *
+        * @param listener MRequestListener to track this request
+        */
         void getUserAttribute(MUser^ user, int type, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get an attribute of a MUser.
+        *
+        * User attributes can be private or public. Private attributes are accessible only by
+        * your own user, while public ones are retrievable by any of your contacts.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getText - Returns the value for public attributes
+        * - MRequest::getMegaStringMap - Returns the value for private attributes
+        *
+        * @param user MUser to get the attribute. If this parameter is set to NULL, the attribute
+        * is obtained for the active account
+        * @param type Attribute type
+        *
+        * Valid values are:
+        *
+        * MUserAttrType::USER_ATTR_FIRSTNAME = 1
+        * Get the firstname of the user (public)
+        * MUserAttrType::USER_ATTR_LASTNAME = 2
+        * Get the lastname of the user (public)
+        * MUserAttrType::USER_ATTR_AUTHRING = 3
+        * Get the authentication ring of the user (private)
+        * MUserAttrType::USER_ATTR_LAST_INTERACTION = 4
+        * Get the last interaction of the contacts of the user (private)
+        * MUserAttrType::USER_ATTR_ED25519_PUBLIC_KEY = 5
+        * Get the public key Ed25519 of the user (public)
+        * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
+        * Get the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_KEYRING = 7
+        * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+        * MUserAttrType::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+        * Get the signature of RSA public key of the user (public)
+        * MUserAttrType::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+        * Get the signature of Cu25519 public key of the user (public)
+        * MUserAttrType::USER_ATTR_LANGUAGE = 14
+        * Get the preferred language of the user (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_PWD_REMINDER = 15
+        * Get the password-reminder-dialog information (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_DISABLE_VERSIONS = 16
+        * Get whether user has versions disabled or enabled (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_RICH_PREVIEWS = 18
+        * Get whether user generates rich-link messages or not (private)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        */
         void getUserAttribute(MUser^ user, int type);
-        void getUserEmail(MegaHandle handle, MRequestListenerInterface^ listener);
-        void getUserEmail(MegaHandle handle);
+
+        /**
+        * @brief Get an attribute of any user in MEGA.
+        *
+        * User attributes can be private or public. Private attributes are accessible only by
+        * your own user, while public ones are retrievable by any of your contacts.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type
+        * - MRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getText - Returns the value for public attributes
+        * - MRequest::getMegaStringMap - Returns the value for private attributes
+        *
+        * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
+        * If this parameter is set to NULL, the attribute is obtained for the active account.
+        * @param type Attribute type
+        *
+        * Valid values are:
+        *
+        * MUserAttrType::USER_ATTR_FIRSTNAME = 1
+        * Get the firstname of the user (public)
+        * MUserAttrType::USER_ATTR_LASTNAME = 2
+        * Get the lastname of the user (public)
+        * MUserAttrType::USER_ATTR_AUTHRING = 3
+        * Get the authentication ring of the user (private)
+        * MUserAttrType::USER_ATTR_LAST_INTERACTION = 4
+        * Get the last interaction of the contacts of the user (private)
+        * MUserAttrType::USER_ATTR_ED25519_PUBLIC_KEY = 5
+        * Get the public key Ed25519 of the user (public)
+        * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
+        * Get the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_KEYRING = 7
+        * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+        * MUserAttrType::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+        * Get the signature of RSA public key of the user (public)
+        * MUserAttrType::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+        * Get the signature of Cu25519 public key of the user (public)
+        * MUserAttrType::USER_ATTR_LANGUAGE = 14
+        * Get the preferred language of the user (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_PWD_REMINDER = 15
+        * Get the password-reminder-dialog information (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_DISABLE_VERSIONS = 16
+        * Get whether user has versions disabled or enabled (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void getUserAttributeByEmailOrHandle(String^ email_or_handle, int type, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get an attribute of any user in MEGA.
+        *
+        * User attributes can be private or public. Private attributes are accessible only by
+        * your own user, while public ones are retrievable by any of your contacts.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type
+        * - MRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getText - Returns the value for public attributes
+        * - MRequest::getMegaStringMap - Returns the value for private attributes
+        *
+        * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
+        * If this parameter is set to NULL, the attribute is obtained for the active account.
+        * @param type Attribute type
+        *
+        * Valid values are:
+        *
+        * MUserAttrType::USER_ATTR_FIRSTNAME = 1
+        * Get the firstname of the user (public)
+        * MUserAttrType::USER_ATTR_LASTNAME = 2
+        * Get the lastname of the user (public)
+        * MUserAttrType::USER_ATTR_AUTHRING = 3
+        * Get the authentication ring of the user (private)
+        * MUserAttrType::USER_ATTR_LAST_INTERACTION = 4
+        * Get the last interaction of the contacts of the user (private)
+        * MUserAttrType::USER_ATTR_ED25519_PUBLIC_KEY = 5
+        * Get the public key Ed25519 of the user (public)
+        * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
+        * Get the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_KEYRING = 7
+        * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+        * MUserAttrType::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+        * Get the signature of RSA public key of the user (public)
+        * MUserAttrType::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+        * Get the signature of Cu25519 public key of the user (public)
+        * MUserAttrType::USER_ATTR_LANGUAGE = 14
+        * Get the preferred language of the user (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_PWD_REMINDER = 15
+        * Get the password-reminder-dialog information (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_DISABLE_VERSIONS = 16
+        * Get whether user has versions disabled or enabled (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        */
+        void getUserAttributeByEmailOrHandle(String^ email_or_handle, int type);
+
+        /**
+        * @brief Get an attribute of the current account.
+        *
+        * User attributes can be private or public. Private attributes are accessible only by
+        * your own user, while public ones are retrievable by any of your contacts.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getText - Returns the value for public attributes
+        * - MRequest::getMegaStringMap - Returns the value for private attributes
+        *
+        * @param type Attribute type
+        *
+        * Valid values are:
+        *
+        * MUserAttrType::USER_ATTR_FIRSTNAME = 1
+        * Get the firstname of the user (public)
+        * MUserAttrType::USER_ATTR_LASTNAME = 2
+        * Get the lastname of the user (public)
+        * MUserAttrType::USER_ATTR_AUTHRING = 3
+        * Get the authentication ring of the user (private)
+        * MUserAttrType::USER_ATTR_LAST_INTERACTION = 4
+        * Get the last interaction of the contacts of the user (private)
+        * MUserAttrType::USER_ATTR_ED25519_PUBLIC_KEY = 5
+        * Get the public key Ed25519 of the user (public)
+        * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
+        * Get the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_KEYRING = 7
+        * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+        * MUserAttrType::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+        * Get the signature of RSA public key of the user (public)
+        * MUserAttrType::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+        * Get the signature of Cu25519 public key of the user (public)
+        * MUserAttrType::USER_ATTR_LANGUAGE = 14
+        * Get the preferred language of the user (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_PWD_REMINDER = 15
+        * Get the password-reminder-dialog information (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_DISABLE_VERSIONS = 16
+        * Get whether user has versions disabled or enabled (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_RICH_PREVIEWS = 18
+        * Get whether user generates rich-link messages or not (private)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        *
+        * @param listener MRequestListener to track this request
+        */
         void getOwnUserAttribute(int type, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get an attribute of the current account.
+        *
+        * User attributes can be private or public. Private attributes are accessible only by
+        * your own user, while public ones are retrievable by any of your contacts.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getText - Returns the value for public attributes
+        * - MRequest::getMegaStringMap - Returns the value for private attributes
+        *
+        * @param type Attribute type
+        *
+        * Valid values are:
+        *
+        * MUserAttrType::USER_ATTR_FIRSTNAME = 1
+        * Get the firstname of the user (public)
+        * MUserAttrType::USER_ATTR_LASTNAME = 2
+        * Get the lastname of the user (public)
+        * MUserAttrType::USER_ATTR_AUTHRING = 3
+        * Get the authentication ring of the user (private)
+        * MUserAttrType::USER_ATTR_LAST_INTERACTION = 4
+        * Get the last interaction of the contacts of the user (private)
+        * MUserAttrType::USER_ATTR_ED25519_PUBLIC_KEY = 5
+        * Get the public key Ed25519 of the user (public)
+        * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
+        * Get the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_KEYRING = 7
+        * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+        * MUserAttrType::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+        * Get the signature of RSA public key of the user (public)
+        * MUserAttrType::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+        * Get the signature of Cu25519 public key of the user (public)
+        * MUserAttrType::USER_ATTR_LANGUAGE = 14
+        * Get the preferred language of the user (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_PWD_REMINDER = 15
+        * Get the password-reminder-dialog information (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_DISABLE_VERSIONS = 16
+        * Get whether user has versions disabled or enabled (private, non-encrypted)
+        * MUserAttrType::USER_ATTR_RICH_PREVIEWS = 18
+        * Get whether user generates rich-link messages or not (private)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        */
         void getOwnUserAttribute(int type);
+
+        /**
+        * @brief Get the email address of any user in MEGA.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_USER_EMAIL
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the user (the provided one as parameter)
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Returns the email address
+        *
+        * @param handle Handle of the user to get the attribute.
+        * @param listener MRequestListener to track this request
+        */
+        void getUserEmail(MegaHandle handle, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get the email address of any user in MEGA.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_USER_EMAIL
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the user (the provided one as parameter)
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getEmail - Returns the email address
+        *
+        * @param handle Handle of the user to get the attribute.
+        */
+        void getUserEmail(MegaHandle handle);
+        
+        /**
+        * @brief Set a public attribute of the current user
+        *
+        * The associated request type with this request is MRequest::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type
+        * - MRequest::getText - Returns the new value for the attribute
+        *
+        * @param type Attribute type
+        *
+        * Valid values are:
+        *
+        * MUserAttrType::USER_ATTR_FIRSTNAME = 1
+        * Set the firstname of the user (public)
+        * MUserAttrType::USER_ATTR_LASTNAME = 2
+        * Set the lastname of the user (public)
+        * MUserAttrType::USER_ATTR_ED25519_PUBLIC_KEY = 5
+        * Set the public key Ed25519 of the user (public)
+        * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
+        * Set the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        *
+        * @param value New attribute value
+        * @param listener MRequestListener to track this request
+        */
         void setUserAttribute(int type, String^ value, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Set a public attribute of the current user
+        *
+        * The associated request type with this request is MRequest::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type
+        * - MRequest::getText - Returns the new value for the attribute
+        *
+        * @param type Attribute type
+        *
+        * Valid values are:
+        *
+        * MUserAttrType::USER_ATTR_FIRSTNAME = 1
+        * Set the firstname of the user (public)
+        * MUserAttrType::USER_ATTR_LASTNAME = 2
+        * Set the lastname of the user (public)
+        * MUserAttrType::USER_ATTR_ED25519_PUBLIC_KEY = 5
+        * Set the public key Ed25519 of the user (public)
+        * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
+        * Set the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        *
+        * @param value New attribute value
+        */
         void setUserAttribute(int type, String^ value);
+
         void setCustomNodeAttribute(MNode^ node, String^ attrName, String^ value, MRequestListenerInterface^ listener);
         void setCustomNodeAttribute(MNode^ node, String^ attrName, String^ value);
         void setNodeDuration(MNode^ node, int duration, MRequestListenerInterface^ listener);
@@ -1711,6 +2110,66 @@ namespace mega
         * error code MError::API_ENOENT.
         */
         void isMasterKeyExported();
+
+        /**
+        * @brief Get the number of days for rubbish-bin cleaning scheduler
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_RUBBISH_TIME
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler.
+        * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+        * Any negative value means that the configured value is invalid.
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void getRubbishBinAutopurgePeriod(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get the number of days for rubbish-bin cleaning scheduler
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_RUBBISH_TIME
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler.
+        * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+        * Any negative value means that the configured value is invalid.
+        */
+        void getRubbishBinAutopurgePeriod();
+
+        /**
+        * @brief Set the number of days for rubbish-bin cleaning scheduler
+        *
+        * The associated request type with this request is MRequest::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_RUBBISH_TIME
+        * - MRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+        *
+        * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+        * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void setRubbishBinAutopurgePeriod(int days, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Set the number of days for rubbish-bin cleaning scheduler
+        *
+        * The associated request type with this request is MRequest::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_RUBBISH_TIME
+        * - MRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+        *
+        * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+        * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+        */
+        void setRubbishBinAutopurgePeriod(int days);
 
         /**
         * @brief Change the password of the MEGA account
@@ -2095,7 +2554,7 @@ namespace mega
          * The associated request type with this request is MRequestType::TYPE_SET_ATTR_USER
          *
          * Valid data in the MRequest object received on callbacks:
-         * - MRequest::getParamType - Returns the value MegaSDK::USER_ATTR_CONTACT_LINK_VERIFICATION
+         * - MRequest::getParamType - Returns the value MUserAttrType::USER_ATTR_CONTACT_LINK_VERIFICATION
          *
          * Valid data in the MRequest object received in onRequestFinish:
          * - MRequest::getText - "0" for disable, "1" for enable

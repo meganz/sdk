@@ -5236,7 +5236,8 @@ class MegaApi
             USER_ATTR_PWD_REMINDER = 15,        // private - char array
             USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
             USER_ATTR_CONTACT_LINK_VERIFICATION = 17,     // private - byte array
-            USER_ATTR_RICH_PREVIEWS = 18         // private - byte array
+            USER_ATTR_RICH_PREVIEWS = 18,       // private - byte array
+            USER_ATTR_RUBBISH_TIME = 19         // private - byte array
         };
 
         enum {
@@ -7195,6 +7196,8 @@ class MegaApi
          * Get whether user has versions disabled or enabled (private, non-encrypted)
          * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7246,6 +7249,8 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7296,6 +7301,8 @@ class MegaApi
          * Get whether user has versions disabled or enabled (private, non-encrypted)
          * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7411,6 +7418,8 @@ class MegaApi
          * Set the public key Ed25519 of the user (public)
          * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
          * Set the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -7437,6 +7446,8 @@ class MegaApi
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
          * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -7973,6 +7984,38 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the number of days for rubbish-bin cleaning scheduler
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RUBBISH_TIME
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler.
+         * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+         * Any negative value means that the configured value is invalid.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the number of days for rubbish-bin cleaning scheduler
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RUBBISH_TIME
+         * - MegaRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+         *
+         * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+         * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account
