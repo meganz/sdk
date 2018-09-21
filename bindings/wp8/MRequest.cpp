@@ -249,3 +249,8 @@ MAchievementsDetails^ MRequest::getMAchievementsDetails()
 {
     return megaRequest ? ref new MAchievementsDetails(megaRequest->getMegaAchievementsDetails(), true) : nullptr;
 }
+
+MTimeZoneDetails^ MRequest::getMTimeZoneDetails()
+{
+    return megaRequest ? ref new MTimeZoneDetails(megaRequest->getMegaTimeZoneDetails(), true) : nullptr;
+}
