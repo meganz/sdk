@@ -5238,7 +5238,7 @@ class MegaApi
             USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
             USER_ATTR_CONTACT_LINK_VERIFICATION = 17,     // private - byte array
             USER_ATTR_RICH_PREVIEWS = 18,        // private - byte array
-            USER_ATTR_LAST_PSA = 19              // private - char array
+            USER_ATTR_LAST_PSA = 20              // private - char array
         };
 
         enum {
