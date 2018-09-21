@@ -102,7 +102,9 @@ namespace mega
         USER_ATTR_LANGUAGE                  = 14,   // private - char array
         USER_ATTR_PWD_REMINDER              = 15,   // private - char array
         USER_ATTR_DISABLE_VERSIONS          = 16,   // private - byte array
-        USER_ATTR_CONTACT_LINK_VERIFICATION = 17    // private - byte array
+        USER_ATTR_CONTACT_LINK_VERIFICATION = 17,   // private - byte array
+        USER_ATTR_RICH_PREVIEWS             = 18,   // private - byte array
+        USER_ATTR_LAST_PSA                  = 20    // private - char array
     };
 
     public enum class MPaymentMethod {
@@ -1398,6 +1400,88 @@ namespace mega
         * - MRequest::getNodeHandle - Returns the handle of the contact link
         */
         void contactLinkDeleteActive();
+
+        /**
+        * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+        *
+        * After the PSA has been accepted or dismissed by the user, app should
+        * use MegaSDK::setPSA to notify API servers about this event and
+        * do not get the same PSA again in the next call to this function.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PSA.
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getNumber - Returns the id of the PSA (useful to call MegaSDK::setPSA later)
+        * - MRequest::getName - Returns the title of the PSA
+        * - MRequest::getText - Returns the text of the PSA
+        * - MRequest::getFile - Returns the URL of the image of the PSA
+        * - MRequest::getPassword - Returns the text for the possitive button (or an empty string)
+        * - MRequest::getLink - Returns the link for the possitive button (or an empty string)
+        *
+        * If there isn't any new PSA to show, onRequestFinish will be called with the error
+        * code MError::API_ENOENT
+        *
+        * @param listener MRequestListener to track this request
+        * @see MegaSDK::setPSA
+        */
+        void getPSA(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+        *
+        * After the PSA has been accepted or dismissed by the user, app should
+        * use MegaSDK::setPSA to notify API servers about this event and
+        * do not get the same PSA again in the next call to this function.
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PSA.
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getNumber - Returns the id of the PSA (useful to call MegaSDK::setPSA later)
+        * - MRequest::getName - Returns the title of the PSA
+        * - MRequest::getText - Returns the text of the PSA
+        * - MRequest::getFile - Returns the URL of the image of the PSA
+        * - MRequest::getPassword - Returns the text for the possitive button (or an empty string)
+        * - MRequest::getLink - Returns the link for the possitive button (or an empty string)
+        *
+        * If there isn't any new PSA to show, onRequestFinish will be called with the error
+        * code MError::API_ENOENT
+        *
+        * @see MegaSDK::setPSA
+        */
+        void getPSA();
+
+        /**
+        * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+        *
+        * The associated request type with this request is MRequest::TYPE_SET_ATTR_USER.
+        *
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the value MUserAttrType::USER_ATTR_LAST_PSA
+        * - MRequest::getText - Returns the id passed in the first parameter (as a string)
+        *
+        * @param id Identifier of the PSA
+        * @param listener MRequestListener to track this request
+        *
+        * @see MegaSDK::getPSA
+        */
+        void setPSA(int id, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+        *
+        * The associated request type with this request is MRequest::TYPE_SET_ATTR_USER.
+        *
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the value MUserAttrType::USER_ATTR_LAST_PSA
+        * - MRequest::getText - Returns the id passed in the first parameter (as a string)
+        *
+        * @param id Identifier of the PSA
+        *
+        * @see MegaSDK::getPSA
+        */
+        void setPSA(int id);
 
         String^ getMyEmail();
         String^ getMyUserHandle();
