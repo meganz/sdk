@@ -2387,6 +2387,26 @@ void MegaSDK::isMasterKeyExported()
     megaApi->isMasterKeyExported();
 }
 
+void MegaSDK::getRubbishBinAutopurgePeriod(MRequestListenerInterface^ listener)
+{
+    megaApi->getRubbishBinAutopurgePeriod(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getRubbishBinAutopurgePeriod()
+{
+    megaApi->getRubbishBinAutopurgePeriod();
+}
+
+void MegaSDK::setRubbishBinAutopurgePeriod(int days, MRequestListenerInterface^ listener)
+{
+    megaApi->setRubbishBinAutopurgePeriod(days, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setRubbishBinAutopurgePeriod(int days)
+{
+    megaApi->setRubbishBinAutopurgePeriod(days);
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;

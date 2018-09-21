@@ -1845,6 +1845,8 @@ namespace mega
         * Set the public key Ed25519 of the user (public)
         * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
         * Set the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
         *
         * @param value New attribute value
         * @param listener MRequestListener to track this request
@@ -1871,6 +1873,8 @@ namespace mega
         * Set the public key Ed25519 of the user (public)
         * MUserAttrType::USER_ATTR_CU25519_PUBLIC_KEY = 6
         * Set the public key Cu25519 of the user (public)
+        * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
+        * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
         *
         * @param value New attribute value
         */
@@ -2106,6 +2110,66 @@ namespace mega
         * error code MError::API_ENOENT.
         */
         void isMasterKeyExported();
+
+        /**
+        * @brief Get the number of days for rubbish-bin cleaning scheduler
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_RUBBISH_TIME
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler.
+        * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+        * Any negative value means that the configured value is invalid.
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void getRubbishBinAutopurgePeriod(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get the number of days for rubbish-bin cleaning scheduler
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_RUBBISH_TIME
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler.
+        * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+        * Any negative value means that the configured value is invalid.
+        */
+        void getRubbishBinAutopurgePeriod();
+
+        /**
+        * @brief Set the number of days for rubbish-bin cleaning scheduler
+        *
+        * The associated request type with this request is MRequest::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_RUBBISH_TIME
+        * - MRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+        *
+        * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+        * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void setRubbishBinAutopurgePeriod(int days, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Set the number of days for rubbish-bin cleaning scheduler
+        *
+        * The associated request type with this request is MRequest::TYPE_SET_ATTR_USER
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_RUBBISH_TIME
+        * - MRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+        *
+        * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+        * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+        */
+        void setRubbishBinAutopurgePeriod(int days);
 
         /**
         * @brief Change the password of the MEGA account
