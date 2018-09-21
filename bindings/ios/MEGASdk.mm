@@ -1767,6 +1767,22 @@ using namespace mega;
     self.megaApi->getLanguagePreference();
 }
 
+- (void)setFileVersionsOption:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setFileVersionsOption(disable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setFileVersionsOption:(BOOL)disable {
+    self.megaApi->setFileVersionsOption(disable);
+}
+
+- (void)fileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFileVersionsOption([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)fileVersionsOption {
+    self.megaApi->getFileVersionsOption();
+}
+
 - (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setContactLinksOption(disable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
