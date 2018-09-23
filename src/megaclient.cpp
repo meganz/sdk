@@ -819,7 +819,11 @@ void MegaClient::fetchtimezone()
     m_time_t rawtime = m_time(NULL);
     m_localtime(rawtime, &lt);
     m_gmtime(rawtime, &ut);
-    double foffset = difftime(m_mktime(&lt), m_mktime(&ut));
+    m_time_t localtime = m_mktime(&lt);
+    m_time_t utctime = m_mktime(&ut);
+    double foffset = (localtime > 0 && utctime > 0)
+            ? difftime(localtime, utctime)
+            : 0;
     int offset = int(fabs(foffset));
 
     ostringstream oss;
