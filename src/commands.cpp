@@ -6350,12 +6350,15 @@ void CommandFetchTimeZone::procresult()
                 break;
 
             case EOO:
-                for (int i = 0; i < timezones.size(); i++)
+                if (!defaulttz.empty())    // default received as string
                 {
-                    if (timezones[i] == defaulttz)
+                    for (int i = 0; i < (int)timezones.size(); i++)
                     {
-                        defaulttzindex = i;
-                        break;
+                        if (timezones[i] == defaulttz)
+                        {
+                            defaulttzindex = i;
+                            break;
+                        }
                     }
                 }
                 return client->app->fetchtimezone_result(API_OK, &timezones, &timeoffsets, defaulttzindex);
