@@ -24,6 +24,7 @@
 #import "MEGAAccountDetails+init.h"
 #import "MEGAAchievementsDetails+init.h"
 #import "MEGAFolderInfo+init.h"
+#import "MEGATimeZoneDetails+init.h"
 
 using namespace mega;
 
@@ -174,6 +175,10 @@ using namespace mega;
 
 - (MEGAAchievementsDetails *)megaAchievementsDetails {
     return self.megaRequest ? [[MEGAAchievementsDetails alloc] initWithMegaAchievementsDetails:self.megaRequest->getMegaAchievementsDetails() cMemoryOwn:YES] : nil;
+}
+
+- (MEGATimeZoneDetails *)megaTimeZoneDetails {
+    return self.megaRequest ? [[MEGATimeZoneDetails alloc] initWithMegaTimeZoneDetails:self.megaRequest->getMegaTimeZoneDetails() cMemoryOwn:YES] : nil;
 }
 
 - (MEGAFolderInfo *)megaFolderInfo {

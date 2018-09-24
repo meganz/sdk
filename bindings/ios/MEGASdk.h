@@ -792,6 +792,31 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (void)multiFactorAuthCancelAccountWithPin:(NSString *)pin;
 
 /**
+ * @brief Fetch details related to time zones and the current default
+ *
+ * The associated request type with this request is MEGARequestTypeFetchTimeZone.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaTimeZoneDetails] - Returns details about timezones and the current default
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)fetchTimeZoneWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Fetch details related to time zones and the current default
+ *
+ * The associated request type with this request is MEGARequestTypeFetchTimeZone.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaTimeZoneDetails] - Returns details about timezones and the current default
+ *
+ */
+- (void)fetchTimeZone;
+
+/**
  * @brief Log in to a MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeLogin.
