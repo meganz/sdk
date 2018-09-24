@@ -12188,7 +12188,7 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
+bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfirst)
 {
     if (!f->transfer)
     {
@@ -12257,6 +12257,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 filecacheadd(f);
             }
             app->file_added(f);
+
+            if (startfirst)
+            {
+                transferlist.movetofirst(t);
+            }
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
@@ -12353,7 +12358,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 filecacheadd(f);
             }
 
-            transferlist.addtransfer(t);
+            transferlist.addtransfer(t, startfirst);
             app->transfer_added(t);
             app->file_added(f);
             looprequested = true;

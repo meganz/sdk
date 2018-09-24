@@ -1465,7 +1465,7 @@ TransferList::TransferList()
     currentpriority = PRIORITY_START;
 }
 
-void TransferList::addtransfer(Transfer *transfer)
+void TransferList::addtransfer(Transfer *transfer, bool startFirst)
 {
     if (transfer->state != TRANSFERSTATE_PAUSED)
     {
@@ -1474,10 +1474,21 @@ void TransferList::addtransfer(Transfer *transfer)
 
     if (!transfer->priority)
     {
-        currentpriority += PRIORITY_STEP;
-        transfer->priority = currentpriority;
-        assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
-        transfers[transfer->type].push_back(transfer);
+        if (startFirst && transfers[transfer->type].size())
+        {
+            transfer_list::iterator dstit = transfers[transfer->type].begin();
+            transfer->priority = (*dstit)->priority - PRIORITY_STEP;
+            prepareIncreasePriority(transfer, transfers[transfer->type].end(), dstit);
+            transfers[transfer->type].push_front(transfer);
+        }
+        else
+        {
+            currentpriority += PRIORITY_STEP;
+            transfer->priority = currentpriority;
+            assert(!transfers[transfer->type].size() || transfers[transfer->type][transfers[transfer->type].size() - 1]->priority < transfer->priority);
+            transfers[transfer->type].push_back(transfer);
+        }
+
         client->transfercacheadd(transfer);
     }
     else
