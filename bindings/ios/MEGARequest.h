@@ -24,6 +24,7 @@
 #import "MEGAPricing.h"
 #import "MEGAAchievementsDetails.h"
 #import "MEGAFolderInfo.h"
+#import "MEGATimeZoneDetails.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -129,6 +130,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeRemoveBackup,
     MEGARequestTypeTimer,
     MEGARequestTypeAbortCurrentBackup,
+    MEGARequestTypeFetchTimeZone,
     MEGARequestTypeGetPSA,
     TotalOfRequestTypes
 };
@@ -435,6 +437,19 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) MEGAAchievementsDetails *megaAchievementsDetails;
+
+/**
+ * @brief Get details about timezones and the current default
+ *
+ * This value is valid for these request in onRequestFinish when the
+ * error code is MEGAErrorTypeApiOk:
+ * - [MEGASdk fetchTimeZones] - Details about timezones and the current default
+ *
+ * In any other case, this function returns NULL.
+ *
+ * @return Details about timezones and the current default
+ */
+@property (readonly, nonatomic) MEGATimeZoneDetails *megaTimeZoneDetails;
 
 /**
  * @brief Information about the contents of a folder
