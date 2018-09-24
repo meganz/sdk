@@ -3765,7 +3765,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param delegate MEGARequestListener to track this request
  */
-- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
@@ -3781,7 +3781,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Any negative value means that the configured value is invalid.
  *
  */
-- (void)rubbishBinAutopurgePeriod;
+- (void)getRubbishBinAutopurgePeriod;
 
 /**
  * @brief Set the number of days for rubbish-bin cleaning scheduler
@@ -5528,6 +5528,73 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  */
 - (void)getLanguagePreference;
+
+/**
+ * @brief Enable or disable file versioning
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ *
+ * @param disable YES to disable file versioning. NO to enable it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setFileVersionsOption:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable or disable file versioning
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ *
+ * @param disable YES to disable file versioning. NO to enable it
+ */
+- (void)setFileVersionsOption:(BOOL)disable;
+
+/**
+ * @brief Check if file versioning is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ * - [MEGARequest flag] - YES if disabled, NO if enabled
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getFileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if file versioning is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ * - [MEGARequest flag] - YES if disabled, NO if enabled
+ */
+- (void)getFileVersionsOption;
 
 /**
  * @brief Enable or disable the automatic approval of incoming contact requests using a contact link

@@ -1151,11 +1151,11 @@ using namespace mega;
     self.megaApi->setRichLinkWarningCounterValue((int)value);
 }
 
-- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
+- (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)rubbishBinAutopurgePeriod {
+- (void)getRubbishBinAutopurgePeriod {
     self.megaApi->getRubbishBinAutopurgePeriod();
 }
 
@@ -1781,6 +1781,22 @@ using namespace mega;
 
 - (void)getLanguagePreference {
     self.megaApi->getLanguagePreference();
+}
+
+- (void)setFileVersionsOption:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setFileVersionsOption(disable, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setFileVersionsOption:(BOOL)disable {
+    self.megaApi->setFileVersionsOption(disable);
+}
+
+- (void)getFileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFileVersionsOption([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getFileVersionsOption {
+    self.megaApi->getFileVersionsOption();
 }
 
 - (void)setContactLinksOptionDisable:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate {
