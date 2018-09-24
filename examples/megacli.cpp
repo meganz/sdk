@@ -809,6 +809,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     if (chat->publicchat)
     {
         cout << "\tPublic chat: yes" << endl;
+        cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
     }
     else
     {
