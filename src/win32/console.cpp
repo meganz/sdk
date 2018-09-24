@@ -560,6 +560,7 @@ bool WinConsole::consolePeek()
         assert(ok);
         if (!nRead)
         {
+            Sleep(10); // to avoid busy wait
             break;
         }
 
@@ -571,6 +572,7 @@ bool WinConsole::consolePeek()
         if (isCharacterGeneratingKeypress && (currentPrompt.empty() || model.newlinesBuffered))
         {
             // wait until the next prompt is output before echoing and processing
+            Sleep(10);
             break;
         }
 
