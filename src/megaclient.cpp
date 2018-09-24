@@ -815,27 +815,41 @@ void MegaClient::multifactorauthdisable(const char *pin)
 
 void MegaClient::fetchtimezone()
 {
-    struct tm lt, ut;
+    string timeoffset;
     m_time_t rawtime = m_time(NULL);
-    m_localtime(rawtime, &lt);
-    m_gmtime(rawtime, &ut);
-    m_time_t localtime = m_mktime(&lt);
-    m_time_t utctime = m_mktime(&ut);
-    double foffset = (localtime > 0 && utctime > 0)
-            ? difftime(localtime, utctime)
-            : 0;
-    int offset = int(fabs(foffset));
-
-    ostringstream oss;
-    oss << ((foffset >= 0) ? "+" : "-");
-    oss << (offset / 3600) << ":";
-    int minutes = ((offset % 3600) / 60);
-    if (minutes < 10)
+    if (rawtime != -1)
     {
-        oss << "0";
+        struct tm lt, ut, it;
+        memset(&lt, 0, sizeof(struct tm));
+        memset(&ut, 0, sizeof(struct tm));
+        memset(&it, 0, sizeof(struct tm));
+        m_localtime(rawtime, &lt);
+        m_gmtime(rawtime, &ut);
+        if (memcmp(&ut, &it, sizeof(struct tm)) && memcmp(&lt, &it, sizeof(struct tm)))
+        {
+            m_time_t localtime = m_mktime(&lt);
+            m_time_t utctime = m_mktime(&ut);
+            if (localtime != -1 && utctime != -1)
+            {
+                double foffset = difftime(localtime, utctime);
+                int offset = int(fabs(foffset));
+                if (offset <= 43200)
+                {
+                    ostringstream oss;
+                    oss << ((foffset >= 0) ? "+" : "-");
+                    oss << (offset / 3600) << ":";
+                    int minutes = ((offset % 3600) / 60);
+                    if (minutes < 10)
+                    {
+                        oss << "0";
+                    }
+                    oss << minutes;
+                    timeoffset = oss.str();
+                }
+            }
+        }
     }
-    oss << minutes;
-    string timeoffset = oss.str();
+
     reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
 }
 
