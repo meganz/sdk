@@ -3765,7 +3765,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param delegate MEGARequestListener to track this request
  */
-- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
@@ -3781,7 +3781,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Any negative value means that the configured value is invalid.
  *
  */
-- (void)rubbishBinAutopurgePeriod;
+- (void)getRubbishBinAutopurgePeriod;
 
 /**
  * @brief Set the number of days for rubbish-bin cleaning scheduler
@@ -5521,7 +5521,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)fileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getFileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Check if file versioning is enabled or disabled
@@ -5538,7 +5538,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - [MEGARequest text] - "1" for disable, "0" for enable
  * - [MEGARequest flag] - YES if disabled, NO if enabled
  */
-- (void)fileVersionsOption;
+- (void)getFileVersionsOption;
 
 /**
  * @brief Enable or disable the automatic approval of incoming contact requests using a contact link

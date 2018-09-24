@@ -1151,11 +1151,11 @@ using namespace mega;
     self.megaApi->setRichLinkWarningCounterValue((int)value);
 }
 
-- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
+- (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)rubbishBinAutopurgePeriod {
+- (void)getRubbishBinAutopurgePeriod {
     self.megaApi->getRubbishBinAutopurgePeriod();
 }
 
@@ -1775,11 +1775,11 @@ using namespace mega;
     self.megaApi->setFileVersionsOption(disable);
 }
 
-- (void)fileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate {
+- (void)getFileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getFileVersionsOption([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)fileVersionsOption {
+- (void)getFileVersionsOption {
     self.megaApi->getFileVersionsOption();
 }
 
