@@ -2793,6 +2793,27 @@ void MegaSDK::startUploadWithDataTempSource(String^ localPath, MNode^ parent, St
         (appData != nullptr) ? utf8appData.c_str() : NULL, isSourceTemporary);
 }
 
+void MegaSDK::startUploadWithTopPriority(String^ localPath, MNode^ parent, String^ appData, bool isSourceTemporary, MTransferListenerInterface^ listener)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    std::string utf8appData;
+    if (appData != nullptr)
+        MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
+
+    megaApi->startUploadWithTopPriority((localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (parent != nullptr) ? parent->getCPtr() : NULL,
+        (appData != nullptr) ? utf8appData.c_str() : NULL, isSourceTemporary,
+        createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::startUploadWithTopPriority(String^ localPath, MNode^ parent, String^ appData, bool isSourceTemporary)
+{
+    this->startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, nullptr);
+}
+
 void MegaSDK::startDownload(MNode^ node, String^ localPath, MTransferListenerInterface^ listener)
 {
 	std::string utf8localPath;
@@ -2843,6 +2864,27 @@ void MegaSDK::startDownloadWithAppData(MNode^ node, String^ localPath, String^ a
     megaApi->startDownloadWithData((node != nullptr) ? node->getCPtr() : NULL,
         (localPath != nullptr) ? utf8localPath.c_str() : NULL,
         (appData != nullptr) ? utf8appData.c_str() : NULL);
+}
+
+void MegaSDK::startDownloadWithTopPriority(MNode^ node, String^ localPath, String^ appData, MTransferListenerInterface^ listener)
+{
+    std::string utf8localPath;
+    if (localPath != nullptr)
+        MegaApi::utf16ToUtf8(localPath->Data(), localPath->Length(), &utf8localPath);
+
+    std::string utf8appData;
+    if (appData != nullptr)
+        MegaApi::utf16ToUtf8(appData->Data(), appData->Length(), &utf8appData);
+
+    megaApi->startDownloadWithTopPriority((node != nullptr) ? node->getCPtr() : NULL,
+        (localPath != nullptr) ? utf8localPath.c_str() : NULL,
+        (appData != nullptr) ? utf8appData.c_str() : NULL,
+        createDelegateMTransferListener(listener));
+}
+
+void MegaSDK::startDownloadWithTopPriority(MNode^ node, String^ localPath, String^ appData)
+{
+    this->startDownloadWithTopPriority(node, localPath, appData, nullptr);
 }
 
 void MegaSDK::startStreaming(MNode^ node, uint64 startPos, uint64 size, MTransferListenerInterface^ listener)

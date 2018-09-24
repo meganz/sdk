@@ -3790,7 +3790,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param delegate MEGARequestListener to track this request
  */
-- (void)rubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
@@ -3806,7 +3806,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Any negative value means that the configured value is invalid.
  *
  */
-- (void)rubbishBinAutopurgePeriod;
+- (void)getRubbishBinAutopurgePeriod;
 
 /**
  * @brief Set the number of days for rubbish-bin cleaning scheduler
@@ -4330,8 +4330,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+
 /**
  * @brief Upload a file or a folder, saving custom app data during the transfer
  * @param localPath Local path of the file or folder
@@ -4343,8 +4343,35 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  */
-
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+
+/**
+ * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+ * @param localPath Local path of the file or folder
+ * @param parent Parent node for the file or folder in the MEGA account
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
+ * related to the transfer.
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ * @param delegate MEGATransferDelegate to track this transfer
+ */
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+ * @param localPath Local path of the file or folder
+ * @param parent Parent node for the file or folder in the MEGA account
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
+ * related to the transfer.
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+
+ */
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
  * @brief Download a file from MEGA.
@@ -4396,6 +4423,35 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  */
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
+
+/**
+ * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *
+ * @param delegate Delegate to track this transfer.
+ */
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *
+ */
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
 
 /**
  * @brief Start an streaming download
@@ -5497,6 +5553,73 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  */
 - (void)getLanguagePreference;
+
+/**
+ * @brief Enable or disable file versioning
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ *
+ * @param disable YES to disable file versioning. NO to enable it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setFileVersionsOption:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable or disable file versioning
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ *
+ * @param disable YES to disable file versioning. NO to enable it
+ */
+- (void)setFileVersionsOption:(BOOL)disable;
+
+/**
+ * @brief Check if file versioning is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ * - [MEGARequest flag] - YES if disabled, NO if enabled
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getFileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if file versioning is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ * - [MEGARequest flag] - YES if disabled, NO if enabled
+ */
+- (void)getFileVersionsOption;
 
 /**
  * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
