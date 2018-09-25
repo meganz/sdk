@@ -1739,7 +1739,7 @@ public class MegaApiJava {
      * @see MegaApi::getPSA
      */
     void setPSA(int id, MegaRequestListenerInterface listener){
-        setPSA(id, createDelegateRequestListener(listener));
+        megaApi.setPSA(id, createDelegateRequestListener(listener));
     }
 
     /**
@@ -1756,7 +1756,7 @@ public class MegaApiJava {
      * @see MegaApi::getPSA
      */
     void setPSA(int id){
-        setPSA(id);
+        megaApi.setPSA(id);
     }
 
     /**
