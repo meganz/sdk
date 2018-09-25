@@ -96,7 +96,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeContactLinkVerification = 17, // private - byte array
     MEGAUserAttributeRichPreviews            = 18, // private - byte array
     MEGAUserAttributeRubbishTime             = 19,  // private - byte array
-    MEGAUserAttributeLastPSA                 = 20 // private - byte array
+    MEGAUserAttributeLastPSA                 = 20  // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -555,7 +555,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - [MEGARequest flag] - Returns true if multi-factor authentication is enabled or false if it's disabled.
  *
  * @param email Email to check
- * @param delegate MegaRequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)multiFactorAuthCheckWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -1824,7 +1824,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * The associated request type with this request is MEGARequestTypeGetPSA.
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
  *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
@@ -1851,7 +1851,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * The associated request type with this request is MEGARequestTypeGetPSA.
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
  *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
@@ -1873,7 +1873,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser.
  *
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the value MEGAUserAttributeLastPSA
  * - [MEGARequest text] - Returns the id passed in the first parameter (as a string)
  *
@@ -1889,7 +1889,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser.
  *
- * Valid data in the MegaRequest object received on callbacks:
+ * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the value MEGAUserAttributeLastPSA
  * - [MEGARequest text] - Returns the id passed in the first parameter (as a string)
  *
@@ -2173,7 +2173,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to restore
  *
  * @param node Node with the version to restore
- * @param delegate MEGARequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)restoreVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -2224,7 +2224,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief Share or stop sharing a folder in MEGA with another user using a MEGAUser.
  *
  * To share a folder with an user, set the desired access level in the level parameter. If you
- * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown.
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnknown.
  *
  * The associated request type with this request is MEGARequestTypeShare.
  * Valid data in the MEGARequest object received on callbacks:
@@ -2236,7 +2236,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param user User that receives the shared folder.
  * @param level Permissions that are granted to the user.
  * Valid values for this parameter:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
@@ -2252,7 +2252,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief Share or stop sharing a folder in MEGA with another user using a MEGAUser.
  *
  * To share a folder with an user, set the desired access level in the level parameter. If you
- * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown.
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnknown.
  *
  * The associated request type with this request is MEGARequestTypeShare.
  * Valid data in the MEGARequest object received on callbacks:
@@ -2264,7 +2264,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param user User that receives the shared folder.
  * @param level Permissions that are granted to the user.
  * Valid values for this parameter:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
@@ -2279,7 +2279,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief Share or stop sharing a folder in MEGA with another user using his email
  *
  * To share a folder with an user, set the desired access level in the level parameter. If you
- * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnknown
  *
  * The associated request type with this request is MEGARequestTypeShare
  * Valid data in the MEGARequest object received on callbacks:
@@ -2293,7 +2293,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param level Permissions that are granted to the user
  * Valid values for this parameter:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
@@ -2309,7 +2309,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief Share or stop sharing a folder in MEGA with another user using his email
  *
  * To share a folder with an user, set the desired access level in the level parameter. If you
- * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnknown
  *
  * The associated request type with this request is MEGARequestTypeShare
  * Valid data in the MEGARequest object received on callbacks:
@@ -2323,7 +2323,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param level Permissions that are granted to the user
  * Valid values for this parameter:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
@@ -3782,13 +3782,13 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
  * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
  * Any negative value means that the configured value is invalid.
  *
- * @param delegate MEGARequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
 
@@ -3799,7 +3799,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
  *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
  * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
@@ -3819,7 +3819,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
  * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
  *
- * @param delegate MEGARequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -5336,7 +5336,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - MEGAShareTypeAccessFull
  * - MEGAShareTypeAccessReadWrite
  * - MEGAShareTypeAccessRead
- * - MEGAShareTypeAccessUnkown
+ * - MEGAShareTypeAccessUnknown
  */
 - (MEGAShareType)accessLevelForNode:(MEGANode *)node;
 

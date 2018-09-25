@@ -21,7 +21,7 @@
 #import <Foundation/Foundation.h>
 
 typedef NS_ENUM (NSInteger, MEGAShareType) {
-    MEGAShareTypeAccessUnkown = -1,
+    MEGAShareTypeAccessUnknown = -1,
     MEGAShareTypeAccessRead = 0,
     MEGAShareTypeAccessReadWrite,
     MEGAShareTypeAccessFull,
@@ -60,7 +60,7 @@ typedef NS_ENUM (NSInteger, MEGAShareType) {
  * @brief The access level of the sharing.
  *
  * Possible return values are:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * It means that the access level is unknown
  *
  * - MEGAShareTypeAccessRead = 0
