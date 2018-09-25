@@ -811,7 +811,6 @@ class MEGA_API CommandChatInvite : public Command
     handle uh;
     privilege_t priv;
     string title;
-    string mUnifiedKey;
 
 public:
     void procresult();

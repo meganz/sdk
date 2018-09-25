@@ -5188,7 +5188,6 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
     this->uh = uh;
     this->priv = priv;
     this->title = title ? string(title) : "";
-    this->mUnifiedKey = unifiedkey ? string(unifiedkey) : "";
 
     cmd("mci");
 
