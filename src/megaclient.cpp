@@ -827,11 +827,11 @@ void MegaClient::fetchtimezone()
         m_gmtime(rawtime, &ut);
         if (memcmp(&ut, &it, sizeof(struct tm)) && memcmp(&lt, &it, sizeof(struct tm)))
         {
-            m_time_t localtime = m_mktime(&lt);
-            m_time_t utctime = m_mktime(&ut);
-            if (localtime != -1 && utctime != -1)
+            m_time_t local_time = m_mktime(&lt);
+            m_time_t utc_time = m_mktime(&ut);
+            if (local_time != -1 && utc_time != -1)
             {
-                double foffset = difftime(localtime, utctime);
+                double foffset = difftime(local_time, utc_time);
                 int offset = int(fabs(foffset));
                 if (offset <= 43200)
                 {
