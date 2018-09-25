@@ -1167,11 +1167,11 @@ using namespace mega;
     self.megaApi->getRubbishBinAutopurgePeriod();
 }
 
-- (void)setRubbishBinAutopurgePeriod:(NSInteger)days delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setRubbishBinAutopurgePeriod((int)days, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setRubbishBinAutopurgePeriod:(NSInteger)days {
+- (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days {
     self.megaApi->setRubbishBinAutopurgePeriod((int)days);
 }
 
@@ -1704,7 +1704,7 @@ using namespace mega;
 }
 
 - (MEGAShareType)accessLevelForNode:(MEGANode *)node {
-    if (node == nil) return MEGAShareTypeAccessUnkown;
+    if (node == nil) return MEGAShareTypeAccessUnknown;
     
     return (MEGAShareType) self.megaApi->getAccess([node getCPtr]);
 }

@@ -63,6 +63,7 @@
  * - MEGAAccountTypeProI = 1
  * - MEGAAccountTypeProII = 2
  * - MEGAAccountTypeProIII = 3
+ * - MEGAAccountTypeLite = 4
  */
 - (MEGAAccountType)proLevelAtProductIndex:(NSInteger)index;
 
