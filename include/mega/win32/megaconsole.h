@@ -135,6 +135,8 @@ struct MEGA_API WinConsole : public Console
     void setAutocompleteStyle(bool unix);
     bool getAutocompleteStyle() const;
     bool consolePeek();
+    bool consolePeekNonBlocking();
+    bool consolePeekBlocking();
     bool consoleGetch(wchar_t& c);
     void updateInputPrompt(const std::string& newprompt);
     char* checkForCompletedInputLine();
@@ -147,9 +149,10 @@ struct MEGA_API WinConsole : public Console
 
     static std::string toUtf8String(const std::wstring& ws, UINT codepage = CP_UTF8);
     static std::wstring toUtf16String(const std::string& s, UINT codepage = CP_UTF8);
-
+    bool blockingConsolePeek;
 
 private:
+    vector<INPUT_RECORD> irs;
     HANDLE hInput;
     HANDLE hOutput;
     bool promptRetracted = false;
