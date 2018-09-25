@@ -700,6 +700,11 @@ MegaAchievementsDetails *MegaRequest::getMegaAchievementsDetails() const
     return NULL;
 }
 
+MegaTimeZoneDetails *MegaRequest::getMegaTimeZoneDetails() const
+{
+    return NULL;
+}
+
 int MegaRequest::getTransferTag() const
 {
 	return 0;
@@ -1565,6 +1570,11 @@ void MegaApi::multiFactorAuthChangeEmail(const char *email, const char *pin, Meg
 void MegaApi::multiFactorAuthCancelAccount(const char *pin, MegaRequestListener *listener)
 {
     pImpl->multiFactorAuthCancelAccount(pin, listener);
+}
+
+void MegaApi::fetchTimeZone(MegaRequestListener *listener)
+{
+    pImpl->fetchTimeZone(listener);
 }
 
 void MegaApi::addEntropy(char *data, unsigned int size)
@@ -5383,6 +5393,36 @@ long long MegaFolderInfo::getCurrentSize() const
 long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
+}
+
+MegaTimeZoneDetails::~MegaTimeZoneDetails()
+{
+
+}
+
+MegaTimeZoneDetails *MegaTimeZoneDetails::copy() const
+{
+    return NULL;
+}
+
+int MegaTimeZoneDetails::getNumTimeZones() const
+{
+    return 0;
+}
+
+const char *MegaTimeZoneDetails::getTimeZone(int index) const
+{
+    return NULL;
+}
+
+int MegaTimeZoneDetails::getTimeOffset(int index) const
+{
+    return 0;
+}
+
+int MegaTimeZoneDetails::getDefault() const
+{
+    return -1;
 }
 
 }

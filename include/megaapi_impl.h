@@ -751,6 +751,27 @@ protected:
     long long versionsSize;
 };
 
+class MegaTimeZoneDetailsPrivate : public MegaTimeZoneDetails
+{
+public:
+    MegaTimeZoneDetailsPrivate(vector<string>* timeZones, vector<int> *timeZoneOffsets, int defaultTimeZone);
+    MegaTimeZoneDetailsPrivate(const MegaTimeZoneDetailsPrivate *timeZoneDetails);
+
+    virtual ~MegaTimeZoneDetailsPrivate();
+    virtual MegaTimeZoneDetails *copy() const;
+
+    virtual int getNumTimeZones() const;
+    virtual const char *getTimeZone(int index) const;
+    virtual int getTimeOffset(int index) const;
+    virtual int getDefault() const;
+
+protected:
+    int defaultTimeZone;
+    vector<string> timeZones;
+    vector<int> timeZoneOffsets;
+};
+
+
 class MegaContactRequestPrivate : public MegaContactRequest
 {
 public:
@@ -928,6 +949,7 @@ class MegaRequestPrivate : public MegaRequest
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
+        void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
 
         virtual int getType() const;
         virtual const char *getRequestString() const;
@@ -963,6 +985,7 @@ class MegaRequestPrivate : public MegaRequest
         AccountDetails * getAccountDetails() const;
         virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
         AchievementsDetails *getAchievementsDetails() const;
+        MegaTimeZoneDetails *getMegaTimeZoneDetails () const;
 
 #ifdef ENABLE_CHAT
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
@@ -989,6 +1012,7 @@ protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
         AchievementsDetails *achievementsDetails;
+        MegaTimeZoneDetails *timeZoneDetails;
         int type;
         MegaHandle nodeHandle;
         const char* link;
@@ -1678,6 +1702,8 @@ class MegaApiImpl : public MegaApp
         void multiFactorAuthChangeEmail(const char *email, const char* pin, MegaRequestListener *listener = NULL);
         void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
 
+        void fetchTimeZone(MegaRequestListener *listener = NULL);
+
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
@@ -2321,6 +2347,9 @@ protected:
         virtual void multifactorauthsetup_result(string*, error);
         virtual void multifactorauthcheck_result(int);
         virtual void multifactorauthdisable_result(error);
+
+        // fetch time zone
+        virtual void fetchtimezone_result(error, vector<string>*, vector<int>*, int);
 
         // keep me alive feature
         virtual void keepmealive_result (error);

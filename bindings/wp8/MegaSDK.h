@@ -486,6 +486,30 @@ namespace mega
          */
         void multiFactorAuthCancelAccount(String^ pin);
 
+        /**
+        * @brief Fetch details related to time zones and the current default
+        *
+        * The associated request type with this request is MRequest::TYPE_FETCH_TIMEZONE.
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getMTimeZoneDetails - Returns details about timezones and the current default
+        *
+        * @param listener MRequestListener to track this request
+        */
+        void fetchTimeZone(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Fetch details related to time zones and the current default
+        *
+        * The associated request type with this request is MRequest::TYPE_FETCH_TIMEZONE.
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getMTimeZoneDetails - Returns details about timezones and the current default
+        */
+        void fetchTimeZone();
+
         //API REQUESTS
 
         /**

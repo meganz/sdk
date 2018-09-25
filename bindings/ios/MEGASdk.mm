@@ -461,6 +461,14 @@ using namespace mega;
     self.megaApi->multiFactorAuthCancelAccount((pin ? pin.UTF8String : NULL));
 }
 
+- (void)fetchTimeZoneWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->fetchTimeZone([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)fetchTimeZone {
+    self.megaApi->fetchTimeZone();
+}
+
 - (void)loginWithEmail:(NSString *)email password:(NSString *)password {
     self.megaApi->login((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL);
 }

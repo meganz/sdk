@@ -69,6 +69,7 @@
 #include <assert.h>
 #include <memory.h>
 #include <time.h>
+#include <math.h>
 
 #if defined(USE_PTHREAD) && defined (__MINGW32__)
 #include <sys/time.h>		

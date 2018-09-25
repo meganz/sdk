@@ -545,6 +545,16 @@ void MegaSDK::multiFactorAuthCancelAccount(String^ pin)
     this->multiFactorAuthCancelAccount(pin, nullptr);
 }
 
+void MegaSDK::fetchTimeZone(MRequestListenerInterface^ listener)
+{
+    megaApi->fetchTimeZone(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::fetchTimeZone()
+{
+    megaApi->fetchTimeZone();
+}
+
 void MegaSDK::login(String^ email, String^ password)
 {
 	std::string utf8email;

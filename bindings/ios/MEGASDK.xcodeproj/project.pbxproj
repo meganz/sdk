@@ -77,6 +77,7 @@
 		940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 940BF00919ED97B9007E7FA2 /* MEGAUserList.mm */; };
 		A81790101EFACE6400110E91 /* MEGAHandleList.mm in Sources */ = {isa = PBXBuildFile; fileRef = A817900F1EFACE6400110E91 /* MEGAHandleList.mm */; };
 		A81790151EFADDDE00110E91 /* MEGAEvent.mm in Sources */ = {isa = PBXBuildFile; fileRef = A81790141EFADDDE00110E91 /* MEGAEvent.mm */; };
+		A820A30A2155111C00C8B6A5 /* MEGATimeZoneDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A820A3092155111C00C8B6A5 /* MEGATimeZoneDetails.mm */; };
 		A827F4DD204D3D14006A1962 /* MEGAFolderInfo.mm in Sources */ = {isa = PBXBuildFile; fileRef = A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */; };
 		A8464B201F25F53A00102C75 /* MEGAChildrenLists.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8464B1F1F25F53A00102C75 /* MEGAChildrenLists.mm */; };
 		A87D979F1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm in Sources */ = {isa = PBXBuildFile; fileRef = A87D979E1F4ACF5100A98C0E /* MEGAAchievementsDetails.mm */; };
@@ -259,11 +260,14 @@
 		940BF0AC19EDBD62007E7FA2 /* MEGAUser+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUser+init.h"; sourceTree = "<group>"; };
 		940BF0AE19EDBD62007E7FA2 /* MEGAUserList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAUserList+init.h"; sourceTree = "<group>"; };
 		9472044319ED916F00F6805F /* libMEGASDK.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libMEGASDK.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		A808E4862158DAC400BDCE82 /* MEGATimeZoneDetails+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGATimeZoneDetails+init.h"; sourceTree = "<group>"; };
 		A817900E1EFACE6400110E91 /* MEGAHandleList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAHandleList.h; sourceTree = "<group>"; };
 		A817900F1EFACE6400110E91 /* MEGAHandleList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAHandleList.mm; sourceTree = "<group>"; };
 		A81790121EFAD24F00110E91 /* MEGAHandleList+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGAHandleList+init.h"; sourceTree = "<group>"; };
 		A81790131EFADDDE00110E91 /* MEGAEvent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAEvent.h; sourceTree = "<group>"; };
 		A81790141EFADDDE00110E91 /* MEGAEvent.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAEvent.mm; sourceTree = "<group>"; };
+		A820A3082155111C00C8B6A5 /* MEGATimeZoneDetails.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGATimeZoneDetails.h; sourceTree = "<group>"; };
+		A820A3092155111C00C8B6A5 /* MEGATimeZoneDetails.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGATimeZoneDetails.mm; sourceTree = "<group>"; };
 		A827F4DB204D3D14006A1962 /* MEGAFolderInfo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGAFolderInfo.h; sourceTree = "<group>"; };
 		A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAFolderInfo.mm; sourceTree = "<group>"; };
 		A827F4DE204D450E006A1962 /* MEGAFolderInfo+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGAFolderInfo+init.h"; sourceTree = "<group>"; };
@@ -455,6 +459,8 @@
 				A87D97A11F4AD49B00A98C0E /* MEGAStringList.mm */,
 				A827F4DB204D3D14006A1962 /* MEGAFolderInfo.h */,
 				A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */,
+				A820A3082155111C00C8B6A5 /* MEGATimeZoneDetails.h */,
+				A820A3092155111C00C8B6A5 /* MEGATimeZoneDetails.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -606,6 +612,7 @@
 				A87D97A31F4AD5FD00A98C0E /* MEGAStringList+init.h */,
 				A87D97A61F4AD9C300A98C0E /* MEGAAchievementsDetails+init.h */,
 				A827F4DE204D450E006A1962 /* MEGAFolderInfo+init.h */,
+				A808E4862158DAC400BDCE82 /* MEGATimeZoneDetails+init.h */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -783,6 +790,7 @@
 				940BEFD319ED92C2007E7FA2 /* user.cpp in Sources */,
 				940BEFEA19ED9351007E7FA2 /* cryptopp.cpp in Sources */,
 				940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */,
+				A820A30A2155111C00C8B6A5 /* MEGATimeZoneDetails.mm in Sources */,
 				41D98D011BD54B5200764370 /* MEGAContactRequest.mm in Sources */,
 				940BEFD119ED92C2007E7FA2 /* transferslot.cpp in Sources */,
 			);

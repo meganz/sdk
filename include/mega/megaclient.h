@@ -1359,6 +1359,9 @@ public:
     // multi-factor authentication disable
     void multifactorauthdisable(const char*);
 
+    // fetch time zone
+    void fetchtimezone();
+
     void keepmealive(int, bool enable = true);
 
     void getpsa();

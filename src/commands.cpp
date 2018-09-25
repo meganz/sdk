@@ -6293,4 +6293,85 @@ void CommandGetPSA::procresult()
     }
 }
 
+CommandFetchTimeZone::CommandFetchTimeZone(MegaClient *client, const char *timezone, const char* timeoffset)
+{
+    cmd("ftz");
+    arg("utz", timezone);
+    arg("uo", timeoffset);
+
+    tag = client->reqtag;
+}
+
+void CommandFetchTimeZone::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->fetchtimezone_result((error)client->json.getint(), NULL, NULL, -1);
+    }
+
+    string currenttz;
+    int currentto;
+    vector<string> timezones;
+    vector<int> timeoffsets;
+    string defaulttz;
+    int defaulttzindex = -1;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID7('c', 'h', 'o', 'i', 'c', 'e', 's'):
+                if (client->json.enterobject())
+                {
+                    while (client->json.storeobject(&currenttz))
+                    {
+                        currentto = int(client->json.getint());
+                        timezones.push_back(currenttz);
+                        timeoffsets.push_back(currentto);
+                    }
+                    client->json.leaveobject();
+                }
+                else if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse fetch time zone response";
+                    return client->app->fetchtimezone_result(API_EINTERNAL, NULL, NULL, -1);
+                }
+                break;
+
+            case MAKENAMEID7('d', 'e', 'f', 'a', 'u', 'l', 't'):
+                if (client->json.isnumeric())
+                {
+                    client->json.getint();
+                }
+                else
+                {
+                    client->json.storeobject(&defaulttz);
+                }
+                break;
+
+            case EOO:
+                if (!defaulttz.empty())    // default received as string
+                {
+                    for (int i = 0; i < (int)timezones.size(); i++)
+                    {
+                        if (timezones[i] == defaulttz)
+                        {
+                            defaulttzindex = i;
+                            break;
+                        }
+                    }
+                }
+                return client->app->fetchtimezone_result(API_OK, &timezones, &timeoffsets, defaulttzindex);
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse fetch time zone response";
+                    return client->app->fetchtimezone_result(API_EINTERNAL, NULL, NULL, -1);
+                }
+                break;
+        }
+    }
+}
+
 } // namespace

@@ -798,6 +798,35 @@ public class MegaApiJava {
     }
 
     /**
+     * Fetch details related to time zones and the current default
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_TIMEZONE.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaTimeZoneDetails - Returns details about timezones and the current default
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    void fetchTimeZone(MegaRequestListenerInterface listener){
+        megaApi.fetchTimeZone(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Fetch details related to time zones and the current default
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_TIMEZONE.
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaTimeZoneDetails - Returns details about timezones and the current default
+     *
+     */
+    void fetchTimeZone(){
+        megaApi.fetchTimeZone();
+    }
+
+    /**
      * Log in to a MEGA account.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_LOGIN.
