@@ -18359,8 +18359,9 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!chatPeers) // emtpy groupchat
             {
-                chatPeers = new MegaTextChatPeerListPrivate();
-                request->setMegaTextChatPeerList(chatPeers);
+                MegaTextChatPeerListPrivate tmp = MegaTextChatPeerListPrivate();
+                request->setMegaTextChatPeerList(&tmp);
+                chatPeers = request->getMegaTextChatPeerList();
             }
 
             int numPeers = chatPeers->size();
