@@ -2120,8 +2120,8 @@ class MegaRequest
             TYPE_CONTACT_LINK_CREATE, TYPE_CONTACT_LINK_QUERY, TYPE_CONTACT_LINK_DELETE,
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
-            TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
+            TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -7224,7 +7224,11 @@ class MegaApi
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Get any public attribute of an user when we are in preview mode.
+         * @brief Get public attributes of participants of public chats during preview mode.
+         *
+         * Other's public attributes are retrievable by contacts and users who participates in your chats.
+         * During a preview of a public chat, the user does not fullfil the above requirements, so the
+         * public handle of the chat being previewed is required as authorization.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -7237,7 +7241,7 @@ class MegaApi
          * - MegaRequest::getText - Returns the value for public attributes
          *
          * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
-         * This parameter Cannot be NULL.
+         * This parameter cannot be NULL.
          * @param type Attribute type
          *
          * Valid values are:
@@ -11961,7 +11965,7 @@ class MegaApi
          *
          * @param group Flag to indicate if the chat is a group chat or not
          * @param peers MegaTextChatPeerList including other users and their privilege level
-         * @param title Byte array that contains the chat topic if exists.
+         * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param listener MegaRequestListener to track this request
          */
         void createChat(bool group, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
@@ -11995,7 +11999,7 @@ class MegaApi
          * - MegaChatRequest::getChatHandle - Returns the handle of the new chatroom
          *
          * @param peers MegaChatPeerList including other users and their privilege level
-         * @param title Byte array that contains the chat topic if exists.
+         * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
          *
          * @param listener MegaChatRequestListener to track this request
@@ -12320,8 +12324,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
-         * - MegaRequest::getFlag - Returns false
-         * - MegaRequest::getAccess - Returns 0
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -12346,8 +12348,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
-         * - MegaRequest::getFlag - Returns false
-         * - MegaRequest::getAccess - Returns 1
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -12371,8 +12371,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
-         * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getAccess - Returns 0
          *
          * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
          * will return MegaError::API_EACCESS.
@@ -12389,8 +12387,9 @@ class MegaApi
          * This function can be used by anonymous and registered users to request the URL to connect
          * to chatd, for a given public handle. @see \c MegaApi::chatLinkCreate.
          * It also returns the shard hosting the chatroom, the real chatid and the title (if any).
-         * The chat-topic, for public chats, also includes the global chat-key set by the creator of
-         * the chatroom, despite such key is already encoded in the chat-link for previewers.
+         * The chat-topic, for public chats, can be decrypted by using the unified-key, already
+         * available as part of the link for previewers and available to participants as part of
+         * the room's information. @see \c MegaTextChat::getUnifiedKey.
          *
          * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_URL
          *
@@ -12402,7 +12401,7 @@ class MegaApi
          * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the shard
-         * - MegaRequest::getText - Returns the chat-topic (if any) plus chat-key (in B64url)
+         * - MegaRequest::getText - Returns the chat-topic (if any)
          *
          * @note This function can be called without being logged in. In that case, the returned
          * URL will be different than for logged in users, so chatd knows whether user has a session.
@@ -12438,7 +12437,7 @@ class MegaApi
         void chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Allows to join to an public chat
+         * @brief Allows to join a public chat
          *
          * This function allows any user with a MEGA account to join an open chat that has the
          * specified public handle. It will create a management message like any new user join.
