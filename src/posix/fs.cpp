@@ -120,6 +120,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     type = TYPE_UNKNOWN;
     if (!stat(localname.c_str(), &statbuf))
     {
+        errorcode = 0;
         if (S_ISDIR(statbuf.st_mode))
         {
             type = FOLDERNODE;
@@ -135,6 +136,7 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         return true;
     }
 
+    errorcode = errno;
     return false;
 }
 
@@ -974,8 +976,10 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool o
     transient_error = !existingandcare && (errno == ETXTBSY || errno == EBUSY);
 
     int e = errno;
-    LOG_warn << "Unable to move file: " << oldname->c_str() << " to " << newname->c_str() << ". Error code: " << e;
-
+    if (!skip_errorreport)
+    {
+        LOG_warn << "Unable to move file: " << oldname->c_str() << " to " << newname->c_str() << ". Error code: " << e;
+    }
     return false;
 }
 

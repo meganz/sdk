@@ -82,7 +82,7 @@ public:
     MegaMutex(bool recursive) : PosixMutex(recursive) { }
 };
 class MegaSemaphore : public PosixSemaphore {};
-#elif defined(_WIN32) && !defined(WINDOWS_PHONE)
+#elif defined(_WIN32) && !defined(USE_CPPTHREAD) && !defined(WINDOWS_PHONE)
 class MegaThread : public Win32Thread {};
 class MegaMutex : public Win32Mutex
 {
@@ -404,6 +404,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int getDuration();
         virtual int getWidth();
         virtual int getHeight();
+        virtual int getShortformat();
+        virtual int getVideocodecid();
         virtual double getLatitude();
         virtual double getLongitude();
         virtual char *getBase64Handle();
@@ -492,6 +494,8 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int duration;
         int width;
         int height;
+        int shortformat;
+        int videocodecid;
         double latitude;
         double longitude;
         MegaNodeList *children;
@@ -601,6 +605,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setPublicNode(MegaNode *publicNode, bool copyChildren = false);
         void setSyncTransfer(bool syncTransfer);
         void setSourceFileTemporary(bool temporary);
+        void setStartFirst(bool startFirst);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
@@ -638,6 +643,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool isStreamingTransfer() const;
         virtual bool isFinished() const;
         virtual bool isSourceFileTemporary() const;
+        virtual bool shouldStartFirst() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
@@ -664,6 +670,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
             bool syncTransfer : 1;
             bool streamingTransfer : 1;
             bool temporarySourceFile : 1;
+            bool startFirst : 1;
         };
 
         int64_t startTime;
@@ -743,6 +750,27 @@ protected:
     long long currentSize;
     long long versionsSize;
 };
+
+class MegaTimeZoneDetailsPrivate : public MegaTimeZoneDetails
+{
+public:
+    MegaTimeZoneDetailsPrivate(vector<string>* timeZones, vector<int> *timeZoneOffsets, int defaultTimeZone);
+    MegaTimeZoneDetailsPrivate(const MegaTimeZoneDetailsPrivate *timeZoneDetails);
+
+    virtual ~MegaTimeZoneDetailsPrivate();
+    virtual MegaTimeZoneDetails *copy() const;
+
+    virtual int getNumTimeZones() const;
+    virtual const char *getTimeZone(int index) const;
+    virtual int getTimeOffset(int index) const;
+    virtual int getDefault() const;
+
+protected:
+    int defaultTimeZone;
+    vector<string> timeZones;
+    vector<int> timeZoneOffsets;
+};
+
 
 class MegaContactRequestPrivate : public MegaContactRequest
 {
@@ -921,6 +949,7 @@ class MegaRequestPrivate : public MegaRequest
                         int months, int amount, const char *currency, const char *description, const char *iosid, const char *androidid);
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
+        void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
 
         virtual int getType() const;
         virtual const char *getRequestString() const;
@@ -956,6 +985,7 @@ class MegaRequestPrivate : public MegaRequest
         AccountDetails * getAccountDetails() const;
         virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
         AchievementsDetails *getAchievementsDetails() const;
+        MegaTimeZoneDetails *getMegaTimeZoneDetails () const;
 
 #ifdef ENABLE_CHAT
         virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
@@ -982,6 +1012,7 @@ protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
         AchievementsDetails *achievementsDetails;
+        MegaTimeZoneDetails *timeZoneDetails;
         int type;
         MegaHandle nodeHandle;
         const char* link;
@@ -1676,6 +1707,8 @@ class MegaApiImpl : public MegaApp
         void multiFactorAuthChangeEmail(const char *email, const char* pin, MegaRequestListener *listener = NULL);
         void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
 
+        void fetchTimeZone(MegaRequestListener *listener = NULL);
+
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
@@ -1768,6 +1801,8 @@ class MegaApiImpl : public MegaApp
         void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
         void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+        void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
+        void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -1822,9 +1857,9 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
-        void startDownload(MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, const char *appData, MegaTransferListener *listener);
+        void startDownload(bool startFirst, MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
@@ -2014,6 +2049,9 @@ class MegaApiImpl : public MegaApp
         void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
 
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
+
+        void getPSA(MegaRequestListener *listener = NULL);
+        void setPSA(int id, MegaRequestListener *listener = NULL);
 
         void disableGfxFeatures(bool disable);
         bool areGfxFeaturesDisabled();
@@ -2322,8 +2360,14 @@ protected:
         virtual void multifactorauthcheck_result(int);
         virtual void multifactorauthdisable_result(error);
 
+        // fetch time zone
+        virtual void fetchtimezone_result(error, vector<string>*, vector<int>*, int);
+
         // keep me alive feature
         virtual void keepmealive_result (error);
+
+        // get the current PSA
+        virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);
 
         // account creation
         virtual void sendsignuplink_result(error);

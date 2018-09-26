@@ -28,6 +28,7 @@ jmethodID ctorString = NULL;
 jmethodID getBytes = NULL;
 jclass applicationClass = NULL;
 jmethodID startVideoCaptureMID = NULL;
+jmethodID startVideoCaptureWithParametersMID = NULL;
 jmethodID stopVideoCaptureMID = NULL;
 jobject surfaceTextureHelper = NULL;
 
@@ -84,6 +85,12 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 
         startVideoCaptureMID = jenv->GetStaticMethodID(applicationClass, "startVideoCapture", "(JLorg/webrtc/SurfaceTextureHelper;)V");
         if (!startVideoCaptureMID)
+        {
+            jenv->ExceptionClear();
+        }
+
+        startVideoCaptureWithParametersMID = jenv->GetStaticMethodID(applicationClass, "startVideoCaptureWithParameters", "(IIIJLorg/webrtc/SurfaceTextureHelper;)V");
+        if (!startVideoCaptureWithParametersMID)
         {
             jenv->ExceptionClear();
         }
@@ -376,6 +383,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaContactRequestList::copy;
 %newobject mega::MegaStringList::copy;
 %newobject mega::MegaAchievementsDetails::copy;
+%newobject mega::MegaTimeZoneDetails::copy;
 %newobject mega::MegaAchievementsDetails::getAwardEmails;
 %newobject mega::MegaRequest::getPublicMegaNode;
 %newobject mega::MegaTransfer::getPublicMegaNode;
@@ -431,6 +439,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getAccountAuth;
 %newobject mega::MegaApi::authorizeNode;
 
+%newobject mega::MegaRequest::getMegaTimeZoneDetails;
 %newobject mega::MegaRequest::getMegaAccountDetails;
 %newobject mega::MegaRequest::getPricing;
 %newobject mega::MegaRequest::getMegaAchievementsDetails;

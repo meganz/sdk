@@ -288,6 +288,9 @@
     <ClInclude Include="..\MEvent.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\MTimeZoneDetails.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -519,6 +522,9 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\MEvent.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MTimeZoneDetails.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>

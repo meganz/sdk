@@ -66,6 +66,7 @@
 #include <assert.h>
 #include <memory.h>
 #include <time.h>
+#include <math.h>
 
 #ifdef HAVE_STDBOOL_H
     #include <stdbool.h>

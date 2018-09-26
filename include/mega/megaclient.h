@@ -357,7 +357,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, bool skipdupes = false);
+    bool startxfer(direction_t, File*, bool skipdupes = false, bool startfirst = false);
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
@@ -1139,6 +1139,10 @@ public:
 
     // process localnode subtree
     void proclocaltree(LocalNode*, LocalTreeProc*);
+
+    // unlink the LocalNode from the corresponding node
+    // if the associated local file or folder still exists
+    void unlinkifexists(LocalNode*, FileAccess*, string*);
 #endif
 
     // recursively cancel transfers in a subtree
@@ -1208,6 +1212,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
@@ -1263,6 +1268,9 @@ public:
     // binary session ID
     string sid;
 
+    // distinguish activity from different MegaClients in logs
+    string clientname;
+
     // apply keys
     int applykeys();
 
@@ -1274,7 +1282,7 @@ public:
     User* finduser(handle, int = 0);
     User* ownuser();
     void mapuser(handle, const char*);
-    void discarduser(handle);
+    void discarduser(handle, bool = true);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
     bool discardnotifieduser(User *);
@@ -1364,7 +1372,12 @@ public:
     // multi-factor authentication disable
     void multifactorauthdisable(const char*);
 
+    // fetch time zone
+    void fetchtimezone();
+
     void keepmealive(int, bool enable = true);
+
+    void getpsa();
 
     // achievements enabled for the account
     bool achievements_enabled;
@@ -1377,6 +1390,9 @@ public:
 
     // true if user has disabled fileversioning
     bool versions_disabled;
+
+    // the SDK is trying to log out
+    int loggingout;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

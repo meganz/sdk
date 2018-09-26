@@ -151,7 +151,7 @@ public:
     static const uint64_t PRIORITY_STEP  = 0x0000000000010000ull;
 
     TransferList();
-    void addtransfer(Transfer* transfer);
+    void addtransfer(Transfer* transfer, bool startFirst = false);
     void removetransfer(Transfer *transfer);
     void movetransfer(Transfer *transfer, Transfer *prevTransfer);
     void movetransfer(Transfer *transfer, unsigned int position);

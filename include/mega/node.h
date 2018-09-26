@@ -299,6 +299,7 @@ struct MEGA_API LocalNode : public File
     // build full local path to this node
     void getlocalpath(string*, bool sdisable = false) const;
     void getlocalsubpath(string*) const;
+    string localnodedisplaypath(FileSystemAccess& fsa) const;
 
     // return child node by name
     LocalNode* childbyname(string*);

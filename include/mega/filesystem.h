@@ -87,6 +87,9 @@ struct MEGA_API FileAccess
     // if the open failed, retry indicates a potentially transient reason
     bool retry;
 
+    //error code related to the last call to fopen() without parameters
+    int errorcode;
+
     // for files "opened" in nonblocking mode, the current local filename
     string localname;
 
@@ -220,6 +223,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // waiter to notify on filesystem events
     Waiter *waiter;
 
+    // indicate error reports are not necessary on this call as it'll be retried in a moment if there is a continuing problem
+    bool skip_errorreport;
+
     // instantiate FileAccess object
     virtual FileAccess* newfileaccess() = 0;
 
@@ -325,6 +331,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     MegaClient* client;
 
+    FileSystemAccess();
     virtual ~FileSystemAccess() { }
 };
 } // namespace

@@ -813,9 +813,54 @@ void MegaClient::multifactorauthdisable(const char *pin)
     reqs.add(new CommandMultiFactorAuthDisable(this, pin));
 }
 
+void MegaClient::fetchtimezone()
+{
+    string timeoffset;
+    m_time_t rawtime = m_time(NULL);
+    if (rawtime != -1)
+    {
+        struct tm lt, ut, it;
+        memset(&lt, 0, sizeof(struct tm));
+        memset(&ut, 0, sizeof(struct tm));
+        memset(&it, 0, sizeof(struct tm));
+        m_localtime(rawtime, &lt);
+        m_gmtime(rawtime, &ut);
+        if (memcmp(&ut, &it, sizeof(struct tm)) && memcmp(&lt, &it, sizeof(struct tm)))
+        {
+            m_time_t local_time = m_mktime(&lt);
+            m_time_t utc_time = m_mktime(&ut);
+            if (local_time != -1 && utc_time != -1)
+            {
+                double foffset = difftime(local_time, utc_time);
+                int offset = int(fabs(foffset));
+                if (offset <= 43200)
+                {
+                    ostringstream oss;
+                    oss << ((foffset >= 0) ? "+" : "-");
+                    oss << (offset / 3600) << ":";
+                    int minutes = ((offset % 3600) / 60);
+                    if (minutes < 10)
+                    {
+                        oss << "0";
+                    }
+                    oss << minutes;
+                    timeoffset = oss.str();
+                }
+            }
+        }
+    }
+
+    reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
+}
+
 void MegaClient::keepmealive(int type, bool enable)
 {
     reqs.add(new CommandKeepMeAlive(this, type, enable));
+}
+
+void MegaClient::getpsa()
+{
+    reqs.add(new CommandGetPSA(this));
 }
 
 // set warn level
@@ -858,6 +903,33 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
             if (skipfolders)
             {
                 return found;
+            }
+        }
+    }
+
+    return found;
+}
+
+// returns all the matching child nodes by UTF-8 name
+vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipfolders)
+{
+    string nname = name;
+    vector<Node*> found;
+
+    if (!p || p->type == FILENODE)
+    {
+        return found;
+    }
+
+    fsaccess->normalize(&nname);
+
+    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    {
+        if (nname == (*it)->displayname())
+        {
+            if ((*it)->type == FILENODE || !skipfolders)
+            {
+                found.push_back(*it);
             }
         }
     }
@@ -941,6 +1013,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     gfxdisabled = false;
     ssrs_enabled = false;
     nsr_enabled = false;
+    loggingout = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1494,6 +1567,7 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
 
+                                notifypurge();
                                 if (sctable && pendingsccommit && !reqs.cmdspending())
                                 {
                                     LOG_debug << "Executing postponed DB commit";
@@ -1629,6 +1703,7 @@ void MegaClient::exec()
                 {
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
+                    pendingcs->logname = clientname + "cs ";
 
                     reqs.get(pendingcs->out);
 
@@ -1658,7 +1733,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && pendingsc)
+        if (!jsonsc.pos && pendingsc && !loggingout)
         {
             switch (pendingsc->status)
             {
@@ -1797,6 +1872,7 @@ void MegaClient::exec()
         if (!pendingsc && *scsn && btsc.armed())
         {
             pendingsc = new HttpReq();
+            pendingsc->logname = clientname + "sc ";
 
             if (scnotifyurl.size())
             {
@@ -2228,10 +2304,15 @@ void MegaClient::exec()
                         if (localsyncnotseen.size() && !synccreate.size())
                         {
                             // ... execute all pending deletions
+                            string path;
+                            FileAccess *fa = fsaccess->newfileaccess();
                             while (localsyncnotseen.size())
                             {
-                                delete *localsyncnotseen.begin();
+                                LocalNode* l = *localsyncnotseen.begin();
+                                unlinkifexists(l, fa, &path);
+                                delete l;
                             }
+                            delete fa;
                         }
 
                         // process filesystem notifications for active syncs unless we
@@ -3342,13 +3423,12 @@ void MegaClient::logout()
         return;
     }
 
+    loggingout++;
     reqs.add(new CommandLogout(this));
 }
 
 void MegaClient::locallogout()
 {
-    int i;
-
     delete sctable;
     sctable = NULL;
     pendingsccommit = false;
@@ -3364,6 +3444,7 @@ void MegaClient::locallogout()
     gmfa_enabled = false;
     ssrs_enabled = false;
     nsr_enabled = false;
+    loggingout = 0;
 
     freeq(GET);
     freeq(PUT);
@@ -3412,7 +3493,7 @@ void MegaClient::locallogout()
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
-        for (i = 2; i--; )
+        for (int i = 2; i--; )
         {
     	    for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
     	    {
@@ -5879,7 +5960,7 @@ void MegaClient::notifypurge(void)
                 }
                 u->sharing.clear();
 
-                discarduser(u->userhandle);
+                discarduser(u->userhandle, false);
             }
         }
 
@@ -7698,7 +7779,7 @@ void MegaClient::mapuser(handle uh, const char* email)
     }
 }
 
-void MegaClient::discarduser(handle uh)
+void MegaClient::discarduser(handle uh, bool discardnotified)
 {
     User *u = finduser(uh);
     if (!u)
@@ -7718,7 +7799,10 @@ void MegaClient::discarduser(handle uh)
         u->pkrs.pop_front();
     }
 
-    discardnotifieduser(u);
+    if (discardnotified)
+    {
+        discardnotifieduser(u);
+    }
 
     umindex.erase(u->email);
     users.erase(uhindex[uh]);
@@ -11122,9 +11206,9 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 bool download = true;
                 FileAccess *f = fsaccess->newfileaccess();
                 if (rit->second->localnode != (LocalNode*)~0
-                        && f->fopen(localpath, true, false))
+                        && (f->fopen(localpath) || f->type == FOLDERNODE))
                 {
-                    LOG_debug << "Skipping download over an unscanned file/folder";
+                    LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                     download = false;
                 }
                 delete f;
@@ -11148,11 +11232,15 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
             else
             {
                 LOG_debug << "Creating local folder";
-
-                // create local path, add to LocalNodes and recurse
-                if (fsaccess->mkdirlocal(localpath))
+                FileAccess *f = fsaccess->newfileaccess();
+                if (f->fopen(localpath) || f->type == FOLDERNODE)
                 {
-                    LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
+                    LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
+                }
+                // create local path, add to LocalNodes and recurse
+                else if (fsaccess->mkdirlocal(localpath))
+                {
+                    LocalNode* ll = l->sync->checkpath(l, localpath, &localname, NULL, true);
 
                     if (ll && ll != (LocalNode*)~0)
                     {
@@ -11182,6 +11270,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 {
                     LOG_debug << "Non transient error creating folder";
                 }
+                delete f;
             }
         }
 
@@ -11525,7 +11614,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     m_time_t currentTime = m_time();
                     if (currentVersion->ctime > currentTime + 30)
                     {
-                        // with more than 30 seconds of detecteed clock drift,
+                        // with more than 30 seconds of detected clock drift,
                         // we don't apply any version rate control for now
                         LOG_err << "Incorrect local time detected";
                     }
@@ -11951,6 +12040,41 @@ void MegaClient::proclocaltree(LocalNode* n, LocalTreeProc* tp)
     tp->proc(this, n);
 }
 
+void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, std::string *path)
+{
+    l->getlocalpath(path);
+    if (fa->fopen(path) || fa->type == FOLDERNODE)
+    {
+        LOG_warn << "Deletion of existing file avoided";
+        static bool reported99446 = false;
+        if (!reported99446)
+        {
+            sendevent(99446, "Deletion of existing file avoided", 0);
+            reported99446 = true;
+        }
+
+        // The local file or folder seems to be still there, but invisible
+        // for the sync engine, so we just stop syncing it
+        LocalTreeProcUnlinkNodes tpunlink;
+        proclocaltree(l, &tpunlink);
+    }
+#ifdef _WIN32
+    else if (fa->errorcode != ERROR_FILE_NOT_FOUND && fa->errorcode != ERROR_PATH_NOT_FOUND)
+    {
+        LOG_warn << "Unexpected error code for deleted file: " << fa->errorcode;
+        static bool reported99447 = false;
+        if (!reported99447)
+        {
+            ostringstream oss;
+            oss << fa->errorcode;
+            string message = oss.str();
+            sendevent(99447, message.c_str(), 0);
+            reported99447 = true;
+        }
+    }
+#endif
+}
+
 void MegaClient::execsyncunlink()
 {
     Node* n;
@@ -12149,7 +12273,7 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
+bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfirst)
 {
     if (!f->transfer)
     {
@@ -12218,6 +12342,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 filecacheadd(f);
             }
             app->file_added(f);
+
+            if (startfirst)
+            {
+                transferlist.movetofirst(t);
+            }
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
@@ -12314,7 +12443,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 filecacheadd(f);
             }
 
-            transferlist.addtransfer(t);
+            transferlist.addtransfer(t, startfirst);
             app->transfer_added(t);
             app->file_added(f);
             looprequested = true;
@@ -12559,7 +12688,7 @@ void MegaClient::userfeedbackstore(const char *message)
 
 void MegaClient::sendevent(int event, const char *desc)
 {
-    LOG_warn << "Event " << event << ": " << desc;
+    LOG_warn << clientname << "Event " << event << ": " << desc;
     reqs.add(new CommandSendEvent(this, event, desc));
 }
 

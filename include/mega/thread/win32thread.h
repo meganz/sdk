@@ -22,7 +22,7 @@
  * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#if (defined(_WIN32) && !defined(WINDOWS_PHONE) || defined(USE_WIN32THREAD) )
+#if (defined(_WIN32) && !defined(USE_CPPTHREAD) && !defined(WINDOWS_PHONE) || defined(USE_WIN32THREAD) )
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS Win32Thread

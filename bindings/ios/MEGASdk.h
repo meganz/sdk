@@ -92,8 +92,11 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeSigCU255PublicKey       = 9, // public - byte array
     MEGAUserAttributeLanguage                = 14, // private - char array
     MEGAUserAttributePwdReminder             = 15, // private - char array
+    MEGAUserAttributeDisableVersions         = 16, // private - byte array
     MEGAUserAttributeContactLinkVerification = 17, // private - byte array
-    MEGAUserAttributeRichPreviews            = 18  // private - byte array
+    MEGAUserAttributeRichPreviews            = 18, // private - byte array
+    MEGAUserAttributeRubbishTime             = 19,  // private - byte array
+    MEGAUserAttributeLastPSA                 = 20  // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -522,6 +525,12 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (void)reconnect;
 
+/**
+ * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
+ * @return YES if this feature is enabled. Otherwise NO.
+ */
+- (BOOL)serverSideRubbishBinAutopurgeEnabled;
+
 #pragma mark - Login Requests
 
 /**
@@ -546,7 +555,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - [MEGARequest flag] - Returns true if multi-factor authentication is enabled or false if it's disabled.
  *
  * @param email Email to check
- * @param delegate MegaRequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)multiFactorAuthCheckWithEmail:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -781,6 +790,31 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param pin Pin code for multi-factor authentication
  */
 - (void)multiFactorAuthCancelAccountWithPin:(NSString *)pin;
+
+/**
+ * @brief Fetch details related to time zones and the current default
+ *
+ * The associated request type with this request is MEGARequestTypeFetchTimeZone.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaTimeZoneDetails] - Returns details about timezones and the current default
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)fetchTimeZoneWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Fetch details related to time zones and the current default
+ *
+ * The associated request type with this request is MEGARequestTypeFetchTimeZone.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaTimeZoneDetails] - Returns details about timezones and the current default
+ *
+ */
+- (void)fetchTimeZone;
 
 /**
  * @brief Log in to a MEGA account.
@@ -1781,6 +1815,90 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (void)keepMeAliveWithType:(KeepMeAlive)type enable:(BOOL)enable;
 
+/**
+ * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+ *
+ * After the PSA has been accepted or dismissed by the user, app should
+ * use [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * this event and do not get the same PSA again in the next call to this function.
+ *
+ * The associated request type with this request is MEGARequestTypeGetPSA.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
+ *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
+ * - [MEGARequest name] - Returns the title of the PSA
+ * - [MEGARequest text] - Returns the text of the PSA
+ * - [MEGARequest file] - Returns the URL of the image of the PSA
+ * - [MEGARequest password] - Returns the text for the possitive button (or an empty string)
+ * - [MEGARequest link] - Returns the link for the possitive button (or an empty string)
+ *
+ * If there isn't any new PSA to show, onRequestFinish will be called with the error
+ * code MEGAErrorTypeApiENoent
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
+ */
+- (void)getPSAWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+ *
+ * After the PSA has been accepted or dismissed by the user, app should
+ * use [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * this event and do not get the same PSA again in the next call to this function.
+ *
+ * The associated request type with this request is MEGARequestTypeGetPSA.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
+ *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
+ * - [MEGARequest name] - Returns the title of the PSA
+ * - [MEGARequest text] - Returns the text of the PSA
+ * - [MEGARequest file] - Returns the URL of the image of the PSA
+ * - [MEGARequest password] - Returns the text for the possitive button (or an empty string)
+ * - [MEGARequest link] - Returns the link for the possitive button (or an empty string)
+ *
+ * If there isn't any new PSA to show, onRequestFinish will be called with the error
+ * code MEGAErrorTypeApiENoent
+ *
+ * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
+ */
+- (void)getPSA;
+
+/**
+ * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser.
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeLastPSA
+ * - [MEGARequest text] - Returns the id passed in the first parameter (as a string)
+ *
+ * @param identifier Identifier of the PSA
+ * @param delegate MEGARequestDelegate to track this request
+ *
+ * @see [MEGASdk getPSA] [MEGASdk getPSAWithDelegate:]
+ */
+- (void)setPSAWithIdentifier:(NSInteger)identifier delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser.
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeLastPSA
+ * - [MEGARequest text] - Returns the id passed in the first parameter (as a string)
+ *
+ * @param identifier Identifier of the PSA
+ *
+ * @see [MEGASdk getPSA] [MEGASdk getPSAWithDelegate:]
+ */
+- (void)setPSAWithIdentifier:(NSInteger)identifier;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -2055,7 +2173,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - [MEGARequest nodeHandle] - Returns the handle of the node to restore
  *
  * @param node Node with the version to restore
- * @param delegate MEGARequestListener to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)restoreVersionNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -2106,7 +2224,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief Share or stop sharing a folder in MEGA with another user using a MEGAUser.
  *
  * To share a folder with an user, set the desired access level in the level parameter. If you
- * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown.
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnknown.
  *
  * The associated request type with this request is MEGARequestTypeShare.
  * Valid data in the MEGARequest object received on callbacks:
@@ -2118,7 +2236,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param user User that receives the shared folder.
  * @param level Permissions that are granted to the user.
  * Valid values for this parameter:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
@@ -2134,7 +2252,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief Share or stop sharing a folder in MEGA with another user using a MEGAUser.
  *
  * To share a folder with an user, set the desired access level in the level parameter. If you
- * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown.
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnknown.
  *
  * The associated request type with this request is MEGARequestTypeShare.
  * Valid data in the MEGARequest object received on callbacks:
@@ -2146,7 +2264,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param user User that receives the shared folder.
  * @param level Permissions that are granted to the user.
  * Valid values for this parameter:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
@@ -2161,7 +2279,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief Share or stop sharing a folder in MEGA with another user using his email
  *
  * To share a folder with an user, set the desired access level in the level parameter. If you
- * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnknown
  *
  * The associated request type with this request is MEGARequestTypeShare
  * Valid data in the MEGARequest object received on callbacks:
@@ -2175,7 +2293,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param level Permissions that are granted to the user
  * Valid values for this parameter:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
@@ -2191,7 +2309,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief Share or stop sharing a folder in MEGA with another user using his email
  *
  * To share a folder with an user, set the desired access level in the level parameter. If you
- * want to stop sharing a folder use the access level MEGAShareTypeAccessUnkown
+ * want to stop sharing a folder use the access level MEGAShareTypeAccessUnknown
  *
  * The associated request type with this request is MEGARequestTypeShare
  * Valid data in the MEGARequest object received on callbacks:
@@ -2205,7 +2323,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param level Permissions that are granted to the user
  * Valid values for this parameter:
- * - MEGAShareTypeAccessUnkown = -1
+ * - MEGAShareTypeAccessUnknown = -1
  * Stop sharing a folder with this user
  *
  * - MEGAShareTypeAccessRead = 0
@@ -2815,6 +2933,9 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 /**
  * @brief Get an attribute of a MEGAUser.
  *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type
@@ -2833,14 +2954,33 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
-
 
 /**
  * @brief Get an attribute of a MEGAUser.
@@ -2863,17 +3003,141 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
+ * @brief Get an attribute of any user in MEGA.
+ *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value for public attributes
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the attribute.
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user (public)
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ *
+ */
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type;
+
+/**
+ * @brief Get an attribute of any user in MEGA.
+ *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type
+ * - [MEGARequest email] - Returns the email or the handle of the user (the provided one as parameter)
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - Returns the value for public attributes
+ *
+ * @param emailOrHandle Email or user handle (Base64 encoded) to get the attribute.
+ * @param type Attribute type
+ *
+ * Valid values are:
+ *
+ * MEGAUserAttributeFirstname = 1
+ * Get the firstname of the user (public)
+ * MEGAUserAttributeLastname = 2
+ * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
+ * MEGAUserAttributeLanguage = 14
+ * Get the preferred language of the user (private, non-encrypted)
+ * MEGAUserAttributePwdReminder = 15
+ * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Get an attribute of the current account.
+ *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
@@ -2895,12 +3159,20 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ *
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
 
 /**
  * @brief Get an attribute of the current account.
  *
+ * User attributes can be private or public. Private attributes are accessible only by
+ * your own user, while public ones are retrievable by any of your contacts.
+ *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type
@@ -2921,11 +3193,14 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeRichPreviews = 18
+ * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type delegate:(id<MEGARequestDelegate>)delegate;
-
 
 /**
  * @brief Set an attribute of the current user.
@@ -2943,6 +3218,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
  * Set the lastname of the user
+ * MEGAUserAttributeRubbishTime = 19
+ * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param value New attribute value
  */
@@ -2964,6 +3241,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Set the firstname of the user
  * MEGAUserAttributeLastname = 2
  * Set the lastname of the user
+ * MEGAUserAttributeRubbishTime = 19
+ * Set the number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  *
  * @param value New attribute value
  * @param delegate MEGARequestDelegate to track this request
@@ -3497,6 +3776,68 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (void)setRichLinkWarningCounterValue:(NSUInteger)value;
 
 /**
+ * @brief Get the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
+ * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+ * Any negative value means that the configured value is invalid.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
+ * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+ * Any negative value means that the configured value is invalid.
+ *
+ */
+- (void)getRubbishBinAutopurgePeriod;
+
+/**
+ * @brief Set the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+ *
+ * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+ * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set the number of days for rubbish-bin cleaning scheduler
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+ *
+ * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+ * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+ *
+ */
+- (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days;
+
+/**
  * @brief Use HTTPS communications only
  *
  * The default behavior is to use HTTP for transfers and the persistent connection
@@ -3989,8 +4330,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  * @param delegate MEGATransferDelegate to track this transfer
  */
-
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+
 /**
  * @brief Upload a file or a folder, saving custom app data during the transfer
  * @param localPath Local path of the file or folder
@@ -4002,8 +4343,35 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
  * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
  */
-
 - (void)startUploadWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
+
+/**
+ * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+ * @param localPath Local path of the file or folder
+ * @param parent Parent node for the file or folder in the MEGA account
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
+ * related to the transfer.
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+ * @param delegate MEGATransferDelegate to track this transfer
+ */
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+ * @param localPath Local path of the file or folder
+ * @param parent Parent node for the file or folder in the MEGA account
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in callbacks
+ * related to the transfer.
+ * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+ * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+ * Use this parameter with caution. Set it to YES only if you are sure about what are you doing.
+
+ */
+- (void)startUploadTopPriorityWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary;
 
 /**
  * @brief Download a file from MEGA.
@@ -4055,6 +4423,35 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  */
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
+
+/**
+ * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *
+ * @param delegate Delegate to track this transfer.
+ */
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+ * @param node MEGANode that identifies the file.
+ * @param localPath Destination path for the file.
+ * If this path is a local folder, it must end with a '\' or '/' character and the file name
+ * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+ * one of these characters, the file will be downloaded to a file in that path.
+ * @param appData Custom app data to save in the MEGATransfer object
+ * The data in this parameter can be accessed using [MEGATransfer appData] in delegates
+ * related to the transfer.
+ *
+ */
+- (void)startDownloadTopPriorityWithNode:(MEGANode *)node localPath:(NSString *)localPath appData:(NSString *)appData;
 
 /**
  * @brief Start an streaming download
@@ -4939,7 +5336,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - MEGAShareTypeAccessFull
  * - MEGAShareTypeAccessReadWrite
  * - MEGAShareTypeAccessRead
- * - MEGAShareTypeAccessUnkown
+ * - MEGAShareTypeAccessUnknown
  */
 - (MEGAShareType)accessLevelForNode:(MEGANode *)node;
 
@@ -5156,6 +5553,73 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  */
 - (void)getLanguagePreference;
+
+/**
+ * @brief Enable or disable file versioning
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ *
+ * @param disable YES to disable file versioning. NO to enable it
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setFileVersionsOption:(BOOL)disable delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable or disable file versioning
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ *
+ * @param disable YES to disable file versioning. NO to enable it
+ */
+- (void)setFileVersionsOption:(BOOL)disable;
+
+/**
+ * @brief Check if file versioning is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ * - [MEGARequest flag] - YES if disabled, NO if enabled
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getFileVersionsOptionWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if file versioning is enabled or disabled
+ *
+ * If the option has never been set, the error code will be MEGAErrorTypeApiENoent.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value MEGAUserAttributeDisableVersions
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest text] - "1" for disable, "0" for enable
+ * - [MEGARequest flag] - YES if disabled, NO if enabled
+ */
+- (void)getFileVersionsOption;
 
 /**
  * @brief Enable or disable the automatic approval of incoming contact requests using a contact link
