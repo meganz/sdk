@@ -2744,14 +2744,13 @@ void CommandGetUA::procresult()
         const char* end;
         string value, version, buf;
 
-        //If we are in anonymous mode we only can retrieve atributes with mcuga and the response format is different
+        //If we are in preview mode, we only can retrieve atributes with mcuga and the response format is different
         if (ph)
         {
             ptr = client->json.getvalue();
             if (!ptr || !(end = strchr(ptr, '"')))
             {
                 client->app->getua_result(API_EINTERNAL);
-                return;
             }
             else
             {
@@ -2759,9 +2758,9 @@ void CommandGetUA::procresult()
                 buf.assign(ptr, (end-ptr));
                 value.resize(buf.size() / 4 * 3 + 3);
                 value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                client->app->getua_result((byte*) value.data(), unsigned(value.size()));
-                return;
+                client->app->getua_result((byte*) value.data(), value.size());
             }
+            return;
         }
 
         for (;;)
@@ -5057,7 +5056,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
         string_map::const_iterator it = ukm->find(ownHandleB64);
         if (it != ukm->end())
         {
-            this->mUnifiedKey = it->second;
+            mUnifiedKey = it->second;
             arg("ck", mUnifiedKey.c_str());
         }
     }
@@ -5079,7 +5078,7 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
         {
             char uid[12];
             Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-            uid[11] = 0;
+            uid[11] = '\0';
 
             string_map::const_iterator ituk = ukm->find(uid);
             if(ituk != ukm->end())

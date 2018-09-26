@@ -5553,7 +5553,7 @@ void MegaClient::sc_chatupdate()
                     chat->userpriv = userpriv;
 
                     chat->setMode(publicchat);
-                    if (!unifiedkey.empty())
+                    if (!unifiedkey.empty())    // not all actionpackets include it
                     {
                         chat->unifiedKey = unifiedkey;
                     }
@@ -8717,6 +8717,10 @@ void MegaClient::procmcf(JSON *j)
                                     chat->ts = (ts != -1) ? ts : 0;
                                     chat->publicchat = publicchat;
                                     chat->unifiedKey = unifiedKey;
+                                    if (publicchat && unifiedKey.empty())
+                                    {
+                                        LOG_err << "Received public chat without unified key";
+                                    }
 
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)

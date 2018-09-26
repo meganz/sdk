@@ -18683,7 +18683,7 @@ void MegaApiImpl::sendPendingRequests()
             MegaHandle chatid = request->getNodeHandle();
             bool del = request->getFlag();
             bool createifmissing = request->getAccess();
-            if (chatid == INVALID_HANDLE || del && createifmissing)
+            if (chatid == INVALID_HANDLE || (del && createifmissing))
             {
                 e = API_EARGS;
                 break;

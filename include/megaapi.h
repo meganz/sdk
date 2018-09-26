@@ -12448,6 +12448,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
+         * - MegaRequest::getSessionKey - Returns the unified key of the chat link
          *
          * @param publichandle MegaHandle that represents the public handle of the chat link
          * @param unifiedKey Byte array that contains the unified key, already encrypted and
