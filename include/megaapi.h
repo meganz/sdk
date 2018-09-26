@@ -8327,6 +8327,8 @@ class MegaApi
          *
          * @note Event types are restricted to the following ranges:
          *  - MEGAchat: [99000, 99150)
+         *  - Android:  [99200, 99300)
+         *  - iOS:      [99300, 99400)
          *  - MEGA SDK: [99400, 99500)
          *  - MEGAsync: [99500, 99600)
          */
