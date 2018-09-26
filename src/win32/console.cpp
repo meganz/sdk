@@ -429,6 +429,7 @@ WinConsole::WinConsole()
     GetConsoleMode(hInput, &dwMode);
     SetConsoleMode(hInput, dwMode & ~(ENABLE_MOUSE_INPUT));
     FlushConsoleInputBuffer(hInput);
+    blockingConsolePeek = false;
 #endif
 }
 
@@ -548,9 +549,14 @@ HANDLE WinConsole::inputAvailableHandle()
 
 bool WinConsole::consolePeek()
 {
+    return blockingConsolePeek?consolePeekBlocking():consolePeekNonBlocking();
+}
+
+bool WinConsole::consolePeekNonBlocking()
+{
     std::cout << std::flush;
 
-    // Read keypreses up to the first newline (or multiple newlines if 
+    // Read keypreses up to the first newline (or multiple newlines if
     bool checkPromptOnce = true;
     for (;;)
     {
@@ -560,7 +566,6 @@ bool WinConsole::consolePeek()
         assert(ok);
         if (!nRead)
         {
-            Sleep(10); // to avoid busy wait
             break;
         }
 
@@ -571,8 +576,6 @@ bool WinConsole::consolePeek()
 
         if (isCharacterGeneratingKeypress && (currentPrompt.empty() || model.newlinesBuffered))
         {
-            // wait until the next prompt is output before echoing and processing
-            Sleep(10);
             break;
         }
 
@@ -606,6 +609,76 @@ bool WinConsole::consolePeek()
             {
                 break;
             }
+        }
+    }
+    if (model.redrawInputLineNeeded && model.echoOn)
+    {
+        redrawInputLine(&model.redrawInputLineConsoleFeedback);
+    }
+    if (model.consoleNewlineNeeded)
+    {
+        DWORD written = 0;
+        BOOL b = WriteConsoleW(hOutput, L"\n", 1, &written, NULL);
+        assert(b && written == 1);
+    }
+    model.redrawInputLineNeeded = false;
+    model.consoleNewlineNeeded = false;
+    return model.newlinesBuffered;
+}
+
+bool WinConsole::consolePeekBlocking()
+{
+    std::cout << std::flush;
+
+    // Read keypreses up to the first newline (or multiple newlines if
+    bool checkPromptOnce = true;
+    bool isCharacterGeneratingKeypress = false;
+
+    INPUT_RECORD ir;
+    DWORD nRead;
+    BOOL ok = ReadConsoleInputW(hInput, &ir, 1, &nRead);  // discard the event record
+
+    irs.push_back(ir);
+
+    isCharacterGeneratingKeypress =
+            ir.EventType == 1 && ir.Event.KeyEvent.uChar.UnicodeChar != 0 &&
+            (ir.Event.KeyEvent.bKeyDown ||  // key press
+             (!ir.Event.KeyEvent.bKeyDown && ((ir.Event.KeyEvent.dwControlKeyState & LEFT_ALT_PRESSED) || ir.Event.KeyEvent.wVirtualKeyCode == VK_MENU)));  // key release that emits a unicode char
+
+    if (!(isCharacterGeneratingKeypress && (currentPrompt.empty() || model.newlinesBuffered)))
+    {
+        while(!irs.empty())
+        {
+            INPUT_RECORD &ir = irs.front();
+            ConsoleModel::lineEditAction action = interpretLineEditingKeystroke(ir);
+
+            if ((action != ConsoleModel::nullAction || isCharacterGeneratingKeypress) && checkPromptOnce)
+            {
+                redrawPromptIfLoggingOccurred();
+                checkPromptOnce = false;
+            }
+            if (action != ConsoleModel::nullAction)
+            {
+                CONSOLE_SCREEN_BUFFER_INFO sbi;
+                BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
+                assert(ok);
+                unsigned consoleWidth = ok ? sbi.dwSize.X : 50;
+
+                model.performLineEditingAction(action, consoleWidth);
+            }
+            else if (isCharacterGeneratingKeypress)
+            {
+                for (int i = ir.Event.KeyEvent.wRepeatCount; i--; )
+                {
+                    model.addInputChar(ir.Event.KeyEvent.uChar.UnicodeChar);
+                }
+                if (model.newlinesBuffered)  // todo: address case where multiple newlines were added from this one record (as we may get stuck in wait())
+                {
+                    irs.pop_front();
+                    break;
+                }
+            }
+            irs.pop_front();
         }
     }
     if (model.redrawInputLineNeeded && model.echoOn)
