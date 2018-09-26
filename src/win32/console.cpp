@@ -647,11 +647,9 @@ bool WinConsole::consolePeekBlocking()
 
     if (!(isCharacterGeneratingKeypress && (currentPrompt.empty() || model.newlinesBuffered)))
     {
-        for (std::vector<INPUT_RECORD>::iterator it = irs.begin() ; it != irs.end();) //TODO: use a FIFO colection
+        while(!irs.empty())
         {
-            INPUT_RECORD &ir = *it;
-            it=irs.erase(it);
-
+            INPUT_RECORD &ir = irs.front();
             ConsoleModel::lineEditAction action = interpretLineEditingKeystroke(ir);
 
             if ((action != ConsoleModel::nullAction || isCharacterGeneratingKeypress) && checkPromptOnce)
@@ -676,9 +674,11 @@ bool WinConsole::consolePeekBlocking()
                 }
                 if (model.newlinesBuffered)  // todo: address case where multiple newlines were added from this one record (as we may get stuck in wait())
                 {
+                    irs.pop_front();
                     break;
                 }
             }
+            irs.pop_front();
         }
     }
     if (model.redrawInputLineNeeded && model.echoOn)

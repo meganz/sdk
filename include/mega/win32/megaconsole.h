@@ -152,7 +152,7 @@ struct MEGA_API WinConsole : public Console
     bool blockingConsolePeek;
 
 private:
-    vector<INPUT_RECORD> irs;
+    std::deque<INPUT_RECORD> irs;
     HANDLE hInput;
     HANDLE hOutput;
     bool promptRetracted = false;
