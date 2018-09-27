@@ -1864,7 +1864,7 @@ void MegaClient::exec()
                 if (r)
                 {
                     // NULL vector: "notify all elements"
-                    app->useralerts_updated(NULL, useralerts.alerts.size());
+                    app->useralerts_updated(NULL, int(useralerts.alerts.size()));
                 }
             }
             else
@@ -4764,10 +4764,10 @@ bool MegaClient::sc_shares()
 
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (uh != me && uh != 0 && !ISUNDEF(uh) && !fetchingnodes)
+                        if (!outbound && oh != me && oh != 0 && !ISUNDEF(oh) && !fetchingnodes)
                         {
-                            User* u = finduser(uh);
-                            useralerts.add(new UserAlert::NewShare(h, uh, u ? u->email : "", ts));
+                            User* u = finduser(oh);
+                            useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts));
                         }
 
                         // new share - can be inbound or outbound
@@ -4786,10 +4786,10 @@ bool MegaClient::sc_shares()
                 {
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (uh != me && uh && !ISUNDEF(uh) && !fetchingnodes)
+                        if (!outbound && oh != me && oh && !ISUNDEF(oh) && !fetchingnodes)
                         {
                             User* u = finduser(uh);
-                            useralerts.add(new UserAlert::DeletedShare(uh, u ? u->email : "", ts));
+                            useralerts.add(new UserAlert::DeletedShare(oh, u ? u->email : "", ts));
                         }
 
                         // share revocation or share without key
@@ -6080,7 +6080,7 @@ void MegaClient::notifypurge(void)
         usernotify.clear();
     }
 
-    if ((t = useralerts.useralertnotify.size()))
+    if ((t = int(useralerts.useralertnotify.size())))
     {
         app->useralerts_updated(&useralerts.useralertnotify[0], t);
         useralerts.useralertnotify.clear();
