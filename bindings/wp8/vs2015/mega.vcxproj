@@ -164,6 +164,7 @@
     <ClCompile Include="..\..\..\src\transferslot.cpp" />
     <ClCompile Include="..\..\..\src\treeproc.cpp" />
     <ClCompile Include="..\..\..\src\user.cpp" />
+    <ClCompile Include="..\..\..\src\useralerts.cpp" />
     <ClCompile Include="..\..\..\src\utils.cpp" />
     <ClCompile Include="..\..\..\src\waiterbase.cpp" />
     <ClCompile Include="..\..\..\src\win32\fs.cpp" />

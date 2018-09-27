@@ -41,6 +41,7 @@ CPP_SOURCES= sdk/src/attrmap.cpp \
     sdk/src/pendingcontactrequest.cpp \
     sdk/src/treeproc.cpp \
     sdk/src/user.cpp \
+    sdk/src/useralerts.cpp \
     sdk/src/utils.cpp \
     sdk/src/waiterbase.cpp  \
     sdk/src/crypto/cryptopp.cpp  \

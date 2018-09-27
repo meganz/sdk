@@ -383,6 +383,9 @@
     <ClCompile Include="..\..\..\src\user.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\useralerts.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\src\utils.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>

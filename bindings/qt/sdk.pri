@@ -27,6 +27,7 @@ SOURCES += src/attrmap.cpp \
     src/transferslot.cpp \
     src/treeproc.cpp \
     src/user.cpp \
+    src/useralerts.cpp \
     src/utils.cpp \
     src/logging.cpp \
     src/waiterbase.cpp  \
