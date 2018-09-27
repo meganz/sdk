@@ -165,7 +165,7 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
         arg("ssl", 2);
     }
 
-	arg("r", 1);
+    arg("r", 1);
 }
 
 void CommandGetFA::procresult()
@@ -4209,7 +4209,7 @@ void CommandFetchNodes::procresult()
 
             case 'u':
                 // users/contacts
-                if (!client->readusers(&client->json))
+                if (!client->readusers(&client->json, false))
                 {
                     client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
@@ -6373,5 +6373,27 @@ void CommandFetchTimeZone::procresult()
         }
     }
 }
+
+CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
+{
+    cmd("sla");
+    notself(client);
+    tag = client->reqtag;
+};
+
+void CommandSetLastAcknowledged::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->acknowledgeuseralerts_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->acknowledgeuseralerts_result(API_EINTERNAL);
+    }
+};
+
+
 
 } // namespace

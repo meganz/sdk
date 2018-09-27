@@ -183,6 +183,23 @@ int MegaUserList::size()
     return 0;
 }
 
+MegaUserAlertList::~MegaUserAlertList() { }
+
+MegaUserAlertList *MegaUserAlertList::copy() const
+{
+    return NULL;
+}
+
+MegaUserAlert *MegaUserAlertList::get(int) const
+{
+    return NULL;
+}
+
+int MegaUserAlertList::size() const
+{
+    return 0;
+}
+
 MegaShareList::~MegaShareList() { }
 
 MegaShare *MegaShareList::get(int)
@@ -516,6 +533,80 @@ int MegaUser::isOwnChange()
 {
     return 0;
 }
+
+MegaUserAlert::~MegaUserAlert() { }
+
+MegaUserAlert *MegaUserAlert::copy() const
+{
+    return NULL;
+}
+
+unsigned MegaUserAlert::getId() const
+{
+    return (unsigned)-1;
+}
+
+bool MegaUserAlert::getSeen() const
+{
+    return false;
+}
+
+bool MegaUserAlert::getRelevant() const
+{
+    return false;
+}
+
+MegaUserAlert::Type MegaUserAlert::getType() const
+{
+    return (Type)-1;
+}
+
+const char *MegaUserAlert::getTypeString() const
+{
+    return NULL;
+}
+
+MegaHandle MegaUserAlert::getUserHandle() const
+{
+    return UNDEF;
+}
+
+MegaHandle MegaUserAlert::getNodeHandle() const
+{
+    return UNDEF;
+}
+
+const char* MegaUserAlert::getEmail() const
+{
+    return NULL;
+}
+
+const char* MegaUserAlert::getPath() const
+{
+    return false;
+}
+
+void MegaUserAlert::getText(const char ** heading, const char** title) const
+{
+    *heading = NULL;
+    *title = NULL;
+}
+
+int64_t MegaUserAlert::getNumber(unsigned) const
+{
+    return -1;
+}
+
+int64_t MegaUserAlert::getTimestamp(unsigned) const
+{
+    return -1;
+}
+
+const char* MegaUserAlert::getString(unsigned) const
+{
+    return NULL;
+}
+
 
 MegaShare::~MegaShare() { }
 
@@ -1300,6 +1391,8 @@ void MegaListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError
 { }
 void MegaListener::onUsersUpdate(MegaApi *, MegaUserList *)
 { }
+void MegaListener::onUserAlertsUpdate(MegaApi *, MegaUserAlertList *)
+{ }
 void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaListener::onAccountUpdate(MegaApi *)
@@ -1409,6 +1502,11 @@ void MegaApi::setPSA(int id, MegaRequestListener *listener)
 void MegaApi::getPSA(MegaRequestListener *listener)
 {
     pImpl->getPSA(listener);
+}
+
+void MegaApi::acknowledgeUserAlerts(MegaRequestListener *listener)
+{
+    pImpl->acknowledgeUserAlerts(listener);
 }
 
 char *MegaApi::getMyEmail()
@@ -2738,6 +2836,11 @@ MegaUserList* MegaApi::getContacts()
 MegaUser* MegaApi::getContact(const char* user)
 {
     return pImpl->getContact(user);
+}
+
+MegaUserAlertList* MegaApi::getUserAlerts()
+{
+    return pImpl->getUserAlerts();
 }
 
 MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)

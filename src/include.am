@@ -49,6 +49,7 @@ src_libmega_la_SOURCES += src/transfer.cpp
 src_libmega_la_SOURCES += src/transferslot.cpp
 src_libmega_la_SOURCES += src/treeproc.cpp
 src_libmega_la_SOURCES += src/user.cpp
+src_libmega_la_SOURCES += src/useralerts.cpp
 src_libmega_la_SOURCES += src/utils.cpp
 src_libmega_la_SOURCES += src/logging.cpp
 src_libmega_la_SOURCES += src/waiterbase.cpp

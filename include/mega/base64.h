@@ -39,7 +39,6 @@ public:
 
     static void itoa(int64_t, string *);
     static int64_t atoi(string *);
-
 };
 
 template <unsigned BINARYSIZE>

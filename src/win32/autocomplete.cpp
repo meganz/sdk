@@ -996,13 +996,14 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
 }
 
 
-ACN either(ACN n1, ACN n2, ACN n3, ACN n4)
+ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5)
 {
     auto n = std::make_unique<Either>();
     n->Add(n1);
     n->Add(n2);
     n->Add(n3);
     n->Add(n4);
+    n->Add(n5);
     return n;
 }
 
