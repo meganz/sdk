@@ -583,7 +583,7 @@ const char* MegaUserAlert::getEmail() const
 
 const char* MegaUserAlert::getPath() const
 {
-    return false;
+    return NULL;
 }
 
 void MegaUserAlert::getText(const char ** heading, const char** title) const
