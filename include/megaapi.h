@@ -5250,7 +5250,7 @@ class MegaListener
         virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
 
         /**
-        * @brief This function is called when there are new or updated contacts in the account
+        * @brief This function is called when there are new or updated user alerts in the account
         *
         * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list and all the
         * MegaUserAlert objects that it contains will be valid until this function returns. If you want to save the
@@ -6932,9 +6932,6 @@ class MegaApi
          * @see MegaApi::getPSA
          */
         void setPSA(int id, MegaRequestListener *listener = NULL);
-
-
-
 
         /**
         * @brief Command to acknowledge user alerts.  
