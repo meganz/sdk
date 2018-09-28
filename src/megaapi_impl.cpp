@@ -14061,6 +14061,10 @@ void MegaApiImpl::fireOnUserAlertsUpdate(MegaUserAlertList *userAlerts)
 {
     activeUserAlerts = userAlerts;
 
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
+    {
+        (*it++)->onUserAlertsUpdate(api, userAlerts);
+    }
     for (set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end();)
     {
         (*it++)->onUserAlertsUpdate(api, userAlerts);
