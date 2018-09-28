@@ -538,7 +538,7 @@ class MegaUserAlertPrivate : public MegaUserAlert
 public:
     MegaUserAlertPrivate(UserAlert::Base* user, MegaClient* mc);
     //MegaUserAlertPrivate(const MegaUserAlertPrivate&); // default copy works for this type
-    virtual MegaUserAlert* copy();
+    virtual MegaUserAlert* copy() const;
 
     virtual unsigned getId() const;
     virtual bool getSeen() const;

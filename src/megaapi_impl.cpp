@@ -1713,7 +1713,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     }
 }
 
-MegaUserAlert *MegaUserAlertPrivate::copy()
+MegaUserAlert *MegaUserAlertPrivate::copy() const
 {
     return new MegaUserAlertPrivate(*this);
 }
