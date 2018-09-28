@@ -543,13 +543,14 @@ public:
     virtual unsigned getId() const;
     virtual bool getSeen() const;
     virtual bool getRelevant() const;
-    virtual Type getType() const;
+    virtual int getType() const;
     virtual const char *getTypeString() const;
     virtual MegaHandle getUserHandle() const;
     virtual MegaHandle getNodeHandle() const;
     virtual const char* getEmail() const;
     virtual const char* getPath() const;
-    virtual void getText(const char** heading, const char** title) const;
+    virtual const char* getHeading() const;
+    virtual const char* getTitle() const;
     virtual int64_t getNumber(unsigned index) const;
     virtual int64_t getTimestamp(unsigned index) const;
     virtual const char* getString(unsigned index) const;
@@ -558,7 +559,7 @@ protected:
     unsigned id;
     bool seen;
     bool relevant;
-    Type type;
+    int type;
     string heading;
     string title;
     handle userHandle;

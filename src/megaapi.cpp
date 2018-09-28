@@ -556,9 +556,9 @@ bool MegaUserAlert::getRelevant() const
     return false;
 }
 
-MegaUserAlert::Type MegaUserAlert::getType() const
+int MegaUserAlert::getType() const
 {
-    return (Type)-1;
+    return -1;
 }
 
 const char *MegaUserAlert::getTypeString() const
@@ -586,10 +586,14 @@ const char* MegaUserAlert::getPath() const
     return NULL;
 }
 
-void MegaUserAlert::getText(const char ** heading, const char** title) const
+const char *MegaUserAlert::getHeading() const
 {
-    *heading = NULL;
-    *title = NULL;
+    return NULL;
+}
+
+const char *MegaUserAlert::getTitle() const
+{
+    return NULL;
 }
 
 int64_t MegaUserAlert::getNumber(unsigned) const

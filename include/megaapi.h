@@ -1313,7 +1313,7 @@ class MegaUserAlert
 {
 public:
 
-    enum Type {
+    enum {
         TYPE_INCOMINGPENDINGCONTACT_REQUEST,
         TYPE_INCOMINGPENDINGCONTACT_CANCELLED,
         TYPE_INCOMINGPENDINGCONTACT_REMINDER,
@@ -1386,7 +1386,7 @@ public:
     * @brief Returns the type of alert associated with the object
     * @return Type of alert associated with the object
     */
-    virtual Type getType() const;
+    virtual int getType() const;
 
     /**
     * @brief Returns a readable string that shows the type of alert
@@ -1445,17 +1445,30 @@ public:
     virtual const char* getPath() const;
 
     /**
-    * @brief Returns text relating to this alert
+    * @brief Returns the heading related to this alert
     *
-    * The SDK retains the ownership of the returned values. They will be valid until
+    * The SDK retains the ownership of the returned value. They will be valid until
     * the MegaUserAlert object is deleted.
     *
     * This value is valid for all alerts, and similar to the strings displayed in the
     * webclient alerts.
     *
-    * @return heading and title are set to point to suitable strings.
+    * @return heading related to this alert.
     */
-    virtual void getText(const char** heading, const char** title) const;
+    virtual const char* getHeading() const;
+
+    /**
+    * @brief Returns the title related to this alert
+    *
+    * The SDK retains the ownership of the returned value. They will be valid until
+    * the MegaUserAlert object is deleted.
+    *
+    * This value is valid for all alerts, and similar to the strings displayed in the
+    * webclient alerts.
+    *
+    * @return title related to this alert.
+    */
+    virtual const char* getTitle() const;
 
     /**
     * @brief Returns a number related to this alert

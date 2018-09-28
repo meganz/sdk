@@ -1574,7 +1574,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     : id(b->id)
     , seen(b->seen)
     , relevant(b->relevant)
-    , type((Type)-1)
+    , type(-1)
     , userHandle(UNDEF)
     , nodeHandle(UNDEF)
 {
@@ -1733,7 +1733,7 @@ bool MegaUserAlertPrivate::getRelevant() const
     return relevant;
 }
 
-MegaUserAlertPrivate::Type MegaUserAlertPrivate::getType() const
+int MegaUserAlertPrivate::getType() const
 {
     return type;
 }
@@ -1787,10 +1787,14 @@ const char*MegaUserAlertPrivate::getPath() const
     return  nodePath.empty() ? NULL : nodePath.c_str();
 }
 
-void MegaUserAlertPrivate::getText(const char ** s1, const char** s2) const
+const char *MegaUserAlertPrivate::getHeading() const
 {
-    *s1 = heading.c_str();
-    *s2 = title.c_str();
+    return heading.c_str();
+}
+
+const char *MegaUserAlertPrivate::getTitle() const
+{
+    return title.c_str();
 }
 
 int64_t MegaUserAlertPrivate::getNumber(unsigned index) const
