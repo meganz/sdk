@@ -15,6 +15,7 @@ public:
     virtual ~QTMegaGlobalListener();
 
     virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
+    virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
     virtual void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
     virtual void onAccountUpdate(MegaApi* api);
     virtual void onReloadNeeded(MegaApi* api);

@@ -93,6 +93,13 @@ void QTMegaListener::onUsersUpdate(MegaApi *api, MegaUserList *users)
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
+void QTMegaListener::onUserAlertsUpdate(MegaApi *api, MegaUserAlertList *alerts)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnUserAlertsUpdate);
+    event->setUserAlerts(alerts ? alerts->copy() : NULL);
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
 void QTMegaListener::onNodesUpdate(MegaApi *api, MegaNodeList *nodes)
 {
     QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnNodesUpdate);
@@ -174,6 +181,9 @@ void QTMegaListener::customEvent(QEvent *e)
             break;
         case QTMegaEvent::OnUsersUpdate:
             if(listener) listener->onUsersUpdate(event->getMegaApi(), event->getUsers());
+            break;
+        case QTMegaEvent::OnUserAlertsUpdate:
+            if(listener) listener->onUserAlertsUpdate(event->getMegaApi(), event->getUserAlerts());
             break;
         case QTMegaEvent::OnNodesUpdate:
             if(listener) listener->onNodesUpdate(event->getMegaApi(), event->getNodes());

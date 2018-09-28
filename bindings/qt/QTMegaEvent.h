@@ -21,6 +21,7 @@ public:
         OnTransferUpdate,
         OnTransferFinish,
         OnUsersUpdate,
+        OnUserAlertsUpdate,
         OnNodesUpdate,
         OnAccountUpdate,
         OnReloadNeeded,
@@ -42,6 +43,7 @@ public:
     MegaError* getError();
     MegaNodeList* getNodes();
     MegaUserList* getUsers();
+    MegaUserAlertList* getUserAlerts();
     MegaEvent* getEvent();
 
     void setRequest(MegaRequest *request);
@@ -49,6 +51,7 @@ public:
     void setError(MegaError *error);
     void setNodes(MegaNodeList *nodes);
     void setUsers(MegaUserList *users);
+    void setUserAlerts(MegaUserAlertList *userAlerts);
     void setEvent(MegaEvent *event);
 
 #ifdef ENABLE_SYNC
@@ -67,6 +70,7 @@ private:
     MegaError *error;
     MegaNodeList *nodes;
     MegaUserList *users;
+    MegaUserAlertList *userAlerts;
     MegaEvent *event;
 
 #ifdef ENABLE_SYNC
