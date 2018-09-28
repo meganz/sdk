@@ -768,6 +768,7 @@ void UserAlerts::add(UserAlert::Base* unb)
                 {
                     alerts.back()->seen = false;
                     useralertnotify.push_back(alerts.back());
+                    LOG_debug << "Updated user alert added to notify queue";
                 }
                 delete unb;
                 return;
@@ -779,6 +780,7 @@ void UserAlerts::add(UserAlert::Base* unb)
     if (catchupdone)
     {
         useralertnotify.push_back(unb);
+        LOG_debug << "New user alert added to notify queue";
     }
 }
 

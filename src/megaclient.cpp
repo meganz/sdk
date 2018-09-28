@@ -6082,6 +6082,7 @@ void MegaClient::notifypurge(void)
 
     if ((t = int(useralerts.useralertnotify.size())))
     {
+        LOG_debug << "Notifying " << t << " user alerts";
         app->useralerts_updated(&useralerts.useralertnotify[0], t);
         useralerts.useralertnotify.clear();
     }
