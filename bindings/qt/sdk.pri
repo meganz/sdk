@@ -275,6 +275,7 @@ HEADERS  += include/mega.h \
             include/mega/treeproc.h \
             include/mega/types.h \
             include/mega/user.h \
+            include/mega/useralerts.h \
             include/mega/utils.h \
             include/mega/logging.h \
             include/mega/waiter.h \
