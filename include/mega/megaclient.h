@@ -673,6 +673,12 @@ public:
     // number of ongoing asynchronous fopen
     int asyncfopens;
 
+    // true if user data is cached
+    bool cachedug;
+
+    // backoff for the expiration of cached user data
+    BackoffTimer btugexpiration;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
@@ -967,6 +973,9 @@ public:
 
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+
+    // number of seconds to invalidate the cached user data
+    static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
 
     // initial state load in progress?
     bool fetchingnodes;

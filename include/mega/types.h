@@ -45,6 +45,10 @@ typedef char __static_check_01__[sizeof(bool) == sizeof(char) ? 1 : -1];
 #include "mega/posix/megasys.h"
 #endif
 
+#ifdef USE_CRYPTOPP
+#include <cryptopp/config.h> // so we can test CRYPTO_VERSION below
+#endif
+
 // signed 64-bit generic offset
 typedef int64_t m_off_t;
 
@@ -53,7 +57,7 @@ typedef uint64_t fsfp_t;
 
 namespace mega {
 // within ::mega namespace, byte is unsigned char (avoids ambiguity when std::byte from c++17 and perhaps other defined ::byte are available)
-#if USE_CRYPTOPP && (CRYPTOPP_VERSION >= 600) && (__cplusplus >= 201103L)
+#if defined(USE_CRYPTOPP) && (CRYPTOPP_VERSION >= 600) && (__cplusplus >= 201103L)
 using byte = CryptoPP::byte;
 #elif __RPCNDR_H_VERSION__ != 500
 typedef unsigned char byte;

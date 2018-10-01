@@ -51,6 +51,10 @@ else(WIN32)
     set(NO_READLINE 0)
 endif(WIN32)
 
+if (ENABLE_CHAT AND NOT USE_SODUIM)
+    message(FATAL_ERROR "ENABLE_CHAT requires USE_SODIUM")
+endif()
+
 if(build_64_bit)
     project (MegaSDK64 LANGUAGES CXX C)
 else(build_64_bit)

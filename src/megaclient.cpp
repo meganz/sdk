@@ -73,6 +73,9 @@ const char MegaClient::PAYMENT_PUBKEY[] =
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
+// default number of seconds to wait after a bandwidth overquota
+dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
+
 // stats id
 char* MegaClient::statsid = NULL;
 
@@ -1014,6 +1017,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ssrs_enabled = false;
     nsr_enabled = false;
     loggingout = 0;
+    cachedug = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1203,6 +1207,12 @@ void MegaClient::exec()
         first = false;
 
         looprequested = false;
+
+        if (cachedug && btugexpiration.armed())
+        {
+            LOG_debug << "Cached user data expired";
+            getuserdata();
+        }
 
         if (pendinghttp.size())
         {
@@ -2696,6 +2706,11 @@ int MegaClient::preparewait()
             }
         }
 
+        if (cachedug)
+        {
+            btugexpiration.update(&nds);
+        }
+
 #ifdef ENABLE_SYNC
         // sync rescan
         if (syncscanfailed)
@@ -3445,6 +3460,7 @@ void MegaClient::locallogout()
     ssrs_enabled = false;
     nsr_enabled = false;
     loggingout = 0;
+    cachedug = false;
 
     freeq(GET);
     freeq(PUT);
@@ -7375,6 +7391,7 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
 
 void MegaClient::getuserdata()
 {
+    cachedug = false;
     reqs.add(new CommandGetUserData(this));
 }
 
