@@ -194,14 +194,23 @@ public:
     // encrypted master key
     string k;
 
+    // version of the account
+    int accountversion;
+
+    // salt of the account (for v2 accounts)
+    string accountsalt;
+
     // timestamp of the creation of the account
     m_time_t accountsince;
 
-    // multi-factor authentication globally enabled
+    // Global Multi-Factor Authentication enabled
     bool gmfa_enabled;
 
-    // server-side Rubbish-bin autopurging enabled
+    // Server-Side Rubbish-bin Scheduler enabled (autopurging)
     bool ssrs_enabled;
+
+    // New Secure Registration method enabled
+    bool nsr_enabled;
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -234,12 +243,26 @@ public:
 
     // full account confirmation/creation support
     void sendsignuplink(const char*, const char*, const byte*);
+
+    string sendsignuplink2(const char*, const char *, const char*);
+    void resendsignuplink2(const char*, const char *);
+
     void querysignuplink(const byte*, unsigned);
     void confirmsignuplink(const byte*, unsigned, uint64_t);
+    void confirmsignuplink2(const byte*, unsigned);
     void setkeypair();
+
+    // prelogin: e-mail
+    void prelogin(const char*);
 
     // user login: e-mail, pwkey
     void login(const char*, const byte*, const char* = NULL);
+
+    // user login: e-mail, password, salt
+    void login2(const char*, const char*, string *, const char* = NULL);
+
+    // user login: e-mail, derivedkey, 2FA pin
+    void login2(const char*, const byte*, const char* = NULL);
 
     // user login: e-mail, pwkey, emailhash
     void fastlogin(const char*, const byte*, uint64_t);
@@ -292,7 +315,7 @@ public:
     error encryptlink(const char* link, const char* pwd, string *encryptedLink);
 
     // change login password
-    error changepw(const byte*, const char *pin = NULL);
+    error changepw(const char *password, const char *pin = NULL);
 
     // load all trees: nodes, shares, contacts
     void fetchnodes(bool nocache = false);
@@ -462,7 +485,7 @@ public:
     void gelbrequest(const char*, int, int);
 
     // send chat stats
-    void sendchatstats(const char*);
+    void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
     void sendchatlogs(const char*, const char*);
@@ -514,6 +537,7 @@ public:
 
     // send event
     void sendevent(int, const char *);
+    void sendevent(int, const char *, int tag);
 
     // clean rubbish bin
     void cleanrubbishbin();
@@ -581,6 +605,7 @@ public:
 
     // report an event to the API logger
     void reportevent(const char*, const char* = NULL);
+    void reportevent(const char*, const char*, int tag);
 
     // set max download speed
     bool setmaxdownloadspeed(m_off_t bpslimit);
@@ -648,6 +673,12 @@ public:
     // number of ongoing asynchronous fopen
     int asyncfopens;
 
+    // true if user data is cached
+    bool cachedug;
+
+    // backoff for the expiration of cached user data
+    BackoffTimer btugexpiration;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
@@ -667,7 +698,6 @@ private:
 
     // notify URL for new server-client commands
     string scnotifyurl;
-    dstime scnotifyurlts;
 
     // unique request ID
     char reqid[10];
@@ -944,6 +974,9 @@ public:
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
 
+    // number of seconds to invalidate the cached user data
+    static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
+
     // initial state load in progress?
     bool fetchingnodes;
     int fetchnodestag;
@@ -1103,6 +1136,10 @@ public:
 
     // process localnode subtree
     void proclocaltree(LocalNode*, LocalTreeProc*);
+
+    // unlink the LocalNode from the corresponding node
+    // if the associated local file or folder still exists
+    void unlinkifexists(LocalNode*, FileAccess*, string*);
 #endif
 
     // recursively cancel transfers in a subtree
@@ -1237,7 +1274,7 @@ public:
     User* finduser(handle, int = 0);
     User* ownuser();
     void mapuser(handle, const char*);
-    void discarduser(handle);
+    void discarduser(handle, bool = true);
     void discarduser(const char*);
     void mappcr(handle, PendingContactRequest*);
     bool discardnotifieduser(User *);
@@ -1295,7 +1332,7 @@ public:
     void getprivatekey(const char *code);
 
     // confirm a recovery link to restore the account
-    void confirmrecoverylink(const char *code, const char *email, const byte *pwkey, const byte *masterkey = NULL);
+    void confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey = NULL, int accountversion = 1);
 
     // request a link to cancel the account
     void getcancellink(const char *email, const char* = NULL);
@@ -1341,9 +1378,20 @@ public:
     // true if user has disabled fileversioning
     bool versions_disabled;
 
+    // the SDK is trying to log out
+    int loggingout;
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };
 } // namespace
+
+#if __cplusplus < 201100L
+#define char_is_not_digit std::not1(std::ptr_fun(static_cast<int(*)(int)>(std::isdigit)))
+#define char_is_not_space std::not1(std::ptr_fun<int, int>(std::isspace))
+#else
+#define char_is_not_digit [](char c) { return !std::isdigit(c); }
+#define char_is_not_space [](char c) { return !std::isspace(c); }
+#endif
 
 #endif

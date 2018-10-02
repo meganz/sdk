@@ -31,6 +31,7 @@ namespace fs = std::experimental::filesystem;
 
 namespace mega {
 namespace autocomplete {
+using namespace std;
 
 template<class T>
 static T clamp(T v, T lo, T hi)
@@ -78,6 +79,7 @@ void ACState::quoting::applyQuotes(std::string& w)
     if (quoted && quote_char != 0)
     {
         // reapply quotes as the user had them
+        w.reserve(w.size() + 2);
         w.insert(0, 1, quote_char);
         w.push_back(quote_char);
     }
@@ -103,6 +105,13 @@ ACState::quoted_word::quoted_word(const std::string &str)
 ACState::quoted_word::quoted_word(const std::string &str, const quoting& quot)
     : s (str), q(quot)
 {
+}
+
+string ACState::quoted_word::getQuoted()
+{
+    string qs = s;
+    q.applyQuotes(qs);
+    return qs;
 }
 
 void ACState::addCompletion(const std::string& s, bool caseInsensitive) 
@@ -140,14 +149,24 @@ void ACState::addPathCompletion(std::string& f, const std::string& relativeRootP
     {
         f.erase(0, relativeRootPath.size());
     }
+    if (dir_sep != '\\')
+    {
+        string from = "\\";
+        string to(1,dir_sep);
+        size_t start_pos = 0;
+        while (( start_pos = f.find(from, start_pos)) != std::string::npos)
+        {
+            f.replace(start_pos, from.length(), to);
+            start_pos += to.length();
+        }
+    }
+
     if (unixStyle && isFolder)
     {
         f.push_back(dir_sep);
     }
     addCompletion(f, caseInsensitive);
 }
-
-
 
 std::ostream& operator<<(std::ostream& s, const ACNode& n)
 {
@@ -481,9 +500,10 @@ bool LocalFS::addCompletions(ACState& s)
 {
     if (s.atCursor())
     {
-        fs::path searchPath(s.word().s + (s.word().s.empty() || s.word().s.back() == '\\' ? "*" : ""));
+        fs::path searchPath(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
+        char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
         bool relative = !searchPath.is_absolute();
-        searchPath = relative ? fs::current_path() / searchPath : searchPath;
+        searchPath = relative ? fs::current_path().append("\\").append(searchPath) : searchPath;
         std::string cp = relative ? fs::current_path().u8string() + "\\" : "";
         if ((searchPath.filename() == ".." || searchPath.filename() == ".") && fs::exists(searchPath))
         {
@@ -492,12 +512,18 @@ bool LocalFS::addCompletions(ACState& s)
         else
         {
             searchPath.remove_filename(); // iterate the whole directory, and filter
+            std::string spath = searchPath.u8string();
+            if (spath.back() == ':')
+            {
+                searchPath = spath.append("\\");
+            }
+
             for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
             {
                 if (reportFolders && fs::is_directory(iter->status()) ||
                     reportFiles && fs::is_regular_file(iter->status()))
                 {
-                    s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), '\\', true);
+                    s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep , true);
                 }
             }
         }
@@ -693,7 +719,7 @@ std::pair<int, int> identifyNextWord(const std::string& line, int startPos)
     return ret;
 }
 
-ACState prepACState(const std::string line, size_t insertPos, ACN syntax, bool unixStyle)
+ACState prepACState(const std::string line, size_t insertPos, bool unixStyle)
 {
     if (insertPos == std::string::npos)
     {
@@ -740,7 +766,7 @@ ACState prepACState(const std::string line, size_t insertPos, ACN syntax, bool u
 
 CompletionState autoComplete(const std::string line, size_t insertPos, ACN syntax, bool unixStyle)
 {
-    ACState acs = prepACState(line, insertPos, syntax, unixStyle);
+    ACState acs = prepACState(line, insertPos, unixStyle);
 
     acs.i = 0;
     syntax->addCompletions(acs);
@@ -751,14 +777,14 @@ CompletionState autoComplete(const std::string line, size_t insertPos, ACN synta
     cs.originalWord = acs.words.back();
     cs.completions = acs.completions;
     cs.unixStyle = acs.unixStyle;
-
+    cs.tidyCompletions();
 
     return cs;
 }
 
-void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput)
+bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput, bool reportNoMatch)
 {
-    ACState acs = prepACState(line, insertPos, syntax, unixStyle);
+    ACState acs = prepACState(line, insertPos, unixStyle);
 
     if (!acs.words.empty() && (acs.words[0].s.size() || acs.words.size() > 1))
     {
@@ -787,6 +813,10 @@ void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
             }
             if (v.empty())
             {
+                if (!reportNoMatch)
+                {
+                    return false;
+                }
                 conout << "Invalid syntax";
                 if (firstWordMatches.empty())
                 {
@@ -823,6 +853,7 @@ void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
             consoleOutput = conout.str();
         }
     }
+    return true;
 }
 
 
@@ -872,6 +903,13 @@ unsigned CompletionState::calcUnixColumnWidthInGlyphs(int col, int rows)
     return width;
 }
 
+void CompletionState::tidyCompletions()
+{
+    // sort and eliminate duplicates
+    std::sort(completions.begin(), completions.end(), [](const ACState::Completion& c1, const ACState::Completion& c2) { return c1.s < c2.s; });
+    completions.erase(std::unique(completions.begin(), completions.end(), [](const ACState::Completion& c1, const ACState::Completion& c2) { return c1.s == c2.s; }), completions.end());
+}
+
 void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, CompletionTextOut& textOut)
 {
     if (!s.completions.empty())
@@ -888,6 +926,11 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
             s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, w);
             s.wordPos.second = int(w.size() + s.wordPos.first);
             s.lastAppliedIndex = index;
+
+            if (s.completions.size()==1)
+            {
+                s.active = false;
+            }
         }
         else
         {

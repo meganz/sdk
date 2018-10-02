@@ -68,7 +68,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         debris = cdebris;
         client->fsaccess->path2local(&debris, &localdebris);
 
-        dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, &localdebris));
 
         localdebris.insert(0, client->fsaccess->localseparator);
         localdebris.insert(0, *crootpath);
@@ -78,7 +78,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify = auto_ptr<DirNotify>(client->fsaccess->newdirnotify(crootpath, &localdebris));
+        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, &localdebris));
     }
     dirnotify->sync = this;
 
@@ -600,7 +600,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
     if (initializing || fullscan)
     {
         // find corresponding LocalNode by file-/foldername
-        int lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
+        size_t lastpart = client->fsaccess->lastpartlocal(localname ? localpath : &tmppath);
 
         string fname(localname ? *localpath : tmppath,
                      lastpart,
@@ -1191,10 +1191,17 @@ dstime Sync::procscanq(int q)
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
 void Sync::deletemissing(LocalNode* l)
 {
+    string path;
+    FileAccess *fa = NULL;
     for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
     {
         if (scanseqno-it->second->scanseqno > 1)
         {
+            if (!fa)
+            {
+                fa = client->fsaccess->newfileaccess();
+            }
+            client->unlinkifexists(it->second, fa, &path);
             delete it++->second;
         }
         else
@@ -1203,6 +1210,7 @@ void Sync::deletemissing(LocalNode* l)
             it++;
         }
     }
+    delete fa;
 }
 
 bool Sync::movetolocaldebris(string* localpath)

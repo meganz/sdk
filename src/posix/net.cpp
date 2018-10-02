@@ -1321,6 +1321,12 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 4096L);
         }
 
+        if (req->minspeed)
+        {
+            curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);
+            curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 30L);
+        }
+
         if (!MegaClient::disablepkp && req->protect)
         {
         #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
@@ -1993,7 +1999,8 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
 
-                LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus;
+                LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
+                          << (req->httpiohandle ? ((CurlHttpContext*)req->httpiohandle)->hostname : "(unknown)");
                 if (req->httpstatus)
                 {
                     if (req->method == METHOD_NONE)
@@ -2523,6 +2530,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
    #define EVP_PKEY_get0_RSA(_pkey_) ((_pkey_)->pkey.rsa)
 #endif
 
+#if (OPENSSL_VERSION_NUMBER < 0x1010100fL)
 const BIGNUM *RSA_get0_n(const RSA *rsa)
 {
 #if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
@@ -2555,6 +2563,7 @@ const BIGNUM *RSA_get0_d(const RSA *rsa)
     return result;
 #endif
 }
+#endif
 
 // SSL public key pinning
 int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)

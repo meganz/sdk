@@ -21,12 +21,13 @@
 
 #include "sdk_test.h"
 #include "megaapi_impl.h"
+#include <algorithm>
 
 #ifdef _WIN32
 #include <filesystem>
 #endif
 
-
+using namespace std;
 
 MegaFileSystemAccess fileSystemAccess;
 
@@ -2105,7 +2106,7 @@ TEST_F(SdkTest, SdkTestShares)
 */
 #ifdef WIN32
 
-bool cmp(const autocomplete::CompletionState& c, const std::vector<std::string>& s)
+bool cmp(const autocomplete::CompletionState& c, std::vector<std::string>& s)
 {
     bool result = true;
     if (c.completions.size() != s.size())
@@ -2114,6 +2115,7 @@ bool cmp(const autocomplete::CompletionState& c, const std::vector<std::string>&
     }
     else
     {
+        std::sort(s.begin(), s.end());
         for (size_t i = c.completions.size(); i--; )
         {
             if (c.completions[i].s != s[i])

@@ -516,6 +516,34 @@ class MegaNode
          * @return The number of seconds, or -1 if this attribute is not set.
          */
         virtual int getDuration();
+    
+        /**
+         * @brief Get the attribute of the node representing its width.
+         *
+         * @return The number of pixels for width, or -1 if this attribute is not set.
+         */
+        virtual int getWidth();
+    
+        /**
+         * @brief Get the attribute of the node representing its height.
+         *
+         * @return The number of pixels for height, or -1 if this attribute is not set.
+         */
+        virtual int getHeight();
+    
+        /**
+         * @brief Get the attribute of the node representing its shortformat.
+         *
+         * @return The shortformat, or -1 if this attribute is not set.
+         */
+        virtual int getShortformat();
+    
+        /**
+         * @brief Get the attribute of the node representing its videocodecid.
+         *
+         * @return The videocodecid, or -1 if this attribute is not set.
+         */
+        virtual int getVideocodecid();
 
         /**
          * @brief Get the attribute of the node representing the latitude.
@@ -2239,7 +2267,6 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::createAccount - Returns the name or the firstname of the user
-         * - MegaApi::fastCreateAccount - Returns the name of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
          *
@@ -2265,7 +2292,6 @@ class MegaRequest
          * - MegaApi::fastLogin - Returns the email of the account
          * - MegaApi::loginToFolder - Returns the string "FOLDER"
          * - MegaApi::createAccount - Returns the email for the account
-         * - MegaApi::fastCreateAccount - Returns the email for the account
          * - MegaApi::sendFileToUser - Returns the email of the user that receives the node
          * - MegaApi::share - Returns the email that receives the shared folder
          * - MegaApi::getUserAvatar - Returns the email of the user to get the avatar
@@ -2330,7 +2356,6 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::fastLogin - Returns the base64pwKey parameter
-         * - MegaApi::fastCreateAccount - Returns the base64pwKey parameter
          * - MegaApi::fastConfirmAccount - Returns the base64pwKey parameter
          *
          * This value is valid for these request in onRequestFinish when the
@@ -2487,6 +2512,7 @@ class MegaRequest
          * - MegaApi::abortCurrentBackup - Returns the tag of the aborted backup
          * - MegaApi::removeBackup - Returns the tag of the deleted backup
          * - MegaApi::startTimer - Returns the selected period
+         * - MegaApi::sendChatStats - Returns the connection port
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -5513,23 +5539,6 @@ class MegaApi
         MegaUserList *getCurrentUsers();
 
         /**
-         * @brief Generates a private key based on the access password
-         *
-         * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
-         * required to log in, this function allows to do this step in a separate function. You should run this function
-         * in a background thread, to prevent UI hangs. The resulting key can be used in MegaApi::fastLogin
-         *
-         * You take the ownership of the returned value.
-         *
-         * @param password Access password
-         * @return Base64-encoded private key
-         *
-         * @deprecated The registration and login procedure will be changed soon. When that happens, this function will stop being
-         * compatible and will be deleted, so please stop using it as soon as possible.
-         */
-        char* getBase64PwKey(const char *password);
-
-        /**
          * @brief Generates a hash based in the provided private key and email
          *
          * This is a time consuming operation (specially for low-end mobile devices). Since the resulting key is
@@ -5538,9 +5547,12 @@ class MegaApi
          *
          * You take the ownership of the returned value.
          *
-         * @param base64pwkey Private key returned by MegaApi::getBase64PwKey
+         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
          * @param email Email to create the hash
          * @return Base64-encoded hash
+         *
+         * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
+         * this function will return an empty string for new accounts and will be removed few time after.
          */
         char* getStringHash(const char* base64pwkey, const char* email);
 
@@ -5876,8 +5888,11 @@ class MegaApi
          *
          * @param email Email of the user
          * @param stringHash Hash of the email returned by MegaApi::getStringHash
-         * @param base64pwkey Private key calculated using MegaApi::getBase64PwKey
+         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
+         * one soon. Please use MegaApi::login (with email and password) or MegaApi::fastLogin (with session) instead when possible.
          */
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
@@ -6121,44 +6136,17 @@ class MegaApi
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Initialize the creation of a new MEGA account with precomputed keys
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getEmail - Returns the email for the account
-         * - MegaRequest::getPrivateKey - Returns the private key calculated with MegaApi::getBase64PwKey
-         * - MegaRequest::getName - Returns the name of the user
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getSessionKey - Returns the session id to resume the process
-         *
-         * If this request succeeds, a new ephemeral session will be created for the new user
-         * and a confirmation email will be sent to the specified email address. The app may
-         * resume the create-account process by using MegaApi::resumeCreateAccount.
-         *
-         * If an account with the same email already exists, you will get the error code
-         * MegaError::API_EEXIST in onRequestFinish
-         *
-         * @param email Email for the account
-         * @param base64pwkey Private key calculated with MegaApi::getBase64PwKey
-         * @param name Name of the user
-         * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This function is deprecated and will eventually be removed. Instead,
-         * use the new version of MegaApi::createAccount with firstname and lastname.
-         */
-        void fastCreateAccount(const char* email, const char *base64pwkey, const char* name, MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Sends the confirmation email for a new account
          *
          * This function is useful to send the confirmation link again or to send it to a different
-         * email address, in case the user mistyped the email at the registration form.
+         * email address, in case the user mistyped the email at the registration form. It can only
+         * be used after a successful call to MegaApi::createAccount or MegaApi::resumeCreateAccount.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_SIGNUP_LINK.
          *
          * @param email Email for the account
          * @param name Firstname of the user
-         * @param password Password for the account
+         * @param password Password for the account         
          * @param listener MegaRequestListener to track this request
          */
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
@@ -6171,8 +6159,11 @@ class MegaApi
          *
          * @param email Email for the account
          * @param name Firstname of the user
-         * @param base64pwkey Private key calculated with MegaApi::getBase64PwKey
+         * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function only works using the old registration method and will be removed soon.
+         * Please use MegaApi::sendSignupLink (with email and password) instead.
          */
         void fastSendSignupLink(const char* email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
 
@@ -6187,6 +6178,12 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Return the email associated with the link
          * - MegaRequest::getName - Returns the name associated with the link (available only for confirmation links)
+         * - MegaRequest::getFlag - Returns true if the account was automatically confirmed, otherwise false
+         *
+         * If MegaRequest::getFlag returns true, the account was automatically confirmed and it's not needed
+         * to call MegaApi::confirmAccount. If it returns false, it's needed to call MegaApi::confirmAccount
+         * as usual. New accounts do not require a confirmation with the password, but old confirmation links
+         * require it, so it's needed to check that parameter in onRequestFinish to know how to proceed.
          *
          * @param link Confirmation link (#confirm) or new signup link (#newsignup)
          * @param listener MegaRequestListener to track this request
@@ -6238,6 +6235,9 @@ class MegaApi
          * @param link Confirmation link
          * @param base64pwkey Private key precomputed with MegaApi::getBase64PwKey
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated This function only works using the old registration method and will be removed soon.
+         * Please use MegaApi::confirmAccount instead.
          */
         void fastConfirmAccount(const char* link, const char *base64pwkey, MegaRequestListener *listener = NULL);
 
@@ -6335,6 +6335,8 @@ class MegaApi
         /**
          * @brief Effectively parks the user's account without creating a new fresh account.
          *
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         *
          * The contents of the account will then be purged after 60 days. Once the account is
          * parked, the user needs to contact MEGA support to restore the account.
          *
@@ -6371,8 +6373,6 @@ class MegaApi
         /**
          * @brief Get information about a change-email link created by MegaApi::changeEmail.
          *
-         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
-         *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_RECOVERY_LINK
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getLink - Returns the change-email link
@@ -6388,6 +6388,8 @@ class MegaApi
 
         /**
          * @brief Effectively changes the email address associated to the account.
+         *
+         * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          *
          * The associated request type with this request is MegaRequest::TYPE_CONFIRM_CHANGE_EMAIL_LINK.
          * Valid data in the MegaRequest object received on all callbacks:
@@ -7888,6 +7890,24 @@ class MegaApi
         void shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Check if the master key has been exported
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PWD_REMINDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getAccess - Returns true if the master key has been exported
+         *
+         * If the corresponding user attribute is not set yet, the request will fail with the
+         * error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void isMasterKeyExported(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Enable or disable the generation of rich previews
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
@@ -8123,6 +8143,11 @@ class MegaApi
          *
          * @deprecated This function is for internal usage of MEGA apps for debug purposes. This info
          * is sent to MEGA servers.
+         *
+         * @note Event types are restricted to the following ranges:
+         *  - MEGAchat: [99000, 99150)
+         *  - MEGA SDK: [99400, 99500)
+         *  - MEGAsync: [99500, 99600)
          */
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
@@ -12081,6 +12106,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the data provided.
          * - MegaRequest::getParamType - Returns number 1
+         * - MegaRequest::getNumber - Returns the connection port
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -12089,9 +12115,10 @@ class MegaApi
          * - MegaRequest::getTotalBytes - Returns the number of bytes in the response
          *
          * @param data JSON data to send to the stats server
+         * @param port Server port to connect
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatStats(const char *data, MegaRequestListener *listener = NULL);
+        void sendChatStats(const char *data, int port = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Send logs related to MEGAchat to the logs server

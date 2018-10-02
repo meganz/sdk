@@ -34,6 +34,8 @@
 
 namespace mega {
 
+using namespace std;
+
 #ifdef NO_READLINE
 template<class T>
 static T clamp(T v, T lo, T hi)
@@ -292,6 +294,21 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
             std::string u8line = WinConsole::toUtf8String(buffer);
             size_t u8InsertPos = WinConsole::toUtf8String(buffer.substr(0, insertPos)).size();
             autocompleteState = autocomplete::autoComplete(u8line, u8InsertPos, autocompleteSyntax, unixCompletions);
+
+            if (autocompleteFunction)
+            {
+                // also get additional app specific options, and merge
+                std::vector<autocomplete::ACState::Completion> appcompletions = autocompleteFunction(WinConsole::toUtf8String(getInputLineToCursor()));
+                autocomplete::ACState acs;
+                acs.words.push_back(autocompleteState.originalWord);
+                acs.completions.swap(autocompleteState.completions);
+                for (auto& c : appcompletions)
+                {
+                    acs.addCompletion(c.s, c.caseInsensitive);
+                }
+                autocompleteState.completions.swap(acs.completions);
+                autocompleteState.tidyCompletions();
+            }
             autocompleteState.active = true;
         }
 
@@ -394,6 +411,12 @@ bool ConsoleModel::checkForCompletedInputLine(std::wstring& ws)
     }
     return false;
 }
+
+std::wstring ConsoleModel::getInputLineToCursor()
+{
+    insertPos = clamp<size_t>(insertPos, 0, buffer.size());
+    return buffer.substr(0, insertPos);
+}
 #endif
 
 WinConsole::WinConsole()
@@ -406,6 +429,7 @@ WinConsole::WinConsole()
     GetConsoleMode(hInput, &dwMode);
     SetConsoleMode(hInput, dwMode & ~(ENABLE_MOUSE_INPUT));
     FlushConsoleInputBuffer(hInput);
+    blockingConsolePeek = false;
 #endif
 }
 
@@ -501,6 +525,11 @@ void WinConsole::setAutocompleteSyntax(autocomplete::ACN a)
     model.autocompleteSyntax = a;
 }
 
+void WinConsole::setAutocompleteFunction(std::function<vector<autocomplete::ACState::Completion>(string)> f)
+{
+    model.autocompleteFunction = f;
+}
+
 void WinConsole::setAutocompleteStyle(bool unix)
 {
     model.unixCompletions = unix;
@@ -520,9 +549,14 @@ HANDLE WinConsole::inputAvailableHandle()
 
 bool WinConsole::consolePeek()
 {
+    return blockingConsolePeek?consolePeekBlocking():consolePeekNonBlocking();
+}
+
+bool WinConsole::consolePeekNonBlocking()
+{
     std::cout << std::flush;
 
-    // Read keypreses up to the first newline (or multiple newlines if 
+    // Read keypreses up to the first newline (or multiple newlines if
     bool checkPromptOnce = true;
     for (;;)
     {
@@ -542,7 +576,6 @@ bool WinConsole::consolePeek()
 
         if (isCharacterGeneratingKeypress && (currentPrompt.empty() || model.newlinesBuffered))
         {
-            // wait until the next prompt is output before echoing and processing
             break;
         }
 
@@ -576,6 +609,76 @@ bool WinConsole::consolePeek()
             {
                 break;
             }
+        }
+    }
+    if (model.redrawInputLineNeeded && model.echoOn)
+    {
+        redrawInputLine(&model.redrawInputLineConsoleFeedback);
+    }
+    if (model.consoleNewlineNeeded)
+    {
+        DWORD written = 0;
+        BOOL b = WriteConsoleW(hOutput, L"\n", 1, &written, NULL);
+        assert(b && written == 1);
+    }
+    model.redrawInputLineNeeded = false;
+    model.consoleNewlineNeeded = false;
+    return model.newlinesBuffered;
+}
+
+bool WinConsole::consolePeekBlocking()
+{
+    std::cout << std::flush;
+
+    // Read keypreses up to the first newline (or multiple newlines if
+    bool checkPromptOnce = true;
+    bool isCharacterGeneratingKeypress = false;
+
+    INPUT_RECORD ir;
+    DWORD nRead;
+    BOOL ok = ReadConsoleInputW(hInput, &ir, 1, &nRead);  // discard the event record
+
+    irs.push_back(ir);
+
+    isCharacterGeneratingKeypress =
+            ir.EventType == 1 && ir.Event.KeyEvent.uChar.UnicodeChar != 0 &&
+            (ir.Event.KeyEvent.bKeyDown ||  // key press
+             (!ir.Event.KeyEvent.bKeyDown && ((ir.Event.KeyEvent.dwControlKeyState & LEFT_ALT_PRESSED) || ir.Event.KeyEvent.wVirtualKeyCode == VK_MENU)));  // key release that emits a unicode char
+
+    if (!(isCharacterGeneratingKeypress && (currentPrompt.empty() || model.newlinesBuffered)))
+    {
+        while(!irs.empty())
+        {
+            INPUT_RECORD &ir = irs.front();
+            ConsoleModel::lineEditAction action = interpretLineEditingKeystroke(ir);
+
+            if ((action != ConsoleModel::nullAction || isCharacterGeneratingKeypress) && checkPromptOnce)
+            {
+                redrawPromptIfLoggingOccurred();
+                checkPromptOnce = false;
+            }
+            if (action != ConsoleModel::nullAction)
+            {
+                CONSOLE_SCREEN_BUFFER_INFO sbi;
+                BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
+                assert(ok);
+                unsigned consoleWidth = ok ? sbi.dwSize.X : 50;
+
+                model.performLineEditingAction(action, consoleWidth);
+            }
+            else if (isCharacterGeneratingKeypress)
+            {
+                for (int i = ir.Event.KeyEvent.wRepeatCount; i--; )
+                {
+                    model.addInputChar(ir.Event.KeyEvent.uChar.UnicodeChar);
+                }
+                if (model.newlinesBuffered)  // todo: address case where multiple newlines were added from this one record (as we may get stuck in wait())
+                {
+                    irs.pop_front();
+                    break;
+                }
+            }
+            irs.pop_front();
         }
     }
     if (model.redrawInputLineNeeded && model.echoOn)
@@ -672,10 +775,11 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
     assert(ok);
     if (ok)
     {
-        std::string prompt = model.searchingHistory ? ("history-" + std::string(model.searchingHistoryForward ? "F:'" : "R:'") + toUtf8String(model.historySearchString) + "'> ")
+        std::string sprompt = model.searchingHistory ? ("history-" + std::string(model.searchingHistoryForward ? "F:'" : "R:'") + toUtf8String(model.historySearchString) + "'> ")
                                                     : currentPrompt;
+        std::wstring wprompt = toUtf16String(sprompt);
 
-        if (long(prompt.size() + model.buffer.size() + 1) < sbi.dwSize.X || !model.echoOn)
+        if (long(wprompt.size() + model.buffer.size() + 1) < sbi.dwSize.X || !model.echoOn)
         {
             inputLineOffset = 0;
         }
@@ -686,13 +790,13 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
             if (inputLineOffset + showleft >= model.insertPos)
             {
                 inputLineOffset = model.insertPos - std::min<size_t>(showleft, model.insertPos);
-            } else if (prompt.size() + model.insertPos + 1 >= inputLineOffset + sbi.dwSize.X)
+            } else if (wprompt.size() + model.insertPos + 1 >= inputLineOffset + sbi.dwSize.X)
             {
-                inputLineOffset = prompt.size() + model.insertPos + 1 - sbi.dwSize.X;
+                inputLineOffset = wprompt.size() + model.insertPos + 1 - sbi.dwSize.X;
             }
         }
 
-        size_t width = std::max<size_t>(prompt.size() + model.buffer.size() + 1 + inputLineOffset, sbi.dwSize.X); // +1 to show character under cursor 
+        size_t width = std::max<size_t>(wprompt.size() + model.buffer.size() + 1 + inputLineOffset, sbi.dwSize.X); // +1 to show character under cursor 
         std::unique_ptr<CHAR_INFO[]> line(new CHAR_INFO[width]);
 
         for (size_t i = width; i--; )
@@ -702,20 +806,20 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
             {
                 line[i].Char.UnicodeChar = ' ';
             }
-            else if (inputLineOffset && i + 1 == inputLineOffset + prompt.size())
+            else if (inputLineOffset && i + 1 == inputLineOffset + wprompt.size())
             {
                 line[i].Char.UnicodeChar = '|';
                 line[i].Attributes |= FOREGROUND_INTENSITY | FOREGROUND_GREEN;
                 line[i].Attributes &= ~(FOREGROUND_RED | FOREGROUND_BLUE);
             }
-            else if (i < inputLineOffset + prompt.size())
+            else if (i < inputLineOffset + wprompt.size())
             {
-                line[i].Char.UnicodeChar = prompt[i - inputLineOffset];
+                line[i].Char.UnicodeChar = wprompt[i - inputLineOffset];
                 line[i].Attributes |= FOREGROUND_INTENSITY;
             }
-            else if (i < prompt.size() + model.buffer.size() && model.echoOn)
+            else if (i < wprompt.size() + model.buffer.size() && model.echoOn)
             {
-                line[i].Char.UnicodeChar = model.buffer[i - prompt.size()];
+                line[i].Char.UnicodeChar = model.buffer[i - wprompt.size()];
             }
             else
             {
@@ -727,7 +831,7 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
         ok = WriteConsoleOutputW(hOutput, line.get(), COORD{ SHORT(width), 1 }, COORD{ SHORT(inputLineOffset), 0 }, &screenarea2);
         assert(ok);
 
-        COORD cpos{ SHORT(prompt.size() + model.insertPos - inputLineOffset), sbi.dwCursorPosition.Y };
+        COORD cpos{ SHORT(wprompt.size() + model.insertPos - inputLineOffset), sbi.dwCursorPosition.Y };
         ok = SetConsoleCursorPosition(hOutput, cpos);
         assert(ok);
 

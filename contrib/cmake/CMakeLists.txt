@@ -34,9 +34,9 @@ set (build_64_bit 1 CACHE TYPE BOOL)
 
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE TYPE BOOL)
-set (USE_OPENSSL 0 CACHE TYPE BOOL)
+set (USE_OPENSSL 1 CACHE TYPE BOOL)
 set (OPENSSL_IS_BORINGSSL 0 CACHE TYPE BOOL)
-set (USE_CURL 0 CACHE TYPE BOOL)
+set (USE_CURL 1 CACHE TYPE BOOL)
 set (USE_SQLITE 1 CACHE TYPE BOOL)
 set (USE_MEDIAINFO 1 CACHE TYPE BOOL)
 set (USE_FREEIMAGE 1 CACHE TYPE BOOL)
@@ -49,6 +49,10 @@ if (WIN32)
 else(WIN32)
     set(NO_READLINE 0)
 endif(WIN32)
+
+if (ENABLE_CHAT AND NOT USE_SODUIM)
+    message(FATAL_ERROR "ENABLE_CHAT requires USE_SODIUM")
+endif()
 
 if(build_64_bit)
     project (MegaSDK64 LANGUAGES CXX C)
@@ -67,9 +71,9 @@ ENDIF(WIN32)
 
 IF(WIN32)
     if(build_64_bit)
-        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-windows-static")
+        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-windows-static-uncheckediterators")
     else(build_64_bit)
-        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static")
+        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static-uncheckediterators")
     endif(build_64_bit)
 ENDIF(WIN32)
 
@@ -82,6 +86,17 @@ endif(NOT CMAKE_BUILD_TYPE)
 #windows projects usually need _DEBUG and/or DEBUG set rather than NDEBUG not set
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
+
+# node deletion in debug under VC++ is pretty slow without this.  However libraries we depend on need to be built with the same setting or linking fails 
+# (hence the build3rdParty script using the xNN-windows-static-uncheckediterators triplets)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
+
+
+# accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
+if(WIN32)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
+add_definitions( -DNOMINMAX )  # also don't allow min and max macros from windows.h, use the std functions like on linux/g++
+endif()
 
 IF(WIN32)
     #Link against the static C/C++ libraries on windows
@@ -127,15 +142,7 @@ IF(WIN32)
     ENDIF(USE_CRYPTOPP)
 
     IF(USE_SODIUM)
-        if (build_64_bit)
-            ImportVcpkgLibrary(sodium          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
-        else()
-            ImportStaticLibrary(sodium          "${Mega3rdPartyDir}/libsodium-1.0.15/src/libsodium/include"
-                                                "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Debug/Win32/libsodium.lib" 
-                                                "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Release/Win32/libsodium.lib" 
-                                                "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Debug/x64/libsodium.lib" 
-                                                "${Mega3rdPartyDir}/libsodium-1.0.15/Build/Release/x64/libsodium.lib")
-        endif()
+        ImportVcpkgLibrary(sodium          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
     ENDIF(USE_SODIUM)
 
     IF(USE_CURL)
@@ -150,11 +157,7 @@ IF(WIN32)
     
     ImportVcpkgLibrary(zlib            "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
 
-    ImportStaticLibrary(gtest           "${Mega3rdPartyDir}/googletest/googletest/include"
-                                        "${Mega3rdPartyDir}/googletest/googletest/msvc/2010/gtest/Win32-Debug/gtestd.lib" 
-                                        "${Mega3rdPartyDir}/googletest/googletest/msvc/2010/gtest/Win32-Release/gtest.lib"
-                                        "${Mega3rdPartyDir}/googletest/googletest/msvc/2010/gtest/x64-Debug/gtestd.lib" 
-                                        "${Mega3rdPartyDir}/googletest/googletest/msvc/2010/gtest/x64-Release/gtest.lib")
+    ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/manual-link/gtestd.lib" "${vcpkg_dir}/lib/manual-link/gtest.lib") 
 
     IF(USE_MEDIAINFO)
         ImportStaticLibrary(mediainfo   "${Mega3rdPartyDir}/MediaInfoLib-mw/Source"
@@ -182,16 +185,12 @@ IF(WIN32)
 
     IF(USE_SQLITE)
         ImportVcpkgLibrary(sqlite3          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/sqlite3.lib" "${vcpkg_dir}/lib/sqlite3.lib")
-
- #       add_library(sqlite3 INTERFACE IMPORTED)
- #       set_property(TARGET sqlite3 PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${Mega3rdPartyDir}/sqlite-3.20.1")
     ENDIF(USE_SQLITE)
 
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
     SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi)
 
-    #get_target_property(sqlite3dir sqlite3 INTERFACE_INCLUDE_DIRECTORIES)
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
     ${MegaDir}/src/win32/autocomplete.cpp 
     ${MegaDir}/src/win32/consolewaiter.cpp 
@@ -199,7 +198,6 @@ IF(WIN32)
     $<IF:${USE_CURL},${MegaDir}/src/posix/net.cpp,${MegaDir}/src/win32/net.cpp>
     ${MegaDir}/src/win32/waiter.cpp 
     ${MegaDir}/src/thread/win32thread.cpp  
-    #${sqlite3dir}/sqlite3.c 
     )
 
 
@@ -291,13 +289,16 @@ add_executable(test_misc            ${MegaDir}/tests/tests.cpp
                                     ${MegaDir}/tests/paycrypt_test.cpp 
                                     ${MegaDir}/tests/crypto_test.cpp)
 add_executable(test_purge_account   ${MegaDir}/tests/purge_account.cpp)
+add_executable(test_sync            ${MegaDir}/tests/synctests.cpp)
 
 target_compile_definitions(test_sdk PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_misc PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(test_sync PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_sdk gtest Mega )
 target_link_libraries(test_misc gtest Mega )
 target_link_libraries(test_purge_account gtest Mega )
+target_link_libraries(test_sync gtest Mega )
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
