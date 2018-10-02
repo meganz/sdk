@@ -1903,7 +1903,7 @@ void MegaClient::exec()
             {
                 pendingsc->posturl = APIURL;
                 pendingsc->posturl.append("wsc");
-                scnotifyurl = pendingsc->posturl;
+                //scnotifyurl = pendingsc->posturl;
             }
 
             pendingsc->protect = true;
@@ -4663,6 +4663,7 @@ bool MegaClient::sc_shares()
     handle oh = UNDEF;
     handle uh = UNDEF;
     handle p = UNDEF;
+    handle ou = UNDEF;
     bool upgrade_pending_to_full = false;
     const char* k = NULL;
     const char* ok = NULL;
@@ -4696,6 +4697,10 @@ bool MegaClient::sc_shares()
 
             case 'u':   // target user
                 uh = jsonsc.is(EXPORTEDLINK) ? 0 : jsonsc.gethandle(USERHANDLE);
+                break;
+
+            case MAKENAMEID2('o', 'u'):
+                ou = jsonsc.gethandle(USERHANDLE);
                 break;
 
             case MAKENAMEID2('o', 'k'):  // owner key
@@ -4764,10 +4769,10 @@ bool MegaClient::sc_shares()
 
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (!outbound && oh != me && oh != 0 && !ISUNDEF(oh) && !fetchingnodes)
+                        if (!outbound && oh != me && oh && !fetchingnodes)
                         {
                             User* u = finduser(oh);
-                            useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts));
+                            useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts, useralerts.nextId()));
                         }
 
                         // new share - can be inbound or outbound
@@ -4786,15 +4791,16 @@ bool MegaClient::sc_shares()
                 {
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (!outbound && oh != me && oh && !ISUNDEF(oh) && !fetchingnodes)
+                        handle peer = outbound ? uh : oh;
+                        if (peer != me && peer && !ISUNDEF(peer) && !fetchingnodes && ou != me)
                         {
-                            User* u = finduser(uh);
-                            useralerts.add(new UserAlert::DeletedShare(oh, u ? u->email : "", ts));
+                            User* u = finduser(peer);
+                            useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
                         }
 
                         // share revocation or share without key
                         newshares.push_back(new NewShare(h, outbound,
-                                                         outbound ? uh : oh, r, 0, NULL, NULL, p, false, okremoved));
+                                                         peer, r, 0, NULL, NULL, p, false, okremoved));
                         return r == ACCESS_UNKNOWN;
                     }
                 }
@@ -4840,7 +4846,7 @@ bool MegaClient::sc_upgrade()
             case EOO:
                 if (itemclass == 0 && !fetchingnodes)
                 {
-                    useralerts.add(new UserAlert::Payment(success, proNumber, m_time()));
+                    useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId()));
                 }
                 return success;
 
@@ -4868,7 +4874,7 @@ void MegaClient::sc_paymentreminder()
         case EOO:
             if (!fetchingnodes)
             {
-                useralerts.add(new UserAlert::PaymentReminder(expiryts));
+                useralerts.add(new UserAlert::PaymentReminder(expiryts, useralerts.nextId()));
             }
             return;
 
@@ -5181,7 +5187,7 @@ void MegaClient::sc_ipc()
                 {
                     string email;
                     Node::copystring(&email, m);
-                    useralerts.add(new UserAlert::IncomingPendingContact(dts, rts, p, email, ts));
+                    useralerts.add(new UserAlert::IncomingPendingContact(dts, rts, p, email, ts, useralerts.nextId()));
                 }
 
                 pcr = pcrindex.count(p) ? pcrindex[p] : (PendingContactRequest *) NULL;
@@ -5425,8 +5431,8 @@ void MegaClient::sc_upc(bool incoming)
                     string email;
                     Node::copystring(&email, m);
                     using namespace UserAlert;
-                    useralerts.add(incoming ? (Base*) new UpdatedPendingContactIncoming(s, p, email, uts)
-                                            : (Base*) new UpdatedPendingContactOutgoing(s, p, email, uts));
+                    useralerts.add(incoming ? (Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
+                                            : (Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
                 }
 
                 notifypcr(pcr);
@@ -5507,7 +5513,7 @@ void MegaClient::sc_ph()
             {
                 if ((takendown || reinstated) && !ISUNDEF(h) && !fetchingnodes)
                 {
-                    useralerts.add(new UserAlert::Takedown(takendown, reinstated, n->type, h, m_time()));
+                    useralerts.add(new UserAlert::Takedown(takendown, reinstated, n->type, h, m_time(), useralerts.nextId()));
                 }
 
                 if (deleted)        // deletion
@@ -7410,7 +7416,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             {
                 string email;
                 Node::copystring(&email, m);
-                useralerts.add(new UserAlert::ContactChange(v, uh, email, ts));
+                useralerts.add(new UserAlert::ContactChange(v, uh, email, ts, useralerts.nextId()));
             }
             User* u = finduser(uh, 0);
             bool notify = !u;

@@ -1966,12 +1966,12 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
 #endif
     p->Add(sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
-    p->Add(sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(param("dstemail"), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
+    p->Add(sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
     p->Add(sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i")))); 
     p->Add(sequence(text("showpcr")));
-    p->Add(sequence(text("users"), opt(sequence(param("email"), text("del")))));
-    p->Add(sequence(text("getua"), param("attrname"), opt(param("email"))));
+    p->Add(sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
+    p->Add(sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
     p->Add(sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(sequence(text("delua"), param("attrname")));
@@ -1981,7 +1981,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(sequence(text("whoami")));
     p->Add(sequence(text("passwd")));
-    p->Add(sequence(text("reset"), param("email"), opt(text("mk"))));
+    p->Add(sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(sequence(text("recover"), param("recoverylink")));
     p->Add(sequence(text("cancel"), opt(param("cancellink"))));
     p->Add(sequence(text("email"), opt(either(param("newemail"), param("emaillink")))));
@@ -2001,9 +2001,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("test")));
 #ifdef ENABLE_CHAT
     p->Add(sequence(text("chats")));
-    p->Add(sequence(text("chatc"), param("group"), repeat(opt(sequence(param("email"), either(text("ro"), text("sta"), text("mod")))))));
-    p->Add(sequence(text("chati"), param("chatid"), param("email"), either(text("ro"), text("sta"), text("mod"))));
-    p->Add(sequence(text("chatr"), param("chatid"), opt(param("email"))));
+    p->Add(sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
+    p->Add(sequence(text("chati"), param("chatid"), contactEmail(client), either(text("ro"), text("sta"), text("mod"))));
+    p->Add(sequence(text("chatr"), param("chatid"), opt(contactEmail(client))));
     p->Add(sequence(text("chatu"), param("chatid")));
     p->Add(sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
     p->Add(sequence(text("chatpu")));

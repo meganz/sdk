@@ -85,7 +85,6 @@ namespace UserAlert
 
         // incremented for each new one.  There will be gaps sometimes due to merging.
         unsigned int id;
-        static unsigned int next_id;
 
         // user already saw it (based on 'last notified' time)
         bool seen;
@@ -93,15 +92,15 @@ namespace UserAlert
         // if false, not worth showing, eg obsolete payment reminder 
         bool relevant;
 
-        Base(UserAlertRaw& un);
-        Base(nameid t, handle uh, const string& email, m_time_t timestamp);
+        Base(UserAlertRaw& un, unsigned int id);
+        Base(nameid t, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual ~Base();
 
         // get the same text the webclient would show for this alert (in english)
         virtual void text(string& header, string& title, MegaClient* mc);
 
         // look up the userEmail again in case it wasn't available before (or was changed)
-        void updateEmail(const MegaClient* mc);
+        virtual void updateEmail(MegaClient* mc);
     };
 
     struct IncomingPendingContact : public Base
@@ -109,8 +108,8 @@ namespace UserAlert
         bool requestWasDeleted;
         bool requestWasReminded;
 
-        IncomingPendingContact(UserAlertRaw& un);
-        IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp);
+        IncomingPendingContact(UserAlertRaw& un, unsigned int id);
+        IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp, unsigned int id);
 
         virtual void text(string& header, string& title, MegaClient* mc);
     };
@@ -120,8 +119,8 @@ namespace UserAlert
         int action;
         handle otherUserHandle; 
 
-        ContactChange(UserAlertRaw& un);
-        ContactChange(int c, handle uh, const string& email, m_time_t timestamp);
+        ContactChange(UserAlertRaw& un, unsigned int id);
+        ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -129,8 +128,8 @@ namespace UserAlert
     {
         int action;
 
-        UpdatedPendingContactIncoming(UserAlertRaw& un);
-        UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp);
+        UpdatedPendingContactIncoming(UserAlertRaw& un, unsigned int id);
+        UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -138,8 +137,8 @@ namespace UserAlert
     {
         int action;
 
-        UpdatedPendingContactOutgoing(UserAlertRaw& un);
-        UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp);
+        UpdatedPendingContactOutgoing(UserAlertRaw& un, unsigned int id);
+        UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -147,24 +146,31 @@ namespace UserAlert
     {
         handle folderhandle;
 
-        NewShare(UserAlertRaw& un);
-        NewShare(handle h, handle uh, const string& email, m_time_t timestamp);
+        NewShare(UserAlertRaw& un, unsigned int id);
+        NewShare(handle h, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
     struct DeletedShare : public Base
     {
-        DeletedShare(UserAlertRaw& un);
-        DeletedShare(handle uh, const string& email, m_time_t timestamp);
+        handle folderHandle;
+        string folderName;
+        handle removerHandle;
+        string removerEmail;
+        handle ownerHandle;
+
+        DeletedShare(UserAlertRaw& un, unsigned int id);
+        DeletedShare(handle uh, const string& email, handle removerhandle, handle folderhandle, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+        virtual void updateEmail(MegaClient* mc);
     };
 
     struct NewSharedNodes : public Base
     {
         unsigned fileCount, folderCount;
 
-        NewSharedNodes(UserAlertRaw& un);
-        NewSharedNodes(int nfolders, int nfiles, handle uh, m_time_t timestamp);
+        NewSharedNodes(UserAlertRaw& un, unsigned int id);
+        NewSharedNodes(int nfolders, int nfiles, handle uh, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -172,8 +178,8 @@ namespace UserAlert
     {
         size_t itemsNumber;
 
-        RemovedSharedNode(UserAlertRaw& un);
-        RemovedSharedNode(int nitems, handle uh, m_time_t timestamp);
+        RemovedSharedNode(UserAlertRaw& un, unsigned int id);
+        RemovedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -182,8 +188,8 @@ namespace UserAlert
         bool success;
         int planNumber;
 
-        Payment(UserAlertRaw& un);
-        Payment(bool s, int plan, m_time_t timestamp);
+        Payment(UserAlertRaw& un, unsigned int id);
+        Payment(bool s, int plan, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
         string getProPlanName();
     };
@@ -191,8 +197,8 @@ namespace UserAlert
     struct PaymentReminder : public Base
     {
         m_time_t expiryTime;
-        PaymentReminder(UserAlertRaw& un);
-        PaymentReminder(m_time_t timestamp);
+        PaymentReminder(UserAlertRaw& un, unsigned int id);
+        PaymentReminder(m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -203,8 +209,8 @@ namespace UserAlert
         int type;
         handle nodeHandle;
 
-        Takedown(UserAlertRaw& un);
-        Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp);
+        Takedown(UserAlertRaw& un, unsigned int id);
+        Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 };
@@ -228,6 +234,7 @@ struct UserAlerts
 {
 private:
     MegaClient& mc;
+    unsigned int nextid;
 
 public:
     typedef deque<UserAlert::Base*> Alerts;
@@ -264,6 +271,8 @@ public:
     // but it still needs to interact with other elements.
     UserAlerts(MegaClient&);
     ~UserAlerts();
+
+    unsigned int nextId();
 
     // process notification response from MEGA
     bool procsc_useralert(JSON& jsonsc);

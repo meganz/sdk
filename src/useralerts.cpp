@@ -156,11 +156,11 @@ UserAlertPendingContact::UserAlertPendingContact()
 {
 }
 
-unsigned int UserAlert::Base::next_id = 0;
 
-UserAlert::Base::Base(UserAlertRaw& un)
+
+UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
 {
-    id = ++next_id;
+    id = cid;
     type = un.t;
     m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
     timestamp = m_time() - timeDelta;
@@ -171,9 +171,9 @@ UserAlert::Base::Base(UserAlertRaw& un)
     relevant = true;  
 }
 
-UserAlert::Base::Base(nameid t, handle uh, const string& email, m_time_t ts)
+UserAlert::Base::Base(nameid t, handle uh, const string& email, m_time_t ts, unsigned int cid)
 {
-    id = ++next_id;
+    id = cid;
     type = t;
     userHandle = uh;
     userEmail = email;
@@ -186,21 +186,11 @@ UserAlert::Base::~Base()
 {
 }
 
-void UserAlert::Base::updateEmail(const MegaClient* mc)
+void UserAlert::Base::updateEmail(MegaClient* mc)
 {
-    if (!ISUNDEF(userHandle))
+    if (User* u = mc->finduser(userHandle))
     {
-        // handle to id
-        uh_map::const_iterator j = mc->uhindex.find(userHandle);
-        if (j != mc->uhindex.end())
-        {
-            // id to user
-            user_map::const_iterator i = mc->users.find(j->second);
-            if (i != mc->users.end())
-            {
-                userEmail = i->second.email;
-            }
-        }
+        userEmail = u->email;
     }
 }
 
@@ -214,8 +204,8 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
     header = userEmail;
 }
 
-UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un)
-    : Base(un)
+UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     handle pendingContactId = un.gethandle('p', MegaClient::USERHANDLE, UNDEF);
 
@@ -223,8 +213,8 @@ UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un)
     requestWasReminded = un.getint64(MAKENAMEID3('r', 't', 's'), 0) != 0;
 }
 
-UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp)
-    : Base(UserAlert::type_ipc, uh, email, timestamp)
+UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t rts, handle uh, const string& email, m_time_t timestamp, unsigned int id)
+    : Base(UserAlert::type_ipc, uh, email, timestamp, id)
 {
     requestWasDeleted = dts != 0;
     requestWasReminded = rts != 0;
@@ -248,8 +238,8 @@ void UserAlert::IncomingPendingContact::text(string& header, string& title, Mega
     header = userEmail;
 }
 
-UserAlert::ContactChange::ContactChange(UserAlertRaw& un)
-    : Base(un)
+UserAlert::ContactChange::ContactChange(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     action = un.getint('c', -1);
     relevant = action >= 0 && action < 4;
@@ -257,8 +247,8 @@ UserAlert::ContactChange::ContactChange(UserAlertRaw& un)
     otherUserHandle = un.gethandle(MAKENAMEID2('o', 'u'), MegaClient::USERHANDLE, UNDEF);
 }
 
-UserAlert::ContactChange::ContactChange(int c, handle uh, const string& email, m_time_t timestamp)
-    : Base(UserAlert::type_c, uh, email, timestamp)
+UserAlert::ContactChange::ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id)
+    : Base(UserAlert::type_c, uh, email, timestamp, id)
 {
     action = c;
     assert(action >= 0 && action < 4);
@@ -287,15 +277,15 @@ void UserAlert::ContactChange::text(string& header, string& title, MegaClient* m
     header = userEmail;
 }
 
-UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(UserAlertRaw& un)
-    : Base(un)
+UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     action = un.getint('s', -1);
     relevant = action >= 1 && action < 4;
 }
 
-UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp)
-    : Base(type_upci, uh, email, timestamp)
+UserAlert::UpdatedPendingContactIncoming::UpdatedPendingContactIncoming(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id)
+    : Base(type_upci, uh, email, timestamp, id)
     , action(s)
 {
 }
@@ -318,15 +308,15 @@ void UserAlert::UpdatedPendingContactIncoming::text(string& header, string& titl
     header = userEmail;
 }
 
-UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(UserAlertRaw& un)
-    : Base(un)
+UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     action = un.getint('s', -1);
     relevant = action == 2 || action == 3;
 }
 
-UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp)
-    : Base(type_upco, uh, email, timestamp)
+UserAlert::UpdatedPendingContactOutgoing::UpdatedPendingContactOutgoing(int s, handle uh, const string& email, m_time_t timestamp, unsigned int id)
+    : Base(type_upco, uh, email, timestamp, id)
     , action(s)
 {
 }
@@ -345,14 +335,14 @@ void UserAlert::UpdatedPendingContactOutgoing::text(string& header, string& titl
     header = userEmail;
 }
 
-UserAlert::NewShare::NewShare(UserAlertRaw& un)
-    : Base(un)
+UserAlert::NewShare::NewShare(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     folderhandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
 }
 
-UserAlert::NewShare::NewShare(handle h, handle uh, const string& email, m_time_t timestamp)
-    : Base(type_share, uh, email, timestamp)
+UserAlert::NewShare::NewShare(handle h, handle uh, const string& email, m_time_t timestamp, unsigned int id)
+    : Base(type_share, uh, email, timestamp, id)
 {
     folderhandle = h; 
 }
@@ -371,34 +361,70 @@ void UserAlert::NewShare::text(string& header, string& title, MegaClient* mc)
     header = userEmail;
 }
 
-UserAlert::DeletedShare::DeletedShare(UserAlertRaw& un)
-    : Base(un)
+UserAlert::DeletedShare::DeletedShare(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
+
+    folderHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
+    removerHandle = userHandle;
 }
 
-UserAlert::DeletedShare::DeletedShare(handle uh, const string& email, m_time_t timestamp)
-    : Base(type_dshare, uh, email, timestamp)
+UserAlert::DeletedShare::DeletedShare(handle uh, const string& email, handle ownerhandle, handle folderhandle, m_time_t ts, unsigned int id)
+    : Base(type_dshare, uh, email, ts, id)
 {
+    ownerHandle = ownerhandle;
+    folderHandle = folderhandle;
+    removerHandle = userHandle;
+}
+
+void UserAlert::DeletedShare::updateEmail(MegaClient* mc)
+{
+    Base::updateEmail(mc);
+
+    if (User* u = mc->finduser(removerHandle))
+    {
+        removerEmail = u->email;
+    }
+
+    if (Node* n = mc->nodebyhandle(folderHandle))
+    {
+        folderName = n->displaypath();
+    }
 }
 
 void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc)
 {
     updateEmail(mc);
     ostringstream s;
-    if (!userEmail.empty())
+
+    if (userHandle == ownerHandle)
     {
-        s << "Access to folders shared by " << userEmail << " was removed"; // 7879
+        if (!userEmail.empty())
+        {
+            s << "Access to folders shared by " << userEmail << " was removed"; // 7879
+        }
+        else
+        {
+            s << "Access to folders was removed"; // 7880
+        }
     }
     else
     {
-        s << "Access to folders was removed"; // 7880
+       if (!removerEmail.empty()) 
+       {
+           s << "User " << removerEmail << " has left the shared folder " << folderName;  //19153
+       }
+       else 
+       {
+           s << "A user has left the shared folder " << folderName;  //19154
+       }
     }
     title = s.str();
     header = userEmail;
 }
 
-UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un)
-    : Base(un), fileCount(0), folderCount(0)
+UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
+    : Base(un, id), fileCount(0), folderCount(0)
 {
     std::vector<UserAlertRaw::handletype> f;
     un.gethandletypearray('f', f);
@@ -410,8 +436,8 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un)
     }
 }
 
-UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, handle uh, m_time_t timestamp)
-    : Base(UserAlert::type_put, uh, string(), timestamp)
+UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, handle uh, m_time_t timestamp, unsigned int id)
+    : Base(UserAlert::type_put, uh, string(), timestamp, id)
 {
     assert(!ISUNDEF(uh));
     folderCount = nfolders;
@@ -464,16 +490,16 @@ void UserAlert::NewSharedNodes::text(string& header, string& title, MegaClient* 
     header = userEmail;
 }
 
-UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un)
-    : Base(un)
+UserAlert::RemovedSharedNode::RemovedSharedNode(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     vector<string> handles;
     un.getstringarray('n', handles);
     itemsNumber = handles.empty() ? 1 : handles.size();
 }
 
-UserAlert::RemovedSharedNode::RemovedSharedNode(int nitems, handle uh, m_time_t timestamp)
-    : Base(UserAlert::type_d, uh, string(), timestamp)
+UserAlert::RemovedSharedNode::RemovedSharedNode(int nitems, handle uh, m_time_t timestamp, unsigned int id)
+    : Base(UserAlert::type_d, uh, string(), timestamp, id)
 {
     itemsNumber = nitems;
 }
@@ -510,15 +536,15 @@ string UserAlert::Payment::getProPlanName()
     }
 }
 
-UserAlert::Payment::Payment(UserAlertRaw& un)
-    : Base(un)
+UserAlert::Payment::Payment(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     success = 's' == un.getnameid('r', 0);
     planNumber = un.getint('p', 0);
 }
 
-UserAlert::Payment::Payment(bool s, int plan, m_time_t timestamp)
-    : Base(type_psts, UNDEF, "", timestamp)
+UserAlert::Payment::Payment(bool s, int plan, m_time_t timestamp, unsigned int id)
+    : Base(type_psts, UNDEF, "", timestamp, id)
 {
     success = s;
     planNumber = plan;
@@ -540,15 +566,15 @@ void UserAlert::Payment::text(string& header, string& title, MegaClient* mc)
     header = "Payment info"; // 1230
 }
 
-UserAlert::PaymentReminder::PaymentReminder(UserAlertRaw& un)
-    : Base(un)
+UserAlert::PaymentReminder::PaymentReminder(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     expiryTime = un.getint64(MAKENAMEID2('t', 's'), timestamp);
     relevant = expiryTime > timestamp && expiryTime > m_time();
 }
 
-UserAlert::PaymentReminder::PaymentReminder(m_time_t expiryts)
-    : Base(type_pses, UNDEF, "", m_time())
+UserAlert::PaymentReminder::PaymentReminder(m_time_t expiryts, unsigned int id)
+    : Base(type_pses, UNDEF, "", m_time(), id)
 {
     expiryTime = expiryts;
     relevant = expiryTime > timestamp;
@@ -567,8 +593,8 @@ void UserAlert::PaymentReminder::text(string& header, string& title, MegaClient*
     header = "PRO membership plan expiring soon"; // 8598
 }
 
-UserAlert::Takedown::Takedown(UserAlertRaw& un)
-    : Base(un)
+UserAlert::Takedown::Takedown(UserAlertRaw& un, unsigned int id)
+    : Base(un, id)
 {
     int n = un.getint(MAKENAMEID4('d', 'o', 'w', 'n'), -1);
     isTakedown = n == 1;
@@ -577,8 +603,8 @@ UserAlert::Takedown::Takedown(UserAlertRaw& un)
     relevant = isTakedown || isReinstate;
 }
 
-UserAlert::Takedown::Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp)
-    : Base(type_ph, UNDEF, "", timestamp)
+UserAlert::Takedown::Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id)
+    : Base(type_ph, UNDEF, "", timestamp, id)
 {
     isTakedown = down;
     isReinstate = reinstate;
@@ -631,6 +657,7 @@ void UserAlert::Takedown::text(string& header, string& title, MegaClient* mc)
 
 UserAlerts::UserAlerts(MegaClient& cmc)
     : mc(cmc)
+    , nextid(0)
     , begincatchup(false)
     , catchupdone(false)
     , catchup_last_timestamp(0)
@@ -639,6 +666,11 @@ UserAlerts::UserAlerts(MegaClient& cmc)
     , lastTimeDelta(INT_MAX)
     , notingSharedNodes(false)
 {
+}
+
+unsigned int UserAlerts::nextId()
+{
+    return ++nextid;
 }
 
 bool UserAlerts::isUnwantedAlert(nameid type, int action)
@@ -694,37 +726,37 @@ void UserAlerts::add(UserAlertRaw& un)
 
     switch (un.t) {
     case type_ipc:
-        unb = new IncomingPendingContact(un);
+        unb = new IncomingPendingContact(un, nextId());
         break;
     case type_c:
-        unb = new ContactChange(un);
+        unb = new ContactChange(un, nextId());
         break;
     case type_upci:
-        unb = new UpdatedPendingContactIncoming(un);
+        unb = new UpdatedPendingContactIncoming(un, nextId());
         break;
     case type_upco:
-        unb = new UpdatedPendingContactOutgoing(un);
+        unb = new UpdatedPendingContactOutgoing(un, nextId());
         break;
     case type_share:
-        unb = new u::NewShare(un);
+        unb = new u::NewShare(un, nextId());
         break;
     case type_dshare:
-        unb = new DeletedShare(un);
+        unb = new DeletedShare(un, nextId());
         break;
     case type_put:
-        unb = new NewSharedNodes(un);
+        unb = new NewSharedNodes(un, nextId());
         break;
     case type_d:
-        unb = new RemovedSharedNode(un);
+        unb = new RemovedSharedNode(un, nextId());
         break;
     case type_psts:
-        unb = new Payment(un);
+        unb = new Payment(un, nextId());
         break;
     case type_pses:
-        unb = new PaymentReminder(un);
+        unb = new PaymentReminder(un, nextId());
         break;
     case type_ph:
-        unb = new Takedown(un);
+        unb = new Takedown(un, nextId());
         break;
     default:
         unb = NULL;   // If it's a notification type we do not recognise yet
@@ -812,8 +844,8 @@ void UserAlerts::convertNotedSharedNodes(bool added)
         using namespace UserAlert;
         for (map<handle, ff>::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)
         {
-            add(added ? (Base*) new NewSharedNodes(i->second.folders, i->second.files, i->first, i->second.timestamp)
-                : (Base*) new RemovedSharedNode(i->second.folders + i->second.files, i->first, m_time()));
+            add(added ? (Base*) new NewSharedNodes(i->second.folders, i->second.files, i->first, i->second.timestamp, nextId())
+                : (Base*) new RemovedSharedNode(i->second.folders + i->second.files, i->first, m_time(), nextId()));
         }
     }
     notedSharedNodes.clear();
@@ -974,6 +1006,8 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
             if (!jsonsc.storeobject())
             {
                 LOG_err << "Error parsing sc user alerts";
+                begincatchup = false;
+                catchupdone = true;  // if we fail to get useralerts, continue anyway
                 return true;
             }
         }
@@ -1019,6 +1053,7 @@ void UserAlerts::clear()
     lsn = UNDEF;
     fsn = UNDEF;
     lastTimeDelta = 0;
+    nextid = 0;
 }
 
 UserAlerts::~UserAlerts()
