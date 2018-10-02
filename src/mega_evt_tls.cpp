@@ -434,7 +434,11 @@ void evt_ctx_free(evt_ctx_t *ctx)
     SSL_CTX_free(ctx->ctx);
     ctx->ctx = NULL;
 
+#if OPENSSL_VERSION_NUMBER >= 0x10000000
+    ERR_remove_thread_state(NULL);
+#else
     ERR_remove_state(0);
+#endif
     ERR_free_strings();
     EVP_cleanup();
     sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
