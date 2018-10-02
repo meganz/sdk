@@ -65,6 +65,7 @@ namespace autocomplete {
             quoted_word(const std::string &, const quoting&);
             std::string s;
             quoting q;
+            string getQuoted();
         };
 
         std::vector<quoted_word> words;
@@ -214,10 +215,11 @@ namespace autocomplete {
         size_t unixListCount = 0;
         unsigned calcUnixColumnWidthInGlyphs(int col, int rows);
         const string& unixColumnEntry(int row, int col, int rows);
+        void tidyCompletions();
     };
 
     // helper function - useful in megacli for now
-    ACState prepACState(const std::string line, size_t insertPos, ACN syntax, bool unixStyle);
+    ACState prepACState(const std::string line, size_t insertPos, bool unixStyle);
 
     // get a list of possible strings at the current cursor position
     CompletionState autoComplete(const std::string line, size_t insertPos, ACN syntax, bool unixStyle);
@@ -227,7 +229,7 @@ namespace autocomplete {
     void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, CompletionTextOut& consoleOutput);
 
     // execute the function attached to the matching syntax
-    void autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput);
+    bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput, bool reportNoMatch);
 
     // functions to bulid command descriptions
     ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr);
