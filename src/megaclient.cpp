@@ -1903,7 +1903,6 @@ void MegaClient::exec()
             {
                 pendingsc->posturl = APIURL;
                 pendingsc->posturl.append("wsc");
-                //scnotifyurl = pendingsc->posturl;
             }
 
             pendingsc->protect = true;
