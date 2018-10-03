@@ -2222,7 +2222,7 @@ static void process_line(char* l)
 
 #if defined(WIN32) && defined(NO_READLINE)
             using namespace ::mega::autocomplete;
-            ACState acs = prepACState(l, strlen(l), autocompleteTemplate, static_cast<WinConsole*>(console)->getAutocompleteStyle());
+            ACState acs = prepACState(l, strlen(l), static_cast<WinConsole*>(console)->getAutocompleteStyle());
             for (unsigned i = 0; i < acs.words.size(); ++i)
             {
                 // any quotes or partial quoting are stripped out already

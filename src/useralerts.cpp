@@ -364,7 +364,7 @@ void UserAlert::NewShare::text(string& header, string& title, MegaClient* mc)
 UserAlert::DeletedShare::DeletedShare(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-
+    ownerHandle = un.gethandle('o', MegaClient::USERHANDLE, UNDEF);
     folderHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
     removerHandle = userHandle;
 }
