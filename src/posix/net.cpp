@@ -2530,7 +2530,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
    #define EVP_PKEY_get0_RSA(_pkey_) ((_pkey_)->pkey.rsa)
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010100fL)
+#if (OPENSSL_VERSION_NUMBER < 0x1010100fL) || defined (LIBRESSL_VERSION_NUMBER)
 const BIGNUM *RSA_get0_n(const RSA *rsa)
 {
 #if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)
