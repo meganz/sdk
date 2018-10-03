@@ -3734,10 +3734,6 @@ bool MegaClient::procsc()
             {
                 case 'w':
                     jsonsc.storeobject(&scnotifyurl);
-                    if (!useralerts.catchupdone)
-                    {
-                        useralerts.begincatchup = true;
-                    }
                     break;
 
                 case MAKENAMEID2('s', 'n'):
@@ -3846,6 +3842,10 @@ bool MegaClient::procsc()
                         {
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
+
+                        // now that we have loaded cached state, and caught up actionpackets since that state 
+                        // (or just fetched everything if there was no cache), our next sc request can be for useralerts
+                        useralerts.begincatchup = true;
                     }
                     return true;
 
@@ -4784,7 +4784,7 @@ bool MegaClient::sc_shares()
 
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
-                        if (!outbound && oh != me && oh && !fetchingnodes)
+                        if (!outbound && oh != me && oh && statecurrent)
                         {
                             User* u = finduser(oh);
                             useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts, useralerts.nextId()));
@@ -4807,7 +4807,7 @@ bool MegaClient::sc_shares()
                     if (!ISUNDEF(oh) && (!ISUNDEF(uh) || !ISUNDEF(p)))
                     {
                         handle peer = outbound ? uh : oh;
-                        if (peer != me && peer && !ISUNDEF(peer) && !fetchingnodes && ou != me)
+                        if (peer != me && peer && !ISUNDEF(peer) && statecurrent && ou != me)
                         {
                             User* u = finduser(peer);
                             useralerts.add(new UserAlert::DeletedShare(peer, u ? u->email : "", oh, h, ts == 0 ? m_time() : ts, useralerts.nextId()));
@@ -4859,7 +4859,7 @@ bool MegaClient::sc_upgrade()
                 break;
 
             case EOO:
-                if (itemclass == 0 && !fetchingnodes)
+                if (itemclass == 0 && statecurrent)
                 {
                     useralerts.add(new UserAlert::Payment(success, proNumber, m_time(), useralerts.nextId()));
                 }
@@ -4887,7 +4887,7 @@ void MegaClient::sc_paymentreminder()
             break;
 
         case EOO:
-            if (!fetchingnodes)
+            if (statecurrent)
             {
                 useralerts.add(new UserAlert::PaymentReminder(expiryts, useralerts.nextId()));
             }
@@ -5198,7 +5198,7 @@ void MegaClient::sc_ipc()
                     break;
                 }
 
-                if (m && !fetchingnodes)
+                if (m && statecurrent)
                 {
                     string email;
                     Node::copystring(&email, m);
@@ -5441,7 +5441,7 @@ void MegaClient::sc_upc(bool incoming)
                     pcr->uts = uts;
                 }
 
-                if (!fetchingnodes)
+                if (statecurrent)
                 {
                     string email;
                     Node::copystring(&email, m);
@@ -5526,7 +5526,7 @@ void MegaClient::sc_ph()
             n = nodebyhandle(h);
             if (n)
             {
-                if ((takendown || reinstated) && !ISUNDEF(h) && !fetchingnodes)
+                if ((takendown || reinstated) && !ISUNDEF(h) && statecurrent)
                 {
                     useralerts.add(new UserAlert::Takedown(takendown, reinstated, n->type, h, m_time(), useralerts.nextId()));
                 }
@@ -7427,7 +7427,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
         if (!warnlevel())
         {
-            if (actionpackets && v >= 0 && v < 4 && !fetchingnodes)
+            if (actionpackets && v >= 0 && v < 4 && statecurrent)
             {
                 string email;
                 Node::copystring(&email, m);
