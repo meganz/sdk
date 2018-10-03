@@ -80,7 +80,7 @@ public:
     void deletemissing(LocalNode*);
 
     // scan specific path
-    LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL);
+    LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL, bool wejustcreatedthisfolder = false);
 
     m_off_t localbytes;
     unsigned localnodes[2];

@@ -1668,6 +1668,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->syncTransfer = false;
     this->streamingTransfer = false;
     this->temporarySourceFile = false;
+    this->startFirst = false;
     this->lastError = API_OK;
     this->folderTransferTag = 0;
     this->appData = NULL;
@@ -1714,6 +1715,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setSyncTransfer(transfer->isSyncTransfer());
     this->setStreamingTransfer(transfer->isStreamingTransfer());
     this->setSourceFileTemporary(transfer->isSourceFileTemporary());
+    this->setStartFirst(transfer->shouldStartFirst());
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
@@ -1793,6 +1795,11 @@ bool MegaTransferPrivate::isFinished() const
 bool MegaTransferPrivate::isSourceFileTemporary() const
 {
     return temporarySourceFile;
+}
+
+bool MegaTransferPrivate::shouldStartFirst() const
+{
+    return startFirst;
 }
 
 int MegaTransferPrivate::getType() const
@@ -2175,6 +2182,11 @@ void MegaTransferPrivate::setSourceFileTemporary(bool temporary)
     this->temporarySourceFile = temporary;
 }
 
+void MegaTransferPrivate::setStartFirst(bool startFirst)
+{
+    this->startFirst = startFirst;
+}
+
 void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
 {
     this->streamingTransfer = streamingTransfer;
@@ -2497,6 +2509,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->totalBytes = -1;
     this->transferredBytes = 0;
     this->number = 0;
+    this->timeZoneDetails = NULL;
 
     if (type == MegaRequest::TYPE_ACCOUNT_DETAILS)
     {
@@ -2609,6 +2622,9 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         *(this->achievementsDetails) = *(request->getAchievementsDetails());
     }
 
+    this->timeZoneDetails = NULL;
+    this->setTimeZoneDetails(request->getMegaTimeZoneDetails());
+
 #ifdef ENABLE_CHAT   
     this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
     this->chatList = request->getMegaTextChatList() ? request->chatList->copy() : NULL;
@@ -2635,6 +2651,11 @@ MegaAchievementsDetails *MegaRequestPrivate::getMegaAchievementsDetails() const
 AchievementsDetails *MegaRequestPrivate::getAchievementsDetails() const
 {
     return achievementsDetails;
+}
+
+MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
+{
+    return timeZoneDetails ? timeZoneDetails->copy() : NULL;
 }
 
 #ifdef ENABLE_CHAT
@@ -2764,6 +2785,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete [] text;
     delete stringMap;
     delete folderInfo;
+    delete timeZoneDetails;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -3044,6 +3066,15 @@ Proxy *MegaRequestPrivate::getProxy()
     return proxy;
 }
 
+void MegaRequestPrivate::setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails)
+{
+    if (this->timeZoneDetails)
+    {
+        delete this->timeZoneDetails;
+    }
+    this->timeZoneDetails = timeZoneDetails;
+}
+
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
 {
     if (this->publicNode)
@@ -3174,6 +3205,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_REMOVE_BACKUP: return "REMOVE_BACKUP";
         case TYPE_TIMER: return "SET_TIMER";
         case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
+        case TYPE_GET_PSA: return "GET_PSA";
+        case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
     }
     return "UNKNOWN";
 }
@@ -4563,6 +4596,14 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
             attrname = "*!rp";
             break;
+
+        case MegaApi::USER_ATTR_LAST_PSA:
+            attrname = "^!lastPsa";
+            break;
+
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
+            attrname = "^!rubbishtime";
+            break;
     }
 
     return attrname;
@@ -4598,6 +4639,8 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_PWD_REMINDER:
         case MegaApi::USER_ATTR_DISABLE_VERSIONS:
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
+        case MegaApi::USER_ATTR_LAST_PSA:
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
             scope = '^';
             break;
 
@@ -4696,6 +4739,13 @@ void MegaApiImpl::multiFactorAuthCancelAccount(const char *pin, MegaRequestListe
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CANCEL_LINK, listener);
     request->setText(pin);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchTimeZone(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_TIMEZONE, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -5468,6 +5518,27 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     stringMap->set("c", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
     delete stringMap;
+}
+
+void MegaApiImpl::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
+{
+    ostringstream oss;
+    oss << days;
+    string value = oss.str();
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setText(value.data());
+    request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
+    request->setNumber(days);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
@@ -6625,7 +6696,7 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
 
 
 
-void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
@@ -6646,6 +6717,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
     transfer->setMaxRetries(maxRetries);
     transfer->setAppData(appData);
     transfer->setSourceFileTemporary(isSourceFileTemporary);
+    transfer->setStartFirst(startFirst);
 
     if(fileName)
     {
@@ -6664,15 +6736,15 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, const cha
 }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, (const char *)NULL, -1, 0, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, (const char *)NULL, -1, 0, NULL, false, listener); }
 
 void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, (const char *)NULL, mtime, 0, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, NULL, false, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{ return startUpload(localPath, parent, fileName, -1, 0, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, fileName, -1, 0, NULL, false, listener); }
 
-void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*startPos*/, long /*endPos*/, int folderTransferTag, const char *appData, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, long /*startPos*/, long /*endPos*/, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -6701,6 +6773,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*st
 
     transfer->setMaxRetries(maxRetries);
     transfer->setAppData(appData);
+    transfer->setStartFirst(startFirst);
 
     if (folderTransferTag)
     {
@@ -6712,7 +6785,7 @@ void MegaApiImpl::startDownload(MegaNode *node, const char* localPath, long /*st
 }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload(node, localFolder, 0, 0, 0, NULL, listener); }
+{ startDownload(false, node, localFolder, 0, 0, 0, NULL, listener); }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
@@ -6778,14 +6851,14 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         {
             node = getNodeByHandle(t->getNodeHandle());
         }
-        this->startDownload(node, t->getPath(), t->getStartPos(), t->getEndPos(),
+        this->startDownload(t->shouldStartFirst(), node, t->getPath(), t->getStartPos(), t->getEndPos(),
                             0, t->getAppData(), listener);
         delete node;
     }
     else
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
-        startUpload(t->getPath(), parent, t->getFileName(), t->getTime(), 0,
+        startUpload(t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), t->getTime(), 0,
                           t->getAppData(), t->isSourceFileTemporary(), listener);
         delete parent;
     }
@@ -9093,6 +9166,21 @@ void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listen
     request->setFlag(enable);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::getPSA(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PSA, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setPSA(int id, MegaRequestListener *listener)
+{
+    std::ostringstream oss;
+    oss << id;
+    string value = oss.str();
+    setUserAttr(MegaApi::USER_ATTR_LAST_PSA, value.c_str(), listener);
 }
 
 void MegaApiImpl::disableGfxFeatures(bool disable)
@@ -11816,9 +11904,9 @@ void MegaApiImpl::request_error(error e)
 
 void MegaApiImpl::request_response_progress(m_off_t currentProgress, m_off_t totalProgress)
 {
-    if (requestMap.size() == 1)
+    for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
     {
-        MegaRequestPrivate *request = requestMap.begin()->second;
+        MegaRequestPrivate *request = it->second;
         if (request && request->getType() == MegaRequest::TYPE_FETCH_NODES)
         {
             request->setTransferredBytes(currentProgress);
@@ -12627,6 +12715,21 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             }
             break;
 
+        // numbers
+        case MegaApi::USER_ATTR_RUBBISH_TIME:
+            {
+                char *endptr;
+                string str((const char*)data, len);
+                m_off_t value = strtoll(str.c_str(), &endptr, 10);
+                if (endptr == str.c_str() || *endptr != '\0' || value == LLONG_MAX || value == LLONG_MIN)
+                {
+                    value = -1;
+                }
+
+                request->setNumber(value);
+            }
+            break;
+
         // byte arrays with possible nulls in the middle --> to Base64
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
@@ -12890,6 +12993,32 @@ void MegaApiImpl::keepmealive_result(error e)
     fireOnRequestFinish(request, e);
 }
 
+void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_GET_PSA)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setNumber(id);
+        request->setName(title->c_str());
+        request->setText(text->c_str());
+        request->setFile(image->c_str());
+        request->setPassword(buttontext->c_str());
+        request->setLink(buttonlink->c_str());
+    }
+
+    fireOnRequestFinish(request, e);
+}
+
 void MegaApiImpl::multifactorauthsetup_result(string *code, error e)
 {
     if (requestMap.find(client->restag) == requestMap.end())
@@ -12950,6 +13079,26 @@ void MegaApiImpl::multifactorauthdisable_result(error e)
         return;
     }
 
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, vector<int> *timezoneoffsets, int defaulttz)
+{
+    if (requestMap.find(client->restag) == requestMap.end())
+    {
+        return;
+    }
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || ((request->getType() != MegaRequest::TYPE_FETCH_TIMEZONE)))
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        MegaTimeZoneDetails *tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
+        request->setTimeZoneDetails(tzDetails);
+    }
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -15202,6 +15351,7 @@ void MegaApiImpl::sendPendingTransfers()
                 int64_t mtime = transfer->getTime();
                 bool isSourceTemporary = transfer->isSourceFileTemporary();
                 Node *parent = client->nodebyhandle(transfer->getParentHandle());
+                bool startFirst = transfer->shouldStartFirst();
 
                 if (!localPath || !parent || parent->type == FILENODE || !fileName || !(*fileName))
                 {
@@ -15302,7 +15452,7 @@ void MegaApiImpl::sendPendingTransfers()
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime, isSourceTemporary);
                     f->setTransfer(transfer);
-                    bool started = client->startxfer(PUT, f, true);
+                    bool started = client->startxfer(PUT, f, true, startFirst);
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -15370,6 +15520,7 @@ void MegaApiImpl::sendPendingTransfers()
                 MegaNode *publicNode = transfer->getPublicNode();
                 const char *parentPath = transfer->getParentPath();
                 const char *fileName = transfer->getFileName();
+                bool startFirst = transfer->shouldStartFirst();
 
                 if (!publicNode)
                 {
@@ -15540,7 +15691,7 @@ void MegaApiImpl::sendPendingTransfers()
 
                     transfer->setPath(path.c_str());
                     f->setTransfer(transfer);
-                    bool ok = client->startxfer(GET, f, true);
+                    bool ok = client->startxfer(GET, f, true, startFirst);
                     if (!ok)
                     {
                         //Already existing transfer
@@ -15838,6 +15989,11 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->multifactorauthdisable(pin);
             }
+            break;
+        }
+        case MegaRequest::TYPE_FETCH_TIMEZONE:
+        {
+            client->fetchtimezone();
             break;
         }
         case MegaRequest::TYPE_CREATE_FOLDER:
@@ -16562,7 +16718,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if ( attrname.empty() ||    // unknown attribute type
+            if (attrname.empty() ||    // unknown attribute type
                  (type == ATTR_AVATAR && !value) ) // no destination file for avatar
             {
                 e = API_EARGS;
@@ -16728,6 +16884,25 @@ void MegaApiImpl::sendPendingRequests()
                     }
 
                     client->putua(type, (byte *)value, 1);
+                }
+                else if (type == ATTR_RUBBISH_TIME || type == ATTR_LAST_PSA)
+                {
+                    if (!value || !value[0])
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    char *endptr;
+                    m_off_t number = strtoll(value, &endptr, 10);
+                    if (endptr == value || *endptr != '\0' || number == LLONG_MAX || number == LLONG_MIN || number < 0)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    string tmp(value);
+                    client->putua(type, (byte *)tmp.data(), tmp.size());
                 }
                 else
                 {
@@ -18532,6 +18707,11 @@ void MegaApiImpl::sendPendingRequests()
             client->keepmealive(type, enable);
             break;
         }
+        case MegaRequest::TYPE_GET_PSA:
+        {
+            client->getpsa();
+            break;
+        }
         case MegaRequest::TYPE_FOLDER_INFO:
         {
             MegaHandle h = request->getNodeHandle();
@@ -20271,7 +20451,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
                     pendingTransfers++;
                     string utf8path;
                     client->fsaccess->local2path(&localPath, &utf8path);
-                    megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, tag, NULL, false, this);
+                    megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, NULL, false, this);
                 }
                 else
                 {
@@ -21043,7 +21223,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                         client->fsaccess->local2path(&localPath, &utf8path);
 
                         totalFiles++;
-                        megaApi->startUpload(utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, NULL, false, this);
+                        megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, NULL, false, this);
                     }
                     else
                     {
@@ -21590,7 +21770,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         if (child->getType() == MegaNode::TYPE_FILE)
         {
             pendingTransfers++;
-            megaApi->startDownload(child, utf8path.c_str(), 0, 0, tag, transfer->getAppData(), this);
+            megaApi->startDownload(false, child, utf8path.c_str(), 0, 0, tag, transfer->getAppData(), this);
         }
         else
         {
@@ -24562,7 +24742,7 @@ void MegaHTTPServer::sendNextBytes(MegaHTTPContext *httpctx)
         return;
     }
 
-    LOG_verbose << "Writting " << resbuf.len << " bytes";
+    LOG_verbose << "Writing " << resbuf.len << " bytes";
     httpctx->rangeWritten += resbuf.len;
     httpctx->lastBuffer = resbuf.base;
     httpctx->lastBufferLen = resbuf.len;
@@ -26839,7 +27019,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
 
         if (nread > 0)
         {
-            LOG_verbose << " Writting " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
+            LOG_verbose << " Writing " << nread << " bytes " << " to temporal file: " << ftpdatactx->tmpFileName;
             if (!ftpdatactx->tmpFileAccess->fwrite((const byte*)buf->base, nread, ftpdatactx->tmpFileSize) )
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
@@ -27092,7 +27272,7 @@ void MegaFTPDataServer::sendNextBytes(MegaFTPDataContext *ftpdatactx)
         return;
     }
 
-    LOG_verbose << "Writting " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
+    LOG_verbose << "Writing " << resbuf.len << " bytes" << " buffered = " << ftpdatactx->streamingBuffer.availableData();
     ftpdatactx->rangeWritten += resbuf.len;
     ftpdatactx->lastBuffer = resbuf.base;
     ftpdatactx->lastBufferLen = resbuf.len;
@@ -28129,6 +28309,58 @@ void TreeProcFolderInfo::proc(MegaClient *, Node *node)
 MegaFolderInfo *TreeProcFolderInfo::getResult()
 {
     return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+}
+
+MegaTimeZoneDetailsPrivate::MegaTimeZoneDetailsPrivate(vector<std::string> *timeZones, vector<int> *timeZoneOffsets, int defaultTimeZone)
+{
+    this->timeZones = *timeZones;
+    this->timeZoneOffsets = *timeZoneOffsets;
+    this->defaultTimeZone = defaultTimeZone;
+}
+
+MegaTimeZoneDetailsPrivate::MegaTimeZoneDetailsPrivate(const MegaTimeZoneDetailsPrivate *timeZoneDetails)
+{
+    this->timeZones = timeZoneDetails->timeZones;
+    this->timeZoneOffsets = timeZoneDetails->timeZoneOffsets;
+    this->defaultTimeZone = timeZoneDetails->defaultTimeZone;
+}
+
+MegaTimeZoneDetailsPrivate::~MegaTimeZoneDetailsPrivate()
+{
+
+}
+
+MegaTimeZoneDetails *MegaTimeZoneDetailsPrivate::copy() const
+{
+    return new MegaTimeZoneDetailsPrivate(this);
+}
+
+int MegaTimeZoneDetailsPrivate::getNumTimeZones() const
+{
+    return timeZones.size();
+}
+
+const char *MegaTimeZoneDetailsPrivate::getTimeZone(int index) const
+{
+    if (index >= 0 && index < timeZones.size())
+    {
+        return timeZones[index].c_str();
+    }
+    return "";
+}
+
+int MegaTimeZoneDetailsPrivate::getTimeOffset(int index) const
+{
+    if (index >= 0 && index < timeZoneOffsets.size())
+    {
+        return timeZoneOffsets[index];
+    }
+    return 0;
+}
+
+int MegaTimeZoneDetailsPrivate::getDefault() const
+{
+    return defaultTimeZone;
 }
 
 }

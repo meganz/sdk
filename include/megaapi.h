@@ -74,6 +74,7 @@ class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
 class MegaFolderInfo;
+class MegaTimeZoneDetails;
 class MegaApi;
 
 class MegaSemaphore;
@@ -2099,6 +2100,7 @@ class MegaRequest
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
+            TYPE_GET_PSA, TYPE_FETCH_TIMEZONE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -2614,6 +2616,21 @@ class MegaRequest
          * @return Details related to the MEGA Achievements of this account
          */
         virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
+
+        /**
+         * @brief Get details about timezones and the current default
+         *
+         * This value is valid for these request in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::fetchTimeZone - Details about timezones and the current default
+         *
+         * In any other case, this function returns NULL.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return Details about timezones and the current default
+         */
+        virtual MegaTimeZoneDetails *getMegaTimeZoneDetails() const;
 
         /**
          * @brief Returns the tag of a transfer related to the request
@@ -3242,6 +3259,70 @@ public:
      * @return Total size of file versions inside the folder
      */
     virtual long long getVersionsSize() const;
+};
+
+/**
+ * @brief Provides information about timezones and the current default
+ *
+ * This object is related to results of the function MegaApi::fetchTimeZone
+ *
+ * Objects of this class aren't live, they contain details about timezones and the
+ * default when the object is created, they are immutable.
+ *
+ */
+class MegaTimeZoneDetails
+{
+public:
+    virtual ~MegaTimeZoneDetails();
+
+    /**
+     * @brief Creates a copy of this MegaTimeZoneDetails object
+     *
+     * The resulting object is fully independent of the source MegaTimeZoneDetails,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaTimeZoneDetails object
+     */
+    virtual MegaTimeZoneDetails *copy() const;
+
+    /**
+     * @brief Returns the number of timezones in this object
+     *
+     * @return Number of timezones in this object
+     */
+    virtual int getNumTimeZones() const;
+
+    /**
+     * @brief Returns the timezone at an index
+     *
+     * The MegaTimeZoneDetails object retains the ownership of the returned string.
+     * It will be only valid until the MegaTimeZoneDetails object is deleted.
+     *
+     * @param index Index in the list (it must be lower than MegaTimeZoneDetails::getNumTimeZones)
+     * @return Timezone at an index
+     */
+    virtual const char *getTimeZone(int index) const;
+
+    /**
+     * @brief Returns the current time offset of the time zone at an index, respect to UTC (in seconds, it can be negative)
+     *
+     * @param index Index in the list (it must be lower than MegaTimeZoneDetails::getNumTimeZones)
+     * @return Current time offset of the time zone at an index, respect to UTC (in seconds, it can be negative)
+     * @see MegaTimeZoneDetails::getTimeZone
+     */
+    virtual int getTimeOffset(int index) const;
+
+    /**
+     * @brief Get the default time zone index
+     *
+     * If there isn't any good default known, this function will return -1
+     *
+     * @return Default time zone index, or -1 if there isn't a good default known
+     */
+    virtual int getDefault() const;
 };
 
 /**
@@ -5236,7 +5317,9 @@ class MegaApi
             USER_ATTR_PWD_REMINDER = 15,        // private - char array
             USER_ATTR_DISABLE_VERSIONS = 16,    // private - byte array
             USER_ATTR_CONTACT_LINK_VERIFICATION = 17,     // private - byte array
-            USER_ATTR_RICH_PREVIEWS = 18         // private - byte array
+            USER_ATTR_RICH_PREVIEWS = 18,        // private - byte array
+            USER_ATTR_RUBBISH_TIME = 19,         // private - byte array
+            USER_ATTR_LAST_PSA = 20              // private - char array
         };
 
         enum {
@@ -5840,6 +5923,19 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void multiFactorAuthCancelAccount(const char* pin, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Fetch details related to time zones and the current default
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_TIMEZONE.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaTimeZoneDetails - Returns details about timezones and the current default
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchTimeZone(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a MEGA account
@@ -6534,6 +6630,49 @@ class MegaApi
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+         *
+         * After the PSA has been accepted or dismissed by the user, app should
+         * use MegaApi::setPSA to notify API servers about this event and
+         * do not get the same PSA again in the next call to this function.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PSA.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
+         * - MegaRequest::getName - Returns the title of the PSA
+         * - MegaRequest::getText - Returns the text of the PSA
+         * - MegaRequest::getFile - Returns the URL of the image of the PSA
+         * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
+         * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
+         *
+         * If there isn't any new PSA to show, onRequestFinish will be called with the error
+         * code MegaError::API_ENOENT
+         *
+         * @param listener MegaRequestListener to track this request
+         * @see MegaApi::setPSA
+         */
+        void getPSA(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value MegaApi::USER_ATTR_LAST_PSA
+         * - MegaRequest::getText - Returns the id passed in the first parameter (as a string)
+         *
+         * @param id Identifier of the PSA
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getPSA
+         */
+        void setPSA(int id, MegaRequestListener *listener = NULL);
+
+
+        /**
          * @brief Retuns the email of the currently open account
          *
          * If the MegaApi object isn't logged in or the email isn't available,
@@ -7193,8 +7332,10 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
-         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7246,6 +7387,8 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7294,8 +7437,10 @@ class MegaApi
          * Get the password-reminder-dialog information (private, non-encrypted)
          * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
          * Get whether user has versions disabled or enabled (private, non-encrypted)
-         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7411,6 +7556,8 @@ class MegaApi
          * Set the public key Ed25519 of the user (public)
          * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
          * Set the public key Cu25519 of the user (public)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -7435,8 +7582,10 @@ class MegaApi
          * Get the last interaction of the contacts of the user (private)
          * MegaApi::USER_ATTR_KEYRING = 7
          * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
-         * MegaApi::USER_ATTR_RICH_PREVIEWS = 17
+         * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
          * Get whether user generates rich-link messages or not (private)
+         * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+         * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -7975,6 +8124,38 @@ class MegaApi
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the number of days for rubbish-bin cleaning scheduler
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RUBBISH_TIME
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler.
+         * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
+         * Any negative value means that the configured value is invalid.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the number of days for rubbish-bin cleaning scheduler
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_RUBBISH_TIME
+         * - MegaRequest::getNumber - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+         *
+         * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
+         * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Change the password of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
@@ -8146,6 +8327,8 @@ class MegaApi
          *
          * @note Event types are restricted to the following ranges:
          *  - MEGAchat: [99000, 99150)
+         *  - Android:  [99200, 99300)
+         *  - iOS:      [99300, 99400)
          *  - MEGA SDK: [99400, 99500)
          *  - MEGAsync: [99500, 99600)
          */
@@ -8246,6 +8429,24 @@ class MegaApi
         void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
 
         /**
+         * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
+
+        /**
          * @brief Upload a file or a folder with a custom modification time
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
@@ -8315,6 +8516,20 @@ class MegaApi
          * @param listener MegaTransferListener to track this transfer
          */
         void startDownloadWithData(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+         * @param node MegaNode that identifies the file or folder
+         * @param localPath Destination path for the file or folder
+         * If this path is a local folder, it must end with a '\' or '/' character and the file name
+         * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+         * one of these characters, the file will be downloaded to a file in that path.
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startDownloadWithTopPriority(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Start an streaming download for a file in MEGA

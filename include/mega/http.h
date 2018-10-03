@@ -149,7 +149,7 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // timestamp of last data received (across all connections)
     dstime lastdata;
-
+    
     // download speed
     SpeedController downloadSpeedController;
     m_off_t downloadSpeed;
@@ -242,6 +242,9 @@ struct MEGA_API HttpReq
     // while this request is in flight, points to the application's HttpIO
     // object - NULL otherwise
     HttpIO* httpio;
+
+    // identify different channels from different MegaClients etc in the log
+    string logname;
 
     // set url and content type for subsequent requests
     void setreq(const char*, contenttype_t);

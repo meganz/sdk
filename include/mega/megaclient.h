@@ -357,7 +357,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, bool skipdupes = false);
+    bool startxfer(direction_t, File*, bool skipdupes = false, bool startfirst = false);
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 
@@ -1209,6 +1209,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc();
@@ -1262,6 +1263,9 @@ public:
 
     // binary session ID
     string sid;
+
+    // distinguish activity from different MegaClients in logs
+    string clientname;
 
     // apply keys
     int applykeys();
@@ -1364,7 +1368,12 @@ public:
     // multi-factor authentication disable
     void multifactorauthdisable(const char*);
 
+    // fetch time zone
+    void fetchtimezone();
+
     void keepmealive(int, bool enable = true);
+
+    void getpsa();
 
     // achievements enabled for the account
     bool achievements_enabled;

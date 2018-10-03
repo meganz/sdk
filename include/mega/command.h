@@ -1016,6 +1016,22 @@ public:
     CommandMultiFactorAuthDisable(MegaClient*, const char*);
 };
 
+class MEGA_API CommandGetPSA : public Command
+{
+public:
+    void procresult();
+
+    CommandGetPSA(MegaClient*);
+};
+
+class MEGA_API CommandFetchTimeZone : public Command
+{
+public:
+    void procresult();
+
+    CommandFetchTimeZone(MegaClient*, const char *timezone, const char *timeoffset);
+};
+
 } // namespace
 
 #endif

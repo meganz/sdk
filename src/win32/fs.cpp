@@ -80,7 +80,7 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
     {
         DWORD e = GetLastError();
         retry = WinFileSystemAccess::istransient(e);
-        LOG_err << "SetFilePointerEx failed for writting. Error: " << e;
+        LOG_err << "SetFilePointerEx failed for writing. Error: " << e;
         return false;
     }
 
@@ -783,7 +783,7 @@ bool WinFileSystemAccess::renamelocal(string* oldname, string* newname, bool rep
     if (!r)
     {
         DWORD e = GetLastError();
-        if (SimpleLogger::logCurrentLevel >= logWarning)
+        if (SimpleLogger::logCurrentLevel >= logWarning && !skip_errorreport)
         {
             string utf8oldname;
             client->fsaccess->local2path(oldname, &utf8oldname);

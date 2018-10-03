@@ -816,9 +816,54 @@ void MegaClient::multifactorauthdisable(const char *pin)
     reqs.add(new CommandMultiFactorAuthDisable(this, pin));
 }
 
+void MegaClient::fetchtimezone()
+{
+    string timeoffset;
+    m_time_t rawtime = m_time(NULL);
+    if (rawtime != -1)
+    {
+        struct tm lt, ut, it;
+        memset(&lt, 0, sizeof(struct tm));
+        memset(&ut, 0, sizeof(struct tm));
+        memset(&it, 0, sizeof(struct tm));
+        m_localtime(rawtime, &lt);
+        m_gmtime(rawtime, &ut);
+        if (memcmp(&ut, &it, sizeof(struct tm)) && memcmp(&lt, &it, sizeof(struct tm)))
+        {
+            m_time_t local_time = m_mktime(&lt);
+            m_time_t utc_time = m_mktime(&ut);
+            if (local_time != -1 && utc_time != -1)
+            {
+                double foffset = difftime(local_time, utc_time);
+                int offset = int(fabs(foffset));
+                if (offset <= 43200)
+                {
+                    ostringstream oss;
+                    oss << ((foffset >= 0) ? "+" : "-");
+                    oss << (offset / 3600) << ":";
+                    int minutes = ((offset % 3600) / 60);
+                    if (minutes < 10)
+                    {
+                        oss << "0";
+                    }
+                    oss << minutes;
+                    timeoffset = oss.str();
+                }
+            }
+        }
+    }
+
+    reqs.add(new CommandFetchTimeZone(this, "", timeoffset.c_str()));
+}
+
 void MegaClient::keepmealive(int type, bool enable)
 {
     reqs.add(new CommandKeepMeAlive(this, type, enable));
+}
+
+void MegaClient::getpsa()
+{
+    reqs.add(new CommandGetPSA(this));
 }
 
 // set warn level
@@ -861,6 +906,33 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
             if (skipfolders)
             {
                 return found;
+            }
+        }
+    }
+
+    return found;
+}
+
+// returns all the matching child nodes by UTF-8 name
+vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipfolders)
+{
+    string nname = name;
+    vector<Node*> found;
+
+    if (!p || p->type == FILENODE)
+    {
+        return found;
+    }
+
+    fsaccess->normalize(&nname);
+
+    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    {
+        if (nname == (*it)->displayname())
+        {
+            if ((*it)->type == FILENODE || !skipfolders)
+            {
+                found.push_back(*it);
             }
         }
     }
@@ -1641,6 +1713,7 @@ void MegaClient::exec()
                 {
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
+                    pendingcs->logname = clientname + "cs ";
 
                     reqs.get(pendingcs->out);
 
@@ -1809,6 +1882,7 @@ void MegaClient::exec()
         if (!pendingsc && *scsn && btsc.armed())
         {
             pendingsc = new HttpReq();
+            pendingsc->logname = clientname + "sc ";
 
             if (scnotifyurl.size())
             {
@@ -3370,8 +3444,6 @@ void MegaClient::logout()
 
 void MegaClient::locallogout()
 {
-    int i;
-
     delete sctable;
     sctable = NULL;
     pendingsccommit = false;
@@ -3437,7 +3509,7 @@ void MegaClient::locallogout()
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
-        for (i = 2; i--; )
+        for (int i = 2; i--; )
         {
     	    for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
     	    {
@@ -11140,7 +11212,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
                 // create local path, add to LocalNodes and recurse
                 else if (fsaccess->mkdirlocal(localpath))
                 {
-                    LocalNode* ll = l->sync->checkpath(l, localpath, &localname);
+                    LocalNode* ll = l->sync->checkpath(l, localpath, &localname, NULL, true);
 
                     if (ll && ll != (LocalNode*)~0)
                     {
@@ -11514,7 +11586,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                     m_time_t currentTime = m_time();
                     if (currentVersion->ctime > currentTime + 30)
                     {
-                        // with more than 30 seconds of detecteed clock drift,
+                        // with more than 30 seconds of detected clock drift,
                         // we don't apply any version rate control for now
                         LOG_err << "Incorrect local time detected";
                     }
@@ -12173,7 +12245,7 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
+bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfirst)
 {
     if (!f->transfer)
     {
@@ -12242,6 +12314,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 filecacheadd(f);
             }
             app->file_added(f);
+
+            if (startfirst)
+            {
+                transferlist.movetofirst(t);
+            }
 
             if (overquotauntil && overquotauntil > Waiter::ds)
             {
@@ -12338,7 +12415,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes)
                 filecacheadd(f);
             }
 
-            transferlist.addtransfer(t);
+            transferlist.addtransfer(t, startfirst);
             app->transfer_added(t);
             app->file_added(f);
             looprequested = true;
@@ -12583,7 +12660,7 @@ void MegaClient::userfeedbackstore(const char *message)
 
 void MegaClient::sendevent(int event, const char *desc)
 {
-    LOG_warn << "Event " << event << ": " << desc;
+    LOG_warn << clientname << "Event " << event << ": " << desc;
     reqs.add(new CommandSendEvent(this, event, desc));
 }
 

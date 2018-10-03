@@ -327,8 +327,14 @@ struct MEGA_API MegaApp
     // multi-factor authentication disable
     virtual void multifactorauthdisable_result(error) { }
 
+    // fetch time zone
+    virtual void fetchtimezone_result(error, vector<string>*, vector<int>*, int) { }
+
     // keep me alive command for mobile apps
     virtual void keepmealive_result (error) { }
+
+    // get the current PSA
+    virtual void getpsa_result (error, int, string*, string*, string*, string*, string*) { }
 
     virtual ~MegaApp() { }
 };

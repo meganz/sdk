@@ -1169,27 +1169,27 @@ void CommandMoveNode::procresult()
                         do {
                             if (n == syncn)
                             {
-                                if(syncop)
+                                if (syncop)
                                 {
                                     Sync* sync = NULL;
-                                    for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
                                     {
-                                        if((*it)->tag == tag)
+                                        if ((*its)->tag == tag)
                                         {
-                                            sync = (*it);
+                                            sync = (*its);
                                             break;
                                         }
                                     }
 
-                                    if(sync)
+                                    if (sync)
                                     {
-                                        if (n->type == FOLDERNODE)
+                                        if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, n);
+                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
                                         }
                                     }
                                 }
@@ -6231,6 +6231,149 @@ void CommandMultiFactorAuthDisable::procresult()
     {
         client->json.storeobject();
         client->app->multifactorauthdisable_result(API_EINTERNAL);
+    }
+}
+
+CommandGetPSA::CommandGetPSA(MegaClient *client)
+{
+    cmd("gpsa");
+
+    tag = client->reqtag;
+}
+
+void CommandGetPSA::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->getpsa_result((error)client->json.getint(), 0, NULL, NULL, NULL, NULL, NULL);
+    }
+
+    int id = 0;
+    string temp;
+    string title, text, imagename, imagepath;
+    string buttonlink, buttontext;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.getint();
+                break;
+            case 't':
+                client->json.storeobject(&temp);
+                Base64::atob(temp, title);
+                break;
+            case 'd':
+                client->json.storeobject(&temp);
+                Base64::atob(temp, text);
+                break;
+            case MAKENAMEID3('i', 'm', 'g'):
+                client->json.storeobject(&imagename);
+                break;
+            case 'l':
+                client->json.storeobject(&buttonlink);
+                break;
+            case 'b':
+                client->json.storeobject(&temp);
+                Base64::atob(temp, buttontext);
+                break;
+            case MAKENAMEID3('d', 's', 'p'):
+                client->json.storeobject(&imagepath);
+                break;
+            case EOO:
+                imagepath.append(imagename);
+                imagepath.append(".png");
+                return client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse get PSA response";
+                    return client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
+                }
+                break;
+        }
+    }
+}
+
+CommandFetchTimeZone::CommandFetchTimeZone(MegaClient *client, const char *timezone, const char* timeoffset)
+{
+    cmd("ftz");
+    arg("utz", timezone);
+    arg("uo", timeoffset);
+
+    tag = client->reqtag;
+}
+
+void CommandFetchTimeZone::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->fetchtimezone_result((error)client->json.getint(), NULL, NULL, -1);
+    }
+
+    string currenttz;
+    int currentto;
+    vector<string> timezones;
+    vector<int> timeoffsets;
+    string defaulttz;
+    int defaulttzindex = -1;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID7('c', 'h', 'o', 'i', 'c', 'e', 's'):
+                if (client->json.enterobject())
+                {
+                    while (client->json.storeobject(&currenttz))
+                    {
+                        currentto = int(client->json.getint());
+                        timezones.push_back(currenttz);
+                        timeoffsets.push_back(currentto);
+                    }
+                    client->json.leaveobject();
+                }
+                else if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse fetch time zone response";
+                    return client->app->fetchtimezone_result(API_EINTERNAL, NULL, NULL, -1);
+                }
+                break;
+
+            case MAKENAMEID7('d', 'e', 'f', 'a', 'u', 'l', 't'):
+                if (client->json.isnumeric())
+                {
+                    client->json.getint();
+                }
+                else
+                {
+                    client->json.storeobject(&defaulttz);
+                }
+                break;
+
+            case EOO:
+                if (!defaulttz.empty())    // default received as string
+                {
+                    for (int i = 0; i < (int)timezones.size(); i++)
+                    {
+                        if (timezones[i] == defaulttz)
+                        {
+                            defaulttzindex = i;
+                            break;
+                        }
+                    }
+                }
+                return client->app->fetchtimezone_result(API_OK, &timezones, &timeoffsets, defaulttzindex);
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Failed to parse fetch time zone response";
+                    return client->app->fetchtimezone_result(API_EINTERNAL, NULL, NULL, -1);
+                }
+                break;
+        }
     }
 }
 

@@ -419,6 +419,7 @@
     <ClInclude Include="..\MShare.h" />
     <ClInclude Include="..\MShareList.h" />
     <ClInclude Include="..\MStringList.h" />
+    <ClInclude Include="..\MTimeZoneDetails.h" />
     <ClInclude Include="..\MTransfer.h" />
     <ClInclude Include="..\MTransferData.h" />
     <ClInclude Include="..\MTransferList.h" />
@@ -500,6 +501,7 @@
     <ClCompile Include="..\MShare.cpp" />
     <ClCompile Include="..\MShareList.cpp" />
     <ClCompile Include="..\MStringList.cpp" />
+    <ClCompile Include="..\MTimeZoneDetails.cpp" />
     <ClCompile Include="..\MTransfer.cpp" />
     <ClCompile Include="..\MTransferData.cpp" />
     <ClCompile Include="..\MTransferList.cpp" />

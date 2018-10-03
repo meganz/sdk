@@ -458,7 +458,7 @@ MegaNode *MegaNode::unserialize(const char *d)
 
     string data;
     data.resize(strlen(d) * 3 / 4 + 3);
-    data.resize(Base64::atob(d, (byte*)data.data(), data.size()));
+    data.resize(Base64::atob(d, (byte*)data.data(), int(data.size())));
 
     return MegaNodePrivate::unserialize(&data);
 }
@@ -696,6 +696,11 @@ MegaPricing *MegaRequest::getPricing() const
 }
 
 MegaAchievementsDetails *MegaRequest::getMegaAchievementsDetails() const
+{
+    return NULL;
+}
+
+MegaTimeZoneDetails *MegaRequest::getMegaTimeZoneDetails() const
 {
     return NULL;
 }
@@ -1396,6 +1401,16 @@ void MegaApi::keepMeAlive(int type, bool enable, MegaRequestListener *listener)
     pImpl->keepMeAlive(type, enable, listener);
 }
 
+void MegaApi::setPSA(int id, MegaRequestListener *listener)
+{
+    pImpl->setPSA(id, listener);
+}
+
+void MegaApi::getPSA(MegaRequestListener *listener)
+{
+    pImpl->getPSA(listener);
+}
+
 char *MegaApi::getMyEmail()
 {
     return pImpl->getMyEmail();
@@ -1555,6 +1570,11 @@ void MegaApi::multiFactorAuthChangeEmail(const char *email, const char *pin, Meg
 void MegaApi::multiFactorAuthCancelAccount(const char *pin, MegaRequestListener *listener)
 {
     pImpl->multiFactorAuthCancelAccount(pin, listener);
+}
+
+void MegaApi::fetchTimeZone(MegaRequestListener *listener)
+{
+    pImpl->fetchTimeZone(listener);
 }
 
 void MegaApi::addEntropy(char *data, unsigned int size)
@@ -2069,6 +2089,16 @@ void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *lis
     pImpl->setRichLinkWarningCounterValue(value, listener);
 }
 
+void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
+{
+    pImpl->getRubbishBinAutopurgePeriod(listener);
+}
+
+void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
+{
+    pImpl->setRubbishBinAutopurgePeriod(days, listener);
+}
+
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
@@ -2323,12 +2353,17 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, (const char *)NULL, -1, 0, appData, false, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, appData, false, listener);
 }
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, (const char *)NULL, -1, 0, appData, isSourceTemporary, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, appData, isSourceTemporary, listener);
+}
+
+void MegaApi::startUploadWithTopPriority(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
+{
+    pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, appData, isSourceTemporary, listener);
 }
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
@@ -2338,7 +2373,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, (const char *)NULL, mtime, 0, NULL, isSourceTemporary, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, NULL, isSourceTemporary, listener);
 }
 
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
@@ -2348,7 +2383,7 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(localPath, parent, fileName, mtime, 0, NULL, false, listener);
+    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, NULL, false, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -2358,7 +2393,12 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
 
 void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startDownload(node, localPath, 0, 0, 0, appData, listener);
+    pImpl->startDownload(false, node, localPath, 0, 0, 0, appData, listener);
+}
+
+void MegaApi::startDownloadWithTopPriority(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
+{
+    pImpl->startDownload(true, node, localPath, 0, 0, 0, appData, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -2939,7 +2979,7 @@ char *MegaApi::base64ToBase32(const char *base64)
         return NULL;
     }
 
-    unsigned binarylen = strlen(base64) * 3/4 + 4;
+    unsigned binarylen = unsigned(strlen(base64) * 3/4 + 4);
     byte *binary = new byte[binarylen];
     binarylen = Base64::atob(base64, binary, binarylen);
 
@@ -2957,7 +2997,7 @@ char *MegaApi::base32ToBase64(const char *base32)
         return NULL;
     }
 
-    unsigned binarylen = strlen(base32) * 5/8 + 8;
+    unsigned binarylen = unsigned(strlen(base32) * 5/8 + 8);
     byte *binary = new byte[binarylen];
     binarylen = Base32::atob(base32, binary, binarylen);
 
@@ -4205,7 +4245,7 @@ char* MegaApi::strdup(const char* buffer)
 {
     if(!buffer)
         return NULL;
-    int tam = strlen(buffer)+1;
+    int tam = int(strlen(buffer)+1);
     char *newbuffer = new char[tam];
     memcpy(newbuffer, buffer, tam);
     return newbuffer;
@@ -4227,7 +4267,7 @@ void MegaApi::utf16ToUtf8(const wchar_t* utf16data, int utf16size, string* utf8s
     utf8string->resize(WideCharToMultiByte(CP_UTF8, 0, utf16data,
         utf16size,
         (char*)utf8string->data(),
-        utf8string->size() + 1,
+        int(utf8string->size() + 1),
         NULL, NULL));
 }
 
@@ -4240,14 +4280,14 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
         return;
     }
 
-    int size = strlen(utf8data) + 1;
+    int size = int(strlen(utf8data) + 1);
 
     // make space for the worst case
     utf16string->resize(size * sizeof(wchar_t));
 
     // resize to actual result
     utf16string->resize(sizeof(wchar_t) * MultiByteToWideChar(CP_UTF8, 0, utf8data, size, (wchar_t*)utf16string->data(),
-                                                              utf16string->size() / sizeof(wchar_t) + 1));
+                                                              int(utf16string->size() / sizeof(wchar_t) + 1)));
     if (utf16string->size())
     {
         utf16string->resize(utf16string->size() - 1);
@@ -5353,6 +5393,36 @@ long long MegaFolderInfo::getCurrentSize() const
 long long MegaFolderInfo::getVersionsSize() const
 {
     return 0;
+}
+
+MegaTimeZoneDetails::~MegaTimeZoneDetails()
+{
+
+}
+
+MegaTimeZoneDetails *MegaTimeZoneDetails::copy() const
+{
+    return NULL;
+}
+
+int MegaTimeZoneDetails::getNumTimeZones() const
+{
+    return 0;
+}
+
+const char *MegaTimeZoneDetails::getTimeZone(int index) const
+{
+    return NULL;
+}
+
+int MegaTimeZoneDetails::getTimeOffset(int index) const
+{
+    return 0;
+}
+
+int MegaTimeZoneDetails::getDefault() const
+{
+    return -1;
 }
 
 }

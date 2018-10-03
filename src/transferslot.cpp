@@ -545,7 +545,7 @@ void TransferSlot::doio(MegaClient* client)
 
                                 p += reqs[i]->size;
 
-                                LOG_debug << "Writting data asynchronously at " << downloadRequest->dlpos;
+                                LOG_debug << "Writing data asynchronously at " << downloadRequest->dlpos;
                                 asyncIO[i] = fa->asyncfwrite(downloadRequest->buf, unsigned(downloadRequest->bufpos), downloadRequest->dlpos);
                                 reqs[i]->status = REQ_ASYNCIO;
                             }
