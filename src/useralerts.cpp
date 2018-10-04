@@ -1047,6 +1047,7 @@ void UserAlerts::clear()
         delete *i;
     }
     alerts.clear();
+    useralertnotify.clear();
     begincatchup = false;
     catchupdone = false;
     catchup_last_timestamp = 0;

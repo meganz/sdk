@@ -3524,8 +3524,6 @@ void MegaClient::locallogout()
         delete *it;
     }
 
-    useralerts.clear();
-
     queuedfa.clear();
     activefa.clear();
     pendinghttp.clear();
@@ -10637,6 +10635,7 @@ void MegaClient::purgenodesusersabortsc()
         chats.erase(it++);
     }
     chatnotify.clear();
+    useralerts.clear();
 
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
