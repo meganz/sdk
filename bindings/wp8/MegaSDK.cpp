@@ -2,7 +2,7 @@
 * @file MegaSDK.cpp
 * @brief Allows to control a MEGA account or a public folder.
 *
-* (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+* (c) 2013-2018 by Mega Limited, Auckland, New Zealand
 *
 * This file is part of the MEGA SDK - Client Access Engine.
 *
@@ -1288,6 +1288,16 @@ void MegaSDK::setPSA(int id, MRequestListenerInterface^ listener)
 void MegaSDK::setPSA(int id)
 {
     megaApi->setPSA(id);
+}
+
+void MegaSDK::acknowledgeUserAlerts(MRequestListenerInterface^ listener)
+{
+    megaApi->acknowledgeUserAlerts(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::acknowledgeUserAlerts()
+{
+    megaApi->acknowledgeUserAlerts();
 }
 
 String^ MegaSDK::getMyEmail()
@@ -3451,6 +3461,11 @@ MUser^ MegaSDK::getContact(String^ email)
 
     MegaUser *user = megaApi->getContact(utf8email.c_str());
     return user ? ref new MUser(user, true) : nullptr;
+}
+
+MUserAlertList^ MegaSDK::getUserAlerts()
+{
+    return ref new MUserAlertList(megaApi->getUserAlerts(), true);
 }
 
 MNodeList^ MegaSDK::getInShares(MUser^ user)
