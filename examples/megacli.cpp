@@ -570,6 +570,41 @@ void DemoApp::users_updated(User** u, int count)
     }
 }
 
+bool notifyAlerts = true;
+
+void printAlert(UserAlert::Base& b)
+{
+    char timebuf[32];
+    struct tm* tmptr = localtime(&b.timestamp);
+    if (tmptr)
+    {
+        strftime(timebuf, sizeof timebuf, "%c", tmptr);
+    }
+    else
+    {
+        strcmp(timebuf, "<null>");
+    }
+
+    string header, title;
+    b.text(header, title, client);
+    cout << "**alert " << b.id << ": " << header << " - " << title << " [at " << timebuf << "]" << " seen: " << b.seen << endl;
+}
+
+void DemoApp::useralerts_updated(UserAlert::Base** b, int count)
+{
+    if (b && notifyAlerts)
+    {
+        for (int i = 0; i < count; ++i)
+        {
+            if (!b[i]->seen)
+            {
+                printAlert(*b[i]);
+            }
+        }
+    }
+}
+
+
 #ifdef ENABLE_CHAT
 
 void DemoApp::chatcreate_result(TextChat *chat, error e)
@@ -722,10 +757,7 @@ void DemoApp::printChatInformation(TextChat *chat)
         return;
     }
 
-    char hstr[sizeof(handle) * 4 / 3 + 4];
-    Base64::btoa((const byte *)&chat->id, sizeof(handle), hstr);
-
-    cout << "Chat ID: " << hstr << endl;
+    cout << "Chat ID: " << Base64Str<sizeof(handle)>(chat->id) << endl;
     cout << "\tOwn privilege level: " << DemoApp::getPrivilegeString(chat->priv) << endl;
     cout << "\tCreation ts: " << chat->ts << endl;
     cout << "\tChat shard: " << chat->shard << endl;
@@ -752,7 +784,7 @@ void DemoApp::printChatInformation(TextChat *chat)
         cout << "\t\t(userhandle)\t(privilege level)" << endl;
         for (unsigned i = 0; i < chat->userpriv->size(); i++)
         {
-            Base64::btoa((const byte *)&chat->userpriv->at(i).first, sizeof(handle), hstr);
+            Base64Str<sizeof(handle)> hstr(chat->userpriv->at(i).first);
             cout << "\t\t\t" << hstr;
             cout << "\t" << DemoApp::getPrivilegeString(chat->userpriv->at(i).second) << endl;
         }
@@ -947,10 +979,7 @@ void DemoApp::share_result(error e)
                 Node *n = client->nodebyhandle(hlink);
                 if (!n)
                 {
-                    char buf[sizeof hlink * 4 / 3 + 3];
-                    Base64::btoa((byte *)&hlink, sizeof hlink, buf);
-
-                    cout << "Node was not found. (" << buf << ")" << endl;
+                    cout << "Node was not found. (" << Base64Str<sizeof hlink>(hlink) << ")" << endl;
 
                     hlink = UNDEF;
                     del = ets = 0;
@@ -995,9 +1024,7 @@ void DemoApp::setpcr_result(handle h, error e, opcactions_t action)
         } 
         else
         {
-            char buffer[12];
-            Base64::btoa((byte*)&h, MegaClient::PCRHANDLE, buffer);
-            cout << "Outgoing pending contact request succeeded, id: " << buffer << endl;
+            cout << "Outgoing pending contact request succeeded, id: " << Base64Str<MegaClient::PCRHANDLE>(h) << endl;
         }
     }
 }
@@ -1527,9 +1554,8 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
 
                 if (handles_on)
                 {
-                    char handlestr[12];
-                    Base64::btoa((byte*)&n->nodehandle, MegaClient::NODEHANDLE, handlestr);
-                    cout << " " << handlestr;
+                    Base64Str<MegaClient::NODEHANDLE> handlestr(n->nodehandle);
+                    cout << " " << handlestr.chars;
                 }
 
                 const char* p;
@@ -1556,6 +1582,12 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
 
             case FOLDERNODE:
                 cout << "folder";
+
+                if (handles_on)
+                {
+                    Base64Str<MegaClient::NODEHANDLE> handlestr(n->nodehandle);
+                    cout << " " << handlestr.chars;
+                }
 
                 if(n->outshares)
                 {
@@ -1659,58 +1691,8 @@ static void local_dumptree(const fs::directory_entry& de, int recurse, int depth
 
 static void nodepath(handle h, string* path)
 {
-    path->clear();
-
-    if (h == client->rootnodes[0])
-    {
-        *path = "/";
-        return;
-    }
-
     Node* n = client->nodebyhandle(h);
-
-    while (n)
-    {
-        switch (n->type)
-        {
-            case FOLDERNODE:
-                path->insert(0, n->displayname());
-
-                if (n->inshare)
-                {
-                    path->insert(0, ":");
-                    if (n->inshare->user)
-                    {
-                        path->insert(0, n->inshare->user->email);
-                    }
-                    else
-                    {
-                        path->insert(0, "UNKNOWN");
-                    }
-                    return;
-                }
-                break;
-
-            case INCOMINGNODE:
-                path->insert(0, "//in");
-                return;
-
-            case ROOTNODE:
-                return;
-
-            case RUBBISHNODE:
-                path->insert(0, "//bin");
-                return;
-
-            case TYPE_UNKNOWN:
-            case FILENODE:
-                path->insert(0, n->displayname());
-        }
-
-        path->insert(0, "/");
-
-        n = n->parent;
-    }
+    *path = n ? n->displaypath() : "";
 }
 
 appfile_list appxferq[2];
@@ -1944,14 +1926,14 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     // which is clearer in the help output - one line or 3?
-    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"), text("autoresume"))));
+    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
     //p->Add(sequence(text("login"), param("exportedfolderurl#key")));
     //p->Add(sequence(text("login"), param("session")));
     p->Add(sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
     p->Add(sequence(text("confirm")));
-    p->Add(sequence(text("session"), opt(text("autoresume"))));
+    p->Add(sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(sequence(text("mount")));
     p->Add(sequence(text("ls"), opt(flag("-R")), opt(remoteFSFolder(client, &cwd))));
     p->Add(sequence(text("cd"), opt(remoteFSFolder(client, &cwd))));
@@ -1984,21 +1966,22 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("sync"), opt(sequence(localFSPath(), either(remoteFSPath(client, &cwd, "dst"), param("cancelslot"))))));
 #endif
     p->Add(sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
-    p->Add(sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(param("dstemail"), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
+    p->Add(sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
     p->Add(sequence(text("ipc"), param("handle"), either(text("a"), text("d"), text("i")))); 
     p->Add(sequence(text("showpcr")));
-    p->Add(sequence(text("users"), opt(sequence(param("email"), text("del")))));
-    p->Add(sequence(text("getua"), param("attrname"), opt(param("email"))));
+    p->Add(sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
+    p->Add(sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
     p->Add(sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(sequence(text("delua"), param("attrname")));
 #endif
+    p->Add(sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
     p->Add(sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(sequence(text("whoami")));
     p->Add(sequence(text("passwd")));
-    p->Add(sequence(text("reset"), param("email"), opt(text("mk"))));
+    p->Add(sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(sequence(text("recover"), param("recoverylink")));
     p->Add(sequence(text("cancel"), opt(param("cancellink"))));
     p->Add(sequence(text("email"), opt(either(param("newemail"), param("emaillink")))));
@@ -2018,9 +2001,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("test")));
 #ifdef ENABLE_CHAT
     p->Add(sequence(text("chats")));
-    p->Add(sequence(text("chatc"), param("group"), repeat(opt(sequence(param("email"), either(text("ro"), text("sta"), text("mod")))))));
-    p->Add(sequence(text("chati"), param("chatid"), param("email"), either(text("ro"), text("sta"), text("mod"))));
-    p->Add(sequence(text("chatr"), param("chatid"), opt(param("email"))));
+    p->Add(sequence(text("chatc"), param("group"), repeat(opt(sequence(contactEmail(client), either(text("ro"), text("sta"), text("mod")))))));
+    p->Add(sequence(text("chati"), param("chatid"), contactEmail(client), either(text("ro"), text("sta"), text("mod"))));
+    p->Add(sequence(text("chatr"), param("chatid"), opt(contactEmail(client))));
     p->Add(sequence(text("chatu"), param("chatid")));
     p->Add(sequence(text("chatup"), param("chatid"), param("userhandle"), either(text("ro"), text("sta"), text("mod"))));
     p->Add(sequence(text("chatpu")));
@@ -2239,7 +2222,7 @@ static void process_line(char* l)
 
 #if defined(WIN32) && defined(NO_READLINE)
             using namespace ::mega::autocomplete;
-            ACState acs = prepACState(l, strlen(l), autocompleteTemplate, static_cast<WinConsole*>(console)->getAutocompleteStyle());
+            ACState acs = prepACState(l, strlen(l), static_cast<WinConsole*>(console)->getAutocompleteStyle());
             for (unsigned i = 0; i < acs.words.size(); ++i)
             {
                 // any quotes or partial quoting are stripped out already
@@ -3371,9 +3354,10 @@ static void process_line(char* l)
                         {
                             if (words.size() > 1)
                             {
-                                if (words.size() == 2 && words[1] == "autoresume")
+                                if ((words.size() == 2 || words.size() == 3) && words[1] == "autoresume")
                                 {
-                                    ifstream file("megacli_autoresume_session");
+                                    string filename = "megacli_autoresume_session" + (words.size() == 3 ? "_" + words[2] : "");
+                                    ifstream file(filename.c_str());
                                     string session;
                                     file >> session;
                                     if (file.is_open() && session.size())
@@ -3387,7 +3371,7 @@ static void process_line(char* l)
                                             return client->login(sessionraw, size);
                                         }
                                     }
-                                    cout << "Failed to get a valid session id from file megacli_autoresume_session" << endl;
+                                    cout << "Failed to get a valid session id from file " << filename << endl;
                                 }
                                 else if (strchr(words[1].c_str(), '@'))
                                 {
@@ -4769,6 +4753,70 @@ static void process_line(char* l)
                         }
                         return;
                     }
+                    else if (words[0] == "alerts")
+                    {
+                        bool shownew = false, showold = false, toggleNotify = false;
+                        size_t showN = 0; 
+                        if (words.size() == 1)
+                        {
+                            shownew = showold = true;
+                        }
+                        else if (words.size() == 2)
+                        {
+                            if (words[1] == "seen")
+                            {
+                                client->useralerts.acknowledgeAll();
+                                return;
+                            }
+                            else if (words[1] == "notify")
+                            {
+                                notifyAlerts = !notifyAlerts;
+                                cout << "notification of alerts is now " << (notifyAlerts ? "on" : "off") << endl;
+                                return;
+                            }
+                            else if (words[1] == "old")
+                            {
+                                showold = true;
+                            }
+                            else if (words[1] == "new")
+                            {
+                                shownew = true;
+                            }
+                            else if (atoi(words[1].c_str()) > 0)
+                            {
+                                showN = atoi(words[1].c_str());
+                            }
+                        }
+                        if (showold || shownew || showN > 0)
+                        {
+                            UserAlerts::Alerts::const_iterator i = client->useralerts.alerts.begin();
+                            if (showN)
+                            {
+                                size_t n = 0;
+                                for (UserAlerts::Alerts::const_reverse_iterator i = client->useralerts.alerts.rbegin(); i != client->useralerts.alerts.rend(); ++i, ++n)
+                                {
+                                    showN += ((*i)->relevant || n >= showN) ? 0 : 1;
+                                }
+                            }
+
+                            size_t n = client->useralerts.alerts.size();
+                            for (; i != client->useralerts.alerts.end(); ++i)
+                            {
+                                if ((*i)->relevant)
+                                {
+                                    if (--n < showN || shownew && !(*i)->seen || showold && (*i)->seen)
+                                    {
+                                        printAlert(**i);
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            cout << "       alerts [new|old|N|notify|seen]" << endl;
+                        }
+                        return;
+                    }
 #ifdef USE_FILESYSTEM
                     else if (words[0] == "lmkdir")
                     {
@@ -4839,21 +4887,20 @@ static void process_line(char* l)
 
                         if (size > 0)
                         {
-                            char buf[sizeof session * 4 / 3 + 3];
+                            Base64Str<sizeof session> buf(session, size);
 
-                            Base64::btoa(session, size, buf);
-
-                            if (words.size() == 2 && words[1] == "autoresume")
+                            if ((words.size() == 2 || words.size() == 3) && words[1] == "autoresume")
                             {
-                                ofstream file("megacli_autoresume_session");
+                                string filename = "megacli_autoresume_session" + (words.size() == 3 ? "_" + words[2] : "");
+                                ofstream file(filename.c_str());
                                 if (file.fail() || !file.is_open())
                                 {
-                                    cout << "could not open file: megacli_autoresume_session" << endl;
+                                    cout << "could not open file: " << filename << endl;
                                 }
                                 else
                                 {
                                     file << buf;
-                                    cout << "Your (secret) session is saved in file 'megacli_autoresume_session'" << endl;
+                                    cout << "Your (secret) session is saved in file '" << filename << "'" << endl;
                                 }
                             }
                             else
@@ -4946,10 +4993,8 @@ static void process_line(char* l)
                                 ostringstream os;
                                 os << setw(34) << it->second->targetemail;
 
-                                char buffer[12];
-                                Base64::btoa((byte*)&(it->second->id), MegaClient::PCRHANDLE, buffer);
                                 os << "\t(id: ";
-                                os << buffer;
+                                os << Base64Str<MegaClient::PCRHANDLE>(it->second->id);
                                 
                                 os << ", ts: ";
                                 
@@ -4963,10 +5008,8 @@ static void process_line(char* l)
                                 ostringstream os;
                                 os << setw(34) << it->second->originatoremail;
 
-                                char buffer[12];
-                                Base64::btoa((byte*)&(it->second->id), MegaClient::PCRHANDLE, buffer);
                                 os << "\t(id: ";
-                                os << buffer;
+                                os << Base64Str<MegaClient::PCRHANDLE>(it->second->id);
                                 
                                 os << ", ts: ";
                                 
@@ -5563,13 +5606,9 @@ void DemoApp::confirmemaillink_result(error e)
 
 void DemoApp::ephemeral_result(handle uh, const byte* pw)
 {
-    char buf[SymmCipher::KEYLENGTH * 4 / 3 + 3];
-
     cout << "Ephemeral session established, session ID: ";
-    Base64::btoa((byte*) &uh, MegaClient::USERHANDLE, buf);
-    cout << buf << "#";
-    Base64::btoa(pw, SymmCipher::KEYLENGTH, buf);
-    cout << buf << endl;
+    cout << Base64Str<MegaClient::USERHANDLE>(uh) << "#";
+    cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
 
     client->fetchnodes();
 }
@@ -5639,25 +5678,10 @@ void DemoApp::exportnode_result(handle h, handle ph)
     if ((n = client->nodebyhandle(h)))
     {
         string path;
-        char node[9];
-        char key[FILENODEKEYLENGTH * 4 / 3 + 3];
-
         nodepath(h, &path);
-
         cout << "Exported " << path << ": ";
 
-        Base64::btoa((byte*) &ph, MegaClient::NODEHANDLE, node);
-
-        // the key
-        if (n->type == FILENODE)
-        {
-            Base64::btoa((const byte*) n->nodekey.data(), FILENODEKEYLENGTH, key);
-        }
-        else if (n->sharekey)
-        {
-            Base64::btoa(n->sharekey->key, FOLDERNODEKEYLENGTH, key);
-        }
-        else
+        if (n->type != FILENODE && !n->sharekey)
         {
             cout << "No key available for exported folder" << endl;
 
@@ -5666,7 +5690,15 @@ void DemoApp::exportnode_result(handle h, handle ph)
             return;
         }
 
-        cout << "https://mega.co.nz/#" << (n->type ? "F" : "") << "!" << node << "!" << key << endl;
+        cout << "https://mega.co.nz/#" << (n->type ? "F" : "") << "!" << Base64Str<MegaClient::NODEHANDLE>(ph) << "!";
+        if (n->type == FILENODE)
+        {
+            cout << Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey.data()) << endl;
+        }
+        else
+        {
+            cout << Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key) << endl;
+        }
     }
     else
     {
@@ -5709,13 +5741,11 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
 
     // check if the file is decryptable
     string attrstring;
-    string keystring;
 
     attrstring.resize(a->length()*4/3+4);
     attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
 
     SymmCipher nodeKey;
-    keystring.assign((char*)key,FILENODEKEYLENGTH);
     nodeKey.setkey(key, FILENODE);
 
     byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(), int(attrstring.size()));
@@ -6146,15 +6176,14 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
                 ts = it->mru;
                 strftime(timebuf2, sizeof timebuf, "%c", localtime(&ts));
 
-                char id[12];
-                Base64::btoa((byte*)&(it->id), MegaClient::SESSIONHANDLE, id);
+                Base64Str<MegaClient::SESSIONHANDLE> id(it->id);
 
                 if (it->current)
                 {
                     printf("\t* Current Session\n");
                 }
                 printf("\tSession ID: %s\n\tSession start: %s\n\tMost recent activity: %s\n\tIP: %s\n\tCountry: %.2s\n\tUser-Agent: %s\n\t-----\n",
-                        id, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
+                        id.chars, timebuf, timebuf2, it->ip.c_str(), it->country, it->useragent.c_str());
             }
         }
 
@@ -6199,8 +6228,7 @@ void DemoApp::sessions_killed(handle sessionid, error e)
     }
     else
     {
-        char id[12];
-        Base64::btoa((byte*)&(sessionid), MegaClient::SESSIONHANDLE, id);
+        Base64Str<MegaClient::SESSIONHANDLE> id(sessionid);
         cout << "Session with id " << id << " has been killed" << endl;
     }
 }

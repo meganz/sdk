@@ -36,6 +36,7 @@
 #include "pubkeyaction.h"
 #include "pendingcontactrequest.h"
 #include "mediafileattribute.h"
+#include "useralerts.h"
 
 namespace mega {
 
@@ -673,6 +674,9 @@ public:
     // number of ongoing asynchronous fopen
     int asyncfopens;
 
+    // list of notifications to display to the user; includes items already seen
+    UserAlerts useralerts;
+
     // true if user data is cached
     bool cachedug;
 
@@ -761,9 +765,10 @@ private:
     void sc_userattr();
     bool sc_shares();
     bool sc_upgrade();
+    void sc_paymentreminder();
     void sc_opc();
     void sc_ipc();
-    void sc_upc();
+    void sc_upc(bool incoming);
     void sc_ph();
     void sc_se();
 #ifdef ENABLE_CHAT
@@ -772,6 +777,7 @@ private:
     void sc_chatflags();
 #endif
     void sc_uac();
+    void sc_la();
 
     void init();
 
@@ -991,7 +997,7 @@ public:
 
     void purgenodes(node_vector* = NULL);
     void purgeusers(user_vector* = NULL);
-    bool readusers(JSON*);
+    bool readusers(JSON*, bool actionpackets);
 
     user_vector usernotify;
     void notifyuser(User*);
@@ -1374,6 +1380,9 @@ public:
     void keepmealive(int, bool enable = true);
 
     void getpsa();
+
+    // tells the API the user has seen existing alerts
+    void acknowledgeuseralerts();
 
     // achievements enabled for the account
     bool achievements_enabled;

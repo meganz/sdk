@@ -1570,6 +1570,247 @@ int MegaUserPrivate::isOwnChange()
     return tag;
 }
 
+MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
+    : id(b->id)
+    , seen(b->seen)
+    , relevant(b->relevant)
+    , type(-1)
+    , userHandle(UNDEF)
+    , nodeHandle(UNDEF)
+{
+    b->text(heading, title, mc);
+    timestamps.push_back(b->timestamp);
+
+    switch (b->type)
+    {
+    case UserAlert::type_ipc:
+    {
+        UserAlert::IncomingPendingContact* p = static_cast<UserAlert::IncomingPendingContact*>(b);
+        if (p->requestWasDeleted)
+        {
+            type = TYPE_INCOMINGPENDINGCONTACT_CANCELLED;
+        }
+        else if (p->requestWasReminded)
+        {
+            type = TYPE_INCOMINGPENDINGCONTACT_REMINDER;
+        }
+        else
+        {
+            type = type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
+        }
+        userHandle = p->userHandle;
+        email = p->userEmail;
+    }
+    break;
+    case UserAlert::type_c:
+    {
+        UserAlert::ContactChange* p = static_cast<UserAlert::ContactChange*>(b);
+        switch (p->action)
+        {
+        case 0: type = TYPE_CONTACTCHANGE_DELETEDYOU; break;
+        case 1: type = TYPE_CONTACTCHANGE_CONTACTESTABLISHED; break;
+        case 2: type = TYPE_CONTACTCHANGE_ACCOUNTDELETED; break;
+        case 3: type = TYPE_CONTACTCHANGE_BLOCKEDYOU; break;
+        }
+        userHandle = p->userHandle;
+        email = p->userEmail;
+    }
+    break;
+    case UserAlert::type_upci:
+    {
+        UserAlert::UpdatedPendingContactIncoming* p = static_cast<UserAlert::UpdatedPendingContactIncoming*>(b);
+        switch (p->action)
+        {
+        case 1: type = TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED; break;
+        case 2: type = TYPE_UPDATEDPENDINGCONTACTINCOMING_ACCEPTED; break;
+        case 3: type = TYPE_UPDATEDPENDINGCONTACTINCOMING_DENIED; break;
+        }
+        userHandle = p->userHandle;
+        email = p->userEmail;
+    }
+    break;
+    case UserAlert::type_upco:
+    {
+        UserAlert::UpdatedPendingContactOutgoing* p = static_cast<UserAlert::UpdatedPendingContactOutgoing*>(b);
+        switch (p->action)
+        {
+        case 1: type = TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED; break;
+        case 2: type = TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED; break;
+        case 3: type = TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED; break;
+        }
+        userHandle = p->userHandle;
+        email = p->userEmail;
+    }
+    break;
+    case UserAlert::type_share:
+    {
+        UserAlert::NewShare* p = static_cast<UserAlert::NewShare*>(b);
+        type = TYPE_NEWSHARE;
+        userHandle = p->userHandle;
+        email = p->userEmail;
+    }
+    break;
+    case UserAlert::type_dshare:
+    {
+        UserAlert::DeletedShare* p = static_cast<UserAlert::DeletedShare*>(b);
+        type = TYPE_DELETEDSHARE;
+        userHandle = p->userHandle;
+        email = p->userEmail;
+    }
+    break;
+    case UserAlert::type_put:
+    {
+        UserAlert::NewSharedNodes* p = static_cast<UserAlert::NewSharedNodes*>(b);
+        type = TYPE_NEWSHAREDNODES;
+        userHandle = p->userHandle;
+        email = p->userEmail;
+        numbers.push_back(p->folderCount);
+        numbers.push_back(p->fileCount);
+    }
+    break;
+    case UserAlert::type_d:
+    {
+        UserAlert::RemovedSharedNode* p = static_cast<UserAlert::RemovedSharedNode*>(b);
+        type = TYPE_REMOVEDSHAREDNODES;
+        userHandle = p->userHandle;
+        email = p->userEmail;
+        numbers.push_back(p->itemsNumber);
+    }
+    break;
+    case UserAlert::type_psts:
+    {
+        UserAlert::Payment* p = static_cast<UserAlert::Payment*>(b);
+        type = p->success ? TYPE_PAYMENT_SUCCEEDED : TYPE_PAYMENT_FAILED;
+        extraStrings.push_back(p->getProPlanName());
+    }
+    break;
+    case UserAlert::type_pses:
+    {
+        UserAlert::PaymentReminder* p = static_cast<UserAlert::PaymentReminder*>(b);
+        type = TYPE_PAYMENTREMINDER;
+        timestamps.push_back(p->expiryTime);
+    }
+    break;
+    case UserAlert::type_ph:
+    {
+        UserAlert::Takedown* p = static_cast<UserAlert::Takedown*>(b);
+        if (p->isTakedown)
+        {
+            type = TYPE_TAKEDOWN;
+        } 
+        else if (p->isReinstate)
+        {
+            type = TYPE_TAKEDOWN_REINSTATED;
+        }
+        nodeHandle = p->nodeHandle;
+        Node* node = mc->nodebyhandle(nodeHandle);
+        if (node)
+        {
+            nodePath = node->displaypath();
+        }
+    }
+    break;
+    }
+}
+
+MegaUserAlert *MegaUserAlertPrivate::copy() const
+{
+    return new MegaUserAlertPrivate(*this);
+}
+
+unsigned MegaUserAlertPrivate::getId() const
+{
+    return id;
+}
+
+bool MegaUserAlertPrivate::getSeen() const
+{
+    return seen;
+}
+
+bool MegaUserAlertPrivate::getRelevant() const
+{
+    return relevant;
+}
+
+int MegaUserAlertPrivate::getType() const
+{
+    return type;
+}
+
+const char *MegaUserAlertPrivate::getTypeString() const
+{
+    switch (type)
+    {
+    case TYPE_INCOMINGPENDINGCONTACT_REQUEST:           return "NEW_CONTACT_REQUEST";
+    case TYPE_INCOMINGPENDINGCONTACT_CANCELLED:         return "CONTACT_REQUEST_CANCELLED";
+    case TYPE_INCOMINGPENDINGCONTACT_REMINDER:          return "CONTACT_REQUEST_REMINDED";
+    case TYPE_CONTACTCHANGE_DELETEDYOU:                 return "CONTACT_DISCONNECTED";
+    case TYPE_CONTACTCHANGE_CONTACTESTABLISHED:         return "CONTACT_ESTABLISHED";
+    case TYPE_CONTACTCHANGE_ACCOUNTDELETED:             return "CONTACT_ACCOUNTDELETED";
+    case TYPE_CONTACTCHANGE_BLOCKEDYOU:                 return "CONTACT_BLOCKED";
+    case TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED:    return "YOU_IGNORED_CONTACT";
+    case TYPE_UPDATEDPENDINGCONTACTINCOMING_ACCEPTED:   return "YOU_ACCEPTED_CONTACT";
+    case TYPE_UPDATEDPENDINGCONTACTINCOMING_DENIED:     return "YOU_DENIED_CONTACT";
+    case TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED:   return "CONTACT_ACCEPTED_YOU";
+    case TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED:     return "CONTACT_DENIED_YOU";
+    case TYPE_NEWSHARE:                                 return "NEW_SHARE";
+    case TYPE_DELETEDSHARE:                             return "SHARE_UNSHARED";
+    case TYPE_NEWSHAREDNODES:                           return "NEW_NODES_IN_SHARE";
+    case TYPE_REMOVEDSHAREDNODES:                       return "NODES_IN_SHARE_REMOVED";
+    case TYPE_PAYMENT_SUCCEEDED:                        return "PAYMENT_SUCCEEDED";
+    case TYPE_PAYMENT_FAILED:                           return "PAYMENT_FAILED";
+    case TYPE_PAYMENTREMINDER:                          return "PAYMENT_REMINDER";
+    case TYPE_TAKEDOWN:                                 return "TAKEDOWN";
+    case TYPE_TAKEDOWN_REINSTATED:                      return "TAKEDOWN_REINSTATED";
+    }
+    return "<new type>";
+}
+
+MegaHandle MegaUserAlertPrivate::getUserHandle() const
+{
+    return userHandle;
+}
+
+MegaHandle MegaUserAlertPrivate::getNodeHandle() const
+{
+    return nodeHandle;
+}
+
+const char* MegaUserAlertPrivate::getEmail() const
+{
+    return email.empty() ? NULL : email.c_str();
+}
+
+const char*MegaUserAlertPrivate::getPath() const
+{
+    return  nodePath.empty() ? NULL : nodePath.c_str();
+}
+
+const char *MegaUserAlertPrivate::getHeading() const
+{
+    return heading.c_str();
+}
+
+const char *MegaUserAlertPrivate::getTitle() const
+{
+    return title.c_str();
+}
+
+int64_t MegaUserAlertPrivate::getNumber(unsigned index) const
+{
+    return index < numbers.size() ? numbers[index] : -1;
+}
+
+int64_t MegaUserAlertPrivate::getTimestamp(unsigned index) const
+{
+    return index < timestamps.size() ? timestamps[index] : -1;
+}
+
+const char* MegaUserAlertPrivate::getString(unsigned index) const
+{
+    return index < extraStrings.size() ? extraStrings[index].c_str() : NULL;
+}
 
 MegaNode *MegaNodePrivate::fromNode(Node *node)
 {
@@ -3207,6 +3448,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_ABORT_CURRENT_BACKUP: return "ABORT_BACKUP";
         case TYPE_GET_PSA: return "GET_PSA";
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
+        case TYPE_USERALERT_ACKNOWLEDGE: return "TYPE_USERALERT_ACKNOWLEDGE";
     }
     return "UNKNOWN";
 }
@@ -3532,6 +3774,65 @@ int MegaUserListPrivate::size()
 {
 	return s;
 }
+
+MegaUserAlertListPrivate::MegaUserAlertListPrivate()
+{
+    list = NULL;
+    s = 0;
+}
+
+MegaUserAlertListPrivate::MegaUserAlertListPrivate(UserAlert::Base** newlist, int size, MegaClient* mc)
+{
+    list = NULL;
+    s = size;
+
+    if (!size)
+        return;
+
+    list = new MegaUserAlert*[size];
+    for (int i = 0; i < size; i++)
+    {
+        list[i] = new MegaUserAlertPrivate(newlist[i], mc);
+    }
+}
+
+MegaUserAlertListPrivate::MegaUserAlertListPrivate(const MegaUserAlertListPrivate &userList)
+{
+    s = userList.size();
+    list = s ? new MegaUserAlert*[s] : NULL;
+    for (int i = 0; i < s; ++i)
+    {
+        list[i] = userList.get(i)->copy();
+    }
+}
+
+MegaUserAlertListPrivate::~MegaUserAlertListPrivate()
+{
+    for (int i = 0; i < s; i++)
+    {
+        delete list[i];
+    }
+    delete[] list;
+}
+
+MegaUserAlertList *MegaUserAlertListPrivate::copy() const
+{
+    return new MegaUserAlertListPrivate(*this);
+}
+
+MegaUserAlert *MegaUserAlertListPrivate::get(int i) const
+{
+    if (!list || (i < 0) || (i >= s))
+        return NULL;
+
+    return list[i];
+}
+
+int MegaUserAlertListPrivate::size() const
+{
+    return s;
+}
+
 
 
 MegaShareListPrivate::MegaShareListPrivate()
@@ -8562,6 +8863,22 @@ MegaUser* MegaApiImpl::getContact(const char *uid)
 	return user;
 }
 
+MegaUserAlertList* MegaApiImpl::getUserAlerts()
+{
+    sdkMutex.lock();
+
+    vector<UserAlert::Base*> v;
+    v.reserve(client->useralerts.alerts.size());
+    for (UserAlerts::Alerts::iterator it = client->useralerts.alerts.begin(); it != client->useralerts.alerts.end(); ++it)
+    {
+        v.push_back(*it);
+    }
+    MegaUserAlertList *alertList = new MegaUserAlertListPrivate(v.data(), v.size(), client);
+
+    sdkMutex.unlock();
+
+    return alertList;
+}
 
 MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
 {
@@ -9181,6 +9498,13 @@ void MegaApiImpl::setPSA(int id, MegaRequestListener *listener)
     oss << id;
     string value = oss.str();
     setUserAttr(MegaApi::USER_ATTR_LAST_PSA, value.c_str(), listener);
+}
+
+void MegaApiImpl::acknowledgeUserAlerts(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_USERALERT_ACKNOWLEDGE, listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::disableGfxFeatures(bool disable)
@@ -11000,6 +11324,16 @@ void MegaApiImpl::users_updated(User** u, int count)
         fireOnUsersUpdate(NULL);
     }
     delete userList;
+}
+
+void MegaApiImpl::useralerts_updated(UserAlert::Base** b, int count)
+{
+    if (count)
+    {
+        MegaUserAlertList *userAlertList = b ? new MegaUserAlertListPrivate(b, count, client) : NULL;
+        fireOnUserAlertsUpdate(userAlertList);
+        delete userAlertList;
+    }
 }
 
 void MegaApiImpl::account_updated()
@@ -13102,6 +13436,19 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
     fireOnRequestFinish(request, MegaError(e));
 }
 
+void MegaApiImpl::acknowledgeuseralerts_result(error e)
+{
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_USERALERT_ACKNOWLEDGE)))
+        {
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
 void MegaApiImpl::sendsignuplink_result(error e)
 {
 	MegaError megaError(e);
@@ -13582,7 +13929,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError 
     transfer->setNotificationNumber(notificationNumber);
     transfer->setLastError(e);
 
-    if (e.getErrorCode())
+    if(e.getErrorCode())
     {
         LOG_warn << "Transfer (" << transfer->getTransferString() << ") finished with error: " << e.getErrorString()
                     << " File: " << transfer->getFileName();
@@ -13687,7 +14034,7 @@ bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
 	MegaTransferListener* listener = transfer->getListener();
 	if(listener)
     {
-		result = listener->onTransferData(api, transfer, transfer->getLastBytes(), transfer->getDeltaSize());
+		result = listener->onTransferData(api, transfer, transfer->getLastBytes(), size_t(transfer->getDeltaSize()));
     }
 
 	activeTransfer = NULL;
@@ -13708,6 +14055,22 @@ void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
     }
 
     activeUsers = NULL;
+}
+
+void MegaApiImpl::fireOnUserAlertsUpdate(MegaUserAlertList *userAlerts)
+{
+    activeUserAlerts = userAlerts;
+
+    for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
+    {
+        (*it++)->onUserAlertsUpdate(api, userAlerts);
+    }
+    for (set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end();)
+    {
+        (*it++)->onUserAlertsUpdate(api, userAlerts);
+    }
+
+    activeUserAlerts = NULL;
 }
 
 void MegaApiImpl::fireOnContactRequestsUpdate(MegaContactRequestList *requests)
@@ -15037,55 +15400,9 @@ char* MegaApiImpl::getNodePath(MegaNode *node)
         return NULL;
 	}
 
-	string path;
-	if (n->nodehandle == client->rootnodes[0])
-	{
-		path = "/";
-        sdkMutex.unlock();
-        return stringToArray(path);
-	}
-
-	while (n)
-	{
-		switch (n->type)
-		{
-		case FOLDERNODE:
-			path.insert(0,n->displayname());
-
-			if (n->inshare)
-			{
-				path.insert(0,":");
-				if (n->inshare->user) path.insert(0,n->inshare->user->email);
-				else path.insert(0,"UNKNOWN");
-                sdkMutex.unlock();
-                return stringToArray(path);
-			}
-			break;
-
-		case INCOMINGNODE:
-			path.insert(0,"//in");
-            sdkMutex.unlock();
-            return stringToArray(path);
-
-		case ROOTNODE:
-            sdkMutex.unlock();
-            return stringToArray(path);
-
-		case RUBBISHNODE:
-			path.insert(0,"//bin");
-            sdkMutex.unlock();
-            return stringToArray(path);
-
-		case TYPE_UNKNOWN:
-		case FILENODE:
-			path.insert(0,n->displayname());
-		}
-
-		path.insert(0,"/");
-
-        n = n->parent;
-	}
+    string path = n->displaypath();
     sdkMutex.unlock();
+
     return stringToArray(path);
 }
 
@@ -18753,6 +19070,11 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->getaccountachievements(request->getAchievementsDetails());
             }
+            break;
+        }
+        case MegaRequest::TYPE_USERALERT_ACKNOWLEDGE:
+        {
+            client->acknowledgeuseralerts();
             break;
         }
         default:

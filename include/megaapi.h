@@ -59,6 +59,7 @@ class MegaAchievementsDetails;
 class MegaPricing;
 class MegaNode;
 class MegaUser;
+class MegaUserAlert;
 class MegaContactRequest;
 class MegaShare;
 class MegaError;
@@ -70,6 +71,7 @@ class MegaSync;
 class MegaStringList;
 class MegaNodeList;
 class MegaUserList;
+class MegaUserAlertList;
 class MegaContactRequestList;
 class MegaShareList;
 class MegaTransferList;
@@ -1296,6 +1298,214 @@ class MegaUser
         virtual int isOwnChange();
 };
 
+
+/**
+* @brief Represents a user alert in MEGA.  
+* Alerts are the notifictions appearing under the bell in the webclient
+*
+* Objects of this class aren't live, they are snapshots of the state 
+* in MEGA when the object is created, they are immutable.
+*
+* MegaUserAlerts can be retrieved with MegaApi::getUserAlerts
+*
+*/
+class MegaUserAlert
+{
+public:
+
+    enum {
+        TYPE_INCOMINGPENDINGCONTACT_REQUEST,
+        TYPE_INCOMINGPENDINGCONTACT_CANCELLED,
+        TYPE_INCOMINGPENDINGCONTACT_REMINDER,
+        TYPE_CONTACTCHANGE_DELETEDYOU,
+        TYPE_CONTACTCHANGE_CONTACTESTABLISHED,
+        TYPE_CONTACTCHANGE_ACCOUNTDELETED,
+        TYPE_CONTACTCHANGE_BLOCKEDYOU,
+        TYPE_UPDATEDPENDINGCONTACTINCOMING_IGNORED,
+        TYPE_UPDATEDPENDINGCONTACTINCOMING_ACCEPTED,
+        TYPE_UPDATEDPENDINGCONTACTINCOMING_DENIED,
+        TYPE_UPDATEDPENDINGCONTACTOUTGOING_ACCEPTED,
+        TYPE_UPDATEDPENDINGCONTACTOUTGOING_DENIED,
+        TYPE_NEWSHARE,
+        TYPE_DELETEDSHARE,
+        TYPE_NEWSHAREDNODES,
+        TYPE_REMOVEDSHAREDNODES,
+        TYPE_PAYMENT_SUCCEEDED,
+        TYPE_PAYMENT_FAILED,
+        TYPE_PAYMENTREMINDER,
+        TYPE_TAKEDOWN,
+        TYPE_TAKEDOWN_REINSTATED,
+
+        TOTAL_OF_ALERT_TYPES
+    };
+
+    virtual ~MegaUserAlert();
+
+    /**
+    * @brief Creates a copy of this MegaUserAlert object.
+    *
+    * The resulting object is fully independent of the source MegaUserAlert,
+    * it contains a copy of all internal attributes, so it will be valid after
+    * the original object is deleted.
+    *
+    * You are the owner of the returned object
+    *
+    * @return Copy of the MegaUserAlert object
+    */
+    virtual MegaUserAlert *copy() const;
+
+    /**
+    * @brief Returns the id of the alert
+    * 
+    * The ids are assigned to alerts sequentially from program start, 
+    * however there may be gaps.   The id can be used to create an 
+    * association with a UI element in order to process updates in callbacks.
+    * 
+    * @return Type of alert associated with the object
+    */
+    virtual unsigned getId() const;
+
+    /**
+    * @brief Returns whether the alert has been acknowledged by this client or another
+    *
+    * @return Flag indicating whether the alert has been seen
+    */
+    virtual bool getSeen() const;
+
+    /**
+    * @brief Returns whether the alert is still relevant to the logged in user.
+    *
+    * An alert may be relevant initially but become non-relevant, eg. payment reminder.
+    * Alerts which are no longer relevant are usually removed from the visible list.
+    *
+    * @return Flag indicting whether the alert is still relevant
+    */
+    virtual bool getRelevant() const;
+
+    /**
+    * @brief Returns the type of alert associated with the object
+    * @return Type of alert associated with the object
+    */
+    virtual int getType() const;
+
+    /**
+    * @brief Returns a readable string that shows the type of alert
+    *
+    * This function returns a pointer to a statically allocated buffer.
+    * You don't have to free the returned pointer
+    *
+    * @return Readable string showing the type of alert
+    */
+    virtual const char *getTypeString() const;
+
+    /**
+    * @brief Returns the handle of a user related to the alert
+    *
+    * This value is valid for user related alerts.
+    *
+    * @return the associated user's handle, otherwise UNDEF
+    */
+    virtual MegaHandle getUserHandle() const;
+
+    /**
+    * @brief Returns the handle of a node related to the alert
+    *
+    * This value is valid for alerts that relate to a single node.
+    *
+    * @return the relevant node handle, or UNDEF if this alert does not have one.
+    */
+    virtual MegaHandle getNodeHandle() const;
+
+    /**
+    * @brief Returns an email related to the alert
+    *
+    * This value is valid for alerts that relate to another user, provided the
+    * user could be looked up at the time the alert arrived.  If it was not available,
+    * this function will return false and the client can request it via the userHandle.
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaUserAlert object is deleted.
+    *
+    * @return email string of the relevant user, or NULL if not available
+    */
+    virtual const char* getEmail() const;
+
+    /**
+    * @brief Returns the path of a file, folder, or node related to the alert
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaUserAlert object is deleted.
+    *
+    * This value is valid for those alerts that relate to a single path, provided
+    * it could be looked up from the cached nodes at the time the alert arrived.
+    * Otherwise, it may be obtainable via the nodeHandle.
+    *
+    * @return the path string if relevant and available, otherwise NULL
+    */
+    virtual const char* getPath() const;
+
+    /**
+    * @brief Returns the heading related to this alert
+    *
+    * The SDK retains the ownership of the returned value. They will be valid until
+    * the MegaUserAlert object is deleted.
+    *
+    * This value is valid for all alerts, and similar to the strings displayed in the
+    * webclient alerts.
+    *
+    * @return heading related to this alert.
+    */
+    virtual const char* getHeading() const;
+
+    /**
+    * @brief Returns the title related to this alert
+    *
+    * The SDK retains the ownership of the returned value. They will be valid until
+    * the MegaUserAlert object is deleted.
+    *
+    * This value is valid for all alerts, and similar to the strings displayed in the
+    * webclient alerts.
+    *
+    * @return title related to this alert.
+    */
+    virtual const char* getTitle() const;
+
+    /**
+    * @brief Returns a number related to this alert
+    *
+    * This value is valid for these alerts:
+    * TYPE_NEWSHAREDNODES (0: folder count  1: file count )
+    * TYPE_REMOVEDSHAREDNODES (0: item count )
+    *
+    * @return Number related to this request, or -1 if the index is invalid
+    */
+    virtual int64_t getNumber(unsigned index) const;
+
+    /**
+    * @brief Returns a timestamp related to this alert
+    *
+    * This value is valid for index 0 for all requests, indicating when the alert occurred.
+    * Additionally TYPE_PAYMENTREMINDER index 1 is the timestamp of the expiry of the period.
+    *
+    * @return Timestamp related to this request, or -1 if the index is invalid
+    */
+    virtual int64_t getTimestamp(unsigned index) const;
+
+    /**
+    * @brief Returns an additional string, related to the alert
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaUserAlert object is deleted.
+    *
+    * This value is currently only valid for 
+    *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
+    *   TYPE_PAYMENT_FAILED      index 0: the plan name
+    *
+    * @return a pointer to the string if index is valid; otherwise NULL
+    */
+    virtual const char* getString(unsigned index) const;
+};
+
 /**
  * @brief List of MegaHandle objects
  *
@@ -2046,6 +2256,45 @@ class MegaContactRequestList
 };
 
 /**
+* @brief List of MegaUserAlert objects
+*
+* A MegaUserAlertList has the ownership of the MegaUserAlert objects that it contains, so they will be
+* only valid until the MegaUserAlertList is deleted. If you want to retain a MegaUserAlert returned by
+* a MegaUserAlertList, use MegaUserAlert::copy.
+*
+* Objects of this class are immutable.
+*
+* @see MegaApi::getUserAlerts
+*
+*/
+class MegaUserAlertList
+{
+public:
+    virtual ~MegaUserAlertList();
+
+    virtual MegaUserAlertList *copy() const;
+
+    /**
+    * @brief Returns the MegaUserAlert at the position i in the MegaUserAlertList
+    *
+    * The MegaUserAlertList retains the ownership of the returned MegaUserAlert. It will be only valid until
+    * the MegaUserAlertList is deleted.
+    *
+    * If the index is >= the size of the list, this function returns NULL.
+    *
+    * @param i Position of the MegaUserAlert that we want to get for the list
+    * @return MegaUserAlert at the position i in the list
+    */
+    virtual MegaUserAlert* get(int i) const;
+
+    /**
+    * @brief Returns the number of MegaUserAlert objects in the list
+    * @return Number of MegaUserAlert objects in the list
+    */
+    virtual int size() const;
+};
+
+/**
  * @brief Provides information about an asynchronous request
  *
  * Most functions in this API are asynchonous, except the ones that never require to
@@ -2100,7 +2349,7 @@ class MegaRequest
             TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
-            TYPE_GET_PSA, TYPE_FETCH_TIMEZONE,
+            TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -4398,7 +4647,7 @@ class MegaRequestListener
  * when onRequestFinish is called by the SDK.
  *
  * For a synchronous usage, a client for this listener may wait() until the request is finished and doOnRequestFinish is completed.
- * Alternatively a trywait function is included which waits for an ammount of time or until the request is finished.
+ * Alternatively a trywait function is included which waits for an amount of time or until the request is finished.
  * Then it can gather the MegaError and MegaRequest objects to process the outcome of the request.
  *
  * @see MegaRequestListener
@@ -4593,7 +4842,7 @@ class MegaTransferListener
  * when onTransferFinish is called by the SDK.
  *
  * For a synchronous usage, a client for this listener may wait() until the transfer is finished and doOnTransferFinish is completed.
- * Alternatively a trywait function is included which waits for an ammount of time or until the transfer is finished.
+ * Alternatively a trywait function is included which waits for an amount of time or until the transfer is finished.
  * Then it can gather the MegaError and MegaTransfer objects to process the outcome of the transfer.
  *
  * @see MegaTransferListener
@@ -4702,6 +4951,19 @@ class MegaGlobalListener
          * @param users List that contains the new or updated contacts
          */
         virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
+
+        /**
+        * @brief This function is called when there are new or updated user alerts in the account
+        *
+        * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list and all the
+        * MegaUserAlert objects that it contains will be valid until this function returns. If you want to save the
+        * list, use MegaUserAlertList::copy. If you want to save only some of the MegaUserAlert objects, use MegaUserAlert::copy
+        * for those objects.
+        *
+        * @param api MegaApi object connected to the account
+        * @param users List that contains the new or updated contacts
+        */
+        virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
         /**
          * @brief This function is called when there are new or updated nodes in the account
@@ -4988,17 +5250,30 @@ class MegaListener
         virtual void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error);
 
         /**
-         * @brief This function is called when there are new or updated contacts in the account
-         *
-         * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
-         * MegaUser objects that it contains will be valid until this function returns. If you want to save the
-         * list, use MegaUserList::copy. If you want to save only some of the MegaUser objects, use MegaUser::copy
-         * for those objects.
-         *
-         * @param api MegaApi object connected to the account
-         * @param users List that contains the new or updated contacts
-         */
+        * @brief This function is called when there are new or updated contacts in the account
+        *
+        * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
+        * MegaUser objects that it contains will be valid until this function returns. If you want to save the
+        * list, use MegaUserList::copy. If you want to save only some of the MegaUser objects, use MegaUser::copy
+        * for those objects.
+        *
+        * @param api MegaApi object connected to the account
+        * @param users List that contains the new or updated contacts
+        */
         virtual void onUsersUpdate(MegaApi* api, MegaUserList *users);
+
+        /**
+        * @brief This function is called when there are new or updated user alerts in the account
+        *
+        * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list and all the
+        * MegaUserAlert objects that it contains will be valid until this function returns. If you want to save the
+        * list, use MegaUserAlertList::copy. If you want to save only some of the MegaUserAlert objects, use MegaUserAlert::copy
+        * for those objects.
+        *
+        * @param api MegaApi object connected to the account
+        * @param users List that contains the new or updated contacts
+        */
+        virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
         /**
          * @brief This function is called when there are new or updated nodes in the account
@@ -6671,6 +6946,16 @@ class MegaApi
          */
         void setPSA(int id, MegaRequestListener *listener = NULL);
 
+        /**
+        * @brief Command to acknowledge user alerts.  
+        *
+        * Other clients will be notified that alerts to this point have been seen.
+        *
+        * @param listener MegaRequestListener to track this request
+        *
+        * @see MegaApi::getUserAlerts
+        */
+        void acknowledgeUserAlerts(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Retuns the email of the currently open account
@@ -10266,6 +10551,15 @@ class MegaApi
          * @return MegaUser that has the email address, otherwise NULL
          */
         MegaUser* getContact(const char *user);
+
+        /**
+        * @brief Get all MegaUserAlerts for the logged in user
+        *
+        * You take the ownership of the returned value
+        *
+        * @return List of MegaUserAlert objects 
+        */
+        MegaUserAlertList* getUserAlerts();
 
         /**
          * @brief Get a list with all inbound sharings from one MegaUser

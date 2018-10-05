@@ -653,7 +653,7 @@ const char* Node::displayname() const
     // not yet decrypted
     if (attrstring)
     {
-        LOG_debug << "NO_KEY " << type << " " << size << " " << nodehandle;
+        LOG_debug << "NO_KEY " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
 #ifdef ENABLE_SYNC
         if (localnode)
         {

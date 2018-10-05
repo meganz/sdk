@@ -123,6 +123,10 @@ struct Proxy;
 struct PendingContactRequest;
 class TransferList;
 struct Achievement;
+namespace UserAlert
+{
+    struct Base;
+}
 
 #define EOO 0
 
@@ -336,6 +340,7 @@ typedef set<pair<handle, handle> > handlepair_set;
 // node and user vectors
 typedef vector<struct NodeCore*> nodecore_vector;
 typedef vector<struct User*> user_vector;
+typedef vector<UserAlert::Base*> useralert_vector;
 typedef vector<struct PendingContactRequest*> pcr_vector;
 
 // actual user data (indexed by userid)

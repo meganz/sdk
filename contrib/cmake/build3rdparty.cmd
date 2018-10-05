@@ -6,7 +6,8 @@ git clone https://github.com/Microsoft/vcpkg.git
 cd vcpkg
 CALL .\bootstrap-vcpkg.bat
 
-REM we use a lot of map iterators, and the checking is linear, causing big delays in node deletion for example
+REM Set up build triplets: x86-windows-static-uncheckediterators, x64-windows-static-uncheckediterators
+REM Since we use a lot of map iterators, and the checking is linear, causing big delays in node deletion for example
 copy .\triplets\x86-windows-static.cmake .\triplets\x86-windows-static-uncheckediterators.cmake
 copy .\triplets\x64-windows-static.cmake .\triplets\x64-windows-static-uncheckediterators.cmake
 echo #comment >> .\triplets\x86-windows-static-uncheckediterators.cmake
@@ -20,6 +21,7 @@ REM for libsodium for x86, currently some adjustments are needed:
 REM add this to its portfile.cmake's vcpkg_build_msbuild call (having moved that definition before it):  PLATFORM ${BUILD_ARCH}
 REM also edit its vcproj file to set Configuration->AllOptions->TargetMachine to x86 for the Win32 configurations.
 REM you can build everything first then make those adjustments and manually call vcpkg for libsodium x86.
+REM OR avoid using it by turning off ENABLE_CHAT and USE_SODIUM
 
 CALL :build_one zlib
 CALL :build_one cryptopp

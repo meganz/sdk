@@ -1789,6 +1789,28 @@ public class MegaApiJava {
     }
 
     /**
+     * Command to acknowledge user alerts.
+     *
+     * Other clients will be notified that alerts to this point have been seen.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void acknowledgeUserAlerts(MegaRequestListenerInterface listener){
+        megaApi.acknowledgeUserAlerts(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Command to acknowledge user alerts.
+     *
+     * Other clients will be notified that alerts to this point have been seen.
+     *
+     * @see MegaApi::getUserAlerts
+     */
+    public void acknowledgeUserAlerts(){
+        megaApi.acknowledgeUserAlerts();
+    }
+
+    /**
      * Returns the email of the currently open account.
      * 
      * If the MegaApi object is not logged in or the email is not available,
@@ -5890,7 +5912,18 @@ public class MegaApiJava {
     public MegaUser getContact(String email) {
         return megaApi.getContact(email);
     }
-    
+
+    /**
+     * Get all MegaUserAlerts for the logged in user
+     *
+     * You take the ownership of the returned value
+     *
+     * @return List of MegaUserAlert objects
+     */
+    public ArrayList<MegaUserAlert> getUserAlerts(){
+        return userAlertListToArray(megaApi.getUserAlerts());
+    }
+
     /**
      * Get a list with all inbound shares from one MegaUser.
      * 
@@ -7491,6 +7524,20 @@ public class MegaApiJava {
         ArrayList<MegaUser> result = new ArrayList<MegaUser>(userList.size());
         for (int i = 0; i < userList.size(); i++) {
             result.add(userList.get(i).copy());
+        }
+
+        return result;
+    }
+
+    static ArrayList<MegaUserAlert> userAlertListToArray(MegaUserAlertList userAlertList){
+
+        if (userAlertList == null){
+            return null;
+        }
+
+        ArrayList<MegaUserAlert> result = new ArrayList<MegaUserAlert>(userAlertList.size());
+        for (int i = 0; i < userAlertList.size(); i++){
+            result.add(userAlertList.get(i).copy());
         }
 
         return result;
