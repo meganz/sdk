@@ -1899,6 +1899,24 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (void)setPSAWithIdentifier:(NSInteger)identifier;
 
+/**
+ * @brief Command to acknowledge user alerts.
+ *
+ * Other clients will be notified that alerts to this point have been seen.
+ *
+ * @see [MEGASdk userAlertList]
+ */
+- (void)acknowledgeUserAlertsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Command to acknowledge user alerts.
+ *
+ * Other clients will be notified that alerts to this point have been seen.
+ *
+ * @see [MEGASdk userAlertList]
+ */
+- (void)acknowledgeUserAlerts;
+
 #pragma mark - Filesystem changes Requests
 
 /**
@@ -5115,6 +5133,15 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @return MEGAUser that has the email address, otherwise nil.
  */
 - (MEGAUser *)contactForEmail:(NSString *)email;
+
+/**
+ * @brief Get all MEGAUserAlerts for the logged in user
+ *
+ * You take the ownership of the returned value
+ *
+ * @return List of MEGAUserAlert objects
+ */
+- (MEGAUserAlertList *)userAlertList;
 
 /**
  * @brief Get a list with all inbound sharings from one MEGAUser.

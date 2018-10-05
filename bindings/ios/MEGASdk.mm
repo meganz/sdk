@@ -27,6 +27,7 @@
 #import "MEGATransferList+init.h"
 #import "MEGANodeList+init.h"
 #import "MEGAUserList+init.h"
+#import "MEGAUserAlertList+init.h"
 #import "MEGAError+init.h"
 #import "MEGAShareList+init.h"
 #import "MEGAContactRequest+init.h"
@@ -736,6 +737,14 @@ using namespace mega;
 
 - (void)setPSAWithIdentifier:(NSInteger)identifier {
     self.megaApi->setPSA((int)identifier);
+}
+
+- (void)acknowledgeUserAlertsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->acknowledgeUserAlerts([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)acknowledgeUserAlerts {
+    self.megaApi->acknowledgeUserAlerts();
 }
 
 #pragma mark - Filesystem changes Requests
@@ -1538,6 +1547,10 @@ using namespace mega;
     
     MegaUser *user = self.megaApi->getContact([email UTF8String]);
     return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
+}
+
+- (MEGAUserAlertList *)userAlertList {
+    return [[MEGAUserAlertList alloc] initWithMegaUserAlertList:self.megaApi->getUserAlerts() cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)inSharesForUser:(MEGAUser *)user {
