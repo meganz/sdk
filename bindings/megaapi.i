@@ -187,6 +187,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %typemap(javaclassmodifiers) mega::TransferList "class";
 %typemap(javaclassmodifiers) mega::ShareList "class";
 %typemap(javaclassmodifiers) mega::UserList "class";
+%typemap(javaclassmodifiers) mega::UserAlertList "class";
 
 %typemap(out) char*
 %{
@@ -384,6 +385,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaStringList::copy;
 %newobject mega::MegaAchievementsDetails::copy;
 %newobject mega::MegaTimeZoneDetails::copy;
+%newobject mega::MegaUserAlert::copy;
+%newobject mega::MegaUserAlertList::copy;
 %newobject mega::MegaAchievementsDetails::getAwardEmails;
 %newobject mega::MegaRequest::getPublicMegaNode;
 %newobject mega::MegaTransfer::getPublicMegaNode;
@@ -413,6 +416,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getContactRequestByHandle;
 %newobject mega::MegaApi::getContacts;
 %newobject mega::MegaApi::getContact;
+%newobject mega::MegaApi::getUserAlerts;
 %newobject mega::MegaApi::getInShares;
 %newobject mega::MegaApi::getInSharesList;
 %newobject mega::MegaApi::getOutShares;

@@ -6951,6 +6951,8 @@ class MegaApi
         *
         * Other clients will be notified that alerts to this point have been seen.
         *
+        * @param listener MegaRequestListener to track this request
+        *
         * @see MegaApi::getUserAlerts
         */
         void acknowledgeUserAlerts(MegaRequestListener *listener = NULL);
