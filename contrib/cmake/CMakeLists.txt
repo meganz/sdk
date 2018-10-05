@@ -4,27 +4,13 @@
 #  - generate a visual studio solution and projects, eg: cmake . -G "Visual Studio 15 2017"
 #  - or for 64 bit: cmake . -G "Visual Studio 15 2017 Win64"
 #  - or set your build options before VS project generation by using the gui, eg:  cmake-gui.exe .
-#  - open this CMakeLists.txt as a 'cmake project' with Visual Studio 2017 or beyond, and you can build and test/debug on windows or on Linux from one IDE (eg. a virtualbox linux instance on the same machine)
-#       (though it seems in order for it to copy the needed build tree, this file must be copied up one level (to the mega root dir) and opened as a CMake project in VS from there
 #  - you can set up to build both 32 bit and 64 bit this way:
 #       make subfolders '32' and '64' of this cmake folder
 #       execute 'cmake-gui  ..' in each.  Select the cmake folder as the 'source code' folder, and the appropriate 32 or 64 folder as 'where to build the binaries' folder
 #       for each cmake-gui configuration, choose the suitable 32/64 bit compiler, and corresponding setting for the build_64_bit variable.
 #       then Configure, Generate, Open Project (all buttons in the gui) for each.
 
-# updated to build mostly against dependent libraries that were built with vcpkg
-# you can very easily build those with commands like this in your 3rdParty folder:
-#git clone https://github.com/Microsoft/vcpkg.git
-#cd vcpkg
-#.\bootstrap-vcpkg.bat
-#.\vcpkg.exe install --triplet x64-windows-static zlib
-#.\vcpkg.exe install --triplet x64-windows-static cryptopp
-#.\vcpkg.exe install --triplet x64-windows-static libsodium  (x86 for windows, x64 for linux fail currently)
-#.\vcpkg.exe install --triplet x64-windows-static openssl
-#.\vcpkg.exe install --triplet x64-windows-static c-ares
-#.\vcpkg.exe install --triplet x64-windows-static curl    
-#.\vcpkg.exe install --triplet x64-windows-static sqlite3
-#.\vcpkg.exe install --triplet x64-windows-static libevent
+# check the ./build3rdParty.cmd script in this folder for how to (relatively) easily build the dependencies, typically in a 3rdParty folder outside of the SDK repo.
 
 cmake_minimum_required(VERSION 3.7.2)
 
@@ -42,7 +28,7 @@ set (USE_MEDIAINFO 1 CACHE TYPE BOOL)
 set (USE_FREEIMAGE 1 CACHE TYPE BOOL)
 set (USE_SODIUM 0 CACHE TYPE BOOL)
 set (ENABLE_SYNC 1 CACHE TYPE BOOL)
-set (ENABLE_CHAT 1 CACHE TYPE BOOL)
+set (ENABLE_CHAT 0 CACHE TYPE BOOL)
 set (HAVE_FFMPEG 1 CACHE TYPE BOOL)
 
 if (WIN32)
@@ -51,8 +37,8 @@ else(WIN32)
     set(NO_READLINE 0)
 endif(WIN32)
 
-if (ENABLE_CHAT AND NOT USE_SODUIM)
-    message(FATAL_ERROR "ENABLE_CHAT requires USE_SODIUM")
+if (ENABLE_CHAT AND NOT USE_SODIUM)
+    message(FATAL_ERROR "ENABLE_CHAT (${ENABLE_CHAT}) requires USE_SODIUM (${USE_SODIUM})")
 endif()
 
 if(build_64_bit)
@@ -64,7 +50,7 @@ endif(build_64_bit)
 IF(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
     if ("${Mega3rdPartyDir}" STREQUAL "")
-        set(Mega3rdPartyDir "${MegaDir}/../3pNew/3rdparty")
+        set(Mega3rdPartyDir "${MegaDir}/../3rdparty")
     endif()
 ELSE(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
@@ -302,6 +288,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/transferslot.cpp 
             ${MegaDir}/src/treeproc.cpp 
             ${MegaDir}/src/user.cpp 
+            ${MegaDir}/src/useralerts.cpp 
             ${MegaDir}/src/utils.cpp 
             ${MegaDir}/src/waiterbase.cpp 
             ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}  )

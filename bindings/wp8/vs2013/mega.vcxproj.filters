@@ -291,6 +291,12 @@
     <ClInclude Include="..\MTimeZoneDetails.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\MUserAlert.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
+    <ClInclude Include="..\MUserAlertList.h">
+      <Filter>Bindings</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\src\attrmap.cpp">
@@ -381,6 +387,9 @@
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\user.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\useralerts.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\src\utils.cpp">
@@ -525,6 +534,12 @@
       <Filter>Bindings</Filter>
     </ClCompile>
     <ClCompile Include="..\MTimeZoneDetails.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MUserAlert.cpp">
+      <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\MUserAlertList.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>
   </ItemGroup>

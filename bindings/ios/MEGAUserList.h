@@ -19,6 +19,7 @@
  * program.
  */
 #import <Foundation/Foundation.h>
+
 #import "MEGAUser.h"
 
 /**

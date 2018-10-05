@@ -1074,6 +1074,15 @@ public:
     CommandFetchTimeZone(MegaClient*, const char *timezone, const char *timeoffset);
 };
 
+class MEGA_API CommandSetLastAcknowledged: public Command
+{
+public:
+    void procresult();
+
+    CommandSetLastAcknowledged(MegaClient*);
+};
+
+
 } // namespace
 
 #endif

@@ -97,6 +97,9 @@ struct MEGA_API MegaApp
     // users have been added or updated
     virtual void users_updated(User**, int) { }
 
+    // alerts have been added or updated
+    virtual void useralerts_updated(UserAlert::Base**, int) { }
+
     // the account has been modified (upgraded/downgraded)
     virtual void account_updated() { }
 
@@ -339,6 +342,9 @@ struct MEGA_API MegaApp
 
     // get the current PSA
     virtual void getpsa_result (error, int, string*, string*, string*, string*, string*) { }
+
+    // result of the user alert acknowledge request
+    virtual void acknowledgeuseralerts_result(error) { }
 
     virtual ~MegaApp() { }
 };

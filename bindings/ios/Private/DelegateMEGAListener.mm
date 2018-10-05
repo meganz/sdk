@@ -24,6 +24,7 @@
 #import "MEGARequest+init.h"
 #import "MEGANodeList+init.h"
 #import "MEGAUserList+init.h"
+#import "MEGAUserAlertList+init.h"
 #import "MEGAContactRequestList+init.h"
 #import "MEGAEvent+init.h"
 
@@ -143,6 +144,20 @@ void DelegateMEGAListener::onUsersUpdate(mega::MegaApi *api, mega::MegaUserList 
             [tempListener onUsersUpdate:tempMegaSDK userList:(tempUserList ? [[MEGAUserList alloc] initWithUserList:tempUserList cMemoryOwn:YES] : nil)];
         });
         
+    }
+}
+
+void DelegateMEGAListener::onUserAlertsUpdate(mega::MegaApi *api, mega::MegaUserAlertList *userAlertList) {
+    if (listener && [listener respondsToSelector:@selector(onUserAlertsUpdate:userAlertList:)]) {
+        MegaUserAlertList *tempUserAlertList = NULL;
+        if (userAlertList) {
+            tempUserAlertList = userAlertList->copy();
+        }
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGADelegate> tempListener = this->listener;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [tempListener onUserAlertsUpdate:tempMegaSDK userAlertList:(tempUserAlertList ? [[MEGAUserAlertList alloc] initWithMegaUserAlertList:tempUserAlertList cMemoryOwn:YES] : nil)];
+        });
     }
 }
 

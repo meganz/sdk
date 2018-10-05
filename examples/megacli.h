@@ -117,6 +117,7 @@ struct DemoApp : public MegaApp
     virtual void confirmemaillink_result(error);
 
     void users_updated(User**, int);
+    void useralerts_updated(UserAlert::Base** ua, int count);
     void nodes_updated(Node**, int);
     void pcrs_updated(PendingContactRequest**, int);
     void nodes_current();

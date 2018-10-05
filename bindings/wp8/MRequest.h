@@ -2,7 +2,7 @@
 * @file MRequest.h
 * @brief Provides information about an asynchronous request.
 *
-* (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+* (c) 2013-2018 by Mega Limited, Auckland, New Zealand
 *
 * This file is part of the MEGA SDK - Client Access Engine.
 *
@@ -71,7 +71,7 @@ namespace mega
         TYPE_FOLDER_INFO, TYPE_RICH_LINK, TYPE_KEEP_ME_ALIVE, TYPE_MULTI_FACTOR_AUTH_CHECK,
         TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
         TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
-        TYPE_GET_PSA, TYPE_FETCH_TIMEZONE,
+        TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
         TOTAL_OF_REQUEST_TYPES
     };
 

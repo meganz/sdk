@@ -533,6 +533,44 @@ class MegaUserPrivate : public MegaUser
         int tag;
 };
 
+class MegaUserAlertPrivate : public MegaUserAlert
+{
+public:
+    MegaUserAlertPrivate(UserAlert::Base* user, MegaClient* mc);
+    //MegaUserAlertPrivate(const MegaUserAlertPrivate&); // default copy works for this type
+    virtual MegaUserAlert* copy() const;
+
+    virtual unsigned getId() const;
+    virtual bool getSeen() const;
+    virtual bool getRelevant() const;
+    virtual int getType() const;
+    virtual const char *getTypeString() const;
+    virtual MegaHandle getUserHandle() const;
+    virtual MegaHandle getNodeHandle() const;
+    virtual const char* getEmail() const;
+    virtual const char* getPath() const;
+    virtual const char* getHeading() const;
+    virtual const char* getTitle() const;
+    virtual int64_t getNumber(unsigned index) const;
+    virtual int64_t getTimestamp(unsigned index) const;
+    virtual const char* getString(unsigned index) const;
+
+protected:
+    unsigned id;
+    bool seen;
+    bool relevant;
+    int type;
+    string heading;
+    string title;
+    handle userHandle;
+    string email;
+    handle nodeHandle;
+    string nodePath;
+    vector<int64_t> numbers;
+    vector<int64_t> timestamps;
+    vector<string> extraStrings;
+};
+
 class MegaHandleListPrivate : public MegaHandleList
 {
 public:
@@ -1478,6 +1516,24 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
         int s;
 };
 
+class MegaUserAlertListPrivate : public MegaUserAlertList
+{
+public:
+    MegaUserAlertListPrivate();
+    MegaUserAlertListPrivate(UserAlert::Base** newlist, int size, MegaClient* mc);
+    MegaUserAlertListPrivate(const MegaUserAlertListPrivate &userList);
+    virtual ~MegaUserAlertListPrivate();
+    virtual MegaUserAlertList *copy() const;
+    virtual MegaUserAlert* get(int i) const;
+    virtual int size() const;
+
+protected:
+    MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);
+    MegaUserAlert** list;
+    int s;
+};
+
+
 struct MegaFile : public File
 {
     MegaFile();
@@ -1971,6 +2027,7 @@ class MegaApiImpl : public MegaApp
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
         MegaUser* getContact(const char* uid);
+        MegaUserAlertList* getUserAlerts();
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
@@ -2049,6 +2106,7 @@ class MegaApiImpl : public MegaApp
         void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
 
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
+        void acknowledgeUserAlerts(MegaRequestListener *listener = NULL);
 
         void getPSA(MegaRequestListener *listener = NULL);
         void setPSA(int id, MegaRequestListener *listener = NULL);
@@ -2230,6 +2288,7 @@ protected:
         void fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaError e);
         bool fireOnTransferData(MegaTransferPrivate *transfer);
         void fireOnUsersUpdate(MegaUserList *users);
+        void fireOnUserAlertsUpdate(MegaUserAlertList *alerts);
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnAccountUpdate();
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
@@ -2324,6 +2383,7 @@ protected:
         MegaError *activeError;
         MegaNodeList *activeNodes;
         MegaUserList *activeUsers;
+        MegaUserAlertList *activeUserAlerts;
         MegaContactRequestList *activeContactRequests;
         string appKey;
 
@@ -2364,7 +2424,8 @@ protected:
         virtual void fetchtimezone_result(error, vector<string>*, vector<int>*, int);
 
         // keep me alive feature
-        virtual void keepmealive_result (error);
+        virtual void keepmealive_result(error);
+        virtual void acknowledgeuseralerts_result(error);
 
         // get the current PSA
         virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);
@@ -2388,6 +2449,7 @@ protected:
         virtual void unlinkversions_result(error);
         virtual void nodes_updated(Node**, int);
         virtual void users_updated(User**, int);
+        virtual void useralerts_updated(UserAlert::Base**, int);
         virtual void account_updated();
         virtual void pcrs_updated(PendingContactRequest**, int);
 

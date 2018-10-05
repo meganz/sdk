@@ -133,6 +133,7 @@
 ../../src/transferslot.cpp
 ../../src/treeproc.cpp
 ../../src/user.cpp
+../../src/useralerts.cpp
 ../../src/utils.cpp
 ../../src/waiterbase.cpp
 ../../src/pendingcontactrequest.cpp

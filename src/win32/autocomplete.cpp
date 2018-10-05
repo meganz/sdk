@@ -565,6 +565,53 @@ MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::handle* curDirHa
 {
 }
 
+Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix)
+{
+    string path = s.word().s;
+
+    string::size_type t = path.find_first_of(":/");
+
+    if (t != string::npos && path[t] == '/')
+    {
+        return NULL;
+    }
+    else if (t != string::npos && path[t] == ':')
+    {
+        pathprefix = path.substr(0, t);
+    }
+
+    for (const user_map::value_type& u : client->users)
+    {
+        if (pathprefix.empty() && !u.second.sharing.empty())
+        {
+            string str;
+            s.addCompletion(u.second.email + ":", true);
+        }
+        else if (u.second.email == path.substr(0, t))
+        {
+            path.erase(0, t + 1);
+            t = path.find_first_of("/");
+            for (handle h : u.second.sharing)
+            {
+                if (Node* n = client->nodebyhandle(h))
+                {
+                    if (t == string::npos)
+                    {
+                        string str = pathprefix + ":" + n->displayname();
+                        s.addPathCompletion(str, "", n->type != FILENODE, '/', false);
+                    }
+                    else if (!strncmp(n->displayname(), path.c_str(), t))
+                    {
+                        (pathprefix += ":") += n->displayname();
+                        return n;
+                    }
+                }
+            }
+        }
+    }
+    return NULL;
+}
+
 bool MegaFS::addCompletions(ACState& s)
 { 
     if (s.atCursor())
@@ -575,12 +622,40 @@ bool MegaFS::addCompletions(ACState& s)
             std::string pathprefix;
             if (!s.word().s.empty() && s.word().s[0] == '/')
             {
-                pathprefix += "/";
-                n = client->nodebyhandle(client->rootnodes[0]);
+                if (s.word().s.size() >= 2 && s.word().s[1] == '/')
+                {
+                    if (s.word().s.size() >= 5 && !strncmp(s.word().s.c_str(), "//in/", 5))
+                    {
+                        pathprefix = "//in/";
+                        n = client->nodebyhandle(client->rootnodes[1]);
+                    }
+                    else if (s.word().s.size() >= 6 && !strncmp(s.word().s.c_str(), "//bin/", 6))
+                    {
+                        pathprefix = "//bin/";
+                        n = client->nodebyhandle(client->rootnodes[2]);
+                    }
+                    else
+                    {
+                        string str;
+                        s.addPathCompletion((str = "//bin"), "", true, '/', false);
+                        s.addPathCompletion((str = "//in"), "", true, '/', false);
+                        return true;
+                    }
+                }
+                else
+                {
+                    pathprefix = "/";
+                    n = client->nodebyhandle(client->rootnodes[0]);
+                }
             }
-            else if (*cwd != UNDEF)
+            else
             {
-                n = client->nodebyhandle(*cwd);
+                n = addShareRootCompletions(s, client, pathprefix);
+
+                if (!n && *cwd != UNDEF)
+                {
+                    n = client->nodebyhandle(*cwd);
+                }
             }
 
             // drill down folders
@@ -662,6 +737,55 @@ std::ostream& MegaFS::describe(std::ostream& s) const
 {
     return s << descPref << (reportFiles ? (reportFolders ? "remotepath" : "remotefile") : "remotefolder");
 }
+
+MegaContactEmail::MegaContactEmail(MegaClient* c)
+    : client(c)
+{
+}
+
+bool MegaContactEmail::addCompletions(ACState& s)
+{
+    if (s.atCursor())
+    {
+        if (client)
+        {
+            for (const user_map::value_type& u : client->users)
+            {
+                if (u.second.show == VISIBLE)
+                {
+                    s.addCompletion(u.second.email, true);
+                }
+            }
+        }
+        return true;
+    }
+    else
+    {
+        // don't let an option be misinterpreted as an email.  Emails beginning with a '-' (prob not legal anyway) will need to be quoted
+        bool stop = s.word().s.empty() || s.word().s.at(0) == '-';
+        s.i += stop ? 0 : 1;
+        return stop;
+    }
+}
+
+bool MegaContactEmail::match(ACState& s) const
+{
+    if (s.i < s.words.size())
+    {
+        if (!s.word().s.empty() && s.word().s[0] != '-')
+        {
+            s.i += 1;
+            return true;
+        }
+    }
+    return false;
+}
+
+std::ostream& MegaContactEmail::describe(std::ostream& s) const
+{
+    return s << "<email>";
+}
+
 
 std::pair<int, int> identifyNextWord(const std::string& line, int startPos)
 {
@@ -1038,13 +1162,14 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
 }
 
 
-ACN either(ACN n1, ACN n2, ACN n3, ACN n4)
+ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5)
 {
     auto n = std::make_unique<Either>();
     n->Add(n1);
     n->Add(n2);
     n->Add(n3);
     n->Add(n4);
+    n->Add(n5);
     return n;
 }
 
@@ -1119,6 +1244,10 @@ ACN remoteFSFolder(MegaClient* client, ::mega::handle* cwd, const std::string de
     return ACN(new MegaFS(false, true, client, cwd, descriptionPrefix));
 }
 
+ACN contactEmail(MegaClient* client)
+{
+    return ACN(new MegaContactEmail(client));
+}
 
 }}; //namespaces
 

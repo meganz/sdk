@@ -118,6 +118,8 @@
     <ClInclude Include="..\MTransferListenerInterface.h" />
     <ClInclude Include="..\MTreeProcessorInterface.h" />
     <ClInclude Include="..\MUser.h" />
+    <ClInclude Include="..\MUserAlert.h" />
+    <ClInclude Include="..\MUserAlertList.h" />
     <ClInclude Include="..\MUserList.h" />
   </ItemGroup>
   <ItemGroup>
@@ -164,6 +166,7 @@
     <ClCompile Include="..\..\..\src\transferslot.cpp" />
     <ClCompile Include="..\..\..\src\treeproc.cpp" />
     <ClCompile Include="..\..\..\src\user.cpp" />
+    <ClCompile Include="..\..\..\src\useralerts.cpp" />
     <ClCompile Include="..\..\..\src\utils.cpp" />
     <ClCompile Include="..\..\..\src\waiterbase.cpp" />
     <ClCompile Include="..\..\..\src\win32\fs.cpp" />
@@ -200,6 +203,8 @@
     <ClCompile Include="..\MTransferData.cpp" />
     <ClCompile Include="..\MTransferList.cpp" />
     <ClCompile Include="..\MUser.cpp" />
+    <ClCompile Include="..\MUserAlert.cpp" />
+    <ClCompile Include="..\MUserAlertList.cpp" />
     <ClCompile Include="..\MUserList.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
