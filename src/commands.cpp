@@ -3301,6 +3301,9 @@ void CommandGetUserData::procresult()
                 privk.resize(Base64::btoa(privkbuf, len_privk, (char *)privk.data()));
             }
 
+            client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
+            client->cachedug = true;
+
             client->app->userdata_result(&name, &pubk, &privk, jid, API_OK);
             return;
 

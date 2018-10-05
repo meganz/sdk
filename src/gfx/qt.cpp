@@ -630,7 +630,7 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
 {
     LibRaw libRaw;
     int ret = libRaw.open_file(imagePath.toUtf8().constData());
-    if (ret > 0 || LIBRAW_FATAL_ERROR(ret)
+    if (ret != LIBRAW_SUCCESS
             || libRaw.imgdata.sizes.width <= 0
             || libRaw.imgdata.sizes.height <= 0)
     {
@@ -650,21 +650,31 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
     if (imgdata.thumbnail.twidth > 0 && imgdata.thumbnail.theight > 0)
     {
         ret = libRaw.unpack_thumb();
-        if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
+        if (ret == 0)
         {
             LOG_debug << "Extracting thumbnail from RAW image";
             output = libRaw.dcraw_make_mem_thumb();
+        }
+        else if (LIBRAW_FATAL_ERROR(ret))
+        {
+            LOG_debug << "Fatal error unpacking thumbnail";
+            return NULL;
         }
     }
 
     if (!output)
     {
         ret = libRaw.unpack();
-        if (ret == 0 || (ret < 0 && !LIBRAW_FATAL_ERROR(ret)))
+        if (ret == 0)
         {
             LOG_debug << "Extracting full RAW image";
             libRaw.dcraw_process();
             output = libRaw.dcraw_make_mem_image();
+        }
+        else if (LIBRAW_FATAL_ERROR(ret))
+        {
+            LOG_debug << "Fatal error unpacking image";
+            return NULL;
         }
     }
 

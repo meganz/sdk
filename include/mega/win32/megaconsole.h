@@ -49,6 +49,9 @@ struct MEGA_API ConsoleModel
 
     // If using autocomplete, client to specify the syntax of commands here so we know what.  Assign to this directly
     ::mega::autocomplete::ACN autocompleteSyntax;
+    
+    // If supplied, autocomplete will try to get additional completions from this function (eg for consulting MEGAcmd's server)
+    std::function<vector<autocomplete::ACState::Completion>(string)> autocompleteFunction;
 
     // a buffer to store characters received from keypresses.  After a newline is received, we 
     // don't check for keypresses anymore until that line is consumed.
@@ -95,6 +98,7 @@ struct MEGA_API ConsoleModel
 
     // client can check this after adding characters or performing actions to see if the user submitted the line for processing 
     bool checkForCompletedInputLine(std::wstring& ws);
+    std::wstring getInputLineToCursor(); 
 
 private:
     autocomplete::CompletionState autocompleteState;
@@ -127,9 +131,12 @@ struct MEGA_API WinConsole : public Console
     bool setShellConsole(UINT codepage = CP_UTF8, UINT failover_codepage = CP_UTF8);
     void getShellCodepages(UINT& codepage, UINT& failover_codepage);
     void setAutocompleteSyntax(autocomplete::ACN);
+    void setAutocompleteFunction(std::function<vector<autocomplete::ACState::Completion>(string)>);
     void setAutocompleteStyle(bool unix);
     bool getAutocompleteStyle() const;
     bool consolePeek();
+    bool consolePeekNonBlocking();
+    bool consolePeekBlocking();
     bool consoleGetch(wchar_t& c);
     void updateInputPrompt(const std::string& newprompt);
     char* checkForCompletedInputLine();
@@ -142,9 +149,10 @@ struct MEGA_API WinConsole : public Console
 
     static std::string toUtf8String(const std::wstring& ws, UINT codepage = CP_UTF8);
     static std::wstring toUtf16String(const std::string& s, UINT codepage = CP_UTF8);
-
+    bool blockingConsolePeek;
 
 private:
+    std::deque<INPUT_RECORD> irs;
     HANDLE hInput;
     HANDLE hOutput;
     bool promptRetracted = false;

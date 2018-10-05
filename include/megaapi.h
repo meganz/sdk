@@ -8402,6 +8402,8 @@ class MegaApi
          *
          * @note Event types are restricted to the following ranges:
          *  - MEGAchat: [99000, 99150)
+         *  - Android:  [99200, 99300)
+         *  - iOS:      [99300, 99400)
          *  - MEGA SDK: [99400, 99500)
          *  - MEGAsync: [99500, 99600)
          */
@@ -11235,8 +11237,6 @@ class MegaApi
         /**
          * @brief Check if file versioning is enabled or disabled
          *
-         * If the option has never been set, the error code will be MegaError::API_ENOENT.
-         *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          *
          * Valid data in the MegaRequest object received on callbacks:
@@ -11246,6 +11246,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - "1" for disable, "0" for enable
          * - MegaRequest::getFlag - True if disabled, false if enabled
+         *
+         * If the option has never been set, the error code will be MegaError::API_ENOENT.
+         * In that case, file versioning is enabled by default and MegaRequest::getFlag returns false.
          *
          * @param listener MegaRequestListener to track this request
          */

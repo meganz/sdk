@@ -41,6 +41,15 @@ public:
     virtual void unlock() = 0;
 };
 
+class MutexGuard
+{
+    Mutex& m;
+public:
+    MutexGuard(Mutex& cm) : m(cm) { m.lock(); }
+    ~MutexGuard() { m.unlock(); }
+};
+
+
 class Semaphore
 {
 public:
