@@ -661,9 +661,9 @@ UserAlerts::UserAlerts(MegaClient& cmc)
     , begincatchup(false)
     , catchupdone(false)
     , catchup_last_timestamp(0)
-    , lsn(0)
-    , fsn(0)
-    , lastTimeDelta(INT_MAX)
+    , lsn(UNDEF)
+    , fsn(UNDEF)
+    , lastTimeDelta(0)
     , notingSharedNodes(false)
 {
 }
@@ -708,11 +708,11 @@ bool UserAlerts::isUnwantedAlert(nameid type, int action)
     }
     else if (type == type_c)  
     {
-        return action == -1 || action == 0 && !flags.contacts_fcrdel;
+        return (action == -1 || action == 0) && !flags.contacts_fcrdel;
     }
     else if (type == type_upco)
     {
-        return action == -1 || action == 2 && !flags.contacts_fcracpt;
+        return (action == -1 || action == 2) && !flags.contacts_fcracpt;
     }
 
     return false;
