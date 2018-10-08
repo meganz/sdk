@@ -2695,7 +2695,7 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, const
 {
     this->uid = uid;
     this->at = at;
-    this->ph = ph;
+    this->ph = ph ? string(ph) : "";
 
     if (ph)
     {
@@ -2722,22 +2722,23 @@ void CommandGetUA::procresult()
         error e = (error)client->json.getint();
         client->app->getua_result(e);
 
-        if (!ph)
+        if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
         {
-#ifdef  ENABLE_CHAT
-            if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
-            {
-                client->initializekeys(); // we have now all the required data
-            }
-#endif
-            // if the attr does not exist, initialize it
-            if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
-            {
-                LOG_info << "File versioning is enabled";
-                client->versions_disabled = false;
-            }
+            return;
         }
-        return;
+
+#ifdef  ENABLE_CHAT
+        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
+        {
+            client->initializekeys(); // we have now all the required data
+        }
+#endif
+        // if the attr does not exist, initialize it
+        if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
+        {
+            LOG_info << "File versioning is enabled";
+            client->versions_disabled = false;
+        }
     }
     else
     {
@@ -2746,7 +2747,7 @@ void CommandGetUA::procresult()
         string value, version, buf;
 
         //If we are in preview mode, we only can retrieve atributes with mcuga and the response format is different
-        if (ph)
+        if (isFromChatPreview())
         {
             ptr = client->json.getvalue();
             if (!ptr || !(end = strchr(ptr, '"')))

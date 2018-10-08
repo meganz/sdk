@@ -4864,7 +4864,7 @@ static void process_line(char* l)
                     {
                         if (words.size() == 2)
                         {
-                            handle publichandle;
+                            handle publichandle = 0;
                             Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
 
                             client->chatlinkurl(publichandle);
@@ -4899,7 +4899,7 @@ static void process_line(char* l)
                     {
                         if (words.size() == 3)
                         {
-                            handle publichandle;
+                            handle publichandle = 0;
                             Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
 
                             client->chatlinkjoin(publichandle, words[2].c_str());

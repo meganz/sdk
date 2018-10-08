@@ -12495,7 +12495,7 @@ class MegaApi
         void createChat(bool group, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Creates an public chatroom for multiple participants (groupchat)
+         * @brief Creates a public chatroom for multiple participants (groupchat)
          *
          * This function allows to create public chats, where the moderator can create chat links to share
          * the access to the chatroom via a URL (chat-link). In order to create a public chat-link, the

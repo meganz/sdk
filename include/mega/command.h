@@ -273,8 +273,10 @@ public:
 class MEGA_API CommandGetUA : public Command
 {
     string uid;
-    attr_t at;      // attribute type
-    const char *ph; // public handle for preview mode
+    attr_t at;  // attribute type
+    string ph;  // public handle for preview mode, in B64
+
+    bool isFromChatPreview() { return !ph.empty(); }
 
 public:
     CommandGetUA(MegaClient*, const char*, attr_t, const char *, int);
