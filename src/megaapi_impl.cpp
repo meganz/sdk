@@ -8634,13 +8634,14 @@ void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *
     waiter->notify();
 }
 
-void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *unifiedKey, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
     request->setNodeHandle(chatid);
     request->setParentHandle(uh);
     request->setAccess(privilege);
     request->setText(title);
+    request->setFlag(openMode);
     request->setSessionKey(unifiedKey);
 
     requestQueue.push(request);
@@ -18969,9 +18970,10 @@ void MegaApiImpl::sendPendingRequests()
             handle uh = request->getParentHandle();
             int access = request->getAccess();
             const char *title = request->getText();
+            bool publicMode = request->getFlag();
             const char *unifiedKey = request->getSessionKey();
 
-            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
+            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE || (publicMode && !unifiedKey))
             {
                 e = API_EARGS;
                 break;
@@ -18985,8 +18987,14 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             TextChat *chat = it->second;
-            if ((chat->publicchat && !unifiedKey)
-                    || (!chat->title.empty() && (!title || title[0] == '\0')))
+            if (chat->publicchat != publicMode)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            // new participants of private chats require the title to be encrypted to them
+            if (!chat->publicchat && (!chat->title.empty() && (!title || title[0] == '\0')))
             {
                 e = API_EINCOMPLETE;
                 break;

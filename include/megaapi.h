@@ -12532,7 +12532,7 @@ class MegaApi
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
-         * operator privilege in the chat, and the chat must be a group chat.
+         * operator privilege in the chat, and the chat must be a group chat in private mode.
          *
          * In case the chat has a title already set, the title must be encrypted for the new
          * peer and passed to this function. Note that only participants with privilege level
@@ -12544,6 +12544,7 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
          * - MegaRequest::getAccess - Returns the privilege level wanted for the user
          * - MegaRequest::getText - Returns the title of the chat
+         * - MegaRequest::getFlag - Returns false (private/closed mode)
          * - MegaRequest::getSessionKey - Returns the unified key for the new peer
          *
          * On the onTransferFinish error, the error code associated to the MegaError can be:
@@ -12564,7 +12565,37 @@ class MegaApi
          * converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
-        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Adds a user to an existing chat. To do this you must have the
+         * operator privilege in the chat, and the chat must be a group chat in public mode.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_INVITE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
+         * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         * - MegaRequest::getFlag - Returns true (open/public mode)
+         * - MegaRequest::getSessionKey - Returns the unified key for the new peer
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
+         * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
+
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user
+         * @param privilege Privilege level for the new peers. Valid values are:
+         * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+         * - MegaTextChatPeerList::PRIV_RM = -1
+         * - MegaTextChatPeerList::PRIV_RO = 0
+         * - MegaTextChatPeerList::PRIV_STANDARD = 2
+         * - MegaTextChatPeerList::PRIV_MODERATOR = 3
+         * @param unifiedKey Byte array that contains the unified key, already encrypted and
+         * converted to Base64url encoding.
+         * @param listener MegaRequestListener to track this request
+         */
+        void inviteToPublicChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *unifiedKey = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove yourself or another user from a chat. To remove a user other than

@@ -2223,7 +2223,7 @@ class MegaApiImpl : public MegaApp
 
 #ifdef ENABLE_CHAT
         void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
-        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
