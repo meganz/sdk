@@ -91,6 +91,16 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 @property (readonly, nonatomic) NSString *name;
 
 /**
+ * @brief The fingerprint (Base64-encoded) of the node
+ *
+ * Only files have a fingerprint, and there could be files without it.
+ * If the node doesn't have a fingerprint, this funtion returns nil
+ *
+ * Base64-encoded fingerprint of the node, or nil it the node doesn't have a fingerprint.
+ */
+@property (readonly, nonatomic) NSString *fingerprint;
+
+/**
  * @brief Duration of the node for audio/video files, in seconds. -1 if not set.
  */
 @property (readonly, nonatomic) NSInteger duration;
