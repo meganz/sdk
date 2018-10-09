@@ -575,16 +575,9 @@ bool notifyAlerts = true;
 void printAlert(UserAlert::Base& b)
 {
     char timebuf[32];
-    struct tm* tmptr = localtime(&b.timestamp);
-    if (tmptr)
-    {
-        strftime(timebuf, sizeof timebuf, "%c", tmptr);
-    }
-    else
-    {
-        strcmp(timebuf, "<null>");
-    }
-
+    struct tm tmptr;
+    m_localtime(b.timestamp, &tmptr);
+    strftime(timebuf, sizeof timebuf, "%c", &tmptr);
     string header, title;
     b.text(header, title, client);
     cout << "**alert " << b.id << ": " << header << " - " << title << " [at " << timebuf << "]" << " seen: " << b.seen << endl;
