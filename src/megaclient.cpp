@@ -952,6 +952,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
+    faretrying = false;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -964,7 +965,6 @@ void MegaClient::init()
     syncdownretry = false;
     syncnagleretry = false;
     syncextraretry = false;
-    faretrying = false;
     syncsup = true;
     syncdownrequired = false;
     syncuprequired = false;
