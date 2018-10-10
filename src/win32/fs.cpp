@@ -1076,11 +1076,8 @@ size_t WinFileSystemAccess::lastpartlocal(string* name) const
 // return lowercased ASCII file extension, including the . separator
 bool WinFileSystemAccess::getextension(string* filename, char* extension, int size) const
 {
-	const wchar_t* ptr = (const wchar_t*)(filename->data() + filename->size() 
-#ifdef _WIN32
-        - (filename->size() & 1)   // if the string has had an extra null char added for surety, get back on wchar_t boundary.
-#endif
-        );
+    const wchar_t* ptr = (const wchar_t*)(filename->data() + filename->size() 
+        - (filename->size() & 1));   // if the string has had an extra null char added for surety, get back on wchar_t boundary.
 
     char c;
     int i, j;

@@ -108,15 +108,6 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     av_log_set_level(AV_LOG_PANIC);
 #endif
 
-#ifdef _WIN32
-    // ffmpeg uses utf8 filenames rather than wide strings
-    string s;
-    s.resize(imagePath->size() * 4 + 10);
-    s.resize(WideCharToMultiByte(CP_UTF8, 0, (LPCWCH)imagePath->data(), int(imagePath->size() / 2), (LPSTR)s.data(), int(s.size()), NULL, NULL));
-    imagePath = &s;
-    imagePath->append("", 1);
-#endif
-
     // Open video file
     AVFormatContext* formatContext = avformat_alloc_context();
     if (avformat_open_input(&formatContext, imagePath->data(), NULL, NULL))
@@ -420,8 +411,11 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
         const char* ptr;
         if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
         {
+            string name;  // WIN32 ffmpeg uses utf8 rather than wide strings
+            client->fsaccess->local2path(localname, &name);
+
             isvideo = true;
-            if (!readbitmapFfmpeg(fa, localname, size) )
+            if (!readbitmapFfmpeg(fa, &name, size) )
             {
 #ifdef _WIN32
                 localname->resize(localname->size()-1);
