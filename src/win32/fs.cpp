@@ -148,9 +148,9 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         string utf8path;
         utf8path.resize((localname.size() + 1) * 4 / sizeof(wchar_t));
         utf8path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)localname.data(),
-                                         localname.size() / sizeof(wchar_t),
+                                         int(localname.size() / sizeof(wchar_t)),
                                          (char*)utf8path.data(),
-                                         utf8path.size() + 1,
+                                         int(utf8path.size() + 1),
                                          NULL, NULL));
 
         LOG_debug << "Incompatible attributes (" << fad.dwFileAttributes << ") for file " << utf8path;
@@ -524,9 +524,9 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
                 string excluded;
                 excluded.resize((name->size() + 1) * 4 / sizeof(wchar_t));
                 excluded.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)name->data(),
-                                                 name->size() / sizeof(wchar_t),
+                                                 int(name->size() / sizeof(wchar_t)),
                                                  (char*)excluded.data(),
-                                                 excluded.size() + 1,
+                                                 int(excluded.size() + 1),
                                                  NULL, NULL));
                 LOG_debug << "Excluded: " << excluded << "   Attributes: " << fad.dwFileAttributes;
             }
@@ -597,7 +597,7 @@ bool WinFileAccess::fopen(string* name, bool read, bool write, bool async)
 
     if (type == FOLDERNODE)
     {
-        name->append((char*)L"\\*", 5);
+        name->append((const char*)(const wchar_t*)L"\\*", 5);
 
 #ifdef WINDOWS_PHONE
         hFind = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
@@ -639,7 +639,7 @@ WinFileSystemAccess::WinFileSystemAccess()
     notifyerr = false;
     notifyfailed = false;
 
-    localseparator.assign((char*)L"\\", sizeof(wchar_t));
+    localseparator.assign((const char*)(const wchar_t*)L"\\", sizeof(wchar_t));
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
@@ -650,9 +650,9 @@ WinFileSystemAccess::~WinFileSystemAccess()
 // append \ to bare Windows drive letter paths
 int WinFileSystemAccess::sanitizedriveletter(string* localpath)
 {
-    if (localpath->size() > sizeof(wchar_t) && !memcmp(localpath->data() + localpath->size() - sizeof(wchar_t), (char*)L":", sizeof(wchar_t)))
+    if (localpath->size() > sizeof(wchar_t) && !memcmp(localpath->data() + localpath->size() - sizeof(wchar_t), (const char*)(const wchar_t*)L":", sizeof(wchar_t)))
     {
-        localpath->append((char*)L"\\", sizeof(wchar_t));
+        localpath->append((const char*)(const wchar_t*)L"\\", sizeof(wchar_t));
         return sizeof(wchar_t);
     }
 
@@ -702,7 +702,7 @@ void WinFileSystemAccess::path2local(string* path, string* local) const
                                   path->c_str(),
                                   -1,
                                   (wchar_t*)local->data(),
-                                  local->size() / sizeof(wchar_t) + 1);
+                                  int(local->size() / sizeof(wchar_t) + 1));
     if (len)
     {
         // resize to actual result
@@ -720,9 +720,9 @@ void WinFileSystemAccess::local2path(string* local, string* path) const
     path->resize((local->size() + 1) * 4 / sizeof(wchar_t));
 
     path->resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local->data(),
-                                     local->size() / sizeof(wchar_t),
+                                     int(local->size() / sizeof(wchar_t)),
                                      (char*)path->data(),
-                                     path->size() + 1,
+                                     int(path->size() + 1),
                                      NULL, NULL));
     normalize(path);
 }
@@ -737,7 +737,7 @@ bool WinFileSystemAccess::getsname(string* name, string* sname) const
 
     name->append("", 1);
 
-    r = name->size() / sizeof(wchar_t) + 1;
+    r = int(name->size() / sizeof(wchar_t) + 1);
 
     sname->resize(r * sizeof(wchar_t));
     rr = GetShortPathNameW((LPCWSTR)name->data(), (LPWSTR)sname->data(), r);
@@ -921,7 +921,7 @@ void WinFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
     {
         // iterate over children and delete
         removed = false;
-        name->append((char*)L"\\*", 5);
+        name->append((const char*)(const wchar_t*)L"\\*", 5);
         WIN32_FIND_DATAW ffd;
     #ifdef WINDOWS_PHONE
         hFind = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
@@ -944,7 +944,7 @@ void WinFileSystemAccess::emptydirlocal(string* name, dev_t basedev)
                     || ffd.cFileName[2]))))
             {
                 string childname = *name;
-                childname.append((char*)L"\\", 2);
+                childname.append((const char*)(const wchar_t*)L"\\", 2);
                 childname.append((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {
@@ -1076,7 +1076,12 @@ size_t WinFileSystemAccess::lastpartlocal(string* name) const
 // return lowercased ASCII file extension, including the . separator
 bool WinFileSystemAccess::getextension(string* filename, char* extension, int size) const
 {
-	const wchar_t* ptr = (const wchar_t*)(filename->data() + filename->size());
+	const wchar_t* ptr = (const wchar_t*)(filename->data() + filename->size() 
+#ifdef _WIN32
+        - (filename->size() & 1)   // if the string has had an extra null char added for surety, get back on wchar_t boundary.
+#endif
+        );
+
     char c;
     int i, j;
 
@@ -1084,7 +1089,7 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, int si
 
 	if (size * sizeof(wchar_t) > filename->size())
 	{
-		size = filename->size() / sizeof(wchar_t);
+		size = int(filename->size() / sizeof(wchar_t));
 	}
 
 	for (i = 0; i < size; i++)
@@ -1145,7 +1150,7 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 
     if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
     {
-        absolutepath->insert(0, (const char *)L"\\\\?\\", 8);
+        absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\", 8);
     }
     absolutepath->resize(absolutepath->size() - 2);
     return true;
@@ -1174,7 +1179,7 @@ void WinFileSystemAccess::osversion(string* u) const
     HMODULE hMod = GetModuleHandleW(L"ntdll.dll");
     if (hMod)
     {
-        RtlGetVersionPtr RtlGetVersion = (RtlGetVersionPtr)GetProcAddress(hMod, "RtlGetVersion");
+        RtlGetVersionPtr RtlGetVersion = (RtlGetVersionPtr)(void*)GetProcAddress(hMod, "RtlGetVersion");
         if (RtlGetVersion)
         {
             RtlGetVersion(&version);
@@ -1299,7 +1304,7 @@ void WinDirNotify::process(DWORD dwBytes)
              && (fni->FileNameLength < ignore.size()
               || memcmp((char*)fni->FileName, ignore.data(), ignore.size())
               || (fni->FileNameLength > ignore.size()
-               && memcmp((char*)fni->FileName + ignore.size(), (char*)L"\\", sizeof(wchar_t)))))
+               && memcmp((char*)fni->FileName + ignore.size(), (const char*)(const wchar_t*)L"\\", sizeof(wchar_t)))))
             {
                 if (SimpleLogger::logCurrentLevel >= logDebug)
                 {
@@ -1307,9 +1312,9 @@ void WinDirNotify::process(DWORD dwBytes)
                     local.assign((char*)fni->FileName, fni->FileNameLength);
                     path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
                     path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                                                     local.size() / sizeof(wchar_t),
+                                                     int(local.size() / sizeof(wchar_t)),
                                                      (char*)path.data(),
-                                                     path.size() + 1,
+                                                     int(path.size() + 1),
                                                      NULL, NULL));
                     LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
                 }
@@ -1321,9 +1326,9 @@ void WinDirNotify::process(DWORD dwBytes)
                 local.assign((char*)fni->FileName, fni->FileNameLength);
                 path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
                 path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                                                 local.size() / sizeof(wchar_t),
+                                                 int(local.size() / sizeof(wchar_t)),
                                                  (char*)path.data(),
-                                                 path.size() + 1,
+                                                 int(path.size() + 1),
                                                  NULL, NULL));
                 LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
             }
@@ -1345,7 +1350,7 @@ void WinDirNotify::readchanges()
 {
 #ifndef WINDOWS_PHONE
     if (ReadDirectoryChangesW(hDirectory, (LPVOID)notifybuf[active].data(),
-                              notifybuf[active].size(), TRUE,
+                              (DWORD)notifybuf[active].size(), TRUE,
                               FILE_NOTIFY_CHANGE_FILE_NAME
                             | FILE_NOTIFY_CHANGE_DIR_NAME
                             | FILE_NOTIFY_CHANGE_LAST_WRITE
@@ -1506,7 +1511,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
     {
         if (!glob)
         {
-            name->append((char*)L"\\*", 5);
+            name->append((const char*)(const wchar_t*)L"\\*", 5);
         }
         else
         {
@@ -1524,7 +1529,7 @@ bool WinDirAccess::dopen(string* name, FileAccess* f, bool glob)
             wchar_t* bp = (wchar_t*)name->data();
 
             // store base path for glob() emulation
-            int p = wcslen(bp);
+            int p = int(wcslen(bp));
 
             while (p--)
             {
@@ -1587,9 +1592,9 @@ bool WinDirAccess::dnext(string* /*path*/, string* name, bool /*followsymlinks*/
                     local.assign((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
                     excluded.resize((local.size() + 1) * 4 / sizeof(wchar_t));
                     excluded.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                                                     local.size() / sizeof(wchar_t),
+                                                     int(local.size() / sizeof(wchar_t)),
                                                      (char*)excluded.data(),
-                                                     excluded.size() + 1,
+                                                     int(excluded.size() + 1),
                                                      NULL, NULL));
                     LOG_debug << "Excluded: " << excluded << "   Attributes: " << ffd.dwFileAttributes;
                 }
