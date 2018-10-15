@@ -4663,7 +4663,7 @@ public class MegaApiJava {
      * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
      * @param listener MegaTransferListener to track this transfer
      */
-    void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, MegaTransferListenerInterface listener){
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, MegaTransferListenerInterface listener){
         megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, createDelegateTransferListener(listener));
     }
 
@@ -4682,7 +4682,7 @@ public class MegaApiJava {
      * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
      * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
      */
-    void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary){
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary){
         megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary);
     }
 
@@ -4717,6 +4717,38 @@ public class MegaApiJava {
      */
     public void startDownload(MegaNode node, String localPath) {
         megaApi.startDownload(node, localPath);
+    }
+
+    /**
+     * Download a file or a folder from MEGA, saving custom app data during the transfer
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startDownloadWithData(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
+        megaApi.startDownloadWithData(node, localPath, appData, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
+        megaApi.startDownloadWithTopPriority(node, localPath, appData, createDelegateTransferListener(listener));
     }
 
     /**
