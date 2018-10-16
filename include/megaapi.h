@@ -976,6 +976,17 @@ class MegaNode
         virtual std::string* getPublicAuth();
 
         /**
+         * @brief Return the chat auth token to access this node
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return Chat auth token to access the node
+         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
+         */
+        virtual std::string* getChatAuth();
+
+        /**
          * @brief Returns the child nodes of an authorized folder node
          *
          * This function always returns NULL, except for authorized folder nodes.
@@ -11281,6 +11292,23 @@ class MegaApi
          * @return Authorized node, or NULL if the node can't be authorized
          */
         MegaNode *authorizeNode(MegaNode *node);
+
+        /**
+         * @brief Returns a MegaNode that can be downloaded/copied with a chat-authorization
+         *
+         * During preview of chat-links, you need to call this method to authorize the MegaNode
+         * from a node-attachment message, so the API allows to access to it.
+         *
+         * You can use MegaApi::startDownload and/or MegaApi::copyNode with the resulting
+         * node with any instance of MegaApi, even if it's logged into another account,
+         * a public folder, or not logged in.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param node MegaNode to authorize
+         * @return Authorized node, or NULL if the node can't be authorized
+         */
+        MegaNode *authorizeChatNode(MegaNode *node, const char *cauth);
 
         /**
          * @brief Get the SDK version

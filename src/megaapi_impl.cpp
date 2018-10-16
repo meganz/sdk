@@ -71,7 +71,7 @@ namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign)
+                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -115,6 +115,10 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
         this->publicAuth = publicauth;
     }
 
+    if (chatauth)
+    {
+        this->chatAuth = chatauth;
+    }
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = false;
@@ -172,6 +176,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->isPublicNode = node->isPublic();
     this->privateAuth = *node->getPrivateAuth();
     this->publicAuth = *node->getPublicAuth();
+    this->chatAuth = *node->getChatAuth();
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
@@ -480,7 +485,17 @@ bool MegaNodePrivate::serialize(string *d)
     flag = foreign;
     d->append((char*)&flag, sizeof(flag));
 
-    d->append("\0\0\0\0\0\0\0", 8);
+    char hasChatAuth = chatAuth.size() ? 1 : 0;
+    d->append((char *)&hasChatAuth, 1);
+
+    d->append("\0\0\0\0\0\0", 7);
+
+    if (hasChatAuth)
+    {
+        ll = (unsigned short)chatAuth.size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(chatAuth.data(), ll);
+    }
 
     return true;
 }
@@ -595,12 +610,29 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     bool foreign = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    char hasChatAuth = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0", 7))
     {
         LOG_err << "MegaNodePrivate unserialization failed - invalid version";
         return NULL;
     }
-    ptr += 8;
+    ptr += 7;
+
+    const char *chatauth = NULL;
+    if (hasChatAuth)
+    {
+        unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(chatauthlen);
+        if (ptr + chatauthlen + sizeof(unsigned short) > end)
+        {
+            LOG_err << "MegaNodePrivate unserialization failed - chat auth too long";
+            return NULL;
+        }
+        chatauth = ptr;
+        ptr += chatauthlen;
+    }
 
     d->erase(0, ptr - d->data());
 
@@ -608,7 +640,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
                                fingerprintlen ? fingerprint.c_str() : NULL,
                                parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign);
+                               isPublicNode, foreign, chatauth);
 }
 
 char *MegaNodePrivate::getBase64Handle()
@@ -1391,6 +1423,20 @@ void MegaNodePrivate::setPublicAuth(const char *publicAuth)
     }
 }
 
+void MegaNodePrivate::setChatAuth(const char *chatAuth)
+{
+    if (!chatAuth || !chatAuth[0])
+    {
+        this->chatAuth.clear();
+        this->foreign = false;
+    }
+    else
+    {
+        this->chatAuth = chatAuth;
+        this->foreign = true;
+    }
+}
+
 void MegaNodePrivate::setForeign(bool foreign)
 {
     this->foreign = foreign;
@@ -1412,6 +1458,11 @@ void MegaNodePrivate::setName(const char *newName)
 string *MegaNodePrivate::getPublicAuth()
 {
     return &publicAuth;
+}
+
+string *MegaNodePrivate::getChatAuth()
+{
+    return &chatAuth;
 }
 
 MegaNodePrivate::~MegaNodePrivate()
@@ -4143,6 +4194,11 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
     if(n->getPublicAuth()->size())
     {
         pubauth = *n->getPublicAuth();
+    }
+
+    if(n->getChatAuth()->size())
+    {
+        chatauth = *n->getChatAuth();
     }
 }
 
@@ -9486,7 +9542,24 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
             MegaNodePrivate *privNode = (MegaNodePrivate *)children->get(i);
             authorizeMegaNodePrivate(privNode);
         }
-    }  
+    }
+}
+
+MegaNode *MegaApiImpl::authorizeChatNode(MegaNode *node, const char *cauth)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    sdkMutex.lock();
+
+    MegaNodePrivate *result = new MegaNodePrivate(node);
+    result->setChatAuth(cauth);
+
+    sdkMutex.unlock();
+    return result;
+
 }
 
 const char *MegaApiImpl::getVersion()

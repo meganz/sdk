@@ -456,6 +456,11 @@ string *MegaNode::getPublicAuth()
     return NULL;
 }
 
+string *MegaNode::getChatAuth()
+{
+    return NULL;
+}
+
 MegaNodeList *MegaNode::getChildren()
 {
     return NULL;
@@ -2994,6 +2999,11 @@ MegaNode *MegaApi::createForeignFolderNode(MegaHandle handle, const char *name, 
 MegaNode *MegaApi::authorizeNode(MegaNode *node)
 {
     return pImpl->authorizeNode(node);
+}
+
+MegaNode *MegaApi::authorizeChatNode(MegaNode *node, const char *cauth)
+{
+    return pImpl->authorizeChatNode(node, cauth);
 }
 
 const char *MegaApi::getVersion()

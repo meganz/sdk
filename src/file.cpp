@@ -97,7 +97,17 @@ bool File::serialize(string *d)
     flag = temporaryfile;
     d->append((const char*)&flag, sizeof(flag));
 
-    d->append("\0\0\0\0\0\0\0\0", 9);
+    char hasChatAuth = chatauth.size() ? 1 : 0;
+    d->append((char *)&hasChatAuth, 1);
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    if (hasChatAuth)
+    {
+        ll = (unsigned short)chatauth.size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(chatauth.data(), ll);
+    }
 
     return true;
 }
@@ -217,13 +227,32 @@ File *File::unserialize(string *d)
     file->temporaryfile = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0\0", 9))
+    char hasChatAuth = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
     {
         LOG_err << "File unserialization failed - invalid version";
         delete file;
         return NULL;
     }
-    ptr += 9;
+    ptr += 8;
+
+    if (hasChatAuth)
+    {
+        unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof(chatauthlen);
+        if (ptr + chatauthlen + sizeof(unsigned short) > end)
+        {
+            LOG_err << "File unserialization failed - chat auth too long";
+            delete fp;
+            return NULL;
+        }
+        const char *chatauth = ptr;
+        ptr += chatauthlen;
+
+        file->chatauth.assign(chatauth, chatauthlen);
+    }
 
     d->erase(0, ptr - d->data());
     return file;

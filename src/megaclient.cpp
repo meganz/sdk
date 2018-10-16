@@ -3137,6 +3137,7 @@ bool MegaClient::dispatch(direction_t d)
                 bool hprivate = true;
                 const char *privauth = NULL;
                 const char *pubauth = NULL;
+                const char *chatauth = NULL;
 
                 nexttransfer->pos = 0;
                 nexttransfer->progresscompleted = 0;
@@ -3222,6 +3223,7 @@ bool MegaClient::dispatch(direction_t d)
                             hprivate = (*it)->hprivate;
                             privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
                             pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
+                            chatauth = (*it)->chatauth.size() ? (*it)->chatauth.c_str() : NULL;
                             break;
                         }
                         else
@@ -3240,7 +3242,7 @@ bool MegaClient::dispatch(direction_t d)
                 {
                     reqs.add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth)));
+                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth, chatauth)));
                 }
 
                 LOG_debug << "Activating transfer";

@@ -391,7 +391,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
                         const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
-                        bool isForeign = false);
+                        bool isForeign = false, const char *chatauth = NULL);
 
         MegaNodePrivate(MegaNode *node);
         virtual ~MegaNodePrivate();
@@ -440,10 +440,12 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual MegaNodeList *getChildren();
         virtual void setPrivateAuth(const char *privateAuth);
         void setPublicAuth(const char *publicAuth);
+        void setChatAuth(const char *chatAuth);
         void setForeign(bool foreign);
         void setChildren(MegaNodeList *children);
         void setName(const char *newName);
         virtual std::string* getPublicAuth();
+        virtual std::string* getChatAuth();
         virtual bool isShared();
         virtual bool isOutShare();
         virtual bool isInShare();
@@ -479,6 +481,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
+        std::string chatAuth;
         int tag;
         int changed;
         struct {
@@ -2090,6 +2093,7 @@ class MegaApiImpl : public MegaApp
 
         MegaNode *authorizeNode(MegaNode *node);
         void authorizeMegaNodePrivate(MegaNodePrivate *node);
+        MegaNode *authorizeChatNode(MegaNode *node, const char *cauth);
 
         const char *getVersion();
         char *getOperatingSystemVersion();
