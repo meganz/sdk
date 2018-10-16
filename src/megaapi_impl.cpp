@@ -11451,6 +11451,21 @@ void MegaApiImpl::fetchnodes_result(error e)
             request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_NODES);
         }
 
+        if (e == API_OK)
+        {
+            // check if we fetched a folder link and the key is invalid
+            handle h = client->getrootpublicfolder();
+            if (h != UNDEF)
+            {
+                request->setNodeHandle(client->getpublicfolderhandle());
+                Node *n = client->nodebyhandle(h);
+                if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+                {
+                    request->setFlag(true);
+                }
+            }
+        }
+
         if (!e && client->loggedin() == FULLACCOUNT && client->isNewSession)
         {
             updatePwdReminderData(false, false, false, false, true);
@@ -11480,6 +11495,7 @@ void MegaApiImpl::fetchnodes_result(error e)
             handle h = client->getrootpublicfolder();
             if (h != UNDEF)
             {
+                request->setNodeHandle(client->getpublicfolderhandle());
                 Node *n = client->nodebyhandle(h);
                 if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
                 {
