@@ -8105,7 +8105,7 @@ class MegaApi
          * - MegaRequest::getLink - Payment ID
          *
          * @param productHandle Handle of the product (see MegaApi::getPricing)
-         * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
          * @param listener MegaRequestListener to track this request
          *
          * @see MegaApi::getPricing
@@ -8180,7 +8180,7 @@ class MegaApi
          * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
          *
          * @param receipt Purchase receipt
-         * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
          * @param listener MegaRequestListener to track this request
          */
         void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
