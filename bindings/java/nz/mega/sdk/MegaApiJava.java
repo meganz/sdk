@@ -4648,6 +4648,39 @@ public class MegaApiJava {
     }
 
     /**
+     * Upload a file or a folder, saving custom app data during the transfer
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startUploadWithData(String localPath, MegaNode parent, String appData, MegaTransferListenerInterface listener){
+        megaApi.startUploadWithData(localPath, parent, appData, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder, saving custom app data during the transfer
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     */
+    public void startUploadWithData(String localPath, MegaNode parent, String appData){
+        megaApi.startUploadWithData(localPath, parent, appData);
+    }
+
+    /**
      * Upload a file or a folder, putting the transfer on top of the upload queue
      * @param localPath Local path of the file or folder
      * @param parent Parent node for the file or folder in the MEGA account
