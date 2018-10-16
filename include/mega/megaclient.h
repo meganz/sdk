@@ -513,13 +513,13 @@ public:
     void purchase_begin();
 
     // add item to basket
-    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, const char *);
+    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, handle = UNDEF);
 
     // submit purchased products for payment
     void purchase_checkout(int);
 
     // submit purchase receipt for verification
-    void submitpurchasereceipt(int, const char*);
+    void submitpurchasereceipt(int, const char*, handle lph = UNDEF);
 
     // store credit card
     error creditcardstore(const char *);

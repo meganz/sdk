@@ -5934,10 +5934,11 @@ void MegaApiImpl::getPricing(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getPaymentId(handle productHandle, MegaRequestListener *listener)
+void MegaApiImpl::getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PAYMENT_ID, listener);
     request->setNodeHandle(productHandle);
+    request->setParentHandle(lastPublicHandle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -5951,11 +5952,12 @@ void MegaApiImpl::upgradeAccount(MegaHandle productHandle, int paymentMethod, Me
     waiter->notify();
 }
 
-void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
+void MegaApiImpl::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT, listener);
     request->setNumber(gateway);
     request->setText(receipt);
+    request->setNodeHandle(lastPublicHandle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11898,19 +11900,19 @@ void MegaApiImpl::enumeratequotaitems_result(error e)
         int i;
         for(i = 0; i < pricing->getNumProducts(); i++)
         {
-            if(pricing->getHandle(i) == request->getNodeHandle())
+            if (pricing->getHandle(i) == request->getNodeHandle())
             {
                 requestMap.erase(request->getTag());
                 int nextTag = client->nextreqtag();
                 request->setTag(nextTag);
                 requestMap[nextTag]=request;
                 client->purchase_additem(0, request->getNodeHandle(), pricing->getAmount(i),
-                                         pricing->getCurrency(i), 0, NULL, NULL);
+                                         pricing->getCurrency(i), 0, NULL, request->getParentHandle());
                 break;
             }
         }
 
-        if(i == pricing->getNumProducts())
+        if (i == pricing->getNumProducts())
         {
             fireOnRequestFinish(request, MegaError(API_ENOENT));
         }
@@ -18522,6 +18524,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char* receipt = request->getText();
             int type = int(request->getNumber());
+            handle lph = request->getNodeHandle();
 
             if(!receipt || (type != MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                             && type != MegaApi::PAYMENT_METHOD_ITUNES
@@ -18550,7 +18553,7 @@ void MegaApiImpl::sendPendingRequests()
                 base64receipt = receipt;
             }
 
-            client->submitpurchasereceipt(type, base64receipt.c_str());
+            client->submitpurchasereceipt(type, base64receipt.c_str(), lph);
             break;
         }
         case MegaRequest::TYPE_CREDIT_CARD_STORE:
