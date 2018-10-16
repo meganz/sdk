@@ -7045,7 +7045,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, fileName, -1, 0, NULL, false, listener); }
 
-void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, m_off_t /*startPos*/, m_off_t /*endPos*/, int folderTransferTag, const char *appData, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -7086,7 +7086,7 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
 }
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload(false, node, localFolder, 0, 0, 0, NULL, listener); }
+{ startDownload(false, node, localFolder, 0, NULL, listener); }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
@@ -7152,8 +7152,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         {
             node = getNodeByHandle(t->getNodeHandle());
         }
-        this->startDownload(t->shouldStartFirst(), node, t->getPath(), t->getStartPos(), t->getEndPos(),
-                            0, t->getAppData(), listener);
+        this->startDownload(t->shouldStartFirst(), node, t->getPath(), 0, t->getAppData(), listener);
         delete node;
     }
     else
@@ -22091,7 +22090,7 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, string *pa
         if (child->getType() == MegaNode::TYPE_FILE)
         {
             pendingTransfers++;
-            megaApi->startDownload(false, child, utf8path.c_str(), 0, 0, tag, transfer->getAppData(), this);
+            megaApi->startDownload(false, child, utf8path.c_str(), tag, transfer->getAppData(), this);
         }
         else
         {
