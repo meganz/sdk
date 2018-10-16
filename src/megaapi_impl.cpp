@@ -7045,7 +7045,7 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, fileName, -1, 0, NULL, false, listener); }
 
-void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, long /*startPos*/, long /*endPos*/, int folderTransferTag, const char *appData, MegaTransferListener *listener)
+void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, m_off_t /*startPos*/, m_off_t /*endPos*/, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
