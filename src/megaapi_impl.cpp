@@ -14697,7 +14697,9 @@ bool MegaApiImpl::nodeComparatorDefaultASC(Node *i, Node *j)
     {
         return 1;
     }
-    if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
+
+    int r = naturalsorting_compare(i->displayname(), j->displayname());
+    if (r < 0 || (!r && i < j))
     {
         return 1;
     }
@@ -14714,7 +14716,9 @@ bool MegaApiImpl::nodeComparatorDefaultDESC(Node *i, Node *j)
     {
         return 1;
     }
-    if (naturalsorting_compare(i->displayname(), j->displayname()) <= 0)
+
+    int r = naturalsorting_compare(i->displayname(), j->displayname());
+    if (r < 0 || (!r && i < j))
     {
         return 0;
     }
@@ -14727,7 +14731,9 @@ bool MegaApiImpl::nodeComparatorSizeASC(Node *i, Node *j)
     {
         return nodeComparatorDefaultASC(i, j);
     }
-    if (i->size < j->size)
+
+    m_off_t r = i->size - j->size;
+    if (r < 0 || (!r && i < j))
     {
         return 1;
     }
@@ -14740,7 +14746,9 @@ bool MegaApiImpl::nodeComparatorSizeDESC(Node *i, Node *j)
     {
         return nodeComparatorDefaultASC(i, j);
     }
-    if (i->size < j->size)
+
+    m_off_t r = i->size - j->size;
+    if (r < 0 || (!r && i < j))
     {
         return 0;
     }
@@ -14795,7 +14803,9 @@ bool MegaApiImpl::nodeComparatorModificationASC(Node *i, Node *j)
     {
         return nodeComparatorDefaultASC(i, j);
     }
-    if (i->mtime < j->mtime)
+
+    m_time_t r = i->mtime - j->mtime;
+    if (r < 0 || (!r && i < j))
     {
         return 1;
     }
@@ -14808,7 +14818,9 @@ bool MegaApiImpl::nodeComparatorModificationDESC(Node *i, Node *j)
     {
         return nodeComparatorDefaultASC(i, j);
     }
-    if (i->mtime < j->mtime)
+
+    m_time_t r = i->mtime - j->mtime;
+    if (r < 0 || (!r && i < j))
     {
         return 0;
     }
@@ -14825,7 +14837,9 @@ bool MegaApiImpl::nodeComparatorAlphabeticalASC(Node *i, Node *j)
     {
         return 1;
     }
-    if (strcasecmp(i->displayname(), j->displayname()) <= 0)
+
+    int r = strcasecmp(i->displayname(), j->displayname());
+    if (r < 0 || (!r && i < j))
     {
         return 1;
     }
@@ -14842,7 +14856,9 @@ bool MegaApiImpl::nodeComparatorAlphabeticalDESC(Node *i, Node *j)
     {
         return 1;
     }
-    if (strcasecmp(i->displayname(), j->displayname()) <= 0)
+
+    int r = strcasecmp(i->displayname(), j->displayname());
+    if (r < 0 || (!r && i < j))
     {
         return 0;
     }
