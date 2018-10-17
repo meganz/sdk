@@ -4961,7 +4961,7 @@ class MegaGlobalListener
         * for those objects.
         *
         * @param api MegaApi object connected to the account
-        * @param users List that contains the new or updated contacts
+        * @param alerts List that contains the new or updated alerts
         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
@@ -5271,7 +5271,7 @@ class MegaListener
         * for those objects.
         *
         * @param api MegaApi object connected to the account
-        * @param users List that contains the new or updated contacts
+        * @param alerts List that contains the new or updated alerts
         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
