@@ -3452,7 +3452,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - MEGAPaymentMethodItunes = 2
  *
  * @param receipt Purchase receipt
- * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
  * @param Delegate Delegate to track this request
  */
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle delegate:(id<MEGARequestDelegate>)delegate;
@@ -3468,7 +3468,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * - MEGAPaymentMethodItunes = 2
  *
  * @param receipt Purchase receipt
- * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
  */
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle;
 
