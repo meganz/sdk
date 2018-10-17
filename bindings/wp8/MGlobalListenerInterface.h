@@ -43,8 +43,8 @@ namespace mega
         /**
         * @brief This function is called when there are new or updated contacts in the account
         *
-        * The SDK retains the ownership of the MegaUserList in the second parameter. The list and all the
-        * MegaUser objects that it contains will be valid until this function returns. If you want to save the
+        * The SDK retains the ownership of the MUserList in the second parameter. The list and all the
+        * MUser objects that it contains will be valid until this function returns. If you want to save the
         * list, use MUserList::copy. If you want to save only some of the MUser objects, use MUser::copy
         * for those objects.
         *
@@ -58,11 +58,11 @@ namespace mega
         *
         * The SDK retains the ownership of the MUserAlertList in the second parameter. The list and all the
         * MUserAlert objects that it contains will be valid until this function returns. If you want to save the
-        * list, use MUserAlertList::copy. If you want to save only some of the MegaUserAlert objects, use MUserAlert::copy
+        * list, use MUserAlertList::copy. If you want to save only some of the MUserAlert objects, use MUserAlert::copy
         * for those objects.
         *
         * @param api MegaSDK object connected to the account
-        * @param users List that contains the new or updated contacts
+        * @param alerts List that contains the new or updated alerts
         */
         void onUserAlertsUpdate(MegaSDK^ api, MUserAlertList^ alerts);
 
