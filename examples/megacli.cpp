@@ -1884,6 +1884,96 @@ void xferq(direction_t d, int cancel)
     }
 }
 
+#ifdef USE_MEDIAINFO
+
+string showMediaInfo(const MediaProperties& mp, MediaFileInfo& mediaInfo, bool oneline)
+{
+    ostringstream out;
+    string sep(oneline ? " " : "\n");
+
+    MediaFileInfo::MediaCodecs::shortformatrec sf;
+    sf.containerid = 0;
+    sf.videocodecid = 0;
+    sf.audiocodecid = 0;
+    if (mp.shortformat == 255)
+    {
+        return "MediaInfo could not identify this file";
+    }
+    else if (mp.shortformat == 0)
+    {
+        // from attribute 9
+        sf.containerid = mp.containerid;
+        sf.videocodecid = mp.videocodecid;
+        sf.audiocodecid = mp.audiocodecid;
+    }
+    else if (mp.shortformat < mediaInfo.mediaCodecs.shortformats.size())
+    {
+        sf = mediaInfo.mediaCodecs.shortformats[mp.shortformat];
+    }
+
+    for (std::map<std::string, unsigned>::const_iterator i = mediaInfo.mediaCodecs.containers.begin(); i != mediaInfo.mediaCodecs.containers.end(); ++i)
+    {
+        if (i->second == sf.containerid)
+        {
+            out << "Format: " << i->first << sep;
+        }
+    }
+    for (std::map<std::string, unsigned>::const_iterator i = mediaInfo.mediaCodecs.videocodecs.begin(); i != mediaInfo.mediaCodecs.videocodecs.end(); ++i)
+    {
+        if (i->second == sf.videocodecid)
+        {
+            out << "Video: " << i->first << sep;
+        }
+    }
+
+    for (std::map<std::string, unsigned>::const_iterator i = mediaInfo.mediaCodecs.audiocodecs.begin(); i != mediaInfo.mediaCodecs.audiocodecs.end(); ++i)
+    {
+        if (i->second == sf.audiocodecid)
+        {
+            out << "Audio: " << i->first << sep;
+        }
+    }
+
+    if (mp.width > 0)
+    {
+        out << "Width: " << mp.width << sep;
+    }
+    if (mp.height > 0)
+    {
+        out << "Height: " << mp.height << sep;
+    }
+    if (mp.fps > 0)
+    {
+        out << "Fps: " << mp.fps << sep;
+    }
+    if (mp.playtime > 0)
+    {
+        out << "Playtime: " << mp.playtime << sep;
+    }
+
+    string result = out.str();
+    result.erase(result.size() - (result.empty() ? 0 : 1));
+    return result;
+}
+
+string showMediaInfo(const std::string& fileattributes, uint32_t fakey[4], MediaFileInfo& mediaInfo, bool oneline)
+{
+    MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(fileattributes, fakey);
+    return showMediaInfo(mp, mediaInfo, oneline);
+}
+
+string showMediaInfo(Node* n, MediaFileInfo& mediaInfo, bool oneline)
+{
+    if (n->hasfileattribute(fa_media))
+    {
+        MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
+        return showMediaInfo(mp, client->mediaFileInfo, oneline);
+    }
+    return "The node has no mediainfo attribute";
+}
+
+#endif
+
 // password change-related state information
 static byte pwkey[SymmCipher::KEYLENGTH];
 static byte pwkeybuf[SymmCipher::KEYLENGTH];
@@ -1950,6 +2040,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("getq"), opt(param("cancelslot"))));
     p->Add(sequence(text("pause"), opt(either(text("get"), text("put"))), opt(text("hard")), opt(text("status"))));
     p->Add(sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));
+    p->Add(sequence(text("mediainfo"), either(sequence(text("calc"), localFSFile()), sequence(text("show"), remoteFSFile(client, &cwd)))));
     p->Add(sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
     p->Add(sequence(text("rm"), remoteFSPath(client, &cwd)));
     p->Add(sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
@@ -2342,6 +2433,9 @@ static void process_line(char* l)
                 cout << "      putua attrname [del|set string|load file]" << endl;
 #ifdef DEBUG
                 cout << "      delua attrname" << endl;
+#endif
+#ifdef USE_MEDIAINFO
+                cout << "      mediainfo(calc localfile | show remotefile)" << endl;
 #endif
                 cout << "      putbps [limit|auto|none]" << endl;
                 cout << "      killsession [all|sessionid]" << endl;
@@ -5124,8 +5218,74 @@ static void process_line(char* l)
                         }
                         return;
                     }
-                    break;
+#ifdef USE_MEDIAINFO
+                    else if (words[0] == "mediainfo")
+                    {
+                        if (client->mediaFileInfo.mediaCodecsFailed)
+                        {
+                            cout << "Sorry, mediainfo lookups could not be retrieved." << endl;
+                            return;
+                        }
+                        else if (!client->mediaFileInfo.mediaCodecsReceived)
+                        {
+                            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+                            cout << "Mediainfo lookups requested" << endl;
+                        }
 
+                        if (words.size() == 3 && words[1] == "calc")
+                        {
+                            MediaProperties mp;
+                            string localFilename;
+                            client->fsaccess->path2local(&words[2], &localFilename);
+
+                            char ext[8];
+                            if (client->fsaccess->getextension(&localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+                            {
+                                mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
+                                cout << showMediaInfo(mp, client->mediaFileInfo, false) << endl;
+                            }
+                            else
+                            {
+                                cout << "Filename extension is not suitable for mediainfo analysis." << endl;
+                            }
+                        }
+                        else if (words.size() == 3 && words[1] == "show")
+                        {
+                            if ((n = nodebypath(words[2].c_str())))
+                            {
+                                switch (n->type)
+                                {
+                                case FILENODE:
+                                    cout << showMediaInfo(n, client->mediaFileInfo, false) << endl;
+                                    break;
+
+                                case FOLDERNODE:
+                                case ROOTNODE:
+                                case INCOMINGNODE:
+                                case RUBBISHNODE:
+                                    for (node_list::iterator m = n->children.begin(); m != n->children.end(); ++m)
+                                    {
+                                        if ((*m)->type == FILENODE && (*m)->hasfileattribute(fa_media))
+                                        {
+                                            cout << (*m)->displayname() << "   " << showMediaInfo(*m, client->mediaFileInfo, true) << endl;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                cout << "remote file not found: " << words[2] << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "mediainfo (calc localfile|show remotefile)" << endl;  
+                        }
+                        return;
+                    }
+#endif
+                    break;
 
                 case 11:                    
                     if (words[0] == "killsession")
