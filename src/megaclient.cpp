@@ -8214,9 +8214,9 @@ void MegaClient::purchase_begin()
 // submit purchased product for payment
 void MegaClient::purchase_additem(int itemclass, handle item, unsigned price,
                                   const char* currency, unsigned tax, const char* country,
-                                  const char* affiliate)
+                                  handle lastPublicHandle)
 {
-    reqs.add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, affiliate));
+    reqs.add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, lastPublicHandle));
 }
 
 // obtain payment URL for given provider
@@ -8225,9 +8225,9 @@ void MegaClient::purchase_checkout(int gateway)
     reqs.add(new CommandPurchaseCheckout(this, gateway));
 }
 
-void MegaClient::submitpurchasereceipt(int type, const char *receipt)
+void MegaClient::submitpurchasereceipt(int type, const char *receipt, handle lph)
 {
-    reqs.add(new CommandSubmitPurchaseReceipt(this, type, receipt));
+    reqs.add(new CommandSubmitPurchaseReceipt(this, type, receipt, lph));
 }
 
 error MegaClient::creditcardstore(const char *ccplain)

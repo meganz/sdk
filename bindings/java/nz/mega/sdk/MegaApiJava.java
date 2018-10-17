@@ -3674,6 +3674,47 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param listener MegaRequestListener to track this request
+     *
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle, MegaRequestListenerInterface listener) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     *
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle);
+    }
+
+    /**
      * Upgrade an account.
      *
      * @param productHandle Product handle to purchase.
@@ -3743,6 +3784,78 @@ public class MegaApiJava {
      */
     public void submitPurchaseReceipt(String receipt) {
         megaApi.submitPurchaseReceipt(receipt);
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param listener MegaRequestListener to track this request
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, MegaRequestListenerInterface listener) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt) {
+        megaApi.submitPurchaseReceipt(gateway, receipt);
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param listener MegaRequestListener to track this request
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, MegaRequestListenerInterface listener) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle);
     }
 
     /**

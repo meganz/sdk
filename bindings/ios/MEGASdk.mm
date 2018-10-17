@@ -1080,6 +1080,14 @@ using namespace mega;
     self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL);
 }
 
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle {
+    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle);
+}
+
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->changePassword((oldPassword != nil) ? [oldPassword UTF8String] : NULL, (newPassword != nil) ? [newPassword UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

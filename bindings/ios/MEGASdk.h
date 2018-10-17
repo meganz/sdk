@@ -3442,6 +3442,37 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt;
 
 /**
+ * @brief Submit a purchase receipt for verification
+ *
+ * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ *
+ * @param receipt Purchase receipt
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param Delegate Delegate to track this request
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Submit a purchase receipt for verification
+ *
+ * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ *
+ * @param receipt Purchase receipt
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle;
+
+/**
  * @brief Change the password of the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeChangePassword.

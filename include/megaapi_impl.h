@@ -1860,9 +1860,9 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
-        void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
+        void getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
-        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
         void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,

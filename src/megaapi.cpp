@@ -2095,7 +2095,12 @@ void MegaApi::getPricing(MegaRequestListener *listener)
 
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentId(productHandle, listener);
+    pImpl->getPaymentId(productHandle, UNDEF, listener);
+}
+
+void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener)
+{
+    pImpl->getPaymentId(productHandle, lastPublicHandle, listener);
 }
 
 void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener)
@@ -2105,12 +2110,17 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, listener);
+    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, UNDEF, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(gateway, receipt, listener);
+    pImpl->submitPurchaseReceipt(gateway, receipt, UNDEF, listener);
+}
+
+void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, listener);
 }
 
 void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,
