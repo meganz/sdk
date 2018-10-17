@@ -79,6 +79,8 @@ struct MEGA_API MediaProperties
 
 struct MEGA_API JSON;
 
+#ifdef USE_MEDIAINFO
+
 struct MEGA_API MediaFileInfo
 {
     struct MediaCodecs
@@ -143,6 +145,7 @@ struct MediaFileInfo::queuedvp
     // the key to use for XXTEA encryption (which is not the same as the file data key)
     uint32_t fakey[4];
 };
+#endif
 
 } // namespace
 

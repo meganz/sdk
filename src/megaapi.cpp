@@ -2497,12 +2497,12 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
 
 void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startDownload(false, node, localPath, 0, 0, 0, appData, listener);
+    pImpl->startDownload(false, node, localPath, 0, appData, listener);
 }
 
 void MegaApi::startDownloadWithTopPriority(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startDownload(true, node, localPath, 0, 0, 0, appData, listener);
+    pImpl->startDownload(true, node, localPath, 0, appData, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
