@@ -1884,6 +1884,8 @@ void xferq(direction_t d, int cancel)
     }
 }
 
+#ifdef USE_MEDIAINFO
+
 string showMediaInfo(const MediaProperties& mp, MediaFileInfo& mediaInfo, bool oneline)
 {
     ostringstream out;
@@ -1970,6 +1972,7 @@ string showMediaInfo(Node* n, MediaFileInfo& mediaInfo, bool oneline)
     return "The node has no mediainfo attribute";
 }
 
+#endif
 
 // password change-related state information
 static byte pwkey[SymmCipher::KEYLENGTH];
