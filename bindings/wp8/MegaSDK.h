@@ -2030,12 +2030,146 @@ namespace mega
         void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions);
         void getPricing(MRequestListenerInterface^ listener);
         void getPricing();
+
+        /**
+        * @brief Get the payment URL for an upgrade
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PAYMENT_ID
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the product
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getLink - Payment ID
+        *
+        * @param productHandle Handle of the product (see MegaSDK::getPricing)
+        * @param listener MRequestListener to track this request
+        *
+        * @see MegaSDK::getPricing
+        */
         void getPaymentId(uint64 productHandle, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Get the payment URL for an upgrade
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PAYMENT_ID
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the product
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getLink - Payment ID
+        *
+        * @param productHandle Handle of the product (see MegaSDK::getPricing)
+        *
+        * @see MegaSDK::getPricing
+        */
         void getPaymentId(uint64 productHandle);
+
+        /**
+        * @brief Get the payment URL for an upgrade
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PAYMENT_ID
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the product
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getLink - Payment ID
+        *
+        * @param productHandle Handle of the product (see MegaSDK::getPricing)
+        * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+        * @param listener MRequestListener to track this request
+        *
+        * @see MegaSDK::getPricing
+        */
+        void getPaymentIdWithLastPublicHandle(uint64 productHandle, uint64 lastPublicHandle, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get the payment URL for an upgrade
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PAYMENT_ID
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the product
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getLink - Payment ID
+        *
+        * @param productHandle Handle of the product (see MegaSDK::getPricing)
+        * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+        *
+        * @see MegaSDK::getPricing
+        */
+        void getPaymentIdWithLastPublicHandle(uint64 productHandle, uint64 lastPublicHandle);
+        
         void upgradeAccount(uint64 productHandle, int paymentMethod, MRequestListenerInterface^ listener);
         void upgradeAccount(uint64 productHandle, int paymentMethod);
+
+        /**
+        * @brief Submit a purchase receipt for verification
+        *
+        * The associated request type with this request is MRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+        *
+        * @param gateway Payment gateway
+        * Currently supported payment gateways are:
+        * - MPaymentMethod::PAYMENT_METHOD_ITUNES = 2
+        * - MPaymentMethod::PAYMENT_METHOD_GOOGLE_WALLET = 3
+        * - MPaymentMethod::PAYMENT_METHOD_WINDOWS_STORE = 13
+        *
+        * @param receipt Purchase receipt
+        * @param listener MRequestListener to track this request
+        */
         void submitPurchaseReceipt(int gateway, String^ receipt, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Submit a purchase receipt for verification
+        *
+        * The associated request type with this request is MRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+        *
+        * @param gateway Payment gateway
+        * Currently supported payment gateways are:
+        * - MPaymentMethod::PAYMENT_METHOD_ITUNES = 2
+        * - MPaymentMethod::PAYMENT_METHOD_GOOGLE_WALLET = 3
+        * - MPaymentMethod::PAYMENT_METHOD_WINDOWS_STORE = 13
+        *
+        * @param receipt Purchase receipt
+        */
         void submitPurchaseReceipt(int gateway, String^ receipt);
+
+        /**
+        * @brief Submit a purchase receipt for verification
+        *
+        * The associated request type with this request is MRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+        *
+        * @param gateway Payment gateway
+        * Currently supported payment gateways are:
+        * - MPaymentMethod::PAYMENT_METHOD_ITUNES = 2
+        * - MPaymentMethod::PAYMENT_METHOD_GOOGLE_WALLET = 3
+        * - MPaymentMethod::PAYMENT_METHOD_WINDOWS_STORE = 13
+        *
+        * @param receipt Purchase receipt
+        * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+        * @param listener MRequestListener to track this request
+        */
+        void submitPurchaseReceiptWithLastPublicHandle(int gateway, String^ receipt, uint64 lastPublicHandle, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Submit a purchase receipt for verification
+        *
+        * The associated request type with this request is MRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+        *
+        * @param gateway Payment gateway
+        * Currently supported payment gateways are:
+        * - MPaymentMethod::PAYMENT_METHOD_ITUNES = 2
+        * - MPaymentMethod::PAYMENT_METHOD_GOOGLE_WALLET = 3
+        * - MPaymentMethod::PAYMENT_METHOD_WINDOWS_STORE = 13
+        *
+        * @param receipt Purchase receipt
+        * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+        */
+        void submitPurchaseReceiptWithLastPublicHandle(int gateway, String^ receipt, uint64 lastPublicHandle);
+
         void creditCardStore(String^ address1, String^ address2, String^ city,
             String^ province, String^ country, String^ postalcode,
             String^ firstname, String^ lastname, String^ creditcard,
