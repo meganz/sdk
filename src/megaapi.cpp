@@ -3127,14 +3127,14 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive)
+MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
-    return pImpl->search(n, searchString, recursive);
+    return pImpl->search(n, searchString, recursive, order);
 }
 
-MegaNodeList *MegaApi::search(const char *searchString)
+MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString);
+    return pImpl->search(searchString, order);
 }
 
 long long MegaApi::getSize(MegaNode *n)
