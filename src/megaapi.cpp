@@ -2859,6 +2859,11 @@ MegaUserAlertList* MegaApi::getUserAlerts()
     return pImpl->getUserAlerts();
 }
 
+int MegaApi::getNumUnreadUserAlerts()
+{
+    return pImpl->getNumUnreadUserAlerts();
+}
+
 MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)
 {
     return pImpl->getInShares(megaUser);

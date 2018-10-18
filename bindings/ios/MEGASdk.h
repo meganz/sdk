@@ -322,6 +322,11 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 
 #endif
 
+/**
+ * @brief The number of unread user alerts for the logged in user
+ */
+@property (readonly, nonatomic) NSInteger numUnreadUserAlerts;
+
 #pragma mark - Init
 
 /**

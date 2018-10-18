@@ -6103,6 +6103,15 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the number of unread user alerts for the logged in user
+     *
+     * @return Number of unread user alerts
+     */
+    public int getNumUnreadUserAlerts(){
+        return megaApi.getNumUnreadUserAlerts();
+    }
+
+    /**
      * Get a list with all inbound shares from one MegaUser.
      * 
      * @param user

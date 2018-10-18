@@ -10599,6 +10599,13 @@ class MegaApi
         MegaUserAlertList* getUserAlerts();
 
         /**
+         * @brief Get the number of unread user alerts for the logged in user
+         *
+         * @return Number of unread user alerts
+         */
+        int getNumUnreadUserAlerts();
+
+        /**
          * @brief Get a list with all inbound sharings from one MegaUser
          *
          * You take the ownership of the returned value

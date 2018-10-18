@@ -2021,6 +2021,7 @@ class MegaApiImpl : public MegaApp
         MegaUserList* getContacts();
         MegaUser* getContact(const char* uid);
         MegaUserAlertList* getUserAlerts();
+        int getNumUnreadUserAlerts();
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
