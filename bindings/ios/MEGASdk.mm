@@ -165,6 +165,10 @@ using namespace mega;
 
 #endif
 
+- (NSInteger)numUnreadUserAlerts {
+    return self.megaApi->getNumUnreadUserAlerts();
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
