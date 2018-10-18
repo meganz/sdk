@@ -360,6 +360,12 @@ using namespace mega;
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
 }
 
++ (uint64_t)handleForBase64UserHandle:(NSString *)base64UserHandle {
+    if(base64UserHandle == nil) return ::mega::INVALID_HANDLE;
+    
+     return MegaApi::base64ToUserHandle([base64UserHandle UTF8String]);
+}
+
 + (NSString *)base64HandleForHandle:(uint64_t)handle {
     const char *val = MegaApi::handleToBase64(handle);
     if (!val) return nil;
