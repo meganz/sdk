@@ -8881,6 +8881,21 @@ MegaUserAlertList* MegaApiImpl::getUserAlerts()
     return alertList;
 }
 
+int MegaApiImpl::getNumUnreadUserAlerts()
+{
+    int result = 0;
+    sdkMutex.lock();
+    for (UserAlerts::Alerts::iterator it = client->useralerts.alerts.begin(); it != client->useralerts.alerts.end(); ++it)
+    {
+        if (!(*it)->seen)
+        {
+            result++;
+        }
+    }
+    sdkMutex.unlock();
+    return result;
+}
+
 MegaNodeList* MegaApiImpl::getInShares(MegaUser *megaUser)
 {
     if (!megaUser)
