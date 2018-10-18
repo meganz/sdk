@@ -480,6 +480,16 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 + (uint64_t)handleForBase64Handle:(NSString *)base64Handle;
 
 /**
+ * @brief Converts a Base64-encoded user handle to a MegaHandle
+ *
+ * You can revert this operation using [MEGASdk base64handleForUserHandle:].
+ *
+ * @param base64UserHandle Base64-encoded user handle
+ * @return User handle
+ */
++ (uint64_t)handleForBase64UserHandle:(NSString *)base64UserHandle;
+
+/**
  * @brief Converts the handle of a node to a Base64-encoded NSString
  *
  * You take the ownership of the returned value
