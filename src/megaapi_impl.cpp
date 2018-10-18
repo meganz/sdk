@@ -16799,9 +16799,11 @@ void MegaApiImpl::sendPendingRequests()
                 tc.nn->parenthandle = UNDEF;
                 tc.nn->ovhandle = ovhandle;
 
+                const char *cauth = megaNode->getChatAuth()->size() ? megaNode->getChatAuth()->c_str() : NULL;
+
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, tc.nn, nc);
+                    client->putnodes(target->nodehandle, tc.nn, nc, cauth);
                 }
                 else
                 {

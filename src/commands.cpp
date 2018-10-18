@@ -851,7 +851,7 @@ void CommandSetAttr::procresult()
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                                  const char* userhandle, NewNode* newnodes,
-                                 int numnodes, int ctag, putsource_t csource)
+                                 int numnodes, int ctag, putsource_t csource, const char *cauth)
 {
     byte key[FILENODEKEYLENGTH];
     int i;
@@ -876,6 +876,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     }
 
     arg("sm",1);
+
+    if (cauth)
+    {
+        arg("cauth", cauth);
+    }
 
     beginarray("n");
 

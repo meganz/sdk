@@ -11293,11 +11293,14 @@ class MegaApi
          */
         MegaNode *authorizeNode(MegaNode *node);
 
+#ifdef ENABLE_CHAT
         /**
          * @brief Returns a MegaNode that can be downloaded/copied with a chat-authorization
          *
          * During preview of chat-links, you need to call this method to authorize the MegaNode
-         * from a node-attachment message, so the API allows to access to it.
+         * from a node-attachment message, so the API allows to access to it. The parameter to
+         * authorize the access can be retrieved from MegaChatRoom::getAuthorizationToken when
+         * the chatroom in in preview mode.
          *
          * You can use MegaApi::startDownload and/or MegaApi::copyNode with the resulting
          * node with any instance of MegaApi, even if it's logged into another account,
@@ -11306,9 +11309,11 @@ class MegaApi
          * You take the ownership of the returned value.
          *
          * @param node MegaNode to authorize
+         * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
          * @return Authorized node, or NULL if the node can't be authorized
          */
         MegaNode *authorizeChatNode(MegaNode *node, const char *cauth);
+#endif
 
         /**
          * @brief Get the SDK version

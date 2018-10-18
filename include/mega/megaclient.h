@@ -397,7 +397,7 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int);
+    void putnodes(handle, NewNode*, int, const char * = NULL);
 
     // send files/folders to user
     void putnodes(const char*, NewNode*, int);

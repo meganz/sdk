@@ -6272,9 +6272,9 @@ error MegaClient::setattr(Node* n, const char *prevattr)
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes)
+void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes, const char *cauth)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag));
+    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag, PUTNODES_APP, cauth));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)

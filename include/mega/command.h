@@ -466,7 +466,7 @@ class MEGA_API CommandPutNodes : public Command
 public:
     void procresult();
 
-    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP);
+    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
 };
 
 class MEGA_API CommandSetAttr : public Command
