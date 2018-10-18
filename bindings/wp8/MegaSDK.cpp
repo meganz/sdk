@@ -3805,31 +3805,33 @@ uint64 MegaSDK::getBandwidthOverquotaDelay()
     return megaApi->getBandwidthOverquotaDelay();
 }
 
-MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive)
+MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive, int order)
 {
     std::string utf8search;
     if (searchString != nullptr)
         MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
 
-    return ref new MNodeList(megaApi->search(node->getCPtr(), (searchString != nullptr) ? utf8search.c_str() : NULL, recursive), true);
+    return ref new MNodeList(megaApi->search(node->getCPtr(), 
+        (searchString != nullptr) ? utf8search.c_str() : NULL, recursive, order), true);
 }
 
-MNodeList^ MegaSDK::search(MNode^ node, String^ searchString)
+MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive)
+{
+    return this->search(node, searchString, recursive, (int)MSortOrderType::ORDER_NONE);
+}
+
+MNodeList^ MegaSDK::globalSearch(String^ searchString, int order)
 {
     std::string utf8search;
     if (searchString != nullptr)
         MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
 
-    return ref new MNodeList(megaApi->search(node->getCPtr(), (searchString != nullptr) ? utf8search.c_str() : NULL, true), true);
+    return ref new MNodeList(megaApi->search((searchString != nullptr) ? utf8search.c_str() : NULL, order), true);
 }
 
 MNodeList^ MegaSDK::globalSearch(String^ searchString)
 {
-    std::string utf8search;
-    if (searchString != nullptr)
-        MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
-
-    return ref new MNodeList(megaApi->search((searchString != nullptr) ? utf8search.c_str() : NULL), true);
+    return this->globalSearch(searchString, (int)MSortOrderType::ORDER_NONE);
 }
 
 bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive)

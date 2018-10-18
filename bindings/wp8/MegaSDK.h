@@ -64,7 +64,7 @@ namespace mega
     using Platform::String;
 
     public enum class MSortOrderType {
-        ORDER_NONE, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
+        ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
         ORDER_SIZE_ASC, ORDER_SIZE_DESC,
         ORDER_CREATION_ASC, ORDER_CREATION_DESC,
         ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
@@ -2872,9 +2872,145 @@ namespace mega
 
         uint64 getBandwidthOverquotaDelay();
 
+        /**
+        * @brief Search nodes containing a search string in their name
+        *
+        * The search is case-insensitive.
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param node The parent node of the tree to explore
+        * @param searchString Search string. The search is case-insensitive
+        * @param recursive True if you want to seach recursively in the node tree.
+        * False if you want to seach in the children of the node only.
+        *
+        * @param order Order for the returned list
+        * Valid values for this parameter are:
+        * - MSortOrderType::ORDER_NONE = 0
+        * Undefined order
+        *
+        * - MSortOrderType::ORDER_DEFAULT_ASC = 1
+        * Folders first in alphabetical order, then files in the same order
+        *
+        * - MSortOrderType::ORDER_DEFAULT_DESC = 2
+        * Files first in reverse alphabetical order, then folders in the same order
+        *
+        * - MSortOrderType::ORDER_SIZE_ASC = 3
+        * Sort by size, ascending
+        *
+        * - MSortOrderType::ORDER_SIZE_DESC = 4
+        * Sort by size, descending
+        *
+        * - MSortOrderType::ORDER_CREATION_ASC = 5
+        * Sort by creation time in MEGA, ascending
+        *
+        * - MSortOrderType::ORDER_CREATION_DESC = 6
+        * Sort by creation time in MEGA, descending
+        *
+        * - MSortOrderType::ORDER_MODIFICATION_ASC = 7
+        * Sort by modification time of the original file, ascending
+        *
+        * - MSortOrderType::ORDER_MODIFICATION_DESC = 8
+        * Sort by modification time of the original file, descending
+        *
+        * - MSortOrderType::ORDER_ALPHABETICAL_ASC = 9
+        * Sort in alphabetical order, ascending
+        *
+        * - MSortOrderType::ORDER_ALPHABETICAL_DESC = 10
+        * Sort in alphabetical order, descending
+        *
+        * @return List of nodes that contain the desired string in their name
+        */
+        MNodeList^ search(MNode^ node, String^ searchString, bool recursive, int order);
+
+        /**
+        * @brief Search nodes containing a search string in their name
+        *
+        * The search is case-insensitive.
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param node The parent node of the tree to explore
+        * @param searchString Search string. The search is case-insensitive
+        * @param recursive True if you want to seach recursively in the node tree.
+        * False if you want to seach in the children of the node only.
+        *
+        * @return List of nodes that contain the desired string in their name
+        */
         MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
-        MNodeList^ search(MNode^ node, String^ searchString);
+
+        /**
+        * @brief Search nodes containing a search string in their name
+        *
+        * The search is case-insensitive.
+        *
+        * The search will consider every accessible node for the account:
+        *  - Cloud drive
+        *  - Inbox
+        *  - Rubbish bin
+        *  - Incoming shares from other users
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param searchString Search string. The search is case-insensitive
+        * @param order Order for the returned list
+        * Valid values for this parameter are:
+        * - MSortOrderType::ORDER_NONE = 0
+        * Undefined order
+        *
+        * - MSortOrderType::ORDER_DEFAULT_ASC = 1
+        * Folders first in alphabetical order, then files in the same order
+        *
+        * - MSortOrderType::ORDER_DEFAULT_DESC = 2
+        * Files first in reverse alphabetical order, then folders in the same order
+        *
+        * - MSortOrderType::ORDER_SIZE_ASC = 3
+        * Sort by size, ascending
+        *
+        * - MSortOrderType::ORDER_SIZE_DESC = 4
+        * Sort by size, descending
+        *
+        * - MSortOrderType::ORDER_CREATION_ASC = 5
+        * Sort by creation time in MEGA, ascending
+        *
+        * - MSortOrderType::ORDER_CREATION_DESC = 6
+        * Sort by creation time in MEGA, descending
+        *
+        * - MSortOrderType::ORDER_MODIFICATION_ASC = 7
+        * Sort by modification time of the original file, ascending
+        *
+        * - MSortOrderType::ORDER_MODIFICATION_DESC = 8
+        * Sort by modification time of the original file, descending
+        *
+        * - MSortOrderType::ORDER_ALPHABETICAL_ASC = 9
+        * Sort in alphabetical order, ascending
+        *
+        * - MSortOrderType::ORDER_ALPHABETICAL_DESC = 10
+        * Sort in alphabetical order, descending
+        *
+        * @return List of nodes that contain the desired string in their name
+        */
+        MNodeList^ globalSearch(String^ searchString, int order);
+        
+        /**
+        * @brief Search nodes containing a search string in their name
+        *
+        * The search is case-insensitive.
+        *
+        * The search will consider every accessible node for the account:
+        *  - Cloud drive
+        *  - Inbox
+        *  - Rubbish bin
+        *  - Incoming shares from other users
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param searchString Search string. The search is case-insensitive
+        *
+        * @return List of nodes that contain the desired string in their name
+        */
         MNodeList^ globalSearch(String^ searchString);
+        
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
 
