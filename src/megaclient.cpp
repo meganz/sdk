@@ -868,7 +868,7 @@ void MegaClient::getpsa()
 
 void MegaClient::acknowledgeuseralerts()
 {
-    reqs.add(new CommandSetLastAcknowledged(this));
+    useralerts.acknowledgeAll();
 }
 
 // set warn level

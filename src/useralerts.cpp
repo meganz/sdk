@@ -1018,7 +1018,11 @@ void UserAlerts::acknowledgeAll()
 {
     for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
     {
-        (*i)->seen = true;
+        if (!(*i)->seen)
+        {
+            (*i)->seen = true;
+            useralertnotify.push_back(*i);
+        }
     }
 
     // notify the API.  Eg. on when user closes the useralerts list
