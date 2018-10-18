@@ -2820,6 +2820,13 @@ namespace mega
         */
         MUserAlertList^ getUserAlerts();
 
+        /**
+        * @brief Get the number of unread user alerts for the logged in user
+        *
+        * @return Number of unread user alerts
+        */
+        int getNumUnreadUserAlerts();
+
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
         MShareList^ getInSharesList();

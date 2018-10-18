@@ -3492,6 +3492,11 @@ MUserAlertList^ MegaSDK::getUserAlerts()
     return ref new MUserAlertList(megaApi->getUserAlerts(), true);
 }
 
+int MegaSDK::getNumUnreadUserAlerts()
+{
+    return megaApi->getNumUnreadUserAlerts();
+}
+
 MNodeList^ MegaSDK::getInShares(MUser^ user)
 {
     return ref new MNodeList(megaApi->getInShares((user != nullptr) ? user->getCPtr() : NULL), true);
