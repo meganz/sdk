@@ -12594,8 +12594,6 @@ class MegaApi
          * - MegaTextChatPeerList::PRIV_MODERATOR = 3
          * @param title Byte array representing the title that wants to be set, already encrypted and
          * converted to Base64url encoding (optional).
-         * @param unifiedKey Byte array that contains the unified key, already encrypted and
-         * converted to Base64url encoding.
          * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
