@@ -3841,9 +3841,18 @@ bool MegaClient::procsc()
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
 
-                        // now that we have loaded cached state, and caught up actionpackets since that state 
-                        // (or just fetched everything if there was no cache), our next sc request can be for useralerts
-                        useralerts.begincatchup = true;
+                        if (sid.size())
+                        {
+                            // now that we have loaded cached state, and caught up actionpackets since that state
+                            // (or just fetched everything if there was no cache), our next sc request can be for useralerts
+                            useralerts.begincatchup = true;
+                        }
+                        else
+                        {
+                            // historic user alerts are not supported for public folders
+                            useralerts.begincatchup = false;
+                            useralerts.catchupdone = true;
+                        }
                     }
                     return true;
 
