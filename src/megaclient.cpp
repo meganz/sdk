@@ -3223,7 +3223,7 @@ bool MegaClient::dispatch(direction_t d)
                             hprivate = (*it)->hprivate;
                             privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
                             pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
-                            chatauth = (*it)->chatauth.size() ? (*it)->chatauth.c_str() : NULL;
+                            chatauth = (*it)->chatauth;
                             break;
                         }
                         else

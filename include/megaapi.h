@@ -984,7 +984,7 @@ class MegaNode
          * @return Chat auth token to access the node
          * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
          */
-        virtual std::string* getChatAuth();
+        virtual const char *getChatAuth();
 
         /**
          * @brief Returns the child nodes of an authorized folder node

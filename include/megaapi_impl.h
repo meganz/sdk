@@ -445,7 +445,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         void setChildren(MegaNodeList *children);
         void setName(const char *newName);
         virtual std::string* getPublicAuth();
-        virtual std::string* getChatAuth();
+        virtual const char *getChatAuth();
         virtual bool isShared();
         virtual bool isOutShare();
         virtual bool isInShare();
@@ -481,7 +481,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
-        std::string chatAuth;
+        const char *chatAuth;
         int tag;
         int changed;
         struct {

@@ -46,6 +46,7 @@ File::~File()
     {
         transfer->client->stopxfer(this);
     }
+    delete [] chatauth;
 }
 
 bool File::serialize(string *d)
@@ -97,16 +98,16 @@ bool File::serialize(string *d)
     flag = temporaryfile;
     d->append((const char*)&flag, sizeof(flag));
 
-    char hasChatAuth = chatauth.size() ? 1 : 0;
+    char hasChatAuth = chatauth ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
     d->append("\0\0\0\0\0\0\0", 8);
 
     if (hasChatAuth)
     {
-        ll = (unsigned short)chatauth.size();
+        ll = (unsigned short) strlen(chatauth);
         d->append((char*)&ll, sizeof(ll));
-        d->append(chatauth.data(), ll);
+        d->append(chatauth, ll);
     }
 
     return true;
@@ -251,7 +252,11 @@ File *File::unserialize(string *d)
         const char *chatauth = ptr;
         ptr += chatauthlen;
 
-        file->chatauth.assign(chatauth, chatauthlen);
+        file->chatauth = strdup(chatauth);
+    }
+    else
+    {
+        file->chatauth = NULL;
     }
 
     d->erase(0, ptr - d->data());

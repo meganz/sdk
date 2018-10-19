@@ -456,7 +456,7 @@ string *MegaNode::getPublicAuth()
     return NULL;
 }
 
-string *MegaNode::getChatAuth()
+const char *MegaNode::getChatAuth()
 {
     return NULL;
 }

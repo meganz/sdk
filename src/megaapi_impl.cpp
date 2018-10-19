@@ -176,7 +176,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->isPublicNode = node->isPublic();
     this->privateAuth = *node->getPrivateAuth();
     this->publicAuth = *node->getPublicAuth();
-    this->chatAuth = *node->getChatAuth();
+    this->chatAuth = node->getChatAuth() ? strdup(node->getChatAuth()) : NULL;
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
@@ -485,16 +485,16 @@ bool MegaNodePrivate::serialize(string *d)
     flag = foreign;
     d->append((char*)&flag, sizeof(flag));
 
-    char hasChatAuth = chatAuth.size() ? 1 : 0;
+    char hasChatAuth = chatAuth ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
     d->append("\0\0\0\0\0\0", 7);
 
     if (hasChatAuth)
     {
-        ll = (unsigned short)chatAuth.size();
+        ll = (unsigned short) strlen(chatAuth);
         d->append((char*)&ll, sizeof(ll));
-        d->append(chatAuth.data(), ll);
+        d->append(chatAuth, ll);
     }
 
     return true;
@@ -1427,12 +1427,13 @@ void MegaNodePrivate::setChatAuth(const char *chatAuth)
 {
     if (!chatAuth || !chatAuth[0])
     {
-        this->chatAuth.clear();
+        delete [] this->chatAuth;
+        this->chatAuth = NULL;
         this->foreign = false;
     }
     else
     {
-        this->chatAuth = chatAuth;
+        this->chatAuth = strdup(chatAuth);
         this->foreign = true;
     }
 }
@@ -1460,9 +1461,9 @@ string *MegaNodePrivate::getPublicAuth()
     return &publicAuth;
 }
 
-string *MegaNodePrivate::getChatAuth()
+const char *MegaNodePrivate::getChatAuth()
 {
-    return &chatAuth;
+    return chatAuth;
 }
 
 MegaNodePrivate::~MegaNodePrivate()
@@ -4196,10 +4197,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
         pubauth = *n->getPublicAuth();
     }
 
-    if(n->getChatAuth()->size())
-    {
-        chatauth = *n->getChatAuth();
-    }
+    chatauth = n->getChatAuth() ? strdup(n->getChatAuth()) : NULL;
 }
 
 bool MegaFileGet::serialize(string *d)
@@ -16799,11 +16797,9 @@ void MegaApiImpl::sendPendingRequests()
                 tc.nn->parenthandle = UNDEF;
                 tc.nn->ovhandle = ovhandle;
 
-                const char *cauth = megaNode->getChatAuth()->size() ? megaNode->getChatAuth()->c_str() : NULL;
-
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, tc.nn, nc, cauth);
+                    client->putnodes(target->nodehandle, tc.nn, nc, megaNode->getChatAuth());
                 }
                 else
                 {
