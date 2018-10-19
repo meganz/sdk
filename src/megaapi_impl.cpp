@@ -1423,9 +1423,9 @@ void MegaNodePrivate::setPublicAuth(const char *publicAuth)
 
 void MegaNodePrivate::setChatAuth(const char *chatAuth)
 {
+    delete [] this->chatAuth;
     if (!chatAuth || !chatAuth[0])
     {
-        delete [] this->chatAuth;
         this->chatAuth = NULL;
         this->foreign = false;
     }
