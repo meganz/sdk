@@ -1799,6 +1799,11 @@ void MegaClient::exec()
                     else
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
+                        if (useralerts.begincatchup)
+                        {
+                            useralerts.begincatchup = false;
+                            useralerts.catchupdone = true;
+                        }
                     }
                 }
 
