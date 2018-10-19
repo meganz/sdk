@@ -10623,6 +10623,7 @@ void MegaClient::purgenodesusersabortsc()
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
+    useralerts.clear();
 
 #ifndef ENABLE_CHAT
     users.clear();
@@ -10635,7 +10636,6 @@ void MegaClient::purgenodesusersabortsc()
         chats.erase(it++);
     }
     chatnotify.clear();
-    useralerts.clear();
 
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
