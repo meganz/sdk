@@ -115,7 +115,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
         this->publicAuth = publicauth;
     }
 
-    this->chatAuth = chatauth ? strdup(chatauth) : NULL;
+    this->chatAuth = chatauth ? MegaApi::strdup(chatauth) : NULL;
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = false;
@@ -173,7 +173,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->isPublicNode = node->isPublic();
     this->privateAuth = *node->getPrivateAuth();
     this->publicAuth = *node->getPublicAuth();
-    this->chatAuth = node->getChatAuth() ? strdup(node->getChatAuth()) : NULL;
+    this->chatAuth = node->getChatAuth() ? MegaApi::strdup(node->getChatAuth()) : NULL;
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
@@ -4196,7 +4196,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
         pubauth = *n->getPublicAuth();
     }
 
-    chatauth = n->getChatAuth() ? strdup(n->getChatAuth()) : NULL;
+    chatauth = n->getChatAuth() ? MegaApi::strdup(n->getChatAuth()) : NULL;
 }
 
 bool MegaFileGet::serialize(string *d)
