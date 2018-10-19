@@ -115,10 +115,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
         this->publicAuth = publicauth;
     }
 
-    if (chatauth)
-    {
-        this->chatAuth = chatauth;
-    }
+    this->chatAuth = chatauth ? strdup(chatauth) : NULL;
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = false;
@@ -228,6 +225,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->name = MegaApi::strdup(node->displayname());
     this->fingerprint = NULL;
     this->children = NULL;
+    this->chatAuth = NULL;
 
     if (node->isvalid)
     {
@@ -1470,6 +1468,7 @@ MegaNodePrivate::~MegaNodePrivate()
 {
     delete[] name;
     delete [] fingerprint;
+    delete [] chatAuth;
     delete customAttrs;
     delete plink;
     delete sharekey;

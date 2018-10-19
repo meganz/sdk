@@ -31,6 +31,7 @@ namespace mega {
 File::File()
 {
     transfer = NULL;
+    chatauth = NULL;
     hprivate = true;
     hforeign = false;
     syncxfer = false;
