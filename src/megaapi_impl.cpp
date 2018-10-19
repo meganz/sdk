@@ -1431,7 +1431,7 @@ void MegaNodePrivate::setChatAuth(const char *chatAuth)
     }
     else
     {
-        this->chatAuth = strdup(chatAuth);
+        this->chatAuth = MegaApi::strdup(chatAuth);
         this->foreign = true;
     }
 }
