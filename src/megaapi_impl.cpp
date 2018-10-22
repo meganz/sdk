@@ -7272,7 +7272,7 @@ int MegaApiImpl::syncPathState(string* path)
                 if (is_syncable(sync, name.c_str(), path))
                 {
                     FileAccess *fa = fsAccess->newfileaccess();
-                    if ((fa->fopen(path) && is_syncable(fa->size)) || fa->type == FOLDERNODE)
+                    if (fa->fopen(path, false, false) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
                     {
                         state = MegaApi::STATE_PENDING;
                     }
