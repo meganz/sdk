@@ -618,18 +618,28 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     }
     ptr += 7;
 
-    const char *chatauth = NULL;
+    string chatauth;
     if (hasChatAuth)
     {
-        unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof(chatauthlen);
-        if (ptr + chatauthlen + sizeof(unsigned short) > end)
+        if (ptr + sizeof(unsigned short) > end)
         {
-            LOG_err << "MegaNodePrivate unserialization failed - chat auth too long";
+            unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
+            ptr += sizeof(chatauthlen);
+
+            if (!chatauthlen || ptr + chatauthlen > end)
+            {
+                LOG_err << "MegaNodePrivate unserialization failed - incorrect size of chat auth";
+                return NULL;
+            }
+
+            chatauth.assign(ptr, chatauthlen);
+            ptr += chatauthlen;
+        }
+        else
+        {
+            LOG_err << "MegaNodePrivate unserialization failed - chat auth not found";
             return NULL;
         }
-        chatauth = ptr;
-        ptr += chatauthlen;
     }
 
     d->erase(0, ptr - d->data());
@@ -638,7 +648,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
                                fingerprintlen ? fingerprint.c_str() : NULL,
                                parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign, chatauth);
+                               isPublicNode, foreign, hasChatAuth ? chatauth.c_str() : NULL);
 }
 
 char *MegaNodePrivate::getBase64Handle()

@@ -38,6 +38,7 @@ File::File()
     temporaryfile = false;
     h = UNDEF;
     tag = 0;
+    chatauth = NULL;
 }
 
 File::~File()
@@ -242,22 +243,28 @@ File *File::unserialize(string *d)
 
     if (hasChatAuth)
     {
-        unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
-        ptr += sizeof(chatauthlen);
-        if (ptr + chatauthlen + sizeof(unsigned short) > end)
+        if (ptr + sizeof(unsigned short) > end)
         {
-            LOG_err << "File unserialization failed - chat auth too long";
-            delete fp;
+            unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
+            ptr += sizeof(chatauthlen);
+
+            if (!chatauthlen || ptr + chatauthlen > end)
+            {
+                LOG_err << "File unserialization failed - incorrect size of chat auth";
+                delete file;
+                return NULL;
+            }
+
+            file->chatauth = new char[chatauthlen];
+            memcpy(file->chatauth, ptr, chatauthlen);
+            ptr += chatauthlen;
+        }
+        else
+        {
+            LOG_err << "File unserialization failed - chat auth not found";
+            delete file;
             return NULL;
         }
-        const char *chatauth = ptr;
-        ptr += chatauthlen;
-
-        file->chatauth = strdup(chatauth);
-    }
-    else
-    {
-        file->chatauth = NULL;
     }
 
     d->erase(0, ptr - d->data());

@@ -84,7 +84,7 @@ struct MEGA_API File: public FileFingerprint
     string pubauth;
 
     // chat auth to access the node
-    const char *chatauth;
+    char *chatauth;
 
     // if !hprivate, filekey and size must be valid
     byte filekey[FILENODEKEYLENGTH];
