@@ -9559,12 +9559,9 @@ MegaNode *MegaApiImpl::authorizeChatNode(MegaNode *node, const char *cauth)
         return NULL;
     }
 
-    sdkMutex.lock();
-
     MegaNodePrivate *result = new MegaNodePrivate(node);
     result->setChatAuth(cauth);
 
-    sdkMutex.unlock();
     return result;
 
 }
