@@ -388,7 +388,8 @@ void UserAlert::DeletedShare::updateEmail(MegaClient* mc)
 
     if (Node* n = mc->nodebyhandle(folderHandle))
     {
-        folderName = n->displaypath();
+        folderPath = n->displaypath();
+        folderName = n->displayname();
     }
 }
 

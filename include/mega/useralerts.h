@@ -154,6 +154,7 @@ namespace UserAlert
     struct DeletedShare : public Base
     {
         handle folderHandle;
+        string folderPath;
         string folderName;
         handle removerHandle;
         string removerEmail;
