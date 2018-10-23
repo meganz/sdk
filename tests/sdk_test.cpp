@@ -1946,6 +1946,16 @@ TEST_F(SdkTest, SdkTestShares)
 
     delete nl;
 
+    // check the corresponding user alert
+    {
+        MegaUserAlertList* list = megaApi[1]->getUserAlerts();
+        ASSERT_TRUE(list->size() > 1);
+        MegaUserAlert* a = list->get(list->size() - 2);  // back past the 'added 2 folders and 1 file'
+        ASSERT_STREQ(a->getTitle(), ("New shared folder from " + email[0]).c_str());
+        ASSERT_STREQ(a->getPath(), (email[0] + ":Shared-folder").c_str());
+        ASSERT_NE(a->getNodeHandle(), UNDEF);
+        delete list;
+    }
 
     // --- Modify the access level of an outgoing share ---
 
@@ -1982,6 +1992,16 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(0, nl->size()) << "Incoming share revocation failed";
     delete nl;
 
+    // check the corresponding user alert
+    {
+        MegaUserAlertList* list = megaApi[1]->getUserAlerts();
+        ASSERT_TRUE(list->size() > 0);
+        MegaUserAlert* a = list->get(list->size() - 1);
+        ASSERT_STREQ(a->getTitle(), ("Access to folders shared by " + email[0] + " was removed").c_str());
+        ASSERT_STREQ(a->getPath(), (email[0] + ":Shared-folder").c_str());
+        ASSERT_NE(a->getNodeHandle(), UNDEF);
+        delete list;
+    }
 
     // --- Get pending outgoing shares ---
 

@@ -1648,6 +1648,11 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_NEWSHARE;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodeHandle = p->folderhandle;
+        if (Node* node = mc->nodebyhandle(p->folderhandle))
+        {
+            nodePath = node->displaypath();
+        }
     }
     break;
     case UserAlert::type_dshare:
@@ -1656,6 +1661,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_DELETEDSHARE;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodePath = p->folderName;
+        nodeHandle = p->folderHandle;
     }
     break;
     case UserAlert::type_put:

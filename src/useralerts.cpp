@@ -808,6 +808,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
+    unb->updateEmail(&mc);
     alerts.push_back(unb);
     if (catchupdone)
     {
