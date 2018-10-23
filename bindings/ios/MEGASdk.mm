@@ -165,6 +165,10 @@ using namespace mega;
 
 #endif
 
+- (NSInteger)numUnreadUserAlerts {
+    return self.megaApi->getNumUnreadUserAlerts();
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
@@ -358,6 +362,12 @@ using namespace mega;
     if(base64Handle == nil) return ::mega::INVALID_HANDLE;
     
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
+}
+
++ (uint64_t)handleForBase64UserHandle:(NSString *)base64UserHandle {
+    if(base64UserHandle == nil) return ::mega::INVALID_HANDLE;
+    
+     return MegaApi::base64ToUserHandle([base64UserHandle UTF8String]);
 }
 
 + (NSString *)base64HandleForHandle:(uint64_t)handle {
@@ -1078,6 +1088,14 @@ using namespace mega;
 
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt {
     self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL);
+}
+
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle {
+    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle);
 }
 
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {

@@ -262,7 +262,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @deprecated Property related to statistics will be reviewed in future updates to
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
-@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));;
+@property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
@@ -271,7 +271,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  *
  */
-@property (readonly, nonatomic) NSNumber *totalsUploadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));;
+@property (readonly, nonatomic) NSNumber *totalsUploadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));
 
 /**
  * @brief The total number of nodes in the account
@@ -321,6 +321,11 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 @property (readonly, nonatomic) NSString *myFingerprint;
 
 #endif
+
+/**
+ * @brief The number of unread user alerts for the logged in user
+ */
+@property (readonly, nonatomic) NSInteger numUnreadUserAlerts;
 
 #pragma mark - Init
 
@@ -462,6 +467,7 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param base64pwkey Private key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
  * @param email Email to create the hash
  * @return Base64-encoded hash
+ *
  * @deprecated This function is only useful for old accounts. Once enabled the new registration logic,
  * this function will return an empty string for new accounts and will be removed few time after.
  */
@@ -477,6 +483,16 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @return Node handle.
  */
 + (uint64_t)handleForBase64Handle:(NSString *)base64Handle;
+
+/**
+ * @brief Converts a Base64-encoded user handle to a MegaHandle
+ *
+ * You can revert this operation using [MEGASdk base64handleForUserHandle:].
+ *
+ * @param base64UserHandle Base64-encoded user handle
+ * @return User handle
+ */
++ (uint64_t)handleForBase64UserHandle:(NSString *)base64UserHandle;
 
 /**
  * @brief Converts the handle of a node to a Base64-encoded NSString
@@ -865,8 +881,12 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param stringHash Hash of the email returned by [MEGASdk hashForBase64pwkey:email:].
  * @param base64pwKey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
  * @param delegate Delegate to track this request.
+ *
+ * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
+ * one soon. Please use [MEGASdk loginWithEmail:password:delegate:] or [MEGASdk fastLoginWithSession:delegate]
+ * instead when possible.
  */
-- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MEGARequestDelegate>)delegate;
+- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("The parameter stringHash is no longer for new accounts so this function will be replaced by another one soon. Please use [MEGASdk loginWithEmail:password:delegate:] or [MEGASdk fastLoginWithSession:delegate:] instead when possible.")));
 
 /**
  * @brief Log in to a MEGA account using precomputed keys.
@@ -883,8 +903,11 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param email Email of the user.
  * @param stringHash Hash of the email returned by [MEGASdk hashForBase64pwkey:email:].
  * @param base64pwKey Private key calculated using [MEGASdk base64PwKeyWithPassword:].
+ *
+ * @deprecated The parameter stringHash is no longer for new accounts so this function will be replaced by another
+ * one soon. Please use [MEGASdk loginWithEmail:password:] or [MEGASdk fastLoginWithSession:] instead when possible.
  */
-- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey;
+- (void)fastLoginWithEmail:(NSString *)email stringHash:(NSString *)stringHash base64pwKey:(NSString *)base64pwKey __attribute__((deprecated("The parameter stringHash is no longer for new accounts so this function will be replaced by another one soon. Please use [MEGASdk loginWithEmail:password:] or [MEGASdk fastLoginWithSession:] instead when possible.")));
 
 /**
  * @brief Log in to a MEGA account using a session key.
@@ -1059,8 +1082,11 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param password Password for the account.
  * @param name Name of the user.
  * @param delegate Delegate to track this request.
+ *
+ * @deprecated This function is deprecated and will eventually be removed. Instead,
+ * use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:delegate:].
  */
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function is deprecated and will eventually be removed. Instead, use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:delegate:]")));
 
 /**
  * @brief Initialize the creation of a new MEGA account.
@@ -1078,8 +1104,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @param email Email for the account.
  * @param password Password for the account.
  * @param name Name of the user.
+ * @deprecated This function is deprecated and will eventually be removed. Instead,
+ * use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:].
  */
-- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name;
+- (void)createAccountWithEmail:(NSString *)email password:(NSString *)password name:(NSString *)name __attribute__((deprecated("This function is deprecated and will eventually be removed. Instead, use the new version of [MEGASdk createAccountWithEmail:password:firstname:lastname:]")));
 
 
 /**
@@ -1221,10 +1249,13 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param email Email for the account
  * @param name Firstname of the user
- * @param base64pwkeyPrivate key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
+ * @param base64pwkey key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
  * @param delegate MEGARequestDelegate to track this request
+ *
+ * @deprecated This function only works using the old registration method and will be removed soon.
+ * Please use [MEGASdk sendSignupLinkWithEmail:name:password:delegate:] instead.
  */
-- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate;
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("This function only works using the old registration method and will be removed soon. Please use [MEGASdk sendSignupLinkWithEmail:name:password:delegate:] instead.")));
 
 /**
  * @brief Sends the confirmation email for a new account
@@ -1234,9 +1265,12 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param email Email for the account
  * @param name Firstname of the user
- * @param base64pwkeyPrivate key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
+ * @param base64pwkey key returned by [MEGARequest privateKey] in the onRequestFinish callback of createAccount
+ *
+ * @deprecated This function only works using the old registration method and will be removed soon.
+ * Please use [MEGASdk sendSignupLinkWithEmail:name:password:] instead.
  */
-- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name;
+- (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name __attribute__((deprecated("This function only works using the old registration method and will be removed soon. Please use [MEGASdk sendSignupLinkWithEmail:name:password:] instead.")));
 
 /**
  * @brief Get information about a confirmation link.
@@ -3423,6 +3457,37 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt;
 
 /**
+ * @brief Submit a purchase receipt for verification
+ *
+ * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ *
+ * @param receipt Purchase receipt
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ * @param delegate Delegate to track this request
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Submit a purchase receipt for verification
+ *
+ * The associated request type with this request is MEGARequestTypeSubmitPurchaseReceipt
+ *
+ * @param gateway Payment gateway
+ * Currently supported payment gateways are:
+ * Currently supported payment gateways are:
+ * - MEGAPaymentMethodItunes = 2
+ *
+ * @param receipt Purchase receipt
+ * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+ */
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle;
+
+/**
  * @brief Change the password of the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeChangePassword.
@@ -5184,8 +5249,11 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param node Node to check.
  * @return YES is the MEGANode is being shared, otherwise NO.
+ *
+ * @deprecated This function is intended for debugging and internal purposes and will be probably removed in future updates.
+ * Use [MEGANode isShared] instead.
  */
-- (BOOL)isSharedNode:(MEGANode *)node;
+- (BOOL)isSharedNode:(MEGANode *)node __attribute__((deprecated("This function is intended for debugging and internal purposes and will be probably removed in future updates. Use [MEGANode isShared] instead.")));
 
 /**
  * @brief Get a list with all active outbound sharings
@@ -5273,8 +5341,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * @param node Node for which we want to get the fingerprint.
  * @return Base64-encoded fingerprint for the file.
+ *
+ * @deprecated Use [MEGANode fingerprint] instead of this function
  */
-- (NSString *)fingerprintForNode:(MEGANode *)node;
+- (NSString *)fingerprintForNode:(MEGANode *)node __attribute__((deprecated("Use [MEGANode fingerprint] instead of this function.")));
 
 /**
  * @brief Returns a node with the provided fingerprint.

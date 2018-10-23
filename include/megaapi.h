@@ -5009,7 +5009,7 @@ class MegaGlobalListener
         * for those objects.
         *
         * @param api MegaApi object connected to the account
-        * @param users List that contains the new or updated contacts
+        * @param alerts List that contains the new or updated alerts
         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
@@ -5319,7 +5319,7 @@ class MegaListener
         * for those objects.
         *
         * @param api MegaApi object connected to the account
-        * @param users List that contains the new or updated contacts
+        * @param alerts List that contains the new or updated alerts
         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
@@ -8088,7 +8088,8 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - Return true if logged in into a folder and the provided key is invalid. Otherwise, false.
+         * - MegaRequest::getFlag - Returns true if logged in into a folder and the provided key is invalid. Otherwise, false.
+         * - MegaRequest::getNodeHandle - Returns the public handle if logged into a public folder. Otherwise, INVALID_HANDLE
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -8179,6 +8180,25 @@ class MegaApi
         void getPaymentId(MegaHandle productHandle, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Get the payment URL for an upgrade
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the product
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Payment ID
+         *
+         * @param productHandle Handle of the product (see MegaApi::getPricing)
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param listener MegaRequestListener to track this request
+         *
+         * @see MegaApi::getPricing
+         */
+        void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Upgrade an account
          * @param productHandle Product handle to purchase
          *
@@ -8233,6 +8253,23 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         *
+         * @param gateway Payment gateway
+         * Currently supported payment gateways are:
+         * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+         * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+         *
+         * @param receipt Purchase receipt
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param listener MegaRequestListener to track this request
+         */
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Store a credit card
@@ -10648,6 +10685,13 @@ class MegaApi
         MegaUserAlertList* getUserAlerts();
 
         /**
+         * @brief Get the number of unread user alerts for the logged in user
+         *
+         * @return Number of unread user alerts
+         */
+        int getNumUnreadUserAlerts();
+
+        /**
          * @brief Get a list with all inbound sharings from one MegaUser
          *
          * You take the ownership of the returned value
@@ -11190,11 +11234,46 @@ class MegaApi
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
          * @param recursive True if you want to seach recursively in the node tree.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Sort in alphabetical order, ascending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Sort in alphabetical order, descending
+         *
          * False if you want to seach in the children of the node only
          *
          * @return List of nodes that contain the desired string in their name
          */
-        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
+        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = ORDER_NONE);
 
         /**
          * @brief Search nodes containing a search string in their name
@@ -11210,10 +11289,44 @@ class MegaApi
          * You take the ownership of the returned value.
          *
          * @param searchString Search string. The search is case-insensitive
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Sort in alphabetical order, ascending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Sort in alphabetical order, descending
          *
          * @return List of nodes that contain the desired string in their name
          */
-        MegaNodeList* search(const char* searchString);
+        MegaNodeList* search(const char* searchString, int order = ORDER_NONE);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation

@@ -1870,9 +1870,9 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
-        void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
+        void getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
-        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
         void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
@@ -1918,7 +1918,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
-        void startDownload(bool startFirst, MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, const char *appData, MegaTransferListener *listener);
+        void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
@@ -2031,6 +2031,7 @@ class MegaApiImpl : public MegaApp
         MegaUserList* getContacts();
         MegaUser* getContact(const char* uid);
         MegaUserAlertList* getUserAlerts();
+        int getNumUnreadUserAlerts();
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
@@ -2082,9 +2083,9 @@ class MegaApiImpl : public MegaApp
 
         long long getBandwidthOverquotaDelay();
 
-        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
+        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(const char* searchString);
+        MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth);

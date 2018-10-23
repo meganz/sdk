@@ -2148,6 +2148,17 @@ void MegaSDK::getPaymentId(uint64 productHandle)
 	megaApi->getPaymentId(productHandle);
 }
 
+void MegaSDK::getPaymentIdWithLastPublicHandle(uint64 productHandle, uint64 lastPublicHandle, 
+    MRequestListenerInterface^ listener)
+{
+    megaApi->getPaymentId(productHandle, lastPublicHandle, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getPaymentIdWithLastPublicHandle(uint64 productHandle, uint64 lastPublicHandle)
+{
+    megaApi->getPaymentId(productHandle, lastPublicHandle);
+}
+
 void MegaSDK::upgradeAccount(uint64 productHandle, int paymentMethod, MRequestListenerInterface^ listener)
 {
 	megaApi->upgradeAccount(productHandle, paymentMethod, createDelegateMRequestListener(listener));
@@ -2170,11 +2181,24 @@ void MegaSDK::submitPurchaseReceipt(int gateway, String^ receipt, MRequestListen
 
 void MegaSDK::submitPurchaseReceipt(int gateway, String^ receipt)
 {
+    this->submitPurchaseReceipt(gateway, receipt, nullptr);
+}
+
+void MegaSDK::submitPurchaseReceiptWithLastPublicHandle(int gateway, String^ receipt,
+    uint64 lastPublicHandle, MRequestListenerInterface^ listener)
+{
     std::string utf8receipt;
     if (receipt != nullptr)
         MegaApi::utf16ToUtf8(receipt->Data(), receipt->Length(), &utf8receipt);
 
-    megaApi->submitPurchaseReceipt(gateway, (receipt != nullptr) ? utf8receipt.c_str() : NULL);
+    megaApi->submitPurchaseReceipt(gateway, (receipt != nullptr) ? utf8receipt.c_str() : NULL,
+        lastPublicHandle, createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::submitPurchaseReceiptWithLastPublicHandle(int gateway, String^ receipt,
+    uint64 lastPublicHandle)
+{
+    this->submitPurchaseReceiptWithLastPublicHandle(gateway, receipt, lastPublicHandle, nullptr);
 }
 
 void MegaSDK::creditCardStore(String^ address1, String^ address2, String^ city,
@@ -3468,6 +3492,11 @@ MUserAlertList^ MegaSDK::getUserAlerts()
     return ref new MUserAlertList(megaApi->getUserAlerts(), true);
 }
 
+int MegaSDK::getNumUnreadUserAlerts()
+{
+    return megaApi->getNumUnreadUserAlerts();
+}
+
 MNodeList^ MegaSDK::getInShares(MUser^ user)
 {
     return ref new MNodeList(megaApi->getInShares((user != nullptr) ? user->getCPtr() : NULL), true);
@@ -3781,31 +3810,33 @@ uint64 MegaSDK::getBandwidthOverquotaDelay()
     return megaApi->getBandwidthOverquotaDelay();
 }
 
-MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive)
+MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive, int order)
 {
     std::string utf8search;
     if (searchString != nullptr)
         MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
 
-    return ref new MNodeList(megaApi->search(node->getCPtr(), (searchString != nullptr) ? utf8search.c_str() : NULL, recursive), true);
+    return ref new MNodeList(megaApi->search(node->getCPtr(), 
+        (searchString != nullptr) ? utf8search.c_str() : NULL, recursive, order), true);
 }
 
-MNodeList^ MegaSDK::search(MNode^ node, String^ searchString)
+MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive)
+{
+    return this->search(node, searchString, recursive, (int)MSortOrderType::ORDER_NONE);
+}
+
+MNodeList^ MegaSDK::globalSearch(String^ searchString, int order)
 {
     std::string utf8search;
     if (searchString != nullptr)
         MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
 
-    return ref new MNodeList(megaApi->search(node->getCPtr(), (searchString != nullptr) ? utf8search.c_str() : NULL, true), true);
+    return ref new MNodeList(megaApi->search((searchString != nullptr) ? utf8search.c_str() : NULL, order), true);
 }
 
 MNodeList^ MegaSDK::globalSearch(String^ searchString)
 {
-    std::string utf8search;
-    if (searchString != nullptr)
-        MegaApi::utf16ToUtf8(searchString->Data(), searchString->Length(), &utf8search);
-
-    return ref new MNodeList(megaApi->search((searchString != nullptr) ? utf8search.c_str() : NULL), true);
+    return this->globalSearch(searchString, (int)MSortOrderType::ORDER_NONE);
 }
 
 bool MegaSDK::processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive)

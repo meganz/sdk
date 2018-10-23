@@ -41,6 +41,11 @@ typedef const char freeimage_filename_char_t;
 
 #ifdef HAVE_FFMPEG
 extern "C" {
+#ifdef _WIN32
+#pragma warning(disable:4996)
+#pragma warning(push)
+#pragma warning(disable:4242)
+#endif
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
@@ -48,6 +53,9 @@ extern "C" {
 #include <libavutil/mathematics.h>
 #include <libavutil/display.h>
 #include <libavutil/imgutils.h>
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 }
 #endif
 
@@ -119,7 +127,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     // Find first video stream type
     AVStream *videoStream = NULL;
     int videoStreamIdx = 0;
-    for (int i = 0; i < formatContext->nb_streams; i++)
+    for (unsigned i = 0; i < formatContext->nb_streams; i++)
     {
         if (formatContext->streams[i]->codec && formatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
         {
@@ -403,8 +411,11 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
         const char* ptr;
         if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
         {
+            string name;  // WIN32 ffmpeg uses utf8 rather than wide strings
+            client->fsaccess->local2path(localname, &name);
+
             isvideo = true;
-            if (!readbitmapFfmpeg(fa, localname, size) )
+            if (!readbitmapFfmpeg(fa, &name, size) )
             {
 #ifdef _WIN32
                 localname->resize(localname->size()-1);

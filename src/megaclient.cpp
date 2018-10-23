@@ -868,7 +868,7 @@ void MegaClient::getpsa()
 
 void MegaClient::acknowledgeuseralerts()
 {
-    reqs.add(new CommandSetLastAcknowledged(this));
+    useralerts.acknowledgeAll();
 }
 
 // set warn level
@@ -952,6 +952,7 @@ void MegaClient::init()
     chunkfailed = false;
     statecurrent = false;
     totalNodes = 0;
+    faretrying = false;
 
 #ifdef ENABLE_SYNC
     syncactivity = false;
@@ -964,7 +965,6 @@ void MegaClient::init()
     syncdownretry = false;
     syncnagleretry = false;
     syncextraretry = false;
-    faretrying = false;
     syncsup = true;
     syncdownrequired = false;
     syncuprequired = false;
@@ -8245,9 +8245,9 @@ void MegaClient::purchase_begin()
 // submit purchased product for payment
 void MegaClient::purchase_additem(int itemclass, handle item, unsigned price,
                                   const char* currency, unsigned tax, const char* country,
-                                  const char* affiliate)
+                                  handle lastPublicHandle)
 {
-    reqs.add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, affiliate));
+    reqs.add(new CommandPurchaseAddItem(this, itemclass, item, price, currency, tax, country, lastPublicHandle));
 }
 
 // obtain payment URL for given provider
@@ -8256,9 +8256,9 @@ void MegaClient::purchase_checkout(int gateway)
     reqs.add(new CommandPurchaseCheckout(this, gateway));
 }
 
-void MegaClient::submitpurchasereceipt(int type, const char *receipt)
+void MegaClient::submitpurchasereceipt(int type, const char *receipt, handle lph)
 {
-    reqs.add(new CommandSubmitPurchaseReceipt(this, type, receipt));
+    reqs.add(new CommandSubmitPurchaseReceipt(this, type, receipt, lph));
 }
 
 error MegaClient::creditcardstore(const char *ccplain)

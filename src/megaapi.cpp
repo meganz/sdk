@@ -2105,7 +2105,12 @@ void MegaApi::getPricing(MegaRequestListener *listener)
 
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentId(productHandle, listener);
+    pImpl->getPaymentId(productHandle, UNDEF, listener);
+}
+
+void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener)
+{
+    pImpl->getPaymentId(productHandle, lastPublicHandle, listener);
 }
 
 void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener)
@@ -2115,12 +2120,17 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, listener);
+    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, UNDEF, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(gateway, receipt, listener);
+    pImpl->submitPurchaseReceipt(gateway, receipt, UNDEF, listener);
+}
+
+void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, listener);
 }
 
 void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,
@@ -2507,12 +2517,12 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
 
 void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startDownload(false, node, localPath, 0, 0, 0, appData, listener);
+    pImpl->startDownload(false, node, localPath, 0, appData, listener);
 }
 
 void MegaApi::startDownloadWithTopPriority(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startDownload(true, node, localPath, 0, 0, 0, appData, listener);
+    pImpl->startDownload(true, node, localPath, 0, appData, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -2859,6 +2869,11 @@ MegaUserAlertList* MegaApi::getUserAlerts()
     return pImpl->getUserAlerts();
 }
 
+int MegaApi::getNumUnreadUserAlerts()
+{
+    return pImpl->getNumUnreadUserAlerts();
+}
+
 MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)
 {
     return pImpl->getInShares(megaUser);
@@ -3132,14 +3147,14 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive)
+MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
-    return pImpl->search(n, searchString, recursive);
+    return pImpl->search(n, searchString, recursive, order);
 }
 
-MegaNodeList *MegaApi::search(const char *searchString)
+MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString);
+    return pImpl->search(searchString, order);
 }
 
 long long MegaApi::getSize(MegaNode *n)

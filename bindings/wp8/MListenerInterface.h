@@ -206,7 +206,7 @@ namespace mega
         * for those objects.
         *
         * @param api MegaSDK object connected to the account
-        * @param users List that contains the new or updated contacts
+        * @param alerts List that contains the new or updated alerts
         */
         void onUserAlertsUpdate(MegaSDK^ api, MUserAlertList^ alerts);
 

@@ -2265,7 +2265,7 @@ void CommandEnumerateQuotaItems::procresult()
 CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass,
                                                handle item, unsigned price,
                                                const char* currency, unsigned /*tax*/,
-                                               const char* /*country*/, const char* affiliate)
+                                               const char* /*country*/, handle lph)
 {
     string sprice;
     sprice.resize(128);
@@ -2276,13 +2276,9 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
     arg("si", (byte*)&item, 8);
     arg("p", sprice.c_str());
     arg("c", currency);
-    if (affiliate)
+    if (!ISUNDEF(lph))
     {
-        arg("aff", affiliate);
-    }
-    else
-    {
-        arg("aff", (m_off_t)0);
+        arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
     }
 
     tag = client->reqtag;
@@ -4363,7 +4359,7 @@ void CommandReportEvent::procresult()
     }
 }
 
-CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt)
+CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph)
 {
     cmd("vpay");
     arg("t", type);
@@ -4376,6 +4372,11 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
     if(type == 2 && client->loggedin() == FULLACCOUNT)
     {
         arg("user", client->finduser(client->me)->uid.c_str());
+    }
+
+    if (!ISUNDEF(lph))
+    {
+        arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
     }
 
     tag = client->reqtag;

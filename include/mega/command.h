@@ -603,7 +603,7 @@ class MEGA_API CommandPurchaseAddItem : public Command
 public:
     void procresult();
 
-    CommandPurchaseAddItem(MegaClient*, int, handle, unsigned, const char*, unsigned, const char*, const char*);
+    CommandPurchaseAddItem(MegaClient*, int, handle, unsigned, const char*, unsigned, const char*, handle = UNDEF);
 };
 
 class MEGA_API CommandPurchaseCheckout : public Command
@@ -635,7 +635,7 @@ class MEGA_API CommandSubmitPurchaseReceipt : public Command
 public:
     void procresult();
 
-    CommandSubmitPurchaseReceipt(MegaClient*, int, const char*);
+    CommandSubmitPurchaseReceipt(MegaClient*, int, const char*, handle = UNDEF);
 };
 
 class MEGA_API CommandCreditCardStore : public Command
