@@ -17348,7 +17348,7 @@ void MegaApiImpl::sendPendingRequests()
             string attrname = MegaApiImpl::userAttributeToString(type);
             char scope = MegaApiImpl::userAttributeToScope(type);
 
-            if (!client->loggedin() && ph == NULL)
+            if ((!client->loggedin() && ph == NULL) || (ph && !ph[0]))
             {
                 e = API_EARGS;
                 break;

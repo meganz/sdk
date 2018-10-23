@@ -2703,7 +2703,7 @@ CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, const
     this->at = at;
     this->ph = ph ? string(ph) : "";
 
-    if (ph)
+    if (ph && ph[0])
     {
         cmd("mcuga");
         arg("ph", ph);
