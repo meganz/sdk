@@ -100,7 +100,7 @@ bool File::serialize(string *d)
     flag = temporaryfile;
     d->append((const char*)&flag, sizeof(flag));
 
-    char hasChatAuth = chatauth ? 1 : 0;
+    char hasChatAuth = (chatauth && chatauth[0]) ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
     d->append("\0\0\0\0\0\0\0", 8);
@@ -255,8 +255,9 @@ File *File::unserialize(string *d)
                 return NULL;
             }
 
-            file->chatauth = new char[chatauthlen];
+            file->chatauth = new char[chatauthlen + 1];
             memcpy(file->chatauth, ptr, chatauthlen);
+            file->chatauth[chatauthlen] = '\0';
             ptr += chatauthlen;
         }
         else

@@ -483,7 +483,7 @@ bool MegaNodePrivate::serialize(string *d)
     flag = foreign;
     d->append((char*)&flag, sizeof(flag));
 
-    char hasChatAuth = chatAuth ? 1 : 0;
+    char hasChatAuth = (chatAuth && chatAuth[0]) ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
     d->append("\0\0\0\0\0\0", 7);
