@@ -38,7 +38,6 @@ File::File()
     temporaryfile = false;
     h = UNDEF;
     tag = 0;
-    chatauth = NULL;
 }
 
 File::~File()

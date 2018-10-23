@@ -9598,7 +9598,6 @@ MegaNode *MegaApiImpl::authorizeChatNode(MegaNode *node, const char *cauth)
     result->setChatAuth(cauth);
 
     return result;
-
 }
 
 const char *MegaApiImpl::getVersion()
@@ -28449,7 +28448,6 @@ const char *MegaTextChatPrivate::getUnifiedKey() const
 {
     return !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
 }
-
 
 int MegaTextChatPrivate::isOwnChange() const
 {
