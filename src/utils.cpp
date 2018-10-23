@@ -320,6 +320,7 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         }
 
         unifiedKey.assign(ptr, keylen);
+        ptr += keylen;
     }
 
     if (ptr < end)
