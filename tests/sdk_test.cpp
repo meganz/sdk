@@ -1958,8 +1958,10 @@ TEST_F(SdkTest, SdkTestShares)
     }
 
     // add a folder under the share
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dummyname1", megaApi[0]->getNodeByHandle(hfolder2)));
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dummyname2", megaApi[0]->getNodeByHandle(hfolder2)));
+    char foldernameA[64] = "dummyname1";
+    char foldernameB[64] = "dummyname2";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameA, megaApi[0]->getNodeByHandle(hfolder2)));
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameB, megaApi[0]->getNodeByHandle(hfolder2)));
 
     // check the corresponding user alert
     {
