@@ -1673,6 +1673,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_NEWSHAREDNODES;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodeHandle = p->parentHandle;
         numbers.push_back(p->folderCount);
         numbers.push_back(p->fileCount);
     }

@@ -1949,13 +1949,29 @@ TEST_F(SdkTest, SdkTestShares)
     // check the corresponding user alert
     {
         MegaUserAlertList* list = megaApi[1]->getUserAlerts();
-        ASSERT_TRUE(list->size() > 1);
-        MegaUserAlert* a = list->get(list->size() - 2);  // back past the 'added 2 folders and 1 file'
+        ASSERT_TRUE(list->size() > 0);
+        MegaUserAlert* a = list->get(list->size() - 1);
         ASSERT_STREQ(a->getTitle(), ("New shared folder from " + email[0]).c_str());
         ASSERT_STREQ(a->getPath(), (email[0] + ":Shared-folder").c_str());
         ASSERT_NE(a->getNodeHandle(), UNDEF);
         delete list;
     }
+
+    // add a folder under the share
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dummyname1", megaApi[0]->getNodeByHandle(hfolder2)));
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "dummyname2", megaApi[0]->getNodeByHandle(hfolder2)));
+
+    // check the corresponding user alert
+    {
+        WaitMillisec(2000);
+        MegaUserAlertList* list = megaApi[1]->getUserAlerts();
+        ASSERT_TRUE(list->size() > 1);
+        MegaUserAlert* a = list->get(list->size()-1);
+        ASSERT_STREQ(a->getTitle(), (email[0] + " added 2 folders").c_str());
+        ASSERT_EQ(a->getNodeHandle(), megaApi[0]->getNodeByHandle(hfolder2)->getHandle());
+        delete list;
+    }
+
 
     // --- Modify the access level of an outgoing share ---
 

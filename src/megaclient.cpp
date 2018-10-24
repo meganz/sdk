@@ -4786,13 +4786,14 @@ bool MegaClient::sc_shares()
                         {
                             User* u = finduser(oh);
                             useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts, useralerts.nextId()));
+                            useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
                         }
 
                         // new share - can be inbound or outbound
                         newshares.push_back(new NewShare(h, outbound,
                                                          outbound ? uh : oh,
                                                          r, ts, sharekey,
-                                                         have_ha ? ha : NULL, 
+                                                         have_ha ? ha : NULL,
                                                          p, upgrade_pending_to_full));
 
                         //Returns false because as this is a new share, the node
@@ -6885,7 +6886,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
                 {
-                    useralerts.noteSharedNode(u, t, ts);
+                    useralerts.noteSharedNode(u, t, ts, n);
                 }
 
                 if (nn && nni >= 0 && nni < nnsize)
