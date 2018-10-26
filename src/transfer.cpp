@@ -368,7 +368,25 @@ void Transfer::failed(error e, dstime timeleft)
 
     if (!timeleft || e != API_EOVERQUOTA)
     {
-        bt.backoff();
+        if (e == API_EOVERQUOTA)
+        {
+            LOG_debug << "Storage overquota received";
+            dstime backoffds;
+            if (client->stoverquotauntil > Waiter::ds)
+            {
+                backoffds = client->stoverquotauntil - Waiter::ds;
+            }
+            else
+            {
+                backoffds = MegaClient::DEFAULT_ST_OVERQUOTA_BACKOFF_SECS * 10;
+                client->stoverquotauntil = Waiter::ds + backoffds;
+            }
+            bt.backoff(backoffds);
+        }
+        else
+        {
+            bt.backoff();
+        }
     }
     else
     {
@@ -410,7 +428,7 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
-    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    if (defer)
     {        
         failcount++;
         delete slot;

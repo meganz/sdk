@@ -653,6 +653,9 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
+    // timestamp until the next upload retry after an storage overquota in deciseconds, related to Waiter::ds
+    m_time_t stoverquotauntil;
+
     // root URL for API requests
     static string APIURL;
 
@@ -893,6 +896,7 @@ public:
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
     bool insca;
+    bool externaldeletions;
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
@@ -979,6 +983,9 @@ public:
 
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
+
+    // default number of seconds to wait after a storage overquota
+    static dstime DEFAULT_ST_OVERQUOTA_BACKOFF_SECS;
 
     // number of seconds to invalidate the cached user data
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;

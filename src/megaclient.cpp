@@ -73,6 +73,9 @@ const char MegaClient::PAYMENT_PUBKEY[] =
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
+// default number of seconds to wait after a storage overquota
+dstime MegaClient::DEFAULT_ST_OVERQUOTA_BACKOFF_SECS = 1800;
+
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
@@ -1054,6 +1057,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
+    stoverquotauntil = 0;
+    externaldeletions = false;
     looprequested = false;
 
 #ifdef ENABLE_CHAT
@@ -1156,10 +1161,15 @@ void MegaClient::exec()
         overquotauntil = 0;
     }
 
+    if (stoverquotauntil && stoverquotauntil < Waiter::ds)
+    {
+        stoverquotauntil = 0;
+    }
+
     if (httpio->inetisback())
     {
         LOG_info << "Internet connectivity returned - resetting all backoff timers";
-        abortbackoff(overquotauntil <= Waiter::ds);
+        abortbackoff(overquotauntil <= Waiter::ds || stoverquotauntil <= Waiter::ds);
     }
 
     if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
@@ -2904,6 +2914,7 @@ bool MegaClient::abortbackoff(bool includexfers)
     if (includexfers)
     {
         overquotauntil = 0;
+        stoverquotauntil = 0;
         for (int d = GET; d == GET || d == PUT; d += PUT - GET)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
@@ -3534,6 +3545,8 @@ void MegaClient::locallogout()
     fetchingnodes = false;
     fetchnodestag = 0;
     overquotauntil = 0;
+    stoverquotauntil = 0;
+    externaldeletions = false;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -3715,10 +3728,10 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 bool MegaClient::procsc()
 {
     nameid name;
-
-#ifdef ENABLE_SYNC
     char test[] = "},{\"a\":\"t\",\"i\":\"";
     char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
+
+#ifdef ENABLE_SYNC
     bool stop = false;
     bool newnodes = false;
 #endif
@@ -3845,6 +3858,12 @@ bool MegaClient::procsc()
                         // (or just fetched everything if there was no cache), our next sc request can be for useralerts
                         useralerts.begincatchup = true;
                     }
+
+                    if (externaldeletions && stoverquotauntil)
+                    {
+                        abortbackoff(true);
+                    }
+                    externaldeletions = false;
                     return true;
 
                 case 'a':
@@ -3942,7 +3961,6 @@ bool MegaClient::procsc()
                                 // node deletion
                                 dn = sc_deltree();
 
-#ifdef ENABLE_SYNC
                                 if (fetchingnodes)
                                 {
                                     break;
@@ -3953,12 +3971,17 @@ bool MegaClient::procsc()
                                     Base64::btoa((byte *)&dn->nodehandle, sizeof(dn->nodehandle), &test2[18]);
                                     if (!memcmp(&jsonsc.pos[26], test2, 26))
                                     {
+#ifdef ENABLE_SYNC
                                         // it's a move operation, stop parsing after completing it
                                         stop = true;
+#endif
                                         break;
                                     }
                                 }
 
+                                externaldeletions = true;
+
+#ifdef ENABLE_SYNC
                                 // run syncdown() to process the deletion before continuing
                                 applykeys();
                                 return false;
@@ -12492,6 +12515,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
             }
+            else if (d == PUT && stoverquotauntil && stoverquotauntil > Waiter::ds)
+            {
+                t->failed(API_EOVERQUOTA);
+            }
         }
         else
         {
@@ -12591,6 +12618,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             {
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
+            }
+            else if (d == PUT && stoverquotauntil && stoverquotauntil > Waiter::ds)
+            {
+                t->failed(API_EOVERQUOTA);
             }
         }
     }

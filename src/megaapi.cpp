@@ -2844,6 +2844,11 @@ long long MegaApi::getBandwidthOverquotaDelay()
     return pImpl->getBandwidthOverquotaDelay();
 }
 
+long long MegaApi::getStorageOverquotaDelay()
+{
+    return pImpl->getStorageOverquotaDelay();
+}
+
 MegaUserList* MegaApi::getContacts()
 {
     return pImpl->getContacts();

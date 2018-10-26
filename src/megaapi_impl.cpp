@@ -7750,6 +7750,12 @@ long long MegaApiImpl::getBandwidthOverquotaDelay()
     return result > Waiter::ds ? (result - Waiter::ds) / 10 : 0;
 }
 
+long long MegaApiImpl::getStorageOverquotaDelay()
+{
+    long long result = client->stoverquotauntil;
+    return result > Waiter::ds ? (result - Waiter::ds) / 10 : 0;
+}
+
 bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
 {
 	if(strcasecmp(i->email.c_str(), j->email.c_str())<=0) return 1;
@@ -9957,18 +9963,46 @@ void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft)
     }
 
 
-    if (e == API_EOVERQUOTA && timeleft)
+    if (e == API_EOVERQUOTA)
     {
-        LOG_warn << "Bandwidth overquota";
-        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+        if (timeleft)
         {
-            for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+            LOG_warn << "Bandwidth overquota";
+            for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+            {
+                for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
+                {
+                    Transfer *t = it->second;
+                    t->bt.backoff(timeleft);
+                    if (t->slot)
+                    {
+                        t->slot->retrybt.backoff(timeleft);
+                        t->slot->retrying = true;
+                    }
+                }
+            }
+        }
+        else
+        {
+            LOG_warn << "Storage overquota";
+            dstime backoffds;
+            if (client->stoverquotauntil > Waiter::ds)
+            {
+                backoffds = client->stoverquotauntil - Waiter::ds;
+            }
+            else
+            {
+                backoffds = MegaClient::DEFAULT_ST_OVERQUOTA_BACKOFF_SECS * 10;
+                client->stoverquotauntil = Waiter::ds + backoffds;
+            }
+
+            for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
             {
                 Transfer *t = it->second;
-                t->bt.backoff(timeleft);
+                t->bt.backoff(backoffds);
                 if (t->slot)
                 {
-                    t->slot->retrybt.backoff(timeleft);
+                    t->slot->retrybt.backoff(backoffds);
                     t->slot->retrying = true;
                 }
             }
