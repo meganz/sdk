@@ -7224,6 +7224,10 @@ int MegaApiImpl::syncPathState(string* path)
         path->insert(0, localPrefix);
     }
     path->resize(path->size() - 1);
+    if (path->size() > (2 * sizeof(wchar_t)) && !memcmp(path->data() + path->size() -  (2 * sizeof(wchar_t)), L":\\", 2 * sizeof(wchar_t)))
+    {
+        path->resize(path->size() - sizeof(wchar_t));
+    }
 #endif
 
     int state = MegaApi::STATE_NONE;
@@ -7268,7 +7272,7 @@ int MegaApiImpl::syncPathState(string* path)
                 if (is_syncable(sync, name.c_str(), path))
                 {
                     FileAccess *fa = fsAccess->newfileaccess();
-                    if ((fa->fopen(path) && is_syncable(fa->size)) || fa->type == FOLDERNODE)
+                    if (fa->fopen(path, false, false) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
                     {
                         state = MegaApi::STATE_PENDING;
                     }
