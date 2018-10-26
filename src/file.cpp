@@ -242,7 +242,7 @@ File *File::unserialize(string *d)
 
     if (hasChatAuth)
     {
-        if (ptr + sizeof(unsigned short) > end)
+        if (ptr + sizeof(unsigned short) <= end)
         {
             unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
             ptr += sizeof(chatauthlen);

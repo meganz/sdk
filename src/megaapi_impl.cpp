@@ -621,7 +621,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     string chatauth;
     if (hasChatAuth)
     {
-        if (ptr + sizeof(unsigned short) > end)
+        if (ptr + sizeof(unsigned short) <= end)
         {
             unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
             ptr += sizeof(chatauthlen);
@@ -4097,6 +4097,7 @@ MegaFile *MegaFile::unserialize(string *d)
 
     MegaFile *megaFile = new MegaFile();
     *(File *)megaFile = *(File *)file;
+    file->chatauth = NULL;
     delete file;
 
     MegaTransferPrivate *transfer = MegaTransferPrivate::unserialize(d);
@@ -4256,6 +4257,7 @@ MegaFileGet *MegaFileGet::unserialize(string *d)
 
     MegaFileGet *megaFile = new MegaFileGet();
     *(MegaFile *)megaFile = *(MegaFile *)file;
+    file->chatauth = NULL;
     delete file;
 
     return megaFile;
@@ -4394,6 +4396,7 @@ MegaFilePut *MegaFilePut::unserialize(string *d)
 
     MegaFilePut *megaFile = new MegaFilePut();
     *(MegaFile *)megaFile = *(MegaFile *)file;
+    file->chatauth = NULL;
     delete file;
 
     megaFile->customMtime = customMtime;
