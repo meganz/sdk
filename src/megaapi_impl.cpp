@@ -3501,8 +3501,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RICH_LINK: return "RICH_LINK";
         case TYPE_CHAT_LINK_HANDLE: return "CHAT_LINK_HANDLE";
         case TYPE_CHAT_LINK_URL: return "CHAT_LINK_URL";
-        case TYPE_CHAT_LINK_CLOSE: return "CHAT_LINK_CLOSE";
-        case TYPE_CHAT_LINK_JOIN: return "CHAT_LINK_JOIN";
+        case TYPE_SET_PRIVATE_MODE: return "CHAT_LINK_CLOSE";
+        case TYPE_AUTOJOIN_PUBLIC_CHAT: return "CHAT_LINK_JOIN";
         case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
         case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
         case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
@@ -8950,7 +8950,7 @@ void MegaApiImpl::getChatLinkURL(MegaHandle publichandle, MegaRequestListener *l
 
 void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_CLOSE, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PRIVATE_MODE, listener);
     request->setNodeHandle(chatid);
     request->setText(title);
     requestQueue.push(request);
@@ -8959,7 +8959,7 @@ void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char *title, MegaReques
 
 void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_JOIN, listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT, listener);
     request->setNodeHandle(publichandle);
     request->setSessionKey(unifiedkey);
     requestQueue.push(request);
@@ -11275,7 +11275,7 @@ void MegaApiImpl::chatlinkclose_result(error e)
     map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
     if(it == requestMap.end()       ||
             !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_LINK_CLOSE)
+            request->getType() != MegaRequest::TYPE_SET_PRIVATE_MODE)
     {
         return;
     }
@@ -11290,7 +11290,7 @@ void MegaApiImpl::chatlinkjoin_result(error e)
     map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
     if(it == requestMap.end()       ||
             !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_LINK_JOIN)
+            request->getType() != MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT)
     {
         return;
     }
@@ -19459,7 +19459,7 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 
-        case MegaRequest::TYPE_CHAT_LINK_CLOSE:
+        case MegaRequest::TYPE_SET_PRIVATE_MODE:
         {
             MegaHandle chatid = request->getNodeHandle();
             const char *title = request->getText();
@@ -19496,7 +19496,7 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
 
-        case MegaRequest::TYPE_CHAT_LINK_JOIN:
+        case MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT:
         {
             MegaHandle publichandle = request->getNodeHandle();
             const char *unifiedkey = request->getSessionKey();

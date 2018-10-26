@@ -2397,7 +2397,7 @@ class MegaRequest
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
-            TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_CHAT_LINK_CLOSE, TYPE_CHAT_LINK_JOIN,
+            TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -13119,7 +13119,7 @@ class MegaApi
          * If the groupchat already has a customized title, it's required to provide the title encrypted
          * to a new key, so it becomes private for non-participants.
          *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_CLOSE.
+         * The associated request type with this request is MegaRequest::TYPE_SET_PRIVATE_MODE.
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
@@ -13143,7 +13143,7 @@ class MegaApi
          *
          * @see \c MegaApi::chatLinkCreate
          *
-         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_JOIN
+         * The associated request type with this request is MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
