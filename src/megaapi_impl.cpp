@@ -1504,6 +1504,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_RICH_PREVIEWS;
     }
+    if(user->changed.rubbishTime)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RUBBISH_TIME;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
