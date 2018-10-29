@@ -1150,7 +1150,8 @@ class MegaUser
             CHANGE_TYPE_PWD_REMINDER    = 0x4000,
             CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
             CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
-            CHANGE_TYPE_RICH_PREVIEWS   = 0x20000
+            CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
+            CHANGE_TYPE_RUBBISH_TIME    = 0x40000
         };
 
         /**
@@ -1217,6 +1218,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_RICH_PREVIEWS    = 0x20000
          * Check if option for rich links has changed
          *
+         * - MegaUser::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
+         * Check if rubbish time for autopurge has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1282,6 +1286,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_RICH_PREVIEWS    = 0x20000
          * Check if option for rich links has changed
+         *
+         * - MegaUser::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
+         * Check if rubbish time for autopurge has changed
          */
         virtual int getChanges();
 
