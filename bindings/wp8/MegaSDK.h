@@ -2877,7 +2877,17 @@ namespace mega
         bool isInRubbish(MNode^ node);
         bool isInInbox(MNode^ node);
 
+        /**
+        * @brief Get the time (in seconds) during which transfers will be stopped due to a bandwidth overquota
+        * @return Time (in seconds) during which transfers will be stopped, otherwise 0
+        */
         uint64 getBandwidthOverquotaDelay();
+
+        /**
+        * @brief Get the time (in seconds) during which uploads will be stopped due to a storage overquota
+        * @return Time (in seconds) during which uploads will be stopped, otherwise 0
+        */
+        uint64 getStorageOverquotaDelay();
 
         /**
         * @brief Search nodes containing a search string in their name
