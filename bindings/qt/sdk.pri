@@ -312,7 +312,9 @@ CONFIG(USE_MEGAAPI) {
 win32 {
     HEADERS  += include/mega/win32/megasys.h  \
             include/mega/win32/megafs.h  \
-            include/mega/win32/megawaiter.h
+            include/mega/win32/megawaiter.h \
+            include/mega/win32/megaconsole.h \
+            include/mega/win32/megaconsolewaiter.h
 
     SOURCES += bindings/qt/3rdparty/libs/sqlite3.c
 }
