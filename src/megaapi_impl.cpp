@@ -1508,6 +1508,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_RUBBISH_TIME;
     }
+    if(user->changed.storageState)
+    {
+        changed |= MegaUser::CHANGE_TYPE_STORAGE_STATE;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -4909,6 +4913,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_RUBBISH_TIME:
             attrname = "^!rubbishtime";
             break;
+
+        case MegaApi::USER_ATTR_STORAGE_STATE:
+            attrname = "usl";
+            break;
     }
 
     return attrname;
@@ -4930,6 +4938,7 @@ char MegaApiImpl::userAttributeToScope(int type)
 
         case MegaApi::USER_ATTR_FIRSTNAME:
         case MegaApi::USER_ATTR_LASTNAME:
+        case MegaApi::USER_ATTR_STORAGE_STATE:
             scope = '0';
             break;
 
@@ -5842,6 +5851,14 @@ void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *li
     request->setText(value.data());
     request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
     request->setNumber(days);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getStorageState(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_STORAGE_STATE);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13059,6 +13076,8 @@ void MegaApiImpl::getua_result(error e)
 
 void MegaApiImpl::getua_result(byte* data, unsigned len)
 {
+    error e = API_OK;
+
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request ||
@@ -13164,6 +13183,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 
         // numbers
         case MegaApi::USER_ATTR_RUBBISH_TIME:
+        case MegaApi::USER_ATTR_STORAGE_STATE:
             {
                 char *endptr;
                 string str((const char*)data, len);
@@ -13174,6 +13194,11 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 }
 
                 request->setNumber(value);
+
+                if (attrType == MegaApi::USER_ATTR_STORAGE_STATE && (value < MegaApi::STORAGE_STATE_GREEN || value > MegaApi::STORAGE_STATE_RED))
+                {
+                    e = API_EINTERNAL;
+                }
             }
             break;
 
@@ -13192,7 +13217,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             break;
     }
 
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 void MegaApiImpl::getua_result(TLVstore *tlv)

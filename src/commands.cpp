@@ -2859,7 +2859,8 @@ void CommandGetUA::procresult()
                                     at != ATTR_COUNTRY  &&        // private
                                     at != ATTR_BIRTHDAY &&        // private
                                     at != ATTR_BIRTHMONTH &&      // private
-                                    at != ATTR_BIRTHYEAR)         // private
+                                    at != ATTR_BIRTHYEAR &&       // private
+                                    at != ATTR_STORAGE_STATE)     // private
                             {
                                 LOG_err << "Unknown received attribute: " << User::attr2string(at);
                                 client->app->getua_result(API_EINTERNAL);

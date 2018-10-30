@@ -1151,7 +1151,8 @@ class MegaUser
             CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
             CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
             CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
-            CHANGE_TYPE_RUBBISH_TIME    = 0x40000
+            CHANGE_TYPE_RUBBISH_TIME    = 0x40000,
+            CHANGE_TYPE_STORAGE_STATE   = 0x80000
         };
 
         /**
@@ -1221,6 +1222,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
          * Check if rubbish time for autopurge has changed
          *
+         * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
+         * Check if the state of the storage has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1289,6 +1293,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
          * Check if rubbish time for autopurge has changed
+         *
+         * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
+         * Check if the state of the storage has changed
          */
         virtual int getChanges();
 
@@ -5601,7 +5608,8 @@ class MegaApi
             USER_ATTR_CONTACT_LINK_VERIFICATION = 17,     // private - byte array
             USER_ATTR_RICH_PREVIEWS = 18,        // private - byte array
             USER_ATTR_RUBBISH_TIME = 19,         // private - byte array
-            USER_ATTR_LAST_PSA = 20              // private - char array
+            USER_ATTR_LAST_PSA = 20,             // private - char array
+            USER_ATTR_STORAGE_STATE = 21         // private - char array
         };
 
         enum {
@@ -5656,6 +5664,12 @@ class MegaApi
 
         enum {
             KEEP_ALIVE_CAMERA_UPLOADS = 0
+        };
+
+        enum {
+            STORAGE_STATE_GREEN = 0,
+            STORAGE_STATE_ORANGE = 1,
+            STORAGE_STATE_RED = 2
         };
 
         /**
@@ -7628,6 +7642,8 @@ class MegaApi
          * Get whether user generates rich-link messages or not (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Get the state of the storage (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7681,6 +7697,8 @@ class MegaApi
          * Get whether user has versions disabled or enabled (private, non-encrypted)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Get the state of the storage (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7733,6 +7751,8 @@ class MegaApi
          * Get whether user generates rich-link messages or not (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Get the state of the storage (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -8483,6 +8503,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the state of the storage
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns one of these storage states:
+         * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
+         * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
+         * MegaApi::STORAGE_STATE_RED = 2 - The account is full
+         *
+         * If the state is not set on the server side, the request will finish with the error
+         * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
+         * number 0 (MegaApi::STORAGE_STATE_GREEN),
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getStorageState(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account
