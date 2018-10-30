@@ -1600,7 +1600,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
         else
         {
-            type = type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
+            type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
         }
         userHandle = p->userHandle;
         email = p->userEmail;
