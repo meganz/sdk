@@ -207,8 +207,6 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
 UserAlert::IncomingPendingContact::IncomingPendingContact(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
-    handle pendingContactId = un.gethandle('p', MegaClient::USERHANDLE, UNDEF);
-
     requestWasDeleted = un.getint64(MAKENAMEID3('d', 't', 's'), 0) != 0;
     requestWasReminded = un.getint64(MAKENAMEID3('r', 't', 's'), 0) != 0;
 }
@@ -829,7 +827,7 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts)
         assert(!ISUNDEF(user));
         ff& f = notedSharedNodes[user];
         ++(type == FOLDERNODE ? f.folders : f.files);
-        if (!f.timestamp || ts && ts < f.timestamp)
+        if (!f.timestamp || (ts && ts < f.timestamp))
         {
             f.timestamp = ts;
         }
