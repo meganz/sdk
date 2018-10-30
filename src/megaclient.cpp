@@ -5368,7 +5368,7 @@ void MegaClient::sc_upc(bool incoming)
     m_time_t uts = 0;
     int s = 0;
     const char *m = NULL;
-    handle p = UNDEF;
+    handle p = UNDEF, ou = UNDEF;
     PendingContactRequest *pcr;
 
     bool done = false;
@@ -5387,6 +5387,9 @@ void MegaClient::sc_upc(bool incoming)
                 break;
             case 'p':
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                break;
+            case MAKENAMEID2('o', 'u'):
+                ou = jsonsc.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
                 done = true;
@@ -5440,7 +5443,7 @@ void MegaClient::sc_upc(bool incoming)
                     pcr->uts = uts;
                 }
 
-                if (statecurrent)
+                if (statecurrent && ou != me)
                 {
                     string email;
                     Node::copystring(&email, m);
