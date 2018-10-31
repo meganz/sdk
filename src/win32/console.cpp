@@ -870,6 +870,10 @@ void WinConsole::retractPrompt()
     }
 }
 
+wstring WinConsole::getInputLineToCursor()
+{
+    return model.getInputLineToCursor();
+}
 
 bool WinConsole::consoleGetch(wchar_t& c)
 {
