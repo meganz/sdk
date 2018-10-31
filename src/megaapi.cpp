@@ -183,6 +183,23 @@ int MegaUserList::size()
     return 0;
 }
 
+MegaUserAlertList::~MegaUserAlertList() { }
+
+MegaUserAlertList *MegaUserAlertList::copy() const
+{
+    return NULL;
+}
+
+MegaUserAlert *MegaUserAlertList::get(int) const
+{
+    return NULL;
+}
+
+int MegaUserAlertList::size() const
+{
+    return 0;
+}
+
 MegaShareList::~MegaShareList() { }
 
 MegaShare *MegaShareList::get(int)
@@ -516,6 +533,84 @@ int MegaUser::isOwnChange()
 {
     return 0;
 }
+
+MegaUserAlert::~MegaUserAlert() { }
+
+MegaUserAlert *MegaUserAlert::copy() const
+{
+    return NULL;
+}
+
+unsigned MegaUserAlert::getId() const
+{
+    return (unsigned)-1;
+}
+
+bool MegaUserAlert::getSeen() const
+{
+    return false;
+}
+
+bool MegaUserAlert::getRelevant() const
+{
+    return false;
+}
+
+int MegaUserAlert::getType() const
+{
+    return -1;
+}
+
+const char *MegaUserAlert::getTypeString() const
+{
+    return NULL;
+}
+
+MegaHandle MegaUserAlert::getUserHandle() const
+{
+    return UNDEF;
+}
+
+MegaHandle MegaUserAlert::getNodeHandle() const
+{
+    return UNDEF;
+}
+
+const char* MegaUserAlert::getEmail() const
+{
+    return NULL;
+}
+
+const char* MegaUserAlert::getPath() const
+{
+    return NULL;
+}
+
+const char *MegaUserAlert::getHeading() const
+{
+    return NULL;
+}
+
+const char *MegaUserAlert::getTitle() const
+{
+    return NULL;
+}
+
+int64_t MegaUserAlert::getNumber(unsigned) const
+{
+    return -1;
+}
+
+int64_t MegaUserAlert::getTimestamp(unsigned) const
+{
+    return -1;
+}
+
+const char* MegaUserAlert::getString(unsigned) const
+{
+    return NULL;
+}
+
 
 MegaShare::~MegaShare() { }
 
@@ -1268,6 +1363,8 @@ MegaError *SynchronousTransferListener::getError() const
 //Global callbacks
 void MegaGlobalListener::onUsersUpdate(MegaApi *, MegaUserList *)
 { }
+void MegaGlobalListener::onUserAlertsUpdate(MegaApi *api, MegaUserAlertList *alerts)
+{ }
 void MegaGlobalListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
 void MegaGlobalListener::onAccountUpdate(MegaApi *)
@@ -1299,6 +1396,8 @@ void MegaListener::onTransferUpdate(MegaApi *, MegaTransfer *)
 void MegaListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError *)
 { }
 void MegaListener::onUsersUpdate(MegaApi *, MegaUserList *)
+{ }
+void MegaListener::onUserAlertsUpdate(MegaApi *, MegaUserAlertList *)
 { }
 void MegaListener::onNodesUpdate(MegaApi *, MegaNodeList *)
 { }
@@ -1409,6 +1508,11 @@ void MegaApi::setPSA(int id, MegaRequestListener *listener)
 void MegaApi::getPSA(MegaRequestListener *listener)
 {
     pImpl->getPSA(listener);
+}
+
+void MegaApi::acknowledgeUserAlerts(MegaRequestListener *listener)
+{
+    pImpl->acknowledgeUserAlerts(listener);
 }
 
 char *MegaApi::getMyEmail()
@@ -1991,7 +2095,12 @@ void MegaApi::getPricing(MegaRequestListener *listener)
 
 void MegaApi::getPaymentId(MegaHandle productHandle, MegaRequestListener *listener)
 {
-    pImpl->getPaymentId(productHandle, listener);
+    pImpl->getPaymentId(productHandle, UNDEF, listener);
+}
+
+void MegaApi::getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener)
+{
+    pImpl->getPaymentId(productHandle, lastPublicHandle, listener);
 }
 
 void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener)
@@ -2001,12 +2110,17 @@ void MegaApi::upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRe
 
 void MegaApi::submitPurchaseReceipt(const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, listener);
+    pImpl->submitPurchaseReceipt(MegaApi::PAYMENT_METHOD_GOOGLE_WALLET, receipt, UNDEF, listener);
 }
 
 void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaRequestListener *listener)
 {
-    pImpl->submitPurchaseReceipt(gateway, receipt, listener);
+    pImpl->submitPurchaseReceipt(gateway, receipt, UNDEF, listener);
+}
+
+void MegaApi::submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener)
+{
+    pImpl->submitPurchaseReceipt(gateway, receipt, lastPublicHandle, listener);
 }
 
 void MegaApi::creditCardStore(const char* address1, const char* address2, const char* city,
@@ -2393,12 +2507,12 @@ void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransfe
 
 void MegaApi::startDownloadWithData(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startDownload(false, node, localPath, 0, 0, 0, appData, listener);
+    pImpl->startDownload(false, node, localPath, 0, appData, listener);
 }
 
 void MegaApi::startDownloadWithTopPriority(MegaNode *node, const char *localPath, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startDownload(true, node, localPath, 0, 0, 0, appData, listener);
+    pImpl->startDownload(true, node, localPath, 0, appData, listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -2740,6 +2854,11 @@ MegaUser* MegaApi::getContact(const char* user)
     return pImpl->getContact(user);
 }
 
+MegaUserAlertList* MegaApi::getUserAlerts()
+{
+    return pImpl->getUserAlerts();
+}
+
 MegaNodeList* MegaApi::getInShares(MegaUser *megaUser)
 {
     return pImpl->getInShares(megaUser);
@@ -3008,14 +3127,14 @@ char *MegaApi::base32ToBase64(const char *base32)
     return result;
 }
 
-MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive)
+MegaNodeList* MegaApi::search(MegaNode* n, const char* searchString, bool recursive, int order)
 {
-    return pImpl->search(n, searchString, recursive);
+    return pImpl->search(n, searchString, recursive, order);
 }
 
-MegaNodeList *MegaApi::search(const char *searchString)
+MegaNodeList *MegaApi::search(const char *searchString, int order)
 {
-    return pImpl->search(searchString);
+    return pImpl->search(searchString, order);
 }
 
 long long MegaApi::getSize(MegaNode *n)

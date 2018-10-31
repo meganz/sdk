@@ -2,7 +2,7 @@
 * @file MegaSDK.h
 * @brief Allows to control a MEGA account or a public folder.
 *
-* (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+* (c) 2013-2018 by Mega Limited, Auckland, New Zealand
 *
 * This file is part of the MEGA SDK - Client Access Engine.
 *
@@ -53,6 +53,7 @@
 #include "MInputStreamAdapter.h"
 #include "MInputStream.h"
 #include "MChildrenLists.h"
+#include "MUserAlertList.h"
 
 #include <megaapi.h>
 #include <set>
@@ -1514,6 +1515,26 @@ namespace mega
         */
         void setPSA(int id);
 
+        /**
+        * @brief Command to acknowledge user alerts.
+        *
+        * Other clients will be notified that alerts to this point have been seen.
+        *
+        * @param listener MRequestListener to track this request
+        *
+        * @see MegaSDK::getUserAlerts
+        */
+        void acknowledgeUserAlerts(MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Command to acknowledge user alerts.
+        *
+        * Other clients will be notified that alerts to this point have been seen.
+        *
+        * @see MegaSDK::getUserAlerts
+        */
+        void acknowledgeUserAlerts();
+
         String^ getMyEmail();
         String^ getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
@@ -2655,6 +2676,16 @@ namespace mega
         MContactRequest^ getContactRequestByHandle(MegaHandle handle);
         MUserList^ getContacts();
         MUser^ getContact(String^ email);
+
+        /**
+        * @brief Get all MUserAlerts for the logged in user
+        *
+        * You take the ownership of the returned value
+        *
+        * @return List of MUserAlert objects
+        */
+        MUserAlertList^ getUserAlerts();
+
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
         MShareList^ getInSharesList();

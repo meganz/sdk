@@ -2,7 +2,7 @@
 * @file DelegateMGlobalListener.cpp
 * @brief Delegate to get information about global events.
 *
-* (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+* (c) 2013-2018 by Mega Limited, Auckland, New Zealand
 *
 * This file is part of the MEGA SDK - Client Access Engine.
 *
@@ -39,6 +39,12 @@ void DelegateMGlobalListener::onUsersUpdate(MegaApi* api, MegaUserList *users)
 {
     if (listener != nullptr)
         listener->onUsersUpdate(megaSDK, users ? ref new MUserList(users->copy(), true) : nullptr);
+}
+
+void DelegateMGlobalListener::onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts)
+{
+    if (listener != nullptr)
+        listener->onUserAlertsUpdate(megaSDK, alerts ? ref new MUserAlertList(alerts->copy(), true) : nullptr);
 }
 
 void DelegateMGlobalListener::onNodesUpdate(MegaApi* api, MegaNodeList *nodes)

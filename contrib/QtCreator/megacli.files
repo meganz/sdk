@@ -71,6 +71,7 @@
 ../../include/mega/types.h
 ../../include/mega/user.h
 ../../include/mega/utils.h
+../../include/mega/useralerts.h
 ../../include/mega/waiter.h
 ../../include/mega/pendingcontactrequest.h
 ../../include/mega.h
@@ -133,6 +134,7 @@
 ../../src/transferslot.cpp
 ../../src/treeproc.cpp
 ../../src/user.cpp
+../../src/useralerts.cpp
 ../../src/utils.cpp
 ../../src/waiterbase.cpp
 ../../src/pendingcontactrequest.cpp

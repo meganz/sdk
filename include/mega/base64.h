@@ -39,7 +39,6 @@ public:
 
     static void itoa(int64_t, string *);
     static int64_t atoi(string *);
-
 };
 
 template <unsigned BINARYSIZE>
@@ -57,9 +56,9 @@ struct Base64Str
         int n = Base64::btoa(b, size, chars);
         assert(n + 1 <= sizeof(chars));
     }
-    Base64Str(handle& h)
+    Base64Str(const handle& h)
     {
-        int n = Base64::btoa((byte*)&h, BINARYSIZE, chars);
+        int n = Base64::btoa((const byte*)&h, BINARYSIZE, chars);
         assert(n + 1 == sizeof(chars));
     }
     operator const char* () const

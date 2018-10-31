@@ -872,7 +872,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
     CurlHttpContext* httpctx = (CurlHttpContext*)arg;
     CurlHttpIO* httpio = httpctx->httpio;
 
-    LOG_verbose << "c-ares info received (proxy)";
+    LOG_debug << "c-ares info received (proxy)";
 
     httpctx->ares_pending--;
     if (!httpctx->ares_pending)
@@ -885,7 +885,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
     {
         if (!httpctx->ares_pending)
         {
-            LOG_verbose << "Proxy ready";
+            LOG_debug << "Proxy ready";
 
             // name resolution finished.
             // nothing more to do.
@@ -895,7 +895,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
         }
         else
         {
-            LOG_verbose << "Proxy ready. Waiting for c-ares";
+            LOG_debug << "Proxy ready. Waiting for c-ares";
         }
 
         return;
@@ -909,7 +909,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
             && (!httpctx->hostip.size() || host->h_addrtype == PF_INET6)
             && (host->h_addrtype != PF_INET6 || httpio->ipv6available()))
     {
-        LOG_verbose << "Received a valid IP for the proxy";
+        LOG_debug << "Received a valid IP for the proxy";
 
         // save the IP of the proxy
         char ip[INET6_ADDRSTRLEN];
@@ -931,7 +931,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
 
     if (!httpctx->ares_pending)
     {
-        LOG_verbose << "c-ares request finished";
+        LOG_debug << "c-ares request finished (proxy)";
 
         // name resolution finished
         // if the IP is valid, use it and continue sending requests.
@@ -974,7 +974,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
     }
     else
     {
-        LOG_verbose << "Waiting for the completion of the c-ares request (proxy)";
+        LOG_debug << "Waiting for the completion of the c-ares request (proxy)";
     }
 }
 
@@ -986,7 +986,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     bool invalidcache = false;
     httpctx->ares_pending--;
 
-    LOG_verbose << "c-ares info received";
+    LOG_debug << "c-ares info received";
 
     // check if result is valid
     if (status == ARES_SUCCESS && host && host->h_addr_list[0])
@@ -994,7 +994,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
         char ip[INET6_ADDRSTRLEN];
         mega_inet_ntop(host->h_addrtype, host->h_addr_list[0], ip, sizeof(ip));
 
-        LOG_verbose << "Received a valid IP for "<< httpctx->hostname << ": " << ip;
+        LOG_debug << "Received a valid IP for "<< httpctx->hostname << ": " << ip;
 
         httpio->inetstatus(true);
 
@@ -1035,7 +1035,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
         if (incache)
         {
-            LOG_verbose << "The current DNS cache record is still valid";
+            LOG_debug << "The current DNS cache record is still valid";
         }
         else if (invalidcache)
         {
@@ -1080,7 +1080,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     }
     else if (status != ARES_SUCCESS)
     {
-        LOG_verbose << "c-ares error. code: " << status;
+        LOG_warn << "c-ares error. code: " << status;
     }
     else
     {
@@ -1100,7 +1100,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
     if (httpctx->curl)
     {
-        LOG_verbose << "Request already sent using a previous DNS response";
+        LOG_debug << "Request already sent using a previous DNS response";
         if (invalidcache && httpctx->isIPv6 == (host->h_addrtype == PF_INET6))
         {
             LOG_warn << "Cancelling request due to the detection of an invalid DNS cache record";
@@ -1152,7 +1152,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     bool ares_pending = httpctx->ares_pending;
     if (httpctx->hostip.size())
     {
-        LOG_verbose << "Name resolution finished";
+        LOG_debug << "Name resolution finished";
 
         // if there is no proxy or we already have the IP of the proxy, send the request.
         // otherwise, queue the request until we get the IP of the proxy
@@ -1183,7 +1183,7 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
 
     if (ares_pending)
     {
-        LOG_verbose << "Waiting for the completion of the c-ares request";
+        LOG_debug << "Waiting for the completion of the c-ares request";
     }
 }
 
@@ -1251,7 +1251,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else if(httpctx->hostip.size())
     {
-        LOG_debug << "Using the IP of the hostname";
+        LOG_debug << "Using the IP of the hostname: " << httpctx->hostip;
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
@@ -1740,7 +1740,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         if (dnsEntry && dnsEntry->ipv6.size() && !dnsEntry->isIPv6Expired())
         {
-            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6)";
+            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv6) " << dnsEntry->ipv6;
             std::ostringstream oss;
             httpctx->isIPv6 = true;
             httpctx->isCachedIp = true;
@@ -1759,7 +1759,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     {
         if (dnsEntry && dnsEntry->ipv4.size() && !dnsEntry->isIPv4Expired())
         {
-            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4)";
+            LOG_debug << "DNS cache hit for " << httpctx->hostname << " (IPv4) " << dnsEntry->ipv4;
             httpctx->isIPv6 = false;
             httpctx->isCachedIp = true;
             httpctx->hostip = dnsEntry->ipv4;
@@ -2000,7 +2000,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
 
                 LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
-                          << (req->httpiohandle ? ((CurlHttpContext*)req->httpiohandle)->hostname : "(unknown)");
+                          << (req->httpiohandle ? (((CurlHttpContext*)req->httpiohandle)->hostname + " - " + ((CurlHttpContext*)req->httpiohandle)->hostip) : "(unknown) ");
                 if (req->httpstatus)
                 {
                     if (req->method == METHOD_NONE)
@@ -2530,7 +2530,7 @@ CURLcode CurlHttpIO::ssl_ctx_function(CURL*, void* sslctx, void*req)
    #define EVP_PKEY_get0_RSA(_pkey_) ((_pkey_)->pkey.rsa)
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x1010100fL)
+#if (OPENSSL_VERSION_NUMBER < 0x1010100fL) || defined (LIBRESSL_VERSION_NUMBER)
 const BIGNUM *RSA_get0_n(const RSA *rsa)
 {
 #if (OPENSSL_VERSION_NUMBER < 0x10100000L) || defined (LIBRESSL_VERSION_NUMBER)

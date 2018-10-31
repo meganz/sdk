@@ -165,7 +165,7 @@ CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
         arg("ssl", 2);
     }
 
-	arg("r", 1);
+    arg("r", 1);
 }
 
 void CommandGetFA::procresult()
@@ -2255,7 +2255,7 @@ void CommandEnumerateQuotaItems::procresult()
 CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass,
                                                handle item, unsigned price,
                                                const char* currency, unsigned /*tax*/,
-                                               const char* /*country*/, const char* affiliate)
+                                               const char* /*country*/, handle lph)
 {
     string sprice;
     sprice.resize(128);
@@ -2266,13 +2266,9 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
     arg("si", (byte*)&item, 8);
     arg("p", sprice.c_str());
     arg("c", currency);
-    if (affiliate)
+    if (!ISUNDEF(lph))
     {
-        arg("aff", affiliate);
-    }
-    else
-    {
-        arg("aff", (m_off_t)0);
+        arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
     }
 
     tag = client->reqtag;
@@ -3175,7 +3171,12 @@ void CommandGetUserData::procresult()
 
     if (client->json.isnumeric())
     {
-        return client->app->userdata_result(NULL, NULL, NULL, jid, (error)client->json.getint());
+        error e = (error)client->json.getint();
+        if (!e)
+        {
+            e = API_ENOENT;
+        }
+        return client->app->userdata_result(NULL, NULL, NULL, jid, e);
     }
 
     for (;;)
@@ -4212,7 +4213,7 @@ void CommandFetchNodes::procresult()
 
             case 'u':
                 // users/contacts
-                if (!client->readusers(&client->json))
+                if (!client->readusers(&client->json, false))
                 {
                     client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
@@ -4320,7 +4321,7 @@ void CommandReportEvent::procresult()
     }
 }
 
-CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt)
+CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph)
 {
     cmd("vpay");
     arg("t", type);
@@ -4333,6 +4334,11 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
     if(type == 2 && client->loggedin() == FULLACCOUNT)
     {
         arg("user", client->finduser(client->me)->uid.c_str());
+    }
+
+    if (!ISUNDEF(lph))
+    {
+        arg("aff", (byte*)&lph, MegaClient::NODEHANDLE);
     }
 
     tag = client->reqtag;
@@ -6376,5 +6382,27 @@ void CommandFetchTimeZone::procresult()
         }
     }
 }
+
+CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
+{
+    cmd("sla");
+    notself(client);
+    tag = client->reqtag;
+};
+
+void CommandSetLastAcknowledged::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->acknowledgeuseralerts_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->acknowledgeuseralerts_result(API_EINTERNAL);
+    }
+};
+
+
 
 } // namespace

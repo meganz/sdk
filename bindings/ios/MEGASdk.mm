@@ -27,6 +27,7 @@
 #import "MEGATransferList+init.h"
 #import "MEGANodeList+init.h"
 #import "MEGAUserList+init.h"
+#import "MEGAUserAlertList+init.h"
 #import "MEGAError+init.h"
 #import "MEGAShareList+init.h"
 #import "MEGAContactRequest+init.h"
@@ -738,6 +739,14 @@ using namespace mega;
     self.megaApi->setPSA((int)identifier);
 }
 
+- (void)acknowledgeUserAlertsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->acknowledgeUserAlerts([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)acknowledgeUserAlerts {
+    self.megaApi->acknowledgeUserAlerts();
+}
+
 #pragma mark - Filesystem changes Requests
 
 - (void)createFolderWithName:(NSString *)name parent:(MEGANode *)parent delegate:(id<MEGARequestDelegate>)delegate {
@@ -1069,6 +1078,14 @@ using namespace mega;
 
 - (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt {
     self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL);
+}
+
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)submitPurchase:(MEGAPaymentMethod)gateway receipt:(NSString *)receipt lastPublicHandle:(uint64_t)lastPublicHandle {
+    self.megaApi->submitPurchaseReceipt(gateway, (receipt != nil) ? [receipt UTF8String] : NULL, lastPublicHandle);
 }
 
 - (void)changePassword:(NSString *)oldPassword newPassword:(NSString *)newPassword delegate:(id<MEGARequestDelegate>)delegate {
@@ -1538,6 +1555,10 @@ using namespace mega;
     
     MegaUser *user = self.megaApi->getContact([email UTF8String]);
     return user ? [[MEGAUser alloc] initWithMegaUser:user cMemoryOwn:YES] : nil;
+}
+
+- (MEGAUserAlertList *)userAlertList {
+    return [[MEGAUserAlertList alloc] initWithMegaUserAlertList:self.megaApi->getUserAlerts() cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)inSharesForUser:(MEGAUser *)user {

@@ -32,6 +32,7 @@ nobase_libmegainclude_HEADERS = \
 	mega/types.h \
 	mega/user.h \
 	mega/utils.h \
+	mega/useralerts.h \
 	mega/logging.h \
 	mega/waiter.h \
 	mega/proxy.h \

@@ -1789,6 +1789,28 @@ public class MegaApiJava {
     }
 
     /**
+     * Command to acknowledge user alerts.
+     *
+     * Other clients will be notified that alerts to this point have been seen.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void acknowledgeUserAlerts(MegaRequestListenerInterface listener){
+        megaApi.acknowledgeUserAlerts(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Command to acknowledge user alerts.
+     *
+     * Other clients will be notified that alerts to this point have been seen.
+     *
+     * @see MegaApi::getUserAlerts
+     */
+    public void acknowledgeUserAlerts(){
+        megaApi.acknowledgeUserAlerts();
+    }
+
+    /**
      * Returns the email of the currently open account.
      * 
      * If the MegaApi object is not logged in or the email is not available,
@@ -3652,6 +3674,47 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param listener MegaRequestListener to track this request
+     *
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle, MegaRequestListenerInterface listener) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the payment URL for an upgrade
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the product
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - Payment ID
+     *
+     * @param productHandle Handle of the product (see MegaApi::getPricing)
+     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     *
+     * @see MegaApi::getPricing
+     */
+    public void getPaymentId(long productHandle, long lastPublicHandle) {
+        megaApi.getPaymentId(productHandle, lastPublicHandle);
+    }
+
+    /**
      * Upgrade an account.
      *
      * @param productHandle Product handle to purchase.
@@ -3721,6 +3784,78 @@ public class MegaApiJava {
      */
     public void submitPurchaseReceipt(String receipt) {
         megaApi.submitPurchaseReceipt(receipt);
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param listener MegaRequestListener to track this request
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, MegaRequestListenerInterface listener) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt) {
+        megaApi.submitPurchaseReceipt(gateway, receipt);
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     * @param listener MegaRequestListener to track this request
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle, MegaRequestListenerInterface listener) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Submit a purchase receipt for verification
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+     *
+     * @param gateway Payment gateway
+     * Currently supported payment gateways are:
+     * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+     * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+     * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+     *
+     * @param receipt Purchase receipt
+     * @param lastPublicHandle Last public handle accessed by the user in the last 24h
+     */
+    public void submitPurchaseReceipt(int gateway, String receipt, long lastPublicHandle) {
+        megaApi.submitPurchaseReceipt(gateway, receipt, lastPublicHandle);
     }
 
     /**
@@ -4626,6 +4761,39 @@ public class MegaApiJava {
     }
 
     /**
+     * Upload a file or a folder, saving custom app data during the transfer
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startUploadWithData(String localPath, MegaNode parent, String appData, MegaTransferListenerInterface listener){
+        megaApi.startUploadWithData(localPath, parent, appData, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder, saving custom app data during the transfer
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     */
+    public void startUploadWithData(String localPath, MegaNode parent, String appData){
+        megaApi.startUploadWithData(localPath, parent, appData);
+    }
+
+    /**
      * Upload a file or a folder, putting the transfer on top of the upload queue
      * @param localPath Local path of the file or folder
      * @param parent Parent node for the file or folder in the MEGA account
@@ -4641,7 +4809,7 @@ public class MegaApiJava {
      * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
      * @param listener MegaTransferListener to track this transfer
      */
-    void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, MegaTransferListenerInterface listener){
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, MegaTransferListenerInterface listener){
         megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, createDelegateTransferListener(listener));
     }
 
@@ -4660,7 +4828,7 @@ public class MegaApiJava {
      * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
      * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
      */
-    void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary){
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary){
         megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary);
     }
 
@@ -4695,6 +4863,38 @@ public class MegaApiJava {
      */
     public void startDownload(MegaNode node, String localPath) {
         megaApi.startDownload(node, localPath);
+    }
+
+    /**
+     * Download a file or a folder from MEGA, saving custom app data during the transfer
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startDownloadWithData(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
+        megaApi.startDownloadWithData(node, localPath, appData, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
+        megaApi.startDownloadWithTopPriority(node, localPath, appData, createDelegateTransferListener(listener));
     }
 
     /**
@@ -5890,7 +6090,18 @@ public class MegaApiJava {
     public MegaUser getContact(String email) {
         return megaApi.getContact(email);
     }
-    
+
+    /**
+     * Get all MegaUserAlerts for the logged in user
+     *
+     * You take the ownership of the returned value
+     *
+     * @return List of MegaUserAlert objects
+     */
+    public ArrayList<MegaUserAlert> getUserAlerts(){
+        return userAlertListToArray(megaApi.getUserAlerts());
+    }
+
     /**
      * Get a list with all inbound shares from one MegaUser.
      * 
@@ -6384,6 +6595,60 @@ public class MegaApiJava {
      * Search nodes containing a search string in their name.
      * <p>
      * The search is case-insensitive.
+     *
+     * @param parent
+     *            The parent node of the tree to explore.
+     * @param searchString
+     *            Search string. The search is case-insensitive.
+     * @param recursive
+     *            true if you want to search recursively in the node tree.
+     *            false if you want to search in the children of the node only.
+     *
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     *  Undefined order
+     *
+     *  - MegaApi::ORDER_DEFAULT_ASC = 1
+     *  Folders first in alphabetical order, then files in the same order
+     *
+     *  - MegaApi::ORDER_DEFAULT_DESC = 2
+     *  Files first in reverse alphabetical order, then folders in the same order
+     *
+     *  - MegaApi::ORDER_SIZE_ASC = 3
+     *  Sort by size, ascending
+     *
+     *  - MegaApi::ORDER_SIZE_DESC = 4
+     *  Sort by size, descending
+     *
+     *  - MegaApi::ORDER_CREATION_ASC = 5
+     *  Sort by creation time in MEGA, ascending
+     *
+     *  - MegaApi::ORDER_CREATION_DESC = 6
+     *  Sort by creation time in MEGA, descending
+     *
+     *  - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *  Sort by modification time of the original file, ascending
+     *
+     *  - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *  Sort by modification time of the original file, descending
+     *
+     *  - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *  Sort in alphabetical order, ascending
+     *
+     *  - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *  Sort in alphabetical order, descending
+     *
+     * @return List of nodes that contain the desired string in their name.
+     */
+    public ArrayList<MegaNode> search(MegaNode parent, String searchString, boolean recursive, int order) {
+        return nodeListToArray(megaApi.search(parent, searchString, recursive, order));
+    }
+
+    /**
+     * Search nodes containing a search string in their name.
+     * <p>
+     * The search is case-insensitive.
      * 
      * @param parent
      *            The parent node of the tree to explore.
@@ -6413,6 +6678,55 @@ public class MegaApiJava {
      */
     public ArrayList<MegaNode> search(MegaNode parent, String searchString) {
         return nodeListToArray(megaApi.search(parent, searchString));
+    }
+
+    /**
+     * Search nodes containing a search string in their name.
+     * <p>
+     * The search is case-insensitive.
+     *
+     * @param searchString
+     *            Search string. The search is case-insensitive.
+     *
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     *  Undefined order
+     *
+     *  - MegaApi::ORDER_DEFAULT_ASC = 1
+     *  Folders first in alphabetical order, then files in the same order
+     *
+     *  - MegaApi::ORDER_DEFAULT_DESC = 2
+     *  Files first in reverse alphabetical order, then folders in the same order
+     *
+     *  - MegaApi::ORDER_SIZE_ASC = 3
+     *  Sort by size, ascending
+     *
+     *  - MegaApi::ORDER_SIZE_DESC = 4
+     *  Sort by size, descending
+     *
+     *  - MegaApi::ORDER_CREATION_ASC = 5
+     *  Sort by creation time in MEGA, ascending
+     *
+     *  - MegaApi::ORDER_CREATION_DESC = 6
+     *  Sort by creation time in MEGA, descending
+     *
+     *  - MegaApi::ORDER_MODIFICATION_ASC = 7
+     *  Sort by modification time of the original file, ascending
+     *
+     *  - MegaApi::ORDER_MODIFICATION_DESC = 8
+     *  Sort by modification time of the original file, descending
+     *
+     *  - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+     *  Sort in alphabetical order, ascending
+     *
+     *  - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+     *  Sort in alphabetical order, descending
+     *
+     * @return List of nodes that contain the desired string in their name.
+     */
+    public ArrayList<MegaNode> search(String searchString, int order) {
+        return nodeListToArray(megaApi.search(searchString, order));
     }
 
     /**
@@ -7491,6 +7805,20 @@ public class MegaApiJava {
         ArrayList<MegaUser> result = new ArrayList<MegaUser>(userList.size());
         for (int i = 0; i < userList.size(); i++) {
             result.add(userList.get(i).copy());
+        }
+
+        return result;
+    }
+
+    static ArrayList<MegaUserAlert> userAlertListToArray(MegaUserAlertList userAlertList){
+
+        if (userAlertList == null){
+            return null;
+        }
+
+        ArrayList<MegaUserAlert> result = new ArrayList<MegaUserAlert>(userAlertList.size());
+        for (int i = 0; i < userAlertList.size(); i++){
+            result.add(userAlertList.get(i).copy());
         }
 
         return result;

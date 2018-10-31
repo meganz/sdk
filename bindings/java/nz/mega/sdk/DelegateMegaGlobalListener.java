@@ -68,6 +68,30 @@ class DelegateMegaGlobalListener extends MegaGlobalListener {
     }
 
     /**
+     * This function is called when there are new or updated user alerts in the account
+     *
+     * The SDK retains the ownership of the MegaUserAlertList in the second parameter. The list and all the
+     * MegaUserAlert objects that it contains will be valid until this function returns. If you want to save the
+     * list, use MegaUserAlertList::copy. If you want to save only some of the MegaUserAlert objects, use MegaUserAlert::copy
+     * for those objects.
+     *
+     * @param api MegaApi object connected to the account
+     * @param userAlertList List that contains the new or updated contacts
+     */
+    @Override
+    public void onUserAlertsUpdate(MegaApi api, MegaUserAlertList userAlertList){
+        if (listener != null){
+            final ArrayList<MegaUserAlert> userAlerts = MegaApiJava.userAlertListToArray(userAlertList);
+            megaApi.runCallback(new Runnable() {
+                @Override
+                public void run() {
+                 listener.onUserAlertsUpdate(megaApi, userAlerts);
+                }
+            });
+        }
+    }
+
+    /**
      * This function is called when there are new or updated nodes in the account.
      * <p>
      * When the full account is reloaded or a large number of server notifications arrives at once,

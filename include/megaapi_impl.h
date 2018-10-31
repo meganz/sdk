@@ -533,6 +533,44 @@ class MegaUserPrivate : public MegaUser
         int tag;
 };
 
+class MegaUserAlertPrivate : public MegaUserAlert
+{
+public:
+    MegaUserAlertPrivate(UserAlert::Base* user, MegaClient* mc);
+    //MegaUserAlertPrivate(const MegaUserAlertPrivate&); // default copy works for this type
+    virtual MegaUserAlert* copy() const;
+
+    virtual unsigned getId() const;
+    virtual bool getSeen() const;
+    virtual bool getRelevant() const;
+    virtual int getType() const;
+    virtual const char *getTypeString() const;
+    virtual MegaHandle getUserHandle() const;
+    virtual MegaHandle getNodeHandle() const;
+    virtual const char* getEmail() const;
+    virtual const char* getPath() const;
+    virtual const char* getHeading() const;
+    virtual const char* getTitle() const;
+    virtual int64_t getNumber(unsigned index) const;
+    virtual int64_t getTimestamp(unsigned index) const;
+    virtual const char* getString(unsigned index) const;
+
+protected:
+    unsigned id;
+    bool seen;
+    bool relevant;
+    int type;
+    string heading;
+    string title;
+    handle userHandle;
+    string email;
+    handle nodeHandle;
+    string nodePath;
+    vector<int64_t> numbers;
+    vector<int64_t> timestamps;
+    vector<string> extraStrings;
+};
+
 class MegaHandleListPrivate : public MegaHandleList
 {
 public:
@@ -1473,6 +1511,24 @@ class MegaContactRequestListPrivate : public MegaContactRequestList
         int s;
 };
 
+class MegaUserAlertListPrivate : public MegaUserAlertList
+{
+public:
+    MegaUserAlertListPrivate();
+    MegaUserAlertListPrivate(UserAlert::Base** newlist, int size, MegaClient* mc);
+    MegaUserAlertListPrivate(const MegaUserAlertListPrivate &userList);
+    virtual ~MegaUserAlertListPrivate();
+    virtual MegaUserAlertList *copy() const;
+    virtual MegaUserAlert* get(int i) const;
+    virtual int size() const;
+
+protected:
+    MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);
+    MegaUserAlert** list;
+    int s;
+};
+
+
 struct MegaFile : public File
 {
     MegaFile();
@@ -1804,9 +1860,9 @@ class MegaApiImpl : public MegaApp
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
-        void getPaymentId(handle productHandle, MegaRequestListener *listener = NULL);
+        void getPaymentId(handle productHandle, handle lastPublicHandle, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
-        void submitPurchaseReceipt(int gateway, const char* receipt, MegaRequestListener *listener = NULL);
+        void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
         void creditCardStore(const char* address1, const char* address2, const char* city,
                              const char* province, const char* country, const char *postalcode,
                              const char* firstname, const char* lastname, const char* creditcard,
@@ -1852,7 +1908,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
-        void startDownload(bool startFirst, MegaNode *node, const char* target, long startPos, long endPos, int folderTransferTag, const char *appData, MegaTransferListener *listener);
+        void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
@@ -1964,6 +2020,7 @@ class MegaApiImpl : public MegaApp
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
         MegaUser* getContact(const char* uid);
+        MegaUserAlertList* getUserAlerts();
         MegaNodeList *getInShares(MegaUser* user);
         MegaNodeList *getInShares();
         MegaShareList *getInSharesList();
@@ -2015,9 +2072,9 @@ class MegaApiImpl : public MegaApp
 
         long long getBandwidthOverquotaDelay();
 
-        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1);
+        MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(const char* searchString);
+        MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth);
@@ -2042,6 +2099,7 @@ class MegaApiImpl : public MegaApp
         void contactLinkDelete(MegaHandle handle, MegaRequestListener *listener = NULL);
 
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
+        void acknowledgeUserAlerts(MegaRequestListener *listener = NULL);
 
         void getPSA(MegaRequestListener *listener = NULL);
         void setPSA(int id, MegaRequestListener *listener = NULL);
@@ -2218,6 +2276,7 @@ protected:
         void fireOnRequestTemporaryError(MegaRequestPrivate *request, MegaError e);
         bool fireOnTransferData(MegaTransferPrivate *transfer);
         void fireOnUsersUpdate(MegaUserList *users);
+        void fireOnUserAlertsUpdate(MegaUserAlertList *alerts);
         void fireOnNodesUpdate(MegaNodeList *nodes);
         void fireOnAccountUpdate();
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
@@ -2312,6 +2371,7 @@ protected:
         MegaError *activeError;
         MegaNodeList *activeNodes;
         MegaUserList *activeUsers;
+        MegaUserAlertList *activeUserAlerts;
         MegaContactRequestList *activeContactRequests;
         string appKey;
 
@@ -2352,7 +2412,8 @@ protected:
         virtual void fetchtimezone_result(error, vector<string>*, vector<int>*, int);
 
         // keep me alive feature
-        virtual void keepmealive_result (error);
+        virtual void keepmealive_result(error);
+        virtual void acknowledgeuseralerts_result(error);
 
         // get the current PSA
         virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);
@@ -2376,6 +2437,7 @@ protected:
         virtual void unlinkversions_result(error);
         virtual void nodes_updated(Node**, int);
         virtual void users_updated(User**, int);
+        virtual void useralerts_updated(UserAlert::Base**, int);
         virtual void account_updated();
         virtual void pcrs_updated(PendingContactRequest**, int);
 

@@ -84,9 +84,9 @@ unsigned char Base64::from64(byte c)
 int Base64::atob(const string &in, string &out)
 {
     out.resize(in.size() * 3 / 4 + 3);
-    out.resize(Base64::atob(in.data(), (byte *) out.data(), out.size()));
+    out.resize(Base64::atob(in.data(), (byte *) out.data(), (int)out.size()));
 
-    return out.size();
+    return (int)out.size();
 }
 
 int Base64::atob(const char* a, byte* b, int blen)
@@ -199,9 +199,9 @@ int64_t Base64::atoi(string *val)
 int Base64::btoa(const string &in, string &out)
 {
     out.resize(in.size() * 4 / 3 + 4);
-    out.resize(Base64::btoa((const byte*) in.data(), in.size(), (char *) out.data()));
+    out.resize(Base64::btoa((const byte*) in.data(), (int)in.size(), (char *) out.data()));
 
-    return out.size();
+    return (int)out.size();
 }
 
 int Base64::btoa(const byte* b, int blen, char* a)
@@ -409,7 +409,7 @@ void URLCodec::escape(string *plain, string *escaped)
     }
 
     escaped->clear();
-    int len = plain->size();
+    int len = (int)plain->size();
     int escapedIndex = 0;
     for (int i = 0; i < len; i++)
     {
@@ -437,7 +437,7 @@ void URLCodec::unescape(string *escaped, string *plain)
 
     plain->clear();
     plain->reserve(escaped->size());
-    int len = escaped->size();
+    int len = (int)escaped->size();
     for (int i = 0; i < len; i++)
     {
         if (escaped->at(i) == '%' && ishexdigit(escaped->at(i + 1)) && ishexdigit(escaped->at(i + 2)))

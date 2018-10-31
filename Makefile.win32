@@ -83,6 +83,7 @@ COMMON_SRC=\
 		src/transferslot.cpp  \
 		src/treeproc.cpp  \
 		src/user.cpp  \
+		src/useralerts.cpp  \
 		src/utils.cpp  \
 		src/logging.cpp  \
 		src/thread/win32thread.cpp \

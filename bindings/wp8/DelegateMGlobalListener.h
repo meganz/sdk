@@ -2,7 +2,7 @@
 * @file DelegateMGlobalListener.h
 * @brief Delegate to get information about global events.
 *
-* (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+* (c) 2013-2018 by Mega Limited, Auckland, New Zealand
 *
 * This file is part of the MEGA SDK - Client Access Engine.
 *
@@ -40,6 +40,7 @@ namespace mega
         MGlobalListenerInterface^ getUserListener();
 
         void onUsersUpdate(MegaApi* api, MegaUserList *users);
+        void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
         void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
         void onAccountUpdate(MegaApi* api);
         void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);

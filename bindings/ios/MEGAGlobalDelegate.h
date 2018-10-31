@@ -40,6 +40,19 @@
 - (void)onUsersUpdate:(MEGASdk *)api userList:(MEGAUserList *)userList;
 
 /**
+ * @brief This function is called when there are new or updated user alerts in the account
+ *
+ * The SDK retains the ownership of the MEGAUserAlertList in the second parameter. The list and all the
+ * MEGAUserAlert objects that it contains will be valid until this function returns. If you want to save the
+ * list, use [MEGAUserAlertList clone]. If you want to save only some of the MEGAUserAlert objects, use [MEGAUserAlert clone]
+ * for those objects.
+ *
+ * @param api MEGASdk object connected to the account
+ * @param userAlertList List that contains the new or updated contacts
+ */
+- (void)onUserAlertsUpdate:(MEGASdk *)api userAlertList:(MEGAUserAlertList *)userAlertList;
+
+/**
  * @brief This function is called when there are new or updated nodes in the account.
  *
  * When the full account is reloaded or a large number of server notifications arrives at once, the

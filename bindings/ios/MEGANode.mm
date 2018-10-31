@@ -67,6 +67,12 @@ using namespace mega;
     return self.megaNode->getName() ? [[NSString alloc] initWithUTF8String:self.megaNode->getName()] : nil;
 }
 
+- (NSString *)fingerprint {
+    if(!self.megaNode) return nil;
+    
+    return self.megaNode->getFingerprint() ? [[NSString alloc] initWithUTF8String:self.megaNode->getFingerprint()] : nil;
+}
+
 - (NSInteger)duration {
     return self.megaNode ? self.megaNode->getDuration() : -1;
 }
