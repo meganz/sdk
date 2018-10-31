@@ -102,6 +102,8 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
+enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
+
 #ifdef WIN32
 #include "mega/win32/autocomplete.h"
 #include <filesystem>
@@ -1948,11 +1950,12 @@ TEST_F(SdkTest, SdkTestShares)
 
     // check the corresponding user alert
     {
+        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
         MegaUserAlertList* list = megaApi[1]->getUserAlerts();
         ASSERT_TRUE(list->size() > 0);
         MegaUserAlert* a = list->get(list->size() - 1);
-        ASSERT_STREQ(a->getTitle(), ("New shared folder from " + email[0]).c_str());
-        ASSERT_STREQ(a->getPath(), (email[0] + ":Shared-folder").c_str());
+        ASSERT_STREQ(("New shared folder from " + email[0]).c_str(), a->getTitle());
+        ASSERT_STREQ((email[0] + ":Shared-folder").c_str(), a->getPath());
         ASSERT_NE(a->getNodeHandle(), UNDEF);
         delete list;
     }
@@ -1965,7 +1968,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     // check the corresponding user alert
     {
-        WaitMillisec(2000);
+        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
         MegaUserAlertList* list = megaApi[1]->getUserAlerts();
         ASSERT_TRUE(list->size() > 1);
         MegaUserAlert* a = list->get(list->size()-1);
