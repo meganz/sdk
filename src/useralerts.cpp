@@ -93,16 +93,23 @@ bool UserAlertRaw::gethandletypearray(nameid nid, vector<handletype>& v) const
                 handletype ht;
                 ht.h = UNDEF;
                 ht.t = -1;
-                switch (j.getnameid())
+                bool fields = true;
+                while (fields)
                 {
-                case 'h':
-                    ht.h = j.gethandle(MegaClient::NODEHANDLE);
-                    break;
-                case 't':
-                    ht.t = int(j.getint());
-                    break;
-                default:
-                    j.storeobject(NULL);
+                    switch (j.getnameid())
+                    {
+                    case 'h':
+                        ht.h = j.gethandle(MegaClient::NODEHANDLE);
+                        break;
+                    case 't':
+                        ht.t = int(j.getint());
+                        break;
+                    case EOO:
+                        fields = false;
+                        break;
+                    default:
+                        j.storeobject(NULL);
+                    }
                 }
                 v.push_back(ht);
                 j.leaveobject();
