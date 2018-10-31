@@ -1256,75 +1256,15 @@ string escapewebdavchar(const char c)
     static std::map<int,const char *> escapesec;
     if (unintitialized)
     {
-        escapesec[8704] = "&forall;"; //FOR ALL
-        escapesec[8706] = "&part;"; //PARTIAL DIFFERENTIAL
-        escapesec[8707] = "&exist;"; //THERE EXISTS
-        escapesec[8709] = "&empty;"; //EMPTY SET
-        escapesec[8711] = "&nabla;"; //NABLA
-        escapesec[8712] = "&isin;"; //ELEMENT OF
-        escapesec[8713] = "&notin;"; //NOT AN ELEMENT OF
-        escapesec[8715] = "&ni;"; //CONTAINS AS MEMBER
-        escapesec[8204] = "&zwnj;"; //ZERO WIDTH NON-JOINER
-        escapesec[8194] = "&ensp;"; //EN SPACE
-        escapesec[8206] = "&lrm;"; //LEFT-TO-RIGHT MARK
-        escapesec[8719] = "&prod;"; //N-ARY PRODUCT
-        escapesec[8721] = "&sum;"; //N-ARY SUMMATION
-        escapesec[8722] = "&minus;"; //MINUS SIGN
-        escapesec[8195] = "&emsp;"; //EM SPACE
-        escapesec[8212] = "&mdash;"; //EM DASH
-        escapesec[8727] = "&lowast;"; //ASTERISK OPERATOR
-        escapesec[8216] = "&lsquo;"; //LEFT SINGLE QUOTATION MARK
-        escapesec[8217] = "&rsquo;"; //RIGHT SINGLE QUOTATION MARK
-        escapesec[8730] = "&radic;"; //SQUARE ROOT
-        escapesec[8220] = "&ldquo;"; //LEFT DOUBLE QUOTATION MARK
-        escapesec[8733] = "&prop;"; //PROPORTIONAL TO
-        escapesec[8734] = "&infin;"; //INFINITY
-        escapesec[8736] = "&ang;"; //ANGLE
-        escapesec[8225] = "&Dagger;"; //DOUBLE DAGGER
-        escapesec[34] = "&quot;"; //"
-        escapesec[38] = "&amp;"; //&
-        escapesec[39] = "&apos;"; //'
-        escapesec[8744] = "&or;"; //LOGICAL OR
-        escapesec[8745] = "&cap;"; //INTERSECTION
-        escapesec[8746] = "&cup;"; //UNION
-        escapesec[8747] = "&int;"; //INTEGRAL
-        escapesec[8594] = "&rarr;"; //RIGHTWARDS ARROW
-        escapesec[8240] = "&permil;"; //PER MILLE SIGN
-        escapesec[8242] = "&prime;"; //PRIME
-        escapesec[8243] = "&Prime;"; //DOUBLE PRIME
-        escapesec[8756] = "&there4;"; //THEREFORE
-        escapesec[8201] = "&thinsp;"; //THIN SPACE
-        escapesec[8249] = "&lsaquo;"; //SINGLE LEFT-POINTING ANGLE QUOTATION MARK
-        escapesec[8250] = "&rsaquo;"; //SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
-        escapesec[60] = "&lt;"; //<
-        escapesec[62] = "&gt;"; //>
-        escapesec[8629] = "&crarr;"; //DOWNWARDS ARROW WITH CORNER LEFTWARDS
-        escapesec[9824] = "&spades;"; //BLACK SPADE SUIT
-        escapesec[8260] = "&frasl;"; //FRACTION SLASH
-        escapesec[8773] = "&cong;"; //APPROXIMATELY EQUAL TO
-        escapesec[8776] = "&asymp;"; //ALMOST EQUAL TO
-        escapesec[8205] = "&zwj;"; //ZERO WIDTH JOINER
-        escapesec[8743] = "&and;"; //LOGICAL AND
-        escapesec[8207] = "&rlm;"; //RIGHT-TO-LEFT MARK
-        escapesec[9829] = "&hearts;"; //BLACK HEART SUIT
-        escapesec[8800] = "&ne;"; //NOT EQUAL TO
-        escapesec[8801] = "&equiv;"; //IDENTICAL TO
-        escapesec[9827] = "&clubs;"; //BLACK CLUB SUIT
-        escapesec[8804] = "&le;"; //LESS-THAN OR EQUAL TO
-        escapesec[8805] = "&ge;"; //GREATER-THAN OR EQUAL TO
-        escapesec[9830] = "&diams;"; //BLACK DIAMOND SUIT
-        escapesec[8221] = "&rdquo;"; //RIGHT DOUBLE QUOTATION MARK
-        escapesec[8211] = "&ndash;"; //EN DASH
-        escapesec[8834] = "&sub;"; //SUBSET OF
-        escapesec[8835] = "&sup;"; //SUPERSET OF
-        escapesec[8836] = "&nsub;"; //NOT A SUBSET OF
-        escapesec[8838] = "&sube;"; //SUBSET OF OR EQUAL TO
-        escapesec[8839] = "&supe;"; //SUPERSET OF OR EQUAL TO
-        escapesec[8222] = "&bdquo;"; //DOUBLE LOW-9 QUOTATION MARK
-        escapesec[8853] = "&oplus;"; //CIRCLED PLUS
-        escapesec[8855] = "&otimes;"; //CIRCLED TIMES
-        escapesec[8218] = "&sbquo;"; //SINGLE LOW-9 QUOTATION MARK
-        escapesec[8901] = "&sdot;"; //DOT OPERATOR
+        escapesec[33] = "&#33;"; // !  //For some reason &Exclamation; was not properly handled (crashed) by gvfsd-dav
+        escapesec[34] = "&quot;"; // "
+        escapesec[37] = "&percent;"; // %
+        escapesec[38] = "&amp;"; // &
+        escapesec[39] = "&apos;"; // '
+        escapesec[43] = "&add;"; // +
+        escapesec[60] = "&lt;"; // <
+        escapesec[61] = "&#61;"; // = //For some reason &equal; was not properly handled (crashed) by gvfsd-dav
+        escapesec[62] = "&gt;"; // >
         escapesec[160] = "&nbsp;"; //NO-BREAK SPACE
         escapesec[161] = "&iexcl;"; //INVERTED EXCLAMATION MARK
         escapesec[162] = "&cent;"; //CENT SIGN
@@ -1421,35 +1361,16 @@ string escapewebdavchar(const char c)
         escapesec[253] = "&yacute;"; //LATIN SMALL LETTER Y WITH ACUTE
         escapesec[254] = "&thorn;"; //LATIN SMALL LETTER THORN
         escapesec[255] = "&yuml;"; //LATIN SMALL LETTER Y WITH DIAERESIS
-        escapesec[8226] = "&bull;"; //BULLET
-        escapesec[8968] = "&lceil;"; //LEFT CEILING
-        escapesec[8969] = "&rceil;"; //RIGHT CEILING
-        escapesec[8970] = "&lfloor;"; //LEFT FLOOR
-        escapesec[8971] = "&rfloor;"; //RIGHT FLOOR
-        escapesec[8465] = "&image;"; //BLACK-LETTER CAPITAL I
-        escapesec[8472] = "&weierp;"; //SCRIPT CAPITAL P
-        escapesec[8476] = "&real;"; //BLACK-LETTER CAPITAL R
-        escapesec[8482] = "&trade;"; //TRADE MARK SIGN
-        escapesec[9001] = "&lang;"; //LEFT-POINTING ANGLE BRACKET
-        escapesec[9002] = "&rang;"; //RIGHT-POINTING ANGLE BRACKET
-        escapesec[8364] = "&euro;"; //EURO SIGN
-        escapesec[8501] = "&alefsym;"; //ALEF SYMBOL
-        escapesec[710] = "&circ;"; //MODIFIER LETTER CIRCUMFLEX ACCENT
         escapesec[338] = "&OElig;"; //LATIN CAPITAL LIGATURE OE
         escapesec[339] = "&oelig;"; //LATIN SMALL LIGATURE OE
         escapesec[352] = "&Scaron;"; //LATIN CAPITAL LETTER S WITH CARON
         escapesec[353] = "&scaron;"; //LATIN SMALL LETTER S WITH CARON
-        escapesec[8593] = "&uarr;"; //UPWARDS ARROW
-        escapesec[8764] = "&sim;"; //TILDE OPERATOR
-        escapesec[914] = "&Beta;"; //GREEK CAPITAL LETTER BETA
-        escapesec[8595] = "&darr;"; //DOWNWARDS ARROW
-        escapesec[8254] = "&oline;"; //OVERLINE
         escapesec[376] = "&Yuml;"; //LATIN CAPITAL LETTER Y WITH DIAERESIS
-        escapesec[8596] = "&harr;"; //LEFT RIGHT ARROW
-        escapesec[8230] = "&hellip;"; //HORIZONTAL ELLIPSIS
-        escapesec[8592] = "&larr;"; //LEFTWARDS ARROW
-        escapesec[913] = "&Alpha;"; //GREEK CAPITAL LETTER ALPHA
         escapesec[402] = "&fnof;"; //LATIN SMALL LETTER F WITH HOOK
+        escapesec[710] = "&circ;"; //MODIFIER LETTER CIRCUMFLEX ACCENT
+        escapesec[732] = "&tilde;"; //SMALL TILDE
+        escapesec[913] = "&Alpha;"; //GREEK CAPITAL LETTER ALPHA
+        escapesec[914] = "&Beta;"; //GREEK CAPITAL LETTER BETA
         escapesec[915] = "&Gamma;"; //GREEK CAPITAL LETTER GAMMA
         escapesec[916] = "&Delta;"; //GREEK CAPITAL LETTER DELTA
         escapesec[917] = "&Epsilon;"; //GREEK CAPITAL LETTER EPSILON
@@ -1472,7 +1393,6 @@ string escapewebdavchar(const char c)
         escapesec[935] = "&Chi;"; //GREEK CAPITAL LETTER CHI
         escapesec[936] = "&Psi;"; //GREEK CAPITAL LETTER PSI
         escapesec[937] = "&Omega;"; //GREEK CAPITAL LETTER OMEGA
-        escapesec[8658] = "&rArr;"; //RIGHTWARDS DOUBLE ARROW
         escapesec[945] = "&alpha;"; //GREEK SMALL LETTER ALPHA
         escapesec[946] = "&beta;"; //GREEK SMALL LETTER BETA
         escapesec[947] = "&gamma;"; //GREEK SMALL LETTER GAMMA
@@ -1498,17 +1418,102 @@ string escapewebdavchar(const char c)
         escapesec[967] = "&chi;"; //GREEK SMALL LETTER CHI
         escapesec[968] = "&psi;"; //GREEK SMALL LETTER PSI
         escapesec[969] = "&omega;"; //GREEK SMALL LETTER OMEGA
-        escapesec[9674] = "&loz;"; //LOZENGE
-        escapesec[8656] = "&lArr;"; //LEFTWARDS DOUBLE ARROW
         escapesec[977] = "&thetasym;"; //GREEK THETA SYMBOL
         escapesec[978] = "&upsih;"; //GREEK UPSILON WITH HOOK SYMBOL
+        escapesec[982] = "&piv;"; //GREEK PI SYMBOL
+        escapesec[8194] = "&ensp;"; //EN SPACE
+        escapesec[8195] = "&emsp;"; //EM SPACE
+        escapesec[8201] = "&thinsp;"; //THIN SPACE
+        escapesec[8204] = "&zwnj;"; //ZERO WIDTH NON-JOINER
+        escapesec[8205] = "&zwj;"; //ZERO WIDTH JOINER
+        escapesec[8206] = "&lrm;"; //LEFT-TO-RIGHT MARK
+        escapesec[8207] = "&rlm;"; //RIGHT-TO-LEFT MARK
+        escapesec[8211] = "&ndash;"; //EN DASH
+        escapesec[8212] = "&mdash;"; //EM DASH
+        escapesec[8213] = "&horbar;"; //HORIZONTAL BAR
+        escapesec[8216] = "&lsquo;"; //LEFT SINGLE QUOTATION MARK
+        escapesec[8217] = "&rsquo;"; //RIGHT SINGLE QUOTATION MARK
+        escapesec[8218] = "&sbquo;"; //SINGLE LOW-9 QUOTATION MARK
+        escapesec[8220] = "&ldquo;"; //LEFT DOUBLE QUOTATION MARK
+        escapesec[8221] = "&rdquo;"; //RIGHT DOUBLE QUOTATION MARK
+        escapesec[8222] = "&bdquo;"; //DOUBLE LOW-9 QUOTATION MARK
+        escapesec[8224] = "&dagger;"; //DAGGER
+        escapesec[8225] = "&Dagger;"; //DOUBLE DAGGER
+        escapesec[8226] = "&bull;"; //BULLET
+        escapesec[8230] = "&hellip;"; //HORIZONTAL ELLIPSIS
+        escapesec[8240] = "&permil;"; //PER MILLE SIGN
+        escapesec[8242] = "&prime;"; //PRIME
+        escapesec[8243] = "&Prime;"; //DOUBLE PRIME
+        escapesec[8249] = "&lsaquo;"; //SINGLE LEFT-POINTING ANGLE QUOTATION MARK
+        escapesec[8250] = "&rsaquo;"; //SINGLE RIGHT-POINTING ANGLE QUOTATION MARK
+        escapesec[8254] = "&oline;"; //OVERLINE
+        escapesec[8260] = "&frasl;"; //FRACTION SLASH
+        escapesec[8364] = "&euro;"; //EURO SIGN
+        escapesec[8465] = "&image;"; //BLACK-LETTER CAPITAL I
+        escapesec[8472] = "&weierp;"; //SCRIPT CAPITAL P
+        escapesec[8476] = "&real;"; //BLACK-LETTER CAPITAL R
+        escapesec[8482] = "&trade;"; //TRADE MARK SIGN
+        escapesec[8501] = "&alefsym;"; //ALEF SYMBOL
+        escapesec[8592] = "&larr;"; //LEFTWARDS ARROW
+        escapesec[8593] = "&uarr;"; //UPWARDS ARROW
+        escapesec[8594] = "&rarr;"; //RIGHTWARDS ARROW
+        escapesec[8595] = "&darr;"; //DOWNWARDS ARROW
+        escapesec[8596] = "&harr;"; //LEFT RIGHT ARROW
+        escapesec[8629] = "&crarr;"; //DOWNWARDS ARROW WITH CORNER LEFTWARDS
+        escapesec[8656] = "&lArr;"; //LEFTWARDS DOUBLE ARROW
+        escapesec[8657] = "&uArr;"; //UPWARDS DOUBLE ARROW
+        escapesec[8658] = "&rArr;"; //RIGHTWARDS DOUBLE ARROW
         escapesec[8659] = "&dArr;"; //DOWNWARDS DOUBLE ARROW
         escapesec[8660] = "&hArr;"; //LEFT RIGHT DOUBLE ARROW
-        escapesec[982] = "&piv;"; //GREEK PI SYMBOL
+        escapesec[8704] = "&forall;"; //FOR ALL
+        escapesec[8706] = "&part;"; //PARTIAL DIFFERENTIAL
+        escapesec[8707] = "&exist;"; //THERE EXISTS
+        escapesec[8709] = "&empty;"; //EMPTY SET
+        escapesec[8711] = "&nabla;"; //NABLA
+        escapesec[8712] = "&isin;"; //ELEMENT OF
+        escapesec[8713] = "&notin;"; //NOT AN ELEMENT OF
+        escapesec[8715] = "&ni;"; //CONTAINS AS MEMBER
+        escapesec[8719] = "&prod;"; //N-ARY PRODUCT
+        escapesec[8721] = "&sum;"; //N-ARY SUMMATION
+        escapesec[8722] = "&minus;"; //MINUS SIGN
+        escapesec[8727] = "&lowast;"; //ASTERISK OPERATOR
+        escapesec[8730] = "&radic;"; //SQUARE ROOT
+        escapesec[8733] = "&prop;"; //PROPORTIONAL TO
+        escapesec[8734] = "&infin;"; //INFINITY
+        escapesec[8736] = "&ang;"; //ANGLE
+        escapesec[8743] = "&and;"; //LOGICAL AND
+        escapesec[8744] = "&or;"; //LOGICAL OR
+        escapesec[8745] = "&cap;"; //INTERSECTION
+        escapesec[8746] = "&cup;"; //UNION
+        escapesec[8747] = "&int;"; //INTEGRAL
+        escapesec[8756] = "&there4;"; //THEREFORE
+        escapesec[8764] = "&sim;"; //TILDE OPERATOR
+        escapesec[8773] = "&cong;"; //APPROXIMATELY EQUAL TO
+        escapesec[8776] = "&asymp;"; //ALMOST EQUAL TO
+        escapesec[8800] = "&ne;"; //NOT EQUAL TO
+        escapesec[8801] = "&equiv;"; //IDENTICAL TO
+        escapesec[8804] = "&le;"; //LESS-THAN OR EQUAL TO
+        escapesec[8805] = "&ge;"; //GREATER-THAN OR EQUAL TO
+        escapesec[8834] = "&sub;"; //SUBSET OF
+        escapesec[8835] = "&sup;"; //SUPERSET OF
+        escapesec[8836] = "&nsub;"; //NOT A SUBSET OF
+        escapesec[8838] = "&sube;"; //SUBSET OF OR EQUAL TO
+        escapesec[8839] = "&supe;"; //SUPERSET OF OR EQUAL TO
+        escapesec[8853] = "&oplus;"; //CIRCLED PLUS
+        escapesec[8855] = "&otimes;"; //CIRCLED TIMES
         escapesec[8869] = "&perp;"; //UP TACK
-        escapesec[8657] = "&uArr;"; //UPWARDS DOUBLE ARROW
-        escapesec[732] = "&tilde;"; //SMALL TILDE
-        escapesec[8224] = "&dagger;"; //DAGGER
+        escapesec[8901] = "&sdot;"; //DOT OPERATOR
+        escapesec[8968] = "&lceil;"; //LEFT CEILING
+        escapesec[8969] = "&rceil;"; //RIGHT CEILING
+        escapesec[8970] = "&lfloor;"; //LEFT FLOOR
+        escapesec[8971] = "&rfloor;"; //RIGHT FLOOR
+        escapesec[9001] = "&lang;"; //LEFT-POINTING ANGLE BRACKET
+        escapesec[9002] = "&rang;"; //RIGHT-POINTING ANGLE BRACKET
+        escapesec[9674] = "&loz;"; //LOZENGE
+        escapesec[9824] = "&spades;"; //BLACK SPADE SUIT
+        escapesec[9827] = "&clubs;"; //BLACK CLUB SUIT
+        escapesec[9829] = "&hearts;"; //BLACK HEART SUIT
+        escapesec[9830] = "&diams;"; //BLACK DIAMOND SUIT
 
         unintitialized = false;
     }
@@ -1533,3 +1538,20 @@ string webdavnameescape(const string &value) {
 
 
 } // namespace
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
