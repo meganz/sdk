@@ -397,7 +397,7 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int);
+    void putnodes(handle, NewNode*, int, const char * = NULL);
 
     // send files/folders to user
     void putnodes(const char*, NewNode*, int);
@@ -421,7 +421,7 @@ public:
     void getua(User* u, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
 
     // queue a user attribute retrieval (for non-contacts)
-    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, int ctag = -1);
+    void getua(const char* email_handle, const attr_t at = ATTR_UNKNOWN, const char *ph = NULL, int ctag = -1);
 
     // retrieve the email address of a user
     void getUserEmail(const char *uid);
@@ -549,10 +549,10 @@ public:
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
-    void createChat(bool group, const userpriv_vector *userpriv);
+    void createChat(bool group, bool publicchat, const userpriv_vector *userpriv = NULL, const string_map *userkeymap = NULL, const char *title = NULL);
 
     // invite a user to a chat
-    void inviteToChat(handle chatid, handle uh, int priv, const char *title = NULL);
+    void inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey = NULL, const char *title = NULL);
 
     // remove a user from a chat
     void removeFromChat(handle chatid, handle uh);
@@ -588,6 +588,18 @@ public:
 
     // request meta information from an url (title, description, icon)
     void richlinkrequest(const char*);
+
+    // create/get or delete chat-link
+    void chatlink(handle chatid, bool del, bool createifmissing);
+
+    // get the URL for chat-link
+    void chatlinkurl(handle publichandle);
+
+    // convert public chat into private chat
+    void chatlinkclose(handle chatid, const char *title);
+
+    // auto-join publicchat
+    void chatlinkjoin(handle publichandle, const char *unifiedkey);
 #endif
 
     // get mega achievements
@@ -1234,6 +1246,7 @@ public:
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
+    static const int CHATLINKHANDLE = 6;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;

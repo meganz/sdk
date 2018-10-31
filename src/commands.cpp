@@ -487,7 +487,7 @@ void CommandDirectRead::procresult()
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *privateauth, const char *publicauth)
+CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* key, handle h, bool p, const char *privateauth, const char *publicauth, const char *chatauth)
 {
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
@@ -506,6 +506,11 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
     if (publicauth)
     {
         arg("en", publicauth);
+    }
+
+    if (chatauth)
+    {
+        arg("cauth", chatauth);
     }
 
     tslot = ctslot;
@@ -846,7 +851,7 @@ void CommandSetAttr::procresult()
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                                  const char* userhandle, NewNode* newnodes,
-                                 int numnodes, int ctag, putsource_t csource)
+                                 int numnodes, int ctag, putsource_t csource, const char *cauth)
 {
     byte key[FILENODEKEYLENGTH];
     int i;
@@ -871,6 +876,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     }
 
     arg("sm",1);
+
+    if (cauth)
+    {
+        arg("cauth", cauth);
+    }
 
     beginarray("n");
 
@@ -2687,16 +2697,25 @@ void CommandPutUA::procresult()
     client->app->putua_result(e);
 }
 
-CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, int ctag)
+CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, const char* ph, int ctag)
 {
     this->uid = uid;
     this->at = at;
+    this->ph = ph ? string(ph) : "";
 
-    cmd("uga");
+    if (ph && ph[0])
+    {
+        cmd("mcuga");
+        arg("ph", ph);
+    }
+    else
+    {
+        cmd("uga");
+    }
+
     arg("u", uid);
     arg("ua", User::attr2string(at).c_str());
     arg("v", 1);
-
     tag = ctag;
 }
 
@@ -2708,6 +2727,11 @@ void CommandGetUA::procresult()
     {
         error e = (error)client->json.getint();
         client->app->getua_result(e);
+
+        if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
+        {
+            return;
+        }
 
 #ifdef  ENABLE_CHAT
         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
@@ -2721,13 +2745,32 @@ void CommandGetUA::procresult()
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
         }
-        return;
     }
     else
     {
         const char* ptr;
         const char* end;
         string value, version, buf;
+
+        //If we are in preview mode, we only can retrieve atributes with mcuga and the response format is different
+        if (isFromChatPreview())
+        {
+            ptr = client->json.getvalue();
+            if (!ptr || !(end = strchr(ptr, '"')))
+            {
+                client->app->getua_result(API_EINTERNAL);
+            }
+            else
+            {
+                // convert from ASCII to binary the received data
+                buf.assign(ptr, (end-ptr));
+                value.resize(buf.size() / 4 * 3 + 3);
+                value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
+                client->app->getua_result((byte*) value.data(), value.size());
+            }
+            return;
+        }
+
         for (;;)
         {
             switch (client->json.getnameid())
@@ -2880,7 +2923,7 @@ void CommandGetUA::procresult()
                 default:
                     if (!client->json.storeobject())
                     {
-                        LOG_err << "Error in CommandPutUA. Parse error";
+                        LOG_err << "Error in CommandGetUA. Parse error";
                         client->app->getua_result(API_EINTERNAL);
 #ifdef  ENABLE_CHAT
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
@@ -5003,13 +5046,37 @@ void CommandGetLocalSSLCertificate::procresult()
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userpriv_vector *upl)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
+    this->mPublicChat = publicchat;
+    this->mTitle = title ? string(title) : "";
+    this->mUnifiedKey = "";
 
     cmd("mcc");
     arg("g", (group) ? 1 : 0);
+
+    if (group && title)
+    {
+        arg("ct", title);
+    }
+
+    if (publicchat)
+    {
+        arg("m", 1);
+
+        char ownHandleB64[12];
+        Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
+        ownHandleB64[11] = '\0';
+
+        string_map::const_iterator it = ukm->find(ownHandleB64);
+        if (it != ukm->end())
+        {
+            mUnifiedKey = it->second;
+            arg("ck", mUnifiedKey.c_str());
+        }
+    }
 
     beginarray("u");
 
@@ -5019,15 +5086,23 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, const userp
         beginobject();
 
         handle uh = itupl->first;
-        char uid[12];
-        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-        uid[11] = 0;
-
         privilege_t priv = itupl->second;
 
-        arg("u", uid);
+        arg("u", (byte *)&uh, MegaClient::USERHANDLE);
         arg("p", priv);
 
+        if (publicchat)
+        {
+            char uid[12];
+            Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+            uid[11] = '\0';
+
+            string_map::const_iterator ituk = ukm->find(uid);
+            if(ituk != ukm->end())
+            {
+                arg("ck", ituk->second.c_str());
+            }
+        }
         endobject();
     }
 
@@ -5089,10 +5164,18 @@ void CommandChatCreate::procresult()
                         chat->userpriv = this->chatPeers;
                         chat->group = group;
                         chat->ts = (ts != -1) ? ts : 0;
-
+                        chat->publicchat = mPublicChat;
                         chat->setTag(tag ? tag : -1);
-                        client->notifychat(chat);
+                        if (chat->group && !mTitle.empty())
+                        {
+                            chat->title = mTitle;
+                        }
+                        if (mPublicChat)
+                        {
+                            chat->unifiedKey = mUnifiedKey;
+                        }
 
+                        client->notifychat(chat);
                         client->app->chatcreate_result(chat, API_OK);
                     }
                     else
@@ -5114,7 +5197,7 @@ void CommandChatCreate::procresult()
     }
 }
 
-CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char* title)
+CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char *unifiedkey, const char* title)
 {
     this->client = client;
     this->chatid = chatid;
@@ -5122,21 +5205,23 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
     this->priv = priv;
     this->title = title ? string(title) : "";
 
-    char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-    uid[11] = 0;
-
     cmd("mci");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("u", uid);
+    arg("u", (byte *)&uh, MegaClient::USERHANDLE);
     arg("p", priv);
     arg("v", 1);
 
-    if (title != NULL)
+    if (title)
     {
         arg("ct", title);
     }
+
+    if (unifiedkey)
+    {
+        arg("ck", unifiedkey);
+    }
+
     notself(client);
 
     tag = client->reqtag;
@@ -5194,11 +5279,7 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle u
 
     if (uh != client->me)
     {
-        char uid[12];
-        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-        uid[11] = 0;
-
-        arg("u", uid);
+        arg("u", (byte *)&uh, MegaClient::USERHANDLE);
     }
     arg("v", 1);
     notself(client);
@@ -5402,15 +5483,11 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
     this->uh = uh;
     this->priv = priv;
 
-    char uid[12];
-    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
-    uid[11] = 0;
-
     cmd("mcup");
     arg("v", 1);
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("u", uid);
+    arg("u", (byte *)&uh, MegaClient::USERHANDLE);
     arg("p", priv);
     notself(client);
 
@@ -5741,6 +5818,199 @@ void CommandRichLink::procresult()
                     return client->app->richlinkrequest_result(NULL, API_EINTERNAL);
                 }
         }
+    }
+}
+
+CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bool createifmissing)
+{
+    mDelete = del;
+
+    cmd("mcph");
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    if (del)
+    {
+        arg("d", 1);
+    }
+
+    if (!createifmissing)
+    {
+        arg("cim", (m_off_t)0);
+    }
+
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatLink::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        if (e == API_OK && !mDelete)
+        {
+            LOG_err << "Unexpected response for create/get chatlink";
+            client->app->chatlink_result(UNDEF, API_EINTERNAL);
+            return;
+        }
+
+        client->app->chatlink_result(UNDEF, e);
+    }
+    else
+    {
+        handle h = client->json.gethandle(MegaClient::CHATLINKHANDLE);
+        if (ISUNDEF(h))
+        {
+            client->app->chatlink_result(UNDEF, API_EINTERNAL);
+        }
+        else
+        {
+            client->app->chatlink_result(h, API_OK);
+        }
+    }
+}
+
+CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
+{
+    cmd("mcphurl");
+    arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
+
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatLinkURL::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, (error)client->json.getint());
+    }
+    else
+    {
+        handle chatid = UNDEF;
+        int shard = -1;
+        int numPeers = -1;
+        string url;
+        string ct;
+
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID2('i','d'):
+                    chatid = client->json.gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case MAKENAMEID2('c','s'):
+                    shard = client->json.getint();
+                    break;
+
+                case MAKENAMEID2('c','t'):  // chat-title
+                    client->json.storeobject(&ct);
+                    break;
+
+                case MAKENAMEID3('u','r','l'):
+                    client->json.storeobject(&url);
+                    break;
+
+                case MAKENAMEID3('n','c','m'):
+                    numPeers = client->json.getint();
+                    break;
+
+                case EOO:
+                    if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
+                    {
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, API_OK);
+                    }
+                    else
+                    {
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, API_EINTERNAL);
+                    }
+                    return;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, API_EINTERNAL);
+                        return;
+                    }
+            }
+        }
+    }
+}
+
+CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
+{
+    mChatid = chatid;
+    mTitle = title ? string(title) : "";
+
+    cmd("mcscm");
+    arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    if (title)
+    {
+        arg("ct", title);
+    }
+
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatLinkClose::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        if (e == API_OK)
+        {
+            textchat_map::iterator it = client->chats.find(mChatid);
+            if (it == client->chats.end())
+            {
+                LOG_err << "Chat link close succeeded for a non-existing chatroom";
+                client->app->chatlinkclose_result(API_ENOENT);
+                return;
+            }
+
+            TextChat *chat = it->second;
+            chat->setMode(false);
+            if (!mTitle.empty())
+            {
+                chat->title = mTitle;
+            }
+
+            chat->setTag(tag ? tag : -1);
+            client->notifychat(chat);
+        }
+
+        client->app->chatlinkclose_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatlinkclose_result(API_EINTERNAL);
+    }
+}
+
+CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle, const char *unifiedkey)
+{
+    cmd("mciph");
+    arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
+    arg("ck", unifiedkey);
+    notself(client);
+    tag = client->reqtag;
+}
+
+void CommandChatLinkJoin::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error) client->json.getint();
+        client->app->chatlinkjoin_result(e);
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->chatlinkjoin_result(API_EINTERNAL);
     }
 }
 

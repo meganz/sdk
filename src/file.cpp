@@ -31,6 +31,7 @@ namespace mega {
 File::File()
 {
     transfer = NULL;
+    chatauth = NULL;
     hprivate = true;
     hforeign = false;
     syncxfer = false;
@@ -46,6 +47,7 @@ File::~File()
     {
         transfer->client->stopxfer(this);
     }
+    delete [] chatauth;
 }
 
 bool File::serialize(string *d)
@@ -97,7 +99,17 @@ bool File::serialize(string *d)
     flag = temporaryfile;
     d->append((const char*)&flag, sizeof(flag));
 
-    d->append("\0\0\0\0\0\0\0\0", 9);
+    char hasChatAuth = (chatauth && chatauth[0]) ? 1 : 0;
+    d->append((char *)&hasChatAuth, 1);
+
+    d->append("\0\0\0\0\0\0\0", 8);
+
+    if (hasChatAuth)
+    {
+        ll = (unsigned short) strlen(chatauth);
+        d->append((char*)&ll, sizeof(ll));
+        d->append(chatauth, ll);
+    }
 
     return true;
 }
@@ -217,13 +229,43 @@ File *File::unserialize(string *d)
     file->temporaryfile = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0\0", 9))
+    char hasChatAuth = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
     {
         LOG_err << "File unserialization failed - invalid version";
         delete file;
         return NULL;
     }
-    ptr += 9;
+    ptr += 8;
+
+    if (hasChatAuth)
+    {
+        if (ptr + sizeof(unsigned short) <= end)
+        {
+            unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
+            ptr += sizeof(chatauthlen);
+
+            if (!chatauthlen || ptr + chatauthlen > end)
+            {
+                LOG_err << "File unserialization failed - incorrect size of chat auth";
+                delete file;
+                return NULL;
+            }
+
+            file->chatauth = new char[chatauthlen + 1];
+            memcpy(file->chatauth, ptr, chatauthlen);
+            file->chatauth[chatauthlen] = '\0';
+            ptr += chatauthlen;
+        }
+        else
+        {
+            LOG_err << "File unserialization failed - chat auth not found";
+            delete file;
+            return NULL;
+        }
+    }
 
     d->erase(0, ptr - d->data());
     return file;

@@ -1770,6 +1770,14 @@ using namespace mega;
     return [[MEGANode alloc] initWithMegaNode:self.megaApi->authorizeNode((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
 
+#ifdef ENABLE_CHAT
+
+- (MEGANode *)authorizeChatNode:(MEGANode *)node cauth:(NSString *)cauth {
+    return [[MEGANode alloc] initWithMegaNode:self.megaApi->authorizeChatNode(node ? [node getCPtr] : NULL, cauth ? [cauth UTF8String] : NULL) cMemoryOwn:YES];
+}
+
+#endif
+
 - (NSNumber *)sizeForNode:(MEGANode *)node {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getSize([node getCPtr])];
 }

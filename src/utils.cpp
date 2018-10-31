@@ -58,6 +58,7 @@ TextChat::TextChat()
     resetTag();
     ts = 0;
     flags = 0;
+    publicchat = false;
 
     memset(&changed, 0, sizeof(changed));
 }
@@ -106,7 +107,14 @@ bool TextChat::serialize(string *d)
     d->append((char*)&hasAttachments, 1);
 
     d->append((char*)&flags, 1);
-    d->append("\0\0\0\0\0\0\0\0", 8); // additional bytes for backwards compatibility
+
+    char mode = publicchat ? 1 : 0;
+    d->append((char*)&mode, 1);
+
+    char hasUnifiedKey = unifiedKey.size() ? 1 : 0;
+    d->append((char *)&hasUnifiedKey, 1);
+
+    d->append("\0\0\0\0\0\0", 6); // additional bytes for backwards compatibility
 
     if (hasAttachments)
     {
@@ -126,6 +134,13 @@ bool TextChat::serialize(string *d)
         }
     }
 
+    if (hasUnifiedKey)
+    {
+        ll = (unsigned short) unifiedKey.size();
+        d->append((char *)&ll, sizeof ll);
+        d->append((char*) unifiedKey.data(), unifiedKey.size());
+    }
+
     return true;
 }
 
@@ -142,6 +157,8 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     byte flags;
     char hasAttachments;
     attachments_map attachedNodes;
+    bool publicchat;
+    string unifiedKey;
 
     unsigned short ll;
     const char* ptr = d->data();
@@ -224,7 +241,14 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     flags = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    for (int i = 8; i--;)
+    char mode = MemAccess::get<char>(ptr);
+    publicchat = (mode == 1);
+    ptr += sizeof(char);
+
+    char hasUnifiedKey = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    for (int i = 6; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -277,6 +301,28 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
         }
     }
 
+    if (hasUnifiedKey)
+    {
+        unsigned short keylen = 0;
+        if (ptr + sizeof keylen > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        keylen = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof keylen;
+
+        if (ptr + keylen > end)
+        {
+            delete userpriv;
+            return NULL;
+        }
+
+        unifiedKey.assign(ptr, keylen);
+        ptr += keylen;
+    }
+
     if (ptr < end)
     {
         delete userpriv;
@@ -303,6 +349,8 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
     chat->ts = ts;
     chat->flags = flags;
     chat->attachedNodes = attachedNodes;
+    chat->publicchat = publicchat;
+    chat->unifiedKey = unifiedKey;
 
     memset(&chat->changed, 0, sizeof(chat->changed));
 
@@ -369,6 +417,19 @@ bool TextChat::setFlags(byte newFlags)
 bool TextChat::isFlagSet(uint8_t offset) const
 {
     return (flags >> offset) & 1U;
+}
+
+bool TextChat::setMode(bool publicchat)
+{
+    if (this->publicchat == publicchat)
+    {
+        return false;
+    }
+
+    this->publicchat = publicchat;
+    changed.mode = true;
+
+    return true;
 }
 
 bool TextChat::setFlag(bool value, uint8_t offset)

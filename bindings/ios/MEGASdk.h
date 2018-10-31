@@ -5543,6 +5543,28 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (MEGANode *)authorizeNode:(MEGANode *)node;
 
+#ifdef ENABLE_CHAT
+
+/**
+ * @brief Returns a MegaNode that can be downloaded/copied with a chat-authorization
+ *
+ * During preview of chat-links, you need to call this method to authorize the MegaNode
+ * from a node-attachment message, so the API allows to access to it. The parameter to
+ * authorize the access can be retrieved from [MEGAChatRoom authorizationToken] when
+ * the chatroom in in preview mode.
+ *
+ * You can use [MEGASdk startDownload] and/or [MEGASdk copyNode] with the resulting
+ * node with any instance of MEGASdk, even if it's logged into another account,
+ * a public folder, or not logged in.
+ *
+ * @param node MEGANode to authorize
+ * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
+ * @return Authorized node, or nil if the node can't be authorized
+ */
+- (MEGANode *)authorizeChatNode:(MEGANode *)node cauth:(NSString *)cauth;
+
+#endif
+
 /**
  * @brief Get the size of a node tree.
  *

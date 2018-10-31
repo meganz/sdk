@@ -486,12 +486,17 @@ struct TextChat : public Cachable
     int shard;
     userpriv_vector *userpriv;
     bool group;
-    string title;   // byte array
+    string title;        // byte array
+    string unifiedKey;   // byte array
     handle ou;
     m_time_t ts;     // creation time
     attachments_map attachedNodes;
-    byte flags; // currently only used for "archive" flag at first bit
+    bool publicchat;  // whether the chat is public or private
 
+private:        // use setter to modify these members
+    byte flags;     // currently only used for "archive" flag at first bit
+
+public:
     int tag;    // source tag, to identify own changes
 
     TextChat();
@@ -508,6 +513,7 @@ struct TextChat : public Cachable
     {
         bool attachments : 1;
         bool flags : 1;
+        bool mode : 1;
     } changed;
 
     // return false if failed
@@ -515,6 +521,7 @@ struct TextChat : public Cachable
     bool setFlag(bool value, uint8_t offset = 0xFF);
     bool setFlags(byte newFlags);
     bool isFlagSet(uint8_t offset) const;
+    bool setMode(bool publicchat);
 
 };
 typedef vector<TextChat*> textchat_vector;
