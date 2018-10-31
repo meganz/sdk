@@ -1971,6 +1971,7 @@ TEST_F(SdkTest, SdkTestShares)
         MegaUserAlert* a = list->get(list->size()-1);
         ASSERT_STREQ(a->getTitle(), (email[0] + " added 2 folders").c_str());
         ASSERT_EQ(a->getNodeHandle(), megaApi[0]->getNodeByHandle(hfolder2)->getHandle());
+        ASSERT_EQ(a->getNumber(0), 2); // 0 for number of folders
         delete list;
     }
 
