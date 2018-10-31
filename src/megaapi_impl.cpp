@@ -10457,7 +10457,7 @@ bool SearchTreeProcessor::processNode(Node* node)
         return false;
     }
 
-    if (strcasestr(node->displayname(), search)!=NULL)
+    if (node->type <= FOLDERNODE && strcasestr(node->displayname(), search) != NULL)
     {
         results.push_back(node);
     }

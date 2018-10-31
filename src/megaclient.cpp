@@ -1809,6 +1809,11 @@ void MegaClient::exec()
                     else
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
+                        if (useralerts.begincatchup)
+                        {
+                            useralerts.begincatchup = false;
+                            useralerts.catchupdone = true;
+                        }
                     }
                 }
 
@@ -3856,9 +3861,18 @@ bool MegaClient::procsc()
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
 
-                        // now that we have loaded cached state, and caught up actionpackets since that state 
-                        // (or just fetched everything if there was no cache), our next sc request can be for useralerts
-                        useralerts.begincatchup = true;
+                        if (sid.size())
+                        {
+                            // now that we have loaded cached state, and caught up actionpackets since that state
+                            // (or just fetched everything if there was no cache), our next sc request can be for useralerts
+                            useralerts.begincatchup = true;
+                        }
+                        else
+                        {
+                            // historic user alerts are not supported for public folders
+                            useralerts.begincatchup = false;
+                            useralerts.catchupdone = true;
+                        }
                     }
 
                     if (externaldeletions && stoverquotauntil)
@@ -10693,6 +10707,7 @@ void MegaClient::purgenodesusersabortsc()
     nodenotify.clear();
     usernotify.clear();
     pcrnotify.clear();
+    useralerts.clear();
 
 #ifndef ENABLE_CHAT
     users.clear();
@@ -10705,7 +10720,6 @@ void MegaClient::purgenodesusersabortsc()
         chats.erase(it++);
     }
     chatnotify.clear();
-    useralerts.clear();
 
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
