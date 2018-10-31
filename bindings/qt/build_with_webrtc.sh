@@ -152,7 +152,7 @@ if [ "$2" == "withExamples" ]; then
 	cd $QTPATH/build
     qmake $QTPATH/contrib/QtCreator/MEGAchat.pro -spec linux-g++ CONFIG+=qml_debug CONFIG+=force_debug_info CONFIG+=separate_debug_info && /usr/bin/make qmake_all
 	cd $QTPATH/build/MEGAChatQt/
-	make
+	make -j8
 fi
 
 
