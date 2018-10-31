@@ -3214,7 +3214,12 @@ void CommandGetUserData::procresult()
 
     if (client->json.isnumeric())
     {
-        return client->app->userdata_result(NULL, NULL, NULL, jid, (error)client->json.getint());
+        error e = (error)client->json.getint();
+        if (!e)
+        {
+            e = API_ENOENT;
+        }
+        return client->app->userdata_result(NULL, NULL, NULL, jid, e);
     }
 
     for (;;)
