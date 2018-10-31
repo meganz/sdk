@@ -81,7 +81,7 @@
 
 #ifndef WINDOWS_PHONE
  #include <wincrypt.h>
- #include <winhttp.h>
+ //#include <winhttp.h>  // #defines in here clash with enum http_status's HTTP_STATUS_CONTINUE in Karere lib's libwebsockets.h
  #include <shlwapi.h>
 #endif
 

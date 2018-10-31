@@ -25,6 +25,10 @@
 #include "mega/proxy.h"
 #include "mega/base64.h"
 
+#if defined(WIN32) && !defined(WINDOWS_PHONE)
+#include <winhttp.h>
+#endif
+
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
 #include "mega/osx/osxutils.h"
 #endif
