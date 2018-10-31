@@ -9,14 +9,15 @@ CURRENTPATH=`pwd`/3rdparty
 CURL_VERSION="7.58.0"
 LIBWEBSOCKETS_BRANCH="v2.4-stable"
 OPENSSL_PREFIX="${CURRENTPATH}"
+QTPATH="$CURRENTPATH/../../../../.."
 
 if [ ! -d "${WEBRTC_SRC}" ]; then
     echo "* WEBRTC_SRC not correctly set. Please edit this file to configure it or put WebRTC in the default path: ${HOME}/webrtc"
     exit 1
 fi
 
-if (( $# != 1 )); then
-    echo "Usage: $0 <all | clean>";
+if (( $# < 1  || $# > 2)); then
+    echo "Usage: $0 <all | clean> [withExamples]";
     exit 0
 fi
 
@@ -142,3 +143,16 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
 else
   echo "* libwebsockets already configured"
 fi
+
+if [ "$2" == "withExamples" ]; then
+	if [[ ! -e $QTPATH/build ]]; then
+	    mkdir $QTPATH/build
+	fi
+
+	cd $QTPATH/build
+    qmake $QTPATH/contrib/QtCreator/MEGAchat.pro -spec linux-g++ CONFIG+=qml_debug CONFIG+=force_debug_info CONFIG+=separate_debug_info && /usr/bin/make qmake_all
+	cd $QTPATH/build/MEGAChatQt/
+	make
+fi
+
+
