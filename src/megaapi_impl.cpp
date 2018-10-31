@@ -24117,25 +24117,17 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
     return 0;
 }
 
-std::string rfc1123_datetime( time_t time )
-{
-    struct tm * timeinfo;
-    char buffer [80];
-    timeinfo = gmtime(&time);
-    strftime (buffer, 80, "%a, %d %b %Y %H:%M:%S GMT",timeinfo);
-    return buffer;
-}
-
 string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string baseURL, bool offlineAttribute)
 {
     std::ostringstream web;
 
     web << "<d:response>\r\n"
-           "<d:href>" << baseURL << "</d:href>\r\n"
+           "<d:href>" << webdavurlescape(baseURL) << "</d:href>\r\n"
            "<d:propstat>\r\n"
            "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
            "<d:prop>\r\n"
-           "<d:displayname>"<< node->getName() << "</d:displayname>\r\n"
+           "<d:displayname>"<< webdavnameescape(node->getName()) << "</d:displayname>\r\n"
+
            "<d:creationdate>" << rfc1123_datetime(node->getCreationTime()) << "</d:creationdate>"
            "<d:getlastmodified>" << rfc1123_datetime(node->getModificationTime()) << "</d:getlastmodified>"
            ;
