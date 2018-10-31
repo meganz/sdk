@@ -3016,10 +3016,12 @@ MegaNode *MegaApi::authorizeNode(MegaNode *node)
     return pImpl->authorizeNode(node);
 }
 
+#ifdef ENABLE_CHAT
 MegaNode *MegaApi::authorizeChatNode(MegaNode *node, const char *cauth)
 {
     return pImpl->authorizeChatNode(node, cauth);
 }
+#endif
 
 const char *MegaApi::getVersion()
 {
