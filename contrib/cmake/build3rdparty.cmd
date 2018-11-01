@@ -47,14 +47,11 @@ REM     7bee49f6763ff3ab7861fcda25af8d80f6757c56e197ea42be53e0b2480969eee73de3ae
 REM     HEAD_REF v2.4-stable
 REM also find libwebsocket's CMakeLists.txt file and modify the libuv find_library, adding 'libuv' as that's what the libuv vcpkg produces:
 REM     find_library(LIBUV_LIBRARIES NAMES uv libuv)
-REM and add thse lines in the vcpkg_configure_cmake in its portfile:
+REM and add these lines in the vcpkg_configure_cmake in its portfile (LWS_IPV6 replaces an existing line):
+REM     -DLWS_IPV6=OFF
 REM     -DLWS_WITH_LIBUV=ON
 REM     -DLIBUV_LIBRARIES=${CURRENT_PACKAGES_DIR}/lib
 REM     -DLIBUV_INCLUDE_DIR=${CURRENT_PACKAGES_DIR}/include
-REM possibly add libuv dependency (might not be necessary?)
-REM     Feature: libuv
-REM     Build-Depends: libuv
-REM     Description: turns on LWS_WITH_LIBUV
 REM then use remove and install again, building build libwebsockets[libuv].
 
 
