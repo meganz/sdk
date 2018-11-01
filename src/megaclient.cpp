@@ -4905,15 +4905,23 @@ void MegaClient::sc_paymentreminder()
 // u:[{c/m/ts}*] - Add/modify user/contact
 void MegaClient::sc_contacts()
 {
+    handle ou = UNDEF;
+
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
             case 'u':
+                useralerts.startprovisional();
                 readusers(&jsonsc, true);
                 break;
 
+            case MAKENAMEID2('o', 'u'):
+                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                break;
+
             case EOO:
+                useralerts.evalprovisional(ou);
                 return;
 
             default:

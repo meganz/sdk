@@ -202,6 +202,11 @@ void UserAlert::Base::updateEmail(MegaClient* mc)
     }
 }
 
+bool UserAlert::Base::checkprovisional(handle , MegaClient*)
+{
+    return true;
+}
+
 void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
 {
     // should be overridden
@@ -260,6 +265,11 @@ UserAlert::ContactChange::ContactChange(int c, handle uh, const string& email, m
 {
     action = c;
     assert(action >= 0 && action < 4);
+}
+
+bool UserAlert::ContactChange::checkprovisional(handle ou, MegaClient* mc)
+{
+    return action == 1 || ou != mc->me;
 }
 
 void UserAlert::ContactChange::text(string& header, string& title, MegaClient* mc)
@@ -677,6 +687,7 @@ UserAlerts::UserAlerts(MegaClient& cmc)
     , lastTimeDelta(0)
     , notingSharedNodes(false)
     , ignoreNodesUnderShare(UNDEF)
+    , provisionalmode(false)
 {
 }
 
@@ -785,6 +796,12 @@ void UserAlerts::add(UserAlert::Base* unb)
     // unb is either directly from notification json, or constructed from actionpacket.
     // We take ownership.
 
+    if (provisionalmode)
+    {
+        provisionals.push_back(unb);
+        return;
+    }
+
     if (!catchupdone && unb->timestamp > catchup_last_timestamp)
     {
         // small addition to compensate for delivery by diff from now, to prevent duplicates
@@ -829,6 +846,29 @@ void UserAlerts::add(UserAlert::Base* unb)
         LOG_debug << "New user alert added to notify queue";
     }
 }
+
+void UserAlerts::startprovisional()
+{
+    provisionalmode = true;
+}
+
+void UserAlerts::evalprovisional(handle originatinguser)
+{
+    provisionalmode = false;
+    for (int i = 0; i < provisionals.size(); ++i)
+    {
+        if (provisionals[i]->checkprovisional(originatinguser, &mc))
+        {
+            add(provisionals[i]);
+        }
+        else
+        {
+            delete provisionals[i];
+        }
+    }
+    provisionals.clear();
+}
+
 
 void UserAlerts::beginNotingSharedNodes()
 {

@@ -101,6 +101,8 @@ namespace UserAlert
 
         // look up the userEmail again in case it wasn't available before (or was changed)
         virtual void updateEmail(MegaClient* mc);
+
+        virtual bool checkprovisional(handle ou, MegaClient* mc);
     };
 
     struct IncomingPendingContact : public Base
@@ -122,6 +124,7 @@ namespace UserAlert
         ContactChange(UserAlertRaw& un, unsigned int id);
         ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+        virtual bool checkprovisional(handle ou, MegaClient* mc);
     };
 
     struct UpdatedPendingContactIncoming : public Base
@@ -255,6 +258,8 @@ private:
     handle lsn, fsn;
     m_time_t lastTimeDelta;
     UserAlertFlags flags;
+    bool provisionalmode;
+    std::vector<UserAlert::Base*> provisionals;
 
     struct ff {
         int files; 
@@ -289,6 +294,10 @@ public:
     void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n);
     void convertNotedSharedNodes(bool added);
     void ignoreNextSharedNodesUnder(handle h);
+
+    // enter provisional mode, added items will be checked for suitability before actually adding 
+    void startprovisional();
+    void evalprovisional(handle originatinguser);
 
     // marks all as seen, and notifies the API also
     void acknowledgeAll();
