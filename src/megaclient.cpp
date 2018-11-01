@@ -3843,7 +3843,10 @@ bool MegaClient::procsc()
 
                         // now that we have loaded cached state, and caught up actionpackets since that state 
                         // (or just fetched everything if there was no cache), our next sc request can be for useralerts
-                        useralerts.begincatchup = true;
+                        if (!ISUNDEF(me))
+                        {
+                            useralerts.begincatchup = true;
+                        }
                     }
                     return true;
 
