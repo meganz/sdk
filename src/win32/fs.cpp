@@ -399,6 +399,7 @@ void WinFileAccess::updatelocalname(string* name)
     if (localname.size())
     {
         localname = *name;
+        WinFileSystemAccess::sanitizedriveletter(&localname);
         localname.append("", 1);
     }
 }

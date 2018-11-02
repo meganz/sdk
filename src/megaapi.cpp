@@ -456,6 +456,11 @@ string *MegaNode::getPublicAuth()
     return NULL;
 }
 
+const char *MegaNode::getChatAuth()
+{
+    return NULL;
+}
+
 MegaNodeList *MegaNode::getChildren()
 {
     return NULL;
@@ -2018,6 +2023,11 @@ void MegaApi::getUserAttribute(MegaUser* user, int type, MegaRequestListener *li
     pImpl->getUserAttribute(user, type, listener);
 }
 
+void MegaApi::getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener)
+{
+    pImpl->getChatUserAttribute(email_or_handle, type, ph, listener);
+}
+
 void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
 {
     pImpl->getUserAttribute((MegaUser*)NULL, type, listener);
@@ -3010,6 +3020,13 @@ MegaNode *MegaApi::authorizeNode(MegaNode *node)
 {
     return pImpl->authorizeNode(node);
 }
+
+#ifdef ENABLE_CHAT
+MegaNode *MegaApi::authorizeChatNode(MegaNode *node, const char *cauth)
+{
+    return pImpl->authorizeChatNode(node, cauth);
+}
+#endif
 
 const char *MegaApi::getVersion()
 {
@@ -4273,14 +4290,24 @@ char *MegaApi::getMimeType(const char *extension)
 }
 
 #ifdef ENABLE_CHAT
-void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
+void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
 {
-    pImpl->createChat(group, peers, listener);
+    pImpl->createChat(group, false, peers, NULL, title, listener);
+}
+
+void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, MegaRequestListener *listener)
+{
+    pImpl->createChat(true, true, peers, userKeyMap, title, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
 {
-    pImpl->inviteToChat(chatid, uh, privilege, title, listener);
+    pImpl->inviteToChat(chatid, uh, privilege, false, NULL, title, listener);
+}
+
+void MegaApi::inviteToPublicChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *unifiedKey, MegaRequestListener *listener)
+{
+    pImpl->inviteToChat(chatid, uh, privilege, true, unifiedKey, NULL, listener);
 }
 
 void MegaApi::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)
@@ -4366,6 +4393,36 @@ void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *l
 void MegaApi::requestRichPreview(const char *url, MegaRequestListener *listener)
 {
     pImpl->requestRichPreview(url, listener);
+}
+
+void MegaApi::chatLinkQuery(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->chatLinkHandle(chatid, false, false, listener);
+}
+
+void MegaApi::chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->chatLinkHandle(chatid, false, true, listener);
+}
+
+void MegaApi::chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->chatLinkHandle(chatid, true, false, listener);
+}
+
+void MegaApi::getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener)
+{
+    pImpl->getChatLinkURL(publichandle, listener);
+}
+
+void MegaApi::chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener)
+{
+    pImpl->chatLinkClose(chatid, title, listener);
+}
+
+void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, MegaRequestListener *listener)
+{
+    pImpl->chatLinkJoin(publichandle, unifiedKey, listener);
 }
 
 #endif
@@ -5180,6 +5237,11 @@ const char * MegaTextChat::getTitle() const
     return NULL;
 }
 
+const char * MegaTextChat::getUnifiedKey() const
+{
+    return NULL;
+}
+
 bool MegaTextChat::hasChanged(int) const
 {
     return false;
@@ -5201,6 +5263,11 @@ int64_t MegaTextChat::getCreationTime() const
 }
 
 bool MegaTextChat::isArchived() const
+{
+    return false;
+}
+
+bool MegaTextChat::isPublicChat() const
 {
     return false;
 }
@@ -5227,6 +5294,11 @@ int MegaTextChatList::size() const
 
 #endif  // ENABLE_CHAT
 
+
+MegaStringMap *MegaStringMap::createInstance()
+{
+    return new MegaStringMapPrivate();
+}
 
 MegaStringMap::~MegaStringMap()
 {

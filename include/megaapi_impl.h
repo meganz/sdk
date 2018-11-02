@@ -391,7 +391,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
                         const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
-                        bool isForeign = false);
+                        bool isForeign = false, const char *chatauth = NULL);
 
         MegaNodePrivate(MegaNode *node);
         virtual ~MegaNodePrivate();
@@ -440,10 +440,12 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual MegaNodeList *getChildren();
         virtual void setPrivateAuth(const char *privateAuth);
         void setPublicAuth(const char *publicAuth);
+        void setChatAuth(const char *chatAuth);
         void setForeign(bool foreign);
         void setChildren(MegaNodeList *children);
         void setName(const char *newName);
         virtual std::string* getPublicAuth();
+        virtual const char *getChatAuth();
         virtual bool isShared();
         virtual bool isOutShare();
         virtual bool isInShare();
@@ -479,6 +481,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
+        const char *chatAuth;
         int tag;
         int changed;
         struct {
@@ -1342,8 +1345,10 @@ public:
     virtual bool isGroup() const;
     virtual MegaHandle getOriginatingUser() const;
     virtual const char *getTitle() const;
+    virtual const char *getUnifiedKey() const;
     virtual int64_t getCreationTime() const;
     virtual bool isArchived() const;
+    virtual bool isPublicChat() const;
 
     virtual bool hasChanged(int changeType) const;
     virtual int getChanges() const;
@@ -1358,9 +1363,11 @@ private:
     bool group;
     handle ou;
     string title;
+    string unifiedKey;
     int changed;
     int tag;
     bool archived;
+    bool publicchat;
     int64_t ts;
 };
 
@@ -1395,6 +1402,7 @@ public:
     virtual MegaStringList *getKeys() const;
     virtual void set(const char *key, const char *value);
     virtual int size() const;
+    const string_map *getMap() const;
 
 protected:
     MegaStringMapPrivate(const MegaStringMapPrivate *megaStringMap);
@@ -1845,7 +1853,9 @@ class MegaApiImpl : public MegaApp
         static char *getUserAvatarColor(const char *userhandle);
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
         void getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener = NULL);
+        void getChatUserAttribute(const char* email_or_handle, int type, const char* ph, MegaRequestListener *listener = NULL);
         void getUserAttr(const char* email_or_handle, int type, const char *dstFilePath, int number = 0, MegaRequestListener *listener = NULL);
+        void getChatUserAttr(const char* email_or_handle, int type, const char *dstFilePath, const char *ph = NULL, int number = 0, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
@@ -2086,6 +2096,7 @@ class MegaApiImpl : public MegaApp
 
         MegaNode *authorizeNode(MegaNode *node);
         void authorizeMegaNodePrivate(MegaNodePrivate *node);
+        MegaNode *authorizeChatNode(MegaNode *node, const char *cauth);
 
         const char *getVersion();
         char *getOperatingSystemVersion();
@@ -2218,8 +2229,8 @@ class MegaApiImpl : public MegaApp
 #endif
 
 #ifdef ENABLE_CHAT
-        void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
-        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey = NULL, const char *title = NULL, MegaRequestListener *listener = NULL);
         void removeFromChat(MegaHandle chatid, MegaHandle uh = INVALID_HANDLE, MegaRequestListener *listener = NULL);
         void getUrlChat(MegaHandle chatid, MegaRequestListener *listener = NULL);
         void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
@@ -2227,6 +2238,7 @@ class MegaApiImpl : public MegaApp
         void updateChatPermissions(MegaHandle chatid, MegaHandle uh, int privilege, MegaRequestListener *listener = NULL);
         void truncateChat(MegaHandle chatid, MegaHandle messageid, MegaRequestListener *listener = NULL);
         void setChatTitle(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
+        void setChatUnifiedKey(MegaHandle chatid, const char *unifiedKey, MegaRequestListener *listener = NULL);
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         void sendChatStats(const char *data, int port, MegaRequestListener *listener = NULL);
@@ -2237,6 +2249,10 @@ class MegaApiImpl : public MegaApp
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
+        void chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener = NULL);
+        void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
+        void chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
+        void chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
@@ -2558,6 +2574,10 @@ protected:
 
         virtual void chats_updated(textchat_map *, int);
         virtual void richlinkrequest_result(string*, error);
+        virtual void chatlink_result(handle, error);
+        virtual void chatlinkurl_result(handle, int, string*, string*, int, error);
+        virtual void chatlinkclose_result(error);
+        virtual void chatlinkjoin_result(error);
 #endif
 
 #ifdef ENABLE_SYNC

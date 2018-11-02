@@ -274,9 +274,12 @@ class MEGA_API CommandGetUA : public Command
 {
     string uid;
     attr_t at;  // attribute type
+    string ph;  // public handle for preview mode, in B64
+
+    bool isFromChatPreview() { return !ph.empty(); }
 
 public:
-    CommandGetUA(MegaClient*, const char*, attr_t, int);
+    CommandGetUA(MegaClient*, const char*, attr_t, const char *, int);
 
     void procresult();
 };
@@ -420,7 +423,7 @@ public:
     void cancel();
     void procresult();
 
-    CommandGetFile(MegaClient *client, TransferSlot*, byte*, handle, bool, const char* = NULL, const char* = NULL);
+    CommandGetFile(MegaClient *client, TransferSlot*, byte*, handle, bool, const char* = NULL, const char* = NULL, const char *chatauth = NULL);
 };
 
 class MEGA_API CommandPutFile : public Command
@@ -463,7 +466,7 @@ class MEGA_API CommandPutNodes : public Command
 public:
     void procresult();
 
-    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP);
+    CommandPutNodes(MegaClient*, handle, const char*, NewNode*, int, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
 };
 
 class MEGA_API CommandSetAttr : public Command
@@ -795,11 +798,13 @@ public:
 class MEGA_API CommandChatCreate : public Command
 {
     userpriv_vector *chatPeers;
-
+    bool mPublicChat;
+    string mTitle;
+    string mUnifiedKey;
 public:
     void procresult();
 
-    CommandChatCreate(MegaClient*, bool group, const userpriv_vector*);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL);
 };
 
 class MEGA_API CommandChatInvite : public Command
@@ -812,7 +817,7 @@ class MEGA_API CommandChatInvite : public Command
 public:
     void procresult();
 
-    CommandChatInvite(MegaClient*, handle, handle uh, privilege_t, const char *);
+    CommandChatInvite(MegaClient*, handle, handle uh, privilege_t, const char *unifiedkey = NULL, const char *title = NULL);
 };
 
 class MEGA_API CommandChatRemove : public Command
@@ -926,6 +931,45 @@ public:
     void procresult();
 
     CommandRichLink(MegaClient *client, const char *url);
+};
+
+class MEGA_API CommandChatLink : public Command
+{
+public:
+    void procresult();
+
+    CommandChatLink(MegaClient*, handle chatid, bool del, bool createifmissing);
+
+protected:
+    bool mDelete;
+};
+
+class MEGA_API CommandChatLinkURL : public Command
+{
+public:
+    void procresult();
+
+    CommandChatLinkURL(MegaClient*, handle publichandle);
+};
+
+class MEGA_API CommandChatLinkClose : public Command
+{
+public:
+    void procresult();
+
+    CommandChatLinkClose(MegaClient*, handle chatid, const char *title);
+
+protected:
+    handle mChatid;
+    string mTitle;
+};
+
+class MEGA_API CommandChatLinkJoin : public Command
+{
+public:
+    void procresult();
+
+    CommandChatLinkJoin(MegaClient*, handle publichandle, const char *unifiedkey);
 };
 
 #endif

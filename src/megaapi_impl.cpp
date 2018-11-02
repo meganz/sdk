@@ -71,7 +71,7 @@ namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
                                  string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign)
+                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth)
 : MegaNode()
 {
     this->name = MegaApi::strdup(name);
@@ -115,6 +115,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
         this->publicAuth = publicauth;
     }
 
+    this->chatAuth = chatauth ? MegaApi::strdup(chatauth) : NULL;
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = false;
@@ -172,6 +173,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->isPublicNode = node->isPublic();
     this->privateAuth = *node->getPrivateAuth();
     this->publicAuth = *node->getPublicAuth();
+    this->chatAuth = node->getChatAuth() ? MegaApi::strdup(node->getChatAuth()) : NULL;
     this->outShares = node->isOutShare();
     this->inShare = node->isInShare();
     this->foreign = node->isForeign();
@@ -223,6 +225,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->name = MegaApi::strdup(node->displayname());
     this->fingerprint = NULL;
     this->children = NULL;
+    this->chatAuth = NULL;
 
     if (node->isvalid)
     {
@@ -480,7 +483,17 @@ bool MegaNodePrivate::serialize(string *d)
     flag = foreign;
     d->append((char*)&flag, sizeof(flag));
 
-    d->append("\0\0\0\0\0\0\0", 8);
+    char hasChatAuth = (chatAuth && chatAuth[0]) ? 1 : 0;
+    d->append((char *)&hasChatAuth, 1);
+
+    d->append("\0\0\0\0\0\0", 7);
+
+    if (hasChatAuth)
+    {
+        ll = (unsigned short) strlen(chatAuth);
+        d->append((char*)&ll, sizeof(ll));
+        d->append(chatAuth, ll);
+    }
 
     return true;
 }
@@ -595,12 +608,39 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     bool foreign = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0\0", 8))
+    char hasChatAuth = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    if (memcmp(ptr, "\0\0\0\0\0\0", 7))
     {
         LOG_err << "MegaNodePrivate unserialization failed - invalid version";
         return NULL;
     }
-    ptr += 8;
+    ptr += 7;
+
+    string chatauth;
+    if (hasChatAuth)
+    {
+        if (ptr + sizeof(unsigned short) <= end)
+        {
+            unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
+            ptr += sizeof(chatauthlen);
+
+            if (!chatauthlen || ptr + chatauthlen > end)
+            {
+                LOG_err << "MegaNodePrivate unserialization failed - incorrect size of chat auth";
+                return NULL;
+            }
+
+            chatauth.assign(ptr, chatauthlen);
+            ptr += chatauthlen;
+        }
+        else
+        {
+            LOG_err << "MegaNodePrivate unserialization failed - chat auth not found";
+            return NULL;
+        }
+    }
 
     d->erase(0, ptr - d->data());
 
@@ -608,7 +648,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
                                fingerprintlen ? fingerprint.c_str() : NULL,
                                parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign);
+                               isPublicNode, foreign, hasChatAuth ? chatauth.c_str() : NULL);
 }
 
 char *MegaNodePrivate::getBase64Handle()
@@ -1391,6 +1431,21 @@ void MegaNodePrivate::setPublicAuth(const char *publicAuth)
     }
 }
 
+void MegaNodePrivate::setChatAuth(const char *chatAuth)
+{
+    delete [] this->chatAuth;
+    if (!chatAuth || !chatAuth[0])
+    {
+        this->chatAuth = NULL;
+        this->foreign = false;
+    }
+    else
+    {
+        this->chatAuth = MegaApi::strdup(chatAuth);
+        this->foreign = true;
+    }
+}
+
 void MegaNodePrivate::setForeign(bool foreign)
 {
     this->foreign = foreign;
@@ -1414,10 +1469,16 @@ string *MegaNodePrivate::getPublicAuth()
     return &publicAuth;
 }
 
+const char *MegaNodePrivate::getChatAuth()
+{
+    return chatAuth;
+}
+
 MegaNodePrivate::~MegaNodePrivate()
 {
     delete[] name;
     delete [] fingerprint;
+    delete [] chatAuth;
     delete customAttrs;
     delete plink;
     delete sharekey;
@@ -1503,6 +1564,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     if(user->changed.richPreviews)
     {
         changed |= MegaUser::CHANGE_TYPE_RICH_PREVIEWS;
+    }
+    if(user->changed.rubbishTime)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RUBBISH_TIME;
     }
 }
 
@@ -1596,7 +1661,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         }
         else
         {
-            type = type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
+            type = TYPE_INCOMINGPENDINGCONTACT_REQUEST;
         }
         userHandle = p->userHandle;
         email = p->userEmail;
@@ -3454,6 +3519,10 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CONTACT_LINK_DELETE: return "CONTACT_LINK_DELETE";
         case TYPE_FOLDER_INFO: return "FOLDER_INFO";
         case TYPE_RICH_LINK: return "RICH_LINK";
+        case TYPE_CHAT_LINK_HANDLE: return "CHAT_LINK_HANDLE";
+        case TYPE_CHAT_LINK_URL: return "CHAT_LINK_URL";
+        case TYPE_SET_PRIVATE_MODE: return "CHAT_LINK_CLOSE";
+        case TYPE_AUTOJOIN_PUBLIC_CHAT: return "CHAT_LINK_JOIN";
         case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
         case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
         case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
@@ -3565,6 +3634,11 @@ void MegaStringMapPrivate::set(const char *key, const char *value)
 int MegaStringMapPrivate::size() const
 {
     return int(strMap.size());
+}
+
+const string_map *MegaStringMapPrivate::getMap() const
+{
+    return &strMap;
 }
 
 MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStringMap)
@@ -4043,6 +4117,7 @@ MegaFile *MegaFile::unserialize(string *d)
 
     MegaFile *megaFile = new MegaFile();
     *(File *)megaFile = *(File *)file;
+    file->chatauth = NULL;
     delete file;
 
     MegaTransferPrivate *transfer = MegaTransferPrivate::unserialize(d);
@@ -4151,6 +4226,8 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, string dstPath) : Mega
     {
         pubauth = *n->getPublicAuth();
     }
+
+    chatauth = n->getChatAuth() ? MegaApi::strdup(n->getChatAuth()) : NULL;
 }
 
 bool MegaFileGet::serialize(string *d)
@@ -4200,6 +4277,7 @@ MegaFileGet *MegaFileGet::unserialize(string *d)
 
     MegaFileGet *megaFile = new MegaFileGet();
     *(MegaFile *)megaFile = *(MegaFile *)file;
+    file->chatauth = NULL;
     delete file;
 
     return megaFile;
@@ -4338,6 +4416,7 @@ MegaFilePut *MegaFilePut::unserialize(string *d)
 
     MegaFilePut *megaFile = new MegaFilePut();
     *(MegaFile *)megaFile = *(MegaFile *)file;
+    file->chatauth = NULL;
     delete file;
 
     megaFile->customMtime = customMtime;
@@ -5781,6 +5860,11 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
     getUserAttr(email_or_handle, type ? type : -1, NULL, 0, listener);
 }
 
+void MegaApiImpl::getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener)
+{
+    getChatUserAttr(email_or_handle, type ? type : -1, NULL, ph, 0, listener);
+}
+
 void MegaApiImpl::setUserAttribute(int type, const char *value, MegaRequestListener *listener)
 {
     setUserAttr(type ? type : -1, value, listener);
@@ -6353,6 +6437,41 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
         request->setFile(path.c_str());
     }
 
+    request->setParamType(type);
+    request->setNumber(number);
+    if(email_or_handle)
+    {
+        request->setEmail(email_or_handle);
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getChatUserAttr(const char *email_or_handle, int type, const char *dstFilePath, const char *ph, int number, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+
+    if (type == MegaApi::USER_ATTR_AVATAR && dstFilePath)
+    {
+        string path(dstFilePath);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+
+        int c = path[path.size()-1];
+        if((c=='/') || (c == '\\'))
+        {
+            path.append(email_or_handle);
+            path.push_back('0' + type);
+            path.append(".jpg");
+        }
+
+        request->setFile(path.c_str());
+    }
+
+    request->setSessionKey(ph);
     request->setParamType(type);
     request->setNumber(number);
     if(email_or_handle)
@@ -7240,6 +7359,10 @@ int MegaApiImpl::syncPathState(string* path)
         path->insert(0, localPrefix);
     }
     path->resize(path->size() - 1);
+    if (path->size() > (2 * sizeof(wchar_t)) && !memcmp(path->data() + path->size() -  (2 * sizeof(wchar_t)), L":\\", 2 * sizeof(wchar_t)))
+    {
+        path->resize(path->size() - sizeof(wchar_t));
+    }
 #endif
 
     int state = MegaApi::STATE_NONE;
@@ -7284,7 +7407,7 @@ int MegaApiImpl::syncPathState(string* path)
                 if (is_syncable(sync, name.c_str(), path))
                 {
                     FileAccess *fa = fsAccess->newfileaccess();
-                    if ((fa->fopen(path) && is_syncable(fa->size)) || fa->type == FOLDERNODE)
+                    if (fa->fopen(path, false, false) && (fa->type == FOLDERNODE || is_syncable(fa->size)))
                     {
                         state = MegaApi::STATE_PENDING;
                     }
@@ -8589,26 +8712,32 @@ void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, MegaEr
 #endif
 
 #ifdef ENABLE_CHAT
-void MegaApiImpl::createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener)
+
+void MegaApiImpl::createChat(bool group, bool publicchat, MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_CREATE, listener);
     request->setFlag(group);
+    request->setAccess(publicchat ? 1 : 0);
     request->setMegaTextChatPeerList(peers);
+    request->setText(title);
+    request->setMegaStringMap(userKeyMap);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)
+void MegaApiImpl::inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, bool openMode, const char *unifiedKey, const char *title, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_INVITE, listener);
     request->setNodeHandle(chatid);
     request->setParentHandle(uh);
     request->setAccess(privilege);
     request->setText(title);
+    request->setFlag(openMode);
+    request->setSessionKey(unifiedKey);
+
     requestQueue.push(request);
     waiter->notify();
 }
-
 void MegaApiImpl::removeFromChat(MegaHandle chatid, MegaHandle uh, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_REMOVE, listener);
@@ -8821,6 +8950,42 @@ void MegaApiImpl::requestRichPreview(const char *url, MegaRequestListener *liste
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RICH_LINK, listener);
     request->setLink(url);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_HANDLE, listener);
+    request->setNodeHandle(chatid);
+    request->setFlag(del);
+    request->setAccess(createifmissing ? 1 : 0);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_LINK_URL, listener);
+    request->setNodeHandle(publichandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_PRIVATE_MODE, listener);
+    request->setNodeHandle(chatid);
+    request->setText(title);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT, listener);
+    request->setNodeHandle(publichandle);
+    request->setSessionKey(unifiedkey);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9446,7 +9611,20 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
             MegaNodePrivate *privNode = (MegaNodePrivate *)children->get(i);
             authorizeMegaNodePrivate(privNode);
         }
-    }  
+    }
+}
+
+MegaNode *MegaApiImpl::authorizeChatNode(MegaNode *node, const char *cauth)
+{
+    if (!node)
+    {
+        return NULL;
+    }
+
+    MegaNodePrivate *result = new MegaNodePrivate(node);
+    result->setChatAuth(cauth);
+
+    return result;
 }
 
 const char *MegaApiImpl::getVersion()
@@ -10244,7 +10422,7 @@ bool SearchTreeProcessor::processNode(Node* node)
         return false;
     }
 
-    if (strcasestr(node->displayname(), search)!=NULL)
+    if (node->type <= FOLDERNODE && strcasestr(node->displayname(), search) != NULL)
     {
         results.push_back(node);
     }
@@ -11069,6 +11247,78 @@ void MegaApiImpl::richlinkrequest_result(string *richLink, error e)
     {
         request->setText(richLink->c_str());
     }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatlink_result(handle h, error e)
+{
+    MegaError megaError(e);
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_LINK_HANDLE)
+    {
+        return;
+    }
+
+    if (!e && !request->getFlag())
+    {
+        request->setParentHandle(h);
+    }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, error e)
+{
+    MegaError megaError(e);
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_CHAT_LINK_URL)
+    {
+        return;
+    }
+
+    if (!e)
+    {
+        request->setLink(link->c_str());
+        request->setAccess(shard);
+        request->setParentHandle(chatid);
+        request->setText(ct->c_str());
+        request->setNumDetails(numPeers);
+    }
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatlinkclose_result(error e)
+{
+    MegaError megaError(e);
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_SET_PRIVATE_MODE)
+    {
+        return;
+    }
+
+    fireOnRequestFinish(request, megaError);
+}
+
+void MegaApiImpl::chatlinkjoin_result(error e)
+{
+    MegaError megaError(e);
+    MegaRequestPrivate* request;
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if(it == requestMap.end()       ||
+            !(request = it->second) ||
+            request->getType() != MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT)
+    {
+        return;
+    }
+
     fireOnRequestFinish(request, megaError);
 }
 
@@ -16668,7 +16918,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 if (target)
                 {
-                    client->putnodes(target->nodehandle, tc.nn, nc);
+                    client->putnodes(target->nodehandle, tc.nn, nc, megaNode->getChatAuth());
                 }
                 else
                 {
@@ -17119,9 +17369,16 @@ void MegaApiImpl::sendPendingRequests()
             const char* value = request->getFile();
             attr_t type = attr_t(request->getParamType());
             const char *email = request->getEmail();
+            const char *ph = request->getSessionKey();
 
             string attrname = MegaApiImpl::userAttributeToString(type);
             char scope = MegaApiImpl::userAttributeToScope(type);
+
+            if ((!client->loggedin() && ph == NULL) || (ph && !ph[0]))
+            {
+                e = API_EARGS;
+                break;
+            }
 
             User *user = email ? client->finduser(email, 0) : client->finduser(client->me, 0);
 
@@ -17134,7 +17391,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->getua(email, type);
+                client->getua(email, type, ph);
                 break;
             }
 
@@ -18853,27 +19110,48 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHAT_CREATE:
         {
             MegaTextChatPeerList *chatPeers = request->getMegaTextChatPeerList();
-            if (!chatPeers)   // refuse to create chats without participants
+            bool group = request->getFlag();
+            const char *title = request->getText();
+            bool publicchat = (request->getAccess() == 1);
+            MegaStringMap *userKeyMap = request->getMegaStringMap();
+
+            if (!chatPeers) // emtpy groupchat
             {
-                e = API_EARGS;
-                break;
+                MegaTextChatPeerListPrivate tmp = MegaTextChatPeerListPrivate();
+                request->setMegaTextChatPeerList(&tmp);
+                chatPeers = request->getMegaTextChatPeerList();
             }
 
-            bool group = request->getFlag();
-            const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
-            if (!userpriv || (!group && chatPeers->size() > 1))
+            int numPeers = chatPeers->size();
+            const string_map *uhkeymap = NULL;
+            if(publicchat)
             {
-                e = API_EARGS;
-                break;
+                if (!group || !userKeyMap
+                        || (userKeyMap->size() != numPeers + 1))    // includes our own key
+                {
+                    e = API_EARGS;
+                    break;
+                }
+                uhkeymap = ((MegaStringMapPrivate*)userKeyMap)->getMap();
             }
+            else
+            {
+                if (!group && numPeers != 1)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+            }
+
+            const userpriv_vector *userpriv = ((MegaTextChatPeerListPrivate*)chatPeers)->getList();
 
             // if 1:1 chat, peer is enforced to be moderator too
             if (!group && userpriv->at(0).second != PRIV_MODERATOR)
             {
-                ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(1).first, PRIV_MODERATOR);
+                ((MegaTextChatPeerListPrivate*)chatPeers)->setPeerPrivilege(userpriv->at(0).first, PRIV_MODERATOR);
             }
 
-            client->createChat(group, userpriv);
+            client->createChat(group, publicchat, userpriv, uhkeymap, title);
             break;
         }
         case MegaRequest::TYPE_CHAT_INVITE:
@@ -18882,14 +19160,43 @@ void MegaApiImpl::sendPendingRequests()
             handle uh = request->getParentHandle();
             int access = request->getAccess();
             const char *title = request->getText();
+            bool publicMode = request->getFlag();
+            const char *unifiedKey = request->getSessionKey();
 
-            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
+            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE || (publicMode && !unifiedKey))
+            {
+                e = API_EARGS;
+                break;
+            }            
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            TextChat *chat = it->second;
+            if (chat->publicchat != publicMode)
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->inviteToChat(chatid, uh, access, title);
+            // new participants of private chats require the title to be encrypted to them
+            if (!chat->publicchat && (!chat->title.empty() && (!title || title[0] == '\0')))
+            {
+                e = API_EINCOMPLETE;
+                break;
+            }
+
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            client->inviteToChat(chatid, uh, access, unifiedKey, title);
             break;
         }
         case MegaRequest::TYPE_CHAT_REMOVE:
@@ -18903,9 +19210,22 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+
             // user is optional. If not provided, command apply to own user
             if (uh != INVALID_HANDLE)
             {
+                if (!chat->group || (uh != client->me && chat->priv != PRIV_MODERATOR))
+                {
+                    e = API_EACCESS;
+                    break;
+                }
                 client->removeFromChat(chatid, uh);
             }
             else
@@ -18969,6 +19289,19 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             client->updateChatPermissions(chatid, uh, access);
             break;
         }
@@ -18982,6 +19315,19 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
             client->truncateChat(chatid, messageid);
             break;
         }
@@ -18992,6 +19338,19 @@ void MegaApiImpl::sendPendingRequests()
             if (chatid == INVALID_HANDLE || title == NULL)
             {
                 e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
                 break;
             }
 
@@ -19082,6 +19441,96 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->richlinkrequest(url);
+            break;
+        }
+        case MegaRequest::TYPE_CHAT_LINK_HANDLE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            bool del = request->getFlag();
+            bool createifmissing = request->getAccess();
+            if (chatid == INVALID_HANDLE || (del && createifmissing))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->group || !chat->publicchat || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            client->chatlink(chatid, del, createifmissing);
+            break;
+        }
+
+        case MegaRequest::TYPE_CHAT_LINK_URL:
+        {
+            MegaHandle publichandle = request->getNodeHandle();
+            if (publichandle == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->chatlinkurl(publichandle);
+            break;
+        }
+
+        case MegaRequest::TYPE_SET_PRIVATE_MODE:
+        {
+            MegaHandle chatid = request->getNodeHandle();
+            const char *title = request->getText();
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            textchat_map::iterator it = client->chats.find(chatid);
+            if (it == client->chats.end())
+            {
+                e = API_ENOENT;
+                break;
+            }
+            TextChat *chat = it->second;
+            if (!chat->publicchat)
+            {
+                e = API_EEXIST;
+                break;
+            }
+            if (!chat->group || chat->priv != PRIV_MODERATOR)
+            {
+                e = API_EACCESS;
+                break;
+            }
+            if (!chat->title.empty() && (!title || title[0] == '\0'))
+            {
+                e = API_EINCOMPLETE;
+                break;
+            }
+
+            client->chatlinkclose(chatid, title);
+            break;
+        }
+
+        case MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT:
+        {
+            MegaHandle publichandle = request->getNodeHandle();
+            const char *unifiedkey = request->getSessionKey();
+
+            if (publichandle == INVALID_HANDLE || unifiedkey == NULL)
+            {
+                e = API_EARGS;
+                break;
+            }
+            client->chatlinkjoin(publichandle, unifiedkey);
             break;
         }
 #endif
@@ -23684,25 +24133,17 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
     return 0;
 }
 
-std::string rfc1123_datetime( time_t time )
-{
-    struct tm * timeinfo;
-    char buffer [80];
-    timeinfo = gmtime(&time);
-    strftime (buffer, 80, "%a, %d %b %Y %H:%M:%S GMT",timeinfo);
-    return buffer;
-}
-
 string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string baseURL, bool offlineAttribute)
 {
     std::ostringstream web;
 
     web << "<d:response>\r\n"
-           "<d:href>" << baseURL << "</d:href>\r\n"
+           "<d:href>" << webdavurlescape(baseURL) << "</d:href>\r\n"
            "<d:propstat>\r\n"
            "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
            "<d:prop>\r\n"
-           "<d:displayname>"<< node->getName() << "</d:displayname>\r\n"
+           "<d:displayname>"<< webdavnameescape(node->getName()) << "</d:displayname>\r\n"
+
            "<d:creationdate>" << rfc1123_datetime(node->getCreationTime()) << "</d:creationdate>"
            "<d:getlastmodified>" << rfc1123_datetime(node->getModificationTime()) << "</d:getlastmodified>"
            ;
@@ -27932,8 +28373,10 @@ MegaTextChatPrivate::MegaTextChatPrivate(const MegaTextChat *chat)
     this->title = chat->getTitle() ? chat->getTitle() : "";
     this->ts = chat->getCreationTime();
     this->archived = chat->isArchived();
+    this->publicchat = chat->isPublicChat();
     this->tag = chat->isOwnChange();
     this->changed = chat->getChanges();
+    this->unifiedKey = chat->getUnifiedKey() ? chat->getUnifiedKey() : "";
 }
 
 MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
@@ -27948,10 +28391,21 @@ MegaTextChatPrivate::MegaTextChatPrivate(const TextChat *chat)
     this->tag = chat->tag;
     this->ts = chat->ts;
     this->archived = chat->isFlagSet(TextChat::FLAG_OFFSET_ARCHIVE);
+    this->publicchat = chat->publicchat;
+    this->unifiedKey = chat->unifiedKey;
     this->changed = 0;
+
     if (chat->changed.attachments)
     {
         changed |= MegaTextChat::CHANGE_TYPE_ATTACHMENT;
+    }
+    if (chat->changed.flags)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_FLAGS;
+    }
+    if (chat->changed.mode)
+    {
+        changed |= MegaTextChat::CHANGE_TYPE_MODE;
     }
 }
 
@@ -28009,6 +28463,11 @@ const char *MegaTextChatPrivate::getTitle() const
     return !title.empty() ? title.c_str() : NULL;
 }
 
+const char *MegaTextChatPrivate::getUnifiedKey() const
+{
+    return !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
+}
+
 int MegaTextChatPrivate::isOwnChange() const
 {
     return tag;
@@ -28022,6 +28481,11 @@ int64_t MegaTextChatPrivate::getCreationTime() const
 bool MegaTextChatPrivate::isArchived() const
 {
     return archived;
+}
+
+bool MegaTextChatPrivate::isPublicChat() const
+{
+    return publicchat;
 }
 
 bool MegaTextChatPrivate::hasChanged(int changeType) const
