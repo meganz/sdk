@@ -101,6 +101,8 @@ namespace UserAlert
 
         // look up the userEmail again in case it wasn't available before (or was changed)
         virtual void updateEmail(MegaClient* mc);
+
+        virtual bool checkprovisional(handle ou, MegaClient* mc);
     };
 
     struct IncomingPendingContact : public Base
@@ -122,6 +124,7 @@ namespace UserAlert
         ContactChange(UserAlertRaw& un, unsigned int id);
         ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
+        virtual bool checkprovisional(handle ou, MegaClient* mc);
     };
 
     struct UpdatedPendingContactIncoming : public Base
@@ -154,6 +157,7 @@ namespace UserAlert
     struct DeletedShare : public Base
     {
         handle folderHandle;
+        string folderPath;
         string folderName;
         handle removerHandle;
         string removerEmail;
@@ -168,9 +172,10 @@ namespace UserAlert
     struct NewSharedNodes : public Base
     {
         unsigned fileCount, folderCount;
+        handle parentHandle;
 
         NewSharedNodes(UserAlertRaw& un, unsigned int id);
-        NewSharedNodes(int nfolders, int nfiles, handle uh, m_time_t timestamp, unsigned int id);
+        NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id);
         virtual void text(string& header, string& title, MegaClient* mc);
     };
 
@@ -253,6 +258,8 @@ private:
     handle lsn, fsn;
     m_time_t lastTimeDelta;
     UserAlertFlags flags;
+    bool provisionalmode;
+    std::vector<UserAlert::Base*> provisionals;
 
     struct ff {
         int files; 
@@ -260,8 +267,9 @@ private:
         m_time_t timestamp;
         ff() : files(0), folders(0), timestamp(0) {}
     };
-    map<handle, ff> notedSharedNodes;
+    map<pair<handle, handle>, ff> notedSharedNodes;
     bool notingSharedNodes;
+    handle ignoreNodesUnderShare;
 
     bool isUnwantedAlert(nameid type, int action);
 
@@ -283,8 +291,13 @@ public:
 
     // keep track of incoming nodes in shares, and convert to a notification
     void beginNotingSharedNodes();
-    void noteSharedNode(handle user, int type, m_time_t timestamp);
+    void noteSharedNode(handle user, int type, m_time_t timestamp, Node* n);
     void convertNotedSharedNodes(bool added);
+    void ignoreNextSharedNodesUnder(handle h);
+
+    // enter provisional mode, added items will be checked for suitability before actually adding 
+    void startprovisional();
+    void evalprovisional(handle originatinguser);
 
     // marks all as seen, and notifies the API also
     void acknowledgeAll();

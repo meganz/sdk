@@ -1713,6 +1713,12 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_NEWSHARE;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodeHandle = p->folderhandle;
+        if (Node* node = mc->nodebyhandle(p->folderhandle))
+        {
+            nodePath = node->displaypath();
+            nodeName = node->displayname();
+        }
     }
     break;
     case UserAlert::type_dshare:
@@ -1721,6 +1727,9 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_DELETEDSHARE;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodePath = p->folderPath;
+        nodeName = p->folderName;
+        nodeHandle = p->folderHandle;
     }
     break;
     case UserAlert::type_put:
@@ -1729,6 +1738,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_NEWSHAREDNODES;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodeHandle = p->parentHandle;
         numbers.push_back(p->folderCount);
         numbers.push_back(p->fileCount);
     }
@@ -1772,6 +1782,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         if (node)
         {
             nodePath = node->displaypath();
+            nodeName = node->displayname();
         }
     }
     break;
@@ -1850,6 +1861,11 @@ const char* MegaUserAlertPrivate::getEmail() const
 const char*MegaUserAlertPrivate::getPath() const
 {
     return  nodePath.empty() ? NULL : nodePath.c_str();
+}
+
+const char *MegaUserAlertPrivate::getName() const
+{
+    return  nodeName.empty() ? NULL : nodeName.c_str();
 }
 
 const char *MegaUserAlertPrivate::getHeading() const
