@@ -1717,6 +1717,12 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_NEWSHARE;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodeHandle = p->folderhandle;
+        if (Node* node = mc->nodebyhandle(p->folderhandle))
+        {
+            nodePath = node->displaypath();
+            nodeName = node->displayname();
+        }
     }
     break;
     case UserAlert::type_dshare:
@@ -1725,6 +1731,9 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_DELETEDSHARE;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodePath = p->folderPath;
+        nodeName = p->folderName;
+        nodeHandle = p->folderHandle;
     }
     break;
     case UserAlert::type_put:
@@ -1733,6 +1742,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         type = TYPE_NEWSHAREDNODES;
         userHandle = p->userHandle;
         email = p->userEmail;
+        nodeHandle = p->parentHandle;
         numbers.push_back(p->folderCount);
         numbers.push_back(p->fileCount);
     }
@@ -1776,6 +1786,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         if (node)
         {
             nodePath = node->displaypath();
+            nodeName = node->displayname();
         }
     }
     break;
@@ -1854,6 +1865,11 @@ const char* MegaUserAlertPrivate::getEmail() const
 const char*MegaUserAlertPrivate::getPath() const
 {
     return  nodePath.empty() ? NULL : nodePath.c_str();
+}
+
+const char *MegaUserAlertPrivate::getName() const
+{
+    return  nodeName.empty() ? NULL : nodeName.c_str();
 }
 
 const char *MegaUserAlertPrivate::getHeading() const
@@ -24176,25 +24192,17 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
     return 0;
 }
 
-std::string rfc1123_datetime( time_t time )
-{
-    struct tm * timeinfo;
-    char buffer [80];
-    timeinfo = gmtime(&time);
-    strftime (buffer, 80, "%a, %d %b %Y %H:%M:%S GMT",timeinfo);
-    return buffer;
-}
-
 string MegaHTTPServer::getWebDavProfFindNodeContents(MegaNode *node, string baseURL, bool offlineAttribute)
 {
     std::ostringstream web;
 
     web << "<d:response>\r\n"
-           "<d:href>" << baseURL << "</d:href>\r\n"
+           "<d:href>" << webdavurlescape(baseURL) << "</d:href>\r\n"
            "<d:propstat>\r\n"
            "<d:status>HTTP/1.1 200 OK</d:status>\r\n"
            "<d:prop>\r\n"
-           "<d:displayname>"<< node->getName() << "</d:displayname>\r\n"
+           "<d:displayname>"<< webdavnameescape(node->getName()) << "</d:displayname>\r\n"
+
            "<d:creationdate>" << rfc1123_datetime(node->getCreationTime()) << "</d:creationdate>"
            "<d:getlastmodified>" << rfc1123_datetime(node->getModificationTime()) << "</d:getlastmodified>"
            ;

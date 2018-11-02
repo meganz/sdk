@@ -591,6 +591,11 @@ const char* MegaUserAlert::getPath() const
     return NULL;
 }
 
+const char *MegaUserAlert::getName() const
+{
+    return NULL;
+}
+
 const char *MegaUserAlert::getHeading() const
 {
     return NULL;

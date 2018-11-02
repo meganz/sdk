@@ -21,6 +21,7 @@
 
 #include "mega.h"
 #include "mega/megaclient.h"
+#include <utility>
 
 namespace mega {
 
@@ -92,16 +93,23 @@ bool UserAlertRaw::gethandletypearray(nameid nid, vector<handletype>& v) const
                 handletype ht;
                 ht.h = UNDEF;
                 ht.t = -1;
-                switch (j.getnameid())
+                bool fields = true;
+                while (fields)
                 {
-                case 'h':
-                    ht.h = j.gethandle(MegaClient::NODEHANDLE);
-                    break;
-                case 't':
-                    ht.t = int(j.getint());
-                    break;
-                default:
-                    j.storeobject(NULL);
+                    switch (j.getnameid())
+                    {
+                    case 'h':
+                        ht.h = j.gethandle(MegaClient::NODEHANDLE);
+                        break;
+                    case 't':
+                        ht.t = int(j.getint());
+                        break;
+                    case EOO:
+                        fields = false;
+                        break;
+                    default:
+                        j.storeobject(NULL);
+                    }
                 }
                 v.push_back(ht);
                 j.leaveobject();
@@ -194,6 +202,11 @@ void UserAlert::Base::updateEmail(MegaClient* mc)
     }
 }
 
+bool UserAlert::Base::checkprovisional(handle , MegaClient*)
+{
+    return true;
+}
+
 void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
 {
     // should be overridden
@@ -250,6 +263,11 @@ UserAlert::ContactChange::ContactChange(int c, handle uh, const string& email, m
 {
     action = c;
     assert(action >= 0 && action < 4);
+}
+
+bool UserAlert::ContactChange::checkprovisional(handle ou, MegaClient* mc)
+{
+    return action == 1 || ou != mc->me;
 }
 
 void UserAlert::ContactChange::text(string& header, string& title, MegaClient* mc)
@@ -386,7 +404,8 @@ void UserAlert::DeletedShare::updateEmail(MegaClient* mc)
 
     if (Node* n = mc->nodebyhandle(folderHandle))
     {
-        folderName = n->displaypath();
+        folderPath = n->displaypath();
+        folderName = n->displayname();
     }
 }
 
@@ -426,6 +445,7 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
 {
     std::vector<UserAlertRaw::handletype> f;
     un.gethandletypearray('f', f);
+    parentHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
 
     // Count the number of new files and folders
     for (size_t n = f.size(); n--; )
@@ -434,8 +454,9 @@ UserAlert::NewSharedNodes::NewSharedNodes(UserAlertRaw& un, unsigned int id)
     }
 }
 
-UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, handle uh, m_time_t timestamp, unsigned int id)
+UserAlert::NewSharedNodes::NewSharedNodes(int nfolders, int nfiles, handle uh, handle ph, m_time_t timestamp, unsigned int id)
     : Base(UserAlert::type_put, uh, string(), timestamp, id)
+    , parentHandle(ph)
 {
     assert(!ISUNDEF(uh));
     folderCount = nfolders;
@@ -663,6 +684,8 @@ UserAlerts::UserAlerts(MegaClient& cmc)
     , fsn(UNDEF)
     , lastTimeDelta(0)
     , notingSharedNodes(false)
+    , ignoreNodesUnderShare(UNDEF)
+    , provisionalmode(false)
 {
 }
 
@@ -771,6 +794,12 @@ void UserAlerts::add(UserAlert::Base* unb)
     // unb is either directly from notification json, or constructed from actionpacket.
     // We take ownership.
 
+    if (provisionalmode)
+    {
+        provisionals.push_back(unb);
+        return;
+    }
+
     if (!catchupdone && unb->timestamp > catchup_last_timestamp)
     {
         // small addition to compensate for delivery by diff from now, to prevent duplicates
@@ -790,7 +819,8 @@ void UserAlerts::add(UserAlert::Base* unb)
         UserAlert::NewSharedNodes* op = dynamic_cast<UserAlert::NewSharedNodes*>(alerts.back());
         if (np && op)
         {
-            if (np->userHandle == op->userHandle && np->timestamp - op->timestamp < 300)
+            if (np->userHandle == op->userHandle && np->timestamp - op->timestamp < 300 && 
+                np->parentHandle == op->parentHandle && !ISUNDEF(np->parentHandle))
             {
                 op->fileCount += np->fileCount;
                 op->folderCount += np->folderCount;
@@ -806,6 +836,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
+    unb->updateEmail(&mc);
     alerts.push_back(unb);
     if (catchupdone)
     {
@@ -814,18 +845,52 @@ void UserAlerts::add(UserAlert::Base* unb)
     }
 }
 
+void UserAlerts::startprovisional()
+{
+    provisionalmode = true;
+}
+
+void UserAlerts::evalprovisional(handle originatinguser)
+{
+    provisionalmode = false;
+    for (int i = 0; i < provisionals.size(); ++i)
+    {
+        if (provisionals[i]->checkprovisional(originatinguser, &mc))
+        {
+            add(provisionals[i]);
+        }
+        else
+        {
+            delete provisionals[i];
+        }
+    }
+    provisionals.clear();
+}
+
+
 void UserAlerts::beginNotingSharedNodes()
 {
     notingSharedNodes = true;
     notedSharedNodes.clear();
 }
 
-void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts)
+void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts, Node* n)
 {
     if (catchupdone && notingSharedNodes && (type == FILENODE || type == FOLDERNODE))
     {
         assert(!ISUNDEF(user));
-        ff& f = notedSharedNodes[user];
+
+        if (!ISUNDEF(ignoreNodesUnderShare))
+        {
+            // don't make alerts on files/folders already in the new share
+            for (Node* p = n; p != NULL; p = p->parent)
+            {
+                if (p->nodehandle == ignoreNodesUnderShare)
+                    return;
+            }
+        }
+
+        ff& f = notedSharedNodes[std::make_pair(user, n ? n->parenthandle : UNDEF)];
         ++(type == FOLDERNODE ? f.folders : f.files);
         if (!f.timestamp || (ts && ts < f.timestamp))
         {
@@ -837,17 +902,23 @@ void UserAlerts::noteSharedNode(handle user, int type, m_time_t ts)
 // make a notification out of the shared nodes noted
 void UserAlerts::convertNotedSharedNodes(bool added)
 {
-    if (catchupdone)
+    if (catchupdone && notingSharedNodes)
     {
         using namespace UserAlert;
-        for (map<handle, ff>::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)
+        for (map<pair<handle, handle>, ff>::iterator i = notedSharedNodes.begin(); i != notedSharedNodes.end(); ++i)
         {
-            add(added ? (Base*) new NewSharedNodes(i->second.folders, i->second.files, i->first, i->second.timestamp, nextId())
-                : (Base*) new RemovedSharedNode(i->second.folders + i->second.files, i->first, m_time(), nextId()));
+            add(added ? (Base*) new NewSharedNodes(i->second.folders, i->second.files, i->first.first, i->first.second, i->second.timestamp, nextId())
+                : (Base*) new RemovedSharedNode(i->second.folders + i->second.files, i->first.first, m_time(), nextId()));
         }
     }
     notedSharedNodes.clear();
     notingSharedNodes = false;
+    ignoreNodesUnderShare = UNDEF;
+}
+
+void UserAlerts::ignoreNextSharedNodesUnder(handle h)
+{
+    ignoreNodesUnderShare = h;
 }
 
 

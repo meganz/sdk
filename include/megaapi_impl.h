@@ -552,6 +552,7 @@ public:
     virtual MegaHandle getNodeHandle() const;
     virtual const char* getEmail() const;
     virtual const char* getPath() const;
+    virtual const char* getName() const;
     virtual const char* getHeading() const;
     virtual const char* getTitle() const;
     virtual int64_t getNumber(unsigned index) const;
@@ -569,6 +570,7 @@ protected:
     string email;
     handle nodeHandle;
     string nodePath;
+    string nodeName;
     vector<int64_t> numbers;
     vector<int64_t> timestamps;
     vector<string> extraStrings;

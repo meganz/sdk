@@ -1471,6 +1471,20 @@ public:
     virtual const char* getPath() const;
 
     /**
+     * @brief Returns the name of a file, folder, or node related to the alert
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaUserAlert object is deleted.
+     *
+     * This value is valid for those alerts that relate to a single name, provided
+     * it could be looked up from the cached nodes at the time the alert arrived.
+     * Otherwise, it may be obtainable via the nodeHandle.
+     *
+     * @return the name string if relevant and available, otherwise NULL
+     */
+    virtual const char* getName() const;
+
+    /**
     * @brief Returns the heading related to this alert
     *
     * The SDK retains the ownership of the returned value. They will be valid until
