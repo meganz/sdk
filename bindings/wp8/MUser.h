@@ -57,7 +57,8 @@ namespace mega
         CHANGE_TYPE_DISABLE_VERSIONS            = 0x8000,
         CHANGE_TYPE_CONTACT_LINK_VERIFICATION   = 0x10000,
         CHANGE_TYPE_RICH_PREVIEWS               = 0x20000,
-        CHANGE_TYPE_RUBBISH_TIME                = 0x40000
+        CHANGE_TYPE_RUBBISH_TIME                = 0x40000,
+        CHANGE_TYPE_STORAGE_STATE               = 0x80000
     };
 
     public ref class MUser sealed
@@ -198,6 +199,9 @@ namespace mega
         * - MUserChangeType::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
         * Check if rubbish time for autopurge has changed
         *
+        * - MUserChangeType::CHANGE_TYPE_STORAGE_STATE   = 0x80000
+        * Check if the state of the storage has changed
+        *
         * @return true if this user has an specific change
         */
         bool hasChanged(int changeType);
@@ -266,6 +270,9 @@ namespace mega
         *
         * - MUserChangeType::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
         * Check if rubbish time for autopurge has changed
+        *
+        * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
+        * Check if the state of the storage has changed
         */
         int getChanges();
 
