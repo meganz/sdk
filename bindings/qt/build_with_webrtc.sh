@@ -2,7 +2,7 @@
 set -e
 
 # Path of the src directory of WebRTC
-WEBRTC_SRC="${HOME}/webrtc/src"
+[ -z ${WEBRTC_SRC+x} ] && WEBRTC_SRC="${HOME}/webrtc/src"
 
 ARCH=`uname -m`
 CURRENTPATH=`pwd`/3rdparty
@@ -12,7 +12,7 @@ OPENSSL_PREFIX="${CURRENTPATH}"
 QTPATH="$CURRENTPATH/../../../../.."
 
 if [ ! -d "${WEBRTC_SRC}" ]; then
-    echo "* WEBRTC_SRC not correctly set. Please edit this file to configure it or put WebRTC in the default path: ${HOME}/webrtc"
+    echo "* WEBRTC_SRC not correctly set. Please edit this file to configure it, put WebRTC in the default path: ${HOME}/webrtc or set WEBRTC_SRC environment variable"
     exit 1
 fi
 
@@ -107,7 +107,7 @@ if [ ! -e "${CURRENTPATH}/lib/libcurl.a" ]; then
   pushd "curl-${CURL_VERSION}"
 
   # Do not resolve IPs!!
-  sed -i 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h
+  sed -i 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h || sed -i'.bak' 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h
 
   LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
 
