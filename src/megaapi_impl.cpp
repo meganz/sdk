@@ -599,7 +599,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     }
 
     string pubauth;
-    privauth.assign(ptr, ll);
+    pubauth.assign(ptr, ll);
     ptr += ll;
 
     bool isPublicNode = MemAccess::get<bool>(ptr);
