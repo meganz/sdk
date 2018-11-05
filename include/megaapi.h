@@ -8620,7 +8620,7 @@ class MegaApi
          *
          * If the state is not set on the server side, the request will finish with the error
          * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
-         * number 0 (MegaApi::STORAGE_STATE_GREEN),
+         * number 0 (MegaApi::STORAGE_STATE_GREEN).
          *
          * @param listener MegaRequestListener to track this request
          */

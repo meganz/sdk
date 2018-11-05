@@ -169,6 +169,14 @@ using namespace mega;
     return self.megaApi->getNumUnreadUserAlerts();
 }
 
+- (long long)bandwidthOverquotaDelay {
+    return self.megaApi->getBandwidthOverquotaDelay();
+}
+
+- (long long)storageOverquotaDelay {
+    return self.megaApi->getBandwidthOverquotaDelay();
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
@@ -1200,6 +1208,14 @@ using namespace mega;
 
 - (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days {
     self.megaApi->setRubbishBinAutopurgePeriod((int)days);
+}
+
+- (void)getStorageStateWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getStorageState([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getStorageState {
+    self.megaApi->getStorageState();
 }
 
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {

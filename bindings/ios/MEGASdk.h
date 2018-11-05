@@ -95,8 +95,9 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeDisableVersions         = 16, // private - byte array
     MEGAUserAttributeContactLinkVerification = 17, // private - byte array
     MEGAUserAttributeRichPreviews            = 18, // private - byte array
-    MEGAUserAttributeRubbishTime             = 19,  // private - byte array
-    MEGAUserAttributeLastPSA                 = 20  // private - char array
+    MEGAUserAttributeRubbishTime             = 19, // private - byte array
+    MEGAUserAttributeLastPSA                 = 20, // private - char array
+    MEGAUserAttributeStorageState            = 21 // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -149,6 +150,12 @@ typedef NS_ENUM(NSUInteger, Retry) {
 
 typedef NS_ENUM(NSInteger, KeepMeAlive) {
     KeepMeAliveCameraUploads = 0
+};
+
+typedef NS_ENUM(NSUInteger, StorageState) {
+    StorageStateGreen = 0,
+    StorageStateOrange = 1,
+    StorageStateRed = 2
 };
 
 /**
@@ -326,6 +333,16 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * @brief The number of unread user alerts for the logged in user
  */
 @property (readonly, nonatomic) NSInteger numUnreadUserAlerts;
+
+/**
+ * @brief The time (in seconds) during which transfers will be stopped due to a bandwidth overquota, otherwise 0
+ */
+@property (readonly, nonatomic) long long bandwidthOverquotaDelay;
+
+/**
+ * @brief The time (in seconds) during which uploads will be stopped due to a storage overquota, otherwise 0
+ */
+@property (readonly, nonatomic) long long storageOverquotaDelay;
 
 #pragma mark - Init
 
@@ -3030,6 +3047,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get whether user generates rich-link messages or not (private)
  * MEGAUserAttributeRubbishTime = 19
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ * MEGAUserAttributeStorageState = 21
+ * Get the state of the storage (private non-encrypted)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
@@ -3079,6 +3098,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get whether user generates rich-link messages or not (private)
  * MEGAUserAttributeRubbishTime = 19
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ * MEGAUserAttributeStorageState = 21
+ * Get the state of the storage (private non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3130,6 +3151,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get whether user has versions disabled or enabled (private, non-encrypted)
  * MEGAUserAttributeRichPreviews = 18
  * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ * MEGAUserAttributeStorageState = 21
+ * Get the state of the storage (private non-encrypted)
  *
  */
 - (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type;
@@ -3180,6 +3205,10 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get whether user has versions disabled or enabled (private, non-encrypted)
  * MEGAUserAttributeRichPreviews = 18
  * Get whether user generates rich-link messages or not (private)
+ * MEGAUserAttributeRubbishTime = 19
+ * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ * MEGAUserAttributeStorageState = 21
+ * Get the state of the storage (private non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3207,14 +3236,32 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
  * MEGAUserAttributeRichPreviews = 18
  * Get whether user generates rich-link messages or not (private)
  * MEGAUserAttributeRubbishTime = 19
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ * MEGAUserAttributeStorageState = 21
+ * Get the state of the storage (private non-encrypted)
  *
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
@@ -3241,14 +3288,32 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  * Get the firstname of the user (public)
  * MEGAUserAttributeLastname = 2
  * Get the lastname of the user (public)
+ * MEGAUserAttributeAuthRing = 3
+ * Get the authentication ring of the user (private)
+ * MEGAUserAttributeLastInteraction = 4
+ * Get the last interaction of the contacts of the user (private)
+ * MEGAUserAttributeED25519PublicKey = 5
+ * Get the public key Ed25519 of the user (public)
+ * MEGAUserAttributeCU25519PublicKey = 6
+ * Get the public key Cu25519 of the user (public)
+ * MEGAUserAttributeKeyring = 7
+ * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+ * MEGAUserAttributeSigRsaPublicKey = 8
+ * Get the signature of RSA public key of the user (public)
+ * MEGAUserAttributeSigCU255PublicKey = 9
+ * Get the signature of Cu25519 public key of the user (public)
  * MEGAUserAttributeLanguage = 14
  * Get the preferred language of the user (private, non-encrypted)
  * MEGAUserAttributePwdReminder = 15
  * Get the password-reminder-dialog information (private, non-encrypted)
+ * MEGAUserAttributeDisableVersions = 16
+ * Get whether user has versions disabled or enabled (private, non-encrypted)
  * MEGAUserAttributeRichPreviews = 18
  * Get whether user generates rich-link messages or not (private)
  * MEGAUserAttributeRubbishTime = 19
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
+ * MEGAUserAttributeStorageState = 21
+ * Get the state of the storage (private non-encrypted)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3863,11 +3928,11 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRubbishTime
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
+ * - [MEGARequest number] - Returns the days for rubbish-bin cleaning scheduler.
  * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
  * Any negative value means that the configured value is invalid.
  *
@@ -3880,11 +3945,11 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRubbishTime
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler.
+ * - [MEGARequest number] - Returns the days for rubbish-bin cleaning scheduler.
  * Zero means that the rubbish-bin cleaning scheduler is disabled (only if the account is PRO)
  * Any negative value means that the configured value is invalid.
  *
@@ -3896,8 +3961,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
- * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest number] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
  *
  * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
  * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
@@ -3911,14 +3976,56 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  *
  * The associated request type with this request is MEGARequestTypeSetAttrUser
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest getParamType] - Returns the attribute type MEGAUserAttributeRubbishTime
- * - [MEGARequest getNumber] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeRubbishTime
+ * - [MEGARequest number] - Returns the days for rubbish-bin cleaning scheduler passed as parameter
  *
  * @param days Number of days for rubbish-bin cleaning scheduler. It must be >= 0.
  * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
  *
  */
 - (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days;
+
+/**
+ * @brief Get the state of the storage
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeStorageState
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns one of these storage states:
+ * StorageStateGreen = 0 - The account has no problems with storage space
+ * StorageStateOrange = 1 - The account is almost full
+ * StorageStateRed = 2 - The account is full
+ *
+ * If the state is not set on the server side, the request will finish with the error
+ * MEGAErrorTypeApiENoent, but [MEGARequest number] will be valid and will have the
+ * number 0 (StorageStateGreen).
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getStorageStateWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get the state of the storage
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeStorageState
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns one of these storage states:
+ * StorageStateGreen = 0 - The account has no problems with storage space
+ * StorageStateOrange = 1 - The account is almost full
+ * StorageStateRed = 2 - The account is full
+ *
+ * If the state is not set on the server side, the request will finish with the error
+ * MEGAErrorTypeApiENoent, but [MEGARequest number] will be valid and will have the
+ * number 0 (StorageStateGreen).
+ */
+- (void)getStorageState;
 
 /**
  * @brief Use HTTPS communications only
