@@ -81,7 +81,6 @@
 
 #ifndef WINDOWS_PHONE
  #include <wincrypt.h>
- //#include <winhttp.h>  // #defines in here clash with enum http_status's HTTP_STATUS_CONTINUE in Karere lib's libwebsockets.h
  #include <shlwapi.h>
 #endif
 
@@ -89,11 +88,14 @@
 
 #define atoll _atoi64
 #define snprintf mega_snprintf
-#define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #define strtoull _strtoui64
 #if _MSC_VER <= 1800 && !defined (__MINGW32__)// Visual Studio 2013
 #define strtoll _strtoi64
+#endif
+
+#ifndef strcasecmp
+#define strcasecmp _stricmp
 #endif
 
 #ifndef _CRT_SECURE_NO_WARNINGS
