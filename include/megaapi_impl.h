@@ -558,12 +558,14 @@ public:
     virtual int64_t getNumber(unsigned index) const;
     virtual int64_t getTimestamp(unsigned index) const;
     virtual const char* getString(unsigned index) const;
+    virtual bool isOwnChange() const;
 
 protected:
     unsigned id;
     bool seen;
     bool relevant;
     int type;
+    int tag;
     string heading;
     string title;
     handle userHandle;
