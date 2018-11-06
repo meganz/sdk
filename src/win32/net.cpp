@@ -23,6 +23,7 @@
 // after having read from the HTTP connection
 
 #include "meganet.h"
+#include <winhttp.h>
 
 namespace mega {
 
