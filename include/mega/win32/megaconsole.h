@@ -24,7 +24,7 @@
 
 #include <string>
 #include <deque>
-#include "autocomplete.h"
+#include <mega/autocomplete.h>
 #include <mega/console.h>
 
 namespace mega {

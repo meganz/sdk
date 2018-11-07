@@ -26,7 +26,7 @@ LIBS += -lreadline
 win32 {
     CONFIG(noreadline) {
         SOURCES += ../../../src/win32/console.cpp
-        SOURCES += ../../../src/win32/autocomplete.cpp
+        SOURCES += ../../../src/autocomplete.cpp
         SOURCES += ../../../src/win32/consolewaiter.cpp
     }
     else {

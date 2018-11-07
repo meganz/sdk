@@ -1,5 +1,5 @@
 /**
-* @file win32/autocomplete.cpp
+* @file autocomplete.cpp
 * @brief Win32 console I/O autocomplete support
 *
 * (c) 2013-2018 by Mega Limited, Auckland, New Zealand
@@ -19,19 +19,25 @@
 * program.
 */
 
-#ifdef NO_READLINE
+#if (__cplusplus >= 201100L)
+// autocomplete for clients using c++11 - so far just megacli for windows, and megaclc on windows and linux.
 
-#include <mega/win32/autocomplete.h>
+#include <mega/autocomplete.h>
 #include <mega/megaclient.h>
 #include <cassert>
-#include <filesystem>
 #include <algorithm>
 
-namespace fs = std::experimental::filesystem;
-
-namespace mega {
-namespace autocomplete {
-using namespace std;
+#if (__cplusplus >= 201700L)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+#else
+#ifdef WIN32
+    #include <filesystem>
+    namespace fs = std::experimental::filesystem;
+#else
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#endif
 
 template<class T>
 static T clamp(T v, T lo, T hi)
@@ -50,6 +56,14 @@ static T clamp(T v, T lo, T hi)
         return v;
     }
 }
+
+#endif
+
+
+namespace mega {
+namespace autocomplete {
+using namespace std;
+
 
 inline static bool icmp(char a, char b)
 {
@@ -143,7 +157,7 @@ void ACState::addCompletion(const std::string& s, bool caseInsensitive)
     }
 }
 
-void ACState::addPathCompletion(std::string& f, const std::string& relativeRootPath, bool isFolder, char dir_sep, bool caseInsensitive)
+void ACState::addPathCompletion(std::string&& f, const std::string& relativeRootPath, bool isFolder, char dir_sep, bool caseInsensitive)
 {
     if (f.size() > relativeRootPath.size() && f.compare(0, relativeRootPath.size(), relativeRootPath) == 0)
     {
@@ -503,7 +517,7 @@ bool LocalFS::addCompletions(ACState& s)
         fs::path searchPath(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
         bool relative = !searchPath.is_absolute();
-        searchPath = relative ? fs::current_path().append("\\").append(searchPath) : searchPath;
+        searchPath = relative ? fs::current_path().append("\\").append(searchPath.u8string()) : searchPath;
         std::string cp = relative ? fs::current_path().u8string() + "\\" : "";
         if ((searchPath.filename() == ".." || searchPath.filename() == ".") && fs::exists(searchPath))
         {
@@ -598,7 +612,7 @@ Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix
                     if (t == string::npos)
                     {
                         string str = pathprefix + ":" + n->displayname();
-                        s.addPathCompletion(str, "", n->type != FILENODE, '/', false);
+                        s.addPathCompletion(move(str), "", n->type != FILENODE, '/', false);
                     }
                     else if (!strncmp(n->displayname(), path.c_str(), t))
                     {
@@ -636,9 +650,8 @@ bool MegaFS::addCompletions(ACState& s)
                     }
                     else
                     {
-                        string str;
-                        s.addPathCompletion((str = "//bin"), "", true, '/', false);
-                        s.addPathCompletion((str = "//in"), "", true, '/', false);
+                        s.addPathCompletion(string("//bin"), "", true, '/', false);
+                        s.addPathCompletion(string("//in"), "", true, '/', false);
                         return true;
                     }
                 }
@@ -690,8 +703,7 @@ bool MegaFS::addCompletions(ACState& s)
             std::string leaf = s.word().s.substr(pathprefix.size(), std::string::npos);
             if (n && (leaf == "." || (leaf == ".." && n->type != ROOTNODE)))
             {
-                std::string f = s.word().s;
-                s.addPathCompletion(f, "", true, '/', false);
+                s.addPathCompletion(string(s.word().s), "", true, '/', false);
             }
             else
             {
