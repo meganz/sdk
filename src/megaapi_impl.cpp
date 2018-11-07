@@ -1640,6 +1640,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     , seen(b->seen)
     , relevant(b->relevant)
     , type(-1)
+    , tag(b->tag)
     , userHandle(UNDEF)
     , nodeHandle(UNDEF)
 {
@@ -1891,6 +1892,11 @@ int64_t MegaUserAlertPrivate::getTimestamp(unsigned index) const
 const char* MegaUserAlertPrivate::getString(unsigned index) const
 {
     return index < extraStrings.size() ? extraStrings[index].c_str() : NULL;
+}
+
+bool MegaUserAlertPrivate::isOwnChange() const
+{
+    return tag != 0;
 }
 
 MegaNode *MegaNodePrivate::fromNode(Node *node)

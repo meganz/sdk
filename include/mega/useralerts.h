@@ -82,6 +82,7 @@ namespace UserAlert
         m_time_t timestamp;
         handle userHandle;
         string userEmail;
+        int tag;
 
         // incremented for each new one.  There will be gaps sometimes due to merging.
         unsigned int id;

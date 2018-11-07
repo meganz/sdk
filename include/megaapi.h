@@ -1537,6 +1537,17 @@ public:
     * @return a pointer to the string if index is valid; otherwise NULL
     */
     virtual const char* getString(unsigned index) const;
+
+    /**
+     * @brief Indicates if the user alert is changed by yourself or by another client.
+     *
+     * This value is only useful for user alerts notified by MegaListener::onUserAlertsUpdate or
+     * MegaGlobalListener::onUserAlertsUpdate that can notify about user alerts modifications.
+     *
+     * @return false if the change is external. true if the change is the result of a
+     * request sent by this instance of the SDK.
+     */
+    virtual bool isOwnChange() const;
 };
 
 /**

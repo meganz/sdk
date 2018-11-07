@@ -6155,6 +6155,13 @@ void MegaClient::notifypurge(void)
     {
         LOG_debug << "Notifying " << t << " user alerts";
         app->useralerts_updated(&useralerts.useralertnotify[0], t);
+
+        for (i = 0; i < t; i++)
+        {
+            UserAlert::Base *ua = useralerts.useralertnotify[i];
+            ua->tag = -1;
+        }
+
         useralerts.useralertnotify.clear();
     }
 
