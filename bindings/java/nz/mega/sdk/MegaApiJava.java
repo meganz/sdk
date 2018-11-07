@@ -92,8 +92,9 @@ public class MegaApiJava {
     public final static int USER_ATTR_DISABLE_VERSIONS = MegaApi.USER_ATTR_DISABLE_VERSIONS;
     public final static int USER_ATTR_CONTACT_LINK_VERIFICATION = MegaApi.USER_ATTR_CONTACT_LINK_VERIFICATION;
     public final static int USER_ATTR_RICH_PREVIEWS = MegaApi.USER_ATTR_RICH_PREVIEWS;
-    public final static int USER_ATTR_LAST_PSA = MegaApi.USER_ATTR_LAST_PSA;
     public final static int USER_ATTR_RUBBISH_TIME = MegaApi.USER_ATTR_RUBBISH_TIME;
+    public final static int USER_ATTR_LAST_PSA = MegaApi.USER_ATTR_LAST_PSA;
+    public final static int USER_ATTR_STORAGE_STATE = MegaApi.USER_ATTR_STORAGE_STATE;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -134,6 +135,10 @@ public class MegaApiJava {
     public final static int RETRY_UNKNOWN = MegaApi.RETRY_UNKNOWN;
 
     public final static int KEEP_ALIVE_CAMERA_UPLOADS = MegaApi.KEEP_ALIVE_CAMERA_UPLOADS;
+
+    public final static int STORAGE_STATE_GREEN = MegaApi.STORAGE_STATE_GREEN;
+    public final static int STORAGE_STATE_ORANGE = MegaApi.STORAGE_STATE_ORANGE;
+    public final static int STORAGE_STATE_RED = MegaApi.STORAGE_STATE_RED;
 
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
@@ -2896,6 +2901,8 @@ public class MegaApiJava {
      * Get whether user generates rich-link messages or not (private)
      * MegaApi::USER_ATTR_RUBBISH_TIME = 19
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_STORAGE_STATE = 21
+     * Get the state of the storage (private non-encrypted)
      *
      * @param listener MegaRequestListener to track this request
      */
@@ -2906,10 +2913,54 @@ public class MegaApiJava {
     /**
      * Get an attribute of a MegaUser.
      *
-     * @param user MegaUser to get the attribute.
-     * @param type Attribute type. Valid values are: <br>
-     * MegaApi.USER_ATTR_FIRSTNAME = 1 Get the firstname of the user. <br>
-     * MegaApi.USER_ATTR_LASTNAME = 2 Get the lastname of the user.
+     * User attributes can be private or public. Private attributes are accessible only by
+     * your own user, while public ones are retrievable by any of your contacts.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getText - Returns the value for public attributes
+     * - MegaRequest::getMegaStringMap - Returns the value for private attributes
+     *
+     * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
+     * is obtained for the active account
+     * @param type Attribute type
+     *
+     * Valid values are:
+     *
+     * MegaApi::USER_ATTR_FIRSTNAME = 1
+     * Get the firstname of the user (public)
+     * MegaApi::USER_ATTR_LASTNAME = 2
+     * Get the lastname of the user (public)
+     * MegaApi::USER_ATTR_AUTHRING = 3
+     * Get the authentication ring of the user (private)
+     * MegaApi::USER_ATTR_LAST_INTERACTION = 4
+     * Get the last interaction of the contacts of the user (private)
+     * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+     * Get the public key Ed25519 of the user (public)
+     * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+     * Get the public key Cu25519 of the user (public)
+     * MegaApi::USER_ATTR_KEYRING = 7
+     * Get the key ring of the user: private keys for Cu25519 and Ed25519 (private)
+     * MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY = 8
+     * Get the signature of RSA public key of the user (public)
+     * MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY = 9
+     * Get the signature of Cu25519 public key of the user (public)
+     * MegaApi::USER_ATTR_LANGUAGE = 14
+     * Get the preferred language of the user (private, non-encrypted)
+     * MegaApi::USER_ATTR_PWD_REMINDER = 15
+     * Get the password-reminder-dialog information (private, non-encrypted)
+     * MegaApi::USER_ATTR_DISABLE_VERSIONS = 16
+     * Get whether user has versions disabled or enabled (private, non-encrypted)
+     * MegaApi::USER_ATTR_RICH_PREVIEWS = 18
+     * Get whether user generates rich-link messages or not (private)
+     * MegaApi::USER_ATTR_RUBBISH_TIME = 19
+     * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_STORAGE_STATE = 21
+     * Get the state of the storage (private non-encrypted)
      */
     public void getUserAttribute(MegaUser user, int type) {
         megaApi.getUserAttribute(user, type);
@@ -2963,6 +3014,8 @@ public class MegaApiJava {
      * Get whether user has versions disabled or enabled (private, non-encrypted)
      * MegaApi::USER_ATTR_RUBBISH_TIME = 19
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_STORAGE_STATE = 21
+     * Get the state of the storage (private non-encrypted)
      *
      * @param listener MegaRequestListener to track this request
      */
@@ -3018,6 +3071,8 @@ public class MegaApiJava {
      * Get whether user has versions disabled or enabled (private, non-encrypted)
      * MegaApi::USER_ATTR_RUBBISH_TIME = 19
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_STORAGE_STATE = 21
+     * Get the state of the storage (private non-encrypted)
      */
     public void getUserAttribute(String email_or_handle, int type) {
     	megaApi.getUserAttribute(email_or_handle, type);
@@ -3070,6 +3125,8 @@ public class MegaApiJava {
      * Get whether user generates rich-link messages or not (private)
      * MegaApi::USER_ATTR_RUBBISH_TIME = 19
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_STORAGE_STATE = 21
+     * Get the state of the storage (private non-encrypted)
      *
      * @param listener MegaRequestListener to track this request
      */
@@ -3124,6 +3181,8 @@ public class MegaApiJava {
      * Get whether user generates rich-link messages or not (private)
      * MegaApi::USER_ATTR_RUBBISH_TIME = 19
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+     * MegaApi::USER_ATTR_STORAGE_STATE = 21
+     * Get the state of the storage (private non-encrypted)
      */
     public void getUserAttribute(int type) {
         megaApi.getUserAttribute(type);
@@ -4291,6 +4350,50 @@ public class MegaApiJava {
     public void setRubbishBinAutopurgePeriod(int days, MegaRequestListenerInterface listener){
         megaApi.setRubbishBinAutopurgePeriod(days, createDelegateRequestListener(listener));
     }
+
+    /**
+     * Get the state of the storage
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumber - Returns one of these storage states:
+     * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
+     * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
+     * MegaApi::STORAGE_STATE_RED = 2 - The account is full
+     *
+     * If the state is not set on the server side, the request will finish with the error
+     * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
+     * number 0 (MegaApi::STORAGE_STATE_GREEN).
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getStorageState(MegaRequestListenerInterface listener) {
+        megaApi.getStorageState(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the state of the storage
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumber - Returns one of these storage states:
+     * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
+     * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
+     * MegaApi::STORAGE_STATE_RED = 2 - The account is full
+     *
+     * If the state is not set on the server side, the request will finish with the error
+     * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
+     * number 0 (MegaApi::STORAGE_STATE_GREEN).
+     */
+    public void getStorageState() { megaApi.getStorageState(); }
 
     /**
      * Change the password of the MEGA account
@@ -6599,6 +6702,12 @@ public class MegaApiJava {
     public long getBandwidthOverquotaDelay() {
     	return megaApi.getBandwidthOverquotaDelay();
     }
+
+    /**
+     * Get the time (in seconds) during which uploads will be stopped due to a storage overquota
+     * @return Time (in seconds) during which uploads will be stopped, otherwise 0
+     */
+    public long getStorageOverquotaDelay() { return megaApi.getStorageOverquotaDelay(); }
 
     /**
      * Search nodes containing a search string in their name.
