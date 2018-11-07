@@ -412,7 +412,7 @@ bool File::failed(error e)
     return ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
             && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6))
             || (syncxfer && e != API_EBLOCKED && e != API_EKEY && transfer->failcount <= 8)
-            || (e == API_EOVERQUOTA);
+            || e == API_EOVERQUOTA || e == API_EGOINGOVERQUOTA;
 }
 
 void File::displayname(string* dname)
