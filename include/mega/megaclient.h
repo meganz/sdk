@@ -1404,6 +1404,9 @@ public:
     // tells the API the user has seen existing alerts
     void acknowledgeuseralerts();
 
+    // manage overquota errors
+    void activateoverquota(dstime timeleft);
+
     // achievements enabled for the account
     bool achievements_enabled;
 

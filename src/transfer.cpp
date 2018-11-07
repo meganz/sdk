@@ -366,38 +366,17 @@ void Transfer::failed(error e, dstime timeleft)
         client->reqtag = creqtag;
     }
 
-    if (!timeleft || e != API_EOVERQUOTA)
+    if (e != API_EOVERQUOTA)
     {
-        if (e == API_EOVERQUOTA)
-        {
-            LOG_debug << "Storage overquota received";
-            dstime backoffds;
-            if (client->stoverquotauntil > Waiter::ds)
-            {
-                backoffds = client->stoverquotauntil - Waiter::ds;
-            }
-            else
-            {
-                backoffds = MegaClient::DEFAULT_ST_OVERQUOTA_BACKOFF_SECS * 10;
-                client->stoverquotauntil = Waiter::ds + backoffds;
-            }
-            bt.backoff(backoffds);
-        }
-        else
-        {
-            bt.backoff();
-        }
+        bt.backoff();
+        state = TRANSFERSTATE_RETRYING;
+        client->app->transfer_failed(this, e, timeleft);
+        client->looprequested = true;
     }
     else
     {
-        bt.backoff(timeleft);
-        LOG_debug << "backoff: " << timeleft;
-        client->overquotauntil = Waiter::ds + timeleft;
+        client->activateoverquota(timeleft);
     }
-
-    state = TRANSFERSTATE_RETRYING;
-    client->looprequested = true;
-    client->app->transfer_failed(this, e, timeleft);
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {

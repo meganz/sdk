@@ -2910,6 +2910,20 @@ void CommandGetUA::procresult()
                                 return;
                             }
 
+                            if (at == ATTR_STORAGE_STATE)
+                            {
+                                if (value == "2")
+                                {
+                                    LOG_debug << "Account full";
+                                    client->activateoverquota(0);
+                                }
+                                else if (client->stoverquotauntil)
+                                {
+                                    LOG_debug << "There is free space again";
+                                    client->abortbackoff(true);
+                                }
+                            }
+
                             u->setattr(at, &value, &version);
                             client->app->getua_result((byte*) value.data(), unsigned(value.size()));
                             break;

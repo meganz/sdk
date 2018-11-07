@@ -874,6 +874,58 @@ void MegaClient::acknowledgeuseralerts()
     useralerts.acknowledgeAll();
 }
 
+void MegaClient::activateoverquota(dstime timeleft)
+{
+    if (timeleft)
+    {
+        LOG_warn << "Bandwidth overquota";
+        overquotauntil = Waiter::ds + timeleft;
+        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+        {
+            for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+            {
+                Transfer *t = it->second;
+                t->bt.backoff(timeleft);
+                if (t->slot)
+                {
+                    t->state = TRANSFERSTATE_RETRYING;
+                    t->slot->retrybt.backoff(timeleft);
+                    t->slot->retrying = true;
+                    app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                }
+            }
+        }
+    }
+    else
+    {
+        LOG_warn << "Storage overquota";
+        dstime backoffds;
+        if (stoverquotauntil > Waiter::ds)
+        {
+            backoffds = stoverquotauntil - Waiter::ds;
+        }
+        else
+        {
+            backoffds = MegaClient::DEFAULT_ST_OVERQUOTA_BACKOFF_SECS * 10;
+            stoverquotauntil = Waiter::ds + backoffds;
+        }
+
+        for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+        {
+            Transfer *t = it->second;
+            t->bt.backoff(backoffds);
+            if (t->slot)
+            {
+                t->state = TRANSFERSTATE_RETRYING;
+                t->slot->retrybt.backoff(backoffds);
+                t->slot->retrying = true;
+                app->transfer_failed(t, API_EOVERQUOTA, 0);
+            }
+        }
+    }
+    looprequested = true;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

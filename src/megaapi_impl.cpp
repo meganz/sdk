@@ -10168,53 +10168,6 @@ void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft)
         }
         processTransferFailed(t, transfer, e, timeleft);
     }
-
-
-    if (e == API_EOVERQUOTA)
-    {
-        if (timeleft)
-        {
-            LOG_warn << "Bandwidth overquota";
-            for (int d = GET; d == GET || d == PUT; d += PUT - GET)
-            {
-                for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
-                {
-                    Transfer *t = it->second;
-                    t->bt.backoff(timeleft);
-                    if (t->slot)
-                    {
-                        t->slot->retrybt.backoff(timeleft);
-                        t->slot->retrying = true;
-                    }
-                }
-            }
-        }
-        else
-        {
-            LOG_warn << "Storage overquota";
-            dstime backoffds;
-            if (client->stoverquotauntil > Waiter::ds)
-            {
-                backoffds = client->stoverquotauntil - Waiter::ds;
-            }
-            else
-            {
-                backoffds = MegaClient::DEFAULT_ST_OVERQUOTA_BACKOFF_SECS * 10;
-                client->stoverquotauntil = Waiter::ds + backoffds;
-            }
-
-            for (transfer_map::iterator it = client->transfers[PUT].begin(); it != client->transfers[PUT].end(); it++)
-            {
-                Transfer *t = it->second;
-                t->bt.backoff(backoffds);
-                if (t->slot)
-                {
-                    t->slot->retrybt.backoff(backoffds);
-                    t->slot->retrying = true;
-                }
-            }
-        }
-    }
 }
 
 char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
