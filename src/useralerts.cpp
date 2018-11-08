@@ -177,6 +177,7 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
 
     seen = false; // to be updated on EOO
     relevant = true;  
+    tag = -1;
 }
 
 UserAlert::Base::Base(nameid t, handle uh, const string& email, m_time_t ts, unsigned int cid)
@@ -188,6 +189,7 @@ UserAlert::Base::Base(nameid t, handle uh, const string& email, m_time_t ts, uns
     timestamp = ts;
     seen = false; 
     relevant = true;  
+    tag = -1;
 }
 
 UserAlert::Base::~Base()
@@ -827,6 +829,7 @@ void UserAlerts::add(UserAlert::Base* unb)
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
                 {
                     alerts.back()->seen = false;
+                    alerts.back()->tag = 0;
                     useralertnotify.push_back(alerts.back());
                     LOG_debug << "Updated user alert added to notify queue";
                 }
@@ -840,6 +843,7 @@ void UserAlerts::add(UserAlert::Base* unb)
     alerts.push_back(unb);
     if (catchupdone)
     {
+        unb->tag = 0;
         useralertnotify.push_back(unb);
         LOG_debug << "New user alert added to notify queue";
     }
@@ -1090,6 +1094,10 @@ void UserAlerts::acknowledgeAll()
         if (!(*i)->seen)
         {
             (*i)->seen = true;
+            if ((*i)->tag != 0)
+            {
+                (*i)->tag = mc.reqtag;
+            }
             useralertnotify.push_back(*i);
         }
     }
@@ -1107,6 +1115,7 @@ void UserAlerts::onAcknowledgeReceived()
             if (!(*i)->seen)
             {
                 (*i)->seen = true;
+                (*i)->tag = 0;
                 useralertnotify.push_back(*i);
             }
         }

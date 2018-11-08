@@ -599,7 +599,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     }
 
     string pubauth;
-    privauth.assign(ptr, ll);
+    pubauth.assign(ptr, ll);
     ptr += ll;
 
     bool isPublicNode = MemAccess::get<bool>(ptr);
@@ -1644,6 +1644,7 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
     , seen(b->seen)
     , relevant(b->relevant)
     , type(-1)
+    , tag(b->tag)
     , userHandle(UNDEF)
     , nodeHandle(UNDEF)
 {
@@ -1895,6 +1896,11 @@ int64_t MegaUserAlertPrivate::getTimestamp(unsigned index) const
 const char* MegaUserAlertPrivate::getString(unsigned index) const
 {
     return index < extraStrings.size() ? extraStrings[index].c_str() : NULL;
+}
+
+bool MegaUserAlertPrivate::isOwnChange() const
+{
+    return tag != 0;
 }
 
 MegaNode *MegaNodePrivate::fromNode(Node *node)
@@ -11273,7 +11279,7 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, error e)
+void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, error e)
 {
     MegaError megaError(e);
     MegaRequestPrivate* request;
@@ -11292,6 +11298,7 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setParentHandle(chatid);
         request->setText(ct->c_str());
         request->setNumDetails(numPeers);
+        request->setNumber(ts);
     }
     fireOnRequestFinish(request, megaError);
 }

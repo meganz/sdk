@@ -2035,12 +2035,12 @@ void MegaClient::exec()
                 else if (workinglockcs->in == "0")
                 {
                     sendevent(99425, "Timeout (server busy)", 0);
-
                     pendingcs->lastdata = Waiter::ds;
                 }
                 else
                 {
                     LOG_err << "Error in lock request: " << workinglockcs->in;
+                    disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
                 }
 
                 delete workinglockcs;
@@ -6230,6 +6230,13 @@ void MegaClient::notifypurge(void)
     {
         LOG_debug << "Notifying " << t << " user alerts";
         app->useralerts_updated(&useralerts.useralertnotify[0], t);
+
+        for (i = 0; i < t; i++)
+        {
+            UserAlert::Base *ua = useralerts.useralertnotify[i];
+            ua->tag = -1;
+        }
+
         useralerts.useralertnotify.clear();
     }
 

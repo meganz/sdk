@@ -5902,7 +5902,7 @@ void CommandChatLinkURL::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, (error)client->json.getint());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, (error)client->json.getint());
     }
     else
     {
@@ -5911,6 +5911,7 @@ void CommandChatLinkURL::procresult()
         int numPeers = -1;
         string url;
         string ct;
+        m_time_t ts = 0;
 
         for (;;)
         {
@@ -5936,21 +5937,24 @@ void CommandChatLinkURL::procresult()
                     numPeers = client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 's'):
+                    ts = client->json.getint();
+
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
                     }
                     return;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
                         return;
                     }
             }

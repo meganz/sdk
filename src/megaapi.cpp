@@ -621,6 +621,11 @@ const char* MegaUserAlert::getString(unsigned) const
     return NULL;
 }
 
+bool MegaUserAlert::isOwnChange() const
+{
+    return false;
+}
+
 
 MegaShare::~MegaShare() { }
 
