@@ -13133,6 +13133,8 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getAccess - Returns the shard
          * - MegaRequest::getText - Returns the chat-topic (if any)
+         * - MegaRequest::getNumDetails - Returns the current number of participants
+         * - MegaRequest::getNumber - Returns the creation timestamp
          *
          * @note This function can be called without being logged in. In that case, the returned
          * URL will be different than for logged in users, so chatd knows whether user has a session.

@@ -11275,7 +11275,7 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, error e)
+void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, error e)
 {
     MegaError megaError(e);
     MegaRequestPrivate* request;
@@ -11294,6 +11294,7 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setParentHandle(chatid);
         request->setText(ct->c_str());
         request->setNumDetails(numPeers);
+        request->setNumber(ts);
     }
     fireOnRequestFinish(request, megaError);
 }
