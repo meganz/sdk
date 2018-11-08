@@ -1973,12 +1973,12 @@ void MegaClient::exec()
                 else if (workinglockcs->in == "0")
                 {
                     sendevent(99425, "Timeout (server busy)", 0);
-
                     pendingcs->lastdata = Waiter::ds;
                 }
                 else
                 {
                     LOG_err << "Error in lock request: " << workinglockcs->in;
+                    disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
                 }
 
                 delete workinglockcs;
