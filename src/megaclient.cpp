@@ -5232,8 +5232,8 @@ void MegaClient::sc_userattr()
                             }
                         }
 
-                        // silently fetch-upon-update this critical attribute
-                        if (type == ATTR_DISABLE_VERSIONS)
+                        // silently fetch-upon-update these critical attributes
+                        if (type == ATTR_DISABLE_VERSIONS || type == ATTR_STORAGE_STATE)
                         {
                             getua(u, type, 0);
                         }
