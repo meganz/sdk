@@ -2622,6 +2622,9 @@ protected:
         // notify about db commit
         virtual void notify_dbcommit();
 
+        // notify about a storage event
+        virtual void notify_storage();
+
         // notify about an automatic change to HTTPS
         virtual void notify_change_to_https();
 

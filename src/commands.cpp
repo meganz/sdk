@@ -1013,6 +1013,10 @@ void CommandPutNodes::procresult()
     {
         e = (error)client->json.getint();
         LOG_debug << "Putnodes error " << e;
+        if (e == API_EOVERQUOTA)
+        {
+            client->activateoverquota(0);
+        }
 
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1160,6 +1164,11 @@ void CommandMoveNode::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+        if (e == API_EOVERQUOTA)
+        {
+            client->activateoverquota(0);
+        }
+
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
         {
@@ -2745,6 +2754,16 @@ void CommandGetUA::procresult()
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
         }
+
+        if (at == ATTR_STORAGE_STATE && e == API_ENOENT)
+        {
+            LOG_debug << "There are no storage problems";
+            client->setstoragestatus(STORAGE_GREEN);
+            if (client->stoverquotauntil)
+            {
+                client->abortbackoff(true);
+            }
+        }
     }
     else
     {
@@ -2917,10 +2936,23 @@ void CommandGetUA::procresult()
                                     LOG_debug << "Account full";
                                     client->activateoverquota(0);
                                 }
-                                else if (client->stoverquotauntil)
+                                else if (value == "1")
                                 {
-                                    LOG_debug << "There is free space again";
-                                    client->abortbackoff(true);
+                                    LOG_debug << "Few storage space available";
+                                    client->setstoragestatus(STORAGE_ORANGE);
+                                    if (client->stoverquotauntil)
+                                    {
+                                        client->abortbackoff(true);
+                                    }
+                                }
+                                else if (value == "0")
+                                {
+                                    LOG_debug << "There are no storage problems";
+                                    client->setstoragestatus(STORAGE_GREEN);
+                                    if (client->stoverquotauntil)
+                                    {
+                                        client->abortbackoff(true);
+                                    }
                                 }
                             }
 

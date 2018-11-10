@@ -546,6 +546,8 @@ public:
     // determine if more transfers fit in the pipeline
     bool moretransfers(direction_t);
 
+    void setstoragestatus(storagestatus_t);
+
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
@@ -664,6 +666,9 @@ public:
 
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
+
+    // storage status
+    storagestatus_t ststatus;
 
     // timestamp until the next upload retry after an storage overquota in deciseconds, related to Waiter::ds
     m_time_t stoverquotauntil;

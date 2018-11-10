@@ -12460,6 +12460,13 @@ void MegaApiImpl::notify_dbcommit()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_storage()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_STORAGE);
+    event->setNumber(client->ststatus);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::notify_change_to_https()
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CHANGE_TO_HTTPS);

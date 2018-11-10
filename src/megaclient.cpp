@@ -899,6 +899,7 @@ void MegaClient::activateoverquota(dstime timeleft)
     else
     {
         LOG_warn << "Storage overquota";
+        setstoragestatus(STORAGE_RED);
         dstime backoffds;
         if (stoverquotauntil > Waiter::ds)
         {
@@ -1109,6 +1110,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
+    ststatus = STORAGE_GREEN;
     stoverquotauntil = 0;
     externaldeletions = false;
     looprequested = false;
@@ -3603,6 +3605,7 @@ void MegaClient::locallogout()
     putmbpscap = 0;
     fetchingnodes = false;
     fetchnodestag = 0;
+    ststatus = STORAGE_GREEN;
     overquotauntil = 0;
     stoverquotauntil = 0;
     externaldeletions = false;
@@ -3856,6 +3859,10 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+
+                            char me64[12];
+                            Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+                            reqs.add(new CommandGetUA(this, me64, ATTR_STORAGE_STATE, NULL, 0));
                         }
                         else
                         {
@@ -4599,6 +4606,15 @@ bool MegaClient::moretransfers(direction_t d)
         return true;
     }
     return false;
+}
+
+void MegaClient::setstoragestatus(storagestatus_t status)
+{
+    if (ststatus != status)
+    {
+        ststatus = status;
+        app->notify_storage();
+    }
 }
 
 void MegaClient::dispatchmore(direction_t d)
@@ -10421,6 +10437,10 @@ void MegaClient::fetchnodes(bool nocache)
             LOG_info << "File versioning is enabled";
             versions_disabled = false;
         }
+
+        char me64[12];
+        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+        reqs.add(new CommandGetUA(this, me64, ATTR_STORAGE_STATE, NULL, 0));
 
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
