@@ -13536,6 +13536,12 @@ void MegaApiImpl::userattr_update(User*, int, const char*)
 {
 }
 
+void MegaApiImpl::nodes_current()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_NODES_CURRENT);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::ephemeral_result(error e)
 {
 	MegaError megaError(e);

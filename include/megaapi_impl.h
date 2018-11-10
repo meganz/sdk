@@ -2470,6 +2470,7 @@ protected:
         // user attribute update notification
         virtual void userattr_update(User*, int, const char*);
 
+        virtual void nodes_current();
 
         virtual void fetchnodes_result(error);
         virtual void putnodes_result(error, targettype_t, NewNode*);
