@@ -8705,8 +8705,10 @@ void MegaClient::notifynode(Node* n)
             changed |= n->changed.fileattrstring << 4;
             changed |= n->changed.inshare << 5;
             changed |= n->changed.outshares << 6;
-            changed |= n->changed.parent << 7;
-            changed |= n->changed.publiclink << 8;
+            changed |= n->changed.pendingshares << 7;
+            changed |= n->changed.parent << 8;
+            changed |= n->changed.publiclink << 9;
+            changed |= n->changed.newnode << 10;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;

@@ -385,6 +385,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_PUBLIC_LINK;
     }
+    if(node->changed.newnode)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_NEW;
+    }
 
 
 #ifdef ENABLE_SYNC
