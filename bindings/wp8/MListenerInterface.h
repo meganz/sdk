@@ -265,10 +265,19 @@ namespace mega
         * The details about the event, like the type of event and optionally any
         * additional parameter, is received in the \c params parameter.
         *
+        * You can check the type of event by calling MEvent::getType
+        *
+        * The SDK retains the ownership of the details of the event (\c event).
+        * Don't use them after this functions returns.
+        *
         * Currently, the following type of events are notified:
+        *
         *  - MEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
         *  This event can be used to keep synchronization between the SDK cache and the
-        *  cache managed by the app thanks to the sequence number, available at MEvent::getText.
+        *  cache managed by the app thanks to the sequence number.
+        *
+        *  Valid data in the MEvent object received in the callback:
+        *      - MEvent::getText: sequence number recorded by the SDK when this event happened
         *
         *  - MEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
         * by the user by confirming the signup link.
@@ -291,10 +300,31 @@ namespace mega
         * receiving this event reset its connections with other servers, since the disconnect
         * performed by the SDK is due to a network change or IP addresses becoming invalid.
         *
-        * You can check the type of event by calling MEvent::getType
+        *  - MEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
+        * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
+        * logout.
         *
-        * The SDK retains the ownership of the details of the event (\c event).
-        * Don't use them after this functions returns.
+        *  Valid data in the MEvent object received in the callback:
+        *      - MEvent::getText: message to show to the user.
+        *      - MEvent::getNumber: code representing the reason for being blocked.
+        *          200: suspension message for any type of suspension, but copyright suspension.
+        *          300: suspension only for multiple copyright violations.
+        *
+        * - MEvent::EVENT_STORAGE: when the status of the storage changes.
+        *
+        * For this event type, MEvent::getNumber provides the current status of the storage
+        *
+        * There are three possible storage states:
+        *     - MegaSDK::STORAGE_STATE_GREEN = 0
+        *     There are no storage problems
+        *
+        *     - MegaSDK::STORAGE_STATE_ORANGE = 1
+        *     The account is almost full
+        *
+        *     - MegaSDK::STORAGE_STATE_RED = 2
+        *     The account is full. Uploads have been stopped
+        *
+        * - MEvent::EVENT_NODES_CURRENT: when all external changes have been received
         *
         * @param api MegaSDK object connected to the account
         * @param event Details about the event

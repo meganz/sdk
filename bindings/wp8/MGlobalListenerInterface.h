@@ -121,6 +121,11 @@ namespace mega
         * The details about the event, like the type of event and optionally any
         * additional parameter, is received in the \c params parameter.
         *
+        * You can check the type of event by calling MEvent::getType
+        *
+        * The SDK retains the ownership of the details of the event (\c event).
+        * Don't use them after this functions returns.
+        *
         * Currently, the following type of events are notified:
         *
         *  - MEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
@@ -161,10 +166,21 @@ namespace mega
         *          200: suspension message for any type of suspension, but copyright suspension.
         *          300: suspension only for multiple copyright violations.
         *
-        * You can check the type of event by calling MEvent::getType
+        * - MEvent::EVENT_STORAGE: when the status of the storage changes.
         *
-        * The SDK retains the ownership of the details of the event (\c event).
-        * Don't use them after this functions returns.
+        * For this event type, MegaEvent::getNumber provides the current status of the storage
+        *
+        * There are three possible storage states:
+        *    - MegaSDK::STORAGE_STATE_GREEN = 0
+        *     There are no storage problems
+        *
+        *     - MegaSDK::STORAGE_STATE_ORANGE = 1
+        *     The account is almost full
+        *
+        *     - MegaSDK::STORAGE_STATE_RED = 2
+        *     The account is full. Uploads have been stopped
+        *
+        * - MEvent::EVENT_NODES_CURRENT: when all external changes have been received
         *
         * @param api MegaSDK object connected to the account
         * @param event Details about the event
