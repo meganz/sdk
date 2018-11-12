@@ -232,6 +232,8 @@ struct MEGA_API DirectReadNode
 {
     handle h;
     bool p;
+    string publicauth;
+    string privateauth;
     m_off_t partiallen;
     dstime partialstarttime;
 
@@ -268,7 +270,7 @@ struct MEGA_API DirectReadNode
     // report failure to app and abort or retry all reads
     void retry(error, dstime = 0);
 
-    DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t);
+    DirectReadNode(MegaClient*, handle, bool, SymmCipher*, int64_t, const char*, const char*);
     ~DirectReadNode();
 };
 } // namespace
