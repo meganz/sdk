@@ -16437,7 +16437,9 @@ void MegaApiImpl::sendPendingTransfers()
                         cipher.setkey(publicNode->getNodeKey());
                         client->pread(publicNode->getHandle(), &cipher,
                             MemAccess::get<int64_t>((const char*)publicNode->getNodeKey()->data() + SymmCipher::KEYLENGTH),
-                                      startPos, totalBytes, transfer, publicNode->isForeign());
+                                      startPos, totalBytes, transfer, publicNode->isForeign(),
+                                      publicNode->getPrivateAuth()->c_str(),
+                                      publicNode->getPublicAuth()->c_str());
                         waiter->notify();
                     }
                 }
@@ -23237,6 +23239,16 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
         if (node->isForeign())
         {
             oss << "!" << node->getSize();
+            string *publicAuth = node->getPublicAuth();
+            string *privAuth = node->getPrivateAuth();
+            if (privAuth->size())
+            {
+                oss << "!" << *privAuth;
+            }
+            else if (publicAuth->size())
+            {
+                oss << "!" << *publicAuth;
+            }
         }
     }
 
@@ -23975,15 +23987,33 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
         {
            const char* startsize = url + index + 1;
            const char* endsize = strstr(startsize, "/");
+           const char* endparam = strstr(startsize, "!");
            if (endsize && *startsize >= '0' && *startsize <= '9')
            {
                char* endptr;
                m_off_t size = strtoll(startsize, &endptr, 10);
-               if (endptr == endsize && errno != ERANGE)
+               if ((endptr == endsize || endptr == endparam) && errno != ERANGE)
                {
                    httpctx->nodesize = size;
                    LOG_debug << "Link size: " << size;
-                   index += (endsize - startsize) + 1;
+                   index += (endptr - startsize) + 1;
+                   if (url[index] == '!')
+                   {
+                       const char *ptr = url + index + 1;
+                       string auth;
+                       auth.assign(ptr, endsize - ptr);
+                       if (auth.size() == 8)
+                       {
+                           httpctx->nodepubauth = auth;
+                           LOG_debug << "Link public auth: " << auth;
+                       }
+                       else
+                       {
+                           httpctx->nodeprivauth = auth;
+                           LOG_debug << "Link private auth: " << auth;
+                       }
+                       index += auth.size() + 1;
+                   }
                }
            }
         }
@@ -24721,7 +24751,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                         h, httpctx->nodekey.c_str(),
                         httpctx->nodename.c_str(),
                         httpctx->nodesize,
-                        -1, UNDEF, NULL, NULL);
+                        -1, UNDEF, httpctx->nodeprivauth.c_str(), httpctx->nodepubauth.c_str());
         }
         else
         {

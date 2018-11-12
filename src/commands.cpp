@@ -398,6 +398,16 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1);
 
+    if (drn->privateauth.size())
+    {
+        arg("esid", drn->privateauth.c_str());
+    }
+
+    if (drn->publicauth.size())
+    {
+        arg("en", drn->publicauth.c_str());
+    }
+
     if (client->usehttps)
     {
         arg("ssl", 2);
