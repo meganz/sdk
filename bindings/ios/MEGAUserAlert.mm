@@ -107,6 +107,10 @@ using namespace mega;
     return self.megaUserAlert->getTitle() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getTitle()] : nil;
 }
 
+- (BOOL)isOwnChange {
+    return self.megaUserAlert ? self.megaUserAlert->isOwnChange() : NO;
+}
+
 - (instancetype)clone {
     return self.megaUserAlert ? [[MEGAUserAlert alloc] initWithMegaUserAlert:self.megaUserAlert->copy() cMemoryOwn:YES] : nil;
 }
