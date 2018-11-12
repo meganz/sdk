@@ -176,6 +176,20 @@ namespace mega
         String^ getPath();
 
         /**
+        * @brief Returns the name of a file, folder, or node related to the alert
+        *
+        * The SDK retains the ownership of the returned value. It will be valid until
+        * the MUserAlert object is deleted.
+        *
+        * This value is valid for those alerts that relate to a single name, provided
+        * it could be looked up from the cached nodes at the time the alert arrived.
+        * Otherwise, it may be obtainable via the nodeHandle.
+        *
+        * @return the name string if relevant and available, otherwise NULL
+        */
+        String^ getName();
+
+        /**
         * @brief Returns the heading related to this alert
         *
         * The SDK retains the ownership of the returned value. They will be valid until
@@ -235,6 +249,17 @@ namespace mega
         * @return a pointer to the string if index is valid; otherwise NULL
         */
         String^ getString(unsigned int index);
+
+        /**
+        * @brief Indicates if the user alert is changed by yourself or by another client.
+        *
+        * This value is only useful for user alerts notified by MListener::onUserAlertsUpdate or
+        * MGlobalListener::onUserAlertsUpdate that can notify about user alerts modifications.
+        *
+        * @return false if the change is external. true if the change is the result of a
+        * request sent by this instance of the SDK.
+        */
+        bool isOwnChange();
 
     private:
         MUserAlert(MegaUserAlert *megaUserAlert, bool cMemoryOwn);
