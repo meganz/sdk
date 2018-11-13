@@ -6700,9 +6700,9 @@ char* longestCommonPrefix(ac::CompletionState& acs)
     string s = acs.completions[0].s;
     for (int i = acs.completions.size(); i--; )
     {
-        for (unsigned j = 0; j < acs.completions[i].s.size(); ++j)
+        for (unsigned j = 0; j < s.size() && j < acs.completions[i].s.size(); ++j)
         {
-            if (j < s.size() && s[j] != acs.completions[i].s[j])
+            if (s[j] != acs.completions[i].s[j])
             {
                 s.erase(j, string::npos);
                 break;

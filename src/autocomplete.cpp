@@ -538,12 +538,15 @@ bool LocalFS::addCompletions(ACState& s)
             }
 #endif
 
-            for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
+            if (fs::exists(searchPath) && fs::is_directory(searchPath))
             {
-                if (reportFolders && fs::is_directory(iter->status()) ||
-                    reportFiles && fs::is_regular_file(iter->status()))
+                for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
                 {
-                    s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep, true);
+                    if (reportFolders && fs::is_directory(iter->status()) ||
+                        reportFiles && fs::is_regular_file(iter->status()))
+                    {
+                        s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep, true);
+                    }
                 }
             }
         }
