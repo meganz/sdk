@@ -3527,8 +3527,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RICH_LINK: return "RICH_LINK";
         case TYPE_CHAT_LINK_HANDLE: return "CHAT_LINK_HANDLE";
         case TYPE_CHAT_LINK_URL: return "CHAT_LINK_URL";
-        case TYPE_SET_PRIVATE_MODE: return "CHAT_LINK_CLOSE";
-        case TYPE_AUTOJOIN_PUBLIC_CHAT: return "CHAT_LINK_JOIN";
+        case TYPE_SET_PRIVATE_MODE: return "SET_PRIVATE_MODE";
+        case TYPE_AUTOJOIN_PUBLIC_CHAT: return "AUTOJOIN_PUBLIC_CHAT";
         case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
         case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
         case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
