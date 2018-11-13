@@ -2769,10 +2769,6 @@ void CommandGetUA::procresult()
         {
             LOG_debug << "There are no storage problems";
             client->setstoragestatus(STORAGE_GREEN);
-            if (client->stoverquotauntil)
-            {
-                client->abortbackoff(true);
-            }
         }
     }
     else
@@ -2950,19 +2946,11 @@ void CommandGetUA::procresult()
                                 {
                                     LOG_debug << "Few storage space available";
                                     client->setstoragestatus(STORAGE_ORANGE);
-                                    if (client->stoverquotauntil)
-                                    {
-                                        client->abortbackoff(true);
-                                    }
                                 }
                                 else if (value == "0")
                                 {
                                     LOG_debug << "There are no storage problems";
                                     client->setstoragestatus(STORAGE_GREEN);
-                                    if (client->stoverquotauntil)
-                                    {
-                                        client->abortbackoff(true);
-                                    }
                                 }
                             }
 

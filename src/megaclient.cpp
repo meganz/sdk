@@ -900,25 +900,14 @@ void MegaClient::activateoverquota(dstime timeleft)
     {
         LOG_warn << "Storage overquota";
         setstoragestatus(STORAGE_RED);
-        dstime backoffds;
-        if (stoverquotauntil > Waiter::ds)
-        {
-            backoffds = stoverquotauntil - Waiter::ds;
-        }
-        else
-        {
-            backoffds = MegaClient::DEFAULT_ST_OVERQUOTA_BACKOFF_SECS * 10;
-            stoverquotauntil = Waiter::ds + backoffds;
-        }
-
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
-            t->bt.backoff(backoffds);
+            t->bt.backoff(NEVER);
             if (t->slot)
             {
                 t->state = TRANSFERSTATE_RETRYING;
-                t->slot->retrybt.backoff(backoffds);
+                t->slot->retrybt.backoff(NEVER);
                 t->slot->retrying = true;
                 app->transfer_failed(t, API_EOVERQUOTA, 0);
             }
@@ -1111,7 +1100,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     putmbpscap = 0;
     overquotauntil = 0;
     ststatus = STORAGE_GREEN;
-    stoverquotauntil = 0;
     looprequested = false;
 
 #ifdef ENABLE_CHAT
@@ -1214,15 +1202,10 @@ void MegaClient::exec()
         overquotauntil = 0;
     }
 
-    if (stoverquotauntil && stoverquotauntil < Waiter::ds)
-    {
-        stoverquotauntil = 0;
-    }
-
     if (httpio->inetisback())
     {
         LOG_info << "Internet connectivity returned - resetting all backoff timers";
-        abortbackoff(overquotauntil <= Waiter::ds || stoverquotauntil <= Waiter::ds);
+        abortbackoff(overquotauntil <= Waiter::ds);
     }
 
     if (EVER(httpio->lastdata) && Waiter::ds >= httpio->lastdata + HttpIO::NETWORKTIMEOUT
@@ -2972,8 +2955,8 @@ bool MegaClient::abortbackoff(bool includexfers)
     if (includexfers)
     {
         overquotauntil = 0;
-        stoverquotauntil = 0;
-        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+        int end = (ststatus != STORAGE_RED) ? PUT : GET;
+        for (int d = GET; d <= end; d += PUT - GET)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
             {
@@ -3606,7 +3589,6 @@ void MegaClient::locallogout()
     fetchnodestag = 0;
     ststatus = STORAGE_GREEN;
     overquotauntil = 0;
-    stoverquotauntil = 0;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -4600,8 +4582,13 @@ void MegaClient::setstoragestatus(storagestatus_t status)
 {
     if (ststatus != status)
     {
+        storagestatus_t pststatus = ststatus;
         ststatus = status;
         app->notify_storage();
+        if (pststatus == STORAGE_RED)
+        {
+            abortbackoff(true);
+        }
     }
 }
 
@@ -12652,7 +12639,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
             }
-            else if (d == PUT && stoverquotauntil && stoverquotauntil > Waiter::ds)
+            else if (d == PUT && ststatus == STORAGE_RED)
             {
                 t->failed(API_EOVERQUOTA);
             }
@@ -12756,7 +12743,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
             }
-            else if (d == PUT && stoverquotauntil && stoverquotauntil > Waiter::ds)
+            else if (d == PUT && ststatus == STORAGE_RED)
             {
                 t->failed(API_EOVERQUOTA);
             }
@@ -12860,7 +12847,10 @@ void MegaClient::setmaxconnections(direction_t d, int num)
                 if (slot->transfer->type == d)
                 {
                     slot->transfer->state = TRANSFERSTATE_QUEUED;
-                    slot->transfer->bt.arm();
+                    if (slot->transfer->client->ststatus != STORAGE_RED || slot->transfer->type == GET)
+                    {
+                        slot->transfer->bt.arm();
+                    }
                     delete slot;
                 }
             }

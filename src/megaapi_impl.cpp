@@ -7912,12 +7912,6 @@ long long MegaApiImpl::getBandwidthOverquotaDelay()
     return result > Waiter::ds ? (result - Waiter::ds) / 10 : 0;
 }
 
-long long MegaApiImpl::getStorageOverquotaDelay()
-{
-    long long result = client->stoverquotauntil;
-    return result > Waiter::ds ? (result - Waiter::ds) / 10 : 0;
-}
-
 bool MegaApiImpl::userComparatorDefaultASC (User *i, User *j)
 {
 	if(strcasecmp(i->email.c_str(), j->email.c_str())<=0) return 1;

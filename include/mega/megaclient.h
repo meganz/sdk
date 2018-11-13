@@ -546,6 +546,7 @@ public:
     // determine if more transfers fit in the pipeline
     bool moretransfers(direction_t);
 
+    // change the storage status
     void setstoragestatus(storagestatus_t);
 
 #ifdef ENABLE_CHAT
@@ -669,9 +670,6 @@ public:
 
     // storage status
     storagestatus_t ststatus;
-
-    // timestamp until the next upload retry after an storage overquota in deciseconds, related to Waiter::ds
-    m_time_t stoverquotauntil;
 
     // root URL for API requests
     static string APIURL;

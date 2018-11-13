@@ -1745,7 +1745,10 @@ error TransferList::pause(Transfer *transfer, bool enable)
     {
         if (transfer->slot)
         {
-            transfer->bt.arm();
+            if (transfer->client->ststatus != STORAGE_RED || transfer->type == GET)
+            {
+                transfer->bt.arm();
+            }
             delete transfer->slot;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
@@ -1832,7 +1835,10 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
 
         if (lastActiveTransfer)
         {
-            lastActiveTransfer->bt.arm();
+            if (lastActiveTransfer->client->ststatus != STORAGE_RED || lastActiveTransfer->type == GET)
+            {
+                lastActiveTransfer->bt.arm();
+            }
             delete lastActiveTransfer->slot;
             lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
             client->transfercacheadd(lastActiveTransfer);
@@ -1850,7 +1856,10 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
         {
             if (!(*cit)->slot && isReady(*cit))
             {
-                transfer->bt.arm();
+                if (transfer->client->ststatus != STORAGE_RED || transfer->type == GET)
+                {
+                    transfer->bt.arm();
+                }
                 delete transfer->slot;
                 transfer->state = TRANSFERSTATE_QUEUED;
                 break;
