@@ -1112,7 +1112,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     overquotauntil = 0;
     ststatus = STORAGE_GREEN;
     stoverquotauntil = 0;
-    externaldeletions = false;
     looprequested = false;
 
 #ifdef ENABLE_CHAT
@@ -3608,7 +3607,6 @@ void MegaClient::locallogout()
     ststatus = STORAGE_GREEN;
     overquotauntil = 0;
     stoverquotauntil = 0;
-    externaldeletions = false;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -3928,12 +3926,6 @@ bool MegaClient::procsc()
                             useralerts.begincatchup = true;
                         }
                     }
-
-                    if (externaldeletions && stoverquotauntil)
-                    {
-                        abortbackoff(true);
-                    }
-                    externaldeletions = false;
                     return true;
 
                 case 'a':
@@ -4031,6 +4023,7 @@ bool MegaClient::procsc()
                                 // node deletion
                                 dn = sc_deltree();
 
+#ifdef ENABLE_SYNC
                                 if (fetchingnodes)
                                 {
                                     break;
@@ -4041,17 +4034,12 @@ bool MegaClient::procsc()
                                     Base64::btoa((byte *)&dn->nodehandle, sizeof(dn->nodehandle), &test2[18]);
                                     if (!memcmp(&jsonsc.pos[26], test2, 26))
                                     {
-#ifdef ENABLE_SYNC
                                         // it's a move operation, stop parsing after completing it
                                         stop = true;
-#endif
                                         break;
                                     }
                                 }
 
-                                externaldeletions = true;
-
-#ifdef ENABLE_SYNC
                                 // run syncdown() to process the deletion before continuing
                                 applykeys();
                                 return false;

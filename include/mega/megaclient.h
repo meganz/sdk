@@ -913,7 +913,6 @@ public:
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
     bool insca;
-    bool externaldeletions;
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
