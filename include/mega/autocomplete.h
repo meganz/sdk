@@ -20,7 +20,7 @@
 */
 
 #if (__cplusplus >= 201100L)
-// autocomplete for clients using c++11 - so far just megacli for windows, and megaclc on windows and linux.
+// autocomplete for clients using c++11 - so far just megacli and megaclc on windows and linux.
 
 #ifndef MEGA_AUTOCOMPLETE_H
 #define MEGA_AUTOCOMPLETE_H 1

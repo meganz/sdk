@@ -51,10 +51,12 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
+#ifdef MEGA_AUTOCOMPLETE_H
+    namespace ac = ::mega::autocomplete;
+#endif
 
 #include <iomanip>
 
-namespace ac = ::mega::autocomplete;
 using namespace mega;
 using std::cout;
 using std::cerr;
@@ -2073,6 +2075,7 @@ static void store_line(char* l)
     line = l;
 }
 
+#ifdef MEGA_AUTOCOMPLETE_H
 autocomplete::ACN autocompleteTemplate;
 
 autocomplete::ACN autocompleteSyntax()
@@ -2178,6 +2181,7 @@ autocomplete::ACN autocompleteSyntax()
 
     return autocompleteTemplate = std::move(p);
 }
+#endif
 
 bool extractparam(const std::string& p, vector<string>& words)
 {
@@ -6690,6 +6694,7 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 }
 
 #ifndef NO_READLINE
+#ifdef MEGA_AUTOCOMPLETE_H
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
     string s = acs.completions[0].s;
@@ -6734,6 +6739,7 @@ char** my_rl_completion(const char *text, int start, int end)
     return result;
 }
 #endif
+#endif
 
 // main loop
 void megacli()
@@ -6741,7 +6747,9 @@ void megacli()
 #ifndef NO_READLINE
     char *saved_line = NULL;
     int saved_point = 0;
+#ifdef MEGA_AUTOCOMPLETE_H
     rl_attempted_completion_function = my_rl_completion;
+#endif
 
     rl_save_prompt();
 
@@ -6954,7 +6962,9 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
+#ifdef MEGA_AUTOCOMPLETE_H
     ac::ACN acs = autocompleteSyntax();
+#endif
 #if defined(WIN32) && defined(NO_READLINE)
     static_cast<WinConsole*>(console)->setAutocompleteSyntax((acs));
 #endif
