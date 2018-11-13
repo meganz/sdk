@@ -515,29 +515,35 @@ bool LocalFS::addCompletions(ACState& s)
     if (s.atCursor())
     {
         fs::path searchPath(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
+#ifdef WIN32
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
+#else
+        char sep = '/';
+#endif
         bool relative = !searchPath.is_absolute();
-        searchPath = relative ? fs::current_path().append("\\").append(searchPath.u8string()) : searchPath;
-        std::string cp = relative ? fs::current_path().u8string() + "\\" : "";
+        searchPath = relative ? (fs::current_path() /= searchPath) : searchPath;
+        std::string cp = relative ? fs::current_path().u8string() + sep : "";
         if ((searchPath.filename() == ".." || searchPath.filename() == ".") && fs::exists(searchPath))
         {
-            s.addPathCompletion(searchPath.u8string(), cp, true, '\\', true);
+            s.addPathCompletion(searchPath.u8string(), cp, true, sep, true);
         }
         else
         {
             searchPath.remove_filename(); // iterate the whole directory, and filter
+#ifdef WIN32
             std::string spath = searchPath.u8string();
             if (spath.back() == ':')
             {
                 searchPath = spath.append("\\");
             }
+#endif
 
             for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
             {
                 if (reportFolders && fs::is_directory(iter->status()) ||
                     reportFiles && fs::is_regular_file(iter->status()))
                 {
-                    s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep , true);
+                    s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep, true);
                 }
             }
         }
