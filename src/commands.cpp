@@ -6014,7 +6014,6 @@ CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle
     cmd("mciph");
     arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
     arg("ck", unifiedkey);
-    notself(client);
     tag = client->reqtag;
 }
 
