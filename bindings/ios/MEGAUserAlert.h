@@ -117,17 +117,11 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
  * This value is valid for alerts that relate to another user, provided the
  * user could be looked up at the time the alert arrived. If it was not available,
  * this function will return false and the client can request it via the userHandle.
- *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGAUserAlert object is deleted.
  */
 @property (nonatomic, readonly) NSString *email;
 
 /**
  * @brief Returns the path of a file, folder, or node related to the alert
- *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGAUserAlert object is deleted.
  *
  * This value is valid for those alerts that relate to a single path, provided
  * it could be looked up from the cached nodes at the time the alert arrived.
@@ -138,9 +132,6 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 /**
  * @brief Returns the heading related to this alert
  *
- * The SDK retains the ownership of the returned value. They will be valid until
- * the MEGAUserAlert object is deleted.
- *
  * This value is valid for all alerts, and similar to the strings displayed in the
  * webclient alerts.
  */
@@ -149,13 +140,21 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 /**
  * @brief Returns the title related to this alert
  *
- * The SDK retains the ownership of the returned value. They will be valid until
- * the MEGAUserAlert object is deleted.
- *
  * This value is valid for all alerts, and similar to the strings displayed in the
  * webclient alerts.
  */
 @property (nonatomic, readonly) NSString *title;
+
+/**
+ * @brief Indicates if the user alert is changed by yourself or by another client.
+ *
+ * This value is only useful for user alerts notified by [MEGADelegate onUserAlertsUpdate] or
+ * [MEGAGlobalDelegate onUserAlertsUpdate] that can notify about user alerts modifications.
+ *
+ * @return NO if the change is external. YES if the change is the result of a
+ * request sent by this instance of the SDK.
+ */
+@property (nonatomic, readonly, getter=isOwnChange) BOOL ownChange;
 
 /**
  * @brief Creates a copy of this MEGAUserAlert object.
@@ -163,8 +162,6 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
  * The resulting object is fully independent of the source MEGAUserAlert,
  * it contains a copy of all internal attributes, so it will be valid after
  * the original object is deleted.
- *
- * You are the owner of the returned object
  *
  * @return Copy of the MEGAUserAlert object
  */
@@ -193,9 +190,6 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 
 /**
  * @brief Returns an additional string, related to the alert
- *
- * The SDK retains the ownership of the returned value. It will be valid until
- * the MEGAUserAlert object is deleted.
  *
  * This value is currently only valid for
  *   MEGAUserAlertTypePaymentSucceeded   index 0: the plan name

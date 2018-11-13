@@ -1033,12 +1033,22 @@ m_off_t Transfer::nextpos()
     return pos;
 }
 
-DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv)
+DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth)
 {
     client = cclient;
 
     p = cp;
     h = ch;
+
+    if (privauth)
+    {
+        privateauth = privauth;
+    }
+
+    if (pubauth)
+    {
+        publicauth = pubauth;
+    }
 
     symmcipher = *csymmcipher;
     ctriv = cctriv;

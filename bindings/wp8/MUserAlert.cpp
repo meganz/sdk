@@ -121,6 +121,21 @@ String^ MUserAlert::getPath()
     return ref new String((wchar_t *)utf16path.data());
 }
 
+String^ MUserAlert::getName()
+{
+    if (!megaUserAlert) return nullptr;
+
+    std::string utf16name;
+    const char *utf8name = megaUserAlert->getName();
+    if (!utf8name)
+        return nullptr;
+
+    MegaApi::utf8ToUtf16(utf8name, &utf16name);
+    delete[] utf8name;
+
+    return ref new String((wchar_t *)utf16name.data());
+}
+
 String^ MUserAlert::getHeading()
 {
     if (!megaUserAlert) return nullptr;
@@ -174,4 +189,9 @@ String^ MUserAlert::getString(unsigned int index)
     delete[] utf8string;
 
     return ref new String((wchar_t *)utf16string.data());
+}
+
+bool MUserAlert::isOwnChange()
+{
+    return megaUserAlert ? megaUserAlert->isOwnChange() : false;
 }

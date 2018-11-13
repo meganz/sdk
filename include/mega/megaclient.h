@@ -370,7 +370,7 @@ public:
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
-    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false);
+    void pread(handle, SymmCipher* key, int64_t, m_off_t, m_off_t, void*, bool = false,  const char* = NULL, const char* = NULL);
     void preadabort(Node*, m_off_t = -1, m_off_t = -1);
     void preadabort(handle, m_off_t = -1, m_off_t = -1);
 
@@ -827,7 +827,7 @@ private:
     bool isprivatehandle(handle*);
     
     // add direct read
-    void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*);
+    void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*, const char* = NULL, const char* = NULL);
     
     // execute pending direct reads
     bool execdirectreads();

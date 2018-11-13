@@ -2909,6 +2909,8 @@ public:
     std::string nodekey;
     std::string nodename;
     m_off_t nodesize;
+    std::string nodepubauth;
+    std::string nodeprivauth;
     int resultCode;
 
 
