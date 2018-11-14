@@ -8574,7 +8574,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
     {
         attr_t type = it->first;;
 
-        if (!User::needversioning(type))
+        if (User::needversioning(type) != 1)
         {
             restag = tag;
             return app->putua_result(API_EARGS);

@@ -532,7 +532,6 @@ bool User::needversioning(attr_t at)
         case ATTR_RICH_PREVIEWS:
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
-        case ATTR_STORAGE_STATE:
             return 0;
 
         case ATTR_AUTHRING:
@@ -545,6 +544,7 @@ bool User::needversioning(attr_t at)
         case ATTR_CONTACT_LINK_VERIFICATION:
             return 1;
 
+        case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
         default:
             return -1;
     }
