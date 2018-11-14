@@ -74,6 +74,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\..\src\attrmap.cpp" />
+    <ClCompile Include="..\..\..\..\src\autocomplete.cpp" />
     <ClCompile Include="..\..\..\..\src\backofftimer.cpp" />
     <ClCompile Include="..\..\..\..\src\base64.cpp" />
     <ClCompile Include="..\..\..\..\src\command.cpp" />
