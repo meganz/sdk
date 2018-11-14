@@ -3,7 +3,6 @@ MEGASDK_BASE_PATH = $$PWD/../../
 
 VPATH += $$MEGASDK_BASE_PATH
 SOURCES += src/attrmap.cpp \
-    src/autocomplete.cpp \
     src/backofftimer.cpp \
     src/base64.cpp \
     src/command.cpp \
@@ -54,6 +53,15 @@ CONFIG(USE_MEGAAPI) {
         bindings/qt/QTMegaSyncListener.cpp \
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
+  }
+  CONFIG(USE_AUTOCOMPLETE) {
+    SOURCES += src/autocomplete.cpp
+    HEADERS += include/mega/autocomplete.h
+    !win32 {
+        #to have autocomplete support, c++11 & libstdc++fs are required:
+        CONFIG+=c++11
+        LIBS+=-lstdc++fs
+    }
   }
 }
 
@@ -250,7 +258,6 @@ SOURCES += src/posix/net.cpp  \
 HEADERS  += include/mega.h \
             include/mega/account.h \
             include/mega/attrmap.h \
-            include/mega/autocomplete.h \
             include/mega/backofftimer.h \
             include/mega/base64.h \
             include/mega/command.h \

@@ -22,6 +22,7 @@ win32 {
 
 LIBS += -lreadline
 
+CONFIG += USE_AUTOCOMPLETE
 win32 {
     CONFIG(noreadline) {
         SOURCES += ../../../src/win32/console.cpp
@@ -36,10 +37,6 @@ win32 {
 else {
     SOURCES += ../../../src/posix/console.cpp
     SOURCES += ../../../src/posix/consolewaiter.cpp
-
-    #to have autocomplete support, c++11 & libstdc++fs are required:
-    CONFIG+=c++11
-    LIBS+=-lstdc++fs
 }
 
 SOURCES += ../../../examples/megacli.cpp
