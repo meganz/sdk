@@ -547,6 +547,12 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
  */
 - (BOOL)serverSideRubbishBinAutopurgeEnabled;
 
+/**
+ * @brief Check if the account has VOIP push enabled
+ * @return YES if this feature is enabled. Otherwise NO.
+ */
+- (BOOL)appleVoipPushEnabled;
+
 #pragma mark - Login Requests
 
 /**
