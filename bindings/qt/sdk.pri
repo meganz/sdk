@@ -250,6 +250,7 @@ SOURCES += src/posix/net.cpp  \
 HEADERS  += include/mega.h \
             include/mega/account.h \
             include/mega/attrmap.h \
+            include/mega/autocomplete.h \
             include/mega/backofftimer.h \
             include/mega/base64.h \
             include/mega/command.h \

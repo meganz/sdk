@@ -36,6 +36,10 @@ win32 {
 else {
     SOURCES += ../../../src/posix/console.cpp
     SOURCES += ../../../src/posix/consolewaiter.cpp
+
+    #to have autocomplete support, c++11 & libstdc++fs are required:
+    CONFIG+=c++11
+    LIBS+=-lstdc++fs
 }
 
 SOURCES += ../../../examples/megacli.cpp
