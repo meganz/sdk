@@ -145,14 +145,23 @@ else
 fi
 
 if [ "$2" == "withExamples" ]; then
-	if [[ ! -e $QTPATH/build ]]; then
-	    mkdir $QTPATH/build
-	fi
+  if [[ ! -e $QTPATH/build ]]; then
+    mkdir $QTPATH/build
+  fi
 
-	cd $QTPATH/build
+  cd $QTPATH/build
+  if [[ $(uname) == 'Darwin' ]]; then
+    qmake $QTPATH/contrib/QtCreator/MEGAchat.pro -spec macx-clang CONFIG+=qml_debug CONFIG+=force_debug_info CONFIG+=separate_debug_info DEFINES+=WEBRTC_MAC LIBS+="-framework AVFoundation -framework CoreMedia -framework CoreAudio -framework AudioToolbox -framework Foundation -framework Cocoa -framework CoreVideo" && /usr/bin/make qmake_all
+  else
     qmake $QTPATH/contrib/QtCreator/MEGAchat.pro -spec linux-g++ CONFIG+=qml_debug CONFIG+=force_debug_info CONFIG+=separate_debug_info && /usr/bin/make qmake_all
-	cd $QTPATH/build/MEGAChatQt/
-	make -j8
+  fi
+
+  cd $QTPATH/build/MEGAChatQt/
+  if [[ $(uname) == 'Darwin' ]]; then
+  make -j `sysctl -n hw.physicalcpu`
+  else
+  make -j `nproc`
+  fi
 fi
 
 
