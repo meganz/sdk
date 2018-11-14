@@ -5016,7 +5016,7 @@ string MegaApiImpl::userAttributeToString(int type)
             break;
 
         case MegaApi::USER_ATTR_STORAGE_STATE:
-            attrname = "usl";
+            attrname = "^!usl";
             break;
     }
 
@@ -5039,7 +5039,6 @@ char MegaApiImpl::userAttributeToScope(int type)
 
         case MegaApi::USER_ATTR_FIRSTNAME:
         case MegaApi::USER_ATTR_LASTNAME:
-        case MegaApi::USER_ATTR_STORAGE_STATE:
             scope = '0';
             break;
 
@@ -5056,6 +5055,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
         case MegaApi::USER_ATTR_LAST_PSA:
         case MegaApi::USER_ATTR_RUBBISH_TIME:
+        case MegaApi::USER_ATTR_STORAGE_STATE:
             scope = '^';
             break;
 
