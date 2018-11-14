@@ -6204,6 +6204,12 @@ class MegaApi
         bool serverSideRubbishBinAutopurgeEnabled();
 
         /**
+         * @brief Check if the account has VOIP push enabled
+         * @return True if this feature is enabled. Otherwise false.
+         */
+        bool appleVoipPushEnabled();
+
+        /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
          * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before

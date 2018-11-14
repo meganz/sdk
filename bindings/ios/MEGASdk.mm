@@ -410,6 +410,10 @@ using namespace mega;
     return self.megaApi->serverSideRubbishBinAutopurgeEnabled();
 }
 
+- (BOOL)appleVoipPushEnabled {
+    return self.megaApi->appleVoipPushEnabled();
+}
+
 #pragma mark - Login Requests
 
 - (BOOL)multiFactorAuthAvailable {
