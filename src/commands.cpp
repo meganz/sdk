@@ -3221,6 +3221,7 @@ void CommandGetUserData::procresult()
     bool gmfa = false;
     bool ssrs = false;
     bool nsre = false;
+    bool aplvp = false;
 
     if (client->json.isnumeric())
     {
@@ -3286,6 +3287,9 @@ void CommandGetUserData::procresult()
                     case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
                         nsre = bool(client->json.getint());
                         break;
+                    case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
+                        aplvp = bool(client->json.getint());
+                        break;
                     case EOO:
                         endobject = true;
                         break;
@@ -3315,6 +3319,7 @@ void CommandGetUserData::procresult()
             client->gmfa_enabled = gmfa;
             client->ssrs_enabled = ssrs;
             client->nsr_enabled = nsre;
+            client->aplvp_enabled = aplvp;
             client->k = k;
             if (len_privk)
             {

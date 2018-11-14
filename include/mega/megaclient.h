@@ -213,6 +213,9 @@ public:
     // New Secure Registration method enabled
     bool nsr_enabled;
 
+    // Account has VOIP push enabled (only for Apple)
+    bool aplvp_enabled;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;

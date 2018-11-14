@@ -5070,6 +5070,11 @@ bool MegaApiImpl::serverSideRubbishBinAutopurgeEnabled()
     return client->ssrs_enabled;
 }
 
+bool MegaApiImpl::appleVoipPushEnabled()
+{
+    return client->aplvp_enabled;
+}
+
 bool MegaApiImpl::multiFactorAuthAvailable()
 {
     return client->gmfa_enabled;
