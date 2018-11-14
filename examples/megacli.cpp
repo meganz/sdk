@@ -36,7 +36,7 @@
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
-#elif (__cplusplus >= 201100L)
+#elif (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600)
 #define USE_FILESYSTEM
 #ifdef WIN32
     #include <filesystem>
@@ -51,7 +51,7 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
-#ifdef MEGA_AUTOCOMPLETE_H
+#ifdef HAVE_AUTOCOMPLETE
     namespace ac = ::mega::autocomplete;
 #endif
 
@@ -2075,7 +2075,7 @@ static void store_line(char* l)
     line = l;
 }
 
-#ifdef MEGA_AUTOCOMPLETE_H
+#ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
 
 autocomplete::ACN autocompleteSyntax()
@@ -2379,7 +2379,7 @@ static void process_line(char* l)
 
             vector<string> words;
 
-#if defined(WIN32) && defined(NO_READLINE)
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
             using namespace ::mega::autocomplete;
             ACState acs = prepACState(l, strlen(l), static_cast<WinConsole*>(console)->getAutocompleteStyle());
             for (unsigned i = 0; i < acs.words.size(); ++i)
@@ -2459,7 +2459,7 @@ static void process_line(char* l)
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
-#if defined(WIN32) && defined(NO_READLINE)
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
                 std::ostringstream s;
                 s << *autocompleteTemplate;
                 cout << s.str() << flush;
@@ -6694,7 +6694,7 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 }
 
 #ifndef NO_READLINE
-#ifdef MEGA_AUTOCOMPLETE_H
+#ifdef HAVE_AUTOCOMPLETE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
     string s = acs.completions[0].s;
@@ -6747,7 +6747,7 @@ void megacli()
 #ifndef NO_READLINE
     char *saved_line = NULL;
     int saved_point = 0;
-#ifdef MEGA_AUTOCOMPLETE_H
+#ifdef HAVE_AUTOCOMPLETE
     rl_attempted_completion_function = my_rl_completion;
 #endif
 
@@ -6962,10 +6962,10 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
-#ifdef MEGA_AUTOCOMPLETE_H
+#ifdef HAVE_AUTOCOMPLETE
     ac::ACN acs = autocompleteSyntax();
 #endif
-#if defined(WIN32) && defined(NO_READLINE)
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
     static_cast<WinConsole*>(console)->setAutocompleteSyntax((acs));
 #endif
 

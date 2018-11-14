@@ -17,7 +17,6 @@ win32 {
     DEFINES += __STDC_LIMIT_MACROS #this is required to include <thread> or <mutex>
     CONFIG(noreadline) {
         DEFINES += NO_READLINE
-        DEFINES += USE_FILESYSTEM
     }
 }
 
@@ -26,13 +25,13 @@ LIBS += -lreadline
 win32 {
     CONFIG(noreadline) {
         SOURCES += ../../../src/win32/console.cpp
-        SOURCES += ../../../src/autocomplete.cpp
         SOURCES += ../../../src/win32/consolewaiter.cpp
     }
     else {
         SOURCES += ../../../src/wincurl/console.cpp
         SOURCES += ../../../src/wincurl/consolewaiter.cpp
     }
+    QMAKE_CXXFLAGS+=/Zc:__cplusplus /std:c++ #this will set _cplusplus correctly in MSVC >= 2017 15.7 Preview 3
 }
 else {
     SOURCES += ../../../src/posix/console.cpp

@@ -203,7 +203,9 @@ void ConsoleModel::addInputChar(wchar_t c)
         }
         redrawInputLineNeeded = true;
     }
+#ifdef HAVE_AUTOCOMPLETE
     autocompleteState.active = false;
+#endif
 }
 
 void ConsoleModel::getHistory(int index, int offset)
@@ -287,6 +289,7 @@ void ConsoleModel::redrawInputLine(int p)
 
 void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
 {   
+#ifdef HAVE_AUTOCOMPLETE
     if (autocompleteSyntax)
     {
         if (!autocompleteState.active)
@@ -318,6 +321,7 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
         insertPos = clamp<size_t>(u16InsertPos, 0, buffer.size());
         redrawInputLineNeeded = true;
     }
+#endif
 }
 
 static bool isWordBoundary(size_t i, const std::wstring s)
@@ -348,10 +352,12 @@ void ConsoleModel::deleteCharRange(int start, int end)
 
 void ConsoleModel::performLineEditingAction(lineEditAction action, unsigned consoleWidth)
 {
+#ifdef HAVE_AUTOCOMPLETE
     if (action != AutoCompleteForwards && action != AutoCompleteBackwards)
     {
         autocompleteState.active = false;
     }
+#endif
     if (action != HistorySearchForward && action != HistorySearchBackward && action != DeleteCharLeft && action != ClearLine)
     {
         searchingHistory = false;
@@ -520,6 +526,7 @@ bool WinConsole::setShellConsole(UINT codepage, UINT failover_codepage)
     return ok;
 }
 
+#ifdef HAVE_AUTOCOMPLETE
 void WinConsole::setAutocompleteSyntax(autocomplete::ACN a)
 {
     model.autocompleteSyntax = a;
@@ -529,6 +536,7 @@ void WinConsole::setAutocompleteFunction(std::function<vector<autocomplete::ACSt
 {
     model.autocompleteFunction = f;
 }
+#endif
 
 void WinConsole::setAutocompleteStyle(bool unix)
 {
@@ -613,7 +621,11 @@ bool WinConsole::consolePeekNonBlocking()
     }
     if (model.redrawInputLineNeeded && model.echoOn)
     {
+#ifdef HAVE_AUTOCOMPLETE
         redrawInputLine(&model.redrawInputLineConsoleFeedback);
+#else
+        redrawInputLine();
+#endif
     }
     if (model.consoleNewlineNeeded)
     {
@@ -683,7 +695,11 @@ bool WinConsole::consolePeekBlocking()
     }
     if (model.redrawInputLineNeeded && model.echoOn)
     {
+#ifdef HAVE_AUTOCOMPLETE
         redrawInputLine(&model.redrawInputLineConsoleFeedback);
+#else
+        redrawInputLine();
+#endif
     }
     if (model.consoleNewlineNeeded)
     {
@@ -735,10 +751,16 @@ ConsoleModel::lineEditAction WinConsole::interpretLineEditingKeystroke(INPUT_REC
     return ConsoleModel::nullAction;
 }
 
+#ifdef HAVE_AUTOCOMPLETE
 void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autocompleteFeedback = nullptr)
+#else
+void WinConsole::redrawInputLine()
+#endif
+
 {
     CONSOLE_SCREEN_BUFFER_INFO sbi;
 
+#ifdef HAVE_AUTOCOMPLETE
     if (autocompleteFeedback && !autocompleteFeedback->stringgrid.empty())
     {
         promptRetracted = true;
@@ -770,6 +792,7 @@ void WinConsole::redrawInputLine(::mega::autocomplete::CompletionTextOut* autoco
         autocompleteFeedback->stringgrid.clear();
         autocompleteFeedback->columnwidths.clear();
     }
+#endif
 
     BOOL ok = GetConsoleScreenBufferInfo(hOutput, &sbi);
     assert(ok);

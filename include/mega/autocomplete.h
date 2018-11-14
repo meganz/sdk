@@ -19,11 +19,13 @@
 * program.
 */
 
-#if (__cplusplus >= 201100L)
+#if (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600)
 // autocomplete for clients using c++11 - so far just megacli and megaclc on windows and linux.
 
 #ifndef MEGA_AUTOCOMPLETE_H
 #define MEGA_AUTOCOMPLETE_H 1
+
+#define HAVE_AUTOCOMPLETE 1
 
 #include "mega/types.h"
 #include <string>

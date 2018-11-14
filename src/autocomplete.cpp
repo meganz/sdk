@@ -19,7 +19,7 @@
 * program.
 */
 
-#if (__cplusplus >= 201100L)
+#if (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600)
 // autocomplete for clients using c++11 - so far just megacli for windows, and megaclc on windows and linux.
 
 #include <mega/autocomplete.h>
