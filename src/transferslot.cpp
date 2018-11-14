@@ -350,6 +350,7 @@ void TransferSlot::doio(MegaClient* client)
     }
 
     retrying = false;
+    transfer->state = TRANSFERSTATE_ACTIVE;
 
     if (!transfer->tempurl.size())
     {
