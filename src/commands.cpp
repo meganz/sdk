@@ -2919,21 +2919,6 @@ void CommandGetUA::procresult()
                                     LOG_info << "File versioning is enabled";
                                 }
                             }
-                            break;
-
-                        default:    // legacy attributes or unknown attribute
-                            if (at != ATTR_FIRSTNAME &&           // protected
-                                    at != ATTR_LASTNAME &&        // protected
-                                    at != ATTR_COUNTRY  &&        // private
-                                    at != ATTR_BIRTHDAY &&        // private
-                                    at != ATTR_BIRTHMONTH &&      // private
-                                    at != ATTR_BIRTHYEAR &&       // private
-                                    at != ATTR_STORAGE_STATE)     // private
-                            {
-                                LOG_err << "Unknown received attribute: " << User::attr2string(at);
-                                client->app->getua_result(API_EINTERNAL);
-                                return;
-                            }
 
                             if (at == ATTR_STORAGE_STATE)
                             {
@@ -2952,6 +2937,21 @@ void CommandGetUA::procresult()
                                     LOG_debug << "There are no storage problems";
                                     client->setstoragestatus(STORAGE_GREEN);
                                 }
+                            }
+
+                            break;
+
+                        default:    // legacy attributes or unknown attribute
+                            if (at != ATTR_FIRSTNAME &&           // protected
+                                    at != ATTR_LASTNAME &&        // protected
+                                    at != ATTR_COUNTRY  &&        // private
+                                    at != ATTR_BIRTHDAY &&        // private
+                                    at != ATTR_BIRTHMONTH &&      // private
+                                    at != ATTR_BIRTHYEAR)     // private
+                            {
+                                LOG_err << "Unknown received attribute: " << User::attr2string(at);
+                                client->app->getua_result(API_EINTERNAL);
+                                return;
                             }
 
                             u->setattr(at, &value, &version);

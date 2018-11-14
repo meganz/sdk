@@ -409,7 +409,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_STORAGE_STATE:
-            attrname = "usl";
+            attrname = "^!usl";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -505,7 +505,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_RUBBISH_TIME;
     }
-    else if(!strcmp(name, "usl"))
+    else if(!strcmp(name, "^!usl"))
     {
         return ATTR_STORAGE_STATE;
     }
@@ -573,6 +573,7 @@ char User::scope(attr_t at)
         case ATTR_CONTACT_LINK_VERIFICATION:
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
+        case ATTR_STORAGE_STATE:
             return '^';
 
         default:
