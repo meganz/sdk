@@ -1759,6 +1759,7 @@ class MegaApiImpl : public MegaApp
         static void setStatsID(const char *id);
 
         bool serverSideRubbishBinAutopurgeEnabled();
+        bool appleVoipPushEnabled();
 
         bool multiFactorAuthAvailable();
         void multiFactorAuthCheck(const char *email, MegaRequestListener *listener = NULL);

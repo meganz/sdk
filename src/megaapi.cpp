@@ -1646,6 +1646,11 @@ bool MegaApi::serverSideRubbishBinAutopurgeEnabled()
     return pImpl->serverSideRubbishBinAutopurgeEnabled();
 }
 
+bool MegaApi::appleVoipPushEnabled()
+{
+    return pImpl->appleVoipPushEnabled();
+}
+
 bool MegaApi::multiFactorAuthAvailable()
 {
     return pImpl->multiFactorAuthAvailable();
