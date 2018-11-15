@@ -1734,11 +1734,6 @@ error TransferList::pause(Transfer *transfer, bool enable)
         return API_OK;
     }
 
-    if (transfer->client->ststatus == STORAGE_RED && transfer->type == PUT)
-    {
-        return API_EFAILED;
-    }
-
     if (!enable)
     {
         transfer_list::iterator it = iterator(transfer);
@@ -1755,7 +1750,10 @@ error TransferList::pause(Transfer *transfer, bool enable)
     {
         if (transfer->slot)
         {
-            transfer->bt.arm();
+            if (transfer->client->ststatus != STORAGE_RED || transfer->type == GET)
+            {
+                transfer->bt.arm();
+            }
             delete transfer->slot;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
@@ -1869,8 +1867,6 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
                 }
                 delete transfer->slot;
                 transfer->state = TRANSFERSTATE_QUEUED;
-                client->transfercacheadd(transfer);
-                client->app->transfer_update(transfer);
                 break;
             }
 
