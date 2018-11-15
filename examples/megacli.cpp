@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "megacli.h"
 #include <fstream>
+#include <mega/autocomplete.h>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -31,19 +32,28 @@
 #include <readline/history.h>
 #endif
 
-#ifdef _MSVC_LANG 
+#if (__cplusplus >= 201700L)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+    #define USE_FILESYSTEM
+#elif (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600)
 #define USE_FILESYSTEM
+#ifdef WIN32
+    #include <filesystem>
+    namespace fs = std::experimental::filesystem;
+#else
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
 #endif
-
-#ifdef USE_FILESYSTEM
-#include <filesystem>
-namespace fs = std::experimental::filesystem;
 #endif
 
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
 
+#ifdef HAVE_AUTOCOMPLETE
+    namespace ac = ::mega::autocomplete;
+#endif
 
 #include <iomanip>
 
@@ -1715,7 +1725,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
 }
 
 #ifdef USE_FILESYSTEM
-static void local_dumptree(const fs::directory_entry& de, int recurse, int depth = 0)
+static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 {
     if (depth)
     {
@@ -1724,9 +1734,9 @@ static void local_dumptree(const fs::directory_entry& de, int recurse, int depth
             cout << "\t";
         }
 
-        cout << de.path().filename().u8string() << " (";
+        cout << de.filename().u8string() << " (";
 
-        if (fs::is_directory(de.status()))
+        if (fs::is_directory(de))
         {
             cout << "folder";
         }
@@ -1739,9 +1749,9 @@ static void local_dumptree(const fs::directory_entry& de, int recurse, int depth
         }
     }
 
-    if (fs::is_directory(de.status()))
+    if (fs::is_directory(de))
     {
-        for (auto i = fs::directory_iterator(de.path()); i != fs::directory_iterator(); ++i)
+        for (auto i = fs::directory_iterator(de); i != fs::directory_iterator(); ++i)
         {
             local_dumptree(*i, recurse, depth + 1);
         }
@@ -2066,8 +2076,7 @@ static void store_line(char* l)
     line = l;
 }
 
-#if defined(WIN32) && defined(NO_READLINE)
-
+#ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
 
 autocomplete::ACN autocompleteSyntax()
@@ -2189,13 +2198,13 @@ bool extractparam(const std::string& p, vector<string>& words)
 }
 
 #ifdef USE_FILESYSTEM
-bool recursiveget(fs::path& localpath, Node* n, bool folders, unsigned& queued)
+bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 {
     if (n->type == FILENODE)
     {
         if (!folders)
         {
-            auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, WinConsole::toUtf8String(localpath.native()));
+            auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, localpath.u8string());
             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
             client->startxfer(GET, f);
             queued += 1;
@@ -2219,7 +2228,7 @@ bool recursiveget(fs::path& localpath, Node* n, bool folders, unsigned& queued)
         }
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
         {
-            if (!recursiveget(newpath, *it, folders, queued))
+            if (!recursiveget(std::move(newpath), *it, folders, queued))
             {
                 return false;
             }
@@ -2371,7 +2380,7 @@ static void process_line(char* l)
 
             vector<string> words;
 
-#if defined(WIN32) && defined(NO_READLINE)
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
             using namespace ::mega::autocomplete;
             ACState acs = prepACState(l, strlen(l), static_cast<WinConsole*>(console)->getAutocompleteStyle());
             for (unsigned i = 0; i < acs.words.size(); ++i)
@@ -2451,7 +2460,7 @@ static void process_line(char* l)
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
-#if defined(WIN32) && defined(NO_READLINE)
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
                 std::ostringstream s;
                 s << *autocompleteTemplate;
                 cout << s.str() << flush;
@@ -3212,18 +3221,18 @@ static void process_line(char* l)
                         {
                             fs::path p(ls_folder);
                             std::error_code ec;
-                            fs::directory_entry de(p, fs::status(p, ec));
+                            auto s = fs::status(p, ec);
                             if (ec)
                             {
                                 cerr << ec.message() << endl;
                             }
-                            else if (!fs::exists(de.status()))
+                            else if (!fs::exists(p))
                             {
                                 cerr << "not found" << endl;
                             }
                             else
                             {
-                                local_dumptree(de, recursive);
+                                local_dumptree(p, recursive);
                             }
                         }
                         catch (std::exception& e)
@@ -6685,12 +6694,63 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
           << n << " added or updated" << endl;
 }
 
+#ifndef NO_READLINE
+#ifdef HAVE_AUTOCOMPLETE
+char* longestCommonPrefix(ac::CompletionState& acs)
+{
+    string s = acs.completions[0].s;
+    for (int i = acs.completions.size(); i--; )
+    {
+        for (unsigned j = 0; j < s.size() && j < acs.completions[i].s.size(); ++j)
+        {
+            if (s[j] != acs.completions[i].s[j])
+            {
+                s.erase(j, string::npos);
+                break;
+            }
+        }
+    }
+    return strdup(s.c_str());
+}
+
+char** my_rl_completion(const char *text, int start, int end)
+{
+    rl_attempted_completion_over = 1;
+
+    std::string line(rl_line_buffer, end);
+    ac::CompletionState acs = ac::autoComplete(line, line.size(), autocompleteTemplate, true);
+
+    if (acs.completions.empty())
+    {
+        return NULL;
+    }
+
+    char** result = (char**)malloc((sizeof(char*)*(2+acs.completions.size())));
+    for (int i = acs.completions.size(); i--; )
+    {
+        result[i+1] = strdup(acs.completions[i].s.c_str());
+    }
+    result[acs.completions.size()+1] = NULL;
+    result[0] = longestCommonPrefix(acs);
+    //for (int i = 0; i <= acs.completions.size(); ++i)
+    //{
+    //    cout << "i " << i << ": " << result[i] << endl;
+    //}
+    rl_filename_completion_desired = true;
+    return result;
+}
+#endif
+#endif
+
 // main loop
 void megacli()
 {
 #ifndef NO_READLINE
     char *saved_line = NULL;
     int saved_point = 0;
+#ifdef HAVE_AUTOCOMPLETE
+    rl_attempted_completion_function = my_rl_completion;
+#endif
 
     rl_save_prompt();
 
@@ -6903,8 +6963,11 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
-#if defined(WIN32) && defined(NO_READLINE)
-    static_cast<WinConsole*>(console)->setAutocompleteSyntax(autocompleteSyntax());
+#ifdef HAVE_AUTOCOMPLETE
+    ac::ACN acs = autocompleteSyntax();
+#endif
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
+    static_cast<WinConsole*>(console)->setAutocompleteSyntax((acs));
 #endif
 
     clientFolder = NULL;    // additional for folder links
