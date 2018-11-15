@@ -375,7 +375,12 @@ void Transfer::failed(error e, dstime timeleft)
     }
     else
     {
+        bt.backoff(timeleft ? timeleft : NEVER);
         client->activateoverquota(timeleft);
+        if (!slot)
+        {
+            client->app->transfer_failed(this, e, timeleft);
+        }
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
