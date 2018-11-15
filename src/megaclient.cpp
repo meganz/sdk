@@ -73,9 +73,6 @@ const char MegaClient::PAYMENT_PUBKEY[] =
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 
-// default number of seconds to wait after a storage overquota
-dstime MegaClient::DEFAULT_ST_OVERQUOTA_BACKOFF_SECS = 1800;
-
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
@@ -3772,10 +3769,10 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 bool MegaClient::procsc()
 {
     nameid name;
-    char test[] = "},{\"a\":\"t\",\"i\":\"";
-    char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
 
 #ifdef ENABLE_SYNC
+    char test[] = "},{\"a\":\"t\",\"i\":\"";
+    char test2[32] = "\",\"t\":{\"f\":[{\"h\":\"";
     bool stop = false;
     bool newnodes = false;
 #endif

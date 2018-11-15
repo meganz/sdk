@@ -1001,9 +1001,6 @@ public:
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
 
-    // default number of seconds to wait after a storage overquota
-    static dstime DEFAULT_ST_OVERQUOTA_BACKOFF_SECS;
-
     // number of seconds to invalidate the cached user data
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
 
