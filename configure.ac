@@ -2061,6 +2061,8 @@ if test "x$enable_php" = "xyes" ; then
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
 
+AC_CHECK_LIB([stdc++fs], [main], [LDFLAGS="-lstdc++fs $LDFLAGS"], [] )
+
 dnl #########################################################################
 dnl Doxygen settings
 dnl #########################################################################

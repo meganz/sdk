@@ -25,6 +25,7 @@ endif
 # common sources
 src_libmega_la_SOURCES = src/megaclient.cpp
 src_libmega_la_SOURCES += src/attrmap.cpp
+src_libmega_la_SOURCES += src/autocomplete.cpp
 src_libmega_la_SOURCES += src/backofftimer.cpp
 src_libmega_la_SOURCES += src/base64.cpp
 src_libmega_la_SOURCES += src/command.cpp

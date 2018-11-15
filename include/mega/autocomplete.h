@@ -1,5 +1,5 @@
 /**
-* @file win32/autocomplete.h
+* @file autocomplete.h
 * @brief Win32 console I/O autocomplete support
 *
 * (c) 2013-2018 by Mega Limited, Auckland, New Zealand
@@ -19,9 +19,13 @@
 * program.
 */
 
-#ifdef NO_READLINE
+#if (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600)
+// autocomplete for clients using c++11 - so far just megacli and megaclc on windows and linux.
+
 #ifndef MEGA_AUTOCOMPLETE_H
 #define MEGA_AUTOCOMPLETE_H 1
+
+#define HAVE_AUTOCOMPLETE 1
 
 #include "mega/types.h"
 #include <string>
@@ -46,7 +50,7 @@ namespace autocomplete {
 
         std::vector<Completion> completions;
         void addCompletion(const std::string& s, bool caseInsenstive = false);
-        void addPathCompletion(std::string& f, const std::string& relativeRootPath, bool isFolder, char dir_sep, bool caseInsensitive);
+        void addPathCompletion(std::string&& f, const std::string& relativeRootPath, bool isFolder, char dir_sep, bool caseInsensitive);
 
         std::vector<std::pair<int, int>> wordPos;
 

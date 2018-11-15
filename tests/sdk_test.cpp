@@ -105,7 +105,7 @@ void WaitMillisec(unsigned n)
 enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
 
 #ifdef WIN32
-#include "mega/win32/autocomplete.h"
+#include "mega/autocomplete.h"
 #include <filesystem>
 #define getcwd _getcwd
 void usleep(int n) 
