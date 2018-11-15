@@ -883,7 +883,9 @@ void MegaClient::activateoverquota(dstime timeleft)
             {
                 Transfer *t = it->second;
                 t->bt.backoff(timeleft);
-                if (t->slot)
+                if (t->slot && (t->state != TRANSFERSTATE_RETRYING
+                                || !t->slot->retrying
+                                || t->slot->retrybt.nextset() != overquotauntil))
                 {
                     t->state = TRANSFERSTATE_RETRYING;
                     t->slot->retrybt.backoff(timeleft);
@@ -893,10 +895,9 @@ void MegaClient::activateoverquota(dstime timeleft)
             }
         }
     }
-    else
+    else if (setstoragestatus(STORAGE_RED))
     {
         LOG_warn << "Storage overquota";
-        setstoragestatus(STORAGE_RED);
         for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
         {
             Transfer *t = it->second;
