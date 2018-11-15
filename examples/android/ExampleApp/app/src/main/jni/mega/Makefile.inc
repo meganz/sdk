@@ -16,7 +16,6 @@ LIB_PYTHON_LIBRARY= -lcryptopp -lcurl -lpython2.7
 LIB_ANDROID_LIBRARY= -lcryptopp -lcurl
 
 CPP_SOURCES= sdk/src/attrmap.cpp \
-    sdk/src/autocomplete.cpp \
     sdk/src/backofftimer.cpp \
     sdk/src/base64.cpp \
     sdk/src/command.cpp \

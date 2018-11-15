@@ -302,9 +302,6 @@
     <ClCompile Include="..\..\..\src\attrmap.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\src\autocomplete.cpp">
-      <Filter>SDK\Source</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\src\backofftimer.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
