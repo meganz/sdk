@@ -1864,6 +1864,8 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
                 }
                 delete transfer->slot;
                 transfer->state = TRANSFERSTATE_QUEUED;
+                client->transfercacheadd(transfer);
+                client->app->transfer_update(transfer);
                 break;
             }
 
