@@ -550,7 +550,7 @@ public:
     bool moretransfers(direction_t);
 
     // change the storage status
-    void setstoragestatus(storagestatus_t);
+    bool setstoragestatus(storagestatus_t);
 
 #ifdef ENABLE_CHAT
 

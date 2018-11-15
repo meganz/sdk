@@ -4577,7 +4577,7 @@ bool MegaClient::moretransfers(direction_t d)
     return false;
 }
 
-void MegaClient::setstoragestatus(storagestatus_t status)
+bool MegaClient::setstoragestatus(storagestatus_t status)
 {
     if (ststatus != status)
     {
@@ -4588,7 +4588,9 @@ void MegaClient::setstoragestatus(storagestatus_t status)
         {
             abortbackoff(true);
         }
+        return true;
     }
+    return false;
 }
 
 void MegaClient::dispatchmore(direction_t d)
