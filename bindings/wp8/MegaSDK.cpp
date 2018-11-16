@@ -3820,11 +3820,6 @@ uint64 MegaSDK::getBandwidthOverquotaDelay()
     return megaApi->getBandwidthOverquotaDelay();
 }
 
-uint64 MegaSDK::getStorageOverquotaDelay()
-{
-    return megaApi->getStorageOverquotaDelay();
-}
-
 MNodeList^ MegaSDK::search(MNode^ node, String^ searchString, bool recursive, int order)
 {
     std::string utf8search;

@@ -2941,12 +2941,6 @@ namespace mega
         uint64 getBandwidthOverquotaDelay();
 
         /**
-        * @brief Get the time (in seconds) during which uploads will be stopped due to a storage overquota
-        * @return Time (in seconds) during which uploads will be stopped, otherwise 0
-        */
-        uint64 getStorageOverquotaDelay();
-
-        /**
         * @brief Search nodes containing a search string in their name
         *
         * The search is case-insensitive.
