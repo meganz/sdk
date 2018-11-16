@@ -60,21 +60,21 @@ CONFIG(USE_LIBWEBSOCKETS) {
     CONFIG += USE_LIBUV
     DEFINES += USE_LIBWEBSOCKETS=1
 
-    unix:!macx {
-	    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
-		LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
-	    }
-	    else {
-		LIBS += -lwebsockets -lcap
-	    }
+    !macx {
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
+        }
+        else {
+        LIBS += -lwebsockets -lcap
+        }
     }
     else {
-	    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
-		LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a
-	    }
-	    else {
-		LIBS += -lwebsockets
-	    }
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a
+        }
+        else {
+        LIBS += -lwebsockets
+        }
     }
 }
 
@@ -216,7 +216,7 @@ CONFIG(USE_WEBRTC) {
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/webrtc \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/boringssl/src/include \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include
-    macx {
+    !macx {
     exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl -lX11
     }
@@ -224,14 +224,14 @@ CONFIG(USE_WEBRTC) {
         LIBS += -lwebrtc -ldl -lX11
     }
     }
-	else {
-	    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
-		LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl
-	    }
-	    else {
-		LIBS += -lwebrtc -ldl
-	    }
-	}
+    else {
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl
+        }
+        else {
+        LIBS += -lwebrtc -ldl
+        }
+    }
 }
 
 win32 {
