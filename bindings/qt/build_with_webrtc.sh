@@ -156,7 +156,7 @@ fi
 #link lib/* into libs if libs is not symlink
 if [ ! -L ${CURRENTPATH}/libs ]; then
 pushd ${CURRENTPATH}/libs
-ln -sf ../lib/* ./
+ln -sf ../lib/lib* ./
 popd
 fi
 
