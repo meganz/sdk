@@ -19,7 +19,7 @@
 * program.
 */
 
-#if (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600)
+#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) )
 // autocomplete for clients using c++11 capabilities
 
 #include <mega/autocomplete.h>
