@@ -6704,12 +6704,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Get the time (in seconds) during which uploads will be stopped due to a storage overquota
-     * @return Time (in seconds) during which uploads will be stopped, otherwise 0
-     */
-    public long getStorageOverquotaDelay() { return megaApi.getStorageOverquotaDelay(); }
-
-    /**
      * Search nodes containing a search string in their name.
      * <p>
      * The search is case-insensitive.
