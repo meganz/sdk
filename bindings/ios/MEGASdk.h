@@ -339,11 +339,6 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  */
 @property (readonly, nonatomic) long long bandwidthOverquotaDelay;
 
-/**
- * @brief The time (in seconds) during which uploads will be stopped due to a storage overquota, otherwise 0
- */
-@property (readonly, nonatomic) long long storageOverquotaDelay;
-
 #pragma mark - Init
 
 /**

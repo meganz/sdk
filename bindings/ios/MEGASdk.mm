@@ -173,10 +173,6 @@ using namespace mega;
     return self.megaApi->getBandwidthOverquotaDelay();
 }
 
-- (long long)storageOverquotaDelay {
-    return self.megaApi->getBandwidthOverquotaDelay();
-}
-
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
