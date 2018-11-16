@@ -77,6 +77,7 @@ if [ ! -d "${CURRENTPATH}/webrtc" ]; then
   ln -sf "${WEBRTC_SRC}" ${CURRENTPATH}/webrtc/include
 
   mkdir -p ${CURRENTPATH}/include
+  rm -rf ${CURRENTPATH}/include/openssl
   ln -sf "${WEBRTC_SRC}/third_party/boringssl/src/include/openssl" ${CURRENTPATH}/include/openssl
 
   mkdir -p ${CURRENTPATH}/lib
@@ -142,6 +143,13 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
 
 else
   echo "* libwebsockets already configured"
+fi
+
+#link lib/* into libs if libs is not symlink
+if [ ! -L ${CURRENTPATH}/libs ]; then
+pushd ${CURRENTPATH}/libs
+ln -sf ../lib/* ./
+popd
 fi
 
 if [ "$2" == "withExamples" ]; then
