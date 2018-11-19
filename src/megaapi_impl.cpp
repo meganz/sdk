@@ -5521,7 +5521,8 @@ void MegaApiImpl::loop()
         client->httpio->getMEGADNSservers(&servers);
     #else
         __res_state res;
-        if(res_ninit(&res) == 0)
+        bool valid;
+        if (res_ninit(&res) == 0)
         {
             union res_sockaddr_union u[MAXNS];
             int nscount = res_getservers(&res, u, MAXNS);
@@ -5530,18 +5531,19 @@ void MegaApiImpl::loop()
             {
                 char straddr[INET6_ADDRSTRLEN];
                 straddr[0] = 0;
+                valid = false;
 
-                if(u[i].sin.sin_family == PF_INET)
+                if (u[i].sin.sin_family == PF_INET)
                 {
-                    mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                    valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
                 }
 
-                if(u[i].sin6.sin6_family == PF_INET6)
+                if (u[i].sin6.sin6_family == PF_INET6)
                 {
-                    mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                    valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
                 }
 
-                if(straddr[0])
+                if (valid && straddr[0])
                 {
                     if (servers.size())
                     {
@@ -17840,27 +17842,29 @@ void MegaApiImpl::sendPendingRequests()
                     client->httpio->getMEGADNSservers(&servers);
                 #else
                     __res_state res;
-                    if(res_ninit(&res) == 0)
+                    bool valid;
+                    if (res_ninit(&res) == 0)
                     {
                         union res_sockaddr_union u[MAXNS];
                         int nscount = res_getservers(&res, u, MAXNS);
 
-                        for(int i = 0; i < nscount; i++)
+                        for (int i = 0; i < nscount; i++)
                         {
                             char straddr[INET6_ADDRSTRLEN];
                             straddr[0] = 0;
+                            valid = false;
 
-                            if(u[i].sin.sin_family == PF_INET)
+                            if (u[i].sin.sin_family == PF_INET)
                             {
-                                mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                                valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
                             }
 
-                            if(u[i].sin6.sin6_family == PF_INET6)
+                            if (u[i].sin6.sin6_family == PF_INET6)
                             {
-                                mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                                valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
                             }
 
-                            if(straddr[0])
+                            if (valid && straddr[0])
                             {
                                 if (servers.size())
                                 {
