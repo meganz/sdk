@@ -36,7 +36,7 @@
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
-#elif (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600)
+#elif !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) )
 #define USE_FILESYSTEM
 #ifdef WIN32
     #include <filesystem>
