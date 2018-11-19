@@ -23,6 +23,11 @@
 #include "mega/posix/meganet.h"
 #include "mega/logging.h"
 
+#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#include <jni.h>
+extern JavaVM *MEGAjvm;
+#endif
+
 #define IPV6_RETRY_INTERVAL_DS 72000
 #define DNS_CACHE_TIMEOUT_DS 18000
 #define DNS_CACHE_EXPIRES 0
@@ -167,6 +172,12 @@ CurlHttpIO::CurlHttpIO()
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     ares_library_init(ARES_LIB_INIT_ALL);
+
+
+#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+    initialize_android();
+#endif
+
     curlMutex.unlock();
 
     curlm[API] = curl_multi_init();
@@ -2667,5 +2678,151 @@ SockInfo::SockInfo()
     handle = WSA_INVALID_EVENT;
 #endif
 }
+
+#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+void CurlHttpIO::initialize_android()
+{
+    if (!MEGAjvm)
+    {
+        LOG_err << "No JVM found";
+        return;
+    }
+
+    bool detach = false;
+    try
+    {
+        JNIEnv *env;
+        int result = MEGAjvm->GetEnv((void **)&env, JNI_VERSION_1_4);
+        if (result == JNI_EDETACHED)
+        {
+            if (MEGAjvm->AttachCurrentThread(&env, NULL) != JNI_OK)
+            {
+                LOG_err << "Unable to attach the current thread";
+                return;
+            }
+            detach = true;
+        }
+        else if (result != JNI_OK)
+        {
+            LOG_err << "Unable to get JNI environment";
+            return;
+        }
+
+        jclass appGlobalsClass = env->FindClass("android/app/AppGlobals");
+        if (!appGlobalsClass)
+        {
+            env->ExceptionClear();
+            LOG_err << "Failed to get android/app/AppGlobals";
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+            return;
+        }
+
+        jmethodID getInitialApplicationMID = env->GetStaticMethodID(appGlobalsClass,"getInitialApplication","()Landroid/app/Application;");
+        if (!getInitialApplicationMID)
+        {
+            env->ExceptionClear();
+            LOG_err << "Failed to get getInitialApplication()";
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+            return;
+        }
+
+        jobject context = env->CallStaticObjectMethod(appGlobalsClass, getInitialApplicationMID);
+        if (!context)
+        {
+            env->ExceptionClear();
+            LOG_err << "Failed to get context";
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+            return;
+        }
+
+        jclass contextClass = env->FindClass("android/content/Context");
+        if (!contextClass)
+        {
+            env->ExceptionClear();
+            LOG_err << "Failed to get android/content/Context";
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+            return;
+        }
+
+        jmethodID getSystemServiceMID = env->GetMethodID(contextClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+        if (!getSystemServiceMID)
+        {
+            env->ExceptionClear();
+            LOG_err << "Failed to get getSystemService()";
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+            return;
+        }
+
+        jfieldID fid = env->GetStaticFieldID(contextClass, "CONNECTIVITY_SERVICE", "Ljava/lang/String;");
+        if (!fid)
+        {
+            env->ExceptionClear();
+            LOG_err << "Failed to get CONNECTIVITY_SERVICE";
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+            return;
+        }
+
+        jstring str = (jstring)env->GetStaticObjectField(contextClass, fid);
+        if (!str)
+        {
+            env->ExceptionClear();
+            LOG_err << "Failed to get CONNECTIVITY_SERVICE value";
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+            return;
+        }
+
+        jobject connectivityManager = env->CallObjectMethod(context, getSystemServiceMID, str);
+        if (!connectivityManager)
+        {
+            env->ExceptionClear();
+            LOG_err << "Failed to get connectivityManager";
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+            return;
+        }
+
+        ares_library_init_android(connectivityManager);
+
+        if (detach)
+        {
+            MEGAjvm->DetachCurrentThread();
+        }
+    }
+    catch (...)
+    {
+        try
+        {
+            if (detach)
+            {
+                MEGAjvm->DetachCurrentThread();
+            }
+        }
+        catch (...) { }
+    }
+}
+#endif
 
 } // namespace
