@@ -768,6 +768,9 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PUBLIC_LINK     = 0x200
          * Check if the public link of the node has changed
          *
+         * - MegaNode::CHANGE_TYPE_NEW             = 0x400
+         * Check if the node is new
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -809,6 +812,9 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_PUBLIC_LINK     = 0x200
          * Check if the public link of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_NEW             = 0x400
+         * Check if the node is new
          *
          */
         virtual int getChanges();
