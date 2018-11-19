@@ -132,7 +132,7 @@ using namespace mega;
 - (NSString *)stringAtIndex:(NSUInteger)index {
     if (!self.megaUserAlert) return nil;
     
-    return self.megaUserAlert->getString((unsigned int)index)? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getEmail()] : nil;
+    return self.megaUserAlert->getString((unsigned int)index) ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getString((unsigned int)index)] : nil;
 }
 
 @end
