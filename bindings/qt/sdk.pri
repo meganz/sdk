@@ -368,7 +368,7 @@ else {
         LIBS += -lpthread
     }
 
-   !CONFIG(DO_NOT_USE_FREEIMAGE) {
+   !CONFIG(nofreeimage) {
         DEFINES += USE_FREEIMAGE
         SOURCES += src/gfx/freeimage.cpp
         LIBS += -lfreeimage
