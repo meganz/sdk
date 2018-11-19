@@ -58,7 +58,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @interface MEGAUserAlert : NSObject
 
 /**
- * @brief Returns the id of the alert
+ * @brief The id of the alert
  *
  * The ids are assigned to alerts sequentially from program start,
  * however there may be gaps. The id can be used to create an
@@ -67,12 +67,12 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (nonatomic, readonly) NSUInteger identifier;
 
 /**
- * @brief Returns whether the alert has been acknowledged by this client or another
+ * @brief Whether the alert has been acknowledged by this client or another
  */
 @property (nonatomic, readonly, getter=isSeen) BOOL seen;
 
 /**
- * @brief Returns whether the alert is still relevant to the logged in user.
+ * @brief Whether the alert is still relevant to the logged in user.
  *
  * An alert may be relevant initially but become non-relevant, eg. payment reminder.
  * Alerts which are no longer relevant are usually removed from the visible list.
@@ -80,13 +80,14 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (nonatomic, readonly, getter=isRelevant) BOOL relevant;
 
 /**
- * @brief Returns the type of alert associated with the object
+ * @brief The type of alert associated with the object
+ *
  * @return Type of alert associated with the object
  */
-@property (nonatomic, readonly) NSInteger type;
+@property (nonatomic, readonly) MEGAUserAlertType type;
 
 /**
- * @brief Returns a readable string that shows the type of alert
+ * @brief A readable string that shows the type of alert
  *
  * This function returns a pointer to a statically allocated buffer.
  * You don't have to free the returned pointer
@@ -94,7 +95,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (nonatomic, readonly) NSString *typeString;
 
 /**
- * @brief Returns the handle of a user related to the alert
+ * @brief The handle of a user related to the alert
  *
  * This value is valid for user related alerts.
  *
@@ -103,7 +104,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (readonly, nonatomic) uint64_t userHandle;
 
 /**
- * @brief Returns the handle of a node related to the alert
+ * @brief The handle of a node related to the alert
  *
  * This value is valid for alerts that relate to a single node.
  *
@@ -112,7 +113,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (readonly, nonatomic) uint64_t nodeHandle;
 
 /**
- * @brief Returns an email related to the alert
+ * @brief An email related to the alert
  *
  * This value is valid for alerts that relate to another user, provided the
  * user could be looked up at the time the alert arrived. If it was not available,
@@ -121,7 +122,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (nonatomic, readonly) NSString *email;
 
 /**
- * @brief Returns the path of a file, folder, or node related to the alert
+ * @brief The path of a file, folder, or node related to the alert
  *
  * This value is valid for those alerts that relate to a single path, provided
  * it could be looked up from the cached nodes at the time the alert arrived.
@@ -130,7 +131,16 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (nonatomic, readonly) NSString *path;
 
 /**
- * @brief Returns the heading related to this alert
+ * @brief The name of a file, folder, or node related to the alert
+ *
+ * This value is valid for those alerts that relate to a single name, provided
+ * it could be looked up from the cached nodes at the time the alert arrived.
+ * Otherwise, it may be obtainable via the nodeHandle.
+ */
+@property (nonatomic, readonly) NSString *name;
+
+/**
+ * @brief The heading related to this alert
  *
  * This value is valid for all alerts, and similar to the strings displayed in the
  * webclient alerts.
@@ -138,7 +148,7 @@ typedef NS_ENUM(NSInteger, MEGAUserAlertType) {
 @property (nonatomic, readonly) NSString *heading;
 
 /**
- * @brief Returns the title related to this alert
+ * @brief The title related to this alert
  *
  * This value is valid for all alerts, and similar to the strings displayed in the
  * webclient alerts.
