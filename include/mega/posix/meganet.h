@@ -107,6 +107,10 @@ protected:
 #endif
 #endif
 
+#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+    static void initialize_android();
+#endif
+
 #ifdef USE_OPENSSL
     static CURLcode ssl_ctx_function(CURL*, void*, void*);
     static int cert_verify_callback(X509_STORE_CTX*, void*);
