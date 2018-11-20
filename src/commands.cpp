@@ -2937,6 +2937,10 @@ void CommandGetUA::procresult()
                                     LOG_debug << "There are no storage problems";
                                     client->setstoragestatus(STORAGE_GREEN);
                                 }
+                                else
+                                {
+                                    LOG_err << "Unknown state of storage. State: " << value;
+                                }
                             }
 
                             break;
