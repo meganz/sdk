@@ -3072,7 +3072,8 @@ public:
         EVENT_ACCOUNT_CONFIRMATION      = 1,
         EVENT_CHANGE_TO_HTTPS           = 2,
         EVENT_DISCONNECT                = 3,
-        EVENT_ACCOUNT_BLOCKED           = 4
+        EVENT_ACCOUNT_BLOCKED           = 4,
+        EVENT_CONNECTIVITY_CHANGED      = 5
     };
 
     virtual ~MegaEvent();
@@ -5168,6 +5169,9 @@ class MegaGlobalListener
          *          200: suspension message for any type of suspension, but copyright suspension.
          *          300: suspension only for multiple copyright violations.
          *
+         *  - MegaEvent::EVENT_CONNECTIVITY_CHANGED: when connectivity status is changed. MegaEvent::getNumber
+         * returns the new status. The status will be the one returned by MegaApi:isWaiting
+         *
          * You can check the type of event by calling MegaEvent::getType
          *
          * The SDK retains the ownership of the details of the event (\c event).
@@ -5585,6 +5589,9 @@ class MegaListener
          * existing open-connections, since they have become unusable. It's recommended that the app
          * receiving this event reset its connections with other servers, since the disconnect
          * performed by the SDK is due to a network change or IP addresses becoming invalid.
+         *
+         *  - MegaEvent::EVENT_CONNECTIVITY_CHANGED: when connectivity status is changed. MegaEvent::getNumber
+         * returns the new status. The status will be the one returned by MegaApi:isWaiting
          *
          * You can check the type of event by calling MegaEvent::getType
          *

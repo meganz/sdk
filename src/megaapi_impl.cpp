@@ -12435,19 +12435,22 @@ void MegaApiImpl::clearing()
 
 void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 {
-#ifdef ENABLE_SYNC
     retryreason_t previousFlag = waitingRequest;
-#endif
 
     if(!dsdelta)
         waitingRequest = RETRY_NONE;
     else if(dsdelta > 10)
         waitingRequest = reason;
 
-#ifdef ENABLE_SYNC
     if(previousFlag != waitingRequest)
+    {
+#ifdef ENABLE_SYNC
         fireOnGlobalSyncStateChanged();
 #endif
+        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CONNECTIVITY_CHANGED);
+        event->setNumber(waitingRequest);
+        fireOnEvent(event);
+    }
 
     if (dsdelta && requestMap.size() == 1)
     {
