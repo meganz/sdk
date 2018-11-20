@@ -2,7 +2,7 @@
 set -e
 
 # Path of the src directory of WebRTC
-WEBRTC_SRC="${HOME}/webrtc/src"
+[ -z ${WEBRTC_SRC+x} ] && WEBRTC_SRC="${HOME}/webrtc/src"
 
 ARCH=`uname -m`
 CURRENTPATH=`pwd`/3rdparty
@@ -12,7 +12,7 @@ OPENSSL_PREFIX="${CURRENTPATH}"
 QTPATH="$CURRENTPATH/../../../../.."
 
 if [ ! -d "${WEBRTC_SRC}" ]; then
-    echo "* WEBRTC_SRC not correctly set. Please edit this file to configure it or put WebRTC in the default path: ${HOME}/webrtc"
+    echo "* WEBRTC_SRC not correctly set. Please edit this file to configure it, put WebRTC in the default path: ${HOME}/webrtc or set WEBRTC_SRC environment variable"
     exit 1
 fi
 
@@ -77,6 +77,7 @@ if [ ! -d "${CURRENTPATH}/webrtc" ]; then
   ln -sf "${WEBRTC_SRC}" ${CURRENTPATH}/webrtc/include
 
   mkdir -p ${CURRENTPATH}/include
+  rm -rf ${CURRENTPATH}/include/openssl
   ln -sf "${WEBRTC_SRC}/third_party/boringssl/src/include/openssl" ${CURRENTPATH}/include/openssl
 
   mkdir -p ${CURRENTPATH}/lib
@@ -107,11 +108,15 @@ if [ ! -e "${CURRENTPATH}/lib/libcurl.a" ]; then
   pushd "curl-${CURL_VERSION}"
 
   # Do not resolve IPs!!
-  sed -i 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h
+  sed -i 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h || sed -i'.bak' 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h
 
-  LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
-
-  make -j8
+  if [[ $(uname) == 'Darwin' ]]; then
+    LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
+    make -j `sysctl -n hw.physicalcpu`
+  else
+    LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+    make -j `nproc`
+  fi
   make install
   popd
   popd
@@ -123,7 +128,6 @@ fi
 
 echo "* Setting up libwebsockets"
 if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
-
   pushd ${CURRENTPATH}
   if [ ! -d "libwebsockets" ]; then
     git clone --depth=1 -b ${LIBWEBSOCKETS_BRANCH} https://github.com/warmcat/libwebsockets.git
@@ -132,9 +136,13 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
   pushd libwebsockets
   git reset --hard && git clean -dfx
 
-  cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${OPENSSL_PREFIX}/include -DOPENSSL_SSL_LIBRARY=${OPENSSL_PREFIX}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${OPENSSL_PREFIX}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON
-
-  make -j8
+  if [[ $(uname) == 'Darwin' ]]; then
+    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${OPENSSL_PREFIX}/include -DOPENSSL_SSL_LIBRARY=${OPENSSL_PREFIX}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${OPENSSL_PREFIX}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON -DLIBUV_INCLUDE_DIRS=${CURRENTPATH}/include/libuv
+    make -j `sysctl -n hw.physicalcpu`
+  else
+    cmake . -DCMAKE_INSTALL_PREFIX=${CURRENTPATH} -DCMAKE_LIBRARY_PATH=${CURRENTPATH}/lib -DCMAKE_INCLUDE_PATH=${CURRENTPATH}/include -DOPENSSL_INCLUDE_DIR=${OPENSSL_PREFIX}/include -DOPENSSL_SSL_LIBRARY=${OPENSSL_PREFIX}/lib/libssl.a -DOPENSSL_CRYPTO_LIBRARY=${OPENSSL_PREFIX}/lib/libcrypto.a -DOPENSSL_ROOT_DIR=${OPENSSL_PREFIX} -DLWS_WITH_LIBUV=1 -DLWS_IPV6=ON -DLWS_SSL_CLIENT_USE_OS_CA_CERTS=0 -DLWS_WITH_SHARED=OFF -DLWS_WITHOUT_TESTAPPS=ON -DLWS_WITHOUT_SERVER=ON
+    make -j `nproc`
+  fi
   make install
   popd
   popd
@@ -144,15 +152,31 @@ else
   echo "* libwebsockets already configured"
 fi
 
-if [ "$2" == "withExamples" ]; then
-	if [[ ! -e $QTPATH/build ]]; then
-	    mkdir $QTPATH/build
-	fi
+#link lib/* into libs if libs is not symlink
+if [ ! -L ${CURRENTPATH}/libs ]; then
+  pushd ${CURRENTPATH}/libs
+  ln -sf ../lib/lib* ./
+  popd
+fi
 
-	cd $QTPATH/build
+if [ "$2" == "withExamples" ]; then
+  if [[ ! -e $QTPATH/build ]]; then
+    mkdir $QTPATH/build
+  fi
+
+  cd $QTPATH/build
+  if [[ $(uname) == 'Darwin' ]]; then
+    qmake $QTPATH/contrib/QtCreator/MEGAchat.pro -spec macx-clang CONFIG+=qml_debug CONFIG+=force_debug_info CONFIG+=separate_debug_info LIBS+="-framework AVFoundation -framework CoreMedia -framework CoreAudio -framework AudioToolbox -framework Foundation -framework Cocoa -framework CoreVideo" && /usr/bin/make qmake_all
+  else
     qmake $QTPATH/contrib/QtCreator/MEGAchat.pro -spec linux-g++ CONFIG+=qml_debug CONFIG+=force_debug_info CONFIG+=separate_debug_info && /usr/bin/make qmake_all
-	cd $QTPATH/build/MEGAChatQt/
-	make -j8
+  fi
+
+  cd $QTPATH/build/
+  if [[ $(uname) == 'Darwin' ]]; then
+    make -j `sysctl -n hw.physicalcpu`
+  else
+    make -j `nproc`
+  fi
 fi
 
 
