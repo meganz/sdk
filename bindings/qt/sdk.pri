@@ -54,7 +54,9 @@ CONFIG(USE_MEGAAPI) {
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
   }
-  CONFIG(USE_AUTOCOMPLETE) {
+}
+
+CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
     !win32 {
@@ -62,7 +64,6 @@ CONFIG(USE_MEGAAPI) {
         CONFIG+=c++11
         LIBS+=-lstdc++fs
     }
-  }
 }
 
 CONFIG(USE_LIBWEBSOCKETS) {
