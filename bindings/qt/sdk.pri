@@ -371,11 +371,13 @@ else {
    !CONFIG(nofreeimage) {
         DEFINES += USE_FREEIMAGE
         SOURCES += src/gfx/freeimage.cpp
-        LIBS += -lfreeimage
 
         macx {
             INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
+        }
+        else {
+            LIBS += -lfreeimage
         }
     }
 }

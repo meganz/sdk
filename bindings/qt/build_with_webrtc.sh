@@ -111,10 +111,10 @@ if [ ! -e "${CURRENTPATH}/lib/libcurl.a" ]; then
   sed -i 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h || sed -i'.bak' 's/\#define USE_RESOLVE_ON_IPS 1//' lib/curl_setup.h
 
   if [[ $(uname) == 'Darwin' ]]; then
-  LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
+    LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb --without-libidn2
     make -j `sysctl -n hw.physicalcpu`
   else
-  LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
+    LIBS=-lpthread ./configure --prefix="${CURRENTPATH}" --enable-static --disable-shared --with-ssl=${OPENSSL_PREFIX} --with-zlib --disable-manual --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-proxy --disable-dict --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi --enable-ipv6 --disable-smb
     make -j `nproc`
   fi
   make install
@@ -128,7 +128,6 @@ fi
 
 echo "* Setting up libwebsockets"
 if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
-
   pushd ${CURRENTPATH}
   if [ ! -d "libwebsockets" ]; then
     git clone --depth=1 -b ${LIBWEBSOCKETS_BRANCH} https://github.com/warmcat/libwebsockets.git
@@ -155,9 +154,9 @@ fi
 
 #link lib/* into libs if libs is not symlink
 if [ ! -L ${CURRENTPATH}/libs ]; then
-pushd ${CURRENTPATH}/libs
-ln -sf ../lib/lib* ./
-popd
+  pushd ${CURRENTPATH}/libs
+  ln -sf ../lib/lib* ./
+  popd
 fi
 
 if [ "$2" == "withExamples" ]; then
@@ -174,9 +173,9 @@ if [ "$2" == "withExamples" ]; then
 
   cd $QTPATH/build/
   if [[ $(uname) == 'Darwin' ]]; then
-  make -j `sysctl -n hw.physicalcpu`
+    make -j `sysctl -n hw.physicalcpu`
   else
-  make -j `nproc`
+    make -j `nproc`
   fi
 fi
 
