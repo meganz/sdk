@@ -128,7 +128,7 @@ string ACState::quoted_word::getQuoted()
     return qs;
 }
 
-void ACState::addCompletion(const std::string& s, bool caseInsensitive) 
+void ACState::addCompletion(const std::string& s, bool caseInsensitive, bool couldextend) 
 {
     // add if it matches the prefix. Doing the check here keeps subclasses simple
     assert(atCursor());
@@ -151,7 +151,7 @@ void ACState::addCompletion(const std::string& s, bool caseInsensitive)
             if ((s[0] == '-' && !prefix.empty() && prefix[0] == '-') ||
                 (s[0] != '-' && (prefix.empty() || prefix[0] != '-')))
             {
-                completions.emplace_back(s, caseInsensitive);
+                completions.emplace_back(s, caseInsensitive, couldextend);
             }
         }
     }
@@ -179,7 +179,7 @@ void ACState::addPathCompletion(std::string&& f, const std::string& relativeRoot
     {
         f.push_back(dir_sep);
     }
-    addCompletion(f, caseInsensitive);
+    addCompletion(f, caseInsensitive, isFolder);
 }
 
 std::ostream& operator<<(std::ostream& s, const ACNode& n)
@@ -1068,6 +1068,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
             auto& c = s.completions[index];
             std::string w = c.s;
             s.originalWord.q.applyQuotes(w);
+            w += (s.completions.size() == 1 && !c.couldExtend) ? " " : "";
             s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, w);
             s.wordPos.second = int(w.size() + s.wordPos.first);
             s.lastAppliedIndex = index;
@@ -1098,6 +1099,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
                     }
                 }
                 s.originalWord.q.applyQuotes(exactChars);
+                exactChars += (s.completions.size() == 1 && !s.completions[0].couldExtend) ? " " : "";
                 s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, exactChars);
                 s.wordPos.second = int(exactChars.size() + s.wordPos.first);
                 s.firstPressDone = true;
