@@ -307,7 +307,7 @@ void ConsoleModel::autoComplete(bool forwards, unsigned consoleWidth)
                 acs.completions.swap(autocompleteState.completions);
                 for (auto& c : appcompletions)
                 {
-                    acs.addCompletion(c.s, c.caseInsensitive);
+                    acs.addCompletion(c.s, c.caseInsensitive, c.couldExtend);
                 }
                 autocompleteState.completions.swap(acs.completions);
                 autocompleteState.tidyCompletions();

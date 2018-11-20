@@ -46,7 +46,7 @@ namespace autocomplete {
             std::string s;
             bool caseInsensitive = false;
             bool couldExtend = false;
-            inline Completion(const std::string& str, bool b, bool b2) : s(str), caseInsensitive(b), couldExtend(b2) {}
+            inline Completion(const std::string& str, bool b, bool b2 = true) : s(str), caseInsensitive(b), couldExtend(b2) {}
         };
 
         std::vector<Completion> completions;
