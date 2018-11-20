@@ -5,7 +5,7 @@
 #define ENABLE_CHAT
 #include "megaapi.h"
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#if defined(__ANDROID__)
 #include <ares.h>
 #endif
 
