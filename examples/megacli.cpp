@@ -3595,10 +3595,6 @@ static void process_line(char* l)
                                         login.password = words[2];
                                         cout << "Initiated login attempt..." << endl;
                                     }
-                                    else
-                                    {
-                                        setprompt(LOGINPASSWORD);
-                                    }
                                     client->prelogin(login.email.c_str());
                                 }
                                 else
@@ -6797,6 +6793,11 @@ char** my_rl_completion(const char *text, int start, int end)
         return NULL;
     }
 
+    if (acs.completions.size() == 1 && !acs.completions[0].couldExtend)
+    {
+        acs.completions[0].s += " "; 
+    }
+
     char** result = (char**)malloc((sizeof(char*)*(2+acs.completions.size())));
     for (int i = acs.completions.size(); i--; )
     {
@@ -6808,7 +6809,7 @@ char** my_rl_completion(const char *text, int start, int end)
     //{
     //    cout << "i " << i << ": " << result[i] << endl;
     //}
-    rl_filename_completion_desired = true;
+    rl_completion_suppress_append = true;
     return result;
 }
 #endif
