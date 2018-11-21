@@ -2465,7 +2465,7 @@ void MegaClient::exec()
                             if (scanfailed)
                             {
                                 fsaccess->notifyerr = false;
-                                dstime backoff = 50 + totalnodes / 128;
+                                dstime backoff = 300 + totalnodes / 128;
                                 syncscanbt.backoff(backoff);
                                 syncscanfailed = true;
                                 LOG_warn << "Next full scan in " << backoff << " ds";
