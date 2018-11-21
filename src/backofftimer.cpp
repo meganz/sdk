@@ -53,7 +53,7 @@ void BackoffTimer::backoff()
 
 void BackoffTimer::backoff(dstime newdelta)
 {
-    next = Waiter::ds + newdelta;
+    next = (newdelta == NEVER) ? NEVER : (Waiter::ds + newdelta);
     delta = newdelta;
     base = newdelta;
 }
@@ -65,7 +65,7 @@ bool BackoffTimer::armed() const
 
 bool BackoffTimer::arm()
 {
-    if (next + delta > Waiter::ds)
+    if (next == NEVER || (next + delta) > Waiter::ds)
     {
         next = Waiter::ds;
         delta = 1;

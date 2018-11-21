@@ -366,20 +366,22 @@ void Transfer::failed(error e, dstime timeleft)
         client->reqtag = creqtag;
     }
 
-    if (!timeleft || e != API_EOVERQUOTA)
+    if (e != API_EOVERQUOTA)
     {
         bt.backoff();
+        state = TRANSFERSTATE_RETRYING;
+        client->app->transfer_failed(this, e, timeleft);
+        client->looprequested = true;
     }
     else
     {
-        bt.backoff(timeleft);
-        LOG_debug << "backoff: " << timeleft;
-        client->overquotauntil = Waiter::ds + timeleft;
+        bt.backoff(timeleft ? timeleft : NEVER);
+        client->activateoverquota(timeleft);
+        if (!slot)
+        {
+            client->app->transfer_failed(this, e, timeleft);
+        }
     }
-
-    state = TRANSFERSTATE_RETRYING;
-    client->looprequested = true;
-    client->app->transfer_failed(this, e, timeleft);
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
@@ -410,7 +412,7 @@ void Transfer::failed(error e, dstime timeleft)
         }
     }
 
-    if (defer && !(e == API_EOVERQUOTA && !timeleft))
+    if (defer)
     {        
         failcount++;
         delete slot;
@@ -1748,7 +1750,10 @@ error TransferList::pause(Transfer *transfer, bool enable)
     {
         if (transfer->slot)
         {
-            transfer->bt.arm();
+            if (transfer->client->ststatus != STORAGE_RED || transfer->type == GET)
+            {
+                transfer->bt.arm();
+            }
             delete transfer->slot;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
@@ -1835,7 +1840,10 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
 
         if (lastActiveTransfer)
         {
-            lastActiveTransfer->bt.arm();
+            if (lastActiveTransfer->client->ststatus != STORAGE_RED || lastActiveTransfer->type == GET)
+            {
+                lastActiveTransfer->bt.arm();
+            }
             delete lastActiveTransfer->slot;
             lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
             client->transfercacheadd(lastActiveTransfer);
@@ -1853,7 +1861,10 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
         {
             if (!(*cit)->slot && isReady(*cit))
             {
-                transfer->bt.arm();
+                if (transfer->client->ststatus != STORAGE_RED || transfer->type == GET)
+                {
+                    transfer->bt.arm();
+                }
                 delete transfer->slot;
                 transfer->state = TRANSFERSTATE_QUEUED;
                 break;

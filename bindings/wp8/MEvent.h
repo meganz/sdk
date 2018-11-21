@@ -2,7 +2,7 @@
 * @file MError.h
 * @brief Provides information about an event.
 *
-* (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+* (c) 2013-2018 by Mega Limited, Auckland, New Zealand
 *
 * This file is part of the MEGA SDK - Client Access Engine.
 *
@@ -34,7 +34,9 @@ namespace mega
         EVENT_ACCOUNT_CONFIRMATION  = 1,
         EVENT_CHANGE_TO_HTTPS       = 2,
         EVENT_DISCONNECT            = 3,
-        EVENT_ACCOUNT_BLOCKED       = 4
+        EVENT_ACCOUNT_BLOCKED       = 4,
+        EVENT_STORAGE               = 5,
+        EVENT_NODES_CURRENT         = 6
     };
 
     public ref class MEvent sealed

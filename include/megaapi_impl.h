@@ -1867,6 +1867,7 @@ class MegaApiImpl : public MegaApp
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+        void getStorageState(MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -2469,6 +2470,7 @@ protected:
         // user attribute update notification
         virtual void userattr_update(User*, int, const char*);
 
+        virtual void nodes_current();
 
         virtual void fetchnodes_result(error);
         virtual void putnodes_result(error, targettype_t, NewNode*);
@@ -2620,6 +2622,9 @@ protected:
 
         // notify about db commit
         virtual void notify_dbcommit();
+
+        // notify about a storage event
+        virtual void notify_storage();
 
         // notify about an automatic change to HTTPS
         virtual void notify_change_to_https();

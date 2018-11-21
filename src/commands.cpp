@@ -1023,6 +1023,10 @@ void CommandPutNodes::procresult()
     {
         e = (error)client->json.getint();
         LOG_debug << "Putnodes error " << e;
+        if (e == API_EOVERQUOTA)
+        {
+            client->activateoverquota(0);
+        }
 
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1170,6 +1174,11 @@ void CommandMoveNode::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+        if (e == API_EOVERQUOTA)
+        {
+            client->activateoverquota(0);
+        }
+
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
         {
@@ -2755,6 +2764,12 @@ void CommandGetUA::procresult()
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
         }
+
+        if (at == ATTR_STORAGE_STATE && e == API_ENOENT)
+        {
+            LOG_debug << "There are no storage problems";
+            client->setstoragestatus(STORAGE_GREEN);
+        }
     }
     else
     {
@@ -2904,6 +2919,30 @@ void CommandGetUA::procresult()
                                     LOG_info << "File versioning is enabled";
                                 }
                             }
+
+                            if (at == ATTR_STORAGE_STATE)
+                            {
+                                if (value == "2")
+                                {
+                                    LOG_debug << "Account full";
+                                    client->activateoverquota(0);
+                                }
+                                else if (value == "1")
+                                {
+                                    LOG_debug << "Few storage space available";
+                                    client->setstoragestatus(STORAGE_ORANGE);
+                                }
+                                else if (value == "0")
+                                {
+                                    LOG_debug << "There are no storage problems";
+                                    client->setstoragestatus(STORAGE_GREEN);
+                                }
+                                else
+                                {
+                                    LOG_err << "Unknown state of storage. State: " << value;
+                                }
+                            }
+
                             break;
 
                         default:    // legacy attributes or unknown attribute
@@ -2912,7 +2951,7 @@ void CommandGetUA::procresult()
                                     at != ATTR_COUNTRY  &&        // private
                                     at != ATTR_BIRTHDAY &&        // private
                                     at != ATTR_BIRTHMONTH &&      // private
-                                    at != ATTR_BIRTHYEAR)         // private
+                                    at != ATTR_BIRTHYEAR)     // private
                             {
                                 LOG_err << "Unknown received attribute: " << User::attr2string(at);
                                 client->app->getua_result(API_EINTERNAL);

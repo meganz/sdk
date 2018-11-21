@@ -108,6 +108,11 @@ public interface MegaGlobalListenerInterface {
      * The details about the event, like the type of event and optionally any
      * additional parameter, is received in the \c params parameter.
      *
+     * You can check the type of event by calling MegaEvent::getType
+     *
+     * The SDK retains the ownership of the details of the event (\c event).
+     * Don't use them after this functions returns.
+     *
      * Currently, the following type of events are notified:
      *
      *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
@@ -148,10 +153,21 @@ public interface MegaGlobalListenerInterface {
      *          200: suspension message for any type of suspension, but copyright suspension.
      *          300: suspension only for multiple copyright violations.
      *
-     * You can check the type of event by calling MegaEvent::getType
+     * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
      *
-     * The SDK retains the ownership of the details of the event (\c event).
-     * Don't use them after this functions returns.
+     * For this event type, MegaEvent::getNumber provides the current status of the storage
+     *
+     * There are three possible storage states:
+     *     - MegaApi::STORAGE_STATE_GREEN = 0
+     *     There are no storage problems
+     *
+     *     - MegaApi::STORAGE_STATE_ORANGE = 1
+     *     The account is almost full
+     *
+     *     - MegaApi::STORAGE_STATE_RED = 2
+     *     The account is full. Uploads have been stopped
+     *
+     * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
      *
      * @param api MegaApi object connected to the account
      * @param event Details about the event

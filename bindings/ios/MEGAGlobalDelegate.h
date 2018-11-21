@@ -97,6 +97,8 @@
  * The details about the event, like the type of event and optionally any
  * additional parameter, is received in the \c params parameter.
  *
+ * You can check the type of event by calling [MEGAEvent type]
+ *
  * Currently, the following type of events are notified:
  *
  *  - EventCommitDB: when the SDK commits the ongoing DB transaction.
@@ -121,6 +123,37 @@
  *  that applications that receive one of these events save that information on its settings and
  *  automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
  *  and automatically switch to HTTPS every time that the application starts.
+ *
+ * - EventDisconnect: when the SDK performs a disconnect to reset all the
+ * existing open-connections, since they have become unusable. It's recommended that the app
+ * receiving this event reset its connections with other servers, since the disconnect
+ * performed by the SDK is due to a network change or IP addresses becoming invalid.
+ *
+ * - EventAccountBlocked: when the account get blocked, typically because of
+ * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
+ * logout.
+ *
+ *  Valid data in the MegaEvent object received in the callback:
+ *      - [MEGAEvent text]: message to show to the user.
+ *      - [MEGAEvent number]: code representing the reason for being blocked.
+ *          200: suspension message for any type of suspension, but copyright suspension.
+ *          300: suspension only for multiple copyright violations.
+ *
+ * - EventStorage: when the status of the storage changes.
+ *
+ * For this event type, MegaEvent::getNumber provides the current status of the storage
+ *
+ * There are three possible storage states:
+ *     - StorageStateGreen = 0
+ *     There are no storage problems
+ *
+ *     - StorageStateOrange = 1
+ *     The account is almost full
+ *
+ *     - StorageStateRed = 2
+ *     The account is full. Uploads have been stopped
+ *
+ * - EventNodesCurrent: when all external changes have been received
  *
  * You can check the type of event by calling [MEGAEvent type]
  *
