@@ -147,6 +147,8 @@ struct MEGA_API HttpIO : public EventTrigger
     void inetstatus(bool);
     bool inetisback();
 
+    bool ipretrievalfailed;
+
     // timestamp of last data received (across all connections)
     dstime lastdata;
     

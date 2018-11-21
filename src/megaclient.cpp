@@ -1553,6 +1553,12 @@ void MegaClient::exec()
                                 pendingcs->notifiedbufpos = pendingcs->bufpos;
                             }
                         }
+
+                        if (pendingcs->httpio->ipretrievalfailed)
+                        {
+                            btcs.backoff();
+                            app->notify_retry(btcs.retryin(), RETRY_CONNECTIVITY);
+                        }
                         break;
 
                     case REQ_SUCCESS:

@@ -100,6 +100,7 @@ HttpIO::HttpIO()
     lastdata = NEVER;
     downloadSpeed = 0;
     uploadSpeed = 0;
+    ipretrievalfailed = false;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,

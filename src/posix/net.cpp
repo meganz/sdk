@@ -1076,14 +1076,17 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
             }
 
             httpctx->hostip = oss.str();
+            httpio->ipretrievalfailed = false;
         }
     }
     else if (status != ARES_SUCCESS)
     {
+        httpio->ipretrievalfailed = true;
         LOG_warn << "c-ares error. code: " << status;
     }
     else
     {
+        httpio->ipretrievalfailed = true;
         LOG_err << "Unknown c-ares error";
     }
 
