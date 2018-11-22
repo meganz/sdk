@@ -998,6 +998,9 @@ public:
     // number of seconds to invalidate the cached user data
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
 
+    // minimum time retries are notified
+    static dstime MIN_DS_NOTIFY_DELTA;
+
     // initial state load in progress?
     bool fetchingnodes;
     int fetchnodestag;

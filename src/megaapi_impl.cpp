@@ -12437,10 +12437,10 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 {
     retryreason_t previousFlag = waitingRequest;
 
-    if(!dsdelta)
-        waitingRequest = RETRY_NONE;
-    else if(dsdelta > 10)
+    if(reason == RETRY_NONE || dsdelta >= MegaClient::MIN_DS_NOTIFY_DELTA) //ignore too fast connectivity issues (some fast retries are assumable)
+    {
         waitingRequest = reason;
+    }
 
     if(previousFlag != waitingRequest)
     {
@@ -12450,12 +12450,12 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
         MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CONNECTIVITY_CHANGED);
         event->setNumber(waitingRequest);
         fireOnEvent(event);
-    }
 
-    if (dsdelta > 10 && waitingRequest != RETRY_NONE && requestMap.size() == 1)
-    {
-        MegaRequestPrivate *request = requestMap.begin()->second;
-        fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
+        if (waitingRequest != RETRY_NONE && requestMap.size() == 1)
+        {
+            MegaRequestPrivate *request = requestMap.begin()->second;
+            fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
+        }
     }
 }
 

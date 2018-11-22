@@ -100,7 +100,6 @@ HttpIO::HttpIO()
     lastdata = NEVER;
     downloadSpeed = 0;
     uploadSpeed = 0;
-    ipretrievalfailed = false;
 }
 
 // signal Internet status - if the Internet was down for more than one minute,
@@ -426,6 +425,7 @@ HttpReq::HttpReq(bool b)
     buflen = 0;
     protect = false;
     minspeed = false;
+    ipretrievalfailed = false;
 
     init();
 }

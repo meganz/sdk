@@ -76,6 +76,9 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 // default number of seconds to wait after a bandwidth overquota
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
+// minimum time retries are notified
+dstime MegaClient::MIN_DS_NOTIFY_DELTA = 10;
+
 // stats id
 char* MegaClient::statsid = NULL;
 
@@ -1554,10 +1557,10 @@ void MegaClient::exec()
                             }
                         }
 
-                        if (pendingcs->httpio->ipretrievalfailed)
+                        if (pendingcs->ipretrievalfailed)
                         {
-                            btcs.backoff();
-                            app->notify_retry(btcs.retryin(), RETRY_CONNECTIVITY);
+                            app->notify_retry(MIN_DS_NOTIFY_DELTA, RETRY_CONNECTIVITY);
+                            pendingcs->ipretrievalfailed = false;
                         }
                         break;
 
@@ -1575,11 +1578,8 @@ void MegaClient::exec()
                                     fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                                 }
 
-                                if (csretrying)
-                                {
-                                    app->notify_retry(0, RETRY_NONE);
-                                    csretrying = false;
-                                }
+                                app->notify_retry(0, RETRY_NONE);
+                                csretrying = false;
 
                                 // request succeeded, process result array
                                 json.begin(pendingcs->in.c_str());
@@ -1758,6 +1758,10 @@ void MegaClient::exec()
         // handle API server-client requests
         if (!jsonsc.pos && pendingsc && !loggingout)
         {
+
+            // handle retry reason for requests
+            retryreason_t reason = RETRY_NONE;
+
             switch (pendingsc->status)
             {
             case REQ_SUCCESS:
@@ -1768,6 +1772,7 @@ void MegaClient::exec()
                     LOG_debug << "Waitd keep-alive received";
                     delete pendingsc;
                     pendingsc = NULL;
+                    app->notify_retry(0, RETRY_NONE);
                     btsc.reset();
                     break;
                 }
@@ -1776,6 +1781,7 @@ void MegaClient::exec()
                 {
                     jsonsc.begin(pendingsc->in.c_str());
                     jsonsc.enterobject();
+                    app->notify_retry(0, RETRY_NONE);
                     break;
                 }
                 else
@@ -1785,6 +1791,7 @@ void MegaClient::exec()
                     {
                         app->request_error(API_ESID);
                         *scsn = 0;
+                        reason = RETRY_UNKNOWN; // TODO: we might want to add a new retry reason
                     }
                     else if (e == API_ETOOMANY)
                     {
@@ -1802,9 +1809,11 @@ void MegaClient::exec()
                         {
                             fnstats.eAgainCount++;
                         }
+                        reason = (e == API_EAGAIN)? RETRY_API_LOCK : RETRY_RATE_LIMIT;
                     }
                     else
                     {
+                        reason = RETRY_UNKNOWN;
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
                         if (useralerts.begincatchup)
                         {
@@ -1818,6 +1827,22 @@ void MegaClient::exec()
             case REQ_FAILURE:
                 if (pendingsc)
                 {
+                    if (!reason && pendingsc->httpstatus != 200)
+                    {
+                        if (pendingsc->httpstatus == 500)
+                        {
+                            reason = RETRY_SERVERS_BUSY;
+                        }
+                        else if (pendingsc->httpstatus == 0)
+                        {
+                            reason = RETRY_CONNECTIVITY;
+                        }
+                        else
+                        {
+                            reason = RETRY_UNKNOWN;
+                        }
+                    }
+
                     if (!statecurrent && pendingsc->httpstatus != 200)
                     {
                         if (pendingsc->httpstatus == 500)
@@ -1848,12 +1873,22 @@ void MegaClient::exec()
 
                 // failure, repeat with capped exponential backoff
                 btsc.backoff();
+                if (!reason)
+                {
+                    reason = RETRY_UNKNOWN;
+                }
+                app->notify_retry(btsc.retryin(), reason);
                 break;
 
             case REQ_INFLIGHT:
+                if (pendingsc->ipretrievalfailed)
+                {
+                    app->notify_retry(MIN_DS_NOTIFY_DELTA, RETRY_CONNECTIVITY);
+                    pendingsc->ipretrievalfailed = false;
+                }
                 if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
-                    LOG_debug << "sc timeout expired";
+                    LOG_debug << "sc timeout expired"; //TODO: we might want to notify_retry here too
                     delete pendingsc;
                     pendingsc = NULL;
                     btsc.reset();
