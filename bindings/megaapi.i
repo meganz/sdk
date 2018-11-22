@@ -5,6 +5,10 @@
 #define ENABLE_CHAT
 #include "megaapi.h"
 
+#if defined(__ANDROID__)
+#include <ares.h>
+#endif
+
 #ifdef ENABLE_WEBRTC
 #include "webrtc/rtc_base/ssladapter.h"
 #include "webrtc/sdk/android/src/jni/classreferenceholder.h"
@@ -131,6 +135,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
     {
         jenv->ExceptionClear();
     }
+#endif
+
+#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+    ares_library_init_jvm(jvm);
 #endif
 
     return JNI_VERSION_1_4;
