@@ -5731,7 +5731,8 @@ class MegaApi
             RETRY_API_LOCK = 3,
             RETRY_RATE_LIMIT = 4,
             RETRY_LOCAL_LOCK = 5,
-            RETRY_UNKNOWN = 6
+            RETRY_UNKNOWN = 6,
+            RETRY_ESID = 7
         };
 
         enum {
@@ -10248,6 +10249,8 @@ class MegaApi
          * - MegaApi::RETRY_UNKNOWN = 6
          * SDK is waiting for the server to complete a request with unknown reason
          *
+         * - MegaApi::RETRY_ESID = 7
+         * SDK is using a bad session ID
          */
         int isWaiting();
 
@@ -10277,6 +10280,8 @@ class MegaApi
          * - MegaApi::RETRY_UNKNOWN = 6
          * SDK is waiting for the server to complete a request with unknown reason
          *
+         * - MegaApi::RETRY_ESID = 7
+         * SDK is using a bad session ID
          * @deprecated Use MegaApi::isWaiting instead of this function.
          */
         int areServersBusy();

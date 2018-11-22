@@ -12451,10 +12451,16 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
         event->setNumber(waitingRequest);
         fireOnEvent(event);
 
-        if (waitingRequest != RETRY_NONE && requestMap.size() == 1)
+        if (waitingRequest != RETRY_NONE)
         {
-            MegaRequestPrivate *request = requestMap.begin()->second;
-            fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
+            for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
+            {
+                MegaRequestPrivate *request = it->second;
+                if (request)
+                {
+                    fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
+                }
+            }
         }
     }
 }

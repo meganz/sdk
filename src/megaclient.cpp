@@ -1791,7 +1791,7 @@ void MegaClient::exec()
                     {
                         app->request_error(API_ESID);
                         *scsn = 0;
-                        reason = RETRY_UNKNOWN; // TODO: we might want to add a new retry reason
+                        reason = RETRY_ESID;
                     }
                     else if (e == API_ETOOMANY)
                     {
@@ -1888,7 +1888,7 @@ void MegaClient::exec()
                 }
                 if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
-                    LOG_debug << "sc timeout expired"; //TODO: we might want to notify_retry here too
+                    LOG_debug << "sc timeout expired";
                     delete pendingsc;
                     pendingsc = NULL;
                     btsc.reset();
