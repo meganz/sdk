@@ -217,7 +217,7 @@ struct MEGA_API HttpReq
     bool sslcheckfailed;
     string sslfakeissuer;
 
-    bool ipretrievalfailed;
+    bool dnsqueryfailed;
 
     string* out;
     string in;

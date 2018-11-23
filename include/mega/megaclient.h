@@ -1005,7 +1005,7 @@ public:
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
 
     // minimum time retries are notified
-    static dstime MIN_DS_NOTIFY_DELTA;
+    static dstime MIN_NOTIFY_RETRY_DS;
 
     // initial state load in progress?
     bool fetchingnodes;

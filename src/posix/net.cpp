@@ -1091,12 +1091,12 @@ void CurlHttpIO::ares_completed_callback(void* arg, int status, int, struct host
     }
     else if (status != ARES_SUCCESS)
     {
-        if (req) req->ipretrievalfailed = true;
+        if (req) req->dnsqueryfailed = true;
         LOG_warn << "c-ares error. code: " << status;
     }
     else
     {
-        if (req) req->ipretrievalfailed = true;
+        if (req) req->dnsqueryfailed = true;
         LOG_err << "Unknown c-ares error";
     }
 

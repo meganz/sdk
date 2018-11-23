@@ -12439,7 +12439,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 {
     retryreason_t previousFlag = waitingRequest;
 
-    if(reason == RETRY_NONE || dsdelta >= MegaClient::MIN_DS_NOTIFY_DELTA) //ignore too fast connectivity issues (some fast retries are assumable)
+    if (reason == RETRY_NONE || dsdelta >= MegaClient::MIN_NOTIFY_RETRY_DS) //ignore too fast connectivity issues (some fast retries are assumable)
     {
         waitingRequest = reason;
     }

@@ -77,7 +77,7 @@ dstime MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS = 3600;
 dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 
 // minimum time retries are notified
-dstime MegaClient::MIN_DS_NOTIFY_DELTA = 10;
+dstime MegaClient::MIN_NOTIFY_RETRY_DS = 10;
 
 // stats id
 char* MegaClient::statsid = NULL;
@@ -1601,10 +1601,10 @@ void MegaClient::exec()
                             }
                         }
 
-                        if (pendingcs->ipretrievalfailed)
+                        if (pendingcs->dnsqueryfailed)
                         {
-                            app->notify_retry(MIN_DS_NOTIFY_DELTA, RETRY_CONNECTIVITY);
-                            pendingcs->ipretrievalfailed = false;
+                            app->notify_retry(MIN_NOTIFY_RETRY_DS, RETRY_CONNECTIVITY);
+                            pendingcs->dnsqueryfailed = false;
                         }
                         break;
 
@@ -1925,10 +1925,10 @@ void MegaClient::exec()
                 break;
 
             case REQ_INFLIGHT:
-                if (pendingsc->ipretrievalfailed)
+                if (pendingsc->dnsqueryfailed)
                 {
-                    app->notify_retry(MIN_DS_NOTIFY_DELTA, RETRY_CONNECTIVITY);
-                    pendingsc->ipretrievalfailed = false;
+                    app->notify_retry(MIN_NOTIFY_RETRY_DS, RETRY_CONNECTIVITY);
+                    pendingsc->dnsqueryfailed = false;
                 }
                 if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
