@@ -403,7 +403,8 @@ class MegaNode
             CHANGE_TYPE_OUTSHARE        = 0x40,
             CHANGE_TYPE_PARENT          = 0x80,
             CHANGE_TYPE_PENDINGSHARE    = 0x100,
-            CHANGE_TYPE_PUBLIC_LINK     = 0x200
+            CHANGE_TYPE_PUBLIC_LINK     = 0x200,
+            CHANGE_TYPE_NEW             = 0x400
         };
 
         static const int INVALID_DURATION = -1;
@@ -767,6 +768,9 @@ class MegaNode
          * - MegaNode::CHANGE_TYPE_PUBLIC_LINK     = 0x200
          * Check if the public link of the node has changed
          *
+         * - MegaNode::CHANGE_TYPE_NEW             = 0x400
+         * Check if the node is new
+         *
          * @return true if this node has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -808,6 +812,9 @@ class MegaNode
          *
          * - MegaNode::CHANGE_TYPE_PUBLIC_LINK     = 0x200
          * Check if the public link of the node has changed
+         *
+         * - MegaNode::CHANGE_TYPE_NEW             = 0x400
+         * Check if the node is new
          *
          */
         virtual int getChanges();
@@ -1163,7 +1170,8 @@ class MegaUser
             CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
             CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
             CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
-            CHANGE_TYPE_RUBBISH_TIME    = 0x40000
+            CHANGE_TYPE_RUBBISH_TIME    = 0x40000,
+            CHANGE_TYPE_STORAGE_STATE   = 0x80000
         };
 
         /**
@@ -1233,6 +1241,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
          * Check if rubbish time for autopurge has changed
          *
+         * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
+         * Check if the state of the storage has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1301,6 +1312,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
          * Check if rubbish time for autopurge has changed
+         *
+         * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
+         * Check if the state of the storage has changed
          */
         virtual int getChanges();
 
@@ -3073,7 +3087,9 @@ public:
         EVENT_CHANGE_TO_HTTPS           = 2,
         EVENT_DISCONNECT                = 3,
         EVENT_ACCOUNT_BLOCKED           = 4,
-        EVENT_CONNECTIVITY_CHANGED      = 5
+        EVENT_STORAGE                   = 5,
+        EVENT_NODES_CURRENT             = 6,
+        EVENT_CONNECTIVITY_CHANGED      = 7
     };
 
     virtual ~MegaEvent();
@@ -5129,6 +5145,11 @@ class MegaGlobalListener
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
          *
+         * You can check the type of event by calling MegaEvent::getType
+         *
+         * The SDK retains the ownership of the details of the event (\c event).
+         * Don't use them after this functions returns.
+         *
          * Currently, the following type of events are notified:
          *
          *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
@@ -5169,13 +5190,24 @@ class MegaGlobalListener
          *          200: suspension message for any type of suspension, but copyright suspension.
          *          300: suspension only for multiple copyright violations.
          *
-         *  - MegaEvent::EVENT_CONNECTIVITY_CHANGED: when connectivity status is changed. MegaEvent::getNumber
-         * returns the new status. The status will be the one returned by MegaApi:isWaiting
+         * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
-         * You can check the type of event by calling MegaEvent::getType
+         * For this event type, MegaEvent::getNumber provides the current status of the storage
          *
-         * The SDK retains the ownership of the details of the event (\c event).
-         * Don't use them after this functions returns.
+         * There are three possible storage states:
+         *     - MegaApi::STORAGE_STATE_GREEN = 0
+         *     There are no storage problems
+         *
+         *     - MegaApi::STORAGE_STATE_ORANGE = 1
+         *     The account is almost full
+         *
+         *     - MegaApi::STORAGE_STATE_RED = 2
+         *     The account is full. Uploads have been stopped
+         *
+         * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
+         *
+         * - MegaEvent::EVENT_CONNECTIVITY_CHANGED: when connectivity status is changed.
+         * MegaEvent::getNumber returns the new status. The status will be the one returned by MegaApi:isWaiting
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -5564,10 +5596,19 @@ class MegaListener
          * The details about the event, like the type of event and optionally any
          * additional parameter, is received in the \c params parameter.
          *
+         * You can check the type of event by calling MegaEvent::getType
+         *
+         * The SDK retains the ownership of the details of the event (\c event).
+         * Don't use them after this functions returns.
+         *
          * Currently, the following type of events are notified:
+         *
          *  - MegaEvent::EVENT_COMMIT_DB: when the SDK commits the ongoing DB transaction.
          *  This event can be used to keep synchronization between the SDK cache and the
-         *  cache managed by the app thanks to the sequence number, available at MegaEvent::getText.
+         *  cache managed by the app thanks to the sequence number.
+         *
+         *  Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: sequence number recorded by the SDK when this event happened
          *
          *  - MegaEvent::EVENT_ACCOUNT_CONFIRMATION: when a new account is finally confirmed
          * by the user by confirming the signup link.
@@ -5590,13 +5631,34 @@ class MegaListener
          * receiving this event reset its connections with other servers, since the disconnect
          * performed by the SDK is due to a network change or IP addresses becoming invalid.
          *
-         *  - MegaEvent::EVENT_CONNECTIVITY_CHANGED: when connectivity status is changed. MegaEvent::getNumber
-         * returns the new status. The status will be the one returned by MegaApi:isWaiting
+         *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
+         * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
+         * logout.
          *
-         * You can check the type of event by calling MegaEvent::getType
+         *  Valid data in the MegaEvent object received in the callback:
+         *      - MegaEvent::getText: message to show to the user.
+         *      - MegaEvent::getNumber: code representing the reason for being blocked.
+         *          200: suspension message for any type of suspension, but copyright suspension.
+         *          300: suspension only for multiple copyright violations.
          *
-         * The SDK retains the ownership of the details of the event (\c event).
-         * Don't use them after this functions returns.
+         * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
+         *
+         * For this event type, MegaEvent::getNumber provides the current status of the storage
+         *
+         * There are three possible storage states:
+         *     - MegaApi::STORAGE_STATE_GREEN = 0
+         *     There are no storage problems
+         *
+         *     - MegaApi::STORAGE_STATE_ORANGE = 1
+         *     The account is almost full
+         *
+         *     - MegaApi::STORAGE_STATE_RED = 2
+         *     The account is full. Uploads have been stopped
+         *
+         * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
+         *
+         * - MegaEvent::EVENT_CONNECTIVITY_CHANGED: when connectivity status is changed.
+         * MegaEvent::getNumber returns the new status. The status will be the one returned by MegaApi:isWaiting
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -5681,7 +5743,8 @@ class MegaApi
             USER_ATTR_CONTACT_LINK_VERIFICATION = 17,     // private - byte array
             USER_ATTR_RICH_PREVIEWS = 18,        // private - byte array
             USER_ATTR_RUBBISH_TIME = 19,         // private - byte array
-            USER_ATTR_LAST_PSA = 20              // private - char array
+            USER_ATTR_LAST_PSA = 20,             // private - char array
+            USER_ATTR_STORAGE_STATE = 21         // private - char array
         };
 
         enum {
@@ -5737,6 +5800,12 @@ class MegaApi
 
         enum {
             KEEP_ALIVE_CAMERA_UPLOADS = 0
+        };
+
+        enum {
+            STORAGE_STATE_GREEN = 0,
+            STORAGE_STATE_ORANGE = 1,
+            STORAGE_STATE_RED = 2
         };
 
         /**
@@ -7715,6 +7784,8 @@ class MegaApi
          * Get whether user generates rich-link messages or not (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Get the state of the storage (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7806,6 +7877,8 @@ class MegaApi
          * Get whether user has versions disabled or enabled (private, non-encrypted)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Get the state of the storage (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7858,6 +7931,8 @@ class MegaApi
          * Get whether user generates rich-link messages or not (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_STORAGE_STATE = 21
+         * Get the state of the storage (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -8608,6 +8683,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the state of the storage
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns one of these storage states:
+         * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
+         * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
+         * MegaApi::STORAGE_STATE_RED = 2 - The account is full
+         *
+         * If the state is not set on the server side, the request will finish with the error
+         * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
+         * number 0 (MegaApi::STORAGE_STATE_GREEN).
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getStorageState(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account

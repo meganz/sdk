@@ -38,7 +38,9 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
     MEGANodeChangeTypeInShare        = 0x20,
     MEGANodeChangeTypeOutShare       = 0x40,
     MEGANodeChangeTypeParent         = 0x80,
-    MEGANodeChangeTypePendingShare   = 0x100
+    MEGANodeChangeTypePendingShare   = 0x100,
+    MEGANodeChangeTypePublicLink     = 0x200,
+    MEGANodeChangeTypeNew            = 0x400
 };
 
 /**

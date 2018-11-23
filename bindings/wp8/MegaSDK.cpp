@@ -2471,6 +2471,16 @@ void MegaSDK::setRubbishBinAutopurgePeriod(int days)
     megaApi->setRubbishBinAutopurgePeriod(days);
 }
 
+void MegaSDK::getStorageState(MRequestListenerInterface^ listener)
+{
+    megaApi->getStorageState(createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::getStorageState()
+{
+    megaApi->getStorageState();
+}
+
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)
 {
 	std::string utf8oldPassword;

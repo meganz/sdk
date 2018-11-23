@@ -70,11 +70,21 @@ CONFIG(USE_LIBWEBSOCKETS) {
     CONFIG += USE_LIBUV
     DEFINES += USE_LIBWEBSOCKETS=1
 
-    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+    !macx {
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
+        }
+        else {
+        LIBS += -lwebsockets -lcap
+        }
     }
     else {
-        LIBS += -lwebsockets -lcap
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a
+        }
+        else {
+        LIBS += -lwebsockets
+        }
     }
 }
 
@@ -216,12 +226,21 @@ CONFIG(USE_WEBRTC) {
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/webrtc \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/boringssl/src/include \
                    $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/webrtc/include/third_party/libyuv/include
-
+    !macx {
     exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
         LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl -lX11
     }
     else {
         LIBS += -lwebrtc -ldl -lX11
+    }
+    }
+    else {
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a) {
+        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebrtc.a -ldl
+        }
+        else {
+        LIBS += -lwebrtc -ldl
+        }
     }
 }
 
@@ -349,9 +368,6 @@ CONFIG(qt) {
   SOURCES += src/gfx/qt.cpp src/thread/qtthread.cpp
 }
 else {
-    DEFINES += USE_FREEIMAGE
-    SOURCES += src/gfx/freeimage.cpp
-    LIBS += -lfreeimage
 
     win32 {
         SOURCES += src/thread/win32thread.cpp
@@ -362,9 +378,17 @@ else {
         LIBS += -lpthread
     }
 
-    macx {
-        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
-        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
+   !CONFIG(nofreeimage) {
+        DEFINES += USE_FREEIMAGE
+        SOURCES += src/gfx/freeimage.cpp
+
+        macx {
+            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/FreeImage/Source
+            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
+        }
+        else {
+            LIBS += -lfreeimage
+        }
     }
 }
 

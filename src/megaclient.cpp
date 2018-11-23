@@ -874,6 +874,49 @@ void MegaClient::acknowledgeuseralerts()
     useralerts.acknowledgeAll();
 }
 
+void MegaClient::activateoverquota(dstime timeleft)
+{
+    if (timeleft)
+    {
+        LOG_warn << "Bandwidth overquota";
+        overquotauntil = Waiter::ds + timeleft;
+        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+        {
+            for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
+            {
+                Transfer *t = it->second;
+                t->bt.backoff(timeleft);
+                if (t->slot && (t->state != TRANSFERSTATE_RETRYING
+                                || !t->slot->retrying
+                                || t->slot->retrybt.nextset() != overquotauntil))
+                {
+                    t->state = TRANSFERSTATE_RETRYING;
+                    t->slot->retrybt.backoff(timeleft);
+                    t->slot->retrying = true;
+                    app->transfer_failed(t, API_EOVERQUOTA, timeleft);
+                }
+            }
+        }
+    }
+    else if (setstoragestatus(STORAGE_RED))
+    {
+        LOG_warn << "Storage overquota";
+        for (transfer_map::iterator it = transfers[PUT].begin(); it != transfers[PUT].end(); it++)
+        {
+            Transfer *t = it->second;
+            t->bt.backoff(NEVER);
+            if (t->slot)
+            {
+                t->state = TRANSFERSTATE_RETRYING;
+                t->slot->retrybt.backoff(NEVER);
+                t->slot->retrying = true;
+                app->transfer_failed(t, API_EOVERQUOTA, 0);
+            }
+        }
+    }
+    looprequested = true;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1058,6 +1101,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
+    ststatus = STORAGE_GREEN;
     looprequested = false;
 
 #ifdef ENABLE_CHAT
@@ -2506,7 +2550,7 @@ void MegaClient::exec()
                             if (scanfailed)
                             {
                                 fsaccess->notifyerr = false;
-                                dstime backoff = 50 + totalnodes / 128;
+                                dstime backoff = 300 + totalnodes / 128;
                                 syncscanbt.backoff(backoff);
                                 syncscanfailed = true;
                                 LOG_warn << "Next full scan in " << backoff << " ds";
@@ -2951,7 +2995,8 @@ bool MegaClient::abortbackoff(bool includexfers)
     if (includexfers)
     {
         overquotauntil = 0;
-        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
+        int end = (ststatus != STORAGE_RED) ? PUT : GET;
+        for (int d = GET; d <= end; d += PUT - GET)
         {
             for (transfer_map::iterator it = transfers[d].begin(); it != transfers[d].end(); it++)
             {
@@ -3583,6 +3628,7 @@ void MegaClient::locallogout()
     putmbpscap = 0;
     fetchingnodes = false;
     fetchnodestag = 0;
+    ststatus = STORAGE_GREEN;
     overquotauntil = 0;
     scpaused = false;
 
@@ -3834,6 +3880,10 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+
+                            char me64[12];
+                            Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+                            reqs.add(new CommandGetUA(this, me64, ATTR_STORAGE_STATE, NULL, 0));
                         }
                         else
                         {
@@ -4569,6 +4619,22 @@ bool MegaClient::moretransfers(direction_t d)
     return false;
 }
 
+bool MegaClient::setstoragestatus(storagestatus_t status)
+{
+    if (ststatus != status)
+    {
+        storagestatus_t pststatus = ststatus;
+        ststatus = status;
+        app->notify_storage();
+        if (pststatus == STORAGE_RED)
+        {
+            abortbackoff(true);
+        }
+        return true;
+    }
+    return false;
+}
+
 void MegaClient::dispatchmore(direction_t d)
 {
     // keep pipeline full by dispatching additional queued transfers, if
@@ -5184,8 +5250,8 @@ void MegaClient::sc_userattr()
                             }
                         }
 
-                        // silently fetch-upon-update this critical attribute
-                        if (type == ATTR_DISABLE_VERSIONS)
+                        // silently fetch-upon-update these critical attributes
+                        if (type == ATTR_DISABLE_VERSIONS || type == ATTR_STORAGE_STATE)
                         {
                             getua(u, type, 0);
                         }
@@ -8551,7 +8617,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
     {
         attr_t type = it->first;;
 
-        if (!User::needversioning(type))
+        if (User::needversioning(type) != 1)
         {
             restag = tag;
             return app->putua_result(API_EARGS);
@@ -8657,8 +8723,10 @@ void MegaClient::notifynode(Node* n)
             changed |= n->changed.fileattrstring << 4;
             changed |= n->changed.inshare << 5;
             changed |= n->changed.outshares << 6;
-            changed |= n->changed.parent << 7;
-            changed |= n->changed.publiclink << 8;
+            changed |= n->changed.pendingshares << 7;
+            changed |= n->changed.parent << 8;
+            changed |= n->changed.publiclink << 9;
+            changed |= n->changed.newnode << 10;
 
             int attrlen = int(n->attrstring->size());
             string base64attrstring;
@@ -10389,6 +10457,10 @@ void MegaClient::fetchnodes(bool nocache)
             LOG_info << "File versioning is enabled";
             versions_disabled = false;
         }
+
+        char me64[12];
+        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+        reqs.add(new CommandGetUA(this, me64, ATTR_STORAGE_STATE, NULL, 0));
 
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
@@ -12610,6 +12682,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
             }
+            else if (d == PUT && ststatus == STORAGE_RED)
+            {
+                t->failed(API_EOVERQUOTA);
+            }
         }
         else
         {
@@ -12709,6 +12785,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             {
                 dstime timeleft = dstime(overquotauntil - Waiter::ds);
                 t->failed(API_EOVERQUOTA, timeleft);
+            }
+            else if (d == PUT && ststatus == STORAGE_RED)
+            {
+                t->failed(API_EOVERQUOTA);
             }
         }
     }
@@ -12810,7 +12890,10 @@ void MegaClient::setmaxconnections(direction_t d, int num)
                 if (slot->transfer->type == d)
                 {
                     slot->transfer->state = TRANSFERSTATE_QUEUED;
-                    slot->transfer->bt.arm();
+                    if (slot->transfer->client->ststatus != STORAGE_RED || slot->transfer->type == GET)
+                    {
+                        slot->transfer->bt.arm();
+                    }
                     delete slot;
                 }
             }

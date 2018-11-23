@@ -409,9 +409,15 @@ bool File::failed(error e)
         return transfer->failcount < 16;
     }
 
-    return ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
+    return  // Non fatal errors, up to 16 retries
+            ((e != API_EBLOCKED && e != API_ENOENT && e != API_EINTERNAL && e != API_EACCESS && transfer->failcount < 16)
+            // I/O errors up to 6 retries
             && !((e == API_EREAD || e == API_EWRITE) && transfer->failcount > 6))
-            || (syncxfer && e != API_EBLOCKED && e != API_EKEY && transfer->failcount <= 8);
+            // Retry sync transfers up to 8 times for erros that doesn't have a specific management
+            // to prevent immediate retries triggered by the sync engine
+            || (syncxfer && e != API_EBLOCKED && e != API_EKEY && transfer->failcount <= 8)
+            // Infinite retries for storage overquota errors
+            || e == API_EOVERQUOTA || e == API_EGOINGOVERQUOTA;
 }
 
 void File::displayname(string* dname)
