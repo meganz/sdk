@@ -221,6 +221,10 @@ public:
     textchat_map chats;
 #endif
 
+    // cause for the retry of a request
+    retryreason_t waitingRequest;
+    dstime waitingRequestDs;
+
     // process API requests and HTTP I/O
     void exec();
 
@@ -841,6 +845,8 @@ private:
 
     static const char PAYMENT_PUBKEY[];
 
+    virtual void retrying(dstime, retryreason_t);
+
 public:
     void enabletransferresumption(const char *loggedoutid = NULL);
     void disabletransferresumption(const char *loggedoutid = NULL);
@@ -1006,6 +1012,9 @@ public:
 
     // minimum time retries are notified
     static dstime MIN_NOTIFY_RETRY_DS;
+
+    // minimum time to notify an Internet outage
+    static dstime MIN_NOTIFY_NOINET_DS;
 
     // initial state load in progress?
     bool fetchingnodes;

@@ -1241,12 +1241,18 @@ void DemoApp::delua_result(error e)
 #endif
 
 
-void DemoApp::notify_retry(dstime dsdelta, retryreason_t)
+void DemoApp::notify_retry(dstime dsdelta, retryreason_t reason)
 {
-    if (dsdelta)
+    if (reason != RETRY_NONE)
     {
-        cout << "API request failed, retrying in " << dsdelta * 100 << " ms - Use 'retry' to retry immediately..."
-             << endl;
+        if (dsdelta)
+        {
+            cout << "API request failed, retrying in " << dsdelta * 100 << " ms - Use 'retry' to retry immediately..." << endl;
+        }
+        else
+        {
+            cout << "API request failed, retrying..." << endl;
+        }
     }
     else
     {

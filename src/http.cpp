@@ -425,7 +425,6 @@ HttpReq::HttpReq(bool b)
     buflen = 0;
     protect = false;
     minspeed = false;
-    dnsqueryfailed = false;
 
     init();
 }

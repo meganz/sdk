@@ -79,6 +79,9 @@ dstime MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS = 86400; // 1 day
 // minimum time retries are notified
 dstime MegaClient::MIN_NOTIFY_RETRY_DS = 10;
 
+// minimum time to notify an Internet outage
+dstime MegaClient::MIN_NOTIFY_NOINET_DS = 50;
+
 // stats id
 char* MegaClient::statsid = NULL;
 
@@ -1071,6 +1074,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     aplvp_enabled = false;
     loggingout = 0;
     cachedug = false;
+    waitingRequest = RETRY_NONE;
+    waitingRequestDs = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -1601,10 +1606,9 @@ void MegaClient::exec()
                             }
                         }
 
-                        if (pendingcs->dnsqueryfailed)
+                        if (httpio->noinetds && (Waiter::ds - httpio->noinetds) > MIN_NOTIFY_NOINET_DS)
                         {
-                            app->notify_retry(MIN_NOTIFY_RETRY_DS, RETRY_CONNECTIVITY);
-                            pendingcs->dnsqueryfailed = false;
+                            retrying(0, RETRY_CONNECTIVITY);
                         }
                         break;
 
@@ -1622,7 +1626,7 @@ void MegaClient::exec()
                                     fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                                 }
 
-                                app->notify_retry(0, RETRY_NONE);
+                                retrying(0, RETRY_NONE);
                                 csretrying = false;
 
                                 // request succeeded, process result array
@@ -1746,7 +1750,7 @@ void MegaClient::exec()
                         pendingcs = NULL;
 
                         btcs.backoff();
-                        app->notify_retry(btcs.retryin(), reason);
+                        retrying(btcs.retryin(), reason);
                         csretrying = true;
 
                     default:
@@ -1816,7 +1820,7 @@ void MegaClient::exec()
                     LOG_debug << "Waitd keep-alive received";
                     delete pendingsc;
                     pendingsc = NULL;
-                    app->notify_retry(0, RETRY_NONE);
+                    retrying(0, RETRY_NONE);
                     btsc.reset();
                     break;
                 }
@@ -1825,7 +1829,7 @@ void MegaClient::exec()
                 {
                     jsonsc.begin(pendingsc->in.c_str());
                     jsonsc.enterobject();
-                    app->notify_retry(0, RETRY_NONE);
+                    retrying(0, RETRY_NONE);
                     break;
                 }
                 else
@@ -1921,15 +1925,15 @@ void MegaClient::exec()
                 {
                     reason = RETRY_UNKNOWN;
                 }
-                app->notify_retry(btsc.retryin(), reason);
+                retrying(btsc.retryin(), reason);
                 break;
 
             case REQ_INFLIGHT:
-                if (pendingsc->dnsqueryfailed)
+                if (httpio->noinetds && (Waiter::ds - httpio->noinetds) > MIN_NOTIFY_NOINET_DS)
                 {
-                    app->notify_retry(MIN_NOTIFY_RETRY_DS, RETRY_CONNECTIVITY);
-                    pendingsc->dnsqueryfailed = false;
+                    retrying(0, RETRY_CONNECTIVITY);
                 }
+
                 if (Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
                     LOG_debug << "sc timeout expired";
@@ -3585,6 +3589,8 @@ void MegaClient::locallogout()
     aplvp_enabled = false;
     loggingout = 0;
     cachedug = false;
+    waitingRequest = RETRY_NONE;
+    waitingRequestDs = 0;
 
     freeq(GET);
     freeq(PUT);
@@ -10962,6 +10968,24 @@ void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)
             }
             else it++;
         }
+    }
+}
+
+void MegaClient::retrying(dstime dsdelta, retryreason_t reason)
+{
+    retryreason_t previousFlag = waitingRequest;
+    dstime previousDs = waitingRequestDs;
+
+    if (!dsdelta // take into account changes without an associated backoff
+            || dsdelta >= MegaClient::MIN_NOTIFY_RETRY_DS) // but ignore too fast connectivity issues (some fast retries are assumable)
+    {
+        waitingRequest = reason;
+        waitingRequestDs = dsdelta;
+    }
+
+    if (previousFlag != waitingRequest || previousDs != waitingRequestDs)
+    {
+        app->notify_retry(waitingRequestDs, waitingRequest);
     }
 }
 
