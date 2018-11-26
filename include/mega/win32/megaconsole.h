@@ -143,7 +143,9 @@ struct MEGA_API WinConsole : public Console
     void clearScreen();
     void outputHistory();
     void retractPrompt();
-    
+
+    std::wstring getInputLineToCursor();
+
     enum logstyle { no_log, utf8_log, utf16_log, codepage_log };
     bool log(const std::string& filename, logstyle logstyle);
 

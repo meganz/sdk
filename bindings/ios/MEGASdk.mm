@@ -165,6 +165,10 @@ using namespace mega;
 
 #endif
 
+- (NSInteger)numUnreadUserAlerts {
+    return self.megaApi->getNumUnreadUserAlerts();
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {
@@ -360,6 +364,12 @@ using namespace mega;
     return MegaApi::base64ToHandle([base64Handle UTF8String]);
 }
 
++ (uint64_t)handleForBase64UserHandle:(NSString *)base64UserHandle {
+    if(base64UserHandle == nil) return ::mega::INVALID_HANDLE;
+    
+     return MegaApi::base64ToUserHandle([base64UserHandle UTF8String]);
+}
+
 + (NSString *)base64HandleForHandle:(uint64_t)handle {
     const char *val = MegaApi::handleToBase64(handle);
     if (!val) return nil;
@@ -390,6 +400,10 @@ using namespace mega;
 
 - (BOOL)serverSideRubbishBinAutopurgeEnabled {
     return self.megaApi->serverSideRubbishBinAutopurgeEnabled();
+}
+
+- (BOOL)appleVoipPushEnabled {
+    return self.megaApi->appleVoipPushEnabled();
 }
 
 #pragma mark - Login Requests
@@ -1759,6 +1773,14 @@ using namespace mega;
 - (MEGANode *)authorizeNode:(MEGANode *)node {
     return [[MEGANode alloc] initWithMegaNode:self.megaApi->authorizeNode((node != nil) ? [node getCPtr] : NULL) cMemoryOwn:YES];
 }
+
+#ifdef ENABLE_CHAT
+
+- (MEGANode *)authorizeChatNode:(MEGANode *)node cauth:(NSString *)cauth {
+    return [[MEGANode alloc] initWithMegaNode:self.megaApi->authorizeChatNode(node ? [node getCPtr] : NULL, cauth ? [cauth UTF8String] : NULL) cMemoryOwn:YES];
+}
+
+#endif
 
 - (NSNumber *)sizeForNode:(MEGANode *)node {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getSize([node getCPtr])];

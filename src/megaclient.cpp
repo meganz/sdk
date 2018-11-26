@@ -868,7 +868,7 @@ void MegaClient::getpsa()
 
 void MegaClient::acknowledgeuseralerts()
 {
-    reqs.add(new CommandSetLastAcknowledged(this));
+    useralerts.acknowledgeAll();
 }
 
 // set warn level
@@ -1022,6 +1022,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     gfxdisabled = false;
     ssrs_enabled = false;
     nsr_enabled = false;
+    aplvp_enabled = false;
     loggingout = 0;
     cachedug = false;
 
@@ -1973,12 +1974,12 @@ void MegaClient::exec()
                 else if (workinglockcs->in == "0")
                 {
                     sendevent(99425, "Timeout (server busy)", 0);
-
                     pendingcs->lastdata = Waiter::ds;
                 }
                 else
                 {
                     LOG_err << "Error in lock request: " << workinglockcs->in;
+                    disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
                 }
 
                 delete workinglockcs;
@@ -3142,6 +3143,7 @@ bool MegaClient::dispatch(direction_t d)
                 bool hprivate = true;
                 const char *privauth = NULL;
                 const char *pubauth = NULL;
+                const char *chatauth = NULL;
 
                 nexttransfer->pos = 0;
                 nexttransfer->progresscompleted = 0;
@@ -3227,6 +3229,7 @@ bool MegaClient::dispatch(direction_t d)
                             hprivate = (*it)->hprivate;
                             privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
                             pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
+                            chatauth = (*it)->chatauth;
                             break;
                         }
                         else
@@ -3245,7 +3248,7 @@ bool MegaClient::dispatch(direction_t d)
                 {
                     reqs.add((ts->pendingcmd = (d == PUT)
                           ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth)));
+                          : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth, chatauth)));
                 }
 
                 LOG_debug << "Activating transfer";
@@ -3493,6 +3496,7 @@ void MegaClient::locallogout()
     gmfa_enabled = false;
     ssrs_enabled = false;
     nsr_enabled = false;
+    aplvp_enabled = false;
     loggingout = 0;
     cachedug = false;
 
@@ -3846,17 +3850,12 @@ bool MegaClient::procsc()
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
 
+                        // historic user alerts are not supported for public folders
                         if (sid.size())
                         {
                             // now that we have loaded cached state, and caught up actionpackets since that state
                             // (or just fetched everything if there was no cache), our next sc request can be for useralerts
                             useralerts.begincatchup = true;
-                        }
-                        else
-                        {
-                            // historic user alerts are not supported for public folders
-                            useralerts.begincatchup = false;
-                            useralerts.catchupdone = true;
                         }
                     }
                     return true;
@@ -4800,13 +4799,14 @@ bool MegaClient::sc_shares()
                         {
                             User* u = finduser(oh);
                             useralerts.add(new UserAlert::NewShare(h, oh, u ? u->email : "", ts, useralerts.nextId()));
+                            useralerts.ignoreNextSharedNodesUnder(h);  // no need to alert on nodes already in the new share, which are delivered next
                         }
 
                         // new share - can be inbound or outbound
                         newshares.push_back(new NewShare(h, outbound,
                                                          outbound ? uh : oh,
                                                          r, ts, sharekey,
-                                                         have_ha ? ha : NULL, 
+                                                         have_ha ? ha : NULL,
                                                          p, upgrade_pending_to_full));
 
                         //Returns false because as this is a new share, the node
@@ -4918,15 +4918,23 @@ void MegaClient::sc_paymentreminder()
 // u:[{c/m/ts}*] - Add/modify user/contact
 void MegaClient::sc_contacts()
 {
+    handle ou = UNDEF;
+
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
             case 'u':
+                useralerts.startprovisional();
                 readusers(&jsonsc, true);
                 break;
 
+            case MAKENAMEID2('o', 'u'):
+                ou = jsonsc.gethandle(MegaClient::USERHANDLE);
+                break;
+
             case EOO:
+                useralerts.evalprovisional(ou);
                 return;
 
             default:
@@ -5381,7 +5389,7 @@ void MegaClient::sc_upc(bool incoming)
     m_time_t uts = 0;
     int s = 0;
     const char *m = NULL;
-    handle p = UNDEF;
+    handle p = UNDEF, ou = UNDEF;
     PendingContactRequest *pcr;
 
     bool done = false;
@@ -5400,6 +5408,9 @@ void MegaClient::sc_upc(bool incoming)
                 break;
             case 'p':
                 p = jsonsc.gethandle(MegaClient::PCRHANDLE);
+                break;
+            case MAKENAMEID2('o', 'u'):
+                ou = jsonsc.gethandle(MegaClient::PCRHANDLE);
                 break;
             case EOO:
                 done = true;
@@ -5453,7 +5464,7 @@ void MegaClient::sc_upc(bool incoming)
                     pcr->uts = uts;
                 }
 
-                if (statecurrent)
+                if (statecurrent && ou != me)
                 {
                     string email;
                     Node::copystring(&email, m);
@@ -5650,7 +5661,7 @@ void MegaClient::sc_se()
 #ifdef ENABLE_CHAT
 void MegaClient::sc_chatupdate()
 {
-    // fields: id, u, cs, n, g, ou
+    // fields: id, u, cs, n, g, ou, ct, ts, m, ck
     handle chatid = UNDEF;
     userpriv_vector *userpriv = NULL;
     int shard = -1;
@@ -5659,6 +5670,8 @@ void MegaClient::sc_chatupdate()
     handle ou = UNDEF;
     string title;
     m_time_t ts = -1;
+    bool publicchat = false;
+    string unifiedkey;
 
     bool done = false;
     while (!done)
@@ -5697,6 +5710,14 @@ void MegaClient::sc_chatupdate()
                 ts = jsonsc.getint();
                 break;
 
+            case 'm':
+                publicchat = jsonsc.getint();
+                break;
+
+            case MAKENAMEID2('c','k'):
+                jsonsc.storeobject(&unifiedkey);
+                break;
+
             case EOO:
                 done = true;
 
@@ -5714,9 +5735,16 @@ void MegaClient::sc_chatupdate()
                 }
                 else
                 {
+                    bool mustHaveUK = false;
+                    privilege_t oldPriv = PRIV_UNKNOWN;
                     if (chats.find(chatid) == chats.end())
                     {
                         chats[chatid] = new TextChat();
+                        mustHaveUK = true;
+                    }
+                    else
+                    {
+                        oldPriv = chats[chatid]->priv;
                     }
 
                     TextChat *chat = chats[chatid];
@@ -5742,6 +5770,7 @@ void MegaClient::sc_chatupdate()
                             if (upvit->first == me)
                             {
                                 found = true;
+                                mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
                                 chat->priv = upvit->second;
                                 userpriv->erase(upvit);
                                 if (userpriv->empty())
@@ -5761,6 +5790,7 @@ void MegaClient::sc_chatupdate()
                         {
                             if (upvit->first == me)
                             {
+                                mustHaveUK = (oldPriv <= PRIV_RM && upvit->second > PRIV_RM);
                                 chat->priv = upvit->second;
                                 break;
                             }
@@ -5768,6 +5798,16 @@ void MegaClient::sc_chatupdate()
                     }
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
+
+                    chat->setMode(publicchat);
+                    if (!unifiedkey.empty())    // not all actionpackets include it
+                    {
+                        chat->unifiedKey = unifiedkey;
+                    }
+                    else if (publicchat && mustHaveUK)
+                    {
+                        LOG_err << "Public chat without unified key detected";
+                    }
 
                     chat->setTag(0);    // external change
                     notifychat(chat);
@@ -6117,6 +6157,13 @@ void MegaClient::notifypurge(void)
     {
         LOG_debug << "Notifying " << t << " user alerts";
         app->useralerts_updated(&useralerts.useralertnotify[0], t);
+
+        for (i = 0; i < t; i++)
+        {
+            UserAlert::Base *ua = useralerts.useralertnotify[i];
+            ua->tag = -1;
+        }
+
         useralerts.useralertnotify.clear();
     }
 
@@ -6255,9 +6302,9 @@ error MegaClient::setattr(Node* n, const char *prevattr)
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes)
+void MegaClient::putnodes(handle h, NewNode* newnodes, int numnodes, const char *cauth)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag));
+    reqs.add(new CommandPutNodes(this, h, NULL, newnodes, numnodes, reqtag, PUTNODES_APP, cauth));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
@@ -6899,7 +6946,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
                 if (u != me && !ISUNDEF(u) && !fetchingnodes)
                 {
-                    useralerts.noteSharedNode(u, t, ts);
+                    useralerts.noteSharedNode(u, t, ts, n);
                 }
 
                 if (nn && nni >= 0 && nni < nnsize)
@@ -8519,16 +8566,16 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, tag));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag));
         }
     }
 }
 
-void MegaClient::getua(const char *email_handle, const attr_t at, int ctag)
+void MegaClient::getua(const char *email_handle, const attr_t at, const char *ph, int ctag)
 {
     if (email_handle && at != ATTR_UNKNOWN)
     {
-        reqs.add(new CommandGetUA(this, email_handle, at, (ctag != -1) ? ctag : reqtag));
+        reqs.add(new CommandGetUA(this, email_handle, at, ph,(ctag != -1) ? ctag : reqtag));
     }
 }
 
@@ -8907,7 +8954,9 @@ void MegaClient::procmcf(JSON *j)
                         userpriv_vector *userpriv = NULL;
                         bool group = false;
                         string title;
+                        string unifiedKey;
                         m_time_t ts = -1;
+                        bool publicchat = false;
 
                         bool readingChat = true;
                         while(readingChat) // read the chat information
@@ -8938,8 +8987,16 @@ void MegaClient::procmcf(JSON *j)
                                 j->storeobject(&title);
                                 break;
 
+                            case MAKENAMEID2('c', 'k'):  // store unified key for public chats
+                                j->storeobject(&unifiedKey);
+                                break;
+
                             case MAKENAMEID2('t', 's'):  // actual creation timestamp
                                 ts = j->getint();
+                                break;
+
+                            case 'm':   // operation mode: 1 -> public chat; 0 -> private chat
+                                publicchat = j->getint();
                                 break;
 
                             case EOO:
@@ -8957,6 +9014,12 @@ void MegaClient::procmcf(JSON *j)
                                     chat->group = group;
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
+                                    chat->publicchat = publicchat;
+                                    chat->unifiedKey = unifiedKey;
+                                    if (publicchat && unifiedKey.empty())
+                                    {
+                                        LOG_err << "Received public chat without unified key";
+                                    }
 
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
@@ -10327,7 +10390,7 @@ void MegaClient::fetchnodes(bool nocache)
 
         char me64[12];
         Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, 0));
+        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, NULL, 0));
     }
 }
 
@@ -10696,9 +10759,9 @@ void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
 }
 
 // request direct read by exported handle / key
-void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata, bool isforeign)
+void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata, bool isforeign, const char *privauth, const char *pubauth)
 {
-    queueread(ph, isforeign, key, ctriv, count, offset, appdata);
+    queueread(ph, isforeign, key, ctriv, count, offset, appdata, privauth, pubauth);
 }
 
 // since only the first six bytes of a handle are in use, we use the seventh to encode its type
@@ -10715,7 +10778,7 @@ bool MegaClient::isprivatehandle(handle* hp)
     return ((char*)hp)[NODEHANDLE] != 0;
 }
 
-void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata)
+void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata, const char* privauth, const char *pubauth)
 {
     handledrn_map::iterator it;
 
@@ -10726,7 +10789,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
     if (it == hdrns.end())
     {
         // this handle is not being accessed yet: insert
-        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv)));
+        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv, privauth, pubauth)));
         it->second->hdrn_it = it;
         it->second->enqueue(offset, count, reqtag, appdata);
 
@@ -12859,14 +12922,14 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, const userpriv_vector *userpriv)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title)
 {
-    reqs.add(new CommandChatCreate(this, group, userpriv));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title));
 }
 
-void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *title)
+void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)
 {
-    reqs.add(new CommandChatInvite(this, chatid, uh, (privilege_t) priv, title));
+    reqs.add(new CommandChatInvite(this, chatid, uh, (privilege_t) priv, unifiedkey, title));
 }
 
 void MegaClient::removeFromChat(handle chatid, handle uh)
@@ -12979,6 +13042,26 @@ void MegaClient::archiveChat(handle chatid, bool archived)
 void MegaClient::richlinkrequest(const char *url)
 {
     reqs.add(new CommandRichLink(this, url));
+}
+
+void MegaClient::chatlink(handle chatid, bool del, bool createifmissing)
+{
+    reqs.add(new CommandChatLink(this, chatid, del, createifmissing));
+}
+
+void MegaClient::chatlinkurl(handle publichandle)
+{
+    reqs.add(new CommandChatLinkURL(this, publichandle));
+}
+
+void MegaClient::chatlinkclose(handle chatid, const char *title)
+{
+    reqs.add(new CommandChatLinkClose(this, chatid, title));
+}
+
+void MegaClient::chatlinkjoin(handle publichandle, const char *unifiedkey)
+{
+    reqs.add(new CommandChatLinkJoin(this, publichandle, unifiedkey));
 }
 #endif
 

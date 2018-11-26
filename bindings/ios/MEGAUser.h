@@ -46,7 +46,8 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypePwdReminder             = 0x4000,
     MEGAUserChangeTypeDisableVersions         = 0x8000,
     MEGAUserChangeTypeContactLinkVerification = 0x10000,
-    MEGAUserChangeTypeRichPreviews            = 0x20000
+    MEGAUserChangeTypeRichPreviews            = 0x20000,
+    MEGAUserChangeTypeRubbishTime             = 0x40000
 };
 
 /**
@@ -165,6 +166,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserChangeTypeRichPreviews = 0x20000
  * Check if option for rich links has changed
  *
+ * - MEGAUserChangeTypeRubbishTime = 0x40000
+ * Check if rubbish time for autopurge has changed
+ *
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 
@@ -248,6 +252,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypeRichPreviews = 0x20000
  * Check if option for rich links has changed
+ *
+ * - MEGAUserChangeTypeRubbishTime = 0x40000
+ * Check if rubbish time for autopurge has changed
  *
  * @return YES if this user has an specific change
  */

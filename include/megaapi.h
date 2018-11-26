@@ -31,8 +31,9 @@
 #endif
 
 namespace mega
-{   		
+{
 typedef uint64_t MegaHandle;
+
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
 #else
@@ -975,6 +976,17 @@ class MegaNode
         virtual std::string* getPublicAuth();
 
         /**
+         * @brief Return the chat auth token to access this node
+         *
+         * The MegaNode object retains the ownership of the returned pointer. It will be valid until the deletion
+         * of the MegaNode object.
+         *
+         * @return Chat auth token to access the node
+         * @deprecated This function is intended for internal purposes and will be probably removed in future updates.
+         */
+        virtual const char *getChatAuth();
+
+        /**
          * @brief Returns the child nodes of an authorized folder node
          *
          * This function always returns NULL, except for authorized folder nodes.
@@ -1150,7 +1162,8 @@ class MegaUser
             CHANGE_TYPE_PWD_REMINDER    = 0x4000,
             CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
             CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
-            CHANGE_TYPE_RICH_PREVIEWS   = 0x20000
+            CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
+            CHANGE_TYPE_RUBBISH_TIME    = 0x40000
         };
 
         /**
@@ -1217,6 +1230,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_RICH_PREVIEWS    = 0x20000
          * Check if option for rich links has changed
          *
+         * - MegaUser::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
+         * Check if rubbish time for autopurge has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1282,6 +1298,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_RICH_PREVIEWS    = 0x20000
          * Check if option for rich links has changed
+         *
+         * - MegaUser::CHANGE_TYPE_RUBBISH_TIME    = 0x40000
+         * Check if rubbish time for autopurge has changed
          */
         virtual int getChanges();
 
@@ -1445,6 +1464,20 @@ public:
     virtual const char* getPath() const;
 
     /**
+     * @brief Returns the name of a file, folder, or node related to the alert
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaUserAlert object is deleted.
+     *
+     * This value is valid for those alerts that relate to a single name, provided
+     * it could be looked up from the cached nodes at the time the alert arrived.
+     * Otherwise, it may be obtainable via the nodeHandle.
+     *
+     * @return the name string if relevant and available, otherwise NULL
+     */
+    virtual const char* getName() const;
+
+    /**
     * @brief Returns the heading related to this alert
     *
     * The SDK retains the ownership of the returned value. They will be valid until
@@ -1504,6 +1537,17 @@ public:
     * @return a pointer to the string if index is valid; otherwise NULL
     */
     virtual const char* getString(unsigned index) const;
+
+    /**
+     * @brief Indicates if the user alert is changed by yourself or by another client.
+     *
+     * This value is only useful for user alerts notified by MegaListener::onUserAlertsUpdate or
+     * MegaGlobalListener::onUserAlertsUpdate that can notify about user alerts modifications.
+     *
+     * @return false if the change is external. true if the change is the result of a
+     * request sent by this instance of the SDK.
+     */
+    virtual bool isOwnChange() const;
 };
 
 /**
@@ -1745,7 +1789,9 @@ public:
 
     enum
     {
-        CHANGE_TYPE_ATTACHMENT        = 0x01
+        CHANGE_TYPE_ATTACHMENT      = 0x01,
+        CHANGE_TYPE_FLAGS           = 0x02,
+        CHANGE_TYPE_MODE            = 0x04
     };
 
     virtual ~MegaTextChat();
@@ -1829,6 +1875,15 @@ public:
      */
     virtual const char *getTitle() const;
 
+    /**
+     * @brief Returns the Unified key of the chat, if it's a public chat.
+     *
+     * The MegaTextChat retains the ownership of the returned string. It will
+     * be only valid until the MegaTextChat is deleted.
+     *
+     * @return The Unified key [<senderid><uk>] of the chat as a byte array encoded in Base64URL, or NULL if not available.
+     */
+    virtual const char *getUnifiedKey() const;
 
     /**
      * @brief Returns true if this chat has an specific change
@@ -1840,8 +1895,14 @@ public:
      *
      * @param changeType The type of change to check. It can be one of the following values:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT      = 0x01
+     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
+     *
+     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * Check if flags have changed (like archive flag)
+     *
+     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * Check if operation mode has changed to private mode (from public mode)
      *
      * @return true if this chat has an specific change
      */
@@ -1855,8 +1916,14 @@ public:
      *
      * @return The returned value is an OR combination of these flags:
      *
-     * - MegaUser::CHANGE_TYPE_ATTACHMENT      = 0x01
+     * - MegaUser::CHANGE_TYPE_ATTACHMENT       = 0x01
      * Check if the access to nodes have been granted/revoked
+     *
+     * - MegaUser::CHANGE_TYPE_FLAGS            = 0x02
+     * Check if flags have changed (like archive flag)
+     *
+     * - MegaUser::CHANGE_TYPE_MODE             = 0x04
+     * Check if operation mode has changed to private mode (from public mode)
      */
     virtual int getChanges() const;
 
@@ -1886,6 +1953,12 @@ public:
      * @return True if this chat is archived.
      */
     virtual bool isArchived() const;
+
+    /**
+     * @brief Returns whether this chat is public or private
+     * @return True if this chat is public
+     */
+    virtual bool isPublicChat() const;
 };
 
 /**
@@ -1941,6 +2014,12 @@ public:
 class MegaStringMap
 {
 public:
+    /**
+     * @brief Creates a new instance of MegaStringMap
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaStringMap *createInstance();
+
     virtual ~MegaStringMap();
 
     virtual MegaStringMap *copy() const;
@@ -2042,7 +2121,7 @@ class MegaNodeList
 {
     public:
         /**
-         * @brief Creates a new instance of MegaChatPeerList
+         * @brief Creates a new instance of MegaNodeList
          * @return A pointer to the superclass of the private object
          */
         static MegaNodeList * createInstance();
@@ -2350,6 +2429,7 @@ class MegaRequest
             TYPE_MULTI_FACTOR_AUTH_GET, TYPE_MULTI_FACTOR_AUTH_SET,
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
+            TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -4961,7 +5041,7 @@ class MegaGlobalListener
         * for those objects.
         *
         * @param api MegaApi object connected to the account
-        * @param users List that contains the new or updated contacts
+        * @param alerts List that contains the new or updated alerts
         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
@@ -5271,7 +5351,7 @@ class MegaListener
         * for those objects.
         *
         * @param api MegaApi object connected to the account
-        * @param users List that contains the new or updated contacts
+        * @param alerts List that contains the new or updated alerts
         */
         virtual void onUserAlertsUpdate(MegaApi* api, MegaUserAlertList *alerts);
 
@@ -6059,6 +6139,12 @@ class MegaApi
          * @return True if this feature is enabled. Otherwise false.
          */
         bool serverSideRubbishBinAutopurgeEnabled();
+
+        /**
+         * @brief Check if the account has VOIP push enabled
+         * @return True if this feature is enabled. Otherwise false.
+         */
+        bool appleVoipPushEnabled();
 
         /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
@@ -7625,6 +7711,44 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get public attributes of participants of public chats during preview mode.
+         *
+         * Other's public attributes are retrievable by contacts and users who participates in your chats.
+         * During a preview of a public chat, the user does not fullfil the above requirements, so the
+         * public handle of the chat being previewed is required as authorization.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type
+         * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+         * - MegaRequest::getSessionKey - Returns the public handle of the chat
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the value for public attributes
+         *
+         * @param email_or_handle Email or user handle (Base64 encoded) to get the attribute.
+         * This parameter cannot be NULL.
+         * @param type Attribute type
+         *
+         * Valid values are:
+         *
+         * MegaApi::USER_ATTR_AVATAR = 0
+         * Get the avatar of the user (public)
+         * MegaApi::USER_ATTR_FIRSTNAME = 1
+         * Get the firstname of the user (public)
+         * MegaApi::USER_ATTR_LASTNAME = 2
+         * Get the lastname of the user (public)
+         * MegaApi::USER_ATTR_ED25519_PUBLIC_KEY = 5
+         * Get the public key Ed25519 of the user (public)
+         * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
+         * Get the public key Cu25519 of the user (public)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get an attribute of any user in MEGA.
@@ -10599,6 +10723,13 @@ class MegaApi
         MegaUserAlertList* getUserAlerts();
 
         /**
+         * @brief Get the number of unread user alerts for the logged in user
+         *
+         * @return Number of unread user alerts
+         */
+        int getNumUnreadUserAlerts();
+
+        /**
          * @brief Get a list with all inbound sharings from one MegaUser
          *
          * You take the ownership of the returned value
@@ -11312,6 +11443,28 @@ class MegaApi
          * @return Authorized node, or NULL if the node can't be authorized
          */
         MegaNode *authorizeNode(MegaNode *node);
+
+#ifdef ENABLE_CHAT
+        /**
+         * @brief Returns a MegaNode that can be downloaded/copied with a chat-authorization
+         *
+         * During preview of chat-links, you need to call this method to authorize the MegaNode
+         * from a node-attachment message, so the API allows to access to it. The parameter to
+         * authorize the access can be retrieved from MegaChatRoom::getAuthorizationToken when
+         * the chatroom in in preview mode.
+         *
+         * You can use MegaApi::startDownload and/or MegaApi::copyNode with the resulting
+         * node with any instance of MegaApi, even if it's logged into another account,
+         * a public folder, or not logged in.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param node MegaNode to authorize
+         * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
+         * @return Authorized node, or NULL if the node can't be authorized
+         */
+        MegaNode *authorizeChatNode(MegaNode *node, const char *cauth);
+#endif
 
         /**
          * @brief Get the SDK version
@@ -12503,7 +12656,9 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CHAT_CREATE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getFlag - Returns if the new chat is a group chat or permanent chat
+         * - MegaRequest::getAccess - Returns zero (private mode)
          * - MegaRequest::getMegaTextChatPeerList - List of participants and their privilege level
+         * - MegaRequest::getText - Returns the title of the chat.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -12518,13 +12673,50 @@ class MegaApi
          *
          * @param group Flag to indicate if the chat is a group chat or not
          * @param peers MegaTextChatPeerList including other users and their privilege level
+         * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param listener MegaRequestListener to track this request
          */
-        void createChat(bool group, MegaTextChatPeerList *peers, MegaRequestListener *listener = NULL);
+        void createChat(bool group, MegaTextChatPeerList *peers, const char *title = NULL, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Creates a public chatroom for multiple participants (groupchat)
+         *
+         * This function allows to create public chats, where the moderator can create chat links to share
+         * the access to the chatroom via a URL (chat-link). In order to create a public chat-link, the
+         * moderator needs to create / get a public handle for the chatroom by using \c MegaApi::chatLinkCreate.
+         *
+         * The resulting chat-link allows anyone (even users without an account in MEGA) to review the
+         * history of the chatroom. The \c MegaApi::getChatLinkURL provides the chatd URL to connect.
+         *
+         * Users with an account in MEGA can freely join the room by themselves (the privilege
+         * upon join will be standard / read-write) by using \c MegaApi::chatLinkJoin.
+         *
+         * The creator of the chat will have moderator level privilege and should not be included in the
+         * list of peers.
+         *
+         * The associated request type with this request is MegaChatRequest::TYPE_CREATE_CHATROOM
+         * Valid data in the MegaChatRequest object received on callbacks:
+         * - MegaChatRequest::getFlag - Returns if the new chat is a group chat or permanent chat
+         * - MegaRequest::getAccess - Returns one (public mode)
+         * - MegaChatRequest::getMegaChatPeerList - List of participants and their privilege level
+         * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
+         * - MegaRequest::getText - Returns the title of the chat.
+         *
+         * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
+         * is MegaError::ERROR_OK:
+         * - MegaChatRequest::getChatHandle - Returns the handle of the new chatroom
+         *
+         * @param peers MegaChatPeerList including other users and their privilege level
+         * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
+         * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
+         *
+         * @param listener MegaChatRequestListener to track this request
+         */
+        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the
-         * operator privilege in the chat, and the chat must be a group chat.
+         * operator privilege in the chat, and the chat must be a group chat in private mode.
          *
          * In case the chat has a title already set, the title must be encrypted for the new
          * peer and passed to this function. Note that only participants with privilege level
@@ -12535,7 +12727,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
          * - MegaRequest::getAccess - Returns the privilege level wanted for the user
-         * - MegaRequest::getText - Returns the title of the chat.
+         * - MegaRequest::getText - Returns the title of the chat
+         * - MegaRequest::getFlag - Returns false (private/closed mode)
+         * - MegaRequest::getSessionKey - Returns the unified key for the new peer
          *
          * On the onTransferFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
@@ -12554,6 +12748,36 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void inviteToChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *title = NULL, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Adds a user to an existing chat. To do this you must have the
+         * operator privilege in the chat, and the chat must be a group chat in public mode.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_INVITE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be invited
+         * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         * - MegaRequest::getFlag - Returns true (open/public mode)
+         * - MegaRequest::getSessionKey - Returns the unified key for the new peer
+         *
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
+         * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
+
+         * @param chatid MegaHandle that identifies the chat room
+         * @param uh MegaHandle that identifies the user
+         * @param privilege Privilege level for the new peers. Valid values are:
+         * - MegaTextChatPeerList::PRIV_UNKNOWN = -2
+         * - MegaTextChatPeerList::PRIV_RM = -1
+         * - MegaTextChatPeerList::PRIV_RO = 0
+         * - MegaTextChatPeerList::PRIV_STANDARD = 2
+         * - MegaTextChatPeerList::PRIV_MODERATOR = 3
+         * @param unifiedKey Byte array that contains the unified key, already encrypted and
+         * converted to Base64url encoding.
+         * @param listener MegaRequestListener to track this request
+         */
+        void inviteToPublicChat(MegaHandle chatid, MegaHandle uh, int privilege, const char *unifiedKey = NULL, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove yourself or another user from a chat. To remove a user other than
@@ -12827,6 +13051,148 @@ class MegaApi
          */
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Query if there is a chat link for this chatroom
+         *
+         * This function can be called by a chat operator to check and retrieve the current
+         * public handle for the specified chat without creating it.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_HANDLE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the public handle of the chat link, if any
+         *
+         * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
+         * will return API_EACCESS.
+         * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkQuery(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Create or retrieve the public handle of a chat link
+         *
+         * This function can be called by a chat operator to create or retrieve the current
+         * public handle for the specified chat. It will create a management message.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_HANDLE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getParentHandle - Returns the public handle of the chat link
+         *
+         * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
+         * will return API_EACCESS.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkCreate(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Delete the public handle of a chat link
+         *
+         * This function can be called by a chat operator to remove the current public handle
+         * for the specified chat. It will create a management message.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_HANDLE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         *
+         * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
+         * will return MegaError::API_EACCESS.
+         * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkDelete(MegaHandle chatid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the URL to connect to chatd for a chat link
+         *
+         * This function can be used by anonymous and registered users to request the URL to connect
+         * to chatd, for a given public handle. @see \c MegaApi::chatLinkCreate.
+         * It also returns the shard hosting the chatroom, the real chatid and the title (if any).
+         * The chat-topic, for public chats, can be decrypted by using the unified-key, already
+         * available as part of the link for previewers and available to participants as part of
+         * the room's information. @see \c MegaTextChat::getUnifiedKey.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CHAT_LINK_URL
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Returns the URL to connect to chatd for the chat link
+         * - MegaRequest::getParentHandle - Returns the chat identifier
+         * - MegaRequest::getAccess - Returns the shard
+         * - MegaRequest::getText - Returns the chat-topic (if any)
+         *
+         * @note This function can be called without being logged in. In that case, the returned
+         * URL will be different than for logged in users, so chatd knows whether user has a session.
+         *
+         * @param publichandle MegaHandle that represents the public handle of the chat link
+         * @param listener MegaRequestListener to track this request
+         */
+        void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Convert an public chat into a private private mode chat
+         *
+         * This function allows a chat operator to convert an existing public chat into a private
+         * chat (closed mode, key rotation enabled). It will create a management message.
+         *
+         * If the groupchat already has a customized title, it's required to provide the title encrypted
+         * to a new key, so it becomes private for non-participants.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_PRIVATE_MODE.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getText - Returns the title of the chat
+         *
+         * If caller is not operator or it's a 1on1 room, this request will return MegaError::API_EACCESS.
+         * If the chat is not an public chat, this request will return MegaError::API_EEXIST.
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param title Byte array representing the title, already encrypted and converted to Base64url
+         * encoding. If the chatroom doesn't have a title yet, this parameter should be NULL.
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Allows to join a public chat
+         *
+         * This function allows any user with a MEGA account to join an open chat that has the
+         * specified public handle. It will create a management message like any new user join.
+         *
+         * @see \c MegaApi::chatLinkCreate
+         *
+         * The associated request type with this request is MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
+         * - MegaRequest::getSessionKey - Returns the unified key of the chat link
+         *
+         * @param publichandle MegaHandle that represents the public handle of the chat link
+         * @param unifiedKey Byte array that contains the unified key, already encrypted and
+         * converted to Base64url encoding.
+         * @param listener MegaRequestListener to track this request
+         */
+        void chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, MegaRequestListener *listener = NULL);
 #endif
 
         /**

@@ -64,7 +64,7 @@ namespace mega
     using Platform::String;
 
     public enum class MSortOrderType {
-        ORDER_NONE, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
+        ORDER_NONE = 0, ORDER_DEFAULT_ASC, ORDER_DEFAULT_DESC,
         ORDER_SIZE_ASC, ORDER_SIZE_DESC,
         ORDER_CREATION_ASC, ORDER_CREATION_DESC,
         ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
@@ -2030,12 +2030,146 @@ namespace mega
         void getExtendedAccountDetails(bool sessions, bool purchases, bool transactions);
         void getPricing(MRequestListenerInterface^ listener);
         void getPricing();
+
+        /**
+        * @brief Get the payment URL for an upgrade
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PAYMENT_ID
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the product
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getLink - Payment ID
+        *
+        * @param productHandle Handle of the product (see MegaSDK::getPricing)
+        * @param listener MRequestListener to track this request
+        *
+        * @see MegaSDK::getPricing
+        */
         void getPaymentId(uint64 productHandle, MRequestListenerInterface^ listener);
+        
+        /**
+        * @brief Get the payment URL for an upgrade
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PAYMENT_ID
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the product
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getLink - Payment ID
+        *
+        * @param productHandle Handle of the product (see MegaSDK::getPricing)
+        *
+        * @see MegaSDK::getPricing
+        */
         void getPaymentId(uint64 productHandle);
+
+        /**
+        * @brief Get the payment URL for an upgrade
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PAYMENT_ID
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the product
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getLink - Payment ID
+        *
+        * @param productHandle Handle of the product (see MegaSDK::getPricing)
+        * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+        * @param listener MRequestListener to track this request
+        *
+        * @see MegaSDK::getPricing
+        */
+        void getPaymentIdWithLastPublicHandle(uint64 productHandle, uint64 lastPublicHandle, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Get the payment URL for an upgrade
+        *
+        * The associated request type with this request is MRequest::TYPE_GET_PAYMENT_ID
+        * Valid data in the MRequest object received on callbacks:
+        * - MRequest::getNodeHandle - Returns the handle of the product
+        *
+        * Valid data in the MRequest object received in onRequestFinish when the error code
+        * is MError::API_OK:
+        * - MRequest::getLink - Payment ID
+        *
+        * @param productHandle Handle of the product (see MegaSDK::getPricing)
+        * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+        *
+        * @see MegaSDK::getPricing
+        */
+        void getPaymentIdWithLastPublicHandle(uint64 productHandle, uint64 lastPublicHandle);
+        
         void upgradeAccount(uint64 productHandle, int paymentMethod, MRequestListenerInterface^ listener);
         void upgradeAccount(uint64 productHandle, int paymentMethod);
+
+        /**
+        * @brief Submit a purchase receipt for verification
+        *
+        * The associated request type with this request is MRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+        *
+        * @param gateway Payment gateway
+        * Currently supported payment gateways are:
+        * - MPaymentMethod::PAYMENT_METHOD_ITUNES = 2
+        * - MPaymentMethod::PAYMENT_METHOD_GOOGLE_WALLET = 3
+        * - MPaymentMethod::PAYMENT_METHOD_WINDOWS_STORE = 13
+        *
+        * @param receipt Purchase receipt
+        * @param listener MRequestListener to track this request
+        */
         void submitPurchaseReceipt(int gateway, String^ receipt, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Submit a purchase receipt for verification
+        *
+        * The associated request type with this request is MRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+        *
+        * @param gateway Payment gateway
+        * Currently supported payment gateways are:
+        * - MPaymentMethod::PAYMENT_METHOD_ITUNES = 2
+        * - MPaymentMethod::PAYMENT_METHOD_GOOGLE_WALLET = 3
+        * - MPaymentMethod::PAYMENT_METHOD_WINDOWS_STORE = 13
+        *
+        * @param receipt Purchase receipt
+        */
         void submitPurchaseReceipt(int gateway, String^ receipt);
+
+        /**
+        * @brief Submit a purchase receipt for verification
+        *
+        * The associated request type with this request is MRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+        *
+        * @param gateway Payment gateway
+        * Currently supported payment gateways are:
+        * - MPaymentMethod::PAYMENT_METHOD_ITUNES = 2
+        * - MPaymentMethod::PAYMENT_METHOD_GOOGLE_WALLET = 3
+        * - MPaymentMethod::PAYMENT_METHOD_WINDOWS_STORE = 13
+        *
+        * @param receipt Purchase receipt
+        * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+        * @param listener MRequestListener to track this request
+        */
+        void submitPurchaseReceiptWithLastPublicHandle(int gateway, String^ receipt, uint64 lastPublicHandle, MRequestListenerInterface^ listener);
+
+        /**
+        * @brief Submit a purchase receipt for verification
+        *
+        * The associated request type with this request is MRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+        *
+        * @param gateway Payment gateway
+        * Currently supported payment gateways are:
+        * - MPaymentMethod::PAYMENT_METHOD_ITUNES = 2
+        * - MPaymentMethod::PAYMENT_METHOD_GOOGLE_WALLET = 3
+        * - MPaymentMethod::PAYMENT_METHOD_WINDOWS_STORE = 13
+        *
+        * @param receipt Purchase receipt
+        * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+        */
+        void submitPurchaseReceiptWithLastPublicHandle(int gateway, String^ receipt, uint64 lastPublicHandle);
+
         void creditCardStore(String^ address1, String^ address2, String^ city,
             String^ province, String^ country, String^ postalcode,
             String^ firstname, String^ lastname, String^ creditcard,
@@ -2686,6 +2820,13 @@ namespace mega
         */
         MUserAlertList^ getUserAlerts();
 
+        /**
+        * @brief Get the number of unread user alerts for the logged in user
+        *
+        * @return Number of unread user alerts
+        */
+        int getNumUnreadUserAlerts();
+
         MNodeList^ getInShares(MUser^ user);
         MNodeList^ getInShares();
         MShareList^ getInSharesList();
@@ -2738,9 +2879,145 @@ namespace mega
 
         uint64 getBandwidthOverquotaDelay();
 
+        /**
+        * @brief Search nodes containing a search string in their name
+        *
+        * The search is case-insensitive.
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param node The parent node of the tree to explore
+        * @param searchString Search string. The search is case-insensitive
+        * @param recursive True if you want to seach recursively in the node tree.
+        * False if you want to seach in the children of the node only.
+        *
+        * @param order Order for the returned list
+        * Valid values for this parameter are:
+        * - MSortOrderType::ORDER_NONE = 0
+        * Undefined order
+        *
+        * - MSortOrderType::ORDER_DEFAULT_ASC = 1
+        * Folders first in alphabetical order, then files in the same order
+        *
+        * - MSortOrderType::ORDER_DEFAULT_DESC = 2
+        * Files first in reverse alphabetical order, then folders in the same order
+        *
+        * - MSortOrderType::ORDER_SIZE_ASC = 3
+        * Sort by size, ascending
+        *
+        * - MSortOrderType::ORDER_SIZE_DESC = 4
+        * Sort by size, descending
+        *
+        * - MSortOrderType::ORDER_CREATION_ASC = 5
+        * Sort by creation time in MEGA, ascending
+        *
+        * - MSortOrderType::ORDER_CREATION_DESC = 6
+        * Sort by creation time in MEGA, descending
+        *
+        * - MSortOrderType::ORDER_MODIFICATION_ASC = 7
+        * Sort by modification time of the original file, ascending
+        *
+        * - MSortOrderType::ORDER_MODIFICATION_DESC = 8
+        * Sort by modification time of the original file, descending
+        *
+        * - MSortOrderType::ORDER_ALPHABETICAL_ASC = 9
+        * Sort in alphabetical order, ascending
+        *
+        * - MSortOrderType::ORDER_ALPHABETICAL_DESC = 10
+        * Sort in alphabetical order, descending
+        *
+        * @return List of nodes that contain the desired string in their name
+        */
+        MNodeList^ search(MNode^ node, String^ searchString, bool recursive, int order);
+
+        /**
+        * @brief Search nodes containing a search string in their name
+        *
+        * The search is case-insensitive.
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param node The parent node of the tree to explore
+        * @param searchString Search string. The search is case-insensitive
+        * @param recursive True if you want to seach recursively in the node tree.
+        * False if you want to seach in the children of the node only.
+        *
+        * @return List of nodes that contain the desired string in their name
+        */
         MNodeList^ search(MNode^ node, String^ searchString, bool recursive);
-        MNodeList^ search(MNode^ node, String^ searchString);
+
+        /**
+        * @brief Search nodes containing a search string in their name
+        *
+        * The search is case-insensitive.
+        *
+        * The search will consider every accessible node for the account:
+        *  - Cloud drive
+        *  - Inbox
+        *  - Rubbish bin
+        *  - Incoming shares from other users
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param searchString Search string. The search is case-insensitive
+        * @param order Order for the returned list
+        * Valid values for this parameter are:
+        * - MSortOrderType::ORDER_NONE = 0
+        * Undefined order
+        *
+        * - MSortOrderType::ORDER_DEFAULT_ASC = 1
+        * Folders first in alphabetical order, then files in the same order
+        *
+        * - MSortOrderType::ORDER_DEFAULT_DESC = 2
+        * Files first in reverse alphabetical order, then folders in the same order
+        *
+        * - MSortOrderType::ORDER_SIZE_ASC = 3
+        * Sort by size, ascending
+        *
+        * - MSortOrderType::ORDER_SIZE_DESC = 4
+        * Sort by size, descending
+        *
+        * - MSortOrderType::ORDER_CREATION_ASC = 5
+        * Sort by creation time in MEGA, ascending
+        *
+        * - MSortOrderType::ORDER_CREATION_DESC = 6
+        * Sort by creation time in MEGA, descending
+        *
+        * - MSortOrderType::ORDER_MODIFICATION_ASC = 7
+        * Sort by modification time of the original file, ascending
+        *
+        * - MSortOrderType::ORDER_MODIFICATION_DESC = 8
+        * Sort by modification time of the original file, descending
+        *
+        * - MSortOrderType::ORDER_ALPHABETICAL_ASC = 9
+        * Sort in alphabetical order, ascending
+        *
+        * - MSortOrderType::ORDER_ALPHABETICAL_DESC = 10
+        * Sort in alphabetical order, descending
+        *
+        * @return List of nodes that contain the desired string in their name
+        */
+        MNodeList^ globalSearch(String^ searchString, int order);
+        
+        /**
+        * @brief Search nodes containing a search string in their name
+        *
+        * The search is case-insensitive.
+        *
+        * The search will consider every accessible node for the account:
+        *  - Cloud drive
+        *  - Inbox
+        *  - Rubbish bin
+        *  - Incoming shares from other users
+        *
+        * You take the ownership of the returned value.
+        *
+        * @param searchString Search string. The search is case-insensitive
+        *
+        * @return List of nodes that contain the desired string in their name
+        */
         MNodeList^ globalSearch(String^ searchString);
+        
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor, bool recursive);
         bool processMegaTree(MNode^ node, MTreeProcessorInterface^ processor);
 

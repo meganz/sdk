@@ -102,6 +102,8 @@ void WaitMillisec(unsigned n)
 #endif
 }
 
+enum { USERALERT_ARRIVAL_MILLISEC = 1000 };
+
 #ifdef WIN32
 #include "mega/win32/autocomplete.h"
 #include <filesystem>
@@ -1946,6 +1948,36 @@ TEST_F(SdkTest, SdkTestShares)
 
     delete nl;
 
+    // check the corresponding user alert
+    {
+        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
+        MegaUserAlertList* list = megaApi[1]->getUserAlerts();
+        ASSERT_TRUE(list->size() > 0);
+        MegaUserAlert* a = list->get(list->size() - 1);
+        ASSERT_STREQ(("New shared folder from " + email[0]).c_str(), a->getTitle());
+        ASSERT_STREQ((email[0] + ":Shared-folder").c_str(), a->getPath());
+        ASSERT_NE(a->getNodeHandle(), UNDEF);
+        delete list;
+    }
+
+    // add a folder under the share
+    char foldernameA[64] = "dummyname1";
+    char foldernameB[64] = "dummyname2";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameA, megaApi[0]->getNodeByHandle(hfolder2)));
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameB, megaApi[0]->getNodeByHandle(hfolder2)));
+
+    // check the corresponding user alert
+    {
+        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
+        MegaUserAlertList* list = megaApi[1]->getUserAlerts();
+        ASSERT_TRUE(list->size() > 1);
+        MegaUserAlert* a = list->get(list->size()-1);
+        ASSERT_STREQ(a->getTitle(), (email[0] + " added 2 folders").c_str());
+        ASSERT_EQ(a->getNodeHandle(), megaApi[0]->getNodeByHandle(hfolder2)->getHandle());
+        ASSERT_EQ(a->getNumber(0), 2); // 0 for number of folders
+        delete list;
+    }
+
 
     // --- Modify the access level of an outgoing share ---
 
@@ -1982,6 +2014,16 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_EQ(0, nl->size()) << "Incoming share revocation failed";
     delete nl;
 
+    // check the corresponding user alert
+    {
+        MegaUserAlertList* list = megaApi[1]->getUserAlerts();
+        ASSERT_TRUE(list->size() > 0);
+        MegaUserAlert* a = list->get(list->size() - 1);
+        ASSERT_STREQ(a->getTitle(), ("Access to folders shared by " + email[0] + " was removed").c_str());
+        ASSERT_STREQ(a->getPath(), (email[0] + ":Shared-folder").c_str());
+        ASSERT_NE(a->getNodeHandle(), UNDEF);
+        delete list;
+    }
 
     // --- Get pending outgoing shares ---
 

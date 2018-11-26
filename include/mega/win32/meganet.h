@@ -26,6 +26,8 @@
 #include "zlib.h"
 #include "mega.h"
 
+typedef LPVOID HINTERNET;   // from <winhttp.h>
+
 // MinGW shipped winhttp.h does not have these two flags
 #ifdef __MINGW32__
 #ifndef WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_1

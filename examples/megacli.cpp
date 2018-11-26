@@ -722,6 +722,67 @@ void DemoApp::chatpresenceurl_result(string *url, error e)
     }
 }
 
+void DemoApp::chatlink_result(handle h, error e)
+{
+    if (e)
+    {
+        cout << "Chat link failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        if (ISUNDEF(h))
+        {
+            cout << "Chat link deleted successfully" << endl;
+        }
+        else
+        {
+            char hstr[sizeof(handle) * 4 / 3 + 4];
+            Base64::btoa((const byte *)&h, MegaClient::CHATLINKHANDLE, hstr);
+            cout << "Chat link: " << hstr << endl;
+        }
+    }
+}
+
+void DemoApp::chatlinkclose_result(error e)
+{
+    if (e)
+    {
+        cout << "Set private mode for chat failed  (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Private mode successfully set" << endl;
+    }
+}
+
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, error e)
+{
+    if (e)
+    {
+        cout << "URL request for chat-link failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        char idstr[sizeof(handle) * 4 / 3 + 4];
+        Base64::btoa((const byte *)&chatid, MegaClient::CHATHANDLE, idstr);
+        cout << "Chatid: " << idstr << " (shard " << shard << ")" << endl;
+        cout << "URL for chat-link: " << url->c_str() << endl;
+        cout << "Chat-topic: " << ct->c_str() << endl;
+    }
+}
+
+void DemoApp::chatlinkjoin_result(error e)
+{
+    if (e)
+    {
+        cout << "Join to openchat failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Joined to openchat successfully." << endl;
+    }
+}
+
 void DemoApp::chats_updated(textchat_map *chats, int count)
 {
     if (count == 1)
@@ -770,6 +831,15 @@ void DemoApp::printChatInformation(TextChat *chat)
     {
         cout << "\tArchived chat: no" << endl;
     }
+    if (chat->publicchat)
+    {
+        cout << "\tPublic chat: yes" << endl;
+        cout << "\tUnified key: " << chat->unifiedKey.c_str() << endl;
+    }
+    else
+    {
+        cout << "\tPublic chat: no" << endl;
+    }
     cout << "\tPeers:";
 
     if (chat->userpriv)
@@ -796,11 +866,7 @@ void DemoApp::printChatInformation(TextChat *chat)
     }
     if (!chat->title.empty())
     {
-        char *tstr = new char[chat->title.size() * 4 / 3 + 4];
-        Base64::btoa((const byte *)chat->title.data(), int(chat->title.size()), tstr);
-
-        cout << "\tTitle: " << tstr << endl;
-        delete [] tstr;
+        cout << "\tTitle: " << chat->title.c_str() << endl;
     }
 }
 
@@ -2459,8 +2525,9 @@ static void process_line(char* l)
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
-                cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
-                cout << "      chati chatid email ro|sta|mod" << endl;
+                cout << "      chatc group [t title64] [email ro|sta|mod]*" << endl;    // group can be 1 or 0
+                cout << "      chati chatid email ro|sta|mod [t title] [unifiedkey]" << endl;
+                cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
                 cout << "      chatr chatid [email]" << endl;
                 cout << "      chatu chatid" << endl;
                 cout << "      chatup chatid userhandle ro|sta|mod" << endl;
@@ -2469,6 +2536,10 @@ static void process_line(char* l)
                 cout << "      chatra chatid nodehandle uid" << endl;
                 cout << "      chatst chatid title64" << endl;
                 cout << "      chata chatid archive" << endl;   // archive can be 1 or 0
+                cout << "      chatl chatid [del|query]" << endl;     // get public handle
+                cout << "      chatsm chatid [title64]" << endl;          // set private mode
+                cout << "      chatlu publichandle" << endl;    // get chat-link URL
+                cout << "      chatlj publichandle unifiedkey" << endl;    // join chat-link
 #endif
                 cout << "      httpsonly on | off" << endl;
                 cout << "      mfac" << endl;
@@ -3394,7 +3465,6 @@ static void process_line(char* l)
 #endif
                     else if (words[0] == "test")
                     {
-                        return;
                     }
 
                     else if (words[0] == "mfad")
@@ -4109,22 +4179,62 @@ static void process_line(char* l)
 #ifdef ENABLE_CHAT
                     else if (words[0] == "chatc")
                     {
-                        size_t wordscount = words.size();
-                        if (wordscount > 1 && ((wordscount - 2) % 2) == 0)
+                        unsigned wordscount = words.size();
+                        if (wordscount < 2 || wordscount == 3)
                         {
-                            int group = atoi(words[1].c_str());
-                            if (!group && (wordscount - 2) != 2)
+                            cout << "Invalid syntax to create chatroom" << endl;
+                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            return;
+                        }
+
+                        int group = atoi(words[1].c_str());
+                        if (group != 0 && group != 1)
+                        {
+                            cout << "Invalid syntax to create chatroom" << endl;
+                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            return;
+                        }
+
+                        unsigned parseoffset = 2;
+                        const char *title = NULL;
+
+                        if (wordscount >= 4)
+                        {
+                            if (words[2] == "t")
                             {
-                                cout << "Only group chats can have more than one peer" << endl;
+                                if (words[3].empty())
+                                {
+                                    cout << "Title cannot be set to empty string" << endl;
+                                    return;
+                                }
+
+                                if (group)
+                                {
+                                    title =  words[3].c_str();
+                                    parseoffset = 4;
+                                }
+                                else
+                                {
+                                    cout << "Only group chats have Title" << endl;
+                                    return;
+                                }
+                            }
+                        }
+
+                        if (((wordscount - parseoffset) % 2) == 0)
+                        {
+                            if (!group && (wordscount - parseoffset) != 2)
+                            {
+                                cout << "Peer to peer chats must have only one peer" << endl;
                                 return;
                             }
 
                             userpriv_vector *userpriv = new userpriv_vector;
 
                             unsigned numUsers = 0;
-                            while ((numUsers+1)*2 + 2 <= wordscount)
+                            while ((numUsers+1)*2 + parseoffset <= wordscount)
                             {
-                                string email = words[numUsers*2 + 2];
+                                string email = words[numUsers*2 + parseoffset];
                                 User *u = client->finduser(email.c_str(), 0);
                                 if (!u)
                                 {
@@ -4133,7 +4243,7 @@ static void process_line(char* l)
                                     return;
                                 }
 
-                                string privstr = words[numUsers*2 + 2 + 1];
+                                string privstr = words[numUsers*2 + parseoffset + 1];
                                 privilege_t priv;
                                 if (!group) // 1:1 chats enforce peer to be moderator
                                 {
@@ -4165,20 +4275,20 @@ static void process_line(char* l)
                                 numUsers++;
                             }
 
-                            client->createChat(group, userpriv);
+                            client->createChat(group, false, userpriv);
                             delete userpriv;
                             return;
                         }
                         else
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "       chatc group [email ro|sta|mod]*" << endl;
+                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
                             return;
                         }
                     }
                     else if (words[0] == "chati")
                     {
-                        if (words.size() == 4)
+                        if (words.size() >= 4 && words.size() <= 7)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
@@ -4211,13 +4321,30 @@ static void process_line(char* l)
                                 return;
                             }
 
-                            client->inviteToChat(chatid, u->userhandle, priv);
+                            string title;
+                            string unifiedKey;
+                            if (words.size() == 5)
+                            {
+                                unifiedKey = words[4];
+                            }
+                            else if (words.size() >= 6 && words[4] == "t")
+                            {
+                                title = words[5];
+                                if (words.size() == 7)
+                                {
+                                    unifiedKey = words[6];
+                                }
+                            }
+                            const char *t = !title.empty() ? title.c_str() : NULL;
+                            const char *uk = !unifiedKey.empty() ? unifiedKey.c_str() : NULL;
+
+                            client->inviteToChat(chatid, u->userhandle, priv, uk, t);
                             return;
                         }
                         else
                         {
                             cout << "Invalid syntax to invite new peer" << endl;
-                            cout << "       chati chatid email ro|sta|mod" << endl;
+                            cout << "       chati chatid email ro|sta|mod [t title64] [unifiedkey]" << endl;
                             return;
 
                         }
@@ -4326,6 +4453,25 @@ static void process_line(char* l)
                         {
                             cout << "Invalid syntax to list chatrooms" << endl;
                             cout << "      chats" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatl")
+                    {
+                        if (words.size() == 2 || words.size() == 3)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
+                            bool del = (words.size() == 3 && words[2] == "del");
+                            bool createifmissing = words.size() == 2 || (words.size() == 3 && words[2] != "query");
+
+                            client->chatlink(chatid, del, createifmissing);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax for chat link" << endl;
+                            cout << "      chatl chatid [del|query]" << endl;
                             return;
                         }
                     }
@@ -4800,6 +4946,150 @@ static void process_line(char* l)
                             return;
 
                         }
+                    }
+                    else if (words[0] == "chatlu")
+                    {
+                        if (words.size() == 2)
+                        {
+                            handle publichandle = 0;
+                            Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
+
+                            client->chatlinkurl(publichandle);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to get URL to connect to openchat" << endl;
+                            cout << "       chatlu publichandle" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatsm")
+                    {
+                        if (words.size() == 2 || words.size() == 3)
+                        {
+                            handle chatid;
+                            Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
+
+                            const char *title = (words.size() == 3) ? words[2].c_str() : NULL;
+                            client->chatlinkclose(chatid, title);
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to set private/close mode" << endl;
+                            cout << "       chatsm chatid [title64]" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatlj")
+                    {
+                        if (words.size() == 3)
+                        {
+                            handle publichandle = 0;
+                            Base64::atob(words[1].c_str(), (byte*) &publichandle, MegaClient::CHATLINKHANDLE);
+
+                            client->chatlinkjoin(publichandle, words[2].c_str());
+                            return;
+                        }
+                        else
+                        {
+                            cout << "Invalid syntax to join an openchat" << endl;
+                            cout << "      chatlj publichandle unifiedkey" << endl;
+                            return;
+                        }
+                    }
+                    else if (words[0] == "chatcp")
+                    {
+                        unsigned wordscount = words.size();
+                        if (wordscount < 2 || wordscount == 3)
+                        {
+                            cout << "Invalid syntax to create chatroom" << endl;
+                            cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
+                            return;
+                        }
+
+                        userpriv_vector *userpriv = new userpriv_vector;
+                        string_map *userkeymap = new string_map;
+                        string mownkey = words[1];
+                        unsigned parseoffset = 2;
+                        const char *title = NULL;
+
+                        if (wordscount >= 4)
+                        {
+                            if (words[2] == "t")
+                            {
+                                if (words[3].empty())
+                                {
+                                    cout << "Title cannot be set to empty string" << endl;
+                                    delete userpriv;
+                                    delete userkeymap;
+                                    return;
+                                }
+                                title =  words[3].c_str();
+                                parseoffset = 4;
+                            }
+
+                            if (((wordscount - parseoffset) % 3) != 0)
+                            {
+                                cout << "Invalid syntax to create chatroom" << endl;
+                                cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
+                                delete userpriv;
+                                delete userkeymap;
+                                return;
+                            }
+
+                            unsigned numUsers = 0;
+                            while ((numUsers+1)*3 + parseoffset <= wordscount)
+                            {
+                                string email = words[numUsers*3 + parseoffset];
+                                User *u = client->finduser(email.c_str(), 0);
+                                if (!u)
+                                {
+                                    cout << "User not found: " << email << endl;
+                                    delete userpriv;
+                                    delete userkeymap;
+                                    return;
+                                }
+
+                                string privstr = words[numUsers*3 + parseoffset + 1];
+                                privilege_t priv;
+                                if (privstr ==  "ro")
+                                {
+                                    priv = PRIV_RO;
+                                }
+                                else if (privstr == "sta")
+                                {
+                                    priv = PRIV_STANDARD;
+                                }
+                                else if (privstr == "mod")
+                                {
+                                    priv = PRIV_MODERATOR;
+                                }
+                                else
+                                {
+                                    cout << "Unknown privilege for " << email << endl;
+                                    delete userpriv;
+                                    delete userkeymap;
+                                    return;
+                                }
+                                userpriv->push_back(userpriv_pair(u->userhandle, priv));
+                                string unifiedkey = words[numUsers*3 + parseoffset + 2];
+                                char uhB64[12];
+                                Base64::btoa((byte *)&u->userhandle, MegaClient::USERHANDLE, uhB64);
+                                uhB64[11] = '\0';
+                                userkeymap->insert(std::pair<string, string>(uhB64, unifiedkey));
+                                numUsers++;
+                            }
+                        }
+                        char ownHandleB64[12];
+                        Base64::btoa((byte *)&client->me, MegaClient::USERHANDLE, ownHandleB64);
+                        ownHandleB64[11] = '\0';
+                        userkeymap->insert(std::pair<string, string>(ownHandleB64, mownkey));
+                        client->createChat(true, true, userpriv, userkeymap, title);
+                        delete userpriv;
+                        delete userkeymap;
+                        return;
                     }
 #endif
                     else if (words[0] == "cancel")
