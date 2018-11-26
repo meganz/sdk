@@ -2382,7 +2382,6 @@ protected:
 
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
-        retryreason_t waitingRequest;
         vector<string> excludedNames;
         vector<string> excludedPaths;
         long long syncLowerSizeLimit;

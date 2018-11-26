@@ -4514,7 +4514,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     totalUploads = 0;
     totalDownloads = 0;
     client = NULL;
-    waitingRequest = RETRY_NONE;
     totalDownloadedBytes = 0;
     totalUploadedBytes = 0;
     totalDownloadBytes = 0;
@@ -12437,31 +12436,21 @@ void MegaApiImpl::clearing()
 
 void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 {
-    retryreason_t previousFlag = waitingRequest;
-
-    if (reason == RETRY_NONE || dsdelta >= MegaClient::MIN_NOTIFY_RETRY_DS) //ignore too fast connectivity issues (some fast retries are assumable)
-    {
-        waitingRequest = reason;
-    }
-
-    if(previousFlag != waitingRequest)
-    {
 #ifdef ENABLE_SYNC
-        fireOnGlobalSyncStateChanged();
+    fireOnGlobalSyncStateChanged();
 #endif
-        MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CONNECTIVITY_CHANGED);
-        event->setNumber(waitingRequest);
-        fireOnEvent(event);
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CONNECTIVITY_CHANGED);
+    event->setNumber(reason);
+    fireOnEvent(event);
 
-        if (waitingRequest != RETRY_NONE)
+    if (reason != RETRY_NONE)
+    {
+        for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
         {
-            for (std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin(); it != requestMap.end(); it++)
+            MegaRequestPrivate *request = it->second;
+            if (request)
             {
-                MegaRequestPrivate *request = it->second;
-                if (request)
-                {
-                    fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
-                }
+                fireOnRequestTemporaryError(request, MegaError(API_EAGAIN, reason));
             }
         }
     }
@@ -12822,7 +12811,6 @@ void MegaApiImpl::logout_result(error e)
         pendingDownloads = 0;
         totalUploads = 0;
         totalDownloads = 0;
-        waitingRequest = RETRY_NONE;
         excludedNames.clear();
         excludedPaths.clear();
         syncLowerSizeLimit = 0;
@@ -19782,11 +19770,12 @@ int MegaApiImpl::isWaiting()
     }
 #endif
 
-    if (waitingRequest)
+    retryreason_t reason = client->waitingRequest;
+    if (reason)
     {
-        LOG_debug << "SDK waiting for a request. Reason: " << waitingRequest;
+        LOG_debug << "SDK waiting for a request. Reason: " << reason;
     }
-    return waitingRequest;
+    return reason;
 }
 
 int MegaApiImpl::areServersBusy()
