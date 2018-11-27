@@ -1843,6 +1843,62 @@ TEST_F(SdkTest, SdkTestContacts)
  * - Remove a public link
  * - Create a folder public link
  */
+
+bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
+{
+    bool ok = false;
+    for (int i = 0; !ok && i < 10; ++i)
+    {
+
+        MegaUserAlertList* list = megaApi[apiIndex]->getUserAlerts();
+        if (list->size() > 0)
+        {
+            MegaUserAlert* a = list->get(list->size() - 1);
+            ok = title == a->getTitle() && path == a->getPath() && !ISUNDEF(a->getNodeHandle());
+
+            if (!ok)
+            {
+                EXPECT_STREQ(title.c_str(), a->getTitle());
+                EXPECT_STREQ(path.c_str(), a->getPath());
+                EXPECT_NE(a->getNodeHandle(), UNDEF);
+            }
+        }
+        delete list;
+
+        LOG_info << "Waiting some more for the alert";
+        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
+    }
+    return ok;
+}
+
+bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
+{
+    bool ok = false;
+    for (int i = 0; !ok && i < 10; ++i)
+    {
+
+        MegaUserAlertList* list = megaApi[apiIndex]->getUserAlerts();
+        if (list->size() > 0)
+        {
+            MegaUserAlert* a = list->get(list->size() - 1);
+            ok = title == a->getTitle() && a->getNodeHandle() == h && a->getNumber(0) == n;
+
+            if (!ok)
+            {
+                EXPECT_STREQ(a->getTitle(), title.c_str());
+                EXPECT_EQ(a->getNodeHandle(), h);
+                EXPECT_EQ(a->getNumber(0), n); // 0 for number of folders
+            }
+        }
+        delete list;
+
+        LOG_info << "Waiting some more for the alert";
+        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
+    }
+    return ok;
+}
+
+
 TEST_F(SdkTest, SdkTestShares)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Shares___");
@@ -1983,17 +2039,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     // check the corresponding user alert
     LOG_info << "--- Check the corresponding user alert --- " << ThreadId();
-
-    {
-        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
-        MegaUserAlertList* list = megaApi[1]->getUserAlerts();
-        ASSERT_TRUE(list->size() > 0);
-        MegaUserAlert* a = list->get(list->size() - 1);
-        ASSERT_STREQ(("New shared folder from " + email[0]).c_str(), a->getTitle());
-        ASSERT_STREQ((email[0] + ":Shared-folder").c_str(), a->getPath());
-        ASSERT_NE(a->getNodeHandle(), UNDEF);
-        delete list;
-    }
+    ASSERT_TRUE(checkAlert(1, "New shared folder from " + email[0], email[0] + ":Shared-folder"));
 
     // add a folder under the share
     LOG_info << "--- add a folder under the share --- " << ThreadId();
@@ -2005,16 +2051,7 @@ TEST_F(SdkTest, SdkTestShares)
 
     // check the corresponding user alert
     LOG_info << "--- check the corresponding user alert --- " << ThreadId();
-    {
-        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
-        MegaUserAlertList* list = megaApi[1]->getUserAlerts();
-        ASSERT_TRUE(list->size() > 1);
-        MegaUserAlert* a = list->get(list->size()-1);
-        ASSERT_STREQ(a->getTitle(), (email[0] + " added 2 folders").c_str());
-        ASSERT_EQ(a->getNodeHandle(), megaApi[0]->getNodeByHandle(hfolder2)->getHandle());
-        ASSERT_EQ(a->getNumber(0), 2); // 0 for number of folders
-        delete list;
-    }
+    ASSERT_TRUE(checkAlert(1, email[0] + " added 2 folders", megaApi[0]->getNodeByHandle(hfolder2)->getHandle(), 2));
 
     // --- Modify the access level of an outgoing share ---
     LOG_info << "--- Modify the access level of an outgoing share --- " << ThreadId();

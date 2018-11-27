@@ -105,6 +105,9 @@ protected:
     virtual void TearDown();
     virtual ~SdkTest();
 
+    bool checkAlert(int apiIndex, const string& title, const string& path);
+    bool checkAlert(int apiIndex, const string& title, handle h, int n);
+
     void onRequestStart(MegaApi *api, MegaRequest *request) {}
     void onRequestUpdate(MegaApi*api, MegaRequest *request) {}
     void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e);
