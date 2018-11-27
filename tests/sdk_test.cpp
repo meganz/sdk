@@ -1865,8 +1865,11 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
         }
         delete list;
 
-        LOG_info << "Waiting some more for the alert";
-        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
+        if (!ok)
+        {
+            LOG_info << "Waiting some more for the alert";
+            WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
+        }
     }
     return ok;
 }
@@ -1892,8 +1895,11 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
         }
         delete list;
 
-        LOG_info << "Waiting some more for the alert";
-        WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
+        if (!ok)
+        {
+            LOG_info << "Waiting some more for the alert";
+            WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
+        }
     }
     return ok;
 }
