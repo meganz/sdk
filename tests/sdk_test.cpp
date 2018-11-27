@@ -32,6 +32,20 @@ using namespace std;
 MegaFileSystemAccess fileSystemAccess;
 
 
+#ifdef WIN32
+DWORD ThreadId()
+{
+    return GetCurrentThreadId();
+}
+#else
+pthread_t ThreadId()
+{
+    return pthread_self();
+}
+#endif
+
+
+
 const char* cwd()
 {
     // for windows and linux
@@ -138,6 +152,10 @@ void SdkTest::SetUp()
 
         megaApi[0] = new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str());
 
+        MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0]) + sizeof(*megaApi[0])) - 1); //megaApi[0]->pImpl;
+        MegaClient* client = impl->getMegaClient();
+        client->clientname = "0 ";
+
         megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi[0]->addListener(this);
 
@@ -148,8 +166,15 @@ void SdkTest::SetUp()
     }
 }
 
+SdkTest::~SdkTest()
+{
+    LOG_info << "~SdkTest()";
+}
+
 void SdkTest::TearDown()
 {
+    LOG_info << "TearDown()";
+
     // do some cleanup
 
     testingInvalidArgs = false;
@@ -577,6 +602,8 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 
 void SdkTest::logout(unsigned int apiIndex, int timeout)
 {
+    LOG_info << "logout requested for " << apiIndex << " on thread " << ThreadId();
+
     requestFlags[apiIndex][MegaRequest::TYPE_LOGOUT] = false;
     megaApi[apiIndex]->logout(this);
 
@@ -720,6 +747,10 @@ void SdkTest::getMegaApiAux()
         ASSERT_LT((size_t) 0, pwd[1].length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX";
 
         megaApi[1] = new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str());
+
+        MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[1]) + sizeof(MegaApi)) - 1);
+        MegaClient* client = impl->getMegaClient();
+        client->clientname = "1 ";
 
         megaApi[1]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi[1]->addListener(this);
@@ -1905,6 +1936,7 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Create a new outgoing share ---
+    LOG_info << "--- Create a new outgoing share --- " << ThreadId();
 
     nodeUpdated[0] = nodeUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( shareFolder(n1, email[1].data(), MegaShare::ACCESS_READ) );
@@ -1913,8 +1945,8 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE( waitForResponse(&nodeUpdated[1]) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
 
-
     // --- Check the outgoing share ---
+    LOG_info << "--- Check the outgoing share --- " << ThreadId();
 
     sl = megaApi[0]->getOutShares();
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
@@ -1932,6 +1964,7 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Check the incoming share ---
+    LOG_info << "--- Check the incoming share --- " << ThreadId();
 
     sl = megaApi[1]->getInSharesList();
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
@@ -1949,6 +1982,8 @@ TEST_F(SdkTest, SdkTestShares)
     delete nl;
 
     // check the corresponding user alert
+    LOG_info << "--- Check the corresponding user alert --- " << ThreadId();
+
     {
         WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
         MegaUserAlertList* list = megaApi[1]->getUserAlerts();
@@ -1961,12 +1996,15 @@ TEST_F(SdkTest, SdkTestShares)
     }
 
     // add a folder under the share
+    LOG_info << "--- add a folder under the share --- " << ThreadId();
+
     char foldernameA[64] = "dummyname1";
     char foldernameB[64] = "dummyname2";
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameA, megaApi[0]->getNodeByHandle(hfolder2)));
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameB, megaApi[0]->getNodeByHandle(hfolder2)));
 
     // check the corresponding user alert
+    LOG_info << "--- check the corresponding user alert --- " << ThreadId();
     {
         WaitMillisec(USERALERT_ARRIVAL_MILLISEC);
         MegaUserAlertList* list = megaApi[1]->getUserAlerts();
@@ -1978,8 +2016,8 @@ TEST_F(SdkTest, SdkTestShares)
         delete list;
     }
 
-
     // --- Modify the access level of an outgoing share ---
+    LOG_info << "--- Modify the access level of an outgoing share --- " << ThreadId();
 
     nodeUpdated[0] = nodeUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( shareFolder(megaApi[0]->getNodeByHandle(hfolder1), email[1].data(), MegaShare::ACCESS_READWRITE) );

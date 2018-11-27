@@ -265,6 +265,7 @@ UserAlert::ContactChange::ContactChange(int c, handle uh, const string& email, m
 {
     action = c;
     assert(action >= 0 && action < 4);
+    LOG_debug << "Creating ContactChange type " << action;
 }
 
 bool UserAlert::ContactChange::checkprovisional(handle ou, MegaClient* mc)

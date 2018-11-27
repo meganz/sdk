@@ -103,6 +103,7 @@ public:
 protected:
     virtual void SetUp();
     virtual void TearDown();
+    virtual ~SdkTest();
 
     void onRequestStart(MegaApi *api, MegaRequest *request) {}
     void onRequestUpdate(MegaApi*api, MegaRequest *request) {}
