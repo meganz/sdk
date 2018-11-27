@@ -1856,7 +1856,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, const string& path)
             MegaUserAlert* a = list->get(list->size() - 1);
             ok = title == a->getTitle() && path == a->getPath() && !ISUNDEF(a->getNodeHandle());
 
-            if (!ok)
+            if (!ok && i == 9)
             {
                 EXPECT_STREQ(title.c_str(), a->getTitle());
                 EXPECT_STREQ(path.c_str(), a->getPath());
@@ -1886,7 +1886,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
             MegaUserAlert* a = list->get(list->size() - 1);
             ok = title == a->getTitle() && a->getNodeHandle() == h && a->getNumber(0) == n;
 
-            if (!ok)
+            if (!ok && i == 9)
             {
                 EXPECT_STREQ(a->getTitle(), title.c_str());
                 EXPECT_EQ(a->getNodeHandle(), h);

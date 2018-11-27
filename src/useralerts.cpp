@@ -805,12 +805,12 @@ void UserAlerts::add(UserAlert::Base* unb)
 
     if (!catchupdone && unb->timestamp > catchup_last_timestamp)
     {
-        // small addition to compensate for delivery by diff from now, to prevent duplicates
-        catchup_last_timestamp = unb->timestamp + 10;  
+        catchup_last_timestamp = unb->timestamp;  
     }
     else if (catchupdone && unb->timestamp < catchup_last_timestamp)
     {
-        // this is a duplicate from the initial set, generated from normal sc packets
+        // this is probably a duplicate from the initial set, generated from normal sc packets
+        LOG_warn << "discarding duplicate user alert of type " << unb->type;
         delete unb;
         return;
     }
