@@ -90,6 +90,7 @@ struct DemoApp : public MegaApp
     
     void request_response_progress(m_off_t, m_off_t);
     
+    void prelogin_result(int version, string* email, string *salt, error e);
     void login_result(error);
     void multifactorauthdisable_result(error);
     void multifactorauthsetup_result(string *code, error e);

@@ -71,8 +71,6 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
-// login e-mail address
-static string login;
 
 // new account signup e-mail address and name
 static string signupemail, signupname;
@@ -2244,13 +2242,56 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 }
 #endif
 
+
+struct Login
+{
+    string email, password, salt, pin;
+    int version;
+
+    Login() : version(0)
+    {
+    }
+
+    void reset()
+    {
+        *this = Login();
+    }
+
+    void login(MegaClient* client)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+
+        if (version == 1)
+        {
+            if (error e = client->pw_key(password.c_str(), pwkey))
+            {
+                cout << "Login error: " << e << endl;
+            }
+            else
+            {
+                client->login(email.c_str(), pwkey, pin.c_str());
+            }
+        }
+        else if (version == 2 && !salt.empty())
+        {
+            client->login2(email.c_str(), password.c_str(), &salt, pin.c_str());
+        }
+        else
+        {
+            cout << "Login unexpected error" << endl;
+        }
+    }
+};
+static Login login;
+
+
 // execute command
 static void process_line(char* l)
 {
     switch (prompt)
     {
         case LOGINTFA:
-                client->login(login.c_str(), pwkey, l);
+                client->login(login.email.c_str(), pwkey, l);
                 setprompt(COMMAND);
                 return;
 
@@ -2260,11 +2301,11 @@ static void process_line(char* l)
                 return;
 
         case LOGINPASSWORD:
-            client->pw_key(l, pwkey);
 
             if (signupcode.size())
             {
                 // verify correctness of supplied signup password
+                client->pw_key(l, pwkey);
                 SymmCipher pwcipher(pwkey);
                 pwcipher.ecb_decrypt(signuppwchallenge);
 
@@ -2282,15 +2323,18 @@ static void process_line(char* l)
             }
             else if (recoverycode.size())   // cancelling account --> check password
             {
+                client->pw_key(l, pwkey);
                 client->validatepwd(pwkey);
             }
             else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
             {
+                client->pw_key(l, pwkey);
                 client->validatepwd(pwkey);
             }
             else
             {
-                client->login(login.c_str(), pwkey);
+                login.password = l;
+                login.login(client);
                 cout << endl << "Logging in..." << endl;
             }
 
@@ -3499,7 +3543,7 @@ static void process_line(char* l)
                     {
                         if (words.size() == 1)
                         {
-                            client->multifactorauthcheck(login.c_str());
+                            client->multifactorauthcheck(login.email.c_str());
                         }
                         else
                         {
@@ -3548,18 +3592,16 @@ static void process_line(char* l)
                                 }
                                 else if (strchr(words[1].c_str(), '@'))
                                 {
+                                    login.reset();
+                                    login.email = words[1];
+
                                     // full account login
                                     if (words.size() > 2)
                                     {
-                                        client->pw_key(words[2].c_str(), pwkey);
-                                        client->login(words[1].c_str(), pwkey);
+                                        login.password = words[2];
                                         cout << "Initiated login attempt..." << endl;
                                     }
-                                    else
-                                    {
-                                        login = words[1];
-                                        setprompt(LOGINPASSWORD);
-                                    }
+                                    client->prelogin(login.email.c_str());
                                 }
                                 else
                                 {
@@ -4195,7 +4237,7 @@ static void process_line(char* l)
 #ifdef ENABLE_CHAT
                     else if (words[0] == "chatc")
                     {
-                        unsigned wordscount = words.size();
+                        size_t wordscount = words.size();
                         if (wordscount < 2 || wordscount == 3)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
@@ -5017,7 +5059,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "chatcp")
                     {
-                        unsigned wordscount = words.size();
+                        size_t wordscount = words.size();
                         if (wordscount < 2 || wordscount == 3)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
@@ -5805,7 +5847,7 @@ void DemoApp::multifactorauthsetup_result(string *code, error e)
             if (++attempts >= 3)
             {
                 attempts = 0;
-                cout << "Two many attempts"<< endl;
+                cout << "Too many attempts"<< endl;
                 setprompt(COMMAND);
             }
             else
@@ -5816,11 +5858,36 @@ void DemoApp::multifactorauthsetup_result(string *code, error e)
     }
 }
 
+
+void DemoApp::prelogin_result(int version, string* email, string *salt, error e)
+{
+    if (e)
+    {
+        cout << "Login error: " << e << endl;
+        setprompt(COMMAND);
+        return;
+    }
+
+    login.version = version;
+    login.salt = (version == 2 && salt ? *salt : string());
+    
+    if (login.password.empty())
+    {
+        setprompt(LOGINPASSWORD);
+    }
+    else
+    {
+        login.login(client);
+    }
+}
+
+
 // login result
 void DemoApp::login_result(error e)
 {
     if (!e)
     {
+        login.reset();
         cout << "Login successful, retrieving account..." << endl;
         client->fetchnodes();
     }
@@ -5830,6 +5897,7 @@ void DemoApp::login_result(error e)
     }
     else
     {
+        login.reset();
         cout << "Login failed: " << errorstring(e) << endl;
     }
 }
@@ -6731,6 +6799,11 @@ char** my_rl_completion(const char *text, int start, int end)
         return NULL;
     }
 
+    if (acs.completions.size() == 1 && !acs.completions[0].couldExtend)
+    {
+        acs.completions[0].s += " "; 
+    }
+
     char** result = (char**)malloc((sizeof(char*)*(2+acs.completions.size())));
     for (int i = acs.completions.size(); i--; )
     {
@@ -6742,7 +6815,7 @@ char** my_rl_completion(const char *text, int start, int end)
     //{
     //    cout << "i " << i << ": " << result[i] << endl;
     //}
-    rl_filename_completion_desired = true;
+    rl_completion_suppress_append = true;
     return result;
 }
 #endif

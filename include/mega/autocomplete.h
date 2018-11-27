@@ -45,11 +45,12 @@ namespace autocomplete {
         struct Completion {
             std::string s;
             bool caseInsensitive = false;
-            inline Completion(const std::string& str, bool b) : s(str), caseInsensitive(b) {}
+            bool couldExtend = false;
+            inline Completion(const std::string& str, bool b, bool b2 = true) : s(str), caseInsensitive(b), couldExtend(b2) {}
         };
 
         std::vector<Completion> completions;
-        void addCompletion(const std::string& s, bool caseInsenstive = false);
+        void addCompletion(const std::string& s, bool caseInsenstive = false, bool couldextend = false);
         void addPathCompletion(std::string&& f, const std::string& relativeRootPath, bool isFolder, char dir_sep, bool caseInsensitive);
 
         std::vector<std::pair<int, int>> wordPos;
