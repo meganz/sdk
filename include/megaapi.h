@@ -3420,6 +3420,16 @@ class MegaTransfer
         virtual bool isSyncTransfer() const;
 
         /**
+         * @brief Returns true if this transfer belongs to the backups engine
+         *
+         * This data is important to know if the transfer will resume when enableTransferResumption is called.
+         * Regular transfers are resumed, but backup transfers aren't.
+         *
+         * @return true if this transfer belongs to the backups engine, otherwise false
+         */
+        virtual bool isBackupTransfer() const;
+
+        /**
          * @brief Returns true is this is a streaming transfer
          * @return true if this is a streaming transfer, false otherwise
          * @see MegaApi::startStreaming

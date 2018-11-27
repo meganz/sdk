@@ -21481,6 +21481,8 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
 
     this->attendPastBackups = attendPastBackups;
 
+    this->pendingTags = 0;
+
     clearCurrentBackupData();
 
     lastbackuptime = getLastBackupTime();
@@ -21996,7 +21998,6 @@ void MegaBackupController::clearCurrentBackupData()
 {
     this->recursive = 0;
     this->pendingTransfers = 0;
-    this->pendingTags = 0;
     this->pendingFolders.clear();
     for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
     {
@@ -22251,7 +22252,7 @@ void MegaBackupController::abortCurrent()
     if (node)
     {
         this->pendingTags++;
-        megaApi->setCustomNodeAttribute(node, "BACKST", "ABORTED");
+        megaApi->setCustomNodeAttribute(node, "BACKST", "ABORTED", this);
         delete node;
     }
     else
@@ -22287,7 +22288,8 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
         pendingremovals--;
         if (!pendingremovals)
         {
-            if (!pendingTags)
+            assert(pendingTags>=0);
+            if (pendingTags <= 0)
             {
                 state = BACKUP_ACTIVE;
             }
@@ -22297,6 +22299,7 @@ void MegaBackupController::onRequestFinish(MegaApi *, MegaRequest *request, Mega
     else if(type == MegaRequest::TYPE_SET_ATTR_NODE)
     {
         pendingTags--;
+        assert(pendingTags>=0);
 
         if (!pendingTags)
         {
