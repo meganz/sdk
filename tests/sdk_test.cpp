@@ -166,15 +166,8 @@ void SdkTest::SetUp()
     }
 }
 
-SdkTest::~SdkTest()
-{
-    LOG_info << "~SdkTest()";
-}
-
 void SdkTest::TearDown()
 {
-    LOG_info << "TearDown()";
-
     // do some cleanup
 
     testingInvalidArgs = false;
@@ -602,8 +595,6 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 
 void SdkTest::logout(unsigned int apiIndex, int timeout)
 {
-    LOG_info << "logout requested for " << apiIndex << " on thread " << ThreadId();
-
     requestFlags[apiIndex][MegaRequest::TYPE_LOGOUT] = false;
     megaApi[apiIndex]->logout(this);
 
@@ -1998,7 +1989,6 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Create a new outgoing share ---
-    LOG_info << "--- Create a new outgoing share --- " << ThreadId();
 
     nodeUpdated[0] = nodeUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( shareFolder(n1, email[1].data(), MegaShare::ACCESS_READ) );
@@ -2007,8 +1997,8 @@ TEST_F(SdkTest, SdkTestShares)
     ASSERT_TRUE( waitForResponse(&nodeUpdated[1]) )   // at the target side (auxiliar account)
             << "Node update not received after " << maxTimeout << " seconds";
 
+
     // --- Check the outgoing share ---
-    LOG_info << "--- Check the outgoing share --- " << ThreadId();
 
     sl = megaApi[0]->getOutShares();
     ASSERT_EQ(1, sl->size()) << "Outgoing share failed";
@@ -2026,7 +2016,6 @@ TEST_F(SdkTest, SdkTestShares)
 
 
     // --- Check the incoming share ---
-    LOG_info << "--- Check the incoming share --- " << ThreadId();
 
     sl = megaApi[1]->getInSharesList();
     ASSERT_EQ(1, sl->size()) << "Incoming share not received in auxiliar account";
@@ -2044,23 +2033,18 @@ TEST_F(SdkTest, SdkTestShares)
     delete nl;
 
     // check the corresponding user alert
-    LOG_info << "--- Check the corresponding user alert --- " << ThreadId();
     ASSERT_TRUE(checkAlert(1, "New shared folder from " + email[0], email[0] + ":Shared-folder"));
 
     // add a folder under the share
-    LOG_info << "--- add a folder under the share --- " << ThreadId();
-
     char foldernameA[64] = "dummyname1";
     char foldernameB[64] = "dummyname2";
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameA, megaApi[0]->getNodeByHandle(hfolder2)));
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldernameB, megaApi[0]->getNodeByHandle(hfolder2)));
 
     // check the corresponding user alert
-    LOG_info << "--- check the corresponding user alert --- " << ThreadId();
     ASSERT_TRUE(checkAlert(1, email[0] + " added 2 folders", megaApi[0]->getNodeByHandle(hfolder2)->getHandle(), 2));
 
     // --- Modify the access level of an outgoing share ---
-    LOG_info << "--- Modify the access level of an outgoing share --- " << ThreadId();
 
     nodeUpdated[0] = nodeUpdated[1] = false;
     ASSERT_NO_FATAL_FAILURE( shareFolder(megaApi[0]->getNodeByHandle(hfolder1), email[1].data(), MegaShare::ACCESS_READWRITE) );

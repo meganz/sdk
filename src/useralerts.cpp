@@ -265,7 +265,6 @@ UserAlert::ContactChange::ContactChange(int c, handle uh, const string& email, m
 {
     action = c;
     assert(action >= 0 && action < 4);
-    LOG_debug << "Creating ContactChange type " << action;
 }
 
 bool UserAlert::ContactChange::checkprovisional(handle ou, MegaClient* mc)
@@ -827,6 +826,8 @@ void UserAlerts::add(UserAlert::Base* unb)
             {
                 op->fileCount += np->fileCount;
                 op->folderCount += np->folderCount;
+                LOG_debug << "Merged user alert, type " << np->type << " ts " << np->timestamp;
+
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
                 {
                     alerts.back()->seen = false;
@@ -842,6 +843,8 @@ void UserAlerts::add(UserAlert::Base* unb)
 
     unb->updateEmail(&mc);
     alerts.push_back(unb);
+    LOG_debug << "Added user alert, type " << alerts.back()->type << " ts " << alerts.back()->timestamp;
+
     if (catchupdone)
     {
         unb->tag = 0;

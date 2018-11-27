@@ -103,7 +103,6 @@ public:
 protected:
     virtual void SetUp();
     virtual void TearDown();
-    virtual ~SdkTest();
 
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int n);
