@@ -152,10 +152,7 @@ void SdkTest::SetUp()
 
         megaApi[0] = new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str());
 
-        MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0]) + sizeof(*megaApi[0])) - 1); //megaApi[0]->pImpl;
-        MegaClient* client = impl->getMegaClient();
-        client->clientname = "0 ";
-
+        megaApi[0]->setLoggingName("0");
         megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi[0]->addListener(this);
 
@@ -739,10 +736,7 @@ void SdkTest::getMegaApiAux()
 
         megaApi[1] = new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(1).c_str(), USER_AGENT.c_str());
 
-        MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[1]) + sizeof(MegaApi)) - 1);
-        MegaClient* client = impl->getMegaClient();
-        client->clientname = "1 ";
-
+        megaApi[1]->setLoggingName("1");
         megaApi[1]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi[1]->addListener(this);
 

@@ -4820,6 +4820,11 @@ void MegaApiImpl::log(int logLevel, const char *message, const char *filename, i
     externalLogger.postLog(logLevel, message, filename, line);
 }
 
+void MegaApiImpl::setLoggingName(const char* loggingName)
+{
+    client->clientname = string(loggingName) + " ";
+}
+
 long long MegaApiImpl::getSDKtime()
 {
     return Waiter::ds;
