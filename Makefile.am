@@ -84,6 +84,7 @@ else
 platform_includes=$(top_srcdir)/include/mega/posix
 endif
 
+if CPPCHECK
 CPPCHECK_CMD = cppcheck \
 	--template='{file};{line};{severity};{id};{message}' \
 	--enable=warning,portability,information,missingInclude \
@@ -98,6 +99,7 @@ CPPCHECK_DIRS = \
 
 cppcheck:
 	$(CPPCHECK_CMD) $(CPPCHECK_DIRS)
+endif
 
 MOSTLYCLEANFILES = $(DX_CLEANFILES)
 
