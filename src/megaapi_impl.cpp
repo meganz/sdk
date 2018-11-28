@@ -7178,8 +7178,6 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
     waiter->notify();
 }
 
-
-
 void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
@@ -7229,6 +7227,11 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, listener); }
+
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
+{
+    return startUpload(startFirst, localPath, parent, fileName, mtime, folderTransferTag, false, appData, isSourceFileTemporary, listener);
+}
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
