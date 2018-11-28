@@ -231,6 +231,16 @@ UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t
 {
     requestWasDeleted = dts != 0;
     requestWasReminded = rts != 0;
+    
+    if (requestWasDeleted)
+    {
+        this->timestamp = dts;
+    }
+    
+    if (requestWasReminded)
+    {
+        this->timestamp = rts;
+    }
 }
 
 void UserAlert::IncomingPendingContact::text(string& header, string& title, MegaClient* mc)
