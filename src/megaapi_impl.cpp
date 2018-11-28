@@ -4822,7 +4822,16 @@ void MegaApiImpl::log(int logLevel, const char *message, const char *filename, i
 
 void MegaApiImpl::setLoggingName(const char* loggingName)
 {
-    client->clientname = string(loggingName) + " ";
+    sdkMutex.lock();
+    if (loggingName)
+    {
+        client->clientname = string(loggingName) + " ";
+    }
+    else
+    {
+        client->clientname.clear();
+    }
+    sdkMutex.unlock();
 }
 
 long long MegaApiImpl::getSDKtime()

@@ -7273,7 +7273,8 @@ class MegaApi
          * cause some particularly relevant log lines to contain it.  
          * A very short name is best to avoid increasing the log size too much.
          *
-         * @param loggingName Name of this instance, to be output in log messages from this MegaApi.
+         * @param loggingName Name of this instance, to be output in log messages from this MegaApi
+         * or NULL to clear a previous logging name.
          */
         void setLoggingName(const char* loggingName);
 
