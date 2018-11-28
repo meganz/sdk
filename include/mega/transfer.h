@@ -131,6 +131,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // state of the transfer
     transferstate_t state;
 
+    bool skipserialization;
+
     Transfer(MegaClient*, direction_t);
     virtual ~Transfer();
 

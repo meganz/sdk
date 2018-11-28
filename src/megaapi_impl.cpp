@@ -2005,6 +2005,7 @@ MegaTransferPrivate::MegaTransferPrivate(int type, MegaTransferListener *listene
     this->streamingTransfer = false;
     this->temporarySourceFile = false;
     this->startFirst = false;
+    this->backupTransfer = false;
     this->lastError = API_OK;
     this->folderTransferTag = 0;
     this->appData = NULL;
@@ -2052,6 +2053,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setStreamingTransfer(transfer->isStreamingTransfer());
     this->setSourceFileTemporary(transfer->isSourceFileTemporary());
     this->setStartFirst(transfer->shouldStartFirst());
+    this->setBackupTransfer(transfer->isBackupTransfer());
     this->setLastError(transfer->getLastError());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
@@ -2126,6 +2128,11 @@ bool MegaTransferPrivate::isStreamingTransfer() const
 bool MegaTransferPrivate::isFinished() const
 {
     return state == STATE_COMPLETED || state == STATE_CANCELLED || state == STATE_FAILED;
+}
+
+bool MegaTransferPrivate::isBackupTransfer() const
+{
+    return backupTransfer;
 }
 
 bool MegaTransferPrivate::isSourceFileTemporary() const
@@ -2521,6 +2528,11 @@ void MegaTransferPrivate::setSourceFileTemporary(bool temporary)
 void MegaTransferPrivate::setStartFirst(bool startFirst)
 {
     this->startFirst = startFirst;
+}
+
+void MegaTransferPrivate::setBackupTransfer(bool backupTransfer)
+{
+    this->backupTransfer = backupTransfer;
 }
 
 void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
@@ -7168,7 +7180,7 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
 
 
 
-void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if(localPath)
@@ -7191,6 +7203,8 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
     transfer->setSourceFileTemporary(isSourceFileTemporary);
     transfer->setStartFirst(startFirst);
 
+    transfer->setBackupTransfer(isBackup);
+
     if(fileName)
     {
         transfer->setFileName(fileName);
@@ -7208,13 +7222,13 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
 }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, (const char *)NULL, -1, 0, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, NULL, false, listener); }
 
 void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, false, listener); }
 
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, fileName, -1, 0, NULL, false, listener); }
+{ return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, listener); }
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
@@ -7330,7 +7344,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
         startUpload(t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), t->getTime(), 0,
-                          t->getAppData(), t->isSourceFileTemporary(), listener);
+                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), listener);
         delete parent;
     }
 }
@@ -16159,7 +16173,7 @@ void MegaApiImpl::sendPendingTransfers()
                     string wFileName = fileName;
                     MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), "", mtime, isSourceTemporary);
                     f->setTransfer(transfer);
-                    bool started = client->startxfer(PUT, f, true, startFirst);
+                    bool started = client->startxfer(PUT, f, true, startFirst, transfer->isBackupTransfer());
                     if (!started)
                     {
                         transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -21542,7 +21556,7 @@ MegaBackupController::MegaBackupController(MegaBackupController *backup)
         this->pendingFolders.push_back(*it);
     }
 
-    for (std::list<MegaTransfer *>::iterator it = backup->failedTransfers.begin(); it != backup->failedTransfers.end(); it++)
+    for (std::vector<MegaTransfer *>::iterator it = backup->failedTransfers.begin(); it != backup->failedTransfers.end(); it++)
     {
         this->failedTransfers.push_back(((MegaTransfer *)*it)->copy());
     }
@@ -21806,6 +21820,12 @@ bool MegaBackupController::getAttendPastBackups() const
     return attendPastBackups;
 }
 
+MegaTransferList *MegaBackupController::getFailedTransfers()
+{
+    MegaTransferList *result = new MegaTransferListPrivate(failedTransfers.data(), int(failedTransfers.size()));
+    return result;
+}
+
 void MegaBackupController::setAttendPastBackups(bool value)
 {
     attendPastBackups = value;
@@ -21999,7 +22019,7 @@ void MegaBackupController::clearCurrentBackupData()
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->pendingFolders.clear();
-    for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
+    for (std::vector<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
     {
         delete *it;
     }
@@ -22139,7 +22159,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                         client->fsaccess->local2path(&localPath, &utf8path);
 
                         totalFiles++;
-                        megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, NULL, false, this);
+                        megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, folderTransferTag, true, NULL, false, this);
                     }
                     else
                     {
@@ -22184,6 +22204,7 @@ bool MegaBackupController::checkCompletion()
 {
     if(!recursive && !pendingFolders.size() && !pendingTransfers && !pendingTags)
     {
+        error e = API_OK;
         LOG_debug << "Folder transfer finished - " << this->getTransferredBytes() << " of " << this->getTotalBytes();
         MegaNode *node = megaApi->getNodeByHandle(currentHandle);
         if (node)
@@ -22192,21 +22213,27 @@ bool MegaBackupController::checkCompletion()
             {
                 this->pendingTags++;
                 megaApi->setCustomNodeAttribute(node, "BACKST", "INCOMPLETE", this);
+                e = API_EINCOMPLETE;
             }
             else if (state != BACKUP_SKIPPING)
             {
                 this->pendingTags++;
                 megaApi->setCustomNodeAttribute(node, "BACKST", "COMPLETE", this);
             }
+            else
+            {
+                e = API_EEXPIRED;
+            }
             delete node;
         }
         else
         {
             LOG_err << "Could not set backup attribute, node not found for: " << currentName;
+            e = API_ENOENT;
         }
 
         state = BACKUP_ACTIVE;
-        megaApi->fireOnBackupFinish(this, MegaError(API_OK));
+        megaApi->fireOnBackupFinish(this, MegaError(e));
         megaApi->fireOnBackupStateChanged(this);
 
         removeexceeding();
@@ -22340,6 +22367,12 @@ void MegaBackupController::onTransferUpdate(MegaApi *, MegaTransfer *t)
     this->setMeanSpeed(t->getMeanSpeed());
 
     megaApi->fireOnBackupUpdate(this);
+}
+
+void MegaBackupController::onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError *e)
+{
+    LOG_verbose << " at MegaBackupController::onTransferTemporaryError";
+    megaApi->fireOnBackupTemporaryError(this, e->getErrorCode());
 }
 
 void MegaBackupController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
@@ -22529,7 +22562,7 @@ MegaBackupController::~MegaBackupController()
     megaApi->removeRequestListener(this);
     megaApi->removeTransferListener(this);
 
-    for (std::list<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
+    for (std::vector<MegaTransfer *>::iterator it = failedTransfers.begin(); it != failedTransfers.end(); it++)
     {
         delete *it;
     }

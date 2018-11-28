@@ -243,6 +243,8 @@ public:
     int getState() const;
     long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
     bool getAttendPastBackups() const;
+    MegaTransferList *getFailedTransfers();
+
 
     // MegaBackup setters
     void setLocalFolder(const std::string &value);
@@ -299,7 +301,7 @@ protected:
     handle currentHandle;
     std::string currentName;
     std::list<std::string> pendingFolders;
-    std::list<MegaTransfer *> failedTransfers;
+    std::vector<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
     int pendingTags;
@@ -331,6 +333,7 @@ public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
     virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError* e);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 
     long long getNumberFolders() const;
@@ -651,6 +654,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setSyncTransfer(bool syncTransfer);
         void setSourceFileTemporary(bool temporary);
         void setStartFirst(bool startFirst);
+        void setBackupTransfer(bool backupTransfer);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
@@ -689,6 +693,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool isFinished() const;
         virtual bool isSourceFileTemporary() const;
         virtual bool shouldStartFirst() const;
+        virtual bool isBackupTransfer() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
@@ -716,6 +721,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
             bool streamingTransfer : 1;
             bool temporarySourceFile : 1;
             bool startFirst : 1;
+            bool backupTransfer : 1;
         };
 
         int64_t startTime;
@@ -1922,7 +1928,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, bool isBackup = false, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);

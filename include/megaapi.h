@@ -4119,7 +4119,7 @@ public:
      * @brief Get the path of the local folder that is being synced
      *
      * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaRequest object is deleted.
+     * the MegaSync object is deleted.
      *
      * @return Local folder that is being synced
      */
@@ -4218,8 +4218,13 @@ public:
      * the application deletes it.
      *
      * There won't be more callbacks about this backup.
-     * The last parameter provides the result of the backup. If the backup finished without problems,
-     * the error code will be API_OK
+     * The last parameter provides the result of the backup:
+     * If the backup finished without problems,
+     * the error code will be API_OK.
+     * If some transfer failed, the error code will be API_EINCOMPLETE.
+     * If the backup has been skipped the error code will be API_EEXPIRED.
+     * If the backup folder cannot be found, the error will be API_ENOENT.
+     *
      *
      * @param api MegaApi object that started the backup
      * @param backup Information about the backup
@@ -4303,7 +4308,7 @@ public:
      * @brief Get the path of the local folder that is being backed up
      *
      * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaRequest object is deleted.
+     * the MegaBackup object is deleted.
      *
      * @return Local folder that is being backed up
      */
@@ -4434,25 +4439,25 @@ public:
     virtual int64_t getCurrentBKStartTime() const;
 
     /**
-     * @brief Returns the number of transferred bytes during this request
+     * @brief Returns the number of transferred bytes during last backup
      * @return Transferred bytes during this backup
      */
     virtual long long getTransferredBytes() const;
 
     /**
-     * @brief Returns the total bytes to be transferred to complete the backup
+     * @brief Returns the total bytes to be transferred to complete last backup
      * @return Total bytes to be transferred to complete the backup
      */
     virtual long long getTotalBytes() const;
 
     /**
-     * @brief Returns the current speed of this backup
+     * @brief Returns the current speed of last backup
      * @return Current speed of this backup
      */
     virtual long long getSpeed() const;
 
     /**
-     * @brief Returns the average speed of this backup
+     * @brief Returns the average speed of last backup
      * @return Average speed of this backup
      */
     virtual long long getMeanSpeed() const;
@@ -4468,6 +4473,15 @@ public:
      */
     virtual int64_t getUpdateTime() const;
 
+    /**
+     * @brief Returns the list with the transfers that have failed for during last backup
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Names of the custom attributes of the node
+     * @see MegaApi::setCustomNodeAttribute
+     */
+    virtual MegaTransferList *getFailedTransfers();
 };
 
 

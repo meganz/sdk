@@ -8777,7 +8777,7 @@ void MegaClient::notifynode(Node* n)
 
 void MegaClient::transfercacheadd(Transfer *transfer)
 {
-    if (tctable)
+    if (tctable && !transfer->skipserialization)
     {
         LOG_debug << "Caching transfer";
         tctable->put(MegaClient::CACHEDTRANSFER, transfer, &tckey);
@@ -12561,7 +12561,7 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfirst)
+bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfirst, bool donotpersist)
 {
     if (!f->transfer)
     {
@@ -12625,7 +12625,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
             f->tag = reqtag;
-            if (!f->dbid)
+            if (!f->dbid && !donotpersist)
             {
                 filecacheadd(f);
             }
@@ -12723,6 +12723,8 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 *(FileFingerprint*)t = *(FileFingerprint*)f;
             }
 
+            t->skipserialization = donotpersist;
+
             t->lastaccesstime = m_time();
             t->tag = reqtag;
             f->tag = reqtag;
@@ -12730,7 +12732,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
 
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
-            if (!f->dbid)
+            if (!f->dbid && !donotpersist)
             {
                 filecacheadd(f);
             }
