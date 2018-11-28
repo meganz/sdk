@@ -1524,7 +1524,7 @@ public:
     * TYPE_NEWSHAREDNODES (0: folder count  1: file count )
     * TYPE_REMOVEDSHAREDNODES (0: item count )
     * TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
-    *                       value 0 if someone left the folder, in which case their email is in getString())
+    *                       value 0 if someone left the folder)
     *
     * @return Number related to this request, or -1 if the index is invalid
     */
@@ -1549,8 +1549,6 @@ public:
     * This value is currently only valid for 
     *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
     *   TYPE_PAYMENT_FAILED      index 0: the plan name
-    *   TYPE_DELETEDSHARE        index 0: if getNumber(0)==0, this holds the email of the
-    *                                     person who left the share.
     *
     * @return a pointer to the string if index is valid; otherwise NULL
     */

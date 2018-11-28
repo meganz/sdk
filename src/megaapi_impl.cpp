@@ -1741,7 +1741,6 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         nodeHandle = p->folderHandle;
         bool accessRevoked = p->userHandle == p->ownerHandle;
         numbers.push_back(accessRevoked ? 1 : 0);
-        extraStrings.push_back(accessRevoked ? "" : p->removerEmail);
     }
     break;
     case UserAlert::type_put:
