@@ -1596,6 +1596,11 @@ void MegaApi::log(int logLevel, const char *message, const char *filename, int l
     MegaApiImpl::log(logLevel, message, filename, line);
 }
 
+void MegaApi::setLoggingName(const char* loggingName)
+{
+    pImpl->setLoggingName(loggingName);
+}
+
 long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();

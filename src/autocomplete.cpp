@@ -931,7 +931,12 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
 {
     ACState acs = prepACState(line, insertPos, unixStyle);
 
-    if (!acs.words.empty() && (acs.words[0].s.size() || acs.words.size() > 1))
+    while (!acs.words.empty() && acs.words.back().s.empty() && !acs.words.back().q.quoted)
+    {
+        acs.words.pop_back();
+    }
+
+    if (!acs.words.empty())
     {
         if (auto e = dynamic_cast<autocomplete::Either*>(syntax.get()))
         {

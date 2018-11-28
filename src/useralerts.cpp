@@ -804,12 +804,12 @@ void UserAlerts::add(UserAlert::Base* unb)
 
     if (!catchupdone && unb->timestamp > catchup_last_timestamp)
     {
-        // small addition to compensate for delivery by diff from now, to prevent duplicates
-        catchup_last_timestamp = unb->timestamp + 10;  
+        catchup_last_timestamp = unb->timestamp;  
     }
     else if (catchupdone && unb->timestamp < catchup_last_timestamp)
     {
-        // this is a duplicate from the initial set, generated from normal sc packets
+        // this is probably a duplicate from the initial set, generated from normal sc packets
+        LOG_warn << "discarding duplicate user alert of type " << unb->type;
         delete unb;
         return;
     }
@@ -826,6 +826,8 @@ void UserAlerts::add(UserAlert::Base* unb)
             {
                 op->fileCount += np->fileCount;
                 op->folderCount += np->folderCount;
+                LOG_debug << "Merged user alert, type " << np->type << " ts " << np->timestamp;
+
                 if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
                 {
                     alerts.back()->seen = false;
@@ -841,6 +843,8 @@ void UserAlerts::add(UserAlert::Base* unb)
 
     unb->updateEmail(&mc);
     alerts.push_back(unb);
+    LOG_debug << "Added user alert, type " << alerts.back()->type << " ts " << alerts.back()->timestamp;
+
     if (catchupdone)
     {
         unb->tag = 0;

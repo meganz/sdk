@@ -7266,6 +7266,19 @@ class MegaApi
         static void log(int logLevel, const char* message, const char *filename = "", int line = -1);
 
         /**
+         * @brief Differentiate MegaApi log output from different instances.
+         *
+         * If multiple MegaApi instances are used in a single application, it can be useful to 
+         * distinguish their activity in the log.  Setting a name here for this instance will
+         * cause some particularly relevant log lines to contain it.  
+         * A very short name is best to avoid increasing the log size too much.
+         *
+         * @param loggingName Name of this instance, to be output in log messages from this MegaApi
+         * or NULL to clear a previous logging name.
+         */
+        void setLoggingName(const char* loggingName);
+
+        /**
          * @brief Create a folder in the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_FOLDER
