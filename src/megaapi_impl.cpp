@@ -1739,6 +1739,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         nodePath = p->folderPath;
         nodeName = p->folderName;
         nodeHandle = p->folderHandle;
+        bool accessRevoked = p->userHandle == p->ownerHandle;
+        numbers.push_back(accessRevoked ? 1 : 0);
     }
     break;
     case UserAlert::type_put:

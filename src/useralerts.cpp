@@ -394,7 +394,6 @@ UserAlert::DeletedShare::DeletedShare(UserAlertRaw& un, unsigned int id)
 {
     ownerHandle = un.gethandle('o', MegaClient::USERHANDLE, UNDEF);
     folderHandle = un.gethandle('n', MegaClient::NODEHANDLE, UNDEF);
-    removerHandle = userHandle;
 }
 
 UserAlert::DeletedShare::DeletedShare(handle uh, const string& email, handle ownerhandle, handle folderhandle, m_time_t ts, unsigned int id)
@@ -402,17 +401,11 @@ UserAlert::DeletedShare::DeletedShare(handle uh, const string& email, handle own
 {
     ownerHandle = ownerhandle;
     folderHandle = folderhandle;
-    removerHandle = userHandle;
 }
 
 void UserAlert::DeletedShare::updateEmail(MegaClient* mc)
 {
     Base::updateEmail(mc);
-
-    if (User* u = mc->finduser(removerHandle))
-    {
-        removerEmail = u->email;
-    }
 
     if (Node* n = mc->nodebyhandle(folderHandle))
     {
@@ -439,9 +432,9 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
     }
     else
     {
-       if (!removerEmail.empty()) 
+       if (!userEmail.empty())
        {
-           s << "User " << removerEmail << " has left the shared folder " << folderName;  //19153
+           s << "User " << userEmail << " has left the shared folder " << folderName;  //19153
        }
        else 
        {

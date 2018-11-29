@@ -1523,6 +1523,8 @@ public:
     * This value is valid for these alerts:
     * TYPE_NEWSHAREDNODES (0: folder count  1: file count )
     * TYPE_REMOVEDSHAREDNODES (0: item count )
+    * TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
+    *                       value 0 if someone left the folder)
     *
     * @return Number related to this request, or -1 if the index is invalid
     */
