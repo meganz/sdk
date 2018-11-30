@@ -7307,6 +7307,12 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
     waiter->notify();
 }
 
+void MegaApiImpl::setStreamingMinimumRate(int bytesPerSecond)
+{
+    MutexGuard g(sdkMutex);
+    client->minstreamingrate = bytesPerSecond;
+}
+
 void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
 {
     MegaTransferPrivate *t = dynamic_cast<MegaTransferPrivate*>(transfer);

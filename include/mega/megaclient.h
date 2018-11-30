@@ -674,6 +674,9 @@ public:
     // storage status
     storagestatus_t ststatus;
 
+    // minimum bytes per second for streaming (0 == no limit, -1 == use default)
+    int minstreamingrate;
+
     // root URL for API requests
     static string APIURL;
 
@@ -950,10 +953,10 @@ public:
     void pendingattrstring(handle, string*);
 
     // active/pending direct reads
-    handledrn_map hdrns;
-    dsdrn_map dsdrns;
-    dr_list drq;
-    drs_list drss;
+    handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
+    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried 
+    dr_list drq;           // DirectReads that are in DirectReadNodes which have fectched URLs
+    drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
     // merge newly received share into nodes
     void mergenewshares(bool);

@@ -1926,6 +1926,7 @@ class MegaApiImpl : public MegaApp
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
+        void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
