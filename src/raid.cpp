@@ -128,13 +128,6 @@ namespace mega
             for (int i = RAIDPARTS; i--; )
             {
                 raidrequestpartpos[i] = raidpartspos;
-
-                // one of the URLs may be empty if only 5 parts are available.
-                if (tempurls[i].empty())
-                {
-                    useOnlyFiveRaidConnections = true;
-                    unusedRaidConnection = i;
-                }
             }
 
             // How much buffer space can we use.  Assuming two chunk sets incoming, one outgoing
@@ -168,13 +161,6 @@ namespace mega
                 {
                     std::deque<FilePiece*>& connectionpieces = raidinputparts[i];
                     transferPos(i) = connectionpieces.empty() ? raidpartspos : connectionpieces.back()->pos + connectionpieces.back()->buf.datalen();
-
-                    // one of the URLs may be empty if only 5 parts are available.
-                    if (tempurls[i].empty())
-                    {
-                        useOnlyFiveRaidConnections = true;
-                        unusedRaidConnection = i;
-                    }
                 }
             }
             else
@@ -434,6 +420,7 @@ namespace mega
                 (i > 0 ? sumdatalen : xorlen) += r.buf.datalen();
             }
         }
+        partslen -= partslen % RAIDSECTOR; // restrict to raidline boundary
 
         // for correct mac processing, we need to process the output file in pieces delimited by the chunkfloor / chunkceil algorithm
         m_off_t newdatafilepos = outputfilepos + leftoverchunk.buf.datalen();
@@ -441,8 +428,7 @@ namespace mega
         bool processToEnd =  newdatafilepos + sumdatalen == acquirelimitpos  &&  // data to the end
                              newdatafilepos / (RAIDPARTS - 1) + xorlen == raidPartSize(0, acquirelimitpos);   // parity to the end
 
-        assert(processToEnd || partslen % RAIDSECTOR == 0);
-        assert(!processToEnd || sumdatalen - partslen * (RAIDPARTS - 1) <= RAIDLINE);
+        assert(!partslen || !processToEnd || sumdatalen - partslen * (RAIDPARTS - 1) <= RAIDLINE);
 
         if (partslen > 0 || processToEnd)
         {
@@ -518,8 +504,6 @@ namespace mega
             memcpy(result->buf.datastart(), prevleftoverchunk.buf.datastart(), prevleftoverchunk.buf.datalen());
         }
 
-        byte* newdatastart = result->buf.datastart() + prevleftoverchunk.buf.datalen();
-
         // usual case, for simple and fast processing: all input buffers are the same size, and aligned, and a multiple of raidsector
         if (partslen > 0)
         {
@@ -530,17 +514,26 @@ namespace mega
                 inputbufs[i] = inputPiece->buf.isNull() ? NULL : inputPiece->buf.datastart();
             }
 
-            for (unsigned i = 0; i + RAIDSECTOR - 1 < partslen; i += RAIDSECTOR)
+            byte* b = result->buf.datastart() + prevleftoverchunk.buf.datalen();
+            byte* endpos = b + partslen * (RAIDPARTS-1);
+
+            for (unsigned i = 0; b < endpos; i += RAIDSECTOR)
             {
                 for (unsigned j = 1; j < RAIDPARTS; ++j)
                 {
-                    assert(i * (RAIDPARTS - 1) + (j - 1) * RAIDSECTOR + RAIDSECTOR <= result->buf.datalen());
+                    assert(b + RAIDSECTOR <= result->buf.datastart() + result->buf.datalen());
                     if (inputbufs[j])
-                        memcpy(newdatastart + i * (RAIDPARTS - 1) + (j - 1) * RAIDSECTOR, inputbufs[j] + i, RAIDSECTOR);
+                    {
+                        memcpy(b, inputbufs[j] + i, RAIDSECTOR);
+                    }
                     else
-                        recoverSectorFromParity(newdatastart + i * (RAIDPARTS - 1) + (j - 1) * RAIDSECTOR, inputbufs, i);
+                    {
+                        recoverSectorFromParity(b, inputbufs, i);
+                    }
+                    b += RAIDSECTOR;
                 }
             }
+            assert(b == endpos);
         }
         return result;
     }

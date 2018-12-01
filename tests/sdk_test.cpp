@@ -2267,6 +2267,9 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     p->Add(sequence(text("lls"), opt(flag("-R")), opt(ACN(new LocalFS(true, true, "")))));
     ACN syntax(std::move(p));
 
+    error_code e;
+    std::experimental::filesystem::remove_all("test_autocomplete_files", e);
+
     std::experimental::filesystem::create_directory("test_autocomplete_files");
     std::experimental::filesystem::current_path("test_autocomplete_files");
 
@@ -3748,7 +3751,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     ASSERT_TRUE(randomRunsDone > 100);
 
-    cout << "Streaming test completed " << randomRunsDone << " pieces of the file, total " << randomRunsBytes << " bytes across all";
+    cout << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
 
     delete nimported;
     delete nonRaidNode;
