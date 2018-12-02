@@ -3295,7 +3295,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
 #ifndef DEBUG
-    cout << "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+    cout << "SdkTestCloudraidTransferWithConnectionFailures can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
 #else
 
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
@@ -3351,6 +3351,10 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
+#ifndef DEBUG
+    cout << "SdkTestCloudraidTransferWithSingleChannelTimeouts can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3386,9 +3390,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
         ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
     }
-
-
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
 }
 
 
@@ -3402,6 +3405,10 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
+#ifndef DEBUG
+    cout << "SdkTestOverquotaNonCloudraid can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
@@ -3458,6 +3465,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
 }
 
 
@@ -3470,6 +3478,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
+#ifndef DEBUG
+    cout << "SdkTestOverquotaCloudraid can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
@@ -3519,6 +3530,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
 }
 
 
