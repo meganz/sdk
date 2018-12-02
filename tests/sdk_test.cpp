@@ -3294,6 +3294,10 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
+#ifndef DEBUG
+    cout << "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3334,6 +3338,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
 }
 
 
