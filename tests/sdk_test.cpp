@@ -3171,6 +3171,10 @@ namespace mega
 
 TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
+#ifndef DEBUG
+    cout << "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -3276,6 +3280,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     }
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
 }
 
 
@@ -3673,7 +3678,8 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     // ok loop for 10 minutes
     srand(unsigned(starttime));
-    int randomRunsDone = 0, randomRunsBytes = 0;
+    int randomRunsDone = 0;
+    m_off_t randomRunsBytes = 0;
     for (; m_time() - starttime < seconds_to_test_for; ++randomRunsDone)
     {
 
