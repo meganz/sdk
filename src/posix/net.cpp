@@ -249,7 +249,7 @@ bool CurlHttpIO::ipv6available()
         return ipv6_works;
     }
 
-    int s = socket(PF_INET6, SOCK_DGRAM, 0);
+    curl_socket_t s = socket(PF_INET6, SOCK_DGRAM, 0);
 
     if (s == -1)
     {
@@ -407,6 +407,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
         else if (WSAEventSelect(info.fd, info.handle, events))
         {
             LOG_err << "Error associating cares handle " << info.fd << ": " << GetLastError();
+            WSACloseEvent(info.handle);
             info.handle = WSA_INVALID_EVENT;
         }
 
@@ -432,8 +433,8 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 
 void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
-    std::map<int, SockInfo> &socketmap = curlsockets[d];
-    for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end(); it++)
+    SockInfoMap &socketmap = curlsockets[d];
+    for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
         SockInfo &info = it->second;
         if (!info.mode)
@@ -504,9 +505,9 @@ void CurlHttpIO::closearesevents()
 
 void CurlHttpIO::closecurlevents(direction_t d)
 {
-    std::map<int, SockInfo> &socketmap = curlsockets[d];
+    SockInfoMap &socketmap = curlsockets[d];
 #if defined(_WIN32)
-    for (std::map<int, SockInfo>::iterator it = socketmap.begin(); it != socketmap.end(); it++)
+    for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
         SockInfo &info = it->second;
         if (info.handle != WSA_INVALID_EVENT)
@@ -571,11 +572,13 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #endif
 
     int dummy = 0;
-    std::map<int, SockInfo> *socketmap = &curlsockets[d];
+    SockInfoMap *socketmap = &curlsockets[d];
     m_time_t *timeout = &curltimeoutreset[d];
     bool *paused = &arerequestspaused[d];
 
-    for (std::map<int, SockInfo>::iterator it = socketmap->begin(); !(*paused) && it != socketmap->end();)
+    curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
+
+    for (SockInfoMap::iterator it = socketmap->begin(); !(*paused) && it != socketmap->end();)
     {
         SockInfo &info = (it++)->second;
         if (!info.mode)
@@ -616,7 +619,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
         curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
-    for (std::map<int, SockInfo>::iterator it = socketmap->begin(); it != socketmap->end();)
+    for (SockInfoMap::iterator it = socketmap->begin(); it != socketmap->end();)
     {
         SockInfo &info = it->second;
         if (!info.mode)
@@ -795,12 +798,13 @@ void CurlHttpIO::addevents(Waiter* w, int)
         if (ds <= 0)
         {
             curltimeoutms = 0;
+            curltimeoutreset[API] = -1;
         }
         else
         {
             if (curltimeoutms < 0 || curltimeoutms > ds * 100)
             {
-                curltimeoutms = ds * 100;
+                curltimeoutms = long(ds * 100);
             }
         }
     }
@@ -823,12 +827,13 @@ void CurlHttpIO::addevents(Waiter* w, int)
                 if (ds <= 0)
                 {
                     curltimeoutms = 0;
+                    curltimeoutreset[d] = -1;
                 }
                 else
                 {
                     if (curltimeoutms < 0 || curltimeoutms > ds * 100)
                     {
-                        curltimeoutms = ds * 100;
+                        curltimeoutms = long(ds * 100);
                     }
                 }
             }
@@ -851,7 +856,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
 
         if ((unsigned long)timeoutds < waiter->maxds)
         {
-            waiter->maxds = timeoutds;
+            waiter->maxds = dstime(timeoutds);
         }
     }
     curlsocketsprocessed = false;
@@ -867,7 +872,7 @@ void CurlHttpIO::addevents(Waiter* w, int)
 
         if (arestimeout < waiter->maxds)
         {
-            waiter->maxds = arestimeout;
+            waiter->maxds = dstime(arestimeout);
         }
         arestimeout += Waiter::ds;
     }
@@ -1533,7 +1538,7 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
         }
         else
         {
-            for (unsigned int i = startport; i < endport; i++)
+            for (size_t i = startport; i < endport; i++)
             {
                 int c = url->data()[i];
 
@@ -2256,7 +2261,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
         bool isApi = (req->type == REQ_JSON);
         if (!isApi)
         {
-            long maxbytes = (httpio->maxspeed[PUT] - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialdata[PUT];
+            long maxbytes = long( (httpio->maxspeed[PUT] - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialdata[PUT] );
             if (maxbytes <= 0)
             {
                 httpio->pausedrequests[PUT].insert(httpctx->curl);
@@ -2279,7 +2284,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
 
 size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target)
 {
-    int len = size * nmemb;
+    int len = int(size * nmemb);
     HttpReq *req = (HttpReq*)target;
     CurlHttpIO* httpio = (CurlHttpIO*)req->httpio;
     if (httpio)
@@ -2318,7 +2323,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
 size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* target)
 {
     HttpReq *req = (HttpReq*)target;
-    int len = size * nmemb;
+    size_t len = size * nmemb;
     if (len > 2)
     {
         LOG_verbose << "Header: " << string((const char *)ptr, len - 2);
@@ -2408,7 +2413,7 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
                 << " " << req->outbuf << " " << newoffset;
         return CURL_SEEKFUNC_FAIL;
     }
-    req->outpos = newoffset;
+    req->outpos = size_t(newoffset);
     LOG_debug << "Successful seek to position " << newoffset << " of " << totalsize;
     return CURL_SEEKFUNC_OK;
 }
@@ -2416,7 +2421,7 @@ int CurlHttpIO::seek_data(void *userp, curl_off_t offset, int origin)
 int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, void *, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
-    std::map<int, SockInfo> &socketmap = httpio->curlsockets[d];
+    SockInfoMap &socketmap = httpio->curlsockets[d];
 
     if (what == CURL_POLL_REMOVE)
     {
@@ -2434,12 +2439,12 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     }
     else
     {
-        LOG_debug << "Adding/setting curl socket " << s;
+        LOG_debug << "Adding/setting curl socket " << s << " to " << what;
         SockInfo info;
         info.fd = s;
         info.mode = what;
 #if defined(_WIN32)
-        std::map<int, SockInfo>::iterator it = socketmap.find(s);
+        SockInfoMap::iterator it = socketmap.find(s);
         if (it != socketmap.end() && it->second.handle != WSA_INVALID_EVENT)
         {
             WSACloseEvent (it->second.handle);
@@ -2508,7 +2513,7 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_
         httpio->curltimeoutreset[d] = Waiter::ds + timeoutds;
     }
 
-    LOG_debug << "Setting cURL timeout to " << timeout_ms << " ms";
+    LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " ms from " << timeout_ms;
     return 0;
 }
 
@@ -2644,7 +2649,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
             int len = X509_NAME_get_text_by_NID (X509_get_issuer_name (X509_STORE_CTX_get0_cert(ctx)),
                                                  NID_commonName,
                                                  (char *)request->sslfakeissuer.data(),
-                                                 request->sslfakeissuer.size());
+                                                 int(request->sslfakeissuer.size()));
             request->sslfakeissuer.resize(len > 0 ? len : 0);
             LOG_debug << "Fake certificate issuer: " << request->sslfakeissuer;
         }
