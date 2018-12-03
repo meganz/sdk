@@ -9109,6 +9109,20 @@ class MegaApi
         void startStreaming(MegaNode* node, int64_t startPos, int64_t size, MegaTransferListener *listener);
 
         /**
+         * @brief Set the miniumum acceptable streaming speed for streaming transfers
+         *
+         * When streaming a file with startStreaming(), the SDK monitors the transfer rate.
+         * After a few seconds grace period, the monitoring starts. If the average rate is below 
+         * the minimum rate specified (determined by this function, or by default a reasonable rate
+         * for audio/video, then the streaming operation will fail with MegaError::API_EAGAIN.
+         *
+         * @param bytesPerSecond The minimum acceptable rate for streaming.
+         *                       Use -1 to use the default built into the library.
+         *                       Use 0 to prevent the check.
+         */
+        void setStreamingMinimumRate(int bytesPerSecond);
+
+        /**
          * @brief Cancel a transfer
          *
          * When a transfer is cancelled, it will finish and will provide the error code

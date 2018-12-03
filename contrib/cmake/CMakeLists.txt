@@ -283,11 +283,13 @@ add_library(Mega STATIC
             ${MegaDir}/src/pendingcontactrequest.cpp 
             ${MegaDir}/src/proxy.cpp 
             ${MegaDir}/src/pubkeyaction.cpp 
+            ${MegaDir}/src/raid.cpp 
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp 
             ${MegaDir}/src/share.cpp 
             ${MegaDir}/src/sharenodekeys.cpp 
             ${MegaDir}/src/sync.cpp 
+            ${MegaDir}/src/testhooks.cpp 
             ${MegaDir}/src/transfer.cpp 
             ${MegaDir}/src/transferslot.cpp 
             ${MegaDir}/src/treeproc.cpp 

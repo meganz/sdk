@@ -2625,6 +2625,11 @@ void MegaApi::startStreaming(MegaNode* node, int64_t startPos, int64_t size, Meg
     pImpl->startStreaming(node, startPos, size, listener);
 }
 
+void MegaApi::setStreamingMinimumRate(int bytesPerSecond)
+{
+    pImpl->setStreamingMinimumRate(bytesPerSecond);
+}
+
 #ifdef ENABLE_SYNC
 
 //Move local files inside synced folders to the "Rubbish" folder.
