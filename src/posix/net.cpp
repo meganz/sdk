@@ -576,8 +576,6 @@ void CurlHttpIO::processcurlevents(direction_t d)
     m_time_t *timeout = &curltimeoutreset[d];
     bool *paused = &arerequestspaused[d];
 
-    curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
-
     for (SockInfoMap::iterator it = socketmap->begin(); !(*paused) && it != socketmap->end();)
     {
         SockInfo &info = (it++)->second;
@@ -798,7 +796,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
         if (ds <= 0)
         {
             curltimeoutms = 0;
-            curltimeoutreset[API] = -1;
         }
         else
         {
@@ -827,7 +824,6 @@ void CurlHttpIO::addevents(Waiter* w, int)
                 if (ds <= 0)
                 {
                     curltimeoutms = 0;
-                    curltimeoutreset[d] = -1;
                 }
                 else
                 {
