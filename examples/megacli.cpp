@@ -6810,6 +6810,10 @@ char** my_rl_completion(const char *text, int start, int end)
     //    cout << "i " << i << ": " << result[i] << endl;
     //}
     rl_completion_suppress_append = true;
+    rl_basic_word_break_characters = " \r\n";
+    rl_completer_word_break_characters = " \r\n";
+    rl_completer_quote_characters = "";
+    rl_special_prefixes = "";
     return result;
 }
 #endif
