@@ -2210,7 +2210,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     }
     else if (n->type == FOLDERNODE || n->type == ROOTNODE)
     {
-        fs::path newpath = localpath / (n->type == ROOTNODE ? "ROOTNODE" : n->displayname());
+        fs::path newpath = localpath / fs::u8path(n->type == ROOTNODE ? "ROOTNODE" : n->displayname());
         if (folders)
         {
             std::error_code ec; 
@@ -3260,23 +3260,22 @@ static void process_line(char* l)
                     else if (words[0] == "lls") // local ls
                     {
                         unsigned recursive = words.size() > 1 && words[1] == "-R";
-                        std::string ls_folder = words.size() > recursive + 1 ? words[recursive + 1] : fs::current_path().string();
                         try
                         {
-                            fs::path p(ls_folder);
+                            fs::path ls_folder = words.size() > recursive + 1 ? fs::u8path(words[recursive + 1]) : fs::current_path();
                             std::error_code ec;
-                            auto s = fs::status(p, ec);
+                            auto s = fs::status(ls_folder, ec);
                             if (ec)
                             {
                                 cerr << ec.message() << endl;
                             }
-                            else if (!fs::exists(p))
+                            else if (!fs::exists(ls_folder))
                             {
                                 cerr << "not found" << endl;
                             }
                             else
                             {
-                                local_dumptree(p, recursive);
+                                local_dumptree(ls_folder, recursive);
                             }
                         }
                         catch (std::exception& e)

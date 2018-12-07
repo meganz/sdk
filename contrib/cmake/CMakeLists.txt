@@ -239,15 +239,19 @@ ELSE(WIN32)
 
 ENDIF(WIN32)
 
+set(HAVE_GLOB_H 0) 
+
 include(CheckIncludeFile)
 include(CheckFunctionExists)
 check_include_file(inttypes.h HAVE_INTTYPES_H)
 check_include_file(dirent.h HAVE_DIRENT_H)
+check_include_file(glob.h HAVE_GLOB_H)
 check_include_file(uv.h HAVE_LIBUV)
 check_function_exists(aio_write, HAVE_AIO_RT)
 check_function_exists(fdopendir, HAVE_FDOPENDIR)
 
-configure_file ("${MegaDir}/include/mega/config.h.in.cmake" "${MegaDir}/include/mega/config.h" )
+
+configure_file ("${MegaDir}/contrib/cmake/config.h.in" "${MegaDir}/include/mega/config.h" )
 
 
 
@@ -273,6 +277,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/logging.cpp 
             ${MegaDir}/src/mediafileattribute.cpp 
             ${MegaDir}/src/mega_ccronexpr.cpp 
+            $<${HAVE_GLOB_H}:${MegaDir}/src/mega_glob.c> 
             ${MegaDir}/src/mega_http_parser.cpp 
             ${MegaDir}/src/mega_utf8proc.cpp 
             ${MegaDir}/src/mega_zxcvbn.cpp 
@@ -326,7 +331,8 @@ target_compile_definitions(Mega PUBLIC
                 $<${ENABLE_CHAT}:ENABLE_CHAT> 
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE> 
-                $<${HAVE_FFMPEG}:HAVE_FFMPEG> )
+                $<${HAVE_FFMPEG}:HAVE_FFMPEG>
+                $<${HAVE_GLOB_H}:HAVE_GLOB_H> )
 
 if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)
