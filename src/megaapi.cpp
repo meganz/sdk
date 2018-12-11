@@ -2735,6 +2735,11 @@ bool MegaApi::isSyncable(const char *path, long long size)
     return pImpl->isSyncable(path, size);
 }
 
+bool MegaApi::isInsideSync(MegaNode *node)
+{
+    return pImpl->isInsideSync(node);
+}
+
 int MegaApi::isNodeSyncable(MegaNode *node)
 {
     return pImpl->isNodeSyncable(node);

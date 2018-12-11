@@ -10198,6 +10198,13 @@ class MegaApi
         bool isSyncable(const char *path, long long size);
 
         /**
+         * @brief Check is a node is inside a synced folder
+         * @param node Node to check
+         * @return true if the node is inside a synced folder, otherwise false
+         */
+        bool isInsideSync(MegaNode *node);
+
+        /**
          * @brief Check if it's possible to start synchronizing a folder node.
          *
          * Possible return values for this function are:

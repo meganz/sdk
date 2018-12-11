@@ -7804,6 +7804,28 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     return result;
 }
 
+bool MegaApiImpl::isInsideSync(MegaNode *node)
+{
+    if (!node)
+    {
+        return false;
+    }
+
+    sdkMutex.lock();
+    Node *n = client->nodebyhandle(node->getHandle());
+    while (n)
+    {
+        if (n->localnode)
+        {
+            sdkMutex.unlock();
+            return true;
+        }
+        n = n->parent;
+    }
+    sdkMutex.unlock();
+    return false;
+}
+
 #endif
 
 int MegaApiImpl::getNumPendingUploads()

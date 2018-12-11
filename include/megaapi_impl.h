@@ -1984,6 +1984,7 @@ class MegaApiImpl : public MegaApp
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
+        bool isInsideSync(MegaNode *node);
         bool is_syncable(Sync*, const char*, string*);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
