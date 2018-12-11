@@ -140,7 +140,8 @@ namespace mega
     public enum class MStorageState {
         STORAGE_STATE_GREEN     = 0,
         STORAGE_STATE_ORANGE    = 1,
-        STORAGE_STATE_RED       = 2
+        STORAGE_STATE_RED       = 2,
+        STORAGE_STATE_CHANGE    = 3
     };
 
     public ref class MegaSDK sealed
@@ -2447,48 +2448,6 @@ namespace mega
         * The value zero disables the rubbish-bin cleaning scheduler (only for PRO accounts).
         */
         void setRubbishBinAutopurgePeriod(int days);
-
-        /**
-        * @brief Get the state of the storage
-        *
-        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
-        * Valid data in the MRequest object received on callbacks:
-        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_STORAGE_STATE
-        *
-        * Valid data in the MRequest object received in onRequestFinish when the error code
-        * is MError::API_OK:
-        * - MRequest::getNumber - Returns one of these storage states:
-        * MStorageState::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-        * MStorageState::STORAGE_STATE_ORANGE = 1 - The account is almost full
-        * MStorageState::STORAGE_STATE_RED = 2 - The account is full
-        *
-        * If the state is not set on the server side, the request will finish with the error
-        * MError::API_ENOENT, but MRequest::getNumber will be valid and will have the
-        * number 0 (MStorageState::STORAGE_STATE_GREEN).
-        *
-        * @param listener MRequestListener to track this request
-        */
-        void getStorageState(MRequestListenerInterface^ listener);
-
-        /**
-        * @brief Get the state of the storage
-        *
-        * The associated request type with this request is MRequest::TYPE_GET_ATTR_USER
-        * Valid data in the MRequest object received on callbacks:
-        * - MRequest::getParamType - Returns the attribute type MUserAttrType::USER_ATTR_STORAGE_STATE
-        *
-        * Valid data in the MRequest object received in onRequestFinish when the error code
-        * is MError::API_OK:
-        * - MRequest::getNumber - Returns one of these storage states:
-        * MStorageState::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-        * MStorageState::STORAGE_STATE_ORANGE = 1 - The account is almost full
-        * MStorageState::STORAGE_STATE_RED = 2 - The account is full
-        *
-        * If the state is not set on the server side, the request will finish with the error
-        * MError::API_ENOENT, but MRequest::getNumber will be valid and will have the
-        * number 0 (MStorageState::STORAGE_STATE_GREEN).
-        */
-        void getStorageState();
 
         /**
         * @brief Change the password of the MEGA account
