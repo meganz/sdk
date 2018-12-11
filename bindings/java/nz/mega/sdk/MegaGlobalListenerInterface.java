@@ -167,6 +167,12 @@ public interface MegaGlobalListenerInterface {
      *     - MegaApi::STORAGE_STATE_RED = 2
      *     The account is full. Uploads have been stopped
      *
+     *     - MegaApi::STORAGE_STATE_CHANGE = 3
+     *     There is a possible significant change in the storage state.
+     *     It's needed to call MegaApi::getAccountDetails to check the storage status.
+     *     After calling it, this callback will be called again with the corresponding
+     *     state if there is really a change.
+     *
      * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
      *
      * @param api MegaApi object connected to the account
