@@ -5205,6 +5205,12 @@ class MegaGlobalListener
          *     - MegaApi::STORAGE_STATE_RED = 2
          *     The account is full. Uploads have been stopped
          *
+         *     - MegaApi::STORAGE_STATE_CHANGE = 3
+         *     There is a possible significant change in the storage state.
+         *     It's needed to call MegaApi::getAccountDetails to check the storage status.
+         *     After calling it, this callback will be called again with the corresponding
+         *     state if there is really a change.
+         *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
          * @param api MegaApi object connected to the account
@@ -5653,6 +5659,12 @@ class MegaListener
          *     - MegaApi::STORAGE_STATE_RED = 2
          *     The account is full. Uploads have been stopped
          *
+         *     - MegaApi::STORAGE_STATE_CHANGE = 3
+         *     There is a possible significant change in the storage state.
+         *     It's needed to call MegaApi::getAccountDetails to check the storage status.
+         *     After calling it, this callback will be called again with the corresponding
+         *     state if there is really a change.
+         *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
          * @param api MegaApi object connected to the account
@@ -5799,7 +5811,8 @@ class MegaApi
         enum {
             STORAGE_STATE_GREEN = 0,
             STORAGE_STATE_ORANGE = 1,
-            STORAGE_STATE_RED = 2
+            STORAGE_STATE_RED = 2,
+            STORAGE_STATE_CHANGE = 3
         };
 
         /**
@@ -8690,28 +8703,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Get the state of the storage
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getNumber - Returns one of these storage states:
-         * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-         * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
-         * MegaApi::STORAGE_STATE_RED = 2 - The account is full
-         *
-         * If the state is not set on the server side, the request will finish with the error
-         * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
-         * number 0 (MegaApi::STORAGE_STATE_GREEN).
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void getStorageState(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Change the password of the MEGA account

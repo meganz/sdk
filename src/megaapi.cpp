@@ -2243,11 +2243,6 @@ void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listen
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
-void MegaApi::getStorageState(MegaRequestListener *listener)
-{
-    pImpl->getStorageState(listener);
-}
-
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);

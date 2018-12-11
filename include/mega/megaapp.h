@@ -302,7 +302,7 @@ struct MEGA_API MegaApp
 
     virtual void notify_dbcommit() { }
 
-    virtual void notify_storage() { }
+    virtual void notify_storage(int) { }
 
     virtual void notify_change_to_https() { }
 

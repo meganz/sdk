@@ -2764,12 +2764,6 @@ void CommandGetUA::procresult()
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
         }
-
-        if (at == ATTR_STORAGE_STATE && e == API_ENOENT)
-        {
-            LOG_debug << "There are no storage problems";
-            client->setstoragestatus(STORAGE_GREEN);
-        }
     }
     else
     {
@@ -2919,30 +2913,6 @@ void CommandGetUA::procresult()
                                     LOG_info << "File versioning is enabled";
                                 }
                             }
-
-                            if (at == ATTR_STORAGE_STATE)
-                            {
-                                if (value == "2")
-                                {
-                                    LOG_debug << "Account full";
-                                    client->activateoverquota(0);
-                                }
-                                else if (value == "1")
-                                {
-                                    LOG_debug << "Few storage space available";
-                                    client->setstoragestatus(STORAGE_ORANGE);
-                                }
-                                else if (value == "0")
-                                {
-                                    LOG_debug << "There are no storage problems";
-                                    client->setstoragestatus(STORAGE_GREEN);
-                                }
-                                else
-                                {
-                                    LOG_err << "Unknown state of storage. State: " << value;
-                                }
-                            }
-
                             break;
 
                         default:    // legacy attributes or unknown attribute
@@ -3634,6 +3604,24 @@ void CommandGetUserQuota::procresult()
                 break;
 
             case EOO:
+                if (got_storage)
+                {
+                    if (details->storage_used > details->storage_max)
+                    {
+                        LOG_debug << "Account full";
+                        client->activateoverquota(0);
+                    }
+                    else if (details->storage_used > (0.9 * details->storage_max))
+                    {
+                        LOG_debug << "Few storage space available";
+                        client->setstoragestatus(STORAGE_ORANGE);
+                    }
+                    else
+                    {
+                        LOG_debug << "There are no storage problems";
+                        client->setstoragestatus(STORAGE_GREEN);
+                    }
+                }
                 client->app->account_details(details, got_storage, got_transfer, got_pro, false, false, false);
                 return;
 

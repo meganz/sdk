@@ -5984,14 +5984,6 @@ void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *li
     waiter->notify();
 }
 
-void MegaApiImpl::getStorageState(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_STORAGE_STATE);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_USER_EMAIL, listener);
@@ -12481,10 +12473,10 @@ void MegaApiImpl::notify_dbcommit()
     fireOnEvent(event);
 }
 
-void MegaApiImpl::notify_storage()
+void MegaApiImpl::notify_storage(int storageEvent)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_STORAGE);
-    event->setNumber(client->ststatus);
+    event->setNumber(storageEvent);
     fireOnEvent(event);
 }
 
