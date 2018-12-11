@@ -155,7 +155,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 typedef NS_ENUM(NSUInteger, StorageState) {
     StorageStateGreen = 0,
     StorageStateOrange = 1,
-    StorageStateRed = 2
+    StorageStateRed = 2,
+    StorageStateChange = 3
 };
 
 /**
@@ -3985,48 +3986,6 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  */
 - (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days;
-
-/**
- * @brief Get the state of the storage
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeStorageState
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest number] - Returns one of these storage states:
- * StorageStateGreen = 0 - The account has no problems with storage space
- * StorageStateOrange = 1 - The account is almost full
- * StorageStateRed = 2 - The account is full
- *
- * If the state is not set on the server side, the request will finish with the error
- * MEGAErrorTypeApiENoent, but [MEGARequest number] will be valid and will have the
- * number 0 (StorageStateGreen).
- *
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)getStorageStateWithDelegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Get the state of the storage
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeStorageState
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest number] - Returns one of these storage states:
- * StorageStateGreen = 0 - The account has no problems with storage space
- * StorageStateOrange = 1 - The account is almost full
- * StorageStateRed = 2 - The account is full
- *
- * If the state is not set on the server side, the request will finish with the error
- * MEGAErrorTypeApiENoent, but [MEGARequest number] will be valid and will have the
- * number 0 (StorageStateGreen).
- */
-- (void)getStorageState;
 
 /**
  * @brief Use HTTPS communications only
