@@ -1863,10 +1863,6 @@ class MegaApiImpl : public MegaApp
         void getChatUserAttr(const char* email_or_handle, int type, const char *dstFilePath, const char *ph = NULL, int number = 0, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
-        void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
-        void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
-        void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
-        void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
         void getStorageState(MegaRequestListener *listener = NULL);
@@ -2259,6 +2255,12 @@ class MegaApiImpl : public MegaApp
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
         void chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, MegaRequestListener *listener = NULL);
+        void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
+        void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
+        void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
+        void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+        void enableGeolocation(MegaRequestListener *listener = NULL);
+        void isGeolocationEnabled(MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);

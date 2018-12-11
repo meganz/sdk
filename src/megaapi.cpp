@@ -2213,6 +2213,7 @@ void MegaApi::isMasterKeyExported(MegaRequestListener *listener)
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, 0, listener);
 }
 
+#ifdef ENABLE_CHAT
 void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
 {
     pImpl->enableRichPreviews(enable, listener);
@@ -2232,6 +2233,17 @@ void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *lis
 {
     pImpl->setRichLinkWarningCounterValue(value, listener);
 }
+
+void MegaApi::enableGeolocation(MegaRequestListener *listener)
+{
+    pImpl->enableGeolocation(listener);
+}
+
+void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
+{
+    pImpl->isGeolocationEnabled(listener);
+}
+#endif
 
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {

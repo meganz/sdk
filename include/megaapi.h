@@ -1171,7 +1171,8 @@ class MegaUser
             CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
             CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
             CHANGE_TYPE_RUBBISH_TIME    = 0x40000,
-            CHANGE_TYPE_STORAGE_STATE   = 0x80000
+            CHANGE_TYPE_STORAGE_STATE   = 0x80000,
+            CHANGE_TYPE_GEOLOCATION     = 0x100000
         };
 
         /**
@@ -1244,6 +1245,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
          * Check if the state of the storage has changed
          *
+         * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
+         * Check if option for geolocation messages has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1315,6 +1319,10 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
          * Check if the state of the storage has changed
+         *
+         * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
+         * Check if option for geolocation messages has changed
+         *
          */
         virtual int getChanges();
 
@@ -5739,7 +5747,8 @@ class MegaApi
             USER_ATTR_RICH_PREVIEWS = 18,        // private - byte array
             USER_ATTR_RUBBISH_TIME = 19,         // private - byte array
             USER_ATTR_LAST_PSA = 20,             // private - char array
-            USER_ATTR_STORAGE_STATE = 21         // private - char array
+            USER_ATTR_STORAGE_STATE = 21,        // private - char array
+            USER_ATTR_GEOLOCATION = 22           // private - byte array
         };
 
         enum {
@@ -7940,6 +7949,8 @@ class MegaApi
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
+         * Get whether the user has enabled send geolocation messages (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -8085,6 +8096,8 @@ class MegaApi
          * Get whether user generates rich-link messages or not (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
+         * Set whether the user can send geolocation messages (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -8592,6 +8605,7 @@ class MegaApi
          */
         void isMasterKeyExported(MegaRequestListener *listener = NULL);
 
+#ifdef ENABLE_CHAT
         /**
          * @brief Enable or disable the generation of rich previews
          *
@@ -8658,6 +8672,35 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable the sending of geolocation messages
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void enableGeolocation(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the sending of geolocation messages is enabled
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         *
+         * The error MegaError::API_ENOENT is a valid value returned by the request when the user attribute
+         * is not set yet.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+#endif
 
         /**
          * @brief Get the number of days for rubbish-bin cleaning scheduler
