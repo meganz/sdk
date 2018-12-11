@@ -5212,6 +5212,7 @@ void MegaClient::sc_userattr()
                         }
                         else if (type == ATTR_STORAGE_STATE)
                         {
+                            LOG_debug << "Possible storage status change";
                             app->notify_storage(STORAGE_CHANGE);
                         }
                     }
