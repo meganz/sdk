@@ -97,7 +97,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeRichPreviews            = 18, // private - byte array
     MEGAUserAttributeRubbishTime             = 19, // private - byte array
     MEGAUserAttributeLastPSA                 = 20, // private - char array
-    MEGAUserAttributeStorageState            = 21 // private - char array
+    MEGAUserAttributeStorageState            = 21, // private - char array
+    MEGAUserAttributeGeolocation             = 22 // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -3050,6 +3051,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
@@ -3101,6 +3104,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3156,6 +3161,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  */
 - (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type;
@@ -3210,6 +3217,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3263,6 +3272,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
@@ -3315,6 +3326,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3923,6 +3936,58 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param value Number of times "Not now" option has been selected
  */
 - (void)setRichLinkWarningCounterValue:(NSUInteger)value;
+
+/**
+ * @brief Enable the sending of geolocation messages
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)enableGeolocationWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable the sending of geolocation messages
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
+ */
+- (void)enableGeolocation;
+
+/**
+ * @brief Check if the sending of geolocation messages is enabled
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ *
+ * The error MEGAErrorTypeApiENoent is a valid value returned by the request when the user attribute
+ * is not set yet.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)isGeolocationEnabledWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the sending of geolocation messages is enabled
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ *
+ * The error MEGAErrorTypeApiENoent is a valid value returned by the request when the user attribute
+ * is not set yet.
+ */
+- (void)isGeolocationEnabled;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
