@@ -99,6 +99,8 @@ namespace autocomplete {
 
         // output suitable for user 'help'
         virtual std::ostream& describe(std::ostream& s) const = 0;
+
+        virtual ~ACNode();
     };
 
     std::ostream& operator<<(std::ostream&, const ACNode&);

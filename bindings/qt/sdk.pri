@@ -3,6 +3,7 @@ MEGASDK_BASE_PATH = $$PWD/../../
 
 VPATH += $$MEGASDK_BASE_PATH
 SOURCES += src/attrmap.cpp \
+    src/autocomplete.cpp \
     src/backofftimer.cpp \
     src/base64.cpp \
     src/command.cpp \
@@ -271,6 +272,7 @@ win32 {
 
 unix {
 SOURCES += src/posix/net.cpp  \
+    src/posix/console.cpp  \
     src/posix/fs.cpp  \
     src/posix/waiter.cpp
 }
