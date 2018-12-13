@@ -2082,6 +2082,7 @@ autocomplete::ACN autocompleteSyntax()
     using namespace autocomplete;
     std::unique_ptr<Either> p(new Either("      "));
 
+    p->Add(sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
     // which is clearer in the help output - one line or 3?
     p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
@@ -4581,7 +4582,40 @@ static void process_line(char* l)
                     break;
 
                 case 6:
-                    if (words[0] == "passwd")
+                    if (words[0] == "apiurl")
+                    {
+                        if (words.size() == 1)
+                        {
+                            cout << "Current APIURL = " << MegaClient::APIURL << endl;
+                            cout << "Current disablepkp = " << (MegaClient::disablepkp ? "true" : "false") << endl;
+                        }
+                        else if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You must not be logged in, to change APIURL" << endl;
+                        }
+                        else if (words.size() == 3 || words.size() == 2)
+                        {
+                            if (words[1].size() < 8 || words[1].substr(0, 8) != "https://")
+                            {
+                                words[1] = "https://" + words[1];
+                            }
+                            if (words[1].empty() || words[1][words[1].size() - 1] != '/')
+                            {
+                                words[1] += '/';
+                            }
+                            MegaClient::APIURL = words[1];
+                            if (words.size() == 3)
+                            {
+                                MegaClient::disablepkp = words[2] == "true";
+                            }
+                        }
+                        else
+                        {
+                            cout << "apiurl [<url> [true|false]]" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "passwd")
                     {
                         if (client->loggedin() != NOTLOGGEDIN)
                         {
