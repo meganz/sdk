@@ -5205,15 +5205,18 @@ void MegaClient::sc_userattr()
                             }
                         }
 
-                        // silently fetch-upon-update this critical attribute
-                        if (type == ATTR_DISABLE_VERSIONS)
+                        if (!fetchingnodes)
                         {
-                            getua(u, type, 0);
-                        }
-                        else if (type == ATTR_STORAGE_STATE)
-                        {
-                            LOG_debug << "Possible storage status change";
-                            app->notify_storage(STORAGE_CHANGE);
+                            // silently fetch-upon-update this critical attribute
+                            if (type == ATTR_DISABLE_VERSIONS)
+                            {
+                                getua(u, type, 0);
+                            }
+                            else if (type == ATTR_STORAGE_STATE)
+                            {
+                                LOG_debug << "Possible storage status change";
+                                app->notify_storage(STORAGE_CHANGE);
+                            }
                         }
                     }
                     u->setTag(0);
