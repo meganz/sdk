@@ -3612,11 +3612,11 @@ void CommandGetUserQuota::procresult()
                 if ((usl < STORAGE_GREEN || usl > STORAGE_RED) && got_storage)
                 {
                     LOG_warn << "Using account usage because usl is not available or is wrong: " << usl;
-                    if (details->storage_used > details->storage_max)
+                    if (details->storage_used >= details->storage_max)
                     {
                         usl = STORAGE_RED;
                     }
-                    else if (details->storage_used > (0.9 * details->storage_max))
+                    else if (details->storage_used >= (0.9 * details->storage_max))
                     {
                         usl = STORAGE_ORANGE;
                     }
