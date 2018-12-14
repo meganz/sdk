@@ -3381,6 +3381,7 @@ void CommandGetUserQuota::procresult()
     bool got_storage = false;
     bool got_transfer = false;
     bool got_pro = false;
+    int usl = -1;
 
     if (client->json.isnumeric())
     {
@@ -3603,25 +3604,46 @@ void CommandGetUserQuota::procresult()
                 }
                 break;
 
-            case EOO:
-                if (got_storage)
+            case MAKENAMEID3('u', 's', 'l'):
+                usl = int(client->json.getint());
+                break;
+
+            case EOO:                
+                if ((usl < STORAGE_GREEN || usl > STORAGE_RED) && got_storage)
                 {
+                    LOG_warn << "Using account usage because usl is not available or is wrong: " << usl;
                     if (details->storage_used > details->storage_max)
                     {
-                        LOG_debug << "Account full";
-                        client->activateoverquota(0);
+                        usl = STORAGE_RED;
                     }
                     else if (details->storage_used > (0.9 * details->storage_max))
                     {
-                        LOG_debug << "Few storage space available";
-                        client->setstoragestatus(STORAGE_ORANGE);
+                        usl = STORAGE_ORANGE;
                     }
                     else
                     {
-                        LOG_debug << "There are no storage problems";
-                        client->setstoragestatus(STORAGE_GREEN);
+                        usl = STORAGE_GREEN;
                     }
                 }
+
+                switch(usl)
+                {
+                    case STORAGE_RED:
+                        LOG_debug << "Account full";
+                        client->activateoverquota(0);
+                        break;
+                    case STORAGE_ORANGE:
+                        LOG_debug << "Few storage space available";
+                        client->setstoragestatus(STORAGE_ORANGE);
+                        break;
+                    case STORAGE_GREEN:
+                        LOG_debug << "There are no storage problems";
+                        client->setstoragestatus(STORAGE_GREEN);
+                        break;
+                    default:
+                        break;
+                }
+
                 client->app->account_details(details, got_storage, got_transfer, got_pro, false, false, false);
                 return;
 
