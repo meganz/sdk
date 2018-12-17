@@ -3617,7 +3617,6 @@ void CommandGetUserQuota::procresult()
 
                 if (got_storage)
                 {
-
                     if (details->storage_used >= details->storage_max)
                     {
                         LOG_debug << "Account full";
