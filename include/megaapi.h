@@ -8691,11 +8691,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
          *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         *
-         * The error MegaError::API_ENOENT is a valid value returned by the request when the user attribute
-         * is not set yet.
+         * Sending a Geolocation message is enabled if the MegaRequest object, received in onRequestFinish,
+         * has error code MegaError::API_OK. In other cases, send geolocation messages is not enabled and
+         * the application has to answer before send a message of this type.
          *
          * @param listener MegaRequestListener to track this request
          */
