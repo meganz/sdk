@@ -3964,11 +3964,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
  *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- *
- * The error MEGAErrorTypeApiENoent is a valid value returned by the request when the user attribute
- * is not set yet.
+ * Sending a Geolocation message is enabled if the MEGARequest object, received in onRequestFinish,
+ * has error code MEGAErrorTypeApiOk. In other cases, send geolocation messages is not enabled and
+ * the application has to answer before send a message of this type.
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3981,11 +3979,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
  *
- * Valid data in the MEGARequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- *
- * The error MEGAErrorTypeApiENoent is a valid value returned by the request when the user attribute
- * is not set yet.
+ * Sending a Geolocation message is enabled if the MEGARequest object, received in onRequestFinish,
+ * has error code MEGAErrorTypeApiOk. In other cases, send geolocation messages is not enabled and
+ * the application has to answer before send a message of this type.
  */
 - (void)isGeolocationEnabled;
 
