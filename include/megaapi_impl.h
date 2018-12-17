@@ -1869,7 +1869,6 @@ class MegaApiImpl : public MegaApp
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
-        void getStorageState(MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -1985,6 +1984,7 @@ class MegaApiImpl : public MegaApp
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
+        bool isInsideSync(MegaNode *node);
         bool is_syncable(Sync*, const char*, string*);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
@@ -2626,7 +2626,7 @@ protected:
         virtual void notify_dbcommit();
 
         // notify about a storage event
-        virtual void notify_storage();
+        virtual void notify_storage(int);
 
         // notify about an automatic change to HTTPS
         virtual void notify_change_to_https();

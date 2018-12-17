@@ -3839,10 +3839,6 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
-
-                            char me64[12];
-                            Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-                            reqs.add(new CommandGetUA(this, me64, ATTR_STORAGE_STATE, NULL, 0));
                         }
                         else
                         {
@@ -4584,7 +4580,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
     {
         storagestatus_t pststatus = ststatus;
         ststatus = status;
-        app->notify_storage();
+        app->notify_storage(ststatus);
         if (pststatus == STORAGE_RED)
         {
             abortbackoff(true);
@@ -5209,10 +5205,18 @@ void MegaClient::sc_userattr()
                             }
                         }
 
-                        // silently fetch-upon-update these critical attributes
-                        if (type == ATTR_DISABLE_VERSIONS || type == ATTR_STORAGE_STATE)
+                        if (!fetchingnodes)
                         {
-                            getua(u, type, 0);
+                            // silently fetch-upon-update this critical attribute
+                            if (type == ATTR_DISABLE_VERSIONS)
+                            {
+                                getua(u, type, 0);
+                            }
+                            else if (type == ATTR_STORAGE_STATE)
+                            {
+                                LOG_debug << "Possible storage status change";
+                                app->notify_storage(STORAGE_CHANGE);
+                            }
                         }
                     }
                     u->setTag(0);
@@ -10416,10 +10420,6 @@ void MegaClient::fetchnodes(bool nocache)
             LOG_info << "File versioning is enabled";
             versions_disabled = false;
         }
-
-        char me64[12];
-        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-        reqs.add(new CommandGetUA(this, me64, ATTR_STORAGE_STATE, NULL, 0));
 
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;

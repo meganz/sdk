@@ -732,7 +732,7 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        if (e == API_EOVERQUOTA && !tl)
+                                        if (e == API_EOVERQUOTA && tl <= 0)
                                         {
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
@@ -2764,12 +2764,6 @@ void CommandGetUA::procresult()
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
         }
-
-        if (at == ATTR_STORAGE_STATE && e == API_ENOENT)
-        {
-            LOG_debug << "There are no storage problems";
-            client->setstoragestatus(STORAGE_GREEN);
-        }
     }
     else
     {
@@ -2919,30 +2913,6 @@ void CommandGetUA::procresult()
                                     LOG_info << "File versioning is enabled";
                                 }
                             }
-
-                            if (at == ATTR_STORAGE_STATE)
-                            {
-                                if (value == "2")
-                                {
-                                    LOG_debug << "Account full";
-                                    client->activateoverquota(0);
-                                }
-                                else if (value == "1")
-                                {
-                                    LOG_debug << "Few storage space available";
-                                    client->setstoragestatus(STORAGE_ORANGE);
-                                }
-                                else if (value == "0")
-                                {
-                                    LOG_debug << "There are no storage problems";
-                                    client->setstoragestatus(STORAGE_GREEN);
-                                }
-                                else
-                                {
-                                    LOG_err << "Unknown state of storage. State: " << value;
-                                }
-                            }
-
                             break;
 
                         default:    // legacy attributes or unknown attribute
@@ -3411,6 +3381,7 @@ void CommandGetUserQuota::procresult()
     bool got_storage = false;
     bool got_transfer = false;
     bool got_pro = false;
+    int uslw = -1;
 
     if (client->json.isnumeric())
     {
@@ -3633,7 +3604,36 @@ void CommandGetUserQuota::procresult()
                 }
                 break;
 
-            case EOO:
+            case MAKENAMEID4('u', 's', 'l', 'w'):
+                uslw = int(client->json.getint());
+                break;
+
+            case EOO:                
+                if (uslw <= 0)
+                {
+                    uslw = 9000;
+                    LOG_warn << "Using default almost overstorage threshold";
+                }
+
+                if (got_storage)
+                {
+                    if (details->storage_used >= details->storage_max)
+                    {
+                        LOG_debug << "Account full";
+                        client->activateoverquota(0);
+                    }
+                    else if (details->storage_used >= (details->storage_max * uslw / 10000))
+                    {
+                        LOG_debug << "Few storage space available";
+                        client->setstoragestatus(STORAGE_ORANGE);
+                    }
+                    else
+                    {
+                        LOG_debug << "There are no storage problems";
+                        client->setstoragestatus(STORAGE_GREEN);
+                    }
+                }
+
                 client->app->account_details(details, got_storage, got_transfer, got_pro, false, false, false);
                 return;
 

@@ -1210,14 +1210,6 @@ using namespace mega;
     self.megaApi->setRubbishBinAutopurgePeriod((int)days);
 }
 
-- (void)getStorageStateWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getStorageState([self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)getStorageState {
-    self.megaApi->getStorageState();
-}
-
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

@@ -2243,11 +2243,6 @@ void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listen
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
-void MegaApi::getStorageState(MegaRequestListener *listener)
-{
-    pImpl->getStorageState(listener);
-}
-
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
@@ -2738,6 +2733,11 @@ bool MegaApi::isSynced(MegaNode *n)
 bool MegaApi::isSyncable(const char *path, long long size)
 {
     return pImpl->isSyncable(path, size);
+}
+
+bool MegaApi::isInsideSync(MegaNode *node)
+{
+    return pImpl->isInsideSync(node);
 }
 
 int MegaApi::isNodeSyncable(MegaNode *node)
