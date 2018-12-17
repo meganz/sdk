@@ -10198,7 +10198,7 @@ class MegaApi
         bool isSyncable(const char *path, long long size);
 
         /**
-         * @brief Check is a node is inside a synced folder
+         * @brief Check if a node is inside a synced folder
          * @param node Node to check
          * @return true if the node is inside a synced folder, otherwise false
          */
