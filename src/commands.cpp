@@ -732,7 +732,7 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        if (e == API_EOVERQUOTA && !tl)
+                                        if (e == API_EOVERQUOTA && tl <= 0)
                                         {
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
