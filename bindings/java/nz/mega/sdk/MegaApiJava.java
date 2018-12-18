@@ -2903,7 +2903,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
-     *
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(MegaUser user, int type, MegaRequestListenerInterface listener) {
@@ -2961,6 +2962,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      */
     public void getUserAttribute(MegaUser user, int type) {
         megaApi.getUserAttribute(user, type);
@@ -3016,7 +3019,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
-     *
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(String email_or_handle, int type, MegaRequestListenerInterface listener) {
@@ -3073,6 +3077,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      */
     public void getUserAttribute(String email_or_handle, int type) {
     	megaApi.getUserAttribute(email_or_handle, type);
@@ -3127,7 +3133,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
-     *
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(int type, MegaRequestListenerInterface listener) {
@@ -3183,6 +3190,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      */
     public void getUserAttribute(int type) {
         megaApi.getUserAttribute(type);
@@ -4313,6 +4322,36 @@ public class MegaApiJava {
      */
     public void setRichLinkWarningCounterValue(int value){
         megaApi.setRichLinkWarningCounterValue(value);
+    }
+
+    /**
+     * Enable the sending of geolocation messages
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void enableGeolocation(MegaRequestListenerInterface listener){
+        megaApi.enableGeolocation(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the sending of geolocation messages is enabled
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+     *
+     * Sending a Geolocation message is enabled if the MegaRequest object, received in onRequestFinish,
+     * has error code MegaError::API_OK. In other cases, send geolocation messages is not enabled and
+     * the application has to answer before send a message of this type.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void isGeolocationEnabled(MegaRequestListenerInterface listener){
+        megaApi.isGeolocationEnabled(createDelegateRequestListener(listener));
     }
 
     /**
