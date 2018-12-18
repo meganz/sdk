@@ -1272,11 +1272,13 @@ void WinDirNotify::process(DWORD dwBytes)
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
+#ifdef ENABLE_SYNC
         LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
                 << " errors: " << error;
         error++;
         readchanges();
         notify(DIREVENTS, localrootnode, NULL, 0);
+#endif
     }
     else
     {
@@ -1314,9 +1316,14 @@ void WinDirNotify::process(DWORD dwBytes)
                                                      (char*)path.data(),
                                                      int(path.size() + 1),
                                                      NULL, NULL));
+#ifdef ENABLE_SYNC
+
                     LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+#endif
                 }
+#ifdef ENABLE_SYNC
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
+#endif
             }
             else if (SimpleLogger::logCurrentLevel >= logDebug)
             {
@@ -1328,7 +1335,9 @@ void WinDirNotify::process(DWORD dwBytes)
                                                  (char*)path.data(),
                                                  int(path.size() + 1),
                                                  NULL, NULL));
+#ifdef ENABLE_SYNC
                 LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+#endif
             }
 
 
