@@ -13180,7 +13180,8 @@ class MegaApi
          *
          * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
          * will return API_EACCESS.
-         * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
+         * If the chatroom does not have a valid chatlink, or the chatroom does not exists this request
+         * will return MegaError::API_ENOENT.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param listener MegaRequestListener to track this request
@@ -13204,6 +13205,8 @@ class MegaApi
          *
          * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
          * will return API_EACCESS.
+         * If the chatroom does not have a valid chatlink, or the chatroom does not exists this request
+         * will return MegaError::API_ENOENT.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param listener MegaRequestListener to track this request
@@ -13221,9 +13224,10 @@ class MegaApi
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          *
-         * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
-         * will return MegaError::API_EACCESS.
-         * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
+         * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
+         * will return API_EACCESS.
+         * If the chatroom does not have a valid chatlink, or the chatroom does not exists this request
+         * will return MegaError::API_ENOENT.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param listener MegaRequestListener to track this request
@@ -13257,6 +13261,9 @@ class MegaApi
          * @note This function can be called without being logged in. In that case, the returned
          * URL will be different than for logged in users, so chatd knows whether user has a session.
          *
+         * If the public handle is not valid or the chat room does not exists this request
+         * will return MegaError::API_ENOENT.
+         *
          * @param publichandle MegaHandle that represents the public handle of the chat link
          * @param listener MegaRequestListener to track this request
          */
@@ -13279,6 +13286,8 @@ class MegaApi
          *
          * If caller is not operator or it's a 1on1 room, this request will return MegaError::API_EACCESS.
          * If the chat is not an public chat, this request will return MegaError::API_EEXIST.
+         * If the chatroom does not exists, this request will return MegaError::API_ENOENT.
+         * If the chatroom does not have topic this request will return MegaError::API_EARGS.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param title Byte array representing the title, already encrypted and converted to Base64url
@@ -13300,6 +13309,8 @@ class MegaApi
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
          * - MegaRequest::getSessionKey - Returns the unified key of the chat link
+         *
+         * If the public handle is not valid, this request will return MegaError::API_ENOENT.
          *
          * @param publichandle MegaHandle that represents the public handle of the chat link
          * @param unifiedKey Byte array that contains the unified key, already encrypted and

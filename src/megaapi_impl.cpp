@@ -19505,12 +19505,16 @@ void MegaApiImpl::sendPendingRequests()
             MegaHandle chatid = request->getNodeHandle();
             bool del = request->getFlag();
             bool createifmissing = request->getAccess();
-            if (chatid == INVALID_HANDLE || (del && createifmissing))
+            if (del && createifmissing)
             {
                 e = API_EARGS;
                 break;
             }
-
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_ENOENT;
+                break;
+            }
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
@@ -19533,7 +19537,7 @@ void MegaApiImpl::sendPendingRequests()
             MegaHandle publichandle = request->getNodeHandle();
             if (publichandle == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
             client->chatlinkurl(publichandle);
@@ -19546,7 +19550,7 @@ void MegaApiImpl::sendPendingRequests()
             const char *title = request->getText();
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19569,7 +19573,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             if (!chat->title.empty() && (!title || title[0] == '\0'))
             {
-                e = API_EINCOMPLETE;
+                e = API_EARGS;
                 break;
             }
 
@@ -19582,7 +19586,13 @@ void MegaApiImpl::sendPendingRequests()
             MegaHandle publichandle = request->getNodeHandle();
             const char *unifiedkey = request->getSessionKey();
 
-            if (publichandle == INVALID_HANDLE || unifiedkey == NULL)
+            if (publichandle == INVALID_HANDLE)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            if (unifiedkey == NULL)
             {
                 e = API_EARGS;
                 break;
