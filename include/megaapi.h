@@ -12776,6 +12776,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getMegaTextChatList - Returns the new chat's information
          *
+         * If we try to create a peer chat room with more than one peer this request
+         * will return MegaError::API_ENOENT.
+         *
          * @note If you are trying to create a chat with more than 1 other person, then it will be forced
          * to be a group chat.
          *
@@ -12846,7 +12849,8 @@ class MegaApi
          * On the onTransferFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
          * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
-
+         * - MegaError::API_ENOENT - If the chat room does not exists.
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user
          * @param privilege Privilege level for the new peers. Valid values are:
@@ -12900,6 +12904,10 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be removed
          *
+         * If caller is not operator or is not a chat member, or the target is not a chat member this request
+         * will return API_EACCESS.
+         * If chat room does not exists this request will return API_ENOENT.
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user. If not provided (INVALID_HANDLE), the requester is removed
          * @param listener MegaRequestListener to track this request
@@ -12934,6 +12942,13 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getEmail - Returns the MegaHandle of the user in Base64 enconding
          *
+         * If the chat room does not exists, this request will return MegaError::API_ENOENT.
+         * If the node provided does not exists, this request will return MegaError::API_ENOENT.
+         * If the target user does not exists, this request will return MegaError::API_ENOENT.
+         * If the target user is the same as caller, this request will return MegaError::API_EACCESS.
+         * If the target user is anonymous but the chat room is in private mode, this request will return MegaError::API_EACCESS.
+         * If caller is not an operator or the target user is not a chat member, this request will return MegaError::API_EACCESS.
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param n MegaNode that wants to be shared
          * @param uh MegaHandle that identifies the user
@@ -12949,6 +12964,10 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the node handle
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getEmail - Returns the MegaHandle of the user in Base64 enconding
+         *
+         * If the chatroom does not exists, this request will return MegaError::API_ENOENT.
+         * If the node provided does not exists, this request will return MegaError::API_ENOENT.
+         * If the target user does not exists, this request will return MegaError::API_ENOENT.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param n MegaNode whose access wants to be revokesd
@@ -12967,6 +12986,10 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user whose permission
          * is to be upgraded
          * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         *
+         * If the chat room does not exists this request will return MegaError::API_ENOENT.
+         * If the user specified is not a chat member this request will return MegaError::API_ENOENT.
+         * If caller is not operator this request will return MegaError::API_ENOENT.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user
@@ -13140,6 +13163,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getFlag - Returns chat desired state
+         *
+         * If the chatroom does not exists this request will return MegaError::API_ENOENT.
+         * If the caller is not operator this request will return MegaError::API_EACCESS.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param archive Desired chat state

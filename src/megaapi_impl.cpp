@@ -19195,7 +19195,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (!group && numPeers != 1)
                 {
-                    e = API_EARGS;
+                    e = API_EACCESS;
                     break;
                 }
             }
@@ -19220,11 +19220,17 @@ void MegaApiImpl::sendPendingRequests()
             bool publicMode = request->getFlag();
             const char *unifiedKey = request->getSessionKey();
 
-            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE || (publicMode && !unifiedKey))
+            if (publicMode && !unifiedKey)
             {
                 e = API_EARGS;
                 break;
-            }            
+            }
+
+            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
+            {
+                e = API_ENOENT;
+                break;
+            }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
@@ -19263,7 +19269,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19312,7 +19318,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19327,7 +19333,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19342,10 +19348,9 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
-
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
@@ -19355,7 +19360,7 @@ void MegaApiImpl::sendPendingRequests()
             TextChat *chat = it->second;
             if (!chat->group || chat->priv != PRIV_MODERATOR)
             {
-                e = API_EACCESS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19442,7 +19447,7 @@ void MegaApiImpl::sendPendingRequests()
             bool archive = request->getFlag();
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
