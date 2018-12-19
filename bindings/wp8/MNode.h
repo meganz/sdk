@@ -2,7 +2,7 @@
 * @file MNode.h
 * @brief Represent a node (file/folder) in the MEGA account
 *
-* (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+* (c) 2013-2018 by Mega Limited, Auckland, New Zealand
 *
 * This file is part of the MEGA SDK - Client Access Engine.
 *
@@ -49,7 +49,8 @@ namespace mega
         CHANGE_TYPE_OUTSHARE        = 0x40,
         CHANGE_TYPE_PARENT          = 0x80,
         CHANGE_TYPE_PENDINGSHARE    = 0x100,
-        CHANGE_TYPE_PUBLIC_LINK     = 0x200
+        CHANGE_TYPE_PUBLIC_LINK     = 0x200,
+        CHANGE_TYPE_NEW             = 0x400
     };
 
     public ref class MNode sealed

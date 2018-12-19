@@ -235,7 +235,7 @@ struct MEGA_API MegaApp
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }
     virtual void chatlink_result(handle, error) { }
-    virtual void chatlinkurl_result(handle, int, string*, string*, int, error) { }
+    virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) { }
     virtual void chatlinkclose_result(error) { }
     virtual void chatlinkjoin_result(error) { }
 #endif
@@ -301,6 +301,8 @@ struct MEGA_API MegaApp
     virtual void notify_retry(dstime, retryreason_t) { }
 
     virtual void notify_dbcommit() { }
+
+    virtual void notify_storage(int) { }
 
     virtual void notify_change_to_https() { }
 

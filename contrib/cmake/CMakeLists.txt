@@ -50,13 +50,13 @@ endif(build_64_bit)
 IF(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
     if ("${Mega3rdPartyDir}" STREQUAL "")
-        set(Mega3rdPartyDir "${MegaDir}/../3rdparty")
+        set(Mega3rdPartyDir "${MegaDir}/../3rdParty")
     endif()
 ELSE(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
-    set(Mega3rdPartyDir "${MegaDir}/../3rdParty/vcpkg/installed/x64-linux")
-    include_directories( "${MegaDir}/include" "${Mega3rdPartyDir}/include" )
-    link_directories( "${Mega3rdPartyDir}/lib" )
+    if ("${Mega3rdPartyDir}" STREQUAL "")
+        set (Mega3rdPartyDir "${MegaDir}/../3rdParty/")
+    endif()
 ENDIF(WIN32)
 
 IF(WIN32)
@@ -65,6 +65,10 @@ IF(WIN32)
     else(build_64_bit)
         set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static-uncheckediterators")
     endif(build_64_bit)
+ELSE(WIN32)
+    set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-linux")
+    include_directories( "${vcpkg_dir}/include" )
+    link_directories( "${vcpkg_dir}/lib" )
 ENDIF(WIN32)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -99,6 +103,14 @@ IF(WIN32)
        endif(${flag_var} MATCHES "/MD")
     endforeach(flag_var)
 ENDIF(WIN32)
+
+include(CheckIncludeFile)
+include(CheckFunctionExists)
+check_include_file(inttypes.h HAVE_INTTYPES_H)
+check_include_file(dirent.h HAVE_DIRENT_H)
+check_include_file(uv.h HAVE_LIBUV)
+check_function_exists(aio_write, HAVE_AIO_RT)
+check_function_exists(fdopendir, HAVE_FDOPENDIR)
 
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)
@@ -174,7 +186,7 @@ IF(WIN32)
     ENDIF(USE_MEDIAINFO)
 
     IF(USE_FREEIMAGE)
-        ImportVcpkgLibrary(freeimage    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/FreeImaged.lib"  "${vcpkg_dir}/lib/FreeImaged.lib")
+        ImportVcpkgLibrary(freeimage    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/FreeImaged.lib"  "${vcpkg_dir}/lib/FreeImage.lib")
         ImportVcpkgLibrary(freeimage_Iex "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/Iex-2_2.lib"  "${vcpkg_dir}/lib/Iex-2_2.lib")
         ImportVcpkgLibrary(freeimage_IexMath "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IexMath-2_2.lib"  "${vcpkg_dir}/lib/IexMath-2_2.lib")
         ImportVcpkgLibrary(freeimage_IlmImf "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImf-2_2.lib"  "${vcpkg_dir}/lib/IlmImf-2_2.lib")
@@ -189,7 +201,7 @@ IF(WIN32)
         ImportVcpkgLibrary(freeimage_jasper "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jasper.lib"  "${vcpkg_dir}/lib/jasper.lib")
         ImportVcpkgLibrary(freeimage_libpng "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libpng16d.lib"  "${vcpkg_dir}/lib/libpng16.lib")
         ImportVcpkgLibrary(freeimage_lzma    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lzma.lib"  "${vcpkg_dir}/lib/lzma.lib")
-        ImportVcpkgLibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcms2d.lib"  "${vcpkg_dir}/lib/lcms.lib")
+        ImportVcpkgLibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcms2d.lib"  "${vcpkg_dir}/lib/lcms2.lib")
         ImportVcpkgLibrary(freeimage_raw    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/rawd.lib"  "${vcpkg_dir}/lib/raw.lib")
         ImportVcpkgLibrary(freeimage_swscale  "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swscale.lib"  "${vcpkg_dir}/lib/swscale.lib")
         ImportVcpkgLibrary(freeimage_swresample "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swresample.lib"  "${vcpkg_dir}/lib/swresample.lib")
@@ -218,7 +230,6 @@ IF(WIN32)
     SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
-    ${MegaDir}/src/win32/autocomplete.cpp 
     ${MegaDir}/src/win32/consolewaiter.cpp 
     ${MegaDir}/src/win32/fs.cpp 
     $<IF:${USE_CURL},${MegaDir}/src/posix/net.cpp,${MegaDir}/src/win32/net.cpp>
@@ -230,22 +241,21 @@ IF(WIN32)
 ELSE(WIN32)
 
     add_definitions(-DUSE_PTHREAD )
-    SET(Mega_PlatformSpecificFiles ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp )
+
+    check_include_file(glob.h HAVE_GLOB_H)
+    if (HAVE_GLOB_H)
+        set(GLOB_H_FOUND 1)
+    else()
+        set(GLOB_H_FOUND 0)   #some versions on some platforms leave it undefined if not found
+    endif()
+
+    SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
     SET(Mega_PlatformSpecificLibs crypto pthread rt z dl termcap stdc++fs)
 
 ENDIF(WIN32)
 
-include(CheckIncludeFile)
-include(CheckFunctionExists)
-check_include_file(inttypes.h HAVE_INTTYPES_H)
-check_include_file(dirent.h HAVE_DIRENT_H)
-check_include_file(uv.h HAVE_LIBUV)
-check_function_exists(aio_write, HAVE_AIO_RT)
-check_function_exists(fdopendir, HAVE_FDOPENDIR)
-
-configure_file ("${MegaDir}/include/mega/config.h.in.cmake" "${MegaDir}/include/mega/config.h" )
-
+configure_file ("${MegaDir}/contrib/cmake/config.h.in" "${MegaDir}/include/mega/config.h" )
 
 
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)
@@ -254,6 +264,7 @@ SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.c
 
 add_library(Mega STATIC
             ${MegaDir}/src/attrmap.cpp 
+            ${MegaDir}/src/autocomplete.cpp 
             ${MegaDir}/src/backofftimer.cpp 
             ${MegaDir}/src/base64.cpp 
             ${MegaDir}/src/command.cpp 

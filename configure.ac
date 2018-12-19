@@ -99,8 +99,8 @@ AC_PROG_LIBTOOL
 AM_SANITY_CHECK
 
 # Check for cppcheck
-AC_CHECK_PROG(HAVE_CPPCHECK, cppcheck, yes)
-AM_CONDITIONAL(CPPCHECK, test -n "$HAVE_CPPCHECK")
+AC_CHECK_PROG(CPPCHECK, cppcheck, yes)
+AM_CONDITIONAL(CPPCHECK, test -n "$CPPCHECK")
 
 # set C++
 AC_LANG_CPLUSPLUS
@@ -183,7 +183,8 @@ AC_CHECK_LIB([rt], [clock_gettime])
 WIN32=no
 DARWIN=no
 ANDROID=no
-AC_MSG_CHECKING([if building for Win32 platform])
+LINUX=no
+AC_MSG_CHECKING([platform options])
 case $host in
   *-*-cygwin*)
     LIBS_EXTRA="-luser32 -lkernel32"
@@ -201,7 +202,10 @@ case $host in
     ;;
   *-android*)
     ANDROID=yes
-    ;;    
+    ;;
+  *-linux*)
+    LINUX=yes
+    ;;
   *)
     LIBS_EXTRA=""
     ;;
@@ -210,6 +214,7 @@ AC_MSG_RESULT([${WIN32}])
 AM_CONDITIONAL([WIN32], [test "${WIN32}" = "yes"])
 AM_CONDITIONAL([DARWIN], [test "${DARWIN}" = "yes"])
 AM_CONDITIONAL([ANDROID], [test "${ANDROID}" = "yes"])
+AM_CONDITIONAL([LINUX], [test "${LINUX}" = "yes"])
 
 AC_SUBST(LIBS_EXTRA)
 
@@ -2060,6 +2065,8 @@ if test "x$enable_php" = "xyes" ; then
 
 fi
 AM_CONDITIONAL([BUILD_PHP], [test "$enable_php" = "yes"])
+
+AC_CHECK_LIB([stdc++fs], [main], [LDFLAGS="-lstdc++fs $LDFLAGS"], [] )
 
 dnl #########################################################################
 dnl Doxygen settings

@@ -1824,6 +1824,8 @@ class MegaApiImpl : public MegaApp
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
+        void setLoggingName(const char* loggingName);
+
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
@@ -1982,6 +1984,7 @@ class MegaApiImpl : public MegaApp
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
+        bool isInsideSync(MegaNode *node);
         bool is_syncable(Sync*, const char*, string*);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
@@ -2469,6 +2472,7 @@ protected:
         // user attribute update notification
         virtual void userattr_update(User*, int, const char*);
 
+        virtual void nodes_current();
 
         virtual void fetchnodes_result(error);
         virtual void putnodes_result(error, targettype_t, NewNode*);
@@ -2578,7 +2582,7 @@ protected:
         virtual void chats_updated(textchat_map *, int);
         virtual void richlinkrequest_result(string*, error);
         virtual void chatlink_result(handle, error);
-        virtual void chatlinkurl_result(handle, int, string*, string*, int, error);
+        virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error);
         virtual void chatlinkclose_result(error);
         virtual void chatlinkjoin_result(error);
 #endif
@@ -2620,6 +2624,9 @@ protected:
 
         // notify about db commit
         virtual void notify_dbcommit();
+
+        // notify about a storage event
+        virtual void notify_storage(int);
 
         // notify about an automatic change to HTTPS
         virtual void notify_change_to_https();

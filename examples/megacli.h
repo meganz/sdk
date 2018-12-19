@@ -90,6 +90,7 @@ struct DemoApp : public MegaApp
     
     void request_response_progress(m_off_t, m_off_t);
     
+    void prelogin_result(int version, string* email, string *salt, error e);
     void login_result(error);
     void multifactorauthdisable_result(error);
     void multifactorauthsetup_result(string *code, error e);
@@ -137,7 +138,7 @@ struct DemoApp : public MegaApp
     virtual void chatpresenceurl_result(string *, error);
     void chatlink_result(handle, error);
     void chatlinkclose_result(error);
-    void chatlinkurl_result(handle, int, string*, string*, error);
+    void chatlinkurl_result(handle, int, string*, string*, m_time_t, error);
     void chatlinkjoin_result(error);
 
     void chats_updated(textchat_map*, int);

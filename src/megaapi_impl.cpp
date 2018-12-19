@@ -385,6 +385,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         this->changed |= MegaNode::CHANGE_TYPE_PUBLIC_LINK;
     }
+    if(node->changed.newnode)
+    {
+        this->changed |= MegaNode::CHANGE_TYPE_NEW;
+    }
 
 
 #ifdef ENABLE_SYNC
@@ -1569,6 +1573,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_RUBBISH_TIME;
     }
+    if(user->changed.storageState)
+    {
+        changed |= MegaUser::CHANGE_TYPE_STORAGE_STATE;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -1731,6 +1739,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         nodePath = p->folderPath;
         nodeName = p->folderName;
         nodeHandle = p->folderHandle;
+        bool accessRevoked = p->userHandle == p->ownerHandle;
+        numbers.push_back(accessRevoked ? 1 : 0);
     }
     break;
     case UserAlert::type_put:
@@ -3527,8 +3537,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RICH_LINK: return "RICH_LINK";
         case TYPE_CHAT_LINK_HANDLE: return "CHAT_LINK_HANDLE";
         case TYPE_CHAT_LINK_URL: return "CHAT_LINK_URL";
-        case TYPE_SET_PRIVATE_MODE: return "CHAT_LINK_CLOSE";
-        case TYPE_AUTOJOIN_PUBLIC_CHAT: return "CHAT_LINK_JOIN";
+        case TYPE_SET_PRIVATE_MODE: return "SET_PRIVATE_MODE";
+        case TYPE_AUTOJOIN_PUBLIC_CHAT: return "AUTOJOIN_PUBLIC_CHAT";
         case TYPE_KEEP_ME_ALIVE: return "KEEP_ME_ALIVE";
         case TYPE_MULTI_FACTOR_AUTH_CHECK: return "MULTI_FACTOR_AUTH_CHECK";
         case TYPE_MULTI_FACTOR_AUTH_GET: return "MULTI_FACTOR_AUTH_GET";
@@ -4812,6 +4822,20 @@ void MegaApiImpl::log(int logLevel, const char *message, const char *filename, i
     externalLogger.postLog(logLevel, message, filename, line);
 }
 
+void MegaApiImpl::setLoggingName(const char* loggingName)
+{
+    sdkMutex.lock();
+    if (loggingName)
+    {
+        client->clientname = string(loggingName) + " ";
+    }
+    else
+    {
+        client->clientname.clear();
+    }
+    sdkMutex.unlock();
+}
+
 long long MegaApiImpl::getSDKtime()
 {
     return Waiter::ds;
@@ -5006,6 +5030,10 @@ string MegaApiImpl::userAttributeToString(int type)
         case MegaApi::USER_ATTR_RUBBISH_TIME:
             attrname = "^!rubbishtime";
             break;
+
+        case MegaApi::USER_ATTR_STORAGE_STATE:
+            attrname = "^!usl";
+            break;
     }
 
     return attrname;
@@ -5043,6 +5071,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
         case MegaApi::USER_ATTR_LAST_PSA:
         case MegaApi::USER_ATTR_RUBBISH_TIME:
+        case MegaApi::USER_ATTR_STORAGE_STATE:
             scope = '^';
             break;
 
@@ -5521,7 +5550,8 @@ void MegaApiImpl::loop()
         client->httpio->getMEGADNSservers(&servers);
     #else
         __res_state res;
-        if(res_ninit(&res) == 0)
+        bool valid;
+        if (res_ninit(&res) == 0)
         {
             union res_sockaddr_union u[MAXNS];
             int nscount = res_getservers(&res, u, MAXNS);
@@ -5530,18 +5560,19 @@ void MegaApiImpl::loop()
             {
                 char straddr[INET6_ADDRSTRLEN];
                 straddr[0] = 0;
+                valid = false;
 
-                if(u[i].sin.sin_family == PF_INET)
+                if (u[i].sin.sin_family == PF_INET)
                 {
-                    mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                    valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
                 }
 
-                if(u[i].sin6.sin6_family == PF_INET6)
+                if (u[i].sin6.sin6_family == PF_INET6)
                 {
-                    mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                    valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
                 }
 
-                if(straddr[0])
+                if (valid && straddr[0])
                 {
                     if (servers.size())
                     {
@@ -7771,6 +7802,28 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     }
     sdkMutex.unlock();
     return result;
+}
+
+bool MegaApiImpl::isInsideSync(MegaNode *node)
+{
+    if (!node)
+    {
+        return false;
+    }
+
+    sdkMutex.lock();
+    Node *n = client->nodebyhandle(node->getHandle());
+    while (n)
+    {
+        if (n->localnode)
+        {
+            sdkMutex.unlock();
+            return true;
+        }
+        n = n->parent;
+    }
+    sdkMutex.unlock();
+    return false;
 }
 
 #endif
@@ -10156,25 +10209,6 @@ void MegaApiImpl::transfer_failed(Transfer* t, error e, dstime timeleft)
         }
         processTransferFailed(t, transfer, e, timeleft);
     }
-
-
-    if (e == API_EOVERQUOTA && timeleft)
-    {
-        LOG_warn << "Bandwidth overquota";
-        for (int d = GET; d == GET || d == PUT; d += PUT - GET)
-        {
-            for (transfer_map::iterator it = client->transfers[d].begin(); it != client->transfers[d].end(); it++)
-            {
-                Transfer *t = it->second;
-                t->bt.backoff(timeleft);
-                if (t->slot)
-                {
-                    t->slot->retrybt.backoff(timeleft);
-                    t->slot->retrying = true;
-                }
-            }
-        }
-    }
 }
 
 char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
@@ -11280,7 +11314,7 @@ void MegaApiImpl::chatlink_result(handle h, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, error e)
+void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, error e)
 {
     MegaError megaError(e);
     MegaRequestPrivate* request;
@@ -11299,6 +11333,7 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setParentHandle(chatid);
         request->setText(ct->c_str());
         request->setNumDetails(numPeers);
+        request->setNumber(ts);
     }
     fireOnRequestFinish(request, megaError);
 }
@@ -12460,6 +12495,13 @@ void MegaApiImpl::notify_dbcommit()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_storage(int storageEvent)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_STORAGE);
+    event->setNumber(storageEvent);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::notify_change_to_https()
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CHANGE_TO_HTTPS);
@@ -13294,6 +13336,8 @@ void MegaApiImpl::getua_result(error e)
 
 void MegaApiImpl::getua_result(byte* data, unsigned len)
 {
+    error e = API_OK;
+
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request ||
@@ -13399,6 +13443,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
 
         // numbers
         case MegaApi::USER_ATTR_RUBBISH_TIME:
+        case MegaApi::USER_ATTR_STORAGE_STATE:
             {
                 char *endptr;
                 string str((const char*)data, len);
@@ -13409,6 +13454,11 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 }
 
                 request->setNumber(value);
+
+                if (attrType == MegaApi::USER_ATTR_STORAGE_STATE && (value < MegaApi::STORAGE_STATE_GREEN || value > MegaApi::STORAGE_STATE_RED))
+                {
+                    e = API_EINTERNAL;
+                }
             }
             break;
 
@@ -13427,7 +13477,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             break;
     }
 
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 void MegaApiImpl::getua_result(TLVstore *tlv)
@@ -13515,6 +13565,12 @@ void MegaApiImpl::getuseremail_result(string *email, error e)
 // user attribute update notification
 void MegaApiImpl::userattr_update(User*, int, const char*)
 {
+}
+
+void MegaApiImpl::nodes_current()
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_NODES_CURRENT);
+    fireOnEvent(event);
 }
 
 void MegaApiImpl::ephemeral_result(error e)
@@ -17839,27 +17895,29 @@ void MegaApiImpl::sendPendingRequests()
                     client->httpio->getMEGADNSservers(&servers);
                 #else
                     __res_state res;
-                    if(res_ninit(&res) == 0)
+                    bool valid;
+                    if (res_ninit(&res) == 0)
                     {
                         union res_sockaddr_union u[MAXNS];
                         int nscount = res_getservers(&res, u, MAXNS);
 
-                        for(int i = 0; i < nscount; i++)
+                        for (int i = 0; i < nscount; i++)
                         {
                             char straddr[INET6_ADDRSTRLEN];
                             straddr[0] = 0;
+                            valid = false;
 
-                            if(u[i].sin.sin_family == PF_INET)
+                            if (u[i].sin.sin_family == PF_INET)
                             {
-                                mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr));
+                                valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
                             }
 
-                            if(u[i].sin6.sin6_family == PF_INET6)
+                            if (u[i].sin6.sin6_family == PF_INET6)
                             {
-                                mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr));
+                                valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
                             }
 
-                            if(straddr[0])
+                            if (valid && straddr[0])
                             {
                                 if (servers.size())
                                 {
