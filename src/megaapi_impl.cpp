@@ -1577,6 +1577,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_STORAGE_STATE;
     }
+    if(user->changed.geolocation)
+    {
+        changed |= MegaUser::CHANGE_TYPE_GEOLOCATION;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5033,6 +5037,9 @@ string MegaApiImpl::userAttributeToString(int type)
 
         case MegaApi::USER_ATTR_STORAGE_STATE:
             attrname = "^!usl";
+
+        case MegaApi::USER_ATTR_GEOLOCATION:
+            attrname = "*!geo";
             break;
     }
 
@@ -5062,6 +5069,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
+        case MegaApi::USER_ATTR_GEOLOCATION:
             scope = '*';
             break;
 
@@ -5920,47 +5928,6 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
     request->setParamType(type);
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
-{
-    MegaStringMap *stringMap = new MegaStringMapPrivate();
-    string rawvalue = enable ? "1" : "0";
-    string base64value;
-    Base64::btoa(rawvalue, base64value);
-    stringMap->set("num", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
-    delete stringMap;
-}
-
-void MegaApiImpl::isRichPreviewsEnabled(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
-    request->setNumDetails(0);  // 0 --> flag should indicate whether rich-links are enabled or not
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::shouldShowRichLinkWarning(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
-    request->setNumDetails(1);  // 1 --> flag should indicate whether to show the warning or not
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
-{
-    MegaStringMap *stringMap = new MegaStringMapPrivate();
-    std::ostringstream oss;
-    oss << value;
-    string base64value;
-    Base64::btoa(oss.str(), base64value);
-    stringMap->set("c", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
-    delete stringMap;
 }
 
 void MegaApiImpl::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
@@ -9050,6 +9017,65 @@ void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT, listener);
     request->setNodeHandle(publichandle);
     request->setSessionKey(unifiedkey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string rawvalue = enable ? "1" : "0";
+    string base64value;
+    Base64::btoa(rawvalue, base64value);
+    stringMap->set("num", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(0);  // 0 --> flag should indicate whether rich-links are enabled or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(1);  // 1 --> flag should indicate whether to show the warning or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    std::ostringstream oss;
+    oss << value;
+    string base64value;
+    Base64::btoa(oss.str(), base64value);
+    stringMap->set("c", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string base64value;
+    Base64::btoa("1", base64value);
+    stringMap->set("v", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_GEOLOCATION);
     requestQueue.push(request);
     waiter->notify();
 }
