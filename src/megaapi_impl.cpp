@@ -9051,10 +9051,8 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
 void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
 {
     MegaStringMap *stringMap = new MegaStringMapPrivate();
-    std::ostringstream oss;
-    oss << 1;
     string base64value;
-    Base64::btoa(oss.str(), base64value);
+    Base64::btoa("1", base64value);
     stringMap->set("v", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
     delete stringMap;
