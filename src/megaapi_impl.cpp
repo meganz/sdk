@@ -19222,7 +19222,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (publicMode && !unifiedKey)
             {
-                e = API_EARGS;
+                e = API_EINCOMPLETE;
                 break;
             }
 
@@ -19242,7 +19242,7 @@ void MegaApiImpl::sendPendingRequests()
             TextChat *chat = it->second;
             if (chat->publicchat != publicMode)
             {
-                e = API_EARGS;
+                e = API_EACCESS;
                 break;
             }
 
@@ -19360,7 +19360,7 @@ void MegaApiImpl::sendPendingRequests()
             TextChat *chat = it->second;
             if (!chat->group || chat->priv != PRIV_MODERATOR)
             {
-                e = API_ENOENT;
+                e = API_EACCESS;
                 break;
             }
 
@@ -19599,7 +19599,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (unifiedkey == NULL)
             {
-                e = API_EARGS;
+                e = API_EINCOMPLETE;
                 break;
             }
             client->chatlinkjoin(publichandle, unifiedkey);
