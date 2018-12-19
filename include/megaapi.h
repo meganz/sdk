@@ -12777,7 +12777,7 @@ class MegaApi
          * - MegaRequest::getMegaTextChatList - Returns the new chat's information
          *
          * If we try to create a peer chat room with more than one peer this request
-         * will return MegaError::API_ENOENT.
+         * will return MegaError::API_EACCESS.
          *
          * @note If you are trying to create a chat with more than 1 other person, then it will be forced
          * to be a group chat.
