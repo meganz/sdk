@@ -1148,7 +1148,14 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 
     if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
     {
-        absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\", 8);
+        if (!memcmp(absolutepath->data(), L"\\\\", 4)) //network location
+        {
+            absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\UNC\\", 16);
+        }
+        else
+        {
+            absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\", 8);
+        }
     }
     absolutepath->resize(absolutepath->size() - 2);
     return true;
