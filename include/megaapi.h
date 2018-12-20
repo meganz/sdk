@@ -13312,7 +13312,7 @@ class MegaApi
          * - MegaError::API_ENOENT - If the chatroom does not exists.
          * - MegaError::API_EACCESS - If caller is not operator or it's a 1on1 room.
          * - MegaError::API_EEXIST - If the chat is already in private mode.
-         * - MegaError::API_EARGS - If custom title is set and no title is provided.PI_EARGS.
+         * - MegaError::API_EARGS - If custom title is set and no title is provided.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param title Byte array representing the title, already encrypted and converted to Base64url

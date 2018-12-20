@@ -19172,7 +19172,7 @@ void MegaApiImpl::sendPendingRequests()
             bool publicchat = (request->getAccess() == 1);
             MegaStringMap *userKeyMap = request->getMegaStringMap();
 
-            if (!chatPeers) // emtpy groupchat
+            if (!chatPeers) // empty groupchat
             {
                 MegaTextChatPeerListPrivate tmp = MegaTextChatPeerListPrivate();
                 request->setMegaTextChatPeerList(&tmp);
