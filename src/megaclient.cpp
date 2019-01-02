@@ -3839,10 +3839,6 @@ bool MegaClient::procsc()
 
                             WAIT_CLASS::bumpds();
                             fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
-
-                            char me64[12];
-                            Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-                            reqs.add(new CommandGetUA(this, me64, ATTR_STORAGE_STATE, NULL, 0));
                         }
                         else
                         {
@@ -4584,7 +4580,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
     {
         storagestatus_t pststatus = ststatus;
         ststatus = status;
-        app->notify_storage();
+        app->notify_storage(ststatus);
         if (pststatus == STORAGE_RED)
         {
             abortbackoff(true);
@@ -5209,10 +5205,18 @@ void MegaClient::sc_userattr()
                             }
                         }
 
-                        // silently fetch-upon-update these critical attributes
-                        if (type == ATTR_DISABLE_VERSIONS || type == ATTR_STORAGE_STATE)
+                        if (!fetchingnodes)
                         {
-                            getua(u, type, 0);
+                            // silently fetch-upon-update this critical attribute
+                            if (type == ATTR_DISABLE_VERSIONS)
+                            {
+                                getua(u, type, 0);
+                            }
+                            else if (type == ATTR_STORAGE_STATE)
+                            {
+                                LOG_debug << "Possible storage status change";
+                                app->notify_storage(STORAGE_CHANGE);
+                            }
                         }
                     }
                     u->setTag(0);
@@ -10417,10 +10421,6 @@ void MegaClient::fetchnodes(bool nocache)
             versions_disabled = false;
         }
 
-        char me64[12];
-        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-        reqs.add(new CommandGetUA(this, me64, ATTR_STORAGE_STATE, NULL, 0));
-
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
     }
@@ -10831,9 +10831,9 @@ void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
 }
 
 // request direct read by exported handle / key
-void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata, bool isforeign, const char *privauth, const char *pubauth)
+void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata, bool isforeign, const char *privauth, const char *pubauth, const char *cauth)
 {
-    queueread(ph, isforeign, key, ctriv, count, offset, appdata, privauth, pubauth);
+    queueread(ph, isforeign, key, ctriv, count, offset, appdata, privauth, pubauth, cauth);
 }
 
 // since only the first six bytes of a handle are in use, we use the seventh to encode its type
@@ -10850,7 +10850,7 @@ bool MegaClient::isprivatehandle(handle* hp)
     return ((char*)hp)[NODEHANDLE] != 0;
 }
 
-void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata, const char* privauth, const char *pubauth)
+void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata, const char* privauth, const char *pubauth, const char *cauth)
 {
     handledrn_map::iterator it;
 
@@ -10861,7 +10861,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
     if (it == hdrns.end())
     {
         // this handle is not being accessed yet: insert
-        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv, privauth, pubauth)));
+        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv, privauth, pubauth, cauth)));
         it->second->hdrn_it = it;
         it->second->enqueue(offset, count, reqtag, appdata);
 

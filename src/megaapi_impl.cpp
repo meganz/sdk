@@ -1577,6 +1577,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_STORAGE_STATE;
     }
+    if(user->changed.geolocation)
+    {
+        changed |= MegaUser::CHANGE_TYPE_GEOLOCATION;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -1739,6 +1743,8 @@ MegaUserAlertPrivate::MegaUserAlertPrivate(UserAlert::Base *b, MegaClient* mc)
         nodePath = p->folderPath;
         nodeName = p->folderName;
         nodeHandle = p->folderHandle;
+        bool accessRevoked = p->userHandle == p->ownerHandle;
+        numbers.push_back(accessRevoked ? 1 : 0);
     }
     break;
     case UserAlert::type_put:
@@ -4832,6 +4838,20 @@ void MegaApiImpl::log(int logLevel, const char *message, const char *filename, i
     externalLogger.postLog(logLevel, message, filename, line);
 }
 
+void MegaApiImpl::setLoggingName(const char* loggingName)
+{
+    sdkMutex.lock();
+    if (loggingName)
+    {
+        client->clientname = string(loggingName) + " ";
+    }
+    else
+    {
+        client->clientname.clear();
+    }
+    sdkMutex.unlock();
+}
+
 long long MegaApiImpl::getSDKtime()
 {
     return Waiter::ds;
@@ -5029,6 +5049,9 @@ string MegaApiImpl::userAttributeToString(int type)
 
         case MegaApi::USER_ATTR_STORAGE_STATE:
             attrname = "^!usl";
+
+        case MegaApi::USER_ATTR_GEOLOCATION:
+            attrname = "*!geo";
             break;
     }
 
@@ -5058,6 +5081,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_INTERACTION:
         case MegaApi::USER_ATTR_KEYRING:
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
+        case MegaApi::USER_ATTR_GEOLOCATION:
             scope = '*';
             break;
 
@@ -5918,47 +5942,6 @@ void MegaApiImpl::setUserAttribute(int type, const MegaStringMap *value, MegaReq
     waiter->notify();
 }
 
-void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
-{
-    MegaStringMap *stringMap = new MegaStringMapPrivate();
-    string rawvalue = enable ? "1" : "0";
-    string base64value;
-    Base64::btoa(rawvalue, base64value);
-    stringMap->set("num", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
-    delete stringMap;
-}
-
-void MegaApiImpl::isRichPreviewsEnabled(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
-    request->setNumDetails(0);  // 0 --> flag should indicate whether rich-links are enabled or not
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::shouldShowRichLinkWarning(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
-    request->setNumDetails(1);  // 1 --> flag should indicate whether to show the warning or not
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
-{
-    MegaStringMap *stringMap = new MegaStringMapPrivate();
-    std::ostringstream oss;
-    oss << value;
-    string base64value;
-    Base64::btoa(oss.str(), base64value);
-    stringMap->set("c", base64value.c_str());
-    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
-    delete stringMap;
-}
-
 void MegaApiImpl::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
@@ -5976,14 +5959,6 @@ void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *li
     request->setText(value.data());
     request->setParamType(MegaApi::USER_ATTR_RUBBISH_TIME);
     request->setNumber(days);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
-void MegaApiImpl::getStorageState(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_STORAGE_STATE);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7813,6 +7788,28 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     return result;
 }
 
+bool MegaApiImpl::isInsideSync(MegaNode *node)
+{
+    if (!node)
+    {
+        return false;
+    }
+
+    sdkMutex.lock();
+    Node *n = client->nodebyhandle(node->getHandle());
+    while (n)
+    {
+        if (n->localnode)
+        {
+            sdkMutex.unlock();
+            return true;
+        }
+        n = n->parent;
+    }
+    sdkMutex.unlock();
+    return false;
+}
+
 #endif
 
 int MegaApiImpl::getNumPendingUploads()
@@ -9037,6 +9034,65 @@ void MegaApiImpl::chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT, listener);
     request->setNodeHandle(publichandle);
     request->setSessionKey(unifiedkey);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::enableRichPreviews(bool enable, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string rawvalue = enable ? "1" : "0";
+    string base64value;
+    Base64::btoa(rawvalue, base64value);
+    stringMap->set("num", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::isRichPreviewsEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(0);  // 0 --> flag should indicate whether rich-links are enabled or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::shouldShowRichLinkWarning(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RICH_PREVIEWS);
+    request->setNumDetails(1);  // 1 --> flag should indicate whether to show the warning or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    std::ostringstream oss;
+    oss << value;
+    string base64value;
+    Base64::btoa(oss.str(), base64value);
+    stringMap->set("c", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    string base64value;
+    Base64::btoa("1", base64value);
+    stringMap->set("v", base64value.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_GEOLOCATION, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_GEOLOCATION);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12482,10 +12538,10 @@ void MegaApiImpl::notify_dbcommit()
     fireOnEvent(event);
 }
 
-void MegaApiImpl::notify_storage()
+void MegaApiImpl::notify_storage(int storageEvent)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_STORAGE);
-    event->setNumber(client->ststatus);
+    event->setNumber(storageEvent);
     fireOnEvent(event);
 }
 
@@ -16487,7 +16543,8 @@ void MegaApiImpl::sendPendingTransfers()
                             MemAccess::get<int64_t>((const char*)publicNode->getNodeKey()->data() + SymmCipher::KEYLENGTH),
                                       startPos, totalBytes, transfer, publicNode->isForeign(),
                                       publicNode->getPrivateAuth()->c_str(),
-                                      publicNode->getPublicAuth()->c_str());
+                                      publicNode->getPublicAuth()->c_str(),
+                                      publicNode->getChatAuth());
                         waiter->notify();
                     }
                 }
@@ -19173,7 +19230,7 @@ void MegaApiImpl::sendPendingRequests()
             bool publicchat = (request->getAccess() == 1);
             MegaStringMap *userKeyMap = request->getMegaStringMap();
 
-            if (!chatPeers) // emtpy groupchat
+            if (!chatPeers) // empty groupchat
             {
                 MegaTextChatPeerListPrivate tmp = MegaTextChatPeerListPrivate();
                 request->setMegaTextChatPeerList(&tmp);
@@ -19196,7 +19253,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 if (!group && numPeers != 1)
                 {
-                    e = API_EARGS;
+                    e = API_EACCESS;
                     break;
                 }
             }
@@ -19221,11 +19278,17 @@ void MegaApiImpl::sendPendingRequests()
             bool publicMode = request->getFlag();
             const char *unifiedKey = request->getSessionKey();
 
-            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE || (publicMode && !unifiedKey))
+            if (publicMode && !unifiedKey)
             {
-                e = API_EARGS;
+                e = API_EINCOMPLETE;
                 break;
-            }            
+            }
+
+            if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
+            {
+                e = API_ENOENT;
+                break;
+            }
 
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
@@ -19237,7 +19300,7 @@ void MegaApiImpl::sendPendingRequests()
             TextChat *chat = it->second;
             if (chat->publicchat != publicMode)
             {
-                e = API_EARGS;
+                e = API_EACCESS;
                 break;
             }
 
@@ -19264,7 +19327,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19313,7 +19376,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19328,7 +19391,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE || h == INVALID_HANDLE || !uid)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19343,10 +19406,9 @@ void MegaApiImpl::sendPendingRequests()
 
             if (chatid == INVALID_HANDLE || uh == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
-
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
@@ -19443,7 +19505,7 @@ void MegaApiImpl::sendPendingRequests()
             bool archive = request->getFlag();
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19506,12 +19568,16 @@ void MegaApiImpl::sendPendingRequests()
             MegaHandle chatid = request->getNodeHandle();
             bool del = request->getFlag();
             bool createifmissing = request->getAccess();
-            if (chatid == INVALID_HANDLE || (del && createifmissing))
+            if (del && createifmissing)
             {
                 e = API_EARGS;
                 break;
             }
-
+            if (chatid == INVALID_HANDLE)
+            {
+                e = API_ENOENT;
+                break;
+            }
             textchat_map::iterator it = client->chats.find(chatid);
             if (it == client->chats.end())
             {
@@ -19534,7 +19600,7 @@ void MegaApiImpl::sendPendingRequests()
             MegaHandle publichandle = request->getNodeHandle();
             if (publichandle == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
             client->chatlinkurl(publichandle);
@@ -19547,7 +19613,7 @@ void MegaApiImpl::sendPendingRequests()
             const char *title = request->getText();
             if (chatid == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
                 break;
             }
 
@@ -19570,7 +19636,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             if (!chat->title.empty() && (!title || title[0] == '\0'))
             {
-                e = API_EINCOMPLETE;
+                e = API_EARGS;
                 break;
             }
 
@@ -19583,9 +19649,15 @@ void MegaApiImpl::sendPendingRequests()
             MegaHandle publichandle = request->getNodeHandle();
             const char *unifiedkey = request->getSessionKey();
 
-            if (publichandle == INVALID_HANDLE || unifiedkey == NULL)
+            if (publichandle == INVALID_HANDLE)
             {
-                e = API_EARGS;
+                e = API_ENOENT;
+                break;
+            }
+
+            if (unifiedkey == NULL)
+            {
+                e = API_EINCOMPLETE;
                 break;
             }
             client->chatlinkjoin(publichandle, unifiedkey);

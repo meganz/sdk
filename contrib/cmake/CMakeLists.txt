@@ -104,6 +104,14 @@ IF(WIN32)
     endforeach(flag_var)
 ENDIF(WIN32)
 
+include(CheckIncludeFile)
+include(CheckFunctionExists)
+check_include_file(inttypes.h HAVE_INTTYPES_H)
+check_include_file(dirent.h HAVE_DIRENT_H)
+check_include_file(uv.h HAVE_LIBUV)
+check_function_exists(aio_write, HAVE_AIO_RT)
+check_function_exists(fdopendir, HAVE_FDOPENDIR)
+
 
 function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64debug lib64release)
     add_library(${libName} STATIC IMPORTED)
@@ -233,22 +241,21 @@ IF(WIN32)
 ELSE(WIN32)
 
     add_definitions(-DUSE_PTHREAD )
-    SET(Mega_PlatformSpecificFiles ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp )
+
+    check_include_file(glob.h HAVE_GLOB_H)
+    if (HAVE_GLOB_H)
+        set(GLOB_H_FOUND 1)
+    else()
+        set(GLOB_H_FOUND 0)   #some versions on some platforms leave it undefined if not found
+    endif()
+
+    SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
     SET(Mega_PlatformSpecificLibs crypto pthread rt z dl termcap stdc++fs)
 
 ENDIF(WIN32)
 
-include(CheckIncludeFile)
-include(CheckFunctionExists)
-check_include_file(inttypes.h HAVE_INTTYPES_H)
-check_include_file(dirent.h HAVE_DIRENT_H)
-check_include_file(uv.h HAVE_LIBUV)
-check_function_exists(aio_write, HAVE_AIO_RT)
-check_function_exists(fdopendir, HAVE_FDOPENDIR)
-
-configure_file ("${MegaDir}/include/mega/config.h.in.cmake" "${MegaDir}/include/mega/config.h" )
-
+configure_file ("${MegaDir}/contrib/cmake/config.h.in" "${MegaDir}/include/mega/config.h" )
 
 
 SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/sodium.cpp)

@@ -30,7 +30,6 @@ CALL :build_one openssl
 CALL :build_one curl
 CALL :build_one c-ares
 CALL :build_one sqlite3
-CALL :build_one libevent
 CALL :build_one gtest
 CALL :build_one freeimage
 CALL :build_one ffmpeg
@@ -52,7 +51,7 @@ REM     -DLWS_IPV6=OFF
 REM     -DLWS_WITH_LIBUV=ON
 REM     -DLIBUV_LIBRARIES=${CURRENT_PACKAGES_DIR}/lib
 REM     -DLIBUV_INCLUDE_DIR=${CURRENT_PACKAGES_DIR}/include
-REM then use remove and install again, building build libwebsockets[libuv].
+REM then use "vcpkg remove" and "vcpkg install" again, for libwebsockets.
 
 
 

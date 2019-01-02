@@ -514,7 +514,7 @@ bool LocalFS::addCompletions(ACState& s)
 {
     if (s.atCursor())
     {
-        fs::path searchPath(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
+        fs::path searchPath = fs::u8path(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
 #ifdef WIN32
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
 #else
@@ -590,43 +590,34 @@ MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::handle* curDirHa
 
 Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix)
 {
-    string path = s.word().s;
-
+    const string& path = s.word().s;
     string::size_type t = path.find_first_of(":/");
 
-    if (t != string::npos && path[t] == '/')
+    if (t == string::npos || path[t] == ':')
     {
-        return NULL;
-    }
-    else if (t != string::npos && path[t] == ':')
-    {
-        pathprefix = path.substr(0, t);
-    }
-
-    for (const user_map::value_type& u : client->users)
-    {
-        if (pathprefix.empty() && !u.second.sharing.empty())
+        for (const user_map::value_type& u : client->users)
         {
-            string str;
-            s.addCompletion(u.second.email + ":", true);
-        }
-        else if (u.second.email == path.substr(0, t))
-        {
-            path.erase(0, t + 1);
-            t = path.find_first_of("/");
-            for (handle h : u.second.sharing)
+            if (t == string::npos && !u.second.sharing.empty())
             {
-                if (Node* n = client->nodebyhandle(h))
+                string str;
+                s.addCompletion(u.second.email + ":", true, true);
+            }
+            else if (u.second.email == path.substr(0, t))
+            {
+                string::size_type pos = path.find_first_of("/", t + 1);
+                for (handle h : u.second.sharing)
                 {
-                    if (t == string::npos)
+                    if (Node* n = client->nodebyhandle(h))
                     {
-                        string str = pathprefix + ":" + n->displayname();
-                        s.addPathCompletion(move(str), "", n->type != FILENODE, '/', false);
-                    }
-                    else if (!strncmp(n->displayname(), path.c_str(), t))
-                    {
-                        (pathprefix += ":") += n->displayname();
-                        return n;
+                        if (pos == string::npos)
+                        {
+                            s.addPathCompletion(path.substr(0, t + 1) + n->displayname(), "", n->type != FILENODE, '/', false);
+                        }
+                        else if (n->displayname() == path.substr(t + 1, pos - t - 1))
+                        {
+                            pathprefix = path.substr(0, pos + 1);
+                            return n;
+                        }
                     }
                 }
             }
@@ -677,6 +668,7 @@ bool MegaFS::addCompletions(ACState& s)
                 if (!n && *cwd != UNDEF)
                 {
                     n = client->nodebyhandle(*cwd);
+                    pathprefix.clear();
                 }
             }
 
@@ -931,7 +923,12 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
 {
     ACState acs = prepACState(line, insertPos, unixStyle);
 
-    if (!acs.words.empty() && (acs.words[0].s.size() || acs.words.size() > 1))
+    while (!acs.words.empty() && acs.words.back().s.empty() && !acs.words.back().q.quoted)
+    {
+        acs.words.pop_back();
+    }
+
+    if (!acs.words.empty())
     {
         if (auto e = dynamic_cast<autocomplete::Either*>(syntax.get()))
         {

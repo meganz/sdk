@@ -1601,6 +1601,11 @@ void MegaApi::log(int logLevel, const char *message, const char *filename, int l
     MegaApiImpl::log(logLevel, message, filename, line);
 }
 
+void MegaApi::setLoggingName(const char* loggingName)
+{
+    pImpl->setLoggingName(loggingName);
+}
+
 long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();
@@ -2213,6 +2218,7 @@ void MegaApi::isMasterKeyExported(MegaRequestListener *listener)
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, 0, listener);
 }
 
+#ifdef ENABLE_CHAT
 void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
 {
     pImpl->enableRichPreviews(enable, listener);
@@ -2233,6 +2239,17 @@ void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *lis
     pImpl->setRichLinkWarningCounterValue(value, listener);
 }
 
+void MegaApi::enableGeolocation(MegaRequestListener *listener)
+{
+    pImpl->enableGeolocation(listener);
+}
+
+void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
+{
+    pImpl->isGeolocationEnabled(listener);
+}
+#endif
+
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
     pImpl->getRubbishBinAutopurgePeriod(listener);
@@ -2241,11 +2258,6 @@ void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
 {
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
-}
-
-void MegaApi::getStorageState(MegaRequestListener *listener)
-{
-    pImpl->getStorageState(listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
@@ -2738,6 +2750,11 @@ bool MegaApi::isSynced(MegaNode *n)
 bool MegaApi::isSyncable(const char *path, long long size)
 {
     return pImpl->isSyncable(path, size);
+}
+
+bool MegaApi::isInsideSync(MegaNode *node)
+{
+    return pImpl->isInsideSync(node);
 }
 
 int MegaApi::isNodeSyncable(MegaNode *node)
