@@ -16526,7 +16526,8 @@ void MegaApiImpl::sendPendingTransfers()
                             MemAccess::get<int64_t>((const char*)publicNode->getNodeKey()->data() + SymmCipher::KEYLENGTH),
                                       startPos, totalBytes, transfer, publicNode->isForeign(),
                                       publicNode->getPrivateAuth()->c_str(),
-                                      publicNode->getPublicAuth()->c_str());
+                                      publicNode->getPublicAuth()->c_str(),
+                                      publicNode->getChatAuth());
                         waiter->notify();
                     }
                 }

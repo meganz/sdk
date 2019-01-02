@@ -10831,9 +10831,9 @@ void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
 }
 
 // request direct read by exported handle / key
-void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata, bool isforeign, const char *privauth, const char *pubauth)
+void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata, bool isforeign, const char *privauth, const char *pubauth, const char *cauth)
 {
-    queueread(ph, isforeign, key, ctriv, count, offset, appdata, privauth, pubauth);
+    queueread(ph, isforeign, key, ctriv, count, offset, appdata, privauth, pubauth, cauth);
 }
 
 // since only the first six bytes of a handle are in use, we use the seventh to encode its type
@@ -10850,7 +10850,7 @@ bool MegaClient::isprivatehandle(handle* hp)
     return ((char*)hp)[NODEHANDLE] != 0;
 }
 
-void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata, const char* privauth, const char *pubauth)
+void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata, const char* privauth, const char *pubauth, const char *cauth)
 {
     handledrn_map::iterator it;
 
@@ -10861,7 +10861,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
     if (it == hdrns.end())
     {
         // this handle is not being accessed yet: insert
-        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv, privauth, pubauth)));
+        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv, privauth, pubauth, cauth)));
         it->second->hdrn_it = it;
         it->second->enqueue(offset, count, reqtag, appdata);
 

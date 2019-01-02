@@ -408,6 +408,11 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
         arg("en", drn->publicauth.c_str());
     }
 
+    if (drn->chatauth.size())
+    {
+        arg("cauth", drn->chatauth.c_str());
+    }
+
     if (client->usehttps)
     {
         arg("ssl", 2);
