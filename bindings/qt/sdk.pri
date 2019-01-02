@@ -3,7 +3,6 @@ MEGASDK_BASE_PATH = $$PWD/../../
 
 VPATH += $$MEGASDK_BASE_PATH
 SOURCES += src/attrmap.cpp \
-    src/autocomplete.cpp \
     src/backofftimer.cpp \
     src/base64.cpp \
     src/command.cpp \
@@ -64,6 +63,28 @@ CONFIG(USE_AUTOCOMPLETE) {
         #to have autocomplete support, c++11 & libstdc++fs are required:
         CONFIG+=c++11
         LIBS+=-lstdc++fs
+    }
+}
+
+CONFIG(USE_CONSOLE) {
+    win32 {
+        CONFIG(noreadline) {
+            DEFINES += NO_READLINE
+            SOURCES += src/win32/console.cpp
+            SOURCES += src/win32/consolewaiter.cpp
+        }
+        else {
+            DEFINES += USE_READLINE_STATIC
+            SOURCES += src/wincurl/console.cpp
+            SOURCES += src/wincurl/consolewaiter.cpp
+            LIBS += -lreadline
+        }
+        QMAKE_CXXFLAGS+=/Zc:__cplusplus /std:c++ #this will set _cplusplus correctly in MSVC >= 2017 15.7 Preview 3
+    }
+    else {
+        SOURCES += src/posix/console.cpp
+        SOURCES += src/posix/consolewaiter.cpp
+        LIBS += -lreadline
     }
 }
 
@@ -272,7 +293,6 @@ win32 {
 
 unix {
 SOURCES += src/posix/net.cpp  \
-    src/posix/console.cpp  \
     src/posix/fs.cpp  \
     src/posix/waiter.cpp
 }
