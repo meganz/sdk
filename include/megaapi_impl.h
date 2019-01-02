@@ -1925,8 +1925,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag = 0, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag = 0, bool isBackup = false, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);

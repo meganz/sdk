@@ -2514,7 +2514,7 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, appData, false, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, false, listener);
 }
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
@@ -2534,7 +2534,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, mtime, false, 0, NULL, isSourceTemporary, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, isSourceTemporary, listener);
 }
 
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
@@ -2544,7 +2544,7 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, NULL, false, listener);
+    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)

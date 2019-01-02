@@ -7203,11 +7203,6 @@ void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t m
 void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
 { return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, listener); }
 
-void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener)
-{
-    return startUpload(startFirst, localPath, parent, fileName, mtime, folderTransferTag, false, appData, isSourceFileTemporary, listener);
-}
-
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
 	MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
@@ -21455,7 +21450,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
                     pendingTransfers++;
                     string utf8path;
                     client->fsaccess->local2path(&localPath, &utf8path);
-                    megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, NULL, false, this);
+                    megaApi->startUpload(false, utf8path.c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, this);
                 }
                 else
                 {
@@ -22641,7 +22636,6 @@ MegaBackupController::~MegaBackupController()
     {
         delete *it;
     }
-
 }
 
 MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
