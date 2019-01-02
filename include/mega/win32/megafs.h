@@ -90,7 +90,9 @@ struct MEGA_API WinDirNotify : public DirNotify
 {
     WinFileSystemAccess* fsaccess;
 
+#ifdef ENABLE_SYNC
     LocalNode* localrootnode;
+#endif
 
     HANDLE hDirectory;
 

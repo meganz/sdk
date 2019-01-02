@@ -412,6 +412,10 @@ string User::attr2string(attr_t type)
             attrname = "^!usl";
             break;
 
+        case ATTR_GEOLOCATION:
+            attrname = "*!geo";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -509,6 +513,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_STORAGE_STATE;
     }
+    else if(!strcmp(name, "*!geo"))
+    {
+        return ATTR_GEOLOCATION;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -532,6 +540,7 @@ bool User::needversioning(attr_t at)
         case ATTR_RICH_PREVIEWS:
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
+        case ATTR_GEOLOCATION:
             return 0;
 
         case ATTR_AUTHRING:
@@ -558,6 +567,7 @@ char User::scope(attr_t at)
         case ATTR_AUTHRING:
         case ATTR_LAST_INT:
         case ATTR_RICH_PREVIEWS:
+        case ATTR_GEOLOCATION:
             return '*';
 
         case ATTR_AVATAR:
@@ -944,6 +954,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_STORAGE_STATE:
             changed.storageState = true;
+            break;
+
+        case ATTR_GEOLOCATION:
+            changed.geolocation = true;
             break;
 
         default:

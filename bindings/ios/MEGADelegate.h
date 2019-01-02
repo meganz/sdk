@@ -252,6 +252,12 @@
  *     - StorageStateRed = 2
  *     The account is full. Uploads have been stopped
  *
+ *     - StorageStateChange = 3
+ *     There is a possible significant change in the storage state.
+ *     It's needed to call [MEGASdk getAccountDetails] to check the storage status.
+ *     After calling it, this callback will be called again with the corresponding
+ *     state if there is really a change.
+ *
  * - EventNodesCurrent: when all external changes have been received
  *
  * You can check the type of event by calling [MEGAEvent type]
