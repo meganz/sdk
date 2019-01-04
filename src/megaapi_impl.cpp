@@ -5559,12 +5559,15 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 
 void MegaApiImpl::loop()
 {
-#if TARGET_OS_IPHONE
-    // Workaround to get the IP of valid DNS servers on iOS
+#if defined(WINDOWS_PHONE) || TARGET_OS_IPHONE
+    // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
     string servers;
 
     while (true)
     {
+    #ifdef WINDOWS_PHONE
+        client->httpio->getMEGADNSservers(&servers, false);
+    #else
         __res_state res;
         bool valid;
         if (res_ninit(&res) == 0)
@@ -5600,11 +5603,16 @@ void MegaApiImpl::loop()
 
             res_ndestroy(&res);
         }
+    #endif
 
         if (servers.size())
             break;
 
+    #ifdef WINDOWS_PHONE
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    #else
         sleep(1);
+    #endif
     }
 
     LOG_debug << "Using DNS servers " << servers;
