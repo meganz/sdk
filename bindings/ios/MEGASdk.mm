@@ -169,6 +169,10 @@ using namespace mega;
     return self.megaApi->getNumUnreadUserAlerts();
 }
 
+- (long long)bandwidthOverquotaDelay {
+    return self.megaApi->getBandwidthOverquotaDelay();
+}
+
 #pragma mark - Init
 
 - (instancetype)initWithAppKey:(NSString *)appKey userAgent:(NSString *)userAgent {

@@ -96,17 +96,14 @@ namespace mega
         USER_ATTR_KEYRING                   = 7,    // private - byte array
         USER_ATTR_SIG_RSA_PUBLIC_KEY        = 8,    // public - byte array
         USER_ATTR_SIG_CU255_PUBLIC_KEY      = 9,    // public - byte array
-        USER_ATTR_COUNTRY                   = 10,   // public - char array
-        USER_ATTR_BIRTHDAY                  = 11,   // public - char array
-        USER_ATTR_BIRTHMONTH                = 12,   // public - char array
-        USER_ATTR_BIRTHYEAR                 = 13,   // public - char array
         USER_ATTR_LANGUAGE                  = 14,   // private - char array
         USER_ATTR_PWD_REMINDER              = 15,   // private - char array
         USER_ATTR_DISABLE_VERSIONS          = 16,   // private - byte array
         USER_ATTR_CONTACT_LINK_VERIFICATION = 17,   // private - byte array
         USER_ATTR_RICH_PREVIEWS             = 18,   // private - byte array
-        USER_ATTR_RUBBISH_TIME              = 19,    // private - byte array
-        USER_ATTR_LAST_PSA                  = 20    // private - char array
+        USER_ATTR_RUBBISH_TIME              = 19,   // private - byte array
+        USER_ATTR_LAST_PSA                  = 20,   // private - char array
+        USER_ATTR_STORAGE_STATE             = 21    // private - char array
     };
 
     public enum class MPaymentMethod {
@@ -138,6 +135,13 @@ namespace mega
         RETRY_RATE_LIMIT    = 4,
         RETRY_LOCAL_LOCK    = 5,
         RETRY_UNKNOWN       = 6
+    };
+
+    public enum class MStorageState {
+        STORAGE_STATE_GREEN     = 0,
+        STORAGE_STATE_ORANGE    = 1,
+        STORAGE_STATE_RED       = 2,
+        STORAGE_STATE_CHANGE    = 3
     };
 
     public ref class MegaSDK sealed
@@ -1659,6 +1663,8 @@ namespace mega
         * Get whether user generates rich-link messages or not (private)
         * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        * MUserAttrType::USER_ATTR_STORAGE_STATE = 21
+        * Get the state of the storage (private non-encrypted)
         *
         * @param listener MRequestListener to track this request
         */
@@ -1713,6 +1719,8 @@ namespace mega
         * Get whether user generates rich-link messages or not (private)
         * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        * MUserAttrType::USER_ATTR_STORAGE_STATE = 21
+        * Get the state of the storage (private non-encrypted)
         */
         void getUserAttribute(MUser^ user, int type);
 
@@ -1764,6 +1772,8 @@ namespace mega
         * Get whether user has versions disabled or enabled (private, non-encrypted)
         * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        * MUserAttrType::USER_ATTR_STORAGE_STATE = 21
+        * Get the state of the storage (private non-encrypted)
         *
         * @param listener MRequestListener to track this request
         */
@@ -1817,6 +1827,8 @@ namespace mega
         * Get whether user has versions disabled or enabled (private, non-encrypted)
         * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        * MUserAttrType::USER_ATTR_STORAGE_STATE = 21
+        * Get the state of the storage (private non-encrypted)
         */
         void getUserAttributeByEmailOrHandle(String^ email_or_handle, int type);
 
@@ -1867,6 +1879,8 @@ namespace mega
         * Get whether user generates rich-link messages or not (private)
         * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        * MUserAttrType::USER_ATTR_STORAGE_STATE = 21
+        * Get the state of the storage (private non-encrypted)
         *
         * @param listener MRequestListener to track this request
         */
@@ -1919,6 +1933,8 @@ namespace mega
         * Get whether user generates rich-link messages or not (private)
         * MUserAttrType::USER_ATTR_RUBBISH_TIME = 19
         * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+        * MUserAttrType::USER_ATTR_STORAGE_STATE = 21
+        * Get the state of the storage (private non-encrypted)
         */
         void getOwnUserAttribute(int type);
 
@@ -2877,6 +2893,10 @@ namespace mega
         bool isInRubbish(MNode^ node);
         bool isInInbox(MNode^ node);
 
+        /**
+        * @brief Get the time (in seconds) during which transfers will be stopped due to a bandwidth overquota
+        * @return Time (in seconds) during which transfers will be stopped, otherwise 0
+        */
         uint64 getBandwidthOverquotaDelay();
 
         /**

@@ -11,7 +11,6 @@ cd vcpkg
 ./vcpkg install --triplet x64-linux c-ares
 ./vcpkg install --triplet x64-linux curl    
 ./vcpkg install --triplet x64-linux sqlite3
-./vcpkg install --triplet x64-linux libevent
 ./vcpkg install --triplet x64-linux gtest
 #./vcpkg install --triplet x64-linux libsodium
 

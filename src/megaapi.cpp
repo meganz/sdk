@@ -1596,6 +1596,11 @@ void MegaApi::log(int logLevel, const char *message, const char *filename, int l
     MegaApiImpl::log(logLevel, message, filename, line);
 }
 
+void MegaApi::setLoggingName(const char* loggingName)
+{
+    pImpl->setLoggingName(loggingName);
+}
+
 long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();
@@ -2728,6 +2733,11 @@ bool MegaApi::isSynced(MegaNode *n)
 bool MegaApi::isSyncable(const char *path, long long size)
 {
     return pImpl->isSyncable(path, size);
+}
+
+bool MegaApi::isInsideSync(MegaNode *node)
+{
+    return pImpl->isInsideSync(node);
 }
 
 int MegaApi::isNodeSyncable(MegaNode *node)

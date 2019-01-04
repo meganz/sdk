@@ -24,7 +24,7 @@
 
 #include <string>
 #include <deque>
-#include "autocomplete.h"
+#include <mega/autocomplete.h>
 #include <mega/console.h>
 
 namespace mega {
@@ -47,12 +47,13 @@ struct MEGA_API ConsoleModel
         Paste, AutoCompleteForwards, AutoCompleteBackwards
     };
 
+#ifdef HAVE_AUTOCOMPLETE
     // If using autocomplete, client to specify the syntax of commands here so we know what.  Assign to this directly
     ::mega::autocomplete::ACN autocompleteSyntax;
     
     // If supplied, autocomplete will try to get additional completions from this function (eg for consulting MEGAcmd's server)
     std::function<vector<autocomplete::ACState::Completion>(string)> autocompleteFunction;
-
+#endif
     // a buffer to store characters received from keypresses.  After a newline is received, we 
     // don't check for keypresses anymore until that line is consumed.
     std::wstring buffer;
@@ -85,8 +86,10 @@ struct MEGA_API ConsoleModel
     bool unixCompletions = true;
 #endif
 
+#ifdef HAVE_AUTOCOMPLETE
     // flags to indicate to the real console if redraws etc need to occur
     ::mega::autocomplete::CompletionTextOut redrawInputLineConsoleFeedback;
+#endif
     bool redrawInputLineNeeded = false;
     bool consoleNewlineNeeded = false;
 
@@ -101,8 +104,9 @@ struct MEGA_API ConsoleModel
     std::wstring getInputLineToCursor(); 
 
 private:
+#ifdef HAVE_AUTOCOMPLETE
     autocomplete::CompletionState autocompleteState;
-
+#endif
     void getHistory(int index, int offset);
     void searchHistory(bool forwards);
     void updateHistoryMatch(bool forwards, bool increment);
@@ -130,8 +134,11 @@ struct MEGA_API WinConsole : public Console
     string getConsoleFont(COORD& xy);
     bool setShellConsole(UINT codepage = CP_UTF8, UINT failover_codepage = CP_UTF8);
     void getShellCodepages(UINT& codepage, UINT& failover_codepage);
+
+#ifdef HAVE_AUTOCOMPLETE
     void setAutocompleteSyntax(autocomplete::ACN);
     void setAutocompleteFunction(std::function<vector<autocomplete::ACState::Completion>(string)>);
+#endif
     void setAutocompleteStyle(bool unix);
     bool getAutocompleteStyle() const;
     bool consolePeek();
@@ -167,7 +174,11 @@ private:
     size_t inputLineOffset = 0;
 
     void redrawPromptIfLoggingOccurred();
+#ifdef HAVE_AUTOCOMPLETE
     void redrawInputLine(::mega::autocomplete::CompletionTextOut* autocompleteFeedback);
+#else
+    void redrawInputLine();
+#endif
     ConsoleModel::lineEditAction interpretLineEditingKeystroke(INPUT_RECORD &ir);
 #endif
 };

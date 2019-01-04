@@ -101,6 +101,7 @@
 ../../src/win32/waiter.cpp
 ../../src/wp8/waiter.cpp
 ../../src/attrmap.cpp
+../../src/autocomplete.cpp
 ../../src/backofftimer.cpp
 ../../src/base64.cpp
 ../../src/command.cpp

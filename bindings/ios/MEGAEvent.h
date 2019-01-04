@@ -26,7 +26,9 @@ typedef NS_ENUM(NSUInteger, Event) {
     EventAccountConfirmation = 1,
     EventChangeToHttps = 2,
     EventDisconnect = 3,
-    EventAccountBlocked = 4
+    EventAccountBlocked = 4,
+    EventStorage = 5,
+    EventNodesCurrent = 6
 };
 
 /**
@@ -46,6 +48,12 @@ typedef NS_ENUM(NSUInteger, Event) {
  * @brief Text relative to this event
  */
 @property (nonatomic, readonly) NSString *text;
+
+/**
+ * @brief A number relative to this event
+ *
+ */
+@property (nonatomic, readonly) NSInteger number;
 
 /**
  * @brief Creates a copy of this MEGAEvent object

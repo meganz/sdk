@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "megacli.h"
 #include <fstream>
+#include <mega/autocomplete.h>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -31,19 +32,28 @@
 #include <readline/history.h>
 #endif
 
-#ifdef _MSVC_LANG 
+#if (__cplusplus >= 201700L)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+    #define USE_FILESYSTEM
+#elif !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) )
 #define USE_FILESYSTEM
+#ifdef WIN32
+    #include <filesystem>
+    namespace fs = std::experimental::filesystem;
+#else
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
 #endif
-
-#ifdef USE_FILESYSTEM
-#include <filesystem>
-namespace fs = std::experimental::filesystem;
 #endif
 
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
 
+#ifdef HAVE_AUTOCOMPLETE
+    namespace ac = ::mega::autocomplete;
+#endif
 
 #include <iomanip>
 
@@ -61,8 +71,6 @@ using std::dec;
 MegaClient* client;
 MegaClient* clientFolder;
 
-// login e-mail address
-static string login;
 
 // new account signup e-mail address and name
 static string signupemail, signupname;
@@ -755,7 +763,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, m_time_t ts, error e)
 {
     if (e)
     {
@@ -767,7 +775,8 @@ void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *
         Base64::btoa((const byte *)&chatid, MegaClient::CHATHANDLE, idstr);
         cout << "Chatid: " << idstr << " (shard " << shard << ")" << endl;
         cout << "URL for chat-link: " << url->c_str() << endl;
-        cout << "Chat-topic: " << ct->c_str() << endl;
+        cout << "Encrypted chat-topic: " << ct->c_str() << endl;
+        cout << "Creation timestamp: " << ts << endl;
     }
 }
 
@@ -1714,7 +1723,7 @@ static void dumptree(Node* n, int recurse, int depth = 0, const char* title = NU
 }
 
 #ifdef USE_FILESYSTEM
-static void local_dumptree(const fs::directory_entry& de, int recurse, int depth = 0)
+static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 {
     if (depth)
     {
@@ -1723,9 +1732,9 @@ static void local_dumptree(const fs::directory_entry& de, int recurse, int depth
             cout << "\t";
         }
 
-        cout << de.path().filename().u8string() << " (";
+        cout << de.filename().u8string() << " (";
 
-        if (fs::is_directory(de.status()))
+        if (fs::is_directory(de))
         {
             cout << "folder";
         }
@@ -1738,9 +1747,9 @@ static void local_dumptree(const fs::directory_entry& de, int recurse, int depth
         }
     }
 
-    if (fs::is_directory(de.status()))
+    if (fs::is_directory(de))
     {
-        for (auto i = fs::directory_iterator(de.path()); i != fs::directory_iterator(); ++i)
+        for (auto i = fs::directory_iterator(de); i != fs::directory_iterator(); ++i)
         {
             local_dumptree(*i, recurse, depth + 1);
         }
@@ -2065,8 +2074,7 @@ static void store_line(char* l)
     line = l;
 }
 
-#if defined(WIN32) && defined(NO_READLINE)
-
+#ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
 
 autocomplete::ACN autocompleteSyntax()
@@ -2074,6 +2082,7 @@ autocomplete::ACN autocompleteSyntax()
     using namespace autocomplete;
     std::unique_ptr<Either> p(new Either("      "));
 
+    p->Add(sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
     // which is clearer in the help output - one line or 3?
     p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
@@ -2188,13 +2197,13 @@ bool extractparam(const std::string& p, vector<string>& words)
 }
 
 #ifdef USE_FILESYSTEM
-bool recursiveget(fs::path& localpath, Node* n, bool folders, unsigned& queued)
+bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 {
     if (n->type == FILENODE)
     {
         if (!folders)
         {
-            auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, WinConsole::toUtf8String(localpath.native()));
+            auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, localpath.u8string());
             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
             client->startxfer(GET, f);
             queued += 1;
@@ -2202,7 +2211,7 @@ bool recursiveget(fs::path& localpath, Node* n, bool folders, unsigned& queued)
     }
     else if (n->type == FOLDERNODE || n->type == ROOTNODE)
     {
-        fs::path newpath = localpath / (n->type == ROOTNODE ? "ROOTNODE" : n->displayname());
+        fs::path newpath = localpath / fs::u8path(n->type == ROOTNODE ? "ROOTNODE" : n->displayname());
         if (folders)
         {
             std::error_code ec; 
@@ -2218,7 +2227,7 @@ bool recursiveget(fs::path& localpath, Node* n, bool folders, unsigned& queued)
         }
         for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
         {
-            if (!recursiveget(newpath, *it, folders, queued))
+            if (!recursiveget(std::move(newpath), *it, folders, queued))
             {
                 return false;
             }
@@ -2228,13 +2237,56 @@ bool recursiveget(fs::path& localpath, Node* n, bool folders, unsigned& queued)
 }
 #endif
 
+
+struct Login
+{
+    string email, password, salt, pin;
+    int version;
+
+    Login() : version(0)
+    {
+    }
+
+    void reset()
+    {
+        *this = Login();
+    }
+
+    void login(MegaClient* client)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+
+        if (version == 1)
+        {
+            if (error e = client->pw_key(password.c_str(), pwkey))
+            {
+                cout << "Login error: " << e << endl;
+            }
+            else
+            {
+                client->login(email.c_str(), pwkey, pin.c_str());
+            }
+        }
+        else if (version == 2 && !salt.empty())
+        {
+            client->login2(email.c_str(), password.c_str(), &salt, pin.c_str());
+        }
+        else
+        {
+            cout << "Login unexpected error" << endl;
+        }
+    }
+};
+static Login login;
+
+
 // execute command
 static void process_line(char* l)
 {
     switch (prompt)
     {
         case LOGINTFA:
-                client->login(login.c_str(), pwkey, l);
+                client->login(login.email.c_str(), pwkey, l);
                 setprompt(COMMAND);
                 return;
 
@@ -2244,11 +2296,11 @@ static void process_line(char* l)
                 return;
 
         case LOGINPASSWORD:
-            client->pw_key(l, pwkey);
 
             if (signupcode.size())
             {
                 // verify correctness of supplied signup password
+                client->pw_key(l, pwkey);
                 SymmCipher pwcipher(pwkey);
                 pwcipher.ecb_decrypt(signuppwchallenge);
 
@@ -2266,15 +2318,18 @@ static void process_line(char* l)
             }
             else if (recoverycode.size())   // cancelling account --> check password
             {
+                client->pw_key(l, pwkey);
                 client->validatepwd(pwkey);
             }
             else if (changecode.size())     // changing email --> check password to avoid creating an invalid hash
             {
+                client->pw_key(l, pwkey);
                 client->validatepwd(pwkey);
             }
             else
             {
-                client->login(login.c_str(), pwkey);
+                login.password = l;
+                login.login(client);
                 cout << endl << "Logging in..." << endl;
             }
 
@@ -2370,7 +2425,7 @@ static void process_line(char* l)
 
             vector<string> words;
 
-#if defined(WIN32) && defined(NO_READLINE)
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
             using namespace ::mega::autocomplete;
             ACState acs = prepACState(l, strlen(l), static_cast<WinConsole*>(console)->getAutocompleteStyle());
             for (unsigned i = 0; i < acs.words.size(); ++i)
@@ -2450,7 +2505,7 @@ static void process_line(char* l)
 
             if (words[0] == "?" || words[0] == "h" || words[0] == "help")
             {
-#if defined(WIN32) && defined(NO_READLINE)
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
                 std::ostringstream s;
                 s << *autocompleteTemplate;
                 cout << s.str() << flush;
@@ -3206,23 +3261,22 @@ static void process_line(char* l)
                     else if (words[0] == "lls") // local ls
                     {
                         unsigned recursive = words.size() > 1 && words[1] == "-R";
-                        std::string ls_folder = words.size() > recursive + 1 ? words[recursive + 1] : fs::current_path().string();
                         try
                         {
-                            fs::path p(ls_folder);
+                            fs::path ls_folder = words.size() > recursive + 1 ? fs::u8path(words[recursive + 1]) : fs::current_path();
                             std::error_code ec;
-                            fs::directory_entry de(p, fs::status(p, ec));
+                            auto s = fs::status(ls_folder, ec);
                             if (ec)
                             {
                                 cerr << ec.message() << endl;
                             }
-                            else if (!fs::exists(de.status()))
+                            else if (!fs::exists(ls_folder))
                             {
                                 cerr << "not found" << endl;
                             }
                             else
                             {
-                                local_dumptree(de, recursive);
+                                local_dumptree(ls_folder, recursive);
                             }
                         }
                         catch (std::exception& e)
@@ -3483,7 +3537,7 @@ static void process_line(char* l)
                     {
                         if (words.size() == 1)
                         {
-                            client->multifactorauthcheck(login.c_str());
+                            client->multifactorauthcheck(login.email.c_str());
                         }
                         else
                         {
@@ -3532,18 +3586,16 @@ static void process_line(char* l)
                                 }
                                 else if (strchr(words[1].c_str(), '@'))
                                 {
+                                    login.reset();
+                                    login.email = words[1];
+
                                     // full account login
                                     if (words.size() > 2)
                                     {
-                                        client->pw_key(words[2].c_str(), pwkey);
-                                        client->login(words[1].c_str(), pwkey);
+                                        login.password = words[2];
                                         cout << "Initiated login attempt..." << endl;
                                     }
-                                    else
-                                    {
-                                        login = words[1];
-                                        setprompt(LOGINPASSWORD);
-                                    }
+                                    client->prelogin(login.email.c_str());
                                 }
                                 else
                                 {
@@ -4179,7 +4231,7 @@ static void process_line(char* l)
 #ifdef ENABLE_CHAT
                     else if (words[0] == "chatc")
                     {
-                        unsigned wordscount = words.size();
+                        size_t wordscount = words.size();
                         if (wordscount < 2 || wordscount == 3)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
@@ -4530,7 +4582,40 @@ static void process_line(char* l)
                     break;
 
                 case 6:
-                    if (words[0] == "passwd")
+                    if (words[0] == "apiurl")
+                    {
+                        if (words.size() == 1)
+                        {
+                            cout << "Current APIURL = " << MegaClient::APIURL << endl;
+                            cout << "Current disablepkp = " << (MegaClient::disablepkp ? "true" : "false") << endl;
+                        }
+                        else if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You must not be logged in, to change APIURL" << endl;
+                        }
+                        else if (words.size() == 3 || words.size() == 2)
+                        {
+                            if (words[1].size() < 8 || words[1].substr(0, 8) != "https://")
+                            {
+                                words[1] = "https://" + words[1];
+                            }
+                            if (words[1].empty() || words[1][words[1].size() - 1] != '/')
+                            {
+                                words[1] += '/';
+                            }
+                            MegaClient::APIURL = words[1];
+                            if (words.size() == 3)
+                            {
+                                MegaClient::disablepkp = words[2] == "true";
+                            }
+                        }
+                        else
+                        {
+                            cout << "apiurl [<url> [true|false]]" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "passwd")
                     {
                         if (client->loggedin() != NOTLOGGEDIN)
                         {
@@ -5001,7 +5086,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "chatcp")
                     {
-                        unsigned wordscount = words.size();
+                        size_t wordscount = words.size();
                         if (wordscount < 2 || wordscount == 3)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
@@ -5789,7 +5874,7 @@ void DemoApp::multifactorauthsetup_result(string *code, error e)
             if (++attempts >= 3)
             {
                 attempts = 0;
-                cout << "Two many attempts"<< endl;
+                cout << "Too many attempts"<< endl;
                 setprompt(COMMAND);
             }
             else
@@ -5800,11 +5885,36 @@ void DemoApp::multifactorauthsetup_result(string *code, error e)
     }
 }
 
+
+void DemoApp::prelogin_result(int version, string* email, string *salt, error e)
+{
+    if (e)
+    {
+        cout << "Login error: " << e << endl;
+        setprompt(COMMAND);
+        return;
+    }
+
+    login.version = version;
+    login.salt = (version == 2 && salt ? *salt : string());
+    
+    if (login.password.empty())
+    {
+        setprompt(LOGINPASSWORD);
+    }
+    else
+    {
+        login.login(client);
+    }
+}
+
+
 // login result
 void DemoApp::login_result(error e)
 {
     if (!e)
     {
+        login.reset();
         cout << "Login successful, retrieving account..." << endl;
         client->fetchnodes();
     }
@@ -5814,6 +5924,7 @@ void DemoApp::login_result(error e)
     }
     else
     {
+        login.reset();
         cout << "Login failed: " << errorstring(e) << endl;
     }
 }
@@ -6684,12 +6795,72 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
           << n << " added or updated" << endl;
 }
 
+#ifndef NO_READLINE
+#ifdef HAVE_AUTOCOMPLETE
+char* longestCommonPrefix(ac::CompletionState& acs)
+{
+    string s = acs.completions[0].s;
+    for (int i = acs.completions.size(); i--; )
+    {
+        for (unsigned j = 0; j < s.size() && j < acs.completions[i].s.size(); ++j)
+        {
+            if (s[j] != acs.completions[i].s[j])
+            {
+                s.erase(j, string::npos);
+                break;
+            }
+        }
+    }
+    return strdup(s.c_str());
+}
+
+char** my_rl_completion(const char *text, int start, int end)
+{
+    rl_attempted_completion_over = 1;
+
+    std::string line(rl_line_buffer, end);
+    ac::CompletionState acs = ac::autoComplete(line, line.size(), autocompleteTemplate, true);
+
+    if (acs.completions.empty())
+    {
+        return NULL;
+    }
+
+    if (acs.completions.size() == 1 && !acs.completions[0].couldExtend)
+    {
+        acs.completions[0].s += " "; 
+    }
+
+    char** result = (char**)malloc((sizeof(char*)*(2+acs.completions.size())));
+    for (int i = acs.completions.size(); i--; )
+    {
+        result[i+1] = strdup(acs.completions[i].s.c_str());
+    }
+    result[acs.completions.size()+1] = NULL;
+    result[0] = longestCommonPrefix(acs);
+    //for (int i = 0; i <= acs.completions.size(); ++i)
+    //{
+    //    cout << "i " << i << ": " << result[i] << endl;
+    //}
+    rl_completion_suppress_append = true;
+    rl_basic_word_break_characters = " \r\n";
+    rl_completer_word_break_characters = strdup(" \r\n");
+    rl_completer_quote_characters = "";
+    rl_special_prefixes = "";
+    return result;
+}
+#endif
+#endif
+
 // main loop
 void megacli()
 {
 #ifndef NO_READLINE
     char *saved_line = NULL;
     int saved_point = 0;
+#ifdef HAVE_AUTOCOMPLETE
+    rl_attempted_completion_function = my_rl_completion;
+#endif
 
     rl_save_prompt();
 
@@ -6902,8 +7073,11 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
-#if defined(WIN32) && defined(NO_READLINE)
-    static_cast<WinConsole*>(console)->setAutocompleteSyntax(autocompleteSyntax());
+#ifdef HAVE_AUTOCOMPLETE
+    ac::ACN acs = autocompleteSyntax();
+#endif
+#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
+    static_cast<WinConsole*>(console)->setAutocompleteSyntax((acs));
 #endif
 
     clientFolder = NULL;    // additional for folder links

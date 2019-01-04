@@ -801,6 +801,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     sync_list::iterator it;
     fd_set rfds;
     timeval tv = { 0 };
+    struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";
     static unsigned int rsrcsize = sizeof(rsrc) - 1;
 
@@ -872,6 +873,13 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                       && (psize < rsrcsize                                  // it isn't a resource fork
                           || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
                         {
+                            if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
+                            {
+                                LOG_debug << "Link skipped:  " << path;
+                                paths[i] = NULL;
+                                break;
+                            }
+
                             paths[i] += (*it)->localroot.localname.size() + 1;
                             pathsync[i] = *it;
                             break;

@@ -732,7 +732,7 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        if (e == API_EOVERQUOTA && !tl)
+                                        if (e == API_EOVERQUOTA && tl <= 0)
                                         {
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
@@ -1023,6 +1023,10 @@ void CommandPutNodes::procresult()
     {
         e = (error)client->json.getint();
         LOG_debug << "Putnodes error " << e;
+        if (e == API_EOVERQUOTA)
+        {
+            client->activateoverquota(0);
+        }
 
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
@@ -1170,6 +1174,11 @@ void CommandMoveNode::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
+        if (e == API_EOVERQUOTA)
+        {
+            client->activateoverquota(0);
+        }
+
 #ifdef ENABLE_SYNC
         if (syncdel != SYNCDEL_NONE)
         {
@@ -2912,7 +2921,7 @@ void CommandGetUA::procresult()
                                     at != ATTR_COUNTRY  &&        // private
                                     at != ATTR_BIRTHDAY &&        // private
                                     at != ATTR_BIRTHMONTH &&      // private
-                                    at != ATTR_BIRTHYEAR)         // private
+                                    at != ATTR_BIRTHYEAR)     // private
                             {
                                 LOG_err << "Unknown received attribute: " << User::attr2string(at);
                                 client->app->getua_result(API_EINTERNAL);
@@ -3372,6 +3381,7 @@ void CommandGetUserQuota::procresult()
     bool got_storage = false;
     bool got_transfer = false;
     bool got_pro = false;
+    int uslw = -1;
 
     if (client->json.isnumeric())
     {
@@ -3594,7 +3604,36 @@ void CommandGetUserQuota::procresult()
                 }
                 break;
 
-            case EOO:
+            case MAKENAMEID4('u', 's', 'l', 'w'):
+                uslw = int(client->json.getint());
+                break;
+
+            case EOO:                
+                if (uslw <= 0)
+                {
+                    uslw = 9000;
+                    LOG_warn << "Using default almost overstorage threshold";
+                }
+
+                if (got_storage)
+                {
+                    if (details->storage_used >= details->storage_max)
+                    {
+                        LOG_debug << "Account full";
+                        client->activateoverquota(0);
+                    }
+                    else if (details->storage_used >= (details->storage_max * uslw / 10000))
+                    {
+                        LOG_debug << "Few storage space available";
+                        client->setstoragestatus(STORAGE_ORANGE);
+                    }
+                    else
+                    {
+                        LOG_debug << "There are no storage problems";
+                        client->setstoragestatus(STORAGE_GREEN);
+                    }
+                }
+
                 client->app->account_details(details, got_storage, got_transfer, got_pro, false, false, false);
                 return;
 
@@ -5902,7 +5941,7 @@ void CommandChatLinkURL::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, (error)client->json.getint());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, (error)client->json.getint());
     }
     else
     {
@@ -5911,6 +5950,7 @@ void CommandChatLinkURL::procresult()
         int numPeers = -1;
         string url;
         string ct;
+        m_time_t ts = 0;
 
         for (;;)
         {
@@ -5936,21 +5976,24 @@ void CommandChatLinkURL::procresult()
                     numPeers = client->json.getint();
                     break;
 
+                case MAKENAMEID2('t', 's'):
+                    ts = client->json.getint();
+
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
                     }
                     return;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
                         return;
                     }
             }
@@ -6015,7 +6058,6 @@ CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle
     cmd("mciph");
     arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
     arg("ck", unifiedkey);
-    notself(client);
     tag = client->reqtag;
 }
 

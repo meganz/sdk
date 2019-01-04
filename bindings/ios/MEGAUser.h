@@ -47,7 +47,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
     MEGAUserChangeTypeDisableVersions         = 0x8000,
     MEGAUserChangeTypeContactLinkVerification = 0x10000,
     MEGAUserChangeTypeRichPreviews            = 0x20000,
-    MEGAUserChangeTypeRubbishTime             = 0x40000
+    MEGAUserChangeTypeRubbishTime             = 0x40000,
+    MEGAUserChangeTypeStorageState            = 0x80000
+    
 };
 
 /**
@@ -169,6 +171,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  * - MEGAUserChangeTypeRubbishTime = 0x40000
  * Check if rubbish time for autopurge has changed
  *
+ * - MEGAUserChangeTypeStorageState = 0x80000
+ * Check if the state of the storage has changed
+ *
  */
 @property (readonly, nonatomic) MEGAUserChangeType changes;
 
@@ -255,6 +260,9 @@ typedef NS_ENUM(NSInteger, MEGAUserChangeType) {
  *
  * - MEGAUserChangeTypeRubbishTime = 0x40000
  * Check if rubbish time for autopurge has changed
+ *
+ * - MEGAUserChangeTypeStorageState = 0x80000
+ * Check if the state of the storage has changed
  *
  * @return YES if this user has an specific change
  */

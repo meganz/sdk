@@ -42,6 +42,10 @@ if ANDROID
 AM_LIBTOOLFLAGS="--tag=CXX"
 endif
 
+if LINUX
+AM_LIBTOOLFLAGS="--tag=CXX"
+endif
+
 VERSION_INFO=$(LT_CURRENT):$(LT_REVISION):$(LT_AGE)
 
 CLEANFILES=
@@ -84,6 +88,7 @@ else
 platform_includes=$(top_srcdir)/include/mega/posix
 endif
 
+if CPPCHECK
 CPPCHECK_CMD = cppcheck \
 	--template='{file};{line};{severity};{id};{message}' \
 	--enable=warning,portability,information,missingInclude \
@@ -98,6 +103,7 @@ CPPCHECK_DIRS = \
 
 cppcheck:
 	$(CPPCHECK_CMD) $(CPPCHECK_DIRS)
+endif
 
 MOSTLYCLEANFILES = $(DX_CLEANFILES)
 

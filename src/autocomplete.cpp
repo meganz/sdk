@@ -1,5 +1,5 @@
 /**
-* @file win32/autocomplete.cpp
+* @file autocomplete.cpp
 * @brief Win32 console I/O autocomplete support
 *
 * (c) 2013-2018 by Mega Limited, Auckland, New Zealand
@@ -19,19 +19,25 @@
 * program.
 */
 
-#ifdef NO_READLINE
+#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) )
+// autocomplete for clients using c++11 capabilities
 
-#include <mega/win32/autocomplete.h>
+#include <mega/autocomplete.h>
 #include <mega/megaclient.h>
 #include <cassert>
-#include <filesystem>
 #include <algorithm>
 
-namespace fs = std::experimental::filesystem;
-
-namespace mega {
-namespace autocomplete {
-using namespace std;
+#if (__cplusplus >= 201700L)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+#else
+#ifdef WIN32
+    #include <filesystem>
+    namespace fs = std::experimental::filesystem;
+#else
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+#endif
 
 template<class T>
 static T clamp(T v, T lo, T hi)
@@ -50,6 +56,14 @@ static T clamp(T v, T lo, T hi)
         return v;
     }
 }
+
+#endif
+
+
+namespace mega {
+namespace autocomplete {
+using namespace std;
+
 
 inline static bool icmp(char a, char b)
 {
@@ -114,7 +128,7 @@ string ACState::quoted_word::getQuoted()
     return qs;
 }
 
-void ACState::addCompletion(const std::string& s, bool caseInsensitive) 
+void ACState::addCompletion(const std::string& s, bool caseInsensitive, bool couldextend) 
 {
     // add if it matches the prefix. Doing the check here keeps subclasses simple
     assert(atCursor());
@@ -137,13 +151,13 @@ void ACState::addCompletion(const std::string& s, bool caseInsensitive)
             if ((s[0] == '-' && !prefix.empty() && prefix[0] == '-') ||
                 (s[0] != '-' && (prefix.empty() || prefix[0] != '-')))
             {
-                completions.emplace_back(s, caseInsensitive);
+                completions.emplace_back(s, caseInsensitive, couldextend);
             }
         }
     }
 }
 
-void ACState::addPathCompletion(std::string& f, const std::string& relativeRootPath, bool isFolder, char dir_sep, bool caseInsensitive)
+void ACState::addPathCompletion(std::string&& f, const std::string& relativeRootPath, bool isFolder, char dir_sep, bool caseInsensitive)
 {
     if (f.size() > relativeRootPath.size() && f.compare(0, relativeRootPath.size(), relativeRootPath) == 0)
     {
@@ -165,7 +179,7 @@ void ACState::addPathCompletion(std::string& f, const std::string& relativeRootP
     {
         f.push_back(dir_sep);
     }
-    addCompletion(f, caseInsensitive);
+    addCompletion(f, caseInsensitive, isFolder);
 }
 
 std::ostream& operator<<(std::ostream& s, const ACNode& n)
@@ -500,30 +514,39 @@ bool LocalFS::addCompletions(ACState& s)
 {
     if (s.atCursor())
     {
-        fs::path searchPath(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
+        fs::path searchPath = fs::u8path(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
+#ifdef WIN32
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
+#else
+        char sep = '/';
+#endif
         bool relative = !searchPath.is_absolute();
-        searchPath = relative ? fs::current_path().append("\\").append(searchPath) : searchPath;
-        std::string cp = relative ? fs::current_path().u8string() + "\\" : "";
+        searchPath = relative ? (fs::current_path() /= searchPath) : searchPath;
+        std::string cp = relative ? fs::current_path().u8string() + sep : "";
         if ((searchPath.filename() == ".." || searchPath.filename() == ".") && fs::exists(searchPath))
         {
-            s.addPathCompletion(searchPath.u8string(), cp, true, '\\', true);
+            s.addPathCompletion(searchPath.u8string(), cp, true, sep, true);
         }
         else
         {
             searchPath.remove_filename(); // iterate the whole directory, and filter
+#ifdef WIN32
             std::string spath = searchPath.u8string();
             if (spath.back() == ':')
             {
                 searchPath = spath.append("\\");
             }
+#endif
 
-            for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
+            if (fs::exists(searchPath) && fs::is_directory(searchPath))
             {
-                if (reportFolders && fs::is_directory(iter->status()) ||
-                    reportFiles && fs::is_regular_file(iter->status()))
+                for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
                 {
-                    s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep , true);
+                    if (reportFolders && fs::is_directory(iter->status()) ||
+                        reportFiles && fs::is_regular_file(iter->status()))
+                    {
+                        s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep, true);
+                    }
                 }
             }
         }
@@ -567,43 +590,34 @@ MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::handle* curDirHa
 
 Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix)
 {
-    string path = s.word().s;
-
+    const string& path = s.word().s;
     string::size_type t = path.find_first_of(":/");
 
-    if (t != string::npos && path[t] == '/')
+    if (t == string::npos || path[t] == ':')
     {
-        return NULL;
-    }
-    else if (t != string::npos && path[t] == ':')
-    {
-        pathprefix = path.substr(0, t);
-    }
-
-    for (const user_map::value_type& u : client->users)
-    {
-        if (pathprefix.empty() && !u.second.sharing.empty())
+        for (const user_map::value_type& u : client->users)
         {
-            string str;
-            s.addCompletion(u.second.email + ":", true);
-        }
-        else if (u.second.email == path.substr(0, t))
-        {
-            path.erase(0, t + 1);
-            t = path.find_first_of("/");
-            for (handle h : u.second.sharing)
+            if (t == string::npos && !u.second.sharing.empty())
             {
-                if (Node* n = client->nodebyhandle(h))
+                string str;
+                s.addCompletion(u.second.email + ":", true, true);
+            }
+            else if (u.second.email == path.substr(0, t))
+            {
+                string::size_type pos = path.find_first_of("/", t + 1);
+                for (handle h : u.second.sharing)
                 {
-                    if (t == string::npos)
+                    if (Node* n = client->nodebyhandle(h))
                     {
-                        string str = pathprefix + ":" + n->displayname();
-                        s.addPathCompletion(str, "", n->type != FILENODE, '/', false);
-                    }
-                    else if (!strncmp(n->displayname(), path.c_str(), t))
-                    {
-                        (pathprefix += ":") += n->displayname();
-                        return n;
+                        if (pos == string::npos)
+                        {
+                            s.addPathCompletion(path.substr(0, t + 1) + n->displayname(), "", n->type != FILENODE, '/', false);
+                        }
+                        else if (n->displayname() == path.substr(t + 1, pos - t - 1))
+                        {
+                            pathprefix = path.substr(0, pos + 1);
+                            return n;
+                        }
                     }
                 }
             }
@@ -636,9 +650,8 @@ bool MegaFS::addCompletions(ACState& s)
                     }
                     else
                     {
-                        string str;
-                        s.addPathCompletion((str = "//bin"), "", true, '/', false);
-                        s.addPathCompletion((str = "//in"), "", true, '/', false);
+                        s.addPathCompletion(string("//bin"), "", true, '/', false);
+                        s.addPathCompletion(string("//in"), "", true, '/', false);
                         return true;
                     }
                 }
@@ -655,6 +668,7 @@ bool MegaFS::addCompletions(ACState& s)
                 if (!n && *cwd != UNDEF)
                 {
                     n = client->nodebyhandle(*cwd);
+                    pathprefix.clear();
                 }
             }
 
@@ -690,8 +704,7 @@ bool MegaFS::addCompletions(ACState& s)
             std::string leaf = s.word().s.substr(pathprefix.size(), std::string::npos);
             if (n && (leaf == "." || (leaf == ".." && n->type != ROOTNODE)))
             {
-                std::string f = s.word().s;
-                s.addPathCompletion(f, "", true, '/', false);
+                s.addPathCompletion(string(s.word().s), "", true, '/', false);
             }
             else
             {
@@ -910,7 +923,12 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
 {
     ACState acs = prepACState(line, insertPos, unixStyle);
 
-    if (!acs.words.empty() && (acs.words[0].s.size() || acs.words.size() > 1))
+    while (!acs.words.empty() && acs.words.back().s.empty() && !acs.words.back().q.quoted)
+    {
+        acs.words.pop_back();
+    }
+
+    if (!acs.words.empty())
     {
         if (auto e = dynamic_cast<autocomplete::Either*>(syntax.get()))
         {
@@ -1047,6 +1065,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
             auto& c = s.completions[index];
             std::string w = c.s;
             s.originalWord.q.applyQuotes(w);
+            w += (s.completions.size() == 1 && !c.couldExtend) ? " " : "";
             s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, w);
             s.wordPos.second = int(w.size() + s.wordPos.first);
             s.lastAppliedIndex = index;
@@ -1077,6 +1096,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
                     }
                 }
                 s.originalWord.q.applyQuotes(exactChars);
+                exactChars += (s.completions.size() == 1 && !s.completions[0].couldExtend) ? " " : "";
                 s.line.replace(s.wordPos.first, s.wordPos.second - s.wordPos.first, exactChars);
                 s.wordPos.second = int(exactChars.size() + s.wordPos.first);
                 s.firstPressDone = true;
@@ -1161,10 +1181,14 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
     }
 }
 
-
 ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5)
 {
+#if (__cplusplus < 201400L)
+    auto n = std::unique_ptr<Either>(new Either());
+#else
     auto n = std::make_unique<Either>();
+#endif
+
     n->Add(n1);
     n->Add(n2);
     n->Add(n3);

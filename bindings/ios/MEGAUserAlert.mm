@@ -65,8 +65,8 @@ using namespace mega;
     return self.megaUserAlert ? self.megaUserAlert->getRelevant() : NO;
 }
 
-- (NSInteger)type {
-    return self.megaUserAlert ? self.megaUserAlert->getType(): 0;
+- (MEGAUserAlertType)type {
+    return (MEGAUserAlertType)(self.megaUserAlert ? self.megaUserAlert->getType() : 0);
 }
 
 - (NSString *)typeString {
@@ -95,6 +95,12 @@ using namespace mega;
     return self.megaUserAlert->getPath()? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getPath()] : nil;
 }
 
+- (NSString *)name {
+    if (!self.megaUserAlert) return nil;
+    
+    return self.megaUserAlert->getName() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getName()] : nil;
+}
+
 - (NSString *)heading {
     if (!self.megaUserAlert) return nil;
     
@@ -105,6 +111,10 @@ using namespace mega;
     if (!self.megaUserAlert) return nil;
     
     return self.megaUserAlert->getTitle() ? [[NSString alloc] initWithUTF8String:self.megaUserAlert->getTitle()] : nil;
+}
+
+- (BOOL)isOwnChange {
+    return self.megaUserAlert ? self.megaUserAlert->isOwnChange() : NO;
 }
 
 - (instancetype)clone {

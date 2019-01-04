@@ -339,7 +339,7 @@ struct StandardClient : public MegaApp
 #endif
             "N9tSBJDC", "synctests")
         , clientname(name)
-        , fsBasePath(basepath / name)
+        , fsBasePath(basepath / fs::u8path(name))
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
@@ -1339,7 +1339,7 @@ struct StandardClient : public MegaApp
 
     bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
     {
-        fs::path syncdir = fsBasePath / localsyncrootfolder;
+        fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
         future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncid, remotesyncrootfolder, syncdir)); });
         return fb.get();
@@ -1430,7 +1430,7 @@ void moveToTrash(const fs::path& p)
     fs::path newpath = trashpath / p.filename();
     for (int i = 2; fs::exists(newpath); ++i)
     {
-        newpath = trashpath / (p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
+        newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
     }
     fs::rename(p, newpath);
 }
@@ -1452,15 +1452,19 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
 {
     if (suppressfiles) filesperfolder = 0;
 
-    fs::path p = targetfolder / prefix;
+    fs::path p = targetfolder / fs::u8path(prefix);
     if (!fs::create_directory(p))
         return false;
 
     for (int i = 0; i < filesperfolder; ++i)
     {
         string filename = "file" + to_string(i) + "_" + prefix;
-        fs::path fp = p / filename;
-        ofstream fs(fp.string()/*, ios::binary*/);
+        fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+        ofstream fs(fp/*, ios::binary*/);
+#else
+        ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
         fs << filename;
         //int thisSize = (++fileSizeCount)/2;
         //for (int j = 0; j < thisSize; ++j) fs << ('0' + j % 10);
