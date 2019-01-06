@@ -5534,7 +5534,7 @@ void MegaClient::sc_upc(bool incoming)
                     pcr->uts = uts;
                 }
 
-                if (statecurrent && ou != me)
+                if (statecurrent && ou != me && (incoming || s != 2))
                 {
                     string email;
                     Node::copystring(&email, m);
