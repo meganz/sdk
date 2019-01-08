@@ -66,25 +66,21 @@ CONFIG(USE_AUTOCOMPLETE) {
     }
 }
 
-CONFIG(USE_LIBWEBSOCKETS) {
-    CONFIG += USE_LIBUV
-    DEFINES += USE_LIBWEBSOCKETS=1
-
-    !macx {
-        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
-        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
-        }
-        else {
-        LIBS += -lwebsockets -lcap
-        }
+CONFIG += USE_LIBUV
+!macx {
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+    LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a -lcap
     }
     else {
-        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
-        LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a
-        }
-        else {
-        LIBS += -lwebsockets
-        }
+    LIBS += -lwebsockets -lcap
+    }
+}
+else {
+    exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
+    LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a
+    }
+    else {
+    LIBS += -lwebsockets
     }
 }
 
