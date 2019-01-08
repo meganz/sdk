@@ -17978,12 +17978,13 @@ void MegaApiImpl::sendPendingRequests()
                 }
 #endif
                 }
-
+#ifndef __MINGW32__
                 if (servers.size())
                 {
                     LOG_debug << "Using DNS servers " << servers;
                     httpio->setdnsservers(servers.c_str());
                 }
+#endif
             }
 
 			fireOnRequestFinish(request, MegaError(API_OK));
