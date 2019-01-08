@@ -9096,18 +9096,28 @@ void MegaClient::procmcf(JSON *j)
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
                                     {
-                                        userpriv_vector::iterator upvit;
-                                        for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                                        if (chat->priv == PRIV_RM)
                                         {
-                                            if (upvit->first == me)
+                                            // clear the list of peers because API still includes peers in the
+                                            // actionpacket, but not in a fresh fetchnodes
+                                            delete userpriv;
+                                            userpriv = NULL;
+                                        }
+                                        else
+                                        {
+                                            userpriv_vector::iterator upvit;
+                                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
                                             {
-                                                userpriv->erase(upvit);
-                                                if (userpriv->empty())
+                                                if (upvit->first == me)
                                                 {
-                                                    delete userpriv;
-                                                    userpriv = NULL;
+                                                    userpriv->erase(upvit);
+                                                    if (userpriv->empty())
+                                                    {
+                                                        delete userpriv;
+                                                        userpriv = NULL;
+                                                    }
+                                                    break;
                                                 }
-                                                break;
                                             }
                                         }
                                     }
