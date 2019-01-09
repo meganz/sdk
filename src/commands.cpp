@@ -5395,6 +5395,10 @@ void CommandChatRemove::procresult()
             if (uh == client->me)
             {
                 chat->priv = PRIV_RM;
+
+                // clear the list of peers (if re-invited, peers will be re-added)
+                delete chat->userpriv;
+                chat->userpriv = NULL;
             }
 
             chat->setTag(tag ? tag : -1);
