@@ -66,9 +66,8 @@ CONFIG(USE_AUTOCOMPLETE) {
     }
 }
 
-CONFIG(USE_LIBWEBSOCKETS) {
+CONFIG(ENABLE_CHAT) {
     CONFIG += USE_LIBUV
-    DEFINES += USE_LIBWEBSOCKETS=1
 
     !macx {
         exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
