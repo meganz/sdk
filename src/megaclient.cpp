@@ -5866,6 +5866,15 @@ void MegaClient::sc_chatupdate()
                             }
                         }
                     }
+
+                    if (chat->priv == PRIV_RM)
+                    {
+                        // clear the list of peers because API still includes peers in the
+                        // actionpacket, but not in a fresh fetchnodes
+                        delete userpriv;
+                        userpriv = NULL;
+                    }
+
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
