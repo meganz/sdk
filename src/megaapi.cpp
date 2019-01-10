@@ -1646,6 +1646,11 @@ void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRe
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
 }
 
+void MegaApi::setDnsServers(const char *dnsServers, MegaRequestListener *listener)
+{
+    pImpl->setDnsServers(dnsServers, listener);
+}
+
 bool MegaApi::serverSideRubbishBinAutopurgeEnabled()
 {
     return pImpl->serverSideRubbishBinAutopurgeEnabled();

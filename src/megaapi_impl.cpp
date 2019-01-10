@@ -4950,6 +4950,17 @@ void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, Me
     waiter->notify();
 }
 
+void MegaApiImpl::setDnsServers(const char *dnsServers, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS);
+    request->setFlag(true);
+    request->setNumber(true);
+    request->setText(dnsServers);
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::addEntropy(char *data, unsigned int size)
 {
     if(PrnGen::rng.CanIncorporateEntropy())
@@ -5555,7 +5566,7 @@ void MegaApiImpl::loop()
     while (true)
     {
     #ifdef WINDOWS_PHONE
-        client->httpio->getMEGADNSservers(&servers);
+        client->httpio->getMEGADNSservers(&servers, false);
     #else
         __res_state res;
         bool valid;
@@ -5604,9 +5615,8 @@ void MegaApiImpl::loop()
     #endif
     }
 
-    LOG_debug << "Using MEGA DNS servers " << servers;
+    LOG_debug << "Using DNS servers " << servers;
     httpio->setdnsservers(servers.c_str());
-
 #elif _WIN32
     httpio->lock();
 #endif
@@ -17907,20 +17917,24 @@ void MegaApiImpl::sendPendingRequests()
 		{
 			bool disconnect = request->getFlag();
 			bool includexfers = request->getNumber();
+            const char *dnsservers = request->getText();
+
 			client->abortbackoff(includexfers);
-			if(disconnect)
+            if (disconnect)
             {
                 client->disconnect();
 
-#if defined(WINDOWS_PHONE) || TARGET_OS_IPHONE
-                // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
                 string servers;
-
+                if (dnsservers && dnsservers[0])
+                {
+                    servers = dnsservers;
+                }
+                else
+                {
+#if TARGET_OS_IPHONE
+                // Workaround to get the IP of valid DNS servers on iOS
                 while (true)
                 {
-                #ifdef WINDOWS_PHONE
-                    client->httpio->getMEGADNSservers(&servers);
-                #else
                     __res_state res;
                     bool valid;
                     if (res_ninit(&res) == 0)
@@ -17956,20 +17970,20 @@ void MegaApiImpl::sendPendingRequests()
 
                         res_ndestroy(&res);
                     }
-                #endif
 
                     if (servers.size())
                         break;
 
-                #ifdef WINDOWS_PHONE
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                #else
                     sleep(1);
-                #endif
                 }
-
-                LOG_debug << "Using MEGA DNS servers " << servers;
-                httpio->setdnsservers(servers.c_str());
+#endif
+                }
+#ifndef __MINGW32__
+                if (servers.size())
+                {
+                    LOG_debug << "Using DNS servers " << servers;
+                    httpio->setdnsservers(servers.c_str());
+                }
 #endif
             }
 
