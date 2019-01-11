@@ -12473,7 +12473,7 @@ void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 
     if(!dsdelta)
         waitingRequest = RETRY_NONE;
-    else if(dsdelta > 10)
+    else if(dsdelta > 40)
         waitingRequest = reason;
 
 #ifdef ENABLE_SYNC
