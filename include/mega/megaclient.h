@@ -793,7 +793,7 @@ private:
     void sc_ph();
     void sc_se();
 #ifdef ENABLE_CHAT
-    void sc_chatupdate();
+    void sc_chatupdate(bool readingPublicChat);
     void sc_chatnode();
     void sc_chatflags();
 #endif

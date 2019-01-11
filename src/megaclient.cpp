@@ -3944,8 +3944,11 @@ bool MegaClient::procsc()
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
                     {
+                        bool readingPublicChat = false;
                         switch (name)
                         {
+                            readingPublicChat = false;
+
                             case 'u':
                                 // node update
                                 sc_updatenode();
@@ -4098,16 +4101,22 @@ bool MegaClient::procsc()
                                 sc_se();
                                 break;
 #ifdef ENABLE_CHAT
+                            case MAKENAMEID4('m', 'c', 'p', 'c'):      // fall-through
+                            {
+                                readingPublicChat = true;
+                            }
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
-                                sc_chatupdate();
+                                sc_chatupdate(readingPublicChat);
                                 break;
 
+                            case MAKENAMEID5('m', 'c', 'f', 'p', 'c'):      // fall-through
                             case MAKENAMEID4('m', 'c', 'f', 'c'):
                                 // chat flags update
                                 sc_chatflags();
                                 break;
 
+                            case MAKENAMEID5('m', 'c', 'p', 'n', 'a'):      // fall-through
                             case MAKENAMEID4('m', 'c', 'n', 'a'):
                                 // granted / revoked access to a node
                                 sc_chatnode();
@@ -5729,7 +5738,7 @@ void MegaClient::sc_se()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::sc_chatupdate()
+void MegaClient::sc_chatupdate(bool readingPublicChat)
 {
     // fields: id, u, cs, n, g, ou, ct, ts, m, ck
     handle chatid = UNDEF;
@@ -5781,10 +5790,12 @@ void MegaClient::sc_chatupdate()
                 break;
 
             case 'm':
+//                assert(readingPublicChat);
                 publicchat = jsonsc.getint();
                 break;
 
             case MAKENAMEID2('c','k'):
+                assert(readingPublicChat);
                 jsonsc.storeobject(&unifiedkey);
                 break;
 
@@ -5869,14 +5880,17 @@ void MegaClient::sc_chatupdate()
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
-                    chat->setMode(publicchat);
-                    if (!unifiedkey.empty())    // not all actionpackets include it
+                    if (readingPublicChat)
                     {
-                        chat->unifiedKey = unifiedkey;
-                    }
-                    else if (publicchat && mustHaveUK)
-                    {
-                        LOG_err << "Public chat without unified key detected";
+                        chat->setMode(publicchat);
+                        if (!unifiedkey.empty())    // not all actionpackets include it
+                        {
+                            chat->unifiedKey = unifiedkey;
+                        }
+                        else if (mustHaveUK)
+                        {
+                            LOG_err << "Public chat without unified key detected";
+                        }
                     }
 
                     chat->setTag(0);    // external change
@@ -9012,8 +9026,15 @@ void MegaClient::procmcf(JSON *j)
         bool done = false;
         while (!done)
         {
+            bool readingPublicChats;
             switch(j->getnameid())
             {
+                readingPublicChats = false;
+
+                case MAKENAMEID2('p', 'c'):   // list of public and/or formerly public chatrooms
+                {
+                    readingPublicChats = true;
+                }   // fall-through
                 case 'c':   // list of chatrooms
                 {
                     j->enterarray();
@@ -9060,6 +9081,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case MAKENAMEID2('c', 'k'):  // store unified key for public chats
+                                assert(readingPublicChats);
                                 j->storeobject(&unifiedKey);
                                 break;
 
@@ -9068,6 +9090,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case 'm':   // operation mode: 1 -> public chat; 0 -> private chat
+//                                assert(readingPublicChats);
                                 publicchat = j->getint();
                                 break;
 
@@ -9086,11 +9109,16 @@ void MegaClient::procmcf(JSON *j)
                                     chat->group = group;
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
-                                    chat->publicchat = publicchat;
-                                    chat->unifiedKey = unifiedKey;
-                                    if (publicchat && unifiedKey.empty())
+
+                                    if (readingPublicChats)
                                     {
-                                        LOG_err << "Received public chat without unified key";
+                                        chat->publicchat = publicchat;  // true or false (formerly public, now private)
+                                        chat->unifiedKey = unifiedKey;
+
+                                        if (unifiedKey.empty())
+                                        {
+                                            LOG_err << "Received public (or formerly public) chat without unified key";
+                                        }
                                     }
 
                                     // remove yourself from the list of users (only peers matter)
@@ -9139,6 +9167,10 @@ void MegaClient::procmcf(JSON *j)
                     break;
                 }
 
+                case MAKENAMEID3('p', 'c', 'f'):    // list of flags for public and/or formerly public chatrooms
+                {
+                    readingPublicChats = true;
+                }   // fall-through
                 case MAKENAMEID2('c', 'f'):
                 {
                     j->enterarray();
@@ -9176,6 +9208,7 @@ void MegaClient::procmcf(JSON *j)
                                     else
                                     {
                                         it->second->setFlags(flags);
+//                                        assert(!readingPublicChats || !it->second->unifiedKey.empty());
                                     }
                                 }
                                 else
