@@ -594,25 +594,31 @@ UserAlert::PaymentReminder::PaymentReminder(UserAlertRaw& un, unsigned int id)
     : Base(un, id)
 {
     expiryTime = un.getint64(MAKENAMEID2('t', 's'), timestamp);
-    relevant = expiryTime > timestamp && expiryTime > m_time();
+    relevant = true;  // relevant until we see a subsequent payment
 }
 
 UserAlert::PaymentReminder::PaymentReminder(m_time_t expiryts, unsigned int id)
     : Base(type_pses, UNDEF, "", m_time(), id)
 {
     expiryTime = expiryts;
-    relevant = expiryTime > timestamp;
+    relevant = true; // relevant until we see a subsequent payment
 }
 
 void UserAlert::PaymentReminder::text(string& header, string& title, MegaClient* mc)
 {
     updateEmail(mc);
     m_time_t now = m_time();
-    int days = expiryTime > now ? int((expiryTime - now) / 86400) : 0;
+    int days = int((expiryTime - now) / 86400);
 
     ostringstream s;
-    s << "Your PRO membership plan will expire in " << days << (days == 1 ? " day." : " days.");   // 8596, 8597
-    
+    if (expiryTime < now)
+    {
+        s << "Your PRO membership plan expired " << -days << (days == -1 ? " day" : " days") << " ago";
+    }
+    else
+    {
+        s << "Your PRO membership plan will expire in " << days << (days == 1 ? " day." : " days.");   // 8596, 8597
+    }
     title = s.str();
     header = "PRO membership plan expiring soon"; // 8598
 }
@@ -844,6 +850,22 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
+    if (!alerts.empty() && unb->type == UserAlert::type_psts && static_cast<UserAlert::Payment*>(unb)->success)
+    {
+        // if a successful payment is made then hide/remove any reminders received
+        for (Alerts::iterator i = alerts.begin(); i != alerts.end(); ++i)
+        {
+            if ((*i)->type == UserAlert::type_pses && (*i)->relevant)
+            {
+                (*i)->relevant = false;
+                if (catchupdone)
+                {
+                    useralertnotify.push_back(*i);
+                }
+            }
+        }
+    }
+
     unb->updateEmail(&mc);
     alerts.push_back(unb);
     LOG_debug << "Added user alert, type " << alerts.back()->type << " ts " << alerts.back()->timestamp;
@@ -864,7 +886,7 @@ void UserAlerts::startprovisional()
 void UserAlerts::evalprovisional(handle originatinguser)
 {
     provisionalmode = false;
-    for (int i = 0; i < provisionals.size(); ++i)
+    for (unsigned i = 0; i < provisionals.size(); ++i)
     {
         if (provisionals[i]->checkprovisional(originatinguser, &mc))
         {
