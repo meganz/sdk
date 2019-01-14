@@ -361,7 +361,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
 
     // start/stop/pause file transfer
-    bool startxfer(direction_t, File*, bool skipdupes = false, bool startfirst = false);
+    bool startxfer(direction_t, File*, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f);
     void pausexfers(direction_t, bool, bool = false);
 

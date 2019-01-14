@@ -56,6 +56,8 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     priority = 0;
     state = TRANSFERSTATE_NONE;
 
+    skipserialization = false;
+
     faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
 }
