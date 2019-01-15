@@ -5244,6 +5244,14 @@ static void process_line(char* l)
                             {
                                 shownew = true;
                             }
+                            else if (words[1] == "test_reminder")
+                            {
+                                client->useralerts.add(new UserAlert::PaymentReminder(time(NULL) - 86000*3 /2, client->useralerts.nextId()));
+                            }
+                            else if (words[1] == "test_payment")
+                            {
+                                client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId()));
+                            }
                             else if (atoi(words[1].c_str()) > 0)
                             {
                                 showN = atoi(words[1].c_str());
