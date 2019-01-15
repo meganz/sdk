@@ -449,12 +449,12 @@ typedef enum {
     ATTR_PWD_REMINDER = 15,     // private, non-encrypted - char array in B64 - non-versioned
     ATTR_DISABLE_VERSIONS = 16, // private, non-encrypted - char array in B64 - non-versioned
     ATTR_CONTACT_LINK_VERIFICATION = 17,  // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_RICH_PREVIEWS = 18,     // private - byte array
-    ATTR_RUBBISH_TIME = 19,      // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_LAST_PSA = 20,          // private - char array
-    ATTR_STORAGE_STATE = 21,     // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_GEOLOCATION = 22,       // private - byte array
-    ATTR_PUSH_RESTRICTION = 23   // private - non-encripted - char array
+    ATTR_RICH_PREVIEWS = 18,    // private - byte array
+    ATTR_RUBBISH_TIME = 19,     // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_LAST_PSA = 20,         // private - char array
+    ATTR_STORAGE_STATE = 21,    // private - non-encrypted - char array in B64 - non-versioned
+    ATTR_GEOLOCATION = 22,      // private - byte array
+    ATTR_PUSH_SETTINGS = 23     // private - non-encripted - char array in B64 - non-versioned
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 

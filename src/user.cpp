@@ -416,8 +416,8 @@ string User::attr2string(attr_t type)
             attrname = "*!geo";
             break;
 
-        case ATTR_PUSH_RESTRICTION:
-            attrname = "^!pushsettings";
+        case ATTR_PUSH_SETTINGS:
+            attrname = "^!ps";
 
         case ATTR_UNKNOWN:  // empty string
             break;
@@ -520,9 +520,9 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
-    else if(!strcmp(name, "^!pushsettings"))
+    else if(!strcmp(name, "^!ps"))
     {
-        return ATTR_PUSH_RESTRICTION;
+        return ATTR_PUSH_SETTINGS;
     }
     else
     {
@@ -558,7 +558,7 @@ bool User::needversioning(attr_t at)
         case ATTR_SIG_CU255_PUBK:
         case ATTR_KEYRING:
         case ATTR_CONTACT_LINK_VERIFICATION:
-        case ATTR_PUSH_RESTRICTION:
+        case ATTR_PUSH_SETTINGS:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -592,7 +592,7 @@ char User::scope(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_STORAGE_STATE:
-        case ATTR_PUSH_RESTRICTION:
+        case ATTR_PUSH_SETTINGS:
             return '^';
 
         default:
@@ -969,8 +969,8 @@ bool User::setChanged(attr_t at)
             changed.geolocation = true;
             break;
 
-        case ATTR_PUSH_RESTRICTION:
-            changed.pushRestrinction = true;
+        case ATTR_PUSH_SETTINGS:
+            changed.pushSettings = true;
             break;
 
         default:

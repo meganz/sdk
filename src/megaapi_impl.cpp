@@ -1581,9 +1581,9 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_GEOLOCATION;
     }
-    if (user->changed.pushRestrinction)
+    if (user->changed.pushSettings)
     {
-        changed |= MegaUser::CHANGE_TYPE_PUSH_RESTRICTION;
+        changed |= MegaUser::CHANGE_TYPE_PUSH_SETTINGS;
     }
 }
 
@@ -5069,8 +5069,8 @@ string MegaApiImpl::userAttributeToString(int type)
             attrname = "*!geo";
             break;
 
-        case MegaApi::USER_ATTR_PUSH_RESTRICTION:
-            attrname = "^!pushsettings";
+        case MegaApi::USER_ATTR_PUSH_SETTINGS:
+            attrname = "^!ps";
             break;
     }
 
@@ -5111,7 +5111,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_PSA:
         case MegaApi::USER_ATTR_RUBBISH_TIME:
         case MegaApi::USER_ATTR_STORAGE_STATE:
-        case MegaApi::USER_ATTR_PUSH_RESTRICTION:
+        case MegaApi::USER_ATTR_PUSH_SETTINGS:
             scope = '^';
             break;
 
