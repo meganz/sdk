@@ -39,16 +39,20 @@
 		41C681F31A23658C0088F2E6 /* MEGASdkManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 41C681F21A23658C0088F2E6 /* MEGASdkManager.m */; };
 		41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 41D4EADC19EED5270097C00F /* libresolv.dylib */; };
 		943D11F91A25F25100318442 /* MEGAphoto.m in Sources */ = {isa = PBXBuildFile; fileRef = 943D11F81A25F25100318442 /* MEGAphoto.m */; };
-		A88EE21B1F0A63B600AECF76 /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2151F0A63B600AECF76 /* libcares.a */; };
-		A88EE21C1F0A63B600AECF76 /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2161F0A63B600AECF76 /* libcrypto.a */; };
-		A88EE21D1F0A63B600AECF76 /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2171F0A63B600AECF76 /* libcryptopp.a */; };
-		A88EE21E1F0A63B600AECF76 /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2181F0A63B600AECF76 /* libcurl.a */; };
-		A88EE21F1F0A63B600AECF76 /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2191F0A63B600AECF76 /* libssl.a */; };
-		A88EE2201F0A63B600AECF76 /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE21A1F0A63B600AECF76 /* libuv.a */; };
 		A88EE2211F0A63FB00AECF76 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68FD1A094459003FE608 /* ImageIO.framework */; };
 		A88EE2221F0A641400AECF76 /* MobileCoreServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41AB68F91A0943FE003FE608 /* MobileCoreServices.framework */; };
-		A88EE2241F0A642300AECF76 /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2231F0A642300AECF76 /* libsodium.a */; };
 		A88EE2251F0A642F00AECF76 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 41ACFBC61A1155AC00905ACF /* MapKit.framework */; };
+		A8BF10C121ED1114006B283A /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10C021ED1114006B283A /* AVFoundation.framework */; };
+		A8BF10C321ED111A006B283A /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10C221ED1119006B283A /* CoreMedia.framework */; };
+		A8BF10C421ED1175006B283A /* libcares.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2151F0A63B600AECF76 /* libcares.a */; };
+		A8BF10C521ED1175006B283A /* libcrypto.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2161F0A63B600AECF76 /* libcrypto.a */; };
+		A8BF10C621ED1175006B283A /* libcryptopp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2171F0A63B600AECF76 /* libcryptopp.a */; };
+		A8BF10C721ED1175006B283A /* libcurl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2181F0A63B600AECF76 /* libcurl.a */; };
+		A8BF10C821ED1175006B283A /* libmediainfo.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10BD21ED10E5006B283A /* libmediainfo.a */; };
+		A8BF10C921ED1175006B283A /* libsodium.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2231F0A642300AECF76 /* libsodium.a */; };
+		A8BF10CA21ED1175006B283A /* libssl.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE2191F0A63B600AECF76 /* libssl.a */; };
+		A8BF10CB21ED1175006B283A /* libuv.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A88EE21A1F0A63B600AECF76 /* libuv.a */; };
+		A8BF10CC21ED1175006B283A /* libzen.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A8BF10BB21ED10E5006B283A /* libzen.a */; };
 		E80D15911A236C7100148421 /* Helper.m in Sources */ = {isa = PBXBuildFile; fileRef = E80D15901A236C7100148421 /* Helper.m */; };
 /* End PBXBuildFile section */
 
@@ -124,6 +128,10 @@
 		A88EE2191F0A63B600AECF76 /* libssl.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libssl.a; path = ../../../bindings/ios/3rdparty/lib/libssl.a; sourceTree = "<group>"; };
 		A88EE21A1F0A63B600AECF76 /* libuv.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libuv.a; path = ../../../bindings/ios/3rdparty/lib/libuv.a; sourceTree = "<group>"; };
 		A88EE2231F0A642300AECF76 /* libsodium.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libsodium.a; path = ../../../bindings/ios/3rdparty/lib/libsodium.a; sourceTree = "<group>"; };
+		A8BF10BB21ED10E5006B283A /* libzen.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libzen.a; path = ../../../bindings/ios/3rdparty/lib/libzen.a; sourceTree = "<group>"; };
+		A8BF10BD21ED10E5006B283A /* libmediainfo.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libmediainfo.a; path = ../../../bindings/ios/3rdparty/lib/libmediainfo.a; sourceTree = "<group>"; };
+		A8BF10C021ED1114006B283A /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		A8BF10C221ED1119006B283A /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
 		E80D158F1A236C7100148421 /* Helper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Helper.h; sourceTree = "<group>"; };
 		E80D15901A236C7100148421 /* Helper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Helper.m; sourceTree = "<group>"; };
 		E85477501A24944900C848F8 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/Main.strings; sourceTree = "<group>"; };
@@ -137,16 +145,20 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A8BF10C421ED1175006B283A /* libcares.a in Frameworks */,
+				A8BF10C521ED1175006B283A /* libcrypto.a in Frameworks */,
+				A8BF10C621ED1175006B283A /* libcryptopp.a in Frameworks */,
+				A8BF10C721ED1175006B283A /* libcurl.a in Frameworks */,
+				A8BF10C821ED1175006B283A /* libmediainfo.a in Frameworks */,
+				A8BF10C921ED1175006B283A /* libsodium.a in Frameworks */,
+				A8BF10CA21ED1175006B283A /* libssl.a in Frameworks */,
+				A8BF10CB21ED1175006B283A /* libuv.a in Frameworks */,
+				A8BF10CC21ED1175006B283A /* libzen.a in Frameworks */,
+				A8BF10C321ED111A006B283A /* CoreMedia.framework in Frameworks */,
+				A8BF10C121ED1114006B283A /* AVFoundation.framework in Frameworks */,
 				A88EE2251F0A642F00AECF76 /* MapKit.framework in Frameworks */,
-				A88EE2241F0A642300AECF76 /* libsodium.a in Frameworks */,
 				A88EE2221F0A641400AECF76 /* MobileCoreServices.framework in Frameworks */,
 				A88EE2211F0A63FB00AECF76 /* ImageIO.framework in Frameworks */,
-				A88EE21B1F0A63B600AECF76 /* libcares.a in Frameworks */,
-				A88EE21C1F0A63B600AECF76 /* libcrypto.a in Frameworks */,
-				A88EE21D1F0A63B600AECF76 /* libcryptopp.a in Frameworks */,
-				A88EE21E1F0A63B600AECF76 /* libcurl.a in Frameworks */,
-				A88EE21F1F0A63B600AECF76 /* libssl.a in Frameworks */,
-				A88EE2201F0A63B600AECF76 /* libuv.a in Frameworks */,
 				414295FB1B13399800639A20 /* libMEGASDK.a in Frameworks */,
 				4135AEA819F58ED700A8A56A /* libMWPhotoBrowser.a in Frameworks */,
 				41D4EADD19EED5270097C00F /* libresolv.dylib in Frameworks */,
@@ -225,6 +237,10 @@
 		4168129C19EE6E6D00C72800 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				A8BF10C221ED1119006B283A /* CoreMedia.framework */,
+				A8BF10C021ED1114006B283A /* AVFoundation.framework */,
+				A8BF10BD21ED10E5006B283A /* libmediainfo.a */,
+				A8BF10BB21ED10E5006B283A /* libzen.a */,
 				A88EE2231F0A642300AECF76 /* libsodium.a */,
 				A88EE2151F0A63B600AECF76 /* libcares.a */,
 				A88EE2161F0A63B600AECF76 /* libcrypto.a */,
@@ -375,7 +391,7 @@
 			isa = PBXProject;
 			attributes = {
 				CLASSPREFIX = "";
-				LastUpgradeCheck = 0600;
+				LastUpgradeCheck = 1010;
 				ORGANIZATIONNAME = MEGA;
 				TargetAttributes = {
 					4168127019EE6E5700C72800 = {
@@ -534,25 +550,38 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
@@ -565,7 +594,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 12.1;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -576,17 +605,28 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_EMPTY_BODY = YES;
 				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
@@ -595,13 +635,14 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 12.1;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;
@@ -615,13 +656,14 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				INFOPLIST_FILE = Demo/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
 				);
-				OTHER_LDFLAGS = "-ObjC";
+				OTHER_LDFLAGS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = "MEGA.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include/** Demo/vendor/MWPhotoBrowser/**";
@@ -635,13 +677,14 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				INFOPLIST_FILE = Demo/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 7.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/../../../bindings/ios/3rdparty/lib",
 				);
-				OTHER_LDFLAGS = "-ObjC";
+				OTHER_LDFLAGS = "";
+				PRODUCT_BUNDLE_IDENTIFIER = "MEGA.$(PRODUCT_NAME:rfc1034identifier)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				USER_HEADER_SEARCH_PATHS = "../../../bindings/ios ../../../include/** Demo/vendor/MWPhotoBrowser/**";
