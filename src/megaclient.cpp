@@ -3947,8 +3947,6 @@ bool MegaClient::procsc()
                         bool readingPublicChat = false;
                         switch (name)
                         {
-                            readingPublicChat = false;
-
                             case 'u':
                                 // node update
                                 sc_updatenode();
@@ -5790,7 +5788,7 @@ void MegaClient::sc_chatupdate(bool readingPublicChat)
                 break;
 
             case 'm':
-//                assert(readingPublicChat);
+                assert(readingPublicChat);
                 publicchat = jsonsc.getint();
                 break;
 
@@ -9035,11 +9033,9 @@ void MegaClient::procmcf(JSON *j)
         bool done = false;
         while (!done)
         {
-            bool readingPublicChats;
+            bool readingPublicChats = false;
             switch(j->getnameid())
             {
-                readingPublicChats = false;
-
                 case MAKENAMEID2('p', 'c'):   // list of public and/or formerly public chatrooms
                 {
                     readingPublicChats = true;
@@ -9099,7 +9095,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case 'm':   // operation mode: 1 -> public chat; 0 -> private chat
-//                                assert(readingPublicChats);
+                                assert(readingPublicChats);
                                 publicchat = j->getint();
                                 break;
 
@@ -9227,7 +9223,7 @@ void MegaClient::procmcf(JSON *j)
                                     else
                                     {
                                         it->second->setFlags(flags);
-//                                        assert(!readingPublicChats || !it->second->unifiedKey.empty());
+                                        assert(!readingPublicChats || !it->second->unifiedKey.empty());
                                     }
                                 }
                                 else
