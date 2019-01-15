@@ -1172,7 +1172,8 @@ class MegaUser
             CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
             CHANGE_TYPE_RUBBISH_TIME    = 0x40000,
             CHANGE_TYPE_STORAGE_STATE   = 0x80000,
-            CHANGE_TYPE_GEOLOCATION     = 0x100000
+            CHANGE_TYPE_GEOLOCATION     = 0x100000,
+            CHANGE_TYPE_PUSH_RESTRICTION = 0x200000
         };
 
         /**
@@ -5784,7 +5785,8 @@ class MegaApi
             USER_ATTR_RUBBISH_TIME = 19,         // private - byte array
             USER_ATTR_LAST_PSA = 20,             // private - char array
             USER_ATTR_STORAGE_STATE = 21,        // private - char array
-            USER_ATTR_GEOLOCATION = 22           // private - byte array
+            USER_ATTR_GEOLOCATION = 22,          // private - byte array
+            USER_ATTR_PUSH_RESTRICTION = 23      // private - char array
         };
 
         enum {
@@ -8013,6 +8015,8 @@ class MegaApi
          * Get the state of the storage (private non-encrypted)
          * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Get whether the user has enabled send geolocation messages (private)
+         * MegaApi::USER_ATTR_PUSH_RESTRICTION = 23
+         * Get the user push notification restriction (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -8130,6 +8134,8 @@ class MegaApi
          * Set the public key Cu25519 of the user (public)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_PUSH_RESTRICTION = 23
+         * Set the user push notification restriction (private non-encrypted)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
