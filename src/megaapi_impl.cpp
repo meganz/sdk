@@ -14804,7 +14804,7 @@ void MegaApiImpl::fireOnMediaDetectionAvailable()
 {
     for (set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end();)
     {
-        (*it++)->onMediaDetectionAvailable(api);
+        (*it++)->onMediaDetectionAvailable();
     }
 }
 
