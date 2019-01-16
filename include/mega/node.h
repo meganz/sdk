@@ -103,6 +103,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // change parent node association
     bool setparent(Node*);
 
+    // follow the parent links all the way to the top
+    Node* firstancestor();
+
     // copy JSON-delimited string
     static void copystring(string*, const char*);
 

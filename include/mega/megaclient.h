@@ -1061,6 +1061,21 @@ public:
     Node* nodebyfingerprint(FileFingerprint*);
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
 
+    node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);
+
+    struct recentaction
+    {
+        m_time_t time;
+        handle user;
+        handle parent;
+        bool updated;
+        bool media;
+        node_vector v;
+    };
+    typedef vector<recentaction> recentactions_vector;
+
+    recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
+
     // generate & return upload handle
     handle getuploadhandle();
 

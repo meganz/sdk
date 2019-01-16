@@ -1439,6 +1439,7 @@ class MegaNodeListPrivate : public MegaNodeList
 {
 	public:
         MegaNodeListPrivate();
+        MegaNodeListPrivate(node_vector& v);
         MegaNodeListPrivate(Node** newlist, int size);
         MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
@@ -1543,6 +1544,44 @@ public:
 protected:
     MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);
     MegaUserAlert** list;
+    int s;
+};
+
+class MegaRecentActionBucketPrivate : public MegaRecentActionBucket
+{
+public:
+    MegaRecentActionBucketPrivate(MegaClient::recentaction& ra, MegaClient* mc);
+    MegaRecentActionBucketPrivate(int64_t timestamp, const string& user, handle parent, bool update, bool media, MegaNodeList*);
+    virtual ~MegaRecentActionBucketPrivate();
+    virtual MegaRecentActionBucket *copy() const;
+    virtual int64_t getTimestamp() const;
+    virtual const char* getUserEmail() const;
+    virtual MegaHandle getParentHandle() const;
+    virtual bool getIsUpdate() const;
+    virtual bool getIsMedia() const;
+    MegaNodeList* getNodes();
+
+private:
+    int64_t timestamp;
+    string user;
+    handle parent;
+    bool update, media;
+    MegaNodeList* list;
+};
+
+class MegaRecentActionBucketListPrivate : public MegaRecentActionBucketList
+{
+public:
+    MegaRecentActionBucketListPrivate();
+    MegaRecentActionBucketListPrivate(MegaClient::recentactions_vector& v, MegaClient* mc);
+    MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &userList);
+    virtual ~MegaRecentActionBucketListPrivate();
+    virtual MegaRecentActionBucketList *copy() const;
+    virtual MegaRecentActionBucket* get(int i) const;
+    virtual int size() const;
+
+protected:
+    MegaRecentActionBucketPrivate** list;
     int s;
 };
 
@@ -2093,6 +2132,8 @@ class MegaApiImpl : public MegaApp
         int getDefaultFolderPermissions();
 
         long long getBandwidthOverquotaDelay();
+
+        MegaRecentActionBucketList* getRecentActions(int64_t since, unsigned maxnodes);
 
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);

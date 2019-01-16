@@ -200,6 +200,68 @@ int MegaUserAlertList::size() const
     return 0;
 }
 
+
+
+MegaRecentActionBucket::~MegaRecentActionBucket()
+{
+}
+
+MegaRecentActionBucket* MegaRecentActionBucket::copy() const
+{
+    return NULL;
+}
+
+ 
+int64_t MegaRecentActionBucket::getTimestamp() const
+{
+    return 0;
+}
+
+const char* MegaRecentActionBucket::getUserEmail() const
+{
+    return NULL;
+}
+
+MegaHandle MegaRecentActionBucket::getParentHandle() const
+{
+    return UNDEF;
+}
+
+bool MegaRecentActionBucket::getIsUpdate() const
+{
+    return false;
+}
+
+bool MegaRecentActionBucket::getIsMedia() const
+{
+    return false;
+}
+
+MegaNodeList* MegaRecentActionBucket::getNodes()
+{
+    return NULL;
+}
+
+MegaRecentActionBucketList::~MegaRecentActionBucketList()
+{
+}
+
+MegaRecentActionBucketList* MegaRecentActionBucketList::copy() const
+{
+    return NULL;
+}
+
+MegaRecentActionBucket* MegaRecentActionBucketList::get(int i) const
+{
+    return NULL;
+}
+
+int MegaRecentActionBucketList::size() const
+{
+    return 0;
+}
+
+
 MegaShareList::~MegaShareList() { }
 
 MegaShare *MegaShareList::get(int)
@@ -3014,6 +3076,11 @@ MegaContactRequestList *MegaApi::getOutgoingContactRequests()
 int MegaApi::getAccess(MegaNode* megaNode)
 {
     return pImpl->getAccess(megaNode);
+}
+
+MegaRecentActionBucketList* MegaApi::getRecentActions(int64_t since, unsigned maxnodes)
+{
+    return pImpl->getRecentActions(since, maxnodes);
 }
 
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)

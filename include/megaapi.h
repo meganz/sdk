@@ -2397,6 +2397,118 @@ public:
     virtual int size() const;
 };
 
+
+/**
+* @brief Represents a set of files uploaded or updated in MEGA.
+* These are used to display the recent changes to an account.
+*
+* Objects of this class aren't live, they are snapshots of the state
+* in MEGA when the object is created, they are immutable.
+*
+* MegaRecentActionBuckets can be retrieved with MegaApi::getRecentActions
+*
+*/
+class MegaRecentActionBucket
+{
+public:
+
+    virtual ~MegaRecentActionBucket();
+
+    /**
+    * @brief Creates a copy of this MegaRecentActionBucket object.
+    *
+    * The resulting object is fully independent of the source MegaRecentActionBucket,
+    * it contains a copy of all internal attributes, so it will be valid after
+    * the original object is deleted.
+    *
+    * You are the owner of the returned object
+    *
+    * @return Copy of the MegaRecentActionBucket object
+    */
+    virtual MegaRecentActionBucket *copy() const;
+
+    /**
+    * @brief Returns a timestamp reflecting when these changes occurred
+    *
+    * @return Timestamp indicating when the changes occurred
+    */
+    virtual int64_t getTimestamp() const;
+
+    /**
+    * @brief Returns the email of the user who made the changes
+    *
+    * @return the associated user's email
+    */
+    virtual const char* getUserEmail() const;
+
+    /**
+    * @brief Returns the handle of the parent folder these changes occurred in
+    *
+    * @return the handle of the parent folder for these changes.
+    */
+    virtual MegaHandle getParentHandle() const;
+
+    /**
+    * @brief Returns whether the changes are updated files, or new files
+    *
+    * @return true if the changes are updates rather than newly uploaded files.
+    */
+    virtual bool getIsUpdate() const;
+
+    /**
+    * @brief Returns whether the files are photos or videos
+    *
+    * @return true if the files in this change are media files.
+    */
+    virtual bool getIsMedia() const;
+
+    /**
+    * @brief Returns nodes representing the files chanvged in this bucket
+    *
+    * @return A list of the files in the bucket.  The bucket retains ownership.
+    */
+    virtual MegaNodeList* getNodes();
+};
+
+/**
+* @brief List of MegaRecentActionBucket objects
+*
+* A MegaRecentActionBucketList has the ownership of the MegaRecentActionBucket objects that it contains, so they will be
+* only valid until the MegaRecentActionBucketList is deleted. If you want to retain a MegaRecentActionBucket returned by
+* a MegaRecentActionBucketList, use MegaRecentActionBucket::copy.
+*
+* Objects of this class are immutable.
+*
+* @see MegaApi::getRecentActions
+*
+*/
+class MegaRecentActionBucketList
+{
+public:
+    virtual ~MegaRecentActionBucketList();
+
+    virtual MegaRecentActionBucketList *copy() const;
+
+    /**
+    * @brief Returns the MegaRecentActionBucket at the position i in the MegaRecentActionBucketList
+    *
+    * The MegaRecentActionBucketList retains the ownership of the returned MegaRecentActionBucket. It will be only valid until
+    * the MegaRecentActionBucketList is deleted.
+    *
+    * If the index is >= the size of the list, this function returns NULL.
+    *
+    * @param i Position of the MegaRecentActionBucket that we want to get for the list
+    * @return MegaRecentActionBucket at the position i in the list
+    */
+    virtual MegaRecentActionBucket* get(int i) const;
+
+    /**
+    * @brief Returns the number of MegaRecentActionBucket objects in the list
+    * @return Number of MegaRecentActionBucket objects in the list
+    */
+    virtual int size() const;
+};
+
 /**
  * @brief Provides information about an asynchronous request
  *
@@ -11565,6 +11677,18 @@ class MegaApi
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* search(const char* searchString, int order = ORDER_NONE);
+
+        /**
+         * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
+         *
+         * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * @param since      Only return nodes that are more recent than this time.
+         * @param maxnodes   Only return nodes up to this many.
+         *
+         * @return List of buckets containing nodes that were added/modifed as a set
+         */
+        MegaRecentActionBucketList* getRecentActions(int64_t since, unsigned maxnodes);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation

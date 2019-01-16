@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 #include <cctype>
+#include <algorithm>
 
 namespace mega {
 
@@ -12904,6 +12905,131 @@ node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
     return nodes;
 }
 
+static bool nodes_ctime_decreasing(const Node* a, const Node* b)
+{
+    return a->ctime > b->ctime;
+}
+
+node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin)
+{
+    node_vector  v;
+    v.reserve(nodes.size());
+    for (node_map::iterator i = nodes.begin(); i != nodes.end(); ++i)
+    {
+        if (i->second->type == FILENODE && i->second->ctime >= since)
+        {
+            v.push_back(i->second);
+        }
+    }
+
+    std::make_heap(v.begin(), v.end(), nodes_ctime_decreasing);
+
+    node_vector v2;
+    v2.reserve(maxcount);
+    while (v2.size() < maxcount && !v.empty())
+    {
+        std::pop_heap(v.begin(), v.end(), nodes_ctime_decreasing);
+        Node* n = v.back();
+        v.pop_back();
+        if (includerubbishbin || n->firstancestor()->type != RUBBISHNODE)
+        {
+            v2.push_back(n);
+        }
+    }
+    return v2;
+}
+
+
+namespace action_bucket_compare
+{
+    MUTEX_CLASS media_check(false);   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
+    MegaClient* mc;
+
+    static bool ismedia(const Node* n)
+    {
+        bool media = false;
+        string localname, name = n->displayname();
+        mc->fsaccess->path2local(&name, &localname);
+#ifdef USE_MEDIAINFO
+        char ext[8];
+        media = mc->fsaccess->getextension(&localname, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext);
+#endif
+        if (mc->gfx)
+        {
+            media = media || mc->gfx->isgfx(&localname);
+        }
+        return media;
+    }
+
+    static bool compare(const Node* a, const Node* b)
+    {
+        if (a->owner != b->owner) return a->owner > b->owner;
+        if (a->parent != b->parent) return a->parent > b->parent;
+
+        // added/updated - distinguish by versioning
+        if (a->children.size() != b->children.size()) return a->children.size() > b->children.size();
+
+        // media/nonmedia
+        bool a_media = ismedia(a), b_media = ismedia(b);
+        if (a_media != b_media) return a_media && !b_media;
+
+        return false;
+    }
+
+    static bool comparetime(const MegaClient::recentaction& a, const MegaClient::recentaction& b)
+    {
+        return a.time > b.time;
+    }
+
+};
+
+MegaClient::recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
+{
+    recentactions_vector rav;
+    node_vector v = getRecentNodes(maxcount, since, false);
+
+    using namespace action_bucket_compare;
+    MutexGuard g(media_check); // when we can use c++11, switch to a lambda.  In the meantime, force just one MegaClient at a time instead.
+    mc = this;
+
+    for (node_vector::iterator i = v.begin(); i != v.end(); )
+    {
+        node_vector::iterator bucketend = i + 1;
+        while (bucketend != v.end() && (*bucketend)->ctime < (*i)->ctime + 6 * 3600)
+        {
+            ++bucketend;
+        }
+
+        std::sort(i, bucketend, action_bucket_compare::compare);
+
+        for (node_vector::iterator j = i; j != bucketend; ++j)
+        {
+            string a = (*i)->displaypath();
+            string b = (*j)->displaypath();
+
+            if (i == j || action_bucket_compare::compare(*i, *j))
+            {
+                recentaction ra;
+                ra.time = (*j)->ctime;
+                ra.user = (*j)->owner;
+                ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
+                ra.updated = !(*j)->children.empty();
+                ra.media = ismedia(*j);
+                rav.push_back(ra);
+            }
+            rav.back().v.push_back(*j);
+            i = j;
+        }
+        i = bucketend;
+    }
+    for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
+    {
+        std::sort(i->v.begin(), i->v.end(), nodes_ctime_decreasing);
+        i->time = i->v.front()->ctime;
+    }
+    std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
+    return rav;
+}
 
 // a chunk transfer request failed: record failed protocol & host
 void MegaClient::setchunkfailed(string* url)

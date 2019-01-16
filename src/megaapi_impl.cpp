@@ -3757,6 +3757,16 @@ MegaNodeListPrivate::MegaNodeListPrivate()
 	s = 0;
 }
 
+MegaNodeListPrivate::MegaNodeListPrivate(node_vector& v)
+{
+    list = NULL; s = v.size();
+    if (!s) return;
+
+    list = new MegaNode*[s];
+    for (int i = 0; i < s; i++)
+        list[i] = MegaNodePrivate::fromNode(v[i]);
+}
+
 MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 {
 	list = NULL; s = size;
@@ -3955,7 +3965,126 @@ int MegaUserAlertListPrivate::size() const
     return s;
 }
 
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(MegaClient::recentaction& ra, MegaClient* mc)
+{
+    User* u = mc->finduser(ra.user);
 
+    timestamp = ra.time;
+    user = u ? u->email : "";
+    parent = ra.parent;
+    update = ra.updated;
+    media = ra.media;
+    list = new MegaNodeListPrivate(ra.v);
+}
+
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(int64_t ts, const string& u, handle p, bool up, bool m, MegaNodeList* l)
+{
+    timestamp = ts;
+    user = u;
+    parent = p;
+    update = up;
+    media = m;
+    list = l;
+}
+
+MegaRecentActionBucketPrivate::~MegaRecentActionBucketPrivate()
+{
+    delete list;
+}
+
+MegaRecentActionBucket *MegaRecentActionBucketPrivate::copy() const
+{
+    return new MegaRecentActionBucketPrivate(timestamp, user, parent, update, media, list->copy());
+}
+
+int64_t MegaRecentActionBucketPrivate::getTimestamp() const
+{
+    return timestamp;
+}
+
+const char* MegaRecentActionBucketPrivate::getUserEmail() const
+{
+    return user.c_str();
+}
+
+MegaHandle MegaRecentActionBucketPrivate::getParentHandle() const
+{
+    return parent;
+}
+
+bool MegaRecentActionBucketPrivate::getIsUpdate() const
+{
+    return update;
+}
+
+bool MegaRecentActionBucketPrivate::getIsMedia() const
+{
+    return media;
+}
+
+MegaNodeList* MegaRecentActionBucketPrivate::getNodes()
+{
+    return list;
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
+{
+    list = NULL;
+    s = 0;
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(MegaClient::recentactions_vector& v, MegaClient* mc)
+{
+    list = NULL;
+    s = v.size();
+
+    if (!s)
+        return;
+
+    list = new MegaRecentActionBucketPrivate*[s];
+    for (int i = 0; i < s; i++)
+    {
+        list[i] = new MegaRecentActionBucketPrivate(v[i], mc);
+    }
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &o)
+{
+    s = o.size();
+    list = s ? new MegaRecentActionBucketPrivate*[s] : NULL;
+    for (int i = 0; i < s; ++i)
+    {
+        list[i] = (MegaRecentActionBucketPrivate*)o.get(i)->copy();
+    }
+}
+
+MegaRecentActionBucketListPrivate::~MegaRecentActionBucketListPrivate()
+{
+    for (int i = 0; i < s; i++)
+    {
+        delete list[i];
+    }
+    delete[] list;
+}
+
+MegaRecentActionBucketList *MegaRecentActionBucketListPrivate::copy() const
+{
+    return new MegaRecentActionBucketListPrivate(*this);
+}
+
+MegaRecentActionBucket *MegaRecentActionBucketListPrivate::get(int i) const
+{
+    if (!list || (i < 0) || (i >= s))
+    {
+        return NULL;
+    }
+    return list[i];
+}
+
+int MegaRecentActionBucketListPrivate::size() const
+{
+    return s;
+}
 
 MegaShareListPrivate::MegaShareListPrivate()
 {
@@ -9495,6 +9624,13 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
         case FULL: return MegaShare::ACCESS_FULL;
         default: return MegaShare::ACCESS_OWNER;
     }
+}
+
+MegaRecentActionBucketList* MegaApiImpl::getRecentActions(int64_t since, unsigned maxnodes)
+{
+    MutexGuard g(sdkMutex);
+    MegaClient::recentactions_vector v = client->getRecentActions(maxnodes, since);
+    return new MegaRecentActionBucketListPrivate(v, client);
 }
 
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
