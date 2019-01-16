@@ -5673,4 +5673,89 @@ int MegaTimeZoneDetails::getDefault() const
     return -1;
 }
 
+MegaPushNotificationSettings *MegaPushNotificationSettings::createInstance()
+{
+    return new MegaPushNotificationSettingsPrivate();
+}
+
+MegaPushNotificationSettings::~MegaPushNotificationSettings()
+{
+
+}
+
+MegaPushNotificationSettings *MegaPushNotificationSettings::copy() const
+{
+    return NULL;
+}
+
+bool MegaPushNotificationSettings::isGlobalEnabled() const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isGlobalDndEnabled() const
+{
+    return false;
+}
+
+int64_t MegaPushNotificationSettings::getGlobalDnd() const
+{
+    return 0;
+}
+
+bool MegaPushNotificationSettings::isGlobalScheduleEnabled() const
+{
+    return false;
+}
+
+int MegaPushNotificationSettings::getGlobalScheduleStart() const
+{
+    return 0;
+}
+
+int MegaPushNotificationSettings::getGlobalScheduleEnd() const
+{
+    return 0;
+}
+
+const char *MegaPushNotificationSettings::getGlobalScheduleTimezone() const
+{
+    return NULL;
+}
+
+bool MegaPushNotificationSettings::isChatEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isChatDndEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+int64_t MegaPushNotificationSettings::getChatDnd(MegaHandle /*chatid*/) const
+{
+    return 0;
+}
+
+bool MegaPushNotificationSettings::isChatAlwaysNotifyEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isContactsEnabled() const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isSharesEnabled() const
+{
+    return false;
+}
+
+MegaPushNotificationSettings::MegaPushNotificationSettings()
+{
+
+}
+
 }

@@ -29449,4 +29449,111 @@ int MegaTimeZoneDetailsPrivate::getDefault() const
     return defaultTimeZone;
 }
 
+MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate()
+{
+    mGlobalDND = -1;
+    mGlobalScheduleStart = -1;
+    mGlobalScheduleEnd = -1;
+    mContactsDND = -1;
+    mSharesDND = -1;
+}
+
+MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings)
+{
+    mGlobalDND = settings->mGlobalDND;
+    mGlobalScheduleStart = settings->mGlobalScheduleStart;
+    mGlobalScheduleEnd = settings->mGlobalScheduleEnd;
+    mGlobalScheduleTimezone = settings->mGlobalScheduleTimezone;
+    mChatDND = settings->mChatDND;
+    mChatAlwaysNotify = settings->mChatAlwaysNotify;
+    mContactsDND = settings->mContactsDND;
+    mSharesDND = settings->mSharesDND;
+}
+
+MegaPushNotificationSettingsPrivate::~MegaPushNotificationSettingsPrivate()
+{
+
+}
+
+bool MegaPushNotificationSettingsPrivate::isGlobalEnabled() const
+{
+    return (mGlobalDND != 0);
+}
+
+bool MegaPushNotificationSettingsPrivate::isGlobalDndEnabled() const
+{
+    return (mGlobalDND > 0);
+}
+
+int64_t MegaPushNotificationSettingsPrivate::getGlobalDnd() const
+{
+    return mGlobalDND;
+}
+
+bool MegaPushNotificationSettingsPrivate::isGlobalScheduleEnabled() const
+{
+    return (mGlobalScheduleStart != -1 && mGlobalScheduleEnd != -1 && !mGlobalScheduleTimezone.empty());
+}
+
+int MegaPushNotificationSettingsPrivate::getGlobalScheduleStart() const
+{
+    return mGlobalScheduleStart;
+}
+
+int MegaPushNotificationSettingsPrivate::getGlobalScheduleEnd() const
+{
+    return mGlobalScheduleEnd;
+}
+
+const char *mega::MegaPushNotificationSettingsPrivate::getGlobalScheduleTimezone() const
+{
+    return MegaApi::strdup(mGlobalScheduleTimezone.c_str());
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatEnabled(MegaHandle chatid) const
+{
+    std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
+    return (it == mChatDND.end() || it->second != 0);
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatDndEnabled(MegaHandle chatid) const
+{
+    std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
+    return (it != mChatDND.end() || it->second > 0);
+}
+
+int64_t MegaPushNotificationSettingsPrivate::getChatDnd(MegaHandle chatid) const
+{
+    std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
+    if (it != mChatDND.end())
+    {
+        assert(it->second != -1);
+        return it->second;
+    }
+
+    return 0;
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatAlwaysNotifyEnabled(MegaHandle chatid) const
+{
+    std::map<uint64_t, bool>::const_iterator it = mChatAlwaysNotify.find(chatid);
+    return (it != mChatAlwaysNotify.end() && it->second);
+}
+
+bool MegaPushNotificationSettingsPrivate::isContactsEnabled() const
+{
+    return (mContactsDND != 0);
+}
+
+bool MegaPushNotificationSettingsPrivate::isSharesEnabled() const
+{
+    return (mSharesDND != 0);
+}
+
+MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
+{
+    return new MegaPushNotificationSettingsPrivate(this);
+}
+
+
 }

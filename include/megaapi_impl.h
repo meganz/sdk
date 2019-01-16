@@ -822,6 +822,45 @@ protected:
     vector<int> timeZoneOffsets;
 };
 
+class MegaPushNotificationSettingsPrivate : public MegaPushNotificationSettings
+{
+public:
+//    MegaPushNotificationSettingsPrivate(const std::string &settingsJSON);
+    MegaPushNotificationSettingsPrivate();
+    MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings);
+
+    virtual ~MegaPushNotificationSettingsPrivate();
+    virtual MegaPushNotificationSettings *copy() const;
+
+private:
+    m_time_t mGlobalDND;        // defaults to -1 if not defined
+    int mGlobalScheduleStart;   // defaults to -1 if not defined
+    int mGlobalScheduleEnd;     // defaults to -1 if not defined
+    std::string mGlobalScheduleTimezone;
+
+    std::map<uint64_t, m_time_t> mChatDND;
+    std::map<uint64_t, bool> mChatAlwaysNotify;
+
+    m_time_t mContactsDND;      // defaults to -1 if not defined
+    m_time_t mSharesDND;        // defaults to -1 if not defined
+
+public:
+    virtual bool isGlobalEnabled() const;
+    virtual bool isGlobalDndEnabled() const;
+    virtual int64_t getGlobalDnd() const;
+    virtual bool isGlobalScheduleEnabled() const;
+    virtual int getGlobalScheduleStart() const;
+    virtual int getGlobalScheduleEnd() const;
+    virtual const char *getGlobalScheduleTimezone() const;
+
+    virtual bool isChatEnabled(MegaHandle chatid) const;
+    virtual bool isChatDndEnabled(MegaHandle chatid) const;
+    virtual int64_t getChatDnd(MegaHandle chatid) const;
+    virtual bool isChatAlwaysNotifyEnabled(MegaHandle chatid) const;
+
+    virtual bool isContactsEnabled() const;
+    virtual bool isSharesEnabled() const;
+};
 
 class MegaContactRequestPrivate : public MegaContactRequest
 {

@@ -3698,6 +3698,161 @@ public:
 };
 
 /**
+ * @brief Provides information about the notification settings
+ *
+ * The notifications can be configured:
+ *
+ * 1. Globally
+ *  1.1. Mute all notifications
+ *  1.2. Notify only during a schedule: from one time to another time of the day, specifying the timezone of reference
+ *  1.3. Do Not Disturb for a period of time: it overrides the schedule, if any (no notification will be generated)
+ *
+ * 2. Per chat:
+ *  2.1. Mute all notifications from the specified chat
+ *  2.2. Always notify for the specified chat
+ *  2.3. Do Not Disturb for a period of time for the specified chat
+ *
+ * @note Notification settings per chat override any global notification setting.
+ * @note The DND mode per chat is not compatible with the option to always notify and viceversa.
+ *
+ * 3. Contacts: new incoming contact request, outgoing contact request accepted...
+ * 4. Shared folders: new shared folder, access removed...
+ *
+ */
+class MegaPushNotificationSettings
+{
+public:
+
+    /**
+     * @brief Creates a new instance of MegaPushNotificationSettings
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaPushNotificationSettings *createInstance();
+
+    virtual ~MegaPushNotificationSettings();
+
+    /**
+     * @brief Creates a copy of this MegaPushNotificationSettings object
+     *
+     * The resulting object is fully independent of the source MegaPushNotificationSettings,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaPushNotificationSettings object
+     */
+    virtual MegaPushNotificationSettings *copy() const;
+
+    /**
+     * @brief Returns whether notifications are globaly enabled or not
+     * @return True if notifications are enabled, false if disabled
+     */
+    virtual bool isGlobalEnabled() const;
+
+    /**
+     * @brief Returns whether Do-Not-Disturb mode is enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isGlobalDndEnabled() const;
+
+    /**
+     * @brief Returns the timestamp until the DND mode is enabled
+     *
+     * This method returns a valid value only if both MegaPushNotificationSettings::isGlobalEnabled
+     * and MegaPushNotificationSettings::isGlobalDndEnabled return true.
+     *
+     * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual int64_t getGlobalDnd() const;
+
+    /**
+     * @brief Returns whether there is a schedule for notifications or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isGlobalScheduleEnabled() const;
+
+    /**
+     * @brief Returns the time of the day when notifications start
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalScheduleEnabled
+     * returns true.
+     *
+     * @return Minutes counting from 00:00 (based on the configured timezone)
+     */
+    virtual int getGlobalScheduleStart() const;
+
+    /**
+     * @brief Returns the time of the day when notifications stop
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalScheduleEnabled
+     * returns true.
+     *
+     * @return Minutes counting from 00:00 (based on the configured timezone)
+     */
+    virtual int getGlobalScheduleEnd() const;
+
+    /**
+     * @brief Returns the timezone of reference for the notification schedule
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalScheduleEnabled
+     * returns true.
+     *
+     * @return Minutes counting from 00:00 (based on the configured timezone)
+     */
+    virtual const char *getGlobalScheduleTimezone() const;
+
+    /**
+     * @brief Returns whether notifications for a chat are enabled or not
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isChatEnabled(MegaHandle chatid) const;
+
+    /**
+     * @brief Returns whether Do-Not-Disturb mode for a chat is enabled or not
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isChatDndEnabled(MegaHandle chatid) const;
+
+    /**
+     * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat is enabled
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual int64_t getChatDnd(MegaHandle chatid) const;
+
+    /**
+     * @brief Returns whether always notify for a chat or not
+     *
+     * This option overrides the global notification settings.
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isChatAlwaysNotifyEnabled(MegaHandle chatid) const;
+
+    /**
+     * @brief Returns whether notifications about Contacts are enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isContactsEnabled() const;
+
+    /**
+     * @brief Returns whether notifications about shared-folders are enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isSharesEnabled() const;
+
+protected:
+    MegaPushNotificationSettings();
+};
+
+/**
  * @brief Provides information about transfer queues
  *
  * This object is used as the return value of the function MegaApi::getTransferData
