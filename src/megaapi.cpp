@@ -236,6 +236,11 @@ const char *MegaNode::getFingerprint()
     return NULL;
 }
 
+const char *MegaNode::getOriginalFingerprint()
+{
+    return NULL;
+}
+
 bool MegaNode::hasCustomAttrs()
 {
     return false;
@@ -852,6 +857,11 @@ MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
     return NULL;
 }
 
+MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1394,6 +1404,8 @@ void MegaGlobalListener::onContactRequestsUpdate(MegaApi *, MegaContactRequestLi
 void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
+{ }
+void MegaGlobalListener::onMediaDetectionAvailable()
 { }
 MegaGlobalListener::~MegaGlobalListener()
 { }
@@ -2090,7 +2102,12 @@ void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *lis
 
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
-    pImpl->setNodeCoordinates(node, latitude, longitude, listener);
+    pImpl->setNodeCoordinates(node, false, latitude, longitude, listener);
+}
+
+void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
+{
+    pImpl->setNodeCoordinates(node, true, latitude, longitude, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -3212,7 +3229,7 @@ long long MegaApi::getSize(MegaNode *n)
 }
 
 char *MegaApi::getFingerprint(const char *filePath)
-{
+{   
     return pImpl->getFingerprint(filePath);
 }
 
@@ -3239,6 +3256,11 @@ MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint, MegaNode *paren
 MegaNodeList *MegaApi::getNodesByFingerprint(const char *fingerprint)
 {
     return pImpl->getNodesByFingerprint(fingerprint);
+}
+
+MegaNodeList *MegaApi::getNodesByOriginalFingerprint(const char* originalFingerprint, MegaNode* parent)
+{
+    return pImpl->getNodesByOriginalFingerprint(originalFingerprint, parent);
 }
 
 MegaNode *MegaApi::getExportableNodeByFingerprint(const char *fingerprint, const char *name)
@@ -4471,9 +4493,9 @@ void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, Mega
 
 char* MegaApi::strdup(const char* buffer)
 {
-    if(!buffer)
+    if (!buffer)
         return NULL;
-    int tam = int(strlen(buffer)+1);
+    int tam = int(strlen(buffer) + 1);
     char *newbuffer = new char[tam];
     memcpy(newbuffer, buffer, tam);
     return newbuffer;
@@ -4551,6 +4573,37 @@ bool MegaApi::createPreview(const char *imagePath, const char *dstPath)
 bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
 {
     return pImpl->createAvatar(imagePath, dstPath);
+}
+
+MegaBackgroundMediaUpload* MegaApi::backgroundMediaUploadNew()
+{
+    return pImpl->backgroundMediaUploadNew();
+}
+
+MegaBackgroundMediaUpload* MegaApi::backgroundMediaUploadResume(const std::string* serialised)
+{
+    return pImpl->backgroundMediaUploadResume(serialised);
+}
+
+void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
+{
+    return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener); 
+}
+
+bool MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+    std::string* binaryUploadToken, MegaRequestListener *listener)
+{
+    return pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, binaryUploadToken, listener);
+}
+
+bool MegaApi::ensureMediaInfo()
+{
+    return pImpl->ensureMediaInfo();
+}
+
+void MegaApi::setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener)
+{
+    return pImpl->setOriginalFingerprint(node, originalFingerprint, listener);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -5177,6 +5230,28 @@ char *MegaAccountTransaction::getCurrency() const
 double MegaAccountTransaction::getAmount() const
 {
     return 0;
+}
+
+void MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
+{
+}
+
+bool MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, unsigned int* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly)
+{
+    return false;
+}
+
+void MegaBackgroundMediaUpload::getUploadURL(std::string* url)
+{
+}
+
+std::string MegaBackgroundMediaUpload::serialize()
+{
+    return string();
+}
+
+MegaBackgroundMediaUpload::~MegaBackgroundMediaUpload()
+{
 }
 
 int64_t MegaInputStream::getSize()

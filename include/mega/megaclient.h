@@ -182,6 +182,7 @@ class MEGA_API MegaClient
 public:
     // own identity
     handle me;
+    string uid;
 
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
@@ -921,6 +922,9 @@ public:
     // session key to protect local storage
     string sessionkey;
 
+    // key protecting non-shareable GPS coordinates in nodes
+    string unshareablekey;
+
     // application key
     char appkey[16];
 
@@ -1060,6 +1064,7 @@ public:
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
+    void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
     // generate & return upload handle
     handle getuploadhandle();

@@ -39,7 +39,9 @@
 #import "DelegateMEGAListener.h"
 #import "DelegateMEGALoggerListener.h"
 #import "DelegateMEGATreeProcessorListener.h"
-#import "MEGAInputStream.h"
+#import "MEGADataInputStream.h"
+#import "MEGABackgroundMediaUpload+init.h"
+#import "MEGAFileInputStream.h"
 
 #import <set>
 #import <pthread.h>
@@ -371,7 +373,7 @@ using namespace mega;
 + (uint64_t)handleForBase64UserHandle:(NSString *)base64UserHandle {
     if(base64UserHandle == nil) return ::mega::INVALID_HANDLE;
     
-     return MegaApi::base64ToUserHandle([base64UserHandle UTF8String]);
+    return MegaApi::base64ToUserHandle([base64UserHandle UTF8String]);
 }
 
 + (NSString *)base64HandleForHandle:(uint64_t)handle {
@@ -898,12 +900,16 @@ using namespace mega;
     self.megaApi->getPublicNode((megaFileLink != nil) ? [megaFileLink UTF8String] : NULL);
 }
 
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude : MegaNode::INVALID_COORDINATE), (longitude ? longitude : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude {
-    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude : MegaNode::INVALID_COORDINATE), (longitude ? longitude : MegaNode::INVALID_COORDINATE));
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude {
+    self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE));
+}
+
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
+        self.megaApi->setUnshareableNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)exportNode:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
@@ -1478,6 +1484,28 @@ using namespace mega;
     self.megaApi->setUploadLimit((int)bpsLimit);
 }
 
+- (MEGABackgroundMediaUpload *)backgroundMediaUpload {
+    return [[MEGABackgroundMediaUpload alloc] initWithBackgroundMediaUpload:self.megaApi->backgroundMediaUploadNew()];
+}
+
+- (MEGABackgroundMediaUpload *)resumeBackgroundMediaUploadBySerializedData:(NSData *)data {
+    std::string serializedBytes = std::string((const char *)data.bytes, data.length);
+    return [[MEGABackgroundMediaUpload alloc] initWithBackgroundMediaUpload:self.megaApi->backgroundMediaUploadResume(&serializedBytes)];
+}
+
+- (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)upload delegate:(id<MEGARequestDelegate>)delegate {
+    return self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, upload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)upload fileName:(NSString *)fileName parentNode:(MEGANode *)node fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint token:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate {
+    std::string binaryToken = std::string((const char *)token.bytes, token.length);
+    return self.megaApi->backgroundMediaUploadComplete(upload.getCPtr, fileName.UTF8String, node.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, &binaryToken, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (BOOL)ensureMediaInfo {
+    return self.megaApi->ensureMediaInfo();
+}
+
 #pragma mark - Filesystem inspection
 
 - (NSInteger)numberChildrenForParent:(MEGANode *)parent {
@@ -1649,29 +1677,22 @@ using namespace mega;
     return ret;
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-
-- (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime {
-    if (assetRepresentation == nil) return nil;
-    
-    MEGAInputStream mis = MEGAInputStream(assetRepresentation);
-    const char *val = self.megaApi->getFingerprint(&mis, (long long)[modificationTime timeIntervalSince1970]);
-    
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
-}
-
-#pragma clang diagnostic pop
-
 - (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime {
     if (data == nil) return nil;
     
-    MEGAInputStream mis = MEGAInputStream(data);
-    const char *val = self.megaApi->getFingerprint(&mis, (long long)[modificationTime timeIntervalSince1970]);
+    MEGADataInputStream mis = MEGADataInputStream(data);
+    return [self fingerprintForInputStream:&mis modificationTime:modificationTime];
+}
+
+- (NSString *)fingerprintForFilePath:(NSString *)filePath modificationTime:(NSDate *)modificationTime {
+    if (filePath.length == 0) return nil;
     
+    MEGAFileInputStream mis = MEGAFileInputStream(filePath);
+    return [self fingerprintForInputStream:&mis modificationTime:modificationTime];
+}
+
+- (NSString *)fingerprintForInputStream:(MegaInputStream *)stream modificationTime:(NSDate *)modificationTime {
+    const char *val = self.megaApi->getFingerprint(stream, (long long)[modificationTime timeIntervalSince1970]);
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
     
     delete [] val;
@@ -1704,6 +1725,14 @@ using namespace mega;
     MegaNode *node = self.megaApi->getNodeByFingerprint([fingerprint UTF8String], (parent != nil) ? [parent getCPtr] : NULL);
     
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
+}
+
+- (MEGANodeList *)nodesForOriginalFingerprint:(NSString *)fingerprint {
+    if (fingerprint.length == 0) {
+        return nil;
+    }
+    
+    return [[MEGANodeList alloc] initWithNodeList:self.megaApi->getNodesByOriginalFingerprint([fingerprint UTF8String], NULL) cMemoryOwn:YES];
 }
 
 - (BOOL)hasFingerprint:(NSString *)fingerprint{

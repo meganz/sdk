@@ -392,7 +392,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
-                        const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
+                        const char *fingerprint, const char *originalFingerprint, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false, const char *chatauth = NULL);
 
@@ -401,6 +401,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual int getType();
         virtual const char* getName();
         virtual const char* getFingerprint();
+        virtual const char* getOriginalFingerprint();
         virtual bool hasCustomAttrs();
         MegaStringList *getCustomAttrNames();
         virtual const char *getCustomAttr(const char* attrName);
@@ -472,6 +473,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         int type;
         const char *name;
         const char *fingerprint;
+        const char *originalfingerprint;
         attr_map *customAttrs;
         int64_t size;
         int64_t ctime;
@@ -1048,6 +1050,8 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringMap(const MegaStringMap *);
         virtual MegaFolderInfo *getMegaFolderInfo() const;
         void setMegaFolderInfo(const MegaFolderInfo *);
+        virtual MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const;
+        void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
 
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
@@ -1102,6 +1106,7 @@ protected:
 #endif
         MegaStringMap *stringMap;
         MegaFolderInfo *folderInfo;
+        MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -1546,6 +1551,29 @@ protected:
     int s;
 };
 
+class MegaBackgroundMediaUploadPrivate : public MegaBackgroundMediaUpload
+{
+public:
+    MegaBackgroundMediaUploadPrivate(MegaApiImpl* api);
+    MegaBackgroundMediaUploadPrivate(const string& serialised, MegaApiImpl* api);
+    ~MegaBackgroundMediaUploadPrivate();
+
+    void analyseMediaInfo(const char* inputFilepath);
+    bool encryptFile(const char* inputFilepath, int64_t startPos, unsigned int* length, const char *outputFilepath, std::string* urlSuffix, bool adjustsizeonly);
+
+    void getUploadURL(std::string* mediaUrl);
+
+    std::string serialize();
+
+    MegaApiImpl* api;
+    string url;
+    chunkmac_map chunkmacs;
+    byte filekey[FILENODEKEYLENGTH];
+#ifdef USE_MEDIAINFO
+    MediaProperties mediaproperties;
+#endif
+};
+
 
 struct MegaFile : public File
 {
@@ -1875,7 +1903,7 @@ class MegaApiImpl : public MegaApp
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
-        void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
+        void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
@@ -2066,6 +2094,7 @@ class MegaApiImpl : public MegaApp
         char *getFingerprint(MegaInputStream *inputStream, int64_t mtime);
         MegaNode *getNodeByFingerprint(const char* fingerprint);
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);
+        MegaNodeList *getNodesByOriginalFingerprint(const char* originalfingerprint, MegaNode* parent);
         MegaNode *getExportableNodeByFingerprint(const char *fingerprint, const char *name = NULL);
         MegaNode *getNodeByFingerprint(const char *fingerprint, MegaNode* parent);
         bool hasFingerprint(const char* fingerprint);
@@ -2166,6 +2195,15 @@ class MegaApiImpl : public MegaApp
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
         bool createAvatar(const char* imagePath, const char *dstPath);
+
+        MegaBackgroundMediaUpload* backgroundMediaUploadNew();
+        MegaBackgroundMediaUpload* backgroundMediaUploadResume(const std::string* serialised);
+        void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
+        bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+            std::string* binaryUploadToken, MegaRequestListener *listener);
+
+        bool ensureMediaInfo();
+        void setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener);
 
         bool isOnline();
 
@@ -2316,6 +2354,7 @@ protected:
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
+        void fireOnMediaDetectionAvailable();
 
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();
@@ -2571,6 +2610,8 @@ protected:
         virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
         virtual void getmegaachievements_result(AchievementsDetails*, error);
         virtual void getwelcomepdf_result(handle, string*, error);
+        virtual void backgrounduploadurl_result(error, string*);
+        virtual void mediadetection_ready();
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
@@ -2668,6 +2709,7 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         static char *getAvatarColor(handle userhandle);
+        friend class MegaBackgroundMediaUploadPrivate;
 };
 
 class MegaHashSignatureImpl

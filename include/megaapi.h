@@ -78,6 +78,7 @@ class MegaShareList;
 class MegaTransferList;
 class MegaFolderInfo;
 class MegaTimeZoneDetails;
+class MegaBackgroundMediaUpload;
 class MegaApi;
 
 class MegaSemaphore;
@@ -476,6 +477,21 @@ class MegaNode
          * @return Base64-encoded fingerprint of the node, or NULL it the node doesn't have a fingerprint.
          */
         virtual const char* getFingerprint();
+
+        /**
+         * @brief Returns the original fingerprint (Base64-encoded) of the node
+         *
+         * In the case where a file was modified before uploaded (eg. resized photo or gps coords removed),
+         * it may have an original fingerprint set (by setOriginalFingerprint() or backgroundMediaUploadComplete()),
+         * which is the fingerprint of the file before it was  modified.  This can be useful on mobile devices 
+         * to avoid uploading a file multiple times when only the original file is kept on the device.
+         *
+         * The MegaNode object retains the ownership of the returned string. It will
+         * be valid until the MegaNode object is deleted.  
+         *
+         * @return Base64-encoded original fingerprint of the node, or NULL it the node doesn't have an original fingerprint.
+         */
+        virtual const char* getOriginalFingerprint();
 
         /**
          * @brief Returns true if the node has custom attributes
@@ -2454,6 +2470,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
+            TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3079,6 +3096,20 @@ class MegaRequest
          * @return Object with information about the contents of a folder
          */
         virtual MegaFolderInfo *getMegaFolderInfo() const;
+
+        /**
+         * @brief Returns information about background uploads (used in iOS)
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for requests relating to background uploads. The returned 
+         * pointer is to the relevant background upload object.
+         *          *
+         * @return Object with information about the contents of a folder
+         */
+        virtual MegaBackgroundMediaUpload* getMegaBackgroundMediaUploadPtr() const;
+
 };
 
 /**
@@ -4941,7 +4972,7 @@ class MegaTransferListener
         virtual ~MegaTransferListener();
 
         /**
-         * @brief This function is called to provide the last readed bytes of streaming downloads
+         * @brief This function is called to provide the last read bytes of streaming downloads
          *
          * This function won't be called for non streaming downloads. You can get the same buffer
          * provided by this function in MegaTransferListener::onTransferUpdate, using
@@ -4954,7 +4985,7 @@ class MegaTransferListener
          *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
-         * @param buffer Buffer with the last readed bytes
+         * @param buffer Buffer with the last read bytes
          * @param size Size of the buffer
          * @return true to continue the transfer, false to cancel it
          *
@@ -5249,6 +5280,15 @@ class MegaGlobalListener
          * @param event Details about the event
          */
         virtual void onEvent(MegaApi* api, MegaEvent *event);
+
+        /**
+         * @brief This function is called when lookups from media type names to MEGA encodings is available
+         *
+         * Clients should call MegaApi::ensureMediaInfo before attempting to analyse media, and wait for this callback.
+         *
+         * @param api MegaApi object related to the event
+         */
+        virtual void onMediaDetectionAvailable();
 
         virtual ~MegaGlobalListener();
 };
@@ -5707,6 +5747,77 @@ class MegaListener
         virtual ~MegaListener();
 };
 
+/**
+ * @brief Stores information about a background photo/video upload, used in iOS to take advantage of power saving features
+ *
+ * This object can be serialised so it can be stored in case your app is unloaded by its OS, and the background operation
+ * completed afterward.
+ *
+ */
+
+class MegaBackgroundMediaUpload
+{
+public:
+
+    /**
+     * @brief Extract mediainfo information about the photo or video.
+     *
+     * Call this function once with the file to be uploaded.  It uses mediainfo to extract information that will
+     * help the webclient show or play the file in various browsers.  The information is stored in this object 
+     * until the whole operation completes.
+     *
+     * @param inputFilepath The file to analyse with MediaInfo.
+     */
+    virtual void analyseMediaInfo(const char* inputFilepath);
+
+    /**
+     * @brief Encrypt the file or a portion of it
+     *
+     * Call this function once with the file to be uploaded.  It uses mediainfo to extract information that will
+     * help the webclient show or play the file in various browsers.  The information is stored in this object
+     * until the whole operation completes.   The encrypted data is stored in a new file.
+     *
+     * In order to save space on mobile devices, this function can be called in such a way that the last portion
+     * of the file is encrypted (to a new file), and then that last portion of the file is removed by file truncation.
+     * That operation can be repeated until the file is completely encrypted, and only the encrypted version remains, 
+     * and takes up the same amount of space on the device.   The size of the portions must first be calculated by using
+     * the 'adjustsizeonly' parameter, and iterating from the start of the file, specifying the approximate sizes of the portions.
+     *
+     * Encryption is done by reading small pieces of the file, encrypting them, and outputting to the new file,
+     * so that RAM usage is not excessive.
+     *
+     * @param inputFilepath The file to encrypt a portion of (and the one that is ultimately being uploaded).  
+     * @param startPos The index of the first byte of the file to encrypt
+     * @param length The number of bytes of the file to encrypt.  The function will round this value up by up to 1MB to fit the 
+     *        MEGA internal chunking algorithm.  The number of bytes acutally encrypted and stored in the new file is the updated number.
+     * @param outputFilepath The name of the new file to create, and store the encrypted data in.
+     * @param urlSuffix The function will update the string passed in.  The content of the string must be appended to the URL 
+     *        when this portion is uploaded.
+     * @param adjustsizeonly If this is set true, then encryption is not performed, and only the length parameter is adjusted.
+     *        This feature is to enable precalculating the exact sizes of the file portions for upload. 
+     */
+    virtual bool encryptFile(const char* inputFilepath, int64_t startPos, unsigned int* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly);
+
+    /**
+     * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
+     *
+     * @param photoURL The string to store the URL in.  If it is not available, the string will be empty.
+     */
+    virtual void getUploadURL(std::string* photoUrl);
+
+    /**
+     * @brief Turns the data stored in this object into a binary string.
+     *
+     * The object can then be recreated via MegaApi::backgroundMediaUploadResume and supplying the same string.
+     */
+    virtual std::string serialize();
+
+    /**
+     * @brief Destructor
+     */
+    virtual ~MegaBackgroundMediaUpload();
+};
+
 class MegaInputStream
 {
 public:
@@ -5789,7 +5900,8 @@ class MegaApi
 
         enum {
             NODE_ATTR_DURATION = 0,
-            NODE_ATTR_COORDINATES = 1
+            NODE_ATTR_COORDINATES = 1,
+            NODE_ATTR_ORIGINALFINGERPRINT = 2
         };
 
         enum {
@@ -8215,6 +8327,10 @@ class MegaApi
          *
          * To remove the existing coordinates, set both the latitude and longitude to
          * the value MegaNode::INVALID_COORDINATE.
+         * 
+         * The 'unshareable' variant of this function stores the coordinates with an extra
+         * layer of encryption which only this user can decrypt, so that even if this node is shared
+         * with others, they cannot read the coordinates.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
          * Valid data in the MegaRequest object received on callbacks:
@@ -8230,6 +8346,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
+        void setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -11195,6 +11312,24 @@ class MegaApi
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);
 
         /**
+         * @brief Returns nodes that have an originalFingerprint equal to the supplied value
+         *
+         * Search the node tree and return a list of nodes that have an originalFingerprint, which 
+         * matches the supplied originalfingerprint.  
+         *
+         * If the parent node supplied is not NULL, it only searches nodes below that parent,
+         * otherwise all nodes are searched. If no nodes are found with that original fingerprint, 
+         * this function returns an empty MegaNodeList.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param originalfingerprint Original Fingerprint to check
+         * @param parent  Only return nodes below this specified parent.  Pass NULL to consider all nodes.
+         * @return List of nodes with the same original fingerprint
+         */
+        MegaNodeList *getNodesByOriginalFingerprint(const char* originalFingerprint, MegaNode* parent);
+
+        /**
          * @brief Returns a node with the provided fingerprint that can be exported
          *
          * If there isn't any node in the account with that fingerprint, this function returns NULL.
@@ -12090,6 +12225,103 @@ class MegaApi
         bool createAvatar(const char *imagePath, const char *dstPath);
 
         /**
+         * @brief Initial step to upload a photo/video via iOS low-power background upload feature
+         *
+         * Call ensureMediaInfo() first in order prepare the library to attach file attributes
+         * that enable videos to be identified and played in the web browser.
+         *
+         * @return A pointer to an object that keeps some needed state through the process of 
+         *         uploading a media file via iOS low power background uploads (or similar).   
+         *         Caller takes ownership of the object.
+         */
+        MegaBackgroundMediaUpload* backgroundMediaUploadNew();
+
+        /**
+         * @brief Get back the needed MegaBackgroundMediaUpload after the iOS app exited and restarted
+         *
+         * In case the iOS app exits while a background upload is going on, and the app is started again
+         * to complete the operation.  Call this version to recreate the MegaBackgroundMediaUpload object
+         * needed for a call to backgroundMediaUploadComplete.   The object must have been serialised
+         * before the app was unloaded.
+         *
+         * @return A pointer to an object that keeps some needed state through the process of
+         *         uploading a media file via iOS low power background uploads (or similar).
+         *         Caller takes ownership of the object.
+         */
+        MegaBackgroundMediaUpload* backgroundMediaUploadResume(const std::string* serialised);
+
+        /**
+         * @brief Request the URL suitable for uploading a media file. 
+         *
+         * This function requests the URL needed for uploading the file.  The URL will need the urlSuffix
+         * from the MegaBackgroundMediaUpload::encryptFile to be appended before actually sending.
+         * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_GET_BACKGROUND_UPLOAD_URL.  
+         * Provided the error code is API_OK, the URL is available in the MegaBackgroundMediaUpload via its getUploadURL().
+         *
+         * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+         * URL.   If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+         * A new URL could specify a different upload server for example.
+         *
+         * @param fullFileSize The size of the file
+         * @param state A pointer to the MegaBackgroundMediaUpload object tracking this upload
+         * @param listener The MegaRequestListener to be called back with the result
+         */
+        void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
+
+        /**
+         * @brief Create the node after completing the background upload of the file.
+         *
+         * Call this function after completing the background upload of all the file data
+         * The node representing the file will be created in the cloud, with all the suitable 
+         * attributes and file attributes attached. 
+         * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_COMPLETE_BACKGROUND_UPLOAD.
+         *
+         * @param state The MegaBackgroundMediaUpload object tracking this upload
+         * @param utf8Name The leaf name of the file, utf-8 encoded
+         * @param parent The folder node under which this new file should appear
+         * @param fingerprint  The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
+         * @param fingerprintoriginal If the file uploaded is modified from the original, 
+         *        pass the fingerprint of the original file here, otherwise NULL.
+         * @param binaryUploadToken The N binary bytes of the token returned from the file upload (of the last portion). N=36 currently.
+         * @param listener The MegaRequestListener to be called back with the result
+         */
+        bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, 
+            const char* fingerprint, const char* fingerprintoriginal, std::string* binaryUploadToken, MegaRequestListener *listener);
+
+        /**
+         * @brief Call this to enable the library to attach media info attributes
+         * 
+         * Those attributes enable the web browser to know a file is a video, and 
+         * play it with the correct codec.
+         *
+         * @return True if the library is ready, otherwise the request for media translation
+         *         data is sent to MEGA.  In that case, call again later or use a listener
+         *         to find out when the translation data is available.
+         */
+        bool ensureMediaInfo();
+
+        /**
+         * @brief Set the OriginalFingerprint of a node.
+         *
+         * Use this call to attach an originalFingerprint to a node.  The fingerprint must
+         * be generated from the file prior to modification, where this node is the modified file.
+         *
+         * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node 
+         * - MegaRequest::getText - Returns the specified fingerprint
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_ORIGINALFINGERPRINT
+         * 
+         * @param node   The node to attach the originalFingerprint to.
+         * @param originalFingerprint  The fingerprint of the file before modification
+         * @param listener The MegaRequestListener to be called back with the result.
+         */
+        void setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener);
+
+        /**
          * @brief Convert a Base64 string to Base32
          *
          * If the input pointer is NULL, this function will return NULL.
@@ -12122,6 +12354,7 @@ class MegaApi
          *
          * The new buffer is allocated by new[] so you should release
          * it with delete[].
+         * If the function is passed NULL, it will return NULL.
          *
          * @param buffer Character buffer to copy
          * @return Copy of the character buffer

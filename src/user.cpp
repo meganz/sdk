@@ -416,6 +416,10 @@ string User::attr2string(attr_t type)
             attrname = "*!geo";
             break;
 
+        case ATTR_UNSHAREABLE_ATTR:
+            attrname = "*unshareable";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -517,6 +521,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
+    else if (!strcmp(name, "*unshareable"))
+    {
+        return ATTR_UNSHAREABLE_ATTR;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -541,6 +549,7 @@ bool User::needversioning(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_GEOLOCATION:
+        case ATTR_UNSHAREABLE_ATTR:
             return 0;
 
         case ATTR_AUTHRING:
@@ -568,6 +577,7 @@ char User::scope(attr_t at)
         case ATTR_LAST_INT:
         case ATTR_RICH_PREVIEWS:
         case ATTR_GEOLOCATION:
+        case ATTR_UNSHAREABLE_ATTR:
             return '*';
 
         case ATTR_AVATAR:

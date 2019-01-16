@@ -282,12 +282,11 @@ void TransferSlot::disconnect()
 }
 
 // coalesce block macs into file mac
-int64_t TransferSlot::macsmac(chunkmac_map* macs)
+int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    SymmCipher *cipher = transfer->transfercipher();
-    for (chunkmac_map::iterator it = macs->begin(); it != macs->end(); it++)
+    for (chunkmac_map::iterator it = begin(); it != end(); it++)
     {
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
@@ -299,6 +298,43 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
     m[1] = m[2] ^ m[3];
 
     return MemAccess::get<int64_t>((const char*)mac);
+}
+
+void chunkmac_map::serialize(string *d)
+{
+    unsigned short ll = (unsigned short)size();
+    d->append((char*)&ll, sizeof(ll));
+    for (iterator it = begin(); it != end(); it++)
+    {
+        d->append((char*)&it->first, sizeof(it->first));
+        d->append((char*)&it->second, sizeof(it->second));
+    }
+}
+
+bool chunkmac_map::unserialize(const char*& ptr, const char* end)
+{
+    unsigned short ll;
+    if ((ptr + sizeof(ll) > end) || ptr + (ll = MemAccess::get<unsigned short>(ptr)) * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    {
+        return false;
+    }
+
+    ptr += sizeof(ll);
+
+    for (int i = 0; i < ll; i++)
+    {
+        m_off_t pos = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+
+        memcpy(&((*this)[pos]), ptr, sizeof(ChunkMAC));
+        ptr += sizeof(ChunkMAC);
+    }
+    return true;
+}
+
+int64_t TransferSlot::macsmac(chunkmac_map* m)
+{
+    return m->macsmac(transfer->transfercipher());
 }
 
 // file transfer state machine

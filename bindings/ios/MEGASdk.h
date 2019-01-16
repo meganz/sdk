@@ -20,7 +20,6 @@
  */
 
 #import <Foundation/Foundation.h>
-#import <AssetsLibrary/AssetsLibrary.h>
 
 #import "MEGANode.h"
 #import "MEGAUser.h"
@@ -44,6 +43,7 @@
 #import "MEGAGlobalDelegate.h"
 #import "MEGALoggerDelegate.h"
 #import "MEGATreeProcessorDelegate.h"
+#import "MEGABackgroundMediaUpload.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -2566,7 +2566,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param longitude Longitude in signed decimal degrees notation.
  * @param delegate Delegate to track this request.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -2585,7 +2585,31 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param latitude Latitude in signed decimal degrees notation.
  * @param longitude Longitude in signed decimal degrees notation.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude;
+
+/**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The 'unshareable' variant of this function stores the coordinates with an extra
+ * layer of encryption which only this user can decrypt, so that even if this node is shared
+ * with others, they cannot read the coordinates.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ * @param delegate Delegate to track this request.
+ */
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
@@ -5019,6 +5043,16 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  */
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
 
+- (MEGABackgroundMediaUpload *)backgroundMediaUpload;
+
+- (MEGABackgroundMediaUpload *)resumeBackgroundMediaUploadBySerializedData:(NSData *)data;
+
+- (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)upload delegate:(id<MEGARequestDelegate>)delegate;
+
+- (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)upload fileName:(NSString *)fileName parentNode:(MEGANode *)node fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint token:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
+
+- (BOOL)ensureMediaInfo;
+
 #pragma mark - Filesystem inspection
 
 /**
@@ -5435,22 +5469,6 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  */
 - (NSString *)fingerprintForFilePath:(NSString *)filePath;
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-
-/**
- * @brief Get a Base64-encoded fingerprint from an ALAssetRepresentation and a modification time
- *
- * If the input stream is nil, has a negative size or can't be read, this function returns nil
- *
- * @param assetRepresentation ALAssetRepresentation that provides the data to create the fingerprint
- * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
- * @return Base64-encoded fingerprint
- */
-- (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
-
-#pragma clang diagnostic pop
-
 /**
  * @brief Get a Base64-encoded fingerprint from a NSData and a modification time
  *
@@ -5461,6 +5479,17 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @return Base64-encoded fingerprint
  */
 - (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime;
+
+/**
+ * @brief Get a Base64-encoded fingerprint from a local file and a modification time
+ *
+ * If the file can't be found or can't be opened, this function returns nil.
+ *
+ * @param filePath Local file path.
+ * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
+ * @return Base64-encoded fingerprint
+ */
+- (NSString *)fingerprintForFilePath:(NSString *)filePath modificationTime:(NSDate *)modificationTime;
 
 /**
  * @brief Get a Base64-encoded fingerprint for a node.
@@ -5494,6 +5523,16 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @return MEGANode object with the provided fingerprint.
  */
 - (MEGANode *)nodeForFingerprint:(NSString *)fingerprint parent:(MEGANode *)parent;
+
+/**
+ * @brief Returns all nodes that have an originalFingerprint equal to the supplied value
+ *
+ * If there isn't any node in the account with that original fingerprint, this function returns an empty MEGANodeList.
+ *
+ * @param originalfingerprint Original Fingerprint to check
+ * @return List of nodes with the same original fingerprint
+ */
+- (MEGANodeList *)nodesForOriginalFingerprint:(NSString *)fingerprint;
 
 /**
  * @brief Check if the account already has a node with the provided fingerprint.

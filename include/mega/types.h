@@ -166,7 +166,13 @@ struct ChunkMAC
 };
 
 // file chunk macs
-typedef map<m_off_t, ChunkMAC> chunkmac_map;
+class chunkmac_map : public map<m_off_t, ChunkMAC>
+{
+public:
+    int64_t macsmac(SymmCipher *cipher);
+    void serialize(string *d);
+    bool unserialize(const char*& ptr, const char* end);
+};
 
 /**
  * @brief Declaration of API error codes.
@@ -244,6 +250,35 @@ struct Cachable
 
     Cachable();
     virtual ~Cachable() { }
+};
+
+struct CacheableWriter
+{
+    CacheableWriter(string& d);
+    string& dest;
+
+    void serializecstr(const char* field);
+    void serializestring(const string& field);
+    void serializei64(int64_t field);
+    void serializehandle(handle field);
+    void serializebool(bool field);
+    void serializeexpansionflags(bool b1 = false, bool b2 = false, bool b3 = false, bool b4 = false, bool b5 = false, bool b6 = false, bool b7 = false, bool b8 = false);
+};
+
+
+struct CacheableReader
+{
+    CacheableReader(const string& d);
+    const char* ptr;
+    const char* end;
+    unsigned fieldnum;
+
+    bool unserializestring(string& s);
+    bool unserializei64(int64_t& s);
+    bool unserializehandle(handle& s);
+    bool unserializebool(bool& s);
+    bool unserializeexpansionflags(unsigned char field[8]);
+
 };
 
 // numeric representation of string (up to 8 chars)
@@ -453,7 +488,8 @@ typedef enum {
     ATTR_RUBBISH_TIME = 19,      // private, non-encrypted - char array in B64 - non-versioned
     ATTR_LAST_PSA = 20,          // private - char array
     ATTR_STORAGE_STATE = 21,     // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_GEOLOCATION = 22        // private - byte array
+    ATTR_GEOLOCATION = 22,        // private - byte array
+    ATTR_UNSHAREABLE_ATTR = 23, // private - char array
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 

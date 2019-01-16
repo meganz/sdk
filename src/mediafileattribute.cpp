@@ -24,6 +24,7 @@
 #include "mega/base64.h"
 #include "mega/command.h"
 #include "mega/megaclient.h"
+#include "mega/megaapp.h"
 
 #ifdef USE_MEDIAINFO
 #include "MediaInfo/MediaInfo.h"
@@ -221,6 +222,8 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
         client->pendingfa[pair<handle, fatype>(th, fa_media)] = pair<handle, int>(0, 0);
         client->checkfacompletion(th);
     }
+
+    client->app->mediadetection_ready();
 }
 
 unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle)

@@ -132,6 +132,9 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeAbortCurrentBackup,
     MEGARequestTypeFetchTimeZone,
     MEGARequestTypeGetPSA,
+    MEGARequestTypeUserAlertAcknowledge,
+    MEGARequestTypeGetBackgroundUploadURL,
+    MEGARequestTypeCompleteBackgroundUpload,
     TotalOfRequestTypes
 };
 

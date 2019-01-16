@@ -3531,6 +3531,7 @@ void MegaClient::locallogout()
     pendingsccommit = false;
 
     me = UNDEF;
+    uid.clear();
     publichandle = UNDEF;
     cachedscsn = UNDEF;
     achievements_enabled = false;
@@ -10467,12 +10468,13 @@ void MegaClient::fetchnodes(bool nocache)
             (*it)->changestate(SYNC_CANCELED);
         }
 #endif
-#ifdef ENABLE_CHAT
         if (loggedin() == FULLACCOUNT)
         {
+#ifdef ENABLE_CHAT
             fetchkeys();
-        }
 #endif
+            reqs.add(new CommandUnshareableUA(this, true, 5));
+        }
         if (!k.size())
         {
             getuserdata();
@@ -12904,6 +12906,41 @@ node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
     return nodes;
 }
 
+void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Node* parent, node_vector *nv)
+{
+    if (parent)
+    {
+        for (node_list::iterator i = parent->children.begin(); i != parent->children.end(); ++i)
+        {
+            if ((*i)->type == FILENODE)
+            {
+                attr_map::const_iterator a = (*i)->attrs.map.find(MAKENAMEID2('c', '0'));
+                if (a != (*i)->attrs.map.end() && !a->second.compare(originalfingerprint))
+                {
+                    nv->push_back(*i);
+                }
+            }
+            else
+            {
+                nodesbyoriginalfingerprint(originalfingerprint, *i, nv);
+            }
+        }
+    }
+    else
+    {
+        for (node_map::const_iterator i = nodes.begin(); i != nodes.end(); ++i)
+        {
+            if (i->second->type == FILENODE)
+            {
+                attr_map::const_iterator a = i->second->attrs.map.find(MAKENAMEID2('c', '0'));
+                if (a != i->second->attrs.map.end() && !a->second.compare(originalfingerprint))
+                {
+                    nv->push_back(i->second);
+                }
+            }
+        }
+    }
+}
 
 // a chunk transfer request failed: record failed protocol & host
 void MegaClient::setchunkfailed(string* url)

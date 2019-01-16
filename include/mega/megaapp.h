@@ -176,6 +176,9 @@ struct MEGA_API MegaApp
     virtual void checkfile_result(handle, error) { }
     virtual void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) { }
 
+    // URL suitable for iOS (or other system) background upload feature
+    virtual void backgrounduploadurl_result(error, string*) { }
+
     // pread result
     virtual dstime pread_failure(error, int, void*, dstime) { return ~(dstime)0; }
     virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) { return false; }
@@ -245,6 +248,8 @@ struct MEGA_API MegaApp
 
     // get welcome pdf
     virtual void getwelcomepdf_result(handle, string*, error) {}
+
+    virtual void mediadetection_ready() {}
 
     // global transfer queue updates
     virtual void file_added(File*) { }

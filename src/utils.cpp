@@ -48,6 +48,128 @@ Cachable::Cachable()
     notified = 0;
 }
 
+CacheableWriter::CacheableWriter(string& d)
+    : dest(d)
+{
+}
+
+void CacheableWriter::serializecstr(const char* field)
+{
+    unsigned short ll = (unsigned short)(field ? strlen(field) + 1 : 0);
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field, ll);
+}
+
+void CacheableWriter::serializestring(const string& field)
+{
+    unsigned short ll = (unsigned short)field.size();
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field.data(), ll);
+}
+
+void CacheableWriter::serializei64(int64_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializehandle(handle field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializebool(bool field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeexpansionflags(bool b0, bool b1, bool b2, bool b3, bool b4, bool b5, bool b6, bool b7)
+{
+    unsigned char b[8];
+    b[0] = b0;
+    b[1] = b1;
+    b[2] = b2;
+    b[3] = b3;
+    b[4] = b4;
+    b[5] = b5;
+    b[6] = b6;
+    b[7] = b7;
+    dest.append((char*)b, 8);
+}
+
+CacheableReader::CacheableReader(const string& d)
+{
+    ptr = d.data();
+    end = ptr + d.size();
+    fieldnum = 0;
+}
+
+bool CacheableReader::unserializestring(string& s)
+{
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        return false;
+    }
+
+    unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len - 1);
+    }
+    ptr += len;
+    return true;
+}
+
+bool CacheableReader::unserializei64(int64_t& field)
+{
+    if (ptr + sizeof(int64_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+    return true;
+}
+
+bool CacheableReader::unserializehandle(handle& field)
+{
+    if (ptr + sizeof(handle) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<handle>(ptr);
+    ptr += sizeof(handle);
+    return true;
+}
+
+bool CacheableReader::unserializebool(bool& field)
+{
+    if (ptr + sizeof(bool) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+    return true;
+}
+
+bool CacheableReader::unserializeexpansionflags(unsigned char field[8])
+{
+    if (ptr + 8 > end)
+    {
+        return false;
+    }
+    memcpy(field, ptr, 8);
+    ptr += 8;
+    return true;
+}
+
 #ifdef ENABLE_CHAT
 TextChat::TextChat()
 {
