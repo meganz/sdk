@@ -78,6 +78,7 @@ class MegaShareList;
 class MegaTransferList;
 class MegaFolderInfo;
 class MegaTimeZoneDetails;
+class MegaPushNotificationSettings;
 class MegaApi;
 
 class MegaSemaphore;
@@ -3086,6 +3087,20 @@ class MegaRequest
          * @return Object with information about the contents of a folder
          */
         virtual MegaFolderInfo *getMegaFolderInfo() const;
+
+        /**
+         * @brief Returns settings for push notifications
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getPushNotificationSettings - Returns settings for push notifications
+         *
+         * @return Object with settings for push notifications
+         */
+        virtual MegaPushNotificationSettings *getMegaPushNotificationSettings() const;
 };
 
 /**
@@ -8926,6 +8941,39 @@ class MegaApi
          */
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
 #endif
+
+        /**
+         * @brief Get push notification settings
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+         *
+         * @see MegaPushNotificationSettings class for more details.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPushNotificationSettings(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set push notification settings
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+         * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+         *
+         * @see MegaPushNotificationSettings class for more details. You can prepare a new object by
+         * calling MegaPushNotificationSettings::createInstance.
+         *
+         * @param settings MegaPushNotificationSettings with the new settings
+         * @param listener MegaRequestListener to track this request
+         */
+        void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the number of days for rubbish-bin cleaning scheduler

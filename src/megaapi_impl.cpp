@@ -2918,6 +2918,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 
     stringMap = NULL;
     folderInfo = NULL;
+    settings = NULL;
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
@@ -2990,6 +2991,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
+    this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -3074,6 +3076,21 @@ void MegaRequestPrivate::setMegaFolderInfo(const MegaFolderInfo *folderInfo)
     this->folderInfo = folderInfo ? folderInfo->copy() : NULL;
 }
 
+MegaPushNotificationSettings *MegaRequestPrivate::getMegaPushNotificationSettings() const
+{
+    return settings;
+}
+
+void MegaRequestPrivate::setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings)
+{
+    if (this->settings)
+    {
+        delete this->settings;
+    }
+
+    this->settings = settings ? settings->copy() : NULL;
+}
+
 #ifdef ENABLE_SYNC
 void MegaRequestPrivate::setSyncListener(MegaSyncListener *syncListener)
 {
@@ -3144,6 +3161,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete stringMap;
     delete folderInfo;
     delete timeZoneDetails;
+    delete settings;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -9112,6 +9130,23 @@ void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
 }
 
 #endif
+
+void MegaApiImpl::getPushNotificationSettings(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_PUSH_SETTINGS);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_PUSH_SETTINGS);
+    request->setMegaPushNotificationSettings(settings);
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
 {
@@ -17706,6 +17741,24 @@ void MegaApiImpl::sendPendingRequests()
 
                     string tmp(value);
                     client->putua(type, (byte *)tmp.data(), unsigned(tmp.size()));
+                }
+                else if (type == ATTR_PUSH_SETTINGS)
+                {
+                    const MegaPushNotificationSettingsPrivate *settings = (MegaPushNotificationSettingsPrivate*)(request->getMegaPushNotificationSettings());
+                    if (!settings)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    string settingsJson = settings->generateJson();
+                    if (settingsJson.empty())
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    client->putua(type, (byte *)settingsJson.data(), unsigned(settingsJson.size()));
                 }
                 else
                 {
@@ -29449,6 +29502,11 @@ int MegaTimeZoneDetailsPrivate::getDefault() const
     return defaultTimeZone;
 }
 
+MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const string &settingsJSON)
+{
+    // TODO: initialize values of the object by parsing the JSON received as parameter
+}
+
 MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate()
 {
     mGlobalDND = -1;
@@ -29468,6 +29526,12 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const M
     mChatAlwaysNotify = settings->mChatAlwaysNotify;
     mContactsDND = settings->mContactsDND;
     mSharesDND = settings->mSharesDND;
+}
+
+string MegaPushNotificationSettingsPrivate::generateJson() const
+{
+    // TODO: generate JSON from values in the object
+    // if the settings are detected to be inconsistent, return empty string
 }
 
 MegaPushNotificationSettingsPrivate::~MegaPushNotificationSettingsPrivate()

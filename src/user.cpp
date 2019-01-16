@@ -548,6 +548,7 @@ bool User::needversioning(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_GEOLOCATION:
+        case ATTR_PUSH_SETTINGS:
             return 0;
 
         case ATTR_AUTHRING:
@@ -558,7 +559,6 @@ bool User::needversioning(attr_t at)
         case ATTR_SIG_CU255_PUBK:
         case ATTR_KEYRING:
         case ATTR_CONTACT_LINK_VERIFICATION:
-        case ATTR_PUSH_SETTINGS:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute

@@ -852,6 +852,11 @@ MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
     return NULL;
 }
 
+MegaPushNotificationSettings *MegaRequest::getMegaPushNotificationSettings() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -2221,6 +2226,16 @@ void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListene
 void MegaApi::isMasterKeyExported(MegaRequestListener *listener)
 {
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, 0, listener);
+}
+
+void MegaApi::getPushNotificationSettings(MegaRequestListener *listener)
+{
+    pImpl->getPushNotificationSettings(listener);
+}
+
+void MegaApi::setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener)
+{
+    pImpl->setPushNotificationSettings(settings, listener);
 }
 
 #ifdef ENABLE_CHAT

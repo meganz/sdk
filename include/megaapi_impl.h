@@ -825,9 +825,11 @@ protected:
 class MegaPushNotificationSettingsPrivate : public MegaPushNotificationSettings
 {
 public:
-//    MegaPushNotificationSettingsPrivate(const std::string &settingsJSON);
+    MegaPushNotificationSettingsPrivate(const std::string &settingsJSON);
     MegaPushNotificationSettingsPrivate();
     MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings);
+
+    std::string generateJson() const;
 
     virtual ~MegaPushNotificationSettingsPrivate();
     virtual MegaPushNotificationSettings *copy() const;
@@ -1087,6 +1089,8 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringMap(const MegaStringMap *);
         virtual MegaFolderInfo *getMegaFolderInfo() const;
         void setMegaFolderInfo(const MegaFolderInfo *);
+        virtual MegaPushNotificationSettings *getMegaPushNotificationSettings() const;
+        void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
 
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
@@ -1141,6 +1145,7 @@ protected:
 #endif
         MegaStringMap *stringMap;
         MegaFolderInfo *folderInfo;
+        MegaPushNotificationSettings *settings;
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -2308,6 +2313,9 @@ class MegaApiImpl : public MegaApp
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
 #endif
+
+        void getPushNotificationSettings(MegaRequestListener *listener = NULL);
+        void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
         void getMegaAchievements(MegaRequestListener *listener = NULL);
