@@ -5768,6 +5768,31 @@ bool MegaPushNotificationSettings::isSharesEnabled() const
     return false;
 }
 
+void MegaPushNotificationSettings::enableGlobal(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::setGlobalDnd(int64_t /*timestamp*/)
+{
+
+}
+
+void MegaPushNotificationSettings::disableGlobalDnd()
+{
+
+}
+
+void MegaPushNotificationSettings::setGlobalSchedule(int /*start*/, int /*end*/, const char * /*timezone*/)
+{
+
+}
+
+void MegaPushNotificationSettings::disableGlobalSchedule()
+{
+
+}
+
 MegaPushNotificationSettings::MegaPushNotificationSettings()
 {
 

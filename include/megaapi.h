@@ -3863,6 +3863,54 @@ public:
      */
     virtual bool isSharesEnabled() const;
 
+    /**
+     * @brief Enable or disable notifications globally
+     *
+     * If notifications are globally disabled, the DND global setting will be
+     * cleared and the specified schedule, if any, will have no effect.
+     *
+     * @note When notifications are globally disabled, settings per chat still apply.
+     *
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableGlobal(bool enable);
+
+    /**
+     * @brief Set the global DND mode for a period of time
+     *
+     * No notifications will be generated until the specified timestamp.
+     *
+     * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual void setGlobalDnd(int64_t timestamp);
+
+    /**
+     * @brief Disable the globally specified DND mode
+     */
+    virtual void disableGlobalDnd();
+
+    /**
+     * @brief Set the schedule for notifications globally
+     *
+     * Notifications, if globally enabled, will be generated only from \c start
+     * to \c end time, using the \c timezone as reference.
+     *
+     * The timezone should be one of the values returned by MegaTimeZoneDetails::getTimeZone.
+     * @see MegaApi::fetchTimeZone for more details.
+     *
+     * @param start Minutes counting from 00:00 (based on the configured timezone)
+     * @param end Minutes counting from 00:00 (based on the configured timezone)
+     * @param timezone C-String representing the timezone
+     */
+    virtual void setGlobalSchedule(int start, int end, const char *timezone);
+
+    /**
+     * @brief Disable the schedule for notifications globally
+     */
+    virtual void disableGlobalSchedule();
+
+
+
 protected:
     MegaPushNotificationSettings();
 };

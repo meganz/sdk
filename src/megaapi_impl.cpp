@@ -29619,5 +29619,54 @@ MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
     return new MegaPushNotificationSettingsPrivate(this);
 }
 
+void MegaPushNotificationSettingsPrivate::enableGlobal(bool enable)
+{
+    if (isGlobalEnabled() == enable)
+    {
+        return;
+    }
+
+    mGlobalDND = enable ? -1 : 0;
+}
+
+void MegaPushNotificationSettingsPrivate::setGlobalDnd(int64_t timestamp)
+{
+    assert(timestamp > 0);
+    if (!isGlobalEnabled())
+    {
+        LOG_warn << "setGlobalDnd(): global notifications were disabled. Now are enabled";
+    }
+    mGlobalDND = timestamp;
+}
+
+void MegaPushNotificationSettingsPrivate::disableGlobalDnd()
+{
+    if (!isGlobalEnabled())
+    {
+        LOG_warn << "disableGlobalDnd(): global notifications were disabled. Now are enabled";
+    }
+    mGlobalDND = -1;
+}
+
+void MegaPushNotificationSettingsPrivate::setGlobalSchedule(int start, int end, const char *timezone)
+{
+    if (start <= -1 || end <= -1 || !timezone || !timezone[0])
+    {
+        LOG_warn << "setGlobalSchedule(): wrong arguments";
+        assert(false);
+        return;
+    }
+
+    mGlobalScheduleStart = start;
+    mGlobalScheduleEnd = end;
+    mGlobalScheduleTimezone.assign(timezone);
+}
+
+void MegaPushNotificationSettingsPrivate::disableGlobalSchedule()
+{
+    mGlobalScheduleStart = -1;
+    mGlobalScheduleEnd = -1;
+    mGlobalScheduleTimezone.clear();
+}
 
 }

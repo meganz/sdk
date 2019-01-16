@@ -862,6 +862,13 @@ public:
 
     virtual bool isContactsEnabled() const;
     virtual bool isSharesEnabled() const;
+
+    virtual void enableGlobal(bool enable);
+    virtual void setGlobalDnd(int64_t timestamp);
+    virtual void disableGlobalDnd();
+    virtual void setGlobalSchedule(int start, int end, const char *timezone);
+    virtual void disableGlobalSchedule();
+
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest
