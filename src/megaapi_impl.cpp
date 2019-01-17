@@ -21609,7 +21609,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
         megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
         this->state = MegaBackup::BACKUP_ACTIVE;
         megaApi->fireOnBackupStateChanged(this);
-        removeexceeding();
+        removeexceeding(false);
     }
     else
     {
@@ -21766,7 +21766,7 @@ void MegaBackupController::update()
     }
 }
 
-void MegaBackupController::removeexceeding()
+void MegaBackupController::removeexceeding(bool currentoneOK)
 {
     map<int64_t, MegaNode *> backupTimesNodes;
     int ncompleted=0;
@@ -21794,7 +21794,9 @@ void MegaBackupController::removeexceeding()
                         megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
                     }
 
-                    if (backstvalue && !strcmp(backstvalue,"COMPLETE"))
+                    if ( (backstvalue && !strcmp(backstvalue,"COMPLETE"))
+                            || ( childNode->getHandle() == currentHandle && currentoneOK ) //either its completed or is the current one and it went ok (it might not have backstvalue yet set
+                            )
                     {
                         ncompleted++;
                     }
@@ -22320,7 +22322,7 @@ bool MegaBackupController::checkCompletion()
         megaApi->fireOnBackupFinish(this, MegaError(e));
         megaApi->fireOnBackupStateChanged(this);
 
-        removeexceeding();
+        removeexceeding(e == API_OK);
 
         return true;
     }

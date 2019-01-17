@@ -229,7 +229,7 @@ public:
 
     void update();
     void start(bool skip = false);
-    void removeexceeding();
+    void removeexceeding(bool currentoneOK);
     void abortCurrent();
 
     // MegaBackup interface
