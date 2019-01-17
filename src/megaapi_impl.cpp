@@ -29546,7 +29546,7 @@ bool MegaPushNotificationSettingsPrivate::isGlobalEnabled() const
 
 bool MegaPushNotificationSettingsPrivate::isGlobalDndEnabled() const
 {
-    return (mGlobalDND > 0);
+    return (mGlobalDND > 0 && mGlobalDND < m_time(NULL));
 }
 
 int64_t MegaPushNotificationSettingsPrivate::getGlobalDnd() const
@@ -29583,7 +29583,7 @@ bool MegaPushNotificationSettingsPrivate::isChatEnabled(MegaHandle chatid) const
 bool MegaPushNotificationSettingsPrivate::isChatDndEnabled(MegaHandle chatid) const
 {
     std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
-    return (it != mChatDND.end() || it->second > 0);
+    return (it != mChatDND.end() && it->second > 0 && it->second < m_time(NULL));
 }
 
 int64_t MegaPushNotificationSettingsPrivate::getChatDnd(MegaHandle chatid) const
@@ -29606,12 +29606,12 @@ bool MegaPushNotificationSettingsPrivate::isChatAlwaysNotifyEnabled(MegaHandle c
 
 bool MegaPushNotificationSettingsPrivate::isContactsEnabled() const
 {
-    return (mContactsDND != 0);
+    return (mContactsDND == -1 || (mContactsDND > 0 && mContactsDND < m_time(NULL)));
 }
 
 bool MegaPushNotificationSettingsPrivate::isSharesEnabled() const
 {
-    return (mSharesDND != 0);
+    return (mSharesDND == -1 || (mSharesDND > 0 && mSharesDND < m_time(NULL)));
 }
 
 MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
@@ -29668,5 +29668,66 @@ void MegaPushNotificationSettingsPrivate::disableGlobalSchedule()
     mGlobalScheduleEnd = -1;
     mGlobalScheduleTimezone.clear();
 }
+
+void MegaPushNotificationSettingsPrivate::enableChat(MegaHandle chatid, bool enable)
+{
+    assert(!ISUNDEF(chatid));
+    if (isChatEnabled(chatid) == enable)
+    {
+        return;
+    }
+
+    if (enable)
+    {
+        mChatDND.erase(chatid);
+    }
+    else    // disable
+    {
+        mChatDND[chatid] = 0;
+    }
+}
+
+void MegaPushNotificationSettingsPrivate::setChatDnd(MegaHandle chatid, int64_t timestamp)
+{
+    assert(timestamp > 0);
+    assert(!ISUNDEF(chatid));
+    if (isChatAlwaysNotifyEnabled(chatid))
+    {
+        LOG_warn << "setChatDnd(): always notify was enabled. Now is disabled";
+        enableChatAlwaysNotify(chatid, false);
+    }
+
+    mChatDND[chatid] = timestamp;
+}
+
+void MegaPushNotificationSettingsPrivate::enableChatAlwaysNotify(MegaHandle chatid, bool enable)
+{
+    assert(!ISUNDEF(chatid));
+    if (enable)
+    {
+        if (!isChatEnabled(chatid ) || isChatDndEnabled(chatid))
+        {
+            LOG_warn << "enableChatAlwaysNotify(): notifications are now enabled, DND mode is disabled";
+            enableChat(chatid, true);
+        }
+
+        mChatAlwaysNotify[chatid] = 1;
+    }
+    else
+    {
+        mChatAlwaysNotify.erase(chatid);
+    }
+}
+
+void MegaPushNotificationSettingsPrivate::enableContacts(bool enable)
+{
+    mContactsDND = enable ? -1 : 0;
+}
+
+void MegaPushNotificationSettingsPrivate::enableShares(bool enable)
+{
+    mSharesDND = enable ? -1 : 0;
+}
+
 
 }

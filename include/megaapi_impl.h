@@ -847,6 +847,9 @@ private:
     m_time_t mSharesDND;        // defaults to -1 if not defined
 
 public:
+
+    // getters
+
     virtual bool isGlobalEnabled() const;
     virtual bool isGlobalDndEnabled() const;
     virtual int64_t getGlobalDnd() const;
@@ -863,12 +866,21 @@ public:
     virtual bool isContactsEnabled() const;
     virtual bool isSharesEnabled() const;
 
+
+    // setters
+
     virtual void enableGlobal(bool enable);
     virtual void setGlobalDnd(int64_t timestamp);
     virtual void disableGlobalDnd();
     virtual void setGlobalSchedule(int start, int end, const char *timezone);
     virtual void disableGlobalSchedule();
 
+    virtual void enableChat(MegaHandle chatid, bool enable);
+    virtual void setChatDnd(MegaHandle chatid, int64_t timestamp);
+    virtual void enableChatAlwaysNotify(MegaHandle chatid, bool enable);
+
+    virtual void enableContacts(bool enable);
+    virtual void enableShares(bool enable);
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest

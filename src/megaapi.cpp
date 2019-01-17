@@ -5793,6 +5793,31 @@ void MegaPushNotificationSettings::disableGlobalSchedule()
 
 }
 
+void MegaPushNotificationSettings::enableChat(MegaHandle /*chatid*/, bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::setChatDnd(MegaHandle /*chatid*/, int64_t /*timestamp*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableChatAlwaysNotify(MegaHandle /*chatid*/, bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableContacts(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableShares(bool /*enable*/)
+{
+
+}
+
 MegaPushNotificationSettings::MegaPushNotificationSettings()
 {
 

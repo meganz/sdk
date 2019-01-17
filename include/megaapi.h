@@ -3880,6 +3880,9 @@ public:
      *
      * No notifications will be generated until the specified timestamp.
      *
+     * If notifications were globally disabled, this function will enable them
+     * back (but will not generate notification until the specified timestamp).
+     *
      * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
      */
     virtual void setGlobalDnd(int64_t timestamp);
@@ -3908,6 +3911,64 @@ public:
      * @brief Disable the schedule for notifications globally
      */
     virtual void disableGlobalSchedule();
+
+    /**
+     * @brief Enable or disable notifications for a chat
+     *
+     * If notifications for this chat are disabled, the DND settings for this chat,
+     * if any, will be cleared.
+     *
+     * @note Settings per chat override any global notification setting.
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableChat(MegaHandle chatid, bool enable);
+
+    /**
+     * @brief Set the DND mode for a chat for a period of time
+     *
+     * No notifications will be generated until the specified timestamp.
+     *
+     * This setting is not compatible with the "Always notify". If DND mode is
+     * configured, the "Always notify" will be disabled.
+     *
+     * If chat notifications were totally disabled for the specified chat, this
+     * function will enable them back (but will not generate notification until
+     * the specified timestamp).
+     *
+     * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual void setChatDnd(MegaHandle chatid, int64_t timestamp);
+
+    /**
+     * @brief Enable or disable "Always notify" setting
+     *
+     * Notifications for this chat will always be generated, even if they are globally
+     * disabled, out of the global schedule or a global DND mode is set.
+     *
+     * This setting is not compatible with the DND mode for the specified chat. In consequence,
+     * if "Always notify" is enabled and the DND mode was configured, it will be disabled.
+     * Also, if notifications were disabled for the specified chat, they will be enabled.
+     *
+     * @note Settings per chat override any global notification setting.
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableChatAlwaysNotify(MegaHandle chatid, bool enable);
+
+    /**
+     * @brief Enable or disable notifications related to contacts
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableContacts(bool enable);
+
+    /**
+     * @brief Enable or disable notifications related to shared-folders
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableShares(bool enable);
 
 
 
