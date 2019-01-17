@@ -1263,6 +1263,7 @@ void MegaClient::exec()
         {
             LOG_debug << "Cached user data expired";
             getuserdata();
+            fetchtimezone();
         }
 
         if (pendinghttp.size())
@@ -5207,8 +5208,8 @@ void MegaClient::sc_userattr()
 
                         if (!fetchingnodes)
                         {
-                            // silently fetch-upon-update this critical attribute
-                            if (type == ATTR_DISABLE_VERSIONS)
+                            // silently fetch-upon-update these critical attributes
+                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS)
                             {
                                 getua(u, type, 0);
                             }
@@ -7744,6 +7745,7 @@ void MegaClient::login(const byte* session, int size)
 
         reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
         getuserdata();
+        fetchtimezone();
     }
     else
     {
@@ -10440,6 +10442,12 @@ void MegaClient::fetchnodes(bool nocache)
             versions_disabled = false;
         }
 
+        av = ownUser->getattr(ATTR_PUSH_SETTINGS);
+        if (av && !ownUser->isattrvalid(ATTR_PUSH_SETTINGS))
+        {
+            getua(ownUser, ATTR_PUSH_SETTINGS);
+        }
+
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
     }
@@ -10477,10 +10485,14 @@ void MegaClient::fetchnodes(bool nocache)
         {
             getuserdata();
         }
-        reqs.add(new CommandFetchNodes(this, nocache));
 
+        fetchtimezone();
         char me64[12];
         Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+        reqs.add(new CommandGetUA(this, me64, ATTR_PUSH_SETTINGS, NULL, 0));
+
+        reqs.add(new CommandFetchNodes(this, nocache));
+
         reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, NULL, 0));
     }
 }
@@ -10793,17 +10805,14 @@ void MegaClient::purgenodesusersabortsc()
     pcrnotify.clear();
     useralerts.clear();
 
-#ifndef ENABLE_CHAT
-    users.clear();
-    uhindex.clear();
-    umindex.clear();
-#else
+#ifdef ENABLE_CHAT
     for (textchat_map::iterator it = chats.begin(); it != chats.end();)
     {
         delete it->second;
         chats.erase(it++);
     }
     chatnotify.clear();
+#endif
 
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
@@ -10821,9 +10830,7 @@ void MegaClient::purgenodesusersabortsc()
             it++;
         }
     }
-
     assert(users.size() <= 1 && uhindex.size() <= 1 && umindex.size() <= 1);
-#endif
 
     for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
     {

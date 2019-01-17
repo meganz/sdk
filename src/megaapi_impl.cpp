@@ -4584,6 +4584,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     ftpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
 #endif
 
+    mPushSettings = NULL;
+    mTimezones = NULL;
+
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
@@ -12941,6 +12944,11 @@ void MegaApiImpl::logout_result(error e)
         syncLowerSizeLimit = 0;
         syncUpperSizeLimit = 0;
 
+        delete mPushSettings;
+        mPushSettings = NULL;
+        delete mTimezones;
+        mTimezones = NULL;
+
         fireOnRequestFinish(request, MegaError(preverror));
         return;
     }
@@ -13430,6 +13438,17 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 {
     error e = API_OK;
 
+    // update cached notification settings for filtering
+    MegaPushNotificationSettings *pushSettings = NULL;
+    if (type == ATTR_PUSH_SETTINGS)
+    {
+        string settingsJson((const char*)data, len);
+        pushSettings = new MegaPushNotificationSettingsPrivate(settingsJson);
+
+        delete mPushSettings;
+        mPushSettings = pushSettings->copy();
+    }
+
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request ||
@@ -13553,6 +13572,12 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 }
             }
             break;
+
+        case MegaApi::USER_ATTR_PUSH_SETTINGS:
+        {
+            request->setMegaPushNotificationSettings(pushSettings);
+        }
+        break;
 
         // byte arrays with possible nulls in the middle --> to Base64
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
@@ -13914,6 +13939,16 @@ void MegaApiImpl::multifactorauthdisable_result(error e)
 
 void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, vector<int> *timezoneoffsets, int defaulttz)
 {
+    MegaTimeZoneDetails *tzDetails = NULL;
+    if (!e)
+    {
+        tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
+
+        // update the cached timezones for notifications filtering
+        delete mTimezones;
+        mTimezones = tzDetails->copy();
+    }
+
     if (requestMap.find(client->restag) == requestMap.end())
     {
         return;
@@ -13924,11 +13959,7 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
         return;
     }
 
-    if (!e)
-    {
-        MegaTimeZoneDetails *tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
-        request->setTimeZoneDetails(tzDetails);
-    }
+    request->setTimeZoneDetails(tzDetails);
     fireOnRequestFinish(request, MegaError(e));
 }
 

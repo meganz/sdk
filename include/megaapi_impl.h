@@ -2475,6 +2475,9 @@ protected:
         MegaContactRequestList *activeContactRequests;
         string appKey;
 
+        MegaPushNotificationSettings *mPushSettings; // stores lastest-seen settings (to be able to filter notifications)
+        MegaTimeZoneDetails *mTimezones;
+
         int threadExit;
         void loop();
 
