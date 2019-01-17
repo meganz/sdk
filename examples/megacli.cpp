@@ -1171,7 +1171,7 @@ void DemoApp::getua_result(error e)
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
-void DemoApp::getua_result(byte* data, unsigned l)
+void DemoApp::getua_result(byte* data, unsigned l, attr_t)
 {
 #ifdef ENABLE_CHAT
     if (client->fetchingkeys)
@@ -1185,7 +1185,7 @@ void DemoApp::getua_result(byte* data, unsigned l)
     cout << endl;
 }
 
-void DemoApp::getua_result(TLVstore *tlv)
+void DemoApp::getua_result(TLVstore *tlv, attr_t)
 {
 #ifdef ENABLE_CHAT
     if (client->fetchingkeys)

@@ -13426,7 +13426,7 @@ void MegaApiImpl::getua_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::getua_result(byte* data, unsigned len)
+void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 {
     error e = API_OK;
 
@@ -13572,7 +13572,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::getua_result(TLVstore *tlv)
+void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
