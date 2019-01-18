@@ -6278,6 +6278,7 @@ Node* MegaClient::nodebyhandle(handle h)
 
     if ((it = nodes.find(h)) != nodes.end())
     {
+        it->second->client = this;  // ensure client is set correctly
         return it->second;
     }
 

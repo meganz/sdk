@@ -260,6 +260,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
     attr_map::iterator uoi = node->attrs.map.find(AttrMap::string2nameid("uu"));
     bool unshareableOwner = uoi != node->attrs.map.end() && node->client && uoi->second == node->client->uid;
+    LOG_warn << "unshareableOwner: " << unshareableOwner << " client " << node->client;
+    LOG_warn << " uid: " << (node->client ? node->client->uid : "");
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -311,6 +313,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                             }
                             else
                             {
+                                LOG_warn << "unshareableOwner: " << node->client << " keyempty: " << node->client->unshareablekey.empty() << "coords size: " << coords.size();
                                 ok = false;
                             }
                         }
@@ -335,14 +338,17 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
                     if (longitude < -180 || longitude > 180)
                     {
+                        LOG_warn << "longitude out of range";
                         longitude = INVALID_COORDINATE;
                     }
                     if (latitude < -90 || latitude > 90)
                     {
+                        LOG_warn << "latitude out of range";
                         latitude = INVALID_COORDINATE;
                     }
                     if (longitude == INVALID_COORDINATE || latitude == INVALID_COORDINATE)
                     {
+                        LOG_warn << "longitude or latitude invalid";
                         longitude = INVALID_COORDINATE;
                         latitude = INVALID_COORDINATE;
                     }
@@ -8161,6 +8167,7 @@ bool MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state
 
 bool MegaApiImpl::ensureMediaInfo()
 {
+#ifdef USE_MEDIAINFO
     if (client->mediaFileInfo.mediaCodecsReceived)
     {
         return true;
@@ -8172,6 +8179,9 @@ bool MegaApiImpl::ensureMediaInfo()
         sdkMutex.unlock();
         return false;
     }
+#else
+    return false;
+#endif
 }
 
 void MegaApiImpl::setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener)
@@ -20010,9 +20020,11 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD:
         {
-            // if we don't have the codec id mappings yet, send the request
-            // todo: wait for notification we got them
-            client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+            #ifdef USE_MEDIAINFO
+                // if we don't have the codec id mappings yet, send the request
+                // todo: wait for notification we got them
+                client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
+            #endif
 
             MegaBackgroundMediaUploadPrivate* bg = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
             MegaStringMap* sm = request->getMegaStringMap();
