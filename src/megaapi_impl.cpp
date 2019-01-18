@@ -260,8 +260,6 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
     attr_map::iterator uoi = node->attrs.map.find(AttrMap::string2nameid("uu"));
     bool unshareableOwner = uoi != node->attrs.map.end() && node->client && uoi->second == node->client->uid;
-    LOG_warn << "unshareableOwner: " << unshareableOwner << " client " << node->client;
-    LOG_warn << " uid: " << (node->client ? node->client->uid : "");
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -280,10 +278,6 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         }
         else
         {
-            char tempstr[100];
-            int tslen = AttrMap::nameid2string(it->first, tempstr);
-            tempstr[tslen] = 0;
-            LOG_warn << "get attrib " << tempstr << ": '" << it->second << "'";
             if (it->first == AttrMap::string2nameid("d"))
             {
                if (node->type == FILENODE)
@@ -313,15 +307,11 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                                 Base64::atob(coords.data(), data, Base64Str<3>::STRLEN * 2);
 
                                 node->client->setkey(&c, node->client->unshareablekey.data());
-                                LOG_warn << "coords pre-dencryption" << Base64Str<8>(data);
                                 c.ctr_crypt(data, 8, 0, 0, NULL, false);
-                                LOG_warn << "coords post-dencryption" << Base64Str<8>(data);
-
                                 coords = string((char*)data, 8);
                             }
                             else
                             {
-                                LOG_warn << "unshareableOwner: " << node->client << " keyempty: " << node->client->unshareablekey.empty() << "coords size: " << coords.size();
                                 ok = false;
                             }
                         }
@@ -346,17 +336,14 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
                     if (longitude < -180 || longitude > 180)
                     {
-                        LOG_warn << "longitude out of range";
                         longitude = INVALID_COORDINATE;
                     }
                     if (latitude < -90 || latitude > 90)
                     {
-                        LOG_warn << "latitude out of range";
                         latitude = INVALID_COORDINATE;
                     }
                     if (longitude == INVALID_COORDINATE || latitude == INVALID_COORDINATE)
                     {
-                        LOG_warn << "longitude or latitude invalid";
                         longitude = INVALID_COORDINATE;
                         latitude = INVALID_COORDINATE;
                     }
@@ -18080,10 +18067,8 @@ void MegaApiImpl::sendPendingRequests()
                                 byte data[SymmCipher::BLOCKSIZE] = { 0 };
                                 memcpy(data, (void*)coordsValue.data(), coordsValue.size());
                                 client->setkey(&c, client->unshareablekey.data());
-
-                                LOG_warn << "coords pre-encryption " << Base64Str<8>(data);
                                 c.ctr_crypt(data, unsigned(coordsValue.size()), 0, 0, NULL, true);
-                                LOG_warn << "coords post-encryption " << Base64Str<8>(data);
+
                                 node->attrs.map[AttrMap::string2nameid("uu")] = client->uid;  // uu = unshareable user (the user that set unshareable attributes on this node)
                                 node->attrs.map[coordsNameUnshareable] = Base64Str<8>(data);
                             }
@@ -18144,14 +18129,6 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e)
             {
-                for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
-                {
-                    char tempstr[100];
-                    int tslen = AttrMap::nameid2string(it->first, tempstr);
-                    tempstr[tslen] = 0;
-                    LOG_warn << "set attrib " << tempstr << ": '" << it->second << "'";
-                }
-
                 e = client->setattr(node);
             }
 
