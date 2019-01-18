@@ -307,8 +307,12 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                                 SymmCipher c;
                                 byte data[SymmCipher::BLOCKSIZE] = { 0 };
                                 Base64::atob(coords.data(), data, sizeof(Base64Str<3>::chars) * 2 - 2);
+
                                 node->client->setkey(&c, node->client->unshareablekey.data());
+                                LOG_warn << "coords pre-dencryption" << Base64Str<6>(data);
                                 c.ctr_crypt(data, 8, 0, 0, NULL, false);
+                                LOG_warn << "coords post-dencryption" << Base64Str<6>(data);
+
                                 coords = string((char*)data, 8);
                             }
                             else
@@ -18072,8 +18076,10 @@ void MegaApiImpl::sendPendingRequests()
                                 byte data[SymmCipher::BLOCKSIZE] = { 0 };
                                 memcpy(data, (void*)coordsValue.data(), coordsValue.size());
                                 client->setkey(&c, client->unshareablekey.data());
-                                c.ctr_crypt(data, unsigned(coordsValue.size()), 0, 0, NULL, true);
 
+                                LOG_warn << "coords pre-encryption" << Base64Str<6>(data);
+                                c.ctr_crypt(data, unsigned(coordsValue.size()), 0, 0, NULL, true);
+                                LOG_warn << "coords post-encryption" << Base64Str<6>(data);
                                 node->attrs.map[AttrMap::string2nameid("uu")] = client->uid;  // uu = unshareable user (the user that set unshareable attributes on this node)
                                 node->attrs.map[coordsNameUnshareable] = Base64Str<sizeof((latEncoded.chars)-1)*2>(data);
                             }
