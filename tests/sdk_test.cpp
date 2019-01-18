@@ -1250,7 +1250,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload a test file (error: " << lastError[0] << ")";
     MegaNode *n2 = megaApi[0]->getNodeByHandle(h);
-    ASSERT_NE(n2, nullptr) << "Cannot initialize second node for scenario (error: " << lastError[0] << ")";
+    ASSERT_NE(n2, NULL) << "Cannot initialize second node for scenario (error: " << lastError[0] << ")";
 
     lat = -5 + -51.8719987255814;
     lon = -5 + +179.54;
