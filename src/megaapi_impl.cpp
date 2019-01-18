@@ -297,7 +297,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 {
                     string coords = it->second;
                     if ((it->first == AttrMap::string2nameid("l") && coords.size() != 8) ||
-                        (it->first == AttrMap::string2nameid("gp") && coords.size() != sizeof(Base64Str<8>::chars) - 1))
+                        (it->first == AttrMap::string2nameid("gp") && coords.size() != Base64Str<8>::STRLEN))
                     {
                        LOG_warn << "Malformed GPS coordinates attribute";
                     }
@@ -306,11 +306,11 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                         bool ok = true;
                         if (it->first == AttrMap::string2nameid("gp"))
                         {
-                            if (unshareableOwner && node->client && !node->client->unshareablekey.empty() && coords.size() <= SymmCipher::BLOCKSIZE && coords.size() == sizeof(Base64Str<8>::chars)-1)
+                            if (unshareableOwner && node->client && !node->client->unshareablekey.empty() && coords.size() <= SymmCipher::BLOCKSIZE && coords.size() == Base64Str<8>::STRLEN)
                             {
                                 SymmCipher c;
                                 byte data[SymmCipher::BLOCKSIZE] = { 0 };
-                                Base64::atob(coords.data(), data, sizeof(Base64Str<3>::chars) * 2 - 2);
+                                Base64::atob(coords.data(), data, Base64Str<3>::STRLEN * 2);
 
                                 node->client->setkey(&c, node->client->unshareablekey.data());
                                 LOG_warn << "coords pre-dencryption" << Base64Str<8>(data);
@@ -18085,7 +18085,7 @@ void MegaApiImpl::sendPendingRequests()
                                 c.ctr_crypt(data, unsigned(coordsValue.size()), 0, 0, NULL, true);
                                 LOG_warn << "coords post-encryption " << Base64Str<8>(data);
                                 node->attrs.map[AttrMap::string2nameid("uu")] = client->uid;  // uu = unshareable user (the user that set unshareable attributes on this node)
-                                node->attrs.map[coordsNameUnshareable] = Base64Str<sizeof((latEncoded.chars)-1)*2>(data);
+                                node->attrs.map[coordsNameUnshareable] = Base64Str<8>(data);
                             }
                         }
                         else

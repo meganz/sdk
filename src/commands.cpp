@@ -3138,7 +3138,7 @@ void CommandUnshareableUA::procresult()
                 if (fetching)
                 {
 
-                    if (buf.size() + 1 == sizeof(Base64Str<SymmCipher::BLOCKSIZE>::chars))
+                    if (buf.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
                     {
                         client->unshareablekey.swap(buf);
                     }

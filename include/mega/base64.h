@@ -45,7 +45,8 @@ template <unsigned BINARYSIZE>
 struct Base64Str
 {
     // provides a way to build the C string on the stack efficiently, using minimal space
-    char chars[(BINARYSIZE * 4 + 2) / 3 + 1];
+    enum { STRLEN = (BINARYSIZE * 4 + 2) / 3};
+    char chars[STRLEN + 1]; // sizeof(chars) can be larger due to alignment etc
     Base64Str(const byte* b)
     {
         int n = Base64::btoa(b, BINARYSIZE, chars);
