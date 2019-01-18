@@ -280,6 +280,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         }
         else
         {
+            char tempstr[100];
+            int tslen = AttrMap::nameid2string(it->first, tempstr);
+            tempstr[tslen] = 0;
+            LOG_warn << "get attrib " << tempstr << ": '" << it->second << "'";
             if (it->first == AttrMap::string2nameid("d"))
             {
                if (node->type == FILENODE)
@@ -292,7 +296,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 if (node->type == FILENODE)
                 {
                     string coords = it->second;
-                    if ((it->first == AttrMap::string2nameid("l") && coords.size() != 8) &&
+                    if ((it->first == AttrMap::string2nameid("l") && coords.size() != 8) ||
                         (it->first == AttrMap::string2nameid("gp") && coords.size() != sizeof(Base64Str<8>::chars) - 1))
                     {
                        LOG_warn << "Malformed GPS coordinates attribute";
@@ -309,9 +313,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                                 Base64::atob(coords.data(), data, sizeof(Base64Str<3>::chars) * 2 - 2);
 
                                 node->client->setkey(&c, node->client->unshareablekey.data());
-                                LOG_warn << "coords pre-dencryption" << Base64Str<6>(data);
+                                LOG_warn << "coords pre-dencryption" << Base64Str<8>(data);
                                 c.ctr_crypt(data, 8, 0, 0, NULL, false);
-                                LOG_warn << "coords post-dencryption" << Base64Str<6>(data);
+                                LOG_warn << "coords post-dencryption" << Base64Str<8>(data);
 
                                 coords = string((char*)data, 8);
                             }
@@ -18077,9 +18081,9 @@ void MegaApiImpl::sendPendingRequests()
                                 memcpy(data, (void*)coordsValue.data(), coordsValue.size());
                                 client->setkey(&c, client->unshareablekey.data());
 
-                                LOG_warn << "coords pre-encryption" << Base64Str<6>(data);
+                                LOG_warn << "coords pre-encryption " << Base64Str<8>(data);
                                 c.ctr_crypt(data, unsigned(coordsValue.size()), 0, 0, NULL, true);
-                                LOG_warn << "coords post-encryption" << Base64Str<6>(data);
+                                LOG_warn << "coords post-encryption " << Base64Str<8>(data);
                                 node->attrs.map[AttrMap::string2nameid("uu")] = client->uid;  // uu = unshareable user (the user that set unshareable attributes on this node)
                                 node->attrs.map[coordsNameUnshareable] = Base64Str<sizeof((latEncoded.chars)-1)*2>(data);
                             }
@@ -18140,6 +18144,14 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e)
             {
+                for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
+                {
+                    char tempstr[100];
+                    int tslen = AttrMap::nameid2string(it->first, tempstr);
+                    tempstr[tslen] = 0;
+                    LOG_warn << "set attrib " << tempstr << ": '" << it->second << "'";
+                }
+
                 e = client->setattr(node);
             }
 
