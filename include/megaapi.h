@@ -13755,7 +13755,29 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns if system has to create a notification for chat event
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @return true if notification has to be created
+         */
+        bool isChatNotificable(MegaHandle chatid);
 #endif
+
+        /**
+         * @brief Returns if system has to create a notification for an event from incoming shares
+         *
+         * @return true if notification has to be created
+         */
+        bool isSharesNotifiable();
+
+        /**
+         * @brief Returns if system has to create a notification for a new pending contact request
+         *
+         * @return true if notification has to be created
+         */
+        bool isContactsNotifiable();
 
         /**
          * @brief Get the MEGA Achievements of the account logged in

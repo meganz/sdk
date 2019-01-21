@@ -4482,7 +4482,22 @@ void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, Mega
     pImpl->chatLinkJoin(publichandle, unifiedKey, listener);
 }
 
+bool MegaApi::isChatNotificable(MegaHandle chatid)
+{
+    return pImpl->isChatNotificable(chatid);
+}
+
 #endif
+
+bool MegaApi::isSharesNotifiable()
+{
+    return pImpl->isSharesNotifiable();
+}
+
+bool MegaApi::isContactsNotifiable()
+{
+    return pImpl->isContactsNotifiable();
+}
 
 char* MegaApi::strdup(const char* buffer)
 {

@@ -835,16 +835,21 @@ public:
     virtual MegaPushNotificationSettings *copy() const;
 
 private:
-    m_time_t mGlobalDND;        // defaults to -1 if not defined
-    int mGlobalScheduleStart;   // defaults to -1 if not defined
-    int mGlobalScheduleEnd;     // defaults to -1 if not defined
+    m_time_t mGlobalDND = -1;        // defaults to -1 if not defined
+    int mGlobalScheduleStart = -1;   // defaults to -1 if not defined
+    int mGlobalScheduleEnd = -1;     // defaults to -1 if not defined
     std::string mGlobalScheduleTimezone;
 
     std::map<uint64_t, m_time_t> mChatDND;
     std::map<uint64_t, bool> mChatAlwaysNotify;
 
-    m_time_t mContactsDND;      // defaults to -1 if not defined
-    m_time_t mSharesDND;        // defaults to -1 if not defined
+    m_time_t mContactsDND = -1;      // defaults to -1 if not defined
+    m_time_t mSharesDND = -1;        // defaults to -1 if not defined
+
+    std::string getGlobalSetting() const;
+    std::string getChatsSetting() const;
+    std::string getContactSetting() const;
+    std::string getSharesSetting() const;
 
 public:
 
@@ -865,7 +870,6 @@ public:
 
     virtual bool isContactsEnabled() const;
     virtual bool isSharesEnabled() const;
-
 
     // setters
 
@@ -2331,10 +2335,14 @@ class MegaApiImpl : public MegaApp
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+        bool isChatNotificable(MegaHandle chatid);
 #endif
 
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
         void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
+
+        bool isSharesNotifiable();
+        bool isContactsNotifiable();
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
         void getMegaAchievements(MegaRequestListener *listener = NULL);
@@ -2737,6 +2745,8 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         static char *getAvatarColor(handle userhandle);
+        bool isGlobalNotifiable();
+        bool isScheduleNotifiable();
 };
 
 class MegaHashSignatureImpl
