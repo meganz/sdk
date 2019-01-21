@@ -417,7 +417,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_UNSHAREABLE_ATTR:
-            attrname = "*unshareable";
+            attrname = "*usk";  // unshareable key (for encrypting attributes that should not be shared)
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -521,7 +521,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
-    else if (!strcmp(name, "*unshareable"))
+    else if (!strcmp(name, "*usk"))
     {
         return ATTR_UNSHAREABLE_ATTR;
     }
