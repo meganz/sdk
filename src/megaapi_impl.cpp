@@ -3566,6 +3566,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PSA: return "GET_PSA";
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
         case TYPE_USERALERT_ACKNOWLEDGE: return "TYPE_USERALERT_ACKNOWLEDGE";
+        case TYPE_SEND_SMS_VERIFICATIONCODE: return "TYPE_SEND_SMS_VERIFICATIONCODE";
+        case TYPE_CHECK_SMS_VERIFICATIONCODE: return "TYPE_CHECK_SMS_VERIFICATIONCODE";
     }
     return "UNKNOWN";
 }
@@ -9119,6 +9121,22 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE, listener);
+    request->setText(phoneNumber);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE, listener);
+    request->setText(verificationCode);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaUserList* MegaApiImpl::getContacts()
 {
     sdkMutex.lock();
@@ -13895,6 +13913,32 @@ void MegaApiImpl::acknowledgeuseralerts_result(error e)
     {
         MegaRequestPrivate* request = it->second;
         if (request && ((request->getType() == MegaRequest::TYPE_USERALERT_ACKNOWLEDGE)))
+        {
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
+void MegaApiImpl::smsverificationsend_result(error e)
+{
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE)))
+        {
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
+void MegaApiImpl::smsverificationcheck_result(error e)
+{
+    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE)))
         {
             fireOnRequestFinish(request, e);
         }
@@ -19766,6 +19810,32 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_USERALERT_ACKNOWLEDGE:
         {
             client->acknowledgeuseralerts();
+            break;
+        }
+        case MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE:
+        {
+            string phoneNumber = request->getText();
+            if (CommandSMSVerificationSend::isphonenumber(phoneNumber))
+            {
+                client->reqs.add(new CommandSMSVerificationSend(client, phoneNumber));
+            }
+            else
+            {
+                client->app->smsverificationsend_result(API_EARGS);
+            }
+            break;
+        }
+        case MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE:
+        {
+            string code = request->getText();
+            if (CommandSMSVerificationCheck::isverificationcode(code))
+            {
+                client->reqs.add(new CommandSMSVerificationCheck(client, code));
+            }
+            else
+            {
+                client->app->smsverificationcheck_result(API_EARGS);
+            }
             break;
         }
         default:

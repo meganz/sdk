@@ -3523,6 +3523,17 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
     pImpl->getMegaAchievements(listener);
 }
 
+void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener)
+{
+    pImpl->sendSMSVerificationCode(phoneNumber, listener);
+}
+
+void MegaApi::checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener)
+{
+    pImpl->checkSMSVerificationCode(verificationCode, listener);
+}
+
+
 #ifdef HAVE_LIBUV
 bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
 {

@@ -5668,6 +5668,22 @@ static void process_line(char* l)
                         return;
                     }
 #endif
+                    else if (words[0] == "smsverify")
+                    {
+                        if (words.size() == 3 && words[1] == "send" && CommandSMSVerificationSend::isphonenumber(words[2]))
+                        {
+                            client->reqs.add(new CommandSMSVerificationSend(client, words[2]));
+                        }
+                        else if (words.size() == 3 && words[1] == "code" && CommandSMSVerificationCheck::isverificationcode(words[2]))
+                        {
+                            client->reqs.add(new CommandSMSVerificationCheck(client, words[2]));
+                        }
+                        else
+                        {
+                            cout << "syntax error.   smsverify [send <phonenumber> | code <verificationcode>]" << endl;
+                        }
+                        return;
+                    }
                     break;
 
                 case 11:                    
@@ -6795,6 +6811,29 @@ void DemoApp::sessions_killed(handle sessionid, error e)
     }
 }
 
+void DemoApp::smsverificationsend_result(error e)
+{
+    if (e)
+    {
+        cout << "SMS send failed: " << e << endl;
+    }
+    else
+    {
+        cout << "SMS send succeeded" << endl;
+    }
+}
+
+void DemoApp::smsverificationcheck_result(error e)
+{
+    if (e)
+    {
+        cout << "SMS verification failed: " << e << endl;
+    }
+    else
+    {
+        cout << "SMS verification succeeded" << endl;
+    }
+}
 
 // user attribute update notification
 void DemoApp::userattr_update(User* u, int priv, const char* n)

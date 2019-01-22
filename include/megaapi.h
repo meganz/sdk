@@ -2454,6 +2454,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
+            TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -13473,6 +13474,35 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Send a verification code txt to the supplied phone number
+         *
+         * Sends a 6 digit code to the user's phone.  The number is supplied in this function call.
+         * The code is txted to the user.  Once the user has it, they can type it into the app
+         * and the call checkSMSVerificationCode() can be used to validate the user did receive the txt,
+         * so that really is their phone number.
+         *
+         * The frequency with which this call can be used is very limited (once or twice per
+         * 24 hour period, at the time of writing this), so it's important to get the 
+         * number right on the first try.  The result will be API_ETEMPUNAVAIL if it has
+         * been tried too frequently.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check a verification code that the user should have received via txt
+         *
+         * This function validates that the user received the txt sent by sendSMSVerificationCode().
+         * If the user supplied the right code, the result will be API_OK.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
+
+
 
 private:
         MegaApiImpl *pImpl;

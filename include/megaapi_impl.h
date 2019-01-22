@@ -2273,6 +2273,9 @@ class MegaApiImpl : public MegaApp
         void getAccountAchievements(MegaRequestListener *listener = NULL);
         void getMegaAchievements(MegaRequestListener *listener = NULL);
 
+        void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL);
+        void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -2448,6 +2451,10 @@ protected:
         // keep me alive feature
         virtual void keepmealive_result(error);
         virtual void acknowledgeuseralerts_result(error);
+
+        // account validation by txted verification code
+        virtual void smsverificationsend_result(error);
+        virtual void smsverificationcheck_result(error);
 
         // get the current PSA
         virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);

@@ -5970,7 +5970,7 @@ void CommandChatLinkURL::procresult()
                     break;
 
                 case MAKENAMEID2('c','s'):
-                    shard = client->json.getint();
+                    shard = (int)client->json.getint();
                     break;
 
                 case MAKENAMEID2('c','t'):  // chat-title
@@ -5982,7 +5982,7 @@ void CommandChatLinkURL::procresult()
                     break;
 
                 case MAKENAMEID3('n','c','m'):
-                    numPeers = client->json.getint();
+                    numPeers = (int)client->json.getint();
                     break;
 
                 case MAKENAMEID2('t', 's'):
@@ -6600,7 +6600,7 @@ void CommandGetPSA::procresult()
         switch (client->json.getnameid())
         {
             case MAKENAMEID2('i', 'd'):
-                id = client->json.getint();
+                id = (int)client->json.getint();
                 break;
             case 't':
                 client->json.storeobject(&temp);
@@ -6739,6 +6739,79 @@ void CommandSetLastAcknowledged::procresult()
     }
 };
 
+CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phonenumber)
+{
+    cmd("smss");
+
+    if (isphonenumber(phonenumber))
+    {
+        arg("n", phonenumber.c_str());
+    }
+
+    tag = client->reqtag;
+};
+
+bool CommandSMSVerificationSend::isphonenumber(const string& s)
+{
+    for (int i = s.size(); i--; )
+    {
+        if (!(isdigit(s[i]) || (i == 0 && s[i] == '+')))
+        {
+            return false;
+        }
+    }
+    return s.size() > 6;
+}
+
+void CommandSMSVerificationSend::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->smsverificationsend_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->smsverificationsend_result(API_EINTERNAL);
+    }
+};
+
+CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, const string& verificationcode)
+{
+    cmd("smsv");
+
+    if (isverificationcode(verificationcode))
+    {
+        arg("n", verificationcode.c_str());
+    }
+
+    tag = client->reqtag;
+};
+
+bool CommandSMSVerificationCheck::isverificationcode(const string& s)
+{
+    for (int i = s.size(); i--; )
+    {
+        if (!(isdigit(s[i])))
+        {
+            return false;
+        }
+    }
+    return s.size() == 6;
+}
+
+void CommandSMSVerificationCheck::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->smsverificationcheck_result((error)client->json.getint());
+    }
+    else
+    {
+        client->json.storeobject();
+        client->app->smsverificationcheck_result(API_EINTERNAL);
+    }
+};
 
 
 } // namespace

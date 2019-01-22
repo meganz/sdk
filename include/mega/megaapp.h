@@ -348,6 +348,10 @@ struct MEGA_API MegaApp
     // result of the user alert acknowledge request
     virtual void acknowledgeuseralerts_result(error) { }
 
+    // result of sms verification commands
+    virtual void smsverificationsend_result(error) { }
+    virtual void smsverificationcheck_result(error) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

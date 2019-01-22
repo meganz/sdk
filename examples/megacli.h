@@ -246,6 +246,9 @@ struct DemoApp : public MegaApp
     void contactlinkquery_result(error, handle, string*, string*, string*, string*);
     void contactlinkdelete_result(error);
 
+    void smsverificationsend_result(error);
+    void smsverificationcheck_result(error);
+
     void reload(const char*);
     void clearing();
 

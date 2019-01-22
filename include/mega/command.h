@@ -1084,6 +1084,28 @@ public:
     CommandSetLastAcknowledged(MegaClient*);
 };
 
+class MEGA_API CommandSMSVerificationSend : public Command
+{
+public:
+    void procresult();
+
+    // don't request if it's definitely not a phone number
+    static bool isphonenumber(const string& s); 
+
+    CommandSMSVerificationSend(MegaClient*, const string& phonenumber);
+};
+
+class MEGA_API CommandSMSVerificationCheck : public Command
+{
+public:
+    void procresult();
+
+    // don't request if it's definitely not a verification code
+    static bool isverificationcode(const string& s);
+
+    CommandSMSVerificationCheck(MegaClient*, const string& code);
+};
+
 
 } // namespace
 
