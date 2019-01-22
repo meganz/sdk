@@ -19821,7 +19821,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                client->app->smsverificationsend_result(API_EARGS);
+                e = API_EARGS;
             }
             break;
         }
@@ -19834,7 +19834,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                client->app->smsverificationcheck_result(API_EARGS);
+                e = API_EARGS;
             }
             break;
         }
