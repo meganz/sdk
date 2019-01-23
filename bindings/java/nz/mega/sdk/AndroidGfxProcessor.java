@@ -22,6 +22,8 @@ import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
 
+import mega.privacy.android.app.utils.Util;
+
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
     int orientation;
@@ -60,10 +62,20 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
                 MediaMetadataRetriever retriever = new MediaMetadataRetriever();
                 retriever.setDataSource(path);
-                int width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
-                int height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                int width;
+                int height;
+                int interchangeOrientation = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION));
+                if (interchangeOrientation == 90 || interchangeOrientation == 270) {
+                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                }
+                else {
+                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
+                }
                 retriever.release();
 
+                log("getImageDimensions width: "+width+" height: "+height+" orientation: "+interchangeOrientation);
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {
@@ -346,5 +358,9 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         size = null;
         srcPath = null;
         orientation = 0;
+    }
+
+    public static void log(String log) {
+        Util.log("AndroidGfxProcessor", log);
     }
 }
