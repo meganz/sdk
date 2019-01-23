@@ -32,7 +32,7 @@ int64_t MEGAFileInputStream::getSize() {
 }
 
 bool MEGAFileInputStream::read(char *buffer, size_t size) {
-    if (this->fileHandle == NULL) {
+    if (this->fileHandle == nil) {
         return false;
     }
     

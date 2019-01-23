@@ -5043,14 +5043,79 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  */
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
 
+/**
+ * @brief Initial step to upload a photo/video via iOS low-power background upload feature
+ *
+ * Call ensureMediaInfo() first in order prepare the library to attach file attributes
+ * that enable videos to be identified and played in the web browser.
+ *
+ * @return A pointer to an object that keeps some needed state through the process of
+ *         uploading a media file via iOS low power background uploads (or similar).
+ *         Caller takes ownership of the object.
+ */
 - (MEGABackgroundMediaUpload *)backgroundMediaUpload;
 
+/**
+ * @brief Get back the needed MEGABackgroundMediaUpload after the iOS app exited and restarted
+ *
+ * In case the iOS app exits while a background upload is going on, and the app is started again
+ * to complete the operation.  Call this version to recreate the MegaBackgroundMediaUpload object
+ * needed for a call to backgroundMediaUploadComplete.   The object must have been serialised
+ * before the app was unloaded.
+ *
+ * @return A pointer to an object that keeps some needed state through the process of
+ *         uploading a media file via iOS low power background uploads (or similar).
+ *         Caller takes ownership of the object.
+ */
 - (MEGABackgroundMediaUpload *)resumeBackgroundMediaUploadBySerializedData:(NSData *)data;
 
+/**
+ * @brief Request the URL suitable for uploading a media file.
+ *
+ * This function requests the URL needed for uploading the file.  The URL will need the urlSuffix
+ * from the MEGABackgroundMediaUpload::encryptFile to be appended before actually sending.
+ * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_GET_BACKGROUND_UPLOAD_URL.
+ * Provided the error code is API_OK, the URL is available in the MegaBackgroundMediaUpload via its getUploadURL().
+ *
+ * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+ * URL.   If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+ * A new URL could specify a different upload server for example.
+ *
+ * @param filesize The size of the file
+ * @param state A pointer to the MegaBackgroundMediaUpload object tracking this upload
+ * @param delegate The MEGARequestDelegate to be called back with the result
+ */
 - (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)upload delegate:(id<MEGARequestDelegate>)delegate;
 
-- (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)upload fileName:(NSString *)fileName parentNode:(MEGANode *)node fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint token:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
+/**
+ * @brief Create the node after completing the background upload of the file.
+ *
+ * Call this function after completing the background upload of all the file data
+ * The node representing the file will be created in the cloud, with all the suitable
+ * attributes and file attributes attached.
+ * The result of the request is signalled by the listener MEGARequestDelegate callback with TYPE_COMPLETE_BACKGROUND_UPLOAD.
+ *
+ * @param mediaUpload The MEGABackgroundMediaUpload object tracking this upload
+ * @param fileName The leaf name of the file, utf-8 encoded
+ * @param parentNode The folder node under which this new file should appear
+ * @param fingerprint  The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
+ * @param originalFingerprint If the file uploaded is modified from the original,
+ *        pass the fingerprint of the original file here, otherwise NULL.
+ * @param token The N binary bytes of the token returned from the file upload (of the last portion). N=36 currently.
+ * @param delegate The MEGARequestDelegate to be called back with the result
+ */
+- (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Call this to enable the library to attach media info attributes
+ *
+ * Those attributes enable the web browser to know a file is a video, and
+ * play it with the correct codec.
+ *
+ * @return YES if the library is ready, otherwise the request for media translation
+ *         data is sent to MEGA.  In that case, call again later or use a listener
+ *         to find out when the translation data is available.
+ */
 - (BOOL)ensureMediaInfo;
 
 #pragma mark - Filesystem inspection
@@ -5525,9 +5590,12 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 - (MEGANode *)nodeForFingerprint:(NSString *)fingerprint parent:(MEGANode *)parent;
 
 /**
- * @brief Returns all nodes that have an originalFingerprint equal to the supplied value
+ * @brief Returns nodes that have an originalFingerprint equal to the supplied value
  *
- * If there isn't any node in the account with that original fingerprint, this function returns an empty MEGANodeList.
+ * Search the node tree and return a list of nodes that have an originalFingerprint, which
+ * matches the supplied originalfingerprint.
+ *
+ * You take the ownership of the returned value.
  *
  * @param originalfingerprint Original Fingerprint to check
  * @return List of nodes with the same original fingerprint

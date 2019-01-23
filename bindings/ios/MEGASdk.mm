@@ -1497,9 +1497,9 @@ using namespace mega;
     return self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, upload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)upload fileName:(NSString *)fileName parentNode:(MEGANode *)node fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint token:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate {
+- (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate {
     std::string binaryToken = std::string((const char *)token.bytes, token.length);
-    return self.megaApi->backgroundMediaUploadComplete(upload.getCPtr, fileName.UTF8String, node.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, &binaryToken, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    return self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, &binaryToken, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (BOOL)ensureMediaInfo {
