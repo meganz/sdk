@@ -5137,6 +5137,11 @@ bool MegaApiImpl::appleVoipPushEnabled()
     return client->aplvp_enabled;
 }
 
+int MegaApiImpl::smsAllowedState()
+{
+    return (client->smsve_state < 1 || client->smsve_state > 2) ? 0 : client->smsve_state;
+}
+
 bool MegaApiImpl::multiFactorAuthAvailable()
 {
     return client->gmfa_enabled;
