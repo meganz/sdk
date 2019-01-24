@@ -1,6 +1,6 @@
 /**
  * @file MEGABackgroundMediaUpload.mm
- * @brief Time zone details
+ * @brief Background media upload
  *
  * (c) 2018 - by Mega Limited, Auckland, New Zealand
  *

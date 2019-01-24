@@ -1493,8 +1493,8 @@ using namespace mega;
     return [[MEGABackgroundMediaUpload alloc] initWithBackgroundMediaUpload:self.megaApi->backgroundMediaUploadResume(&serializedBytes)];
 }
 
-- (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)upload delegate:(id<MEGARequestDelegate>)delegate {
-    return self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, upload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)mediaUpload delegate:(id<MEGARequestDelegate>)delegate {
+    return self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate {
