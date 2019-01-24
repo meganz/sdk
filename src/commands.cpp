@@ -3236,6 +3236,7 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
+    int  smsve = -1;
 
     if (client->json.isnumeric())
     {
@@ -3304,6 +3305,9 @@ void CommandGetUserData::procresult()
                     case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
                         aplvp = bool(client->json.getint());
                         break;
+                    case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
+                        smsve = int(client->json.getint());
+                        break;
                     case EOO:
                         endobject = true;
                         break;
@@ -3334,6 +3338,7 @@ void CommandGetUserData::procresult()
             client->ssrs_enabled = ssrs;
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
+            client->smsve_state = smsve;
             client->k = k;
             if (len_privk)
             {

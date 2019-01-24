@@ -216,6 +216,9 @@ public:
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
+    // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
+    int smsve_state;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;

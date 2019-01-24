@@ -1066,6 +1066,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    smsve_state = -1;
     loggingout = 0;
     cachedug = false;
 
@@ -3542,6 +3543,7 @@ void MegaClient::locallogout()
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    smsve_state = -1;
     loggingout = 0;
     cachedug = false;
 

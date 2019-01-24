@@ -1666,6 +1666,11 @@ bool MegaApi::appleVoipPushEnabled()
     return pImpl->appleVoipPushEnabled();
 }
 
+int MegaApi::smsAllowedState()
+{
+    return pImpl->smsAllowedState();
+}
+
 bool MegaApi::multiFactorAuthAvailable()
 {
     return pImpl->multiFactorAuthAvailable();

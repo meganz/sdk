@@ -6290,6 +6290,15 @@ class MegaApi
         bool appleVoipPushEnabled();
 
         /**
+         * @brief Check if the opt-in or account ublocking SMS is allowed
+         *
+         * The result indicated whether the sendSMSVerificationCode() function can be used.
+         *
+         * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
+         */
+        int smsAllowedState();
+
+        /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
          * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
@@ -13487,6 +13496,8 @@ class MegaApi
          * 24 hour period, at the time of writing this), so it's important to get the 
          * number right on the first try.  The result will be API_ETEMPUNAVAIL if it has
          * been tried too frequently.
+         *
+         * Make sure to test the result of smsAllowedState() before calling this function.
          *
          * @param listener MegaRequestListener to track this request
          */
