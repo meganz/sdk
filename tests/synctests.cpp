@@ -808,7 +808,7 @@ struct StandardClient : public MegaApp
         multimap<string, Model::ModelNode*> ms;
         multimap<string, Node*> ns;
         for (auto& m : mn->kids) ms.emplace(m->name, m.get());
-        for (auto& n : n->children) ns.emplace(n->displayname(), n);
+        for (auto& n2 : n->children) ns.emplace(n2->displayname(), n2);
 
         int matched = 0;
         vector<string> matchedlist;
@@ -911,8 +911,14 @@ struct StandardClient : public MegaApp
 
         multimap<string, Model::ModelNode*> ms;
         multimap<string, LocalNode*> ns;
-        for (auto& m : mn->kids) ms.emplace(m->name, m.get());
-        for (auto& n : n->children) if (!n.second->deleted) ns.emplace(n.second->name, n.second); // todo: should LocalNodes marked as deleted actually have been removed by now?  
+        for (auto& m : mn->kids)
+        {
+            ms.emplace(m->name, m.get());
+        }
+        for (auto& n2 : n->children)
+        {
+            if (!n2.second->deleted) ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
+        }
 
         int matched = 0;
         vector<string> matchedlist;
