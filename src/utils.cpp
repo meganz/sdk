@@ -201,6 +201,12 @@ TextChat* TextChat::unserialize(class MegaClient *client, string *d)
 
             userpriv->push_back(userpriv_pair(uh, priv));
         }
+
+        if (priv == PRIV_RM)    // clear peerlist if removed
+        {
+            delete userpriv;
+            userpriv = NULL;
+        }
     }
 
     if (ptr + sizeof(bool) + sizeof(unsigned short) > end)

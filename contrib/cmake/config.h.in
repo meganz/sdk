@@ -34,6 +34,9 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #cmakedefine HAVE_INTTYPES_H
 
+/* Define to 1 if you have the <glob.h> header file. */
+#cmakedefine HAVE_GLOB_H
+
 /* Define to use libuv */
 /* #undef HAVE_LIBUV */
 

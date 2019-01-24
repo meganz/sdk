@@ -229,7 +229,7 @@ public:
 
     void update();
     void start(bool skip = false);
-    void removeexceeding();
+    void removeexceeding(bool currentoneOK);
     void abortCurrent();
 
     // MegaBackup interface
@@ -243,6 +243,8 @@ public:
     int getState() const;
     long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
     bool getAttendPastBackups() const;
+    MegaTransferList *getFailedTransfers();
+
 
     // MegaBackup setters
     void setLocalFolder(const std::string &value);
@@ -299,7 +301,7 @@ protected:
     handle currentHandle;
     std::string currentName;
     std::list<std::string> pendingFolders;
-    std::list<MegaTransfer *> failedTransfers;
+    std::vector<MegaTransfer *> failedTransfers;
     int recursive;
     int pendingTransfers;
     int pendingTags;
@@ -331,6 +333,7 @@ public:
     virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
     virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
     virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
+    virtual void onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError* e);
     virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
 
     long long getNumberFolders() const;
@@ -651,6 +654,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setSyncTransfer(bool syncTransfer);
         void setSourceFileTemporary(bool temporary);
         void setStartFirst(bool startFirst);
+        void setBackupTransfer(bool backupTransfer);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(MegaError e);
@@ -689,6 +693,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         virtual bool isFinished() const;
         virtual bool isSourceFileTemporary() const;
         virtual bool shouldStartFirst() const;
+        virtual bool isBackupTransfer() const;
         virtual char *getLastBytes() const;
         virtual MegaError getLastError() const;
         virtual bool isFolderTransfer() const;
@@ -716,6 +721,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
             bool streamingTransfer : 1;
             bool temporarySourceFile : 1;
             bool startFirst : 1;
+            bool backupTransfer : 1;
         };
 
         int64_t startTime;
@@ -1753,6 +1759,7 @@ class MegaApiImpl : public MegaApp
         static char *userHandleToBase64(MegaHandle handle);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
+        void setDnsServers(const char *dnsServers, MegaRequestListener* listener = NULL);
         static void addEntropy(char* data, unsigned int size);
         static string userAttributeToString(int);
         static char userAttributeToScope(int);
@@ -1824,6 +1831,8 @@ class MegaApiImpl : public MegaApp
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
+        void setLoggingName(const char* loggingName);
+
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
@@ -1861,13 +1870,8 @@ class MegaApiImpl : public MegaApp
         void getChatUserAttr(const char* email_or_handle, int type, const char *dstFilePath, const char *ph = NULL, int number = 0, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const char* value, MegaRequestListener *listener = NULL);
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
-        void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
-        void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
-        void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
-        void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
-        void getStorageState(MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
@@ -1922,7 +1926,7 @@ class MegaApiImpl : public MegaApp
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
-        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName,  int64_t mtime, int folderTransferTag = 0, const char *appData = NULL, bool isSourceFileTemporary = false, MegaTransferListener *listener = NULL);
+        void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, MegaTransferListener *listener);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
@@ -1984,6 +1988,7 @@ class MegaApiImpl : public MegaApp
         string getLocalPath(MegaNode *node);
         long long getNumLocalNodes();
         bool isSyncable(const char *path, long long size);
+        bool isInsideSync(MegaNode *node);
         bool is_syncable(Sync*, const char*, string*);
         bool is_syncable(long long size);
         int isNodeSyncable(MegaNode *megaNode);
@@ -2258,6 +2263,12 @@ class MegaApiImpl : public MegaApp
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
         void chatLinkClose(MegaHandle chatid, const char *title, MegaRequestListener *listener = NULL);
         void chatLinkJoin(MegaHandle publichandle, const char *unifiedkey, MegaRequestListener *listener = NULL);
+        void enableRichPreviews(bool enable, MegaRequestListener *listener = NULL);
+        void isRichPreviewsEnabled(MegaRequestListener *listener = NULL);
+        void shouldShowRichLinkWarning(MegaRequestListener *listener = NULL);
+        void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+        void enableGeolocation(MegaRequestListener *listener = NULL);
+        void isGeolocationEnabled(MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
@@ -2625,7 +2636,7 @@ protected:
         virtual void notify_dbcommit();
 
         // notify about a storage event
-        virtual void notify_storage();
+        virtual void notify_storage(int);
 
         // notify about an automatic change to HTTPS
         virtual void notify_change_to_https();

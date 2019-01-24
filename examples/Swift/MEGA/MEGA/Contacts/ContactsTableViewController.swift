@@ -96,7 +96,7 @@ class ContactsTableViewController: UITableViewController, MEGARequestDelegate {
         }
         
         switch request.type {
-        case MEGARequestType.getAttrUser:
+        case MEGARequestType.MEGARequestTypeGetAttrUser:
             for tableViewCell in tableView.visibleCells as! [ContactTableViewCell] {
                 if request?.email == tableViewCell.nameLabel.text {
                     let filename = request.email

@@ -160,8 +160,6 @@ namespace UserAlert
         handle folderHandle;
         string folderPath;
         string folderName;
-        handle removerHandle;
-        string removerEmail;
         handle ownerHandle;
 
         DeletedShare(UserAlertRaw& un, unsigned int id);

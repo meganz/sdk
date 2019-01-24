@@ -95,6 +95,7 @@ public class MegaApiJava {
     public final static int USER_ATTR_RUBBISH_TIME = MegaApi.USER_ATTR_RUBBISH_TIME;
     public final static int USER_ATTR_LAST_PSA = MegaApi.USER_ATTR_LAST_PSA;
     public final static int USER_ATTR_STORAGE_STATE = MegaApi.USER_ATTR_STORAGE_STATE;
+    public final static int USER_ATTR_GEOLOCATION = MegaApi.USER_ATTR_GEOLOCATION;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -139,6 +140,7 @@ public class MegaApiJava {
     public final static int STORAGE_STATE_GREEN = MegaApi.STORAGE_STATE_GREEN;
     public final static int STORAGE_STATE_ORANGE = MegaApi.STORAGE_STATE_ORANGE;
     public final static int STORAGE_STATE_RED = MegaApi.STORAGE_STATE_RED;
+    public final static int STORAGE_STATE_CHANGE = MegaApi.STORAGE_STATE_CHANGE;
 
     public final static int ORDER_NONE = MegaApi.ORDER_NONE;
     public final static int ORDER_DEFAULT_ASC = MegaApi.ORDER_DEFAULT_ASC;
@@ -2903,7 +2905,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
-     *
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(MegaUser user, int type, MegaRequestListenerInterface listener) {
@@ -2961,6 +2964,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      */
     public void getUserAttribute(MegaUser user, int type) {
         megaApi.getUserAttribute(user, type);
@@ -3016,7 +3021,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
-     *
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(String email_or_handle, int type, MegaRequestListenerInterface listener) {
@@ -3073,6 +3079,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      */
     public void getUserAttribute(String email_or_handle, int type) {
     	megaApi.getUserAttribute(email_or_handle, type);
@@ -3127,7 +3135,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
-     *
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      * @param listener MegaRequestListener to track this request
      */
     public void getUserAttribute(int type, MegaRequestListenerInterface listener) {
@@ -3183,6 +3192,8 @@ public class MegaApiJava {
      * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
      * MegaApi::USER_ATTR_STORAGE_STATE = 21
      * Get the state of the storage (private non-encrypted)
+     * MegaApi::USER_ATTR_GEOLOCATION = 22
+     * Get whether the user has enabled send geolocation messages (private)
      */
     public void getUserAttribute(int type) {
         megaApi.getUserAttribute(type);
@@ -4316,6 +4327,36 @@ public class MegaApiJava {
     }
 
     /**
+     * Enable the sending of geolocation messages
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void enableGeolocation(MegaRequestListenerInterface listener){
+        megaApi.enableGeolocation(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Check if the sending of geolocation messages is enabled
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+     *
+     * Sending a Geolocation message is enabled if the MegaRequest object, received in onRequestFinish,
+     * has error code MegaError::API_OK. In other cases, send geolocation messages is not enabled and
+     * the application has to answer before send a message of this type.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void isGeolocationEnabled(MegaRequestListenerInterface listener){
+        megaApi.isGeolocationEnabled(createDelegateRequestListener(listener));
+    }
+
+    /**
      * Get the number of days for rubbish-bin cleaning scheduler
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -4350,50 +4391,6 @@ public class MegaApiJava {
     public void setRubbishBinAutopurgePeriod(int days, MegaRequestListenerInterface listener){
         megaApi.setRubbishBinAutopurgePeriod(days, createDelegateRequestListener(listener));
     }
-
-    /**
-     * Get the state of the storage
-     *
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumber - Returns one of these storage states:
-     * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-     * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
-     * MegaApi::STORAGE_STATE_RED = 2 - The account is full
-     *
-     * If the state is not set on the server side, the request will finish with the error
-     * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
-     * number 0 (MegaApi::STORAGE_STATE_GREEN).
-     *
-     * @param listener MegaRequestListener to track this request
-     */
-    public void getStorageState(MegaRequestListenerInterface listener) {
-        megaApi.getStorageState(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the state of the storage
-     *
-     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-     * Valid data in the MegaRequest object received on callbacks:
-     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_STORAGE_STATE
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumber - Returns one of these storage states:
-     * MegaApi::STORAGE_STATE_GREEN = 0 - The account has no problems with storage space
-     * MegaApi::STORAGE_STATE_ORANGE = 1 - The account is almost full
-     * MegaApi::STORAGE_STATE_RED = 2 - The account is full
-     *
-     * If the state is not set on the server side, the request will finish with the error
-     * MegaError::API_ENOENT, but MegaRequest::getNumber will be valid and will have the
-     * number 0 (MegaApi::STORAGE_STATE_GREEN).
-     */
-    public void getStorageState() { megaApi.getStorageState(); }
 
     /**
      * Change the password of the MEGA account

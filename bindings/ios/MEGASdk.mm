@@ -1194,6 +1194,22 @@ using namespace mega;
     self.megaApi->setRichLinkWarningCounterValue((int)value);
 }
 
+- (void)enableGeolocationWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->enableGeolocation([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)enableGeolocation {
+    self.megaApi->enableGeolocation();
+}
+
+- (void)isGeolocationEnabledWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->isGeolocationEnabled([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)isGeolocationEnabled {
+    self.megaApi->isGeolocationEnabled();
+}
+
 - (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1208,14 +1224,6 @@ using namespace mega;
 
 - (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days {
     self.megaApi->setRubbishBinAutopurgePeriod((int)days);
-}
-
-- (void)getStorageStateWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getStorageState([self createDelegateMEGARequestListener:delegate singleListener:YES]);
-}
-
-- (void)getStorageState {
-    self.megaApi->getStorageState();
 }
 
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {

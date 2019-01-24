@@ -2082,6 +2082,7 @@ autocomplete::ACN autocompleteSyntax()
     using namespace autocomplete;
     std::unique_ptr<Either> p(new Either("      "));
 
+    p->Add(sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
     // which is clearer in the help output - one line or 3?
     p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
@@ -2210,7 +2211,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     }
     else if (n->type == FOLDERNODE || n->type == ROOTNODE)
     {
-        fs::path newpath = localpath / (n->type == ROOTNODE ? "ROOTNODE" : n->displayname());
+        fs::path newpath = localpath / fs::u8path(n->type == ROOTNODE ? "ROOTNODE" : n->displayname());
         if (folders)
         {
             std::error_code ec; 
@@ -3260,23 +3261,22 @@ static void process_line(char* l)
                     else if (words[0] == "lls") // local ls
                     {
                         unsigned recursive = words.size() > 1 && words[1] == "-R";
-                        std::string ls_folder = words.size() > recursive + 1 ? words[recursive + 1] : fs::current_path().string();
                         try
                         {
-                            fs::path p(ls_folder);
+                            fs::path ls_folder = words.size() > recursive + 1 ? fs::u8path(words[recursive + 1]) : fs::current_path();
                             std::error_code ec;
-                            auto s = fs::status(p, ec);
+                            auto s = fs::status(ls_folder, ec);
                             if (ec)
                             {
                                 cerr << ec.message() << endl;
                             }
-                            else if (!fs::exists(p))
+                            else if (!fs::exists(ls_folder))
                             {
                                 cerr << "not found" << endl;
                             }
                             else
                             {
-                                local_dumptree(p, recursive);
+                                local_dumptree(ls_folder, recursive);
                             }
                         }
                         catch (std::exception& e)
@@ -4582,7 +4582,40 @@ static void process_line(char* l)
                     break;
 
                 case 6:
-                    if (words[0] == "passwd")
+                    if (words[0] == "apiurl")
+                    {
+                        if (words.size() == 1)
+                        {
+                            cout << "Current APIURL = " << MegaClient::APIURL << endl;
+                            cout << "Current disablepkp = " << (MegaClient::disablepkp ? "true" : "false") << endl;
+                        }
+                        else if (client->loggedin() != NOTLOGGEDIN)
+                        {
+                            cout << "You must not be logged in, to change APIURL" << endl;
+                        }
+                        else if (words.size() == 3 || words.size() == 2)
+                        {
+                            if (words[1].size() < 8 || words[1].substr(0, 8) != "https://")
+                            {
+                                words[1] = "https://" + words[1];
+                            }
+                            if (words[1].empty() || words[1][words[1].size() - 1] != '/')
+                            {
+                                words[1] += '/';
+                            }
+                            MegaClient::APIURL = words[1];
+                            if (words.size() == 3)
+                            {
+                                MegaClient::disablepkp = words[2] == "true";
+                            }
+                        }
+                        else
+                        {
+                            cout << "apiurl [<url> [true|false]]" << endl;
+                        }
+                        return;
+                    }
+                    else if (words[0] == "passwd")
                     {
                         if (client->loggedin() != NOTLOGGEDIN)
                         {
@@ -5210,6 +5243,14 @@ static void process_line(char* l)
                             else if (words[1] == "new")
                             {
                                 shownew = true;
+                            }
+                            else if (words[1] == "test_reminder")
+                            {
+                                client->useralerts.add(new UserAlert::PaymentReminder(time(NULL) - 86000*3 /2, client->useralerts.nextId()));
+                            }
+                            else if (words[1] == "test_payment")
+                            {
+                                client->useralerts.add(new UserAlert::Payment(true, 1, time(NULL) + 86000 * 1, client->useralerts.nextId()));
                             }
                             else if (atoi(words[1].c_str()) > 0)
                             {
@@ -6810,6 +6851,10 @@ char** my_rl_completion(const char *text, int start, int end)
     //    cout << "i " << i << ": " << result[i] << endl;
     //}
     rl_completion_suppress_append = true;
+    rl_basic_word_break_characters = " \r\n";
+    rl_completer_word_break_characters = strdup(" \r\n");
+    rl_completer_quote_characters = "";
+    rl_special_prefixes = "";
     return result;
 }
 #endif

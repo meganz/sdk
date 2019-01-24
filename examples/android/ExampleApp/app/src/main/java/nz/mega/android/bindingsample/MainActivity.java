@@ -58,26 +58,6 @@ public class MainActivity extends Activity implements OnClickListener, MegaReque
 	
 	MegaApiAndroid megaApi;
 	
-	/*
-	 * Task to process email and password
-	 */
-	private class HashTask extends AsyncTask<String, Void, String[]> {
-
-		@Override
-		protected String[] doInBackground(String... args) {
-			String privateKey = megaApi.getBase64PwKey(args[1]);
-			String publicKey = megaApi.getStringHash(privateKey, args[0]);
-			return new String[]{new String(privateKey), new String(publicKey)}; 
-		}
-
-		
-		@Override
-		protected void onPostExecute(String[] key) {
-			onKeysGenerated(key[0], key[1]);
-		}
-
-	}
-	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		
@@ -128,9 +108,9 @@ public class MainActivity extends Activity implements OnClickListener, MegaReque
 		passwordText.setVisibility(View.GONE);
 		loginButton.setVisibility(View.GONE);
 		
-		title.setText(getResources().getString(R.string.generating_hash));
-		
-		new HashTask().execute(email, password);
+		title.setText(getResources().getString(R.string.logging_in));
+
+		megaApi.login(email, password, this);
 	}
 	
 	/*
@@ -176,13 +156,6 @@ public class MainActivity extends Activity implements OnClickListener, MegaReque
 			return getString(R.string.error_enter_password);
 		}
 		return null;
-	}
-	
-	private void onKeysGenerated(String privateKey, String publicKey) {
-		this.gPrivateKey = privateKey;
-		this.gPublicKey = publicKey;
-		
-		megaApi.fastLogin(email, publicKey, privateKey, this);
 	}
 
 	@Override

@@ -994,6 +994,11 @@ bool MegaTransfer::isFinished() const
     return false;
 }
 
+bool MegaTransfer::isBackupTransfer() const
+{
+    return false;
+}
+
 char *MegaTransfer::getLastBytes() const
 {
     return NULL;
@@ -1596,6 +1601,11 @@ void MegaApi::log(int logLevel, const char *message, const char *filename, int l
     MegaApiImpl::log(logLevel, message, filename, line);
 }
 
+void MegaApi::setLoggingName(const char* loggingName)
+{
+    pImpl->setLoggingName(loggingName);
+}
+
 long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();
@@ -1639,6 +1649,11 @@ char *MegaApi::userHandleToBase64(MegaHandle handle)
 void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener* listener)
 {
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
+}
+
+void MegaApi::setDnsServers(const char *dnsServers, MegaRequestListener *listener)
+{
+    pImpl->setDnsServers(dnsServers, listener);
 }
 
 bool MegaApi::serverSideRubbishBinAutopurgeEnabled()
@@ -2208,6 +2223,7 @@ void MegaApi::isMasterKeyExported(MegaRequestListener *listener)
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, 0, listener);
 }
 
+#ifdef ENABLE_CHAT
 void MegaApi::enableRichPreviews(bool enable, MegaRequestListener *listener)
 {
     pImpl->enableRichPreviews(enable, listener);
@@ -2228,6 +2244,17 @@ void MegaApi::setRichLinkWarningCounterValue(int value, MegaRequestListener *lis
     pImpl->setRichLinkWarningCounterValue(value, listener);
 }
 
+void MegaApi::enableGeolocation(MegaRequestListener *listener)
+{
+    pImpl->enableGeolocation(listener);
+}
+
+void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
+{
+    pImpl->isGeolocationEnabled(listener);
+}
+#endif
+
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
     pImpl->getRubbishBinAutopurgePeriod(listener);
@@ -2236,11 +2263,6 @@ void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener)
 {
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
-}
-
-void MegaApi::getStorageState(MegaRequestListener *listener)
-{
-    pImpl->getStorageState(listener);
 }
 
 void MegaApi::changePassword(const char *oldPassword, const char *newPassword, MegaRequestListener *listener)
@@ -2497,17 +2519,17 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, appData, false, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, false, listener);
 }
 
 void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, appData, isSourceTemporary, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, listener);
 }
 
 void MegaApi::startUploadWithTopPriority(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, appData, isSourceTemporary, listener);
+    pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, listener);
 }
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
@@ -2517,7 +2539,7 @@ void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, NULL, isSourceTemporary, listener);
+    pImpl->startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, isSourceTemporary, listener);
 }
 
 void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener)
@@ -2527,7 +2549,7 @@ void MegaApi::startUpload(const char* localPath, MegaNode* parent, const char* f
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, MegaTransferListener *listener)
 {
-    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, NULL, false, listener);
+    pImpl->startUpload(false, localPath, parent, fileName, mtime, 0, false, NULL, false, listener);
 }
 
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
@@ -2738,6 +2760,11 @@ bool MegaApi::isSynced(MegaNode *n)
 bool MegaApi::isSyncable(const char *path, long long size)
 {
     return pImpl->isSyncable(path, size);
+}
+
+bool MegaApi::isInsideSync(MegaNode *node)
+{
+    return pImpl->isInsideSync(node);
 }
 
 int MegaApi::isNodeSyncable(MegaNode *node)
@@ -5032,6 +5059,11 @@ long long MegaBackup::getMeanSpeed() const
 int64_t MegaBackup::getUpdateTime() const
 {
      return 0;
+}
+
+MegaTransferList *MegaBackup::getFailedTransfers()
+{
+    return NULL;
 }
 
 MegaAccountBalance::~MegaAccountBalance()
