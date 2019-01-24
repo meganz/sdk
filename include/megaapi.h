@@ -483,11 +483,11 @@ class MegaNode
          *
          * In the case where a file was modified before uploaded (eg. resized photo or gps coords removed),
          * it may have an original fingerprint set (by setOriginalFingerprint() or backgroundMediaUploadComplete()),
-         * which is the fingerprint of the file before it was  modified.  This can be useful on mobile devices 
+         * which is the fingerprint of the file before it was  modified.  This can be useful on mobile devices
          * to avoid uploading a file multiple times when only the original file is kept on the device.
          *
          * The MegaNode object retains the ownership of the returned string. It will
-         * be valid until the MegaNode object is deleted.  
+         * be valid until the MegaNode object is deleted.
          *
          * @return Base64-encoded original fingerprint of the node, or NULL it the node doesn't have an original fingerprint.
          */
@@ -537,28 +537,28 @@ class MegaNode
          * @return The number of seconds, or -1 if this attribute is not set.
          */
         virtual int getDuration();
-    
+
         /**
          * @brief Get the attribute of the node representing its width.
          *
          * @return The number of pixels for width, or -1 if this attribute is not set.
          */
         virtual int getWidth();
-    
+
         /**
          * @brief Get the attribute of the node representing its height.
          *
          * @return The number of pixels for height, or -1 if this attribute is not set.
          */
         virtual int getHeight();
-    
+
         /**
          * @brief Get the attribute of the node representing its shortformat.
          *
          * @return The shortformat, or -1 if this attribute is not set.
          */
         virtual int getShortformat();
-    
+
         /**
          * @brief Get the attribute of the node representing its videocodecid.
          *
@@ -1357,10 +1357,10 @@ class MegaUser
 
 
 /**
-* @brief Represents a user alert in MEGA.  
+* @brief Represents a user alert in MEGA.
 * Alerts are the notifictions appearing under the bell in the webclient
 *
-* Objects of this class aren't live, they are snapshots of the state 
+* Objects of this class aren't live, they are snapshots of the state
 * in MEGA when the object is created, they are immutable.
 *
 * MegaUserAlerts can be retrieved with MegaApi::getUserAlerts
@@ -1413,11 +1413,11 @@ public:
 
     /**
     * @brief Returns the id of the alert
-    * 
-    * The ids are assigned to alerts sequentially from program start, 
-    * however there may be gaps.   The id can be used to create an 
+    *
+    * The ids are assigned to alerts sequentially from program start,
+    * however there may be gaps.   The id can be used to create an
     * association with a UI element in order to process updates in callbacks.
-    * 
+    *
     * @return Type of alert associated with the object
     */
     virtual unsigned getId() const;
@@ -1570,7 +1570,7 @@ public:
     * The SDK retains the ownership of the returned value. It will be valid until
     * the MegaUserAlert object is deleted.
     *
-    * This value is currently only valid for 
+    * This value is currently only valid for
     *   TYPE_PAYMENT_SUCCEEDED   index 0: the plan name
     *   TYPE_PAYMENT_FAILED      index 0: the plan name
     *
@@ -3103,7 +3103,7 @@ class MegaRequest
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
          *
-         * This value is valid for requests relating to background uploads. The returned 
+         * This value is valid for requests relating to background uploads. The returned
          * pointer is to the relevant background upload object.
          *          *
          * @return Object with information about the contents of a folder
@@ -3211,7 +3211,7 @@ class MegaTransfer
             MOVE_TYPE_TOP,
             MOVE_TYPE_BOTTOM
         };
-        
+
         virtual ~MegaTransfer();
 
         /**
@@ -5763,7 +5763,7 @@ public:
      * @brief Extract mediainfo information about the photo or video.
      *
      * Call this function once with the file to be uploaded.  It uses mediainfo to extract information that will
-     * help the webclient show or play the file in various browsers.  The information is stored in this object 
+     * help the webclient show or play the file in various browsers.  The information is stored in this object
      * until the whole operation completes.
      *
      * @param inputFilepath The file to analyse with MediaInfo.
@@ -5779,22 +5779,22 @@ public:
      *
      * In order to save space on mobile devices, this function can be called in such a way that the last portion
      * of the file is encrypted (to a new file), and then that last portion of the file is removed by file truncation.
-     * That operation can be repeated until the file is completely encrypted, and only the encrypted version remains, 
+     * That operation can be repeated until the file is completely encrypted, and only the encrypted version remains,
      * and takes up the same amount of space on the device.   The size of the portions must first be calculated by using
      * the 'adjustsizeonly' parameter, and iterating from the start of the file, specifying the approximate sizes of the portions.
      *
      * Encryption is done by reading small pieces of the file, encrypting them, and outputting to the new file,
      * so that RAM usage is not excessive.
      *
-     * @param inputFilepath The file to encrypt a portion of (and the one that is ultimately being uploaded).  
+     * @param inputFilepath The file to encrypt a portion of (and the one that is ultimately being uploaded).
      * @param startPos The index of the first byte of the file to encrypt
-     * @param length The number of bytes of the file to encrypt.  The function will round this value up by up to 1MB to fit the 
+     * @param length The number of bytes of the file to encrypt.  The function will round this value up by up to 1MB to fit the
      *        MEGA internal chunking algorithm.  The number of bytes acutally encrypted and stored in the new file is the updated number.
      * @param outputFilepath The name of the new file to create, and store the encrypted data in.
-     * @param urlSuffix The function will update the string passed in.  The content of the string must be appended to the URL 
+     * @param urlSuffix The function will update the string passed in.  The content of the string must be appended to the URL
      *        when this portion is uploaded.
      * @param adjustsizeonly If this is set true, then encryption is not performed, and only the length parameter is adjusted.
-     *        This feature is to enable precalculating the exact sizes of the file portions for upload. 
+     *        This feature is to enable precalculating the exact sizes of the file portions for upload.
      */
     virtual bool encryptFile(const char* inputFilepath, int64_t startPos, unsigned int* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly);
 
@@ -6857,7 +6857,7 @@ class MegaApi
          *
          * @param email Email for the account
          * @param name Firstname of the user
-         * @param password Password for the account         
+         * @param password Password for the account
          * @param listener MegaRequestListener to track this request
          */
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
@@ -7287,7 +7287,7 @@ class MegaApi
         void setPSA(int id, MegaRequestListener *listener = NULL);
 
         /**
-        * @brief Command to acknowledge user alerts.  
+        * @brief Command to acknowledge user alerts.
         *
         * Other clients will be notified that alerts to this point have been seen.
         *
@@ -7453,9 +7453,9 @@ class MegaApi
         /**
          * @brief Differentiate MegaApi log output from different instances.
          *
-         * If multiple MegaApi instances are used in a single application, it can be useful to 
+         * If multiple MegaApi instances are used in a single application, it can be useful to
          * distinguish their activity in the log.  Setting a name here for this instance will
-         * cause some particularly relevant log lines to contain it.  
+         * cause some particularly relevant log lines to contain it.
          * A very short name is best to avoid increasing the log size too much.
          *
          * @param loggingName Name of this instance, to be output in log messages from this MegaApi
@@ -7659,7 +7659,7 @@ class MegaApi
         * - MegaRequest::getEmail - Returns the email of the user that receives the node
         *
         * @param node Node to send
-        * @param email Email of the user that receives the node        
+        * @param email Email of the user that receives the node
         * @param listener MegaRequestListener to track this request
         */
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
@@ -8327,7 +8327,7 @@ class MegaApi
          *
          * To remove the existing coordinates, set both the latitude and longitude to
          * the value MegaNode::INVALID_COORDINATE.
-         * 
+         *
          * The 'unshareable' variant of this function stores the coordinates with an extra
          * layer of encryption which only this user can decrypt, so that even if this node is shared
          * with others, they cannot read the coordinates.
@@ -9633,16 +9633,16 @@ class MegaApi
         void pauseTransferByTag(int transferTag, bool pause, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief Enable the resumption of transfers 
+         * @brief Enable the resumption of transfers
          *
          * This function enables the cache of transfers, so they can be resumed later.
          * Additionally, if a previous cache already exists (from previous executions),
          * then this function also resumes the existing cached transfers.
-         * 
+         *
          * @note Cached uploads expire after 24 hours since the last time they were active.
          * @note Cached transfers related to files that have been modified since they were
          * added to the cache are discarded, since the file has changed.
-         * 
+         *
          * A log in or a log out automatically disables this feature.
          *
          * When the MegaApi object is logged in, the cache of transfers is identified
@@ -11035,7 +11035,7 @@ class MegaApi
         *
         * You take the ownership of the returned value
         *
-        * @return List of MegaUserAlert objects 
+        * @return List of MegaUserAlert objects
         */
         MegaUserAlertList* getUserAlerts();
 
@@ -11314,11 +11314,11 @@ class MegaApi
         /**
          * @brief Returns nodes that have an originalFingerprint equal to the supplied value
          *
-         * Search the node tree and return a list of nodes that have an originalFingerprint, which 
-         * matches the supplied originalfingerprint.  
+         * Search the node tree and return a list of nodes that have an originalFingerprint, which
+         * matches the supplied originalfingerprint.
          *
          * If the parent node supplied is not NULL, it only searches nodes below that parent,
-         * otherwise all nodes are searched. If no nodes are found with that original fingerprint, 
+         * otherwise all nodes are searched. If no nodes are found with that original fingerprint,
          * this function returns an empty MegaNodeList.
          *
          * You take the ownership of the returned value.
@@ -11370,7 +11370,7 @@ class MegaApi
          * @return Base64-encoded CRC of the file
          */
         char* getCRC(const char *filePath);
-    
+
         /**
          * @brief Get the CRC from a fingerprint
          *
@@ -11872,7 +11872,7 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the IP of the hostname. 
+         * - MegaRequest::getText - Returns the IP of the hostname.
          * IPv6 addresses are returned between brackets
          *
          * @param hostname Hostname to resolve
@@ -12230,8 +12230,8 @@ class MegaApi
          * Call ensureMediaInfo() first in order prepare the library to attach file attributes
          * that enable videos to be identified and played in the web browser.
          *
-         * @return A pointer to an object that keeps some needed state through the process of 
-         *         uploading a media file via iOS low power background uploads (or similar).   
+         * @return A pointer to an object that keeps some needed state through the process of
+         *         uploading a media file via iOS low power background uploads (or similar).
          *         Caller takes ownership of the object.
          */
         MegaBackgroundMediaUpload* backgroundMediaUploadNew();
@@ -12251,11 +12251,11 @@ class MegaApi
         MegaBackgroundMediaUpload* backgroundMediaUploadResume(const std::string* serialised);
 
         /**
-         * @brief Request the URL suitable for uploading a media file. 
+         * @brief Request the URL suitable for uploading a media file.
          *
          * This function requests the URL needed for uploading the file.  The URL will need the urlSuffix
          * from the MegaBackgroundMediaUpload::encryptFile to be appended before actually sending.
-         * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_GET_BACKGROUND_UPLOAD_URL.  
+         * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_GET_BACKGROUND_UPLOAD_URL.
          * Provided the error code is API_OK, the URL is available in the MegaBackgroundMediaUpload via its getUploadURL().
          *
          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
@@ -12272,26 +12272,26 @@ class MegaApi
          * @brief Create the node after completing the background upload of the file.
          *
          * Call this function after completing the background upload of all the file data
-         * The node representing the file will be created in the cloud, with all the suitable 
-         * attributes and file attributes attached. 
+         * The node representing the file will be created in the cloud, with all the suitable
+         * attributes and file attributes attached.
          * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_COMPLETE_BACKGROUND_UPLOAD.
          *
          * @param state The MegaBackgroundMediaUpload object tracking this upload
          * @param utf8Name The leaf name of the file, utf-8 encoded
          * @param parent The folder node under which this new file should appear
          * @param fingerprint  The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
-         * @param fingerprintoriginal If the file uploaded is modified from the original, 
+         * @param fingerprintoriginal If the file uploaded is modified from the original,
          *        pass the fingerprint of the original file here, otherwise NULL.
          * @param binaryUploadToken The N binary bytes of the token returned from the file upload (of the last portion). N=36 currently.
          * @param listener The MegaRequestListener to be called back with the result
          */
-        bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, 
+        bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent,
             const char* fingerprint, const char* fingerprintoriginal, std::string* binaryUploadToken, MegaRequestListener *listener);
 
         /**
          * @brief Call this to enable the library to attach media info attributes
-         * 
-         * Those attributes enable the web browser to know a file is a video, and 
+         *
+         * Those attributes enable the web browser to know a file is a video, and
          * play it with the correct codec.
          *
          * @return True if the library is ready, otherwise the request for media translation
@@ -12310,11 +12310,11 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the node 
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
          * - MegaRequest::getText - Returns the specified fingerprint
          * - MegaRequest::getFlag - Returns true (official attribute)
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_ORIGINALFINGERPRINT
-         * 
+         *
          * @param node   The node to attach the originalFingerprint to.
          * @param originalFingerprint  The fingerprint of the file before modification
          * @param listener The MegaRequestListener to be called back with the result.
@@ -12710,7 +12710,7 @@ class MegaApi
          * @brief Stops serving a node via webdav.
          * The webdav link will no longer be valid.
          *
-         * @param handle Handle of the node to stop serving         
+         * @param handle Handle of the node to stop serving
          */
         void httpServerRemoveWebDavAllowedNode(MegaHandle handle);
 
@@ -13061,7 +13061,7 @@ class MegaApi
         int ftpServerGetMaxOutputSize();
 
 #endif
-    
+
         /**
          * @brief Get the MIME type associated with the extension
          *
@@ -13756,7 +13756,7 @@ public:
     bool checkSignature(const char *base64Signature);
 
 private:
-	MegaHashSignatureImpl *pImpl;    
+	MegaHashSignatureImpl *pImpl;
 };
 
 /**
@@ -14533,49 +14533,49 @@ public:
      * @return Number of active rewards
      */
     virtual int getRewardsCount();
-    
+
     /**
      * @brief Get the id of the award associated with the reward
      * @param index Position of the reward in the list of active rewards
      * @return The id of the award associated with the reward
      */
     virtual int getRewardAwardId(unsigned int index);
-    
+
     /**
      * @brief Get the storage rewarded by the award
      * @param index Position of the reward in the list of active rewards
      * @return The storage rewarded by the award
      */
     virtual long long getRewardStorage(unsigned int index);
-    
+
     /**
      * @brief Get the transfer quota rewarded by the award
      * @param index Position of the reward in the list of active rewards
      * @return The transfer quota rewarded by the award
      */
     virtual long long getRewardTransfer(unsigned int index);
-    
+
     /**
      * @brief Get the storage rewarded by the award_id
      * @param award_id The id of the award
      * @return The storage rewarded by the award_id
      */
     virtual long long getRewardStorageByAwardId(int award_id);
-    
+
     /**
      * @brief Get the transfer rewarded by the award_id
      * @param award_id The id of the award
      * @return The transfer rewarded by the award_id
      */
     virtual long long getRewardTransferByAwardId(int award_id);
-    
+
     /**
      * @brief Get the duration of the reward
      * @param index Position of the reward in the list of active rewards
      * @return The duration of the reward, in days
      */
     virtual int getRewardExpire(unsigned int index);
-    
+
     /**
      * @brief Creates a copy of this MegaAchievementsDetails object.
      *
