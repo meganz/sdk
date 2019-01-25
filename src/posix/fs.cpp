@@ -670,7 +670,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 if (in->mask & (IN_CREATE | IN_DELETE | IN_MOVED_FROM
                               | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
                 {
-                    if ((in->mask & (IN_CREATE | IN_ISDIR)) != IN_CREATE)
+                    if (true || (in->mask & (IN_CREATE | IN_ISDIR)) != IN_CREATE)
                     {
                         it = wdnodes.find(in->wd);
 
