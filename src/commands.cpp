@@ -6787,7 +6787,7 @@ CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, con
 
     if (isverificationcode(verificationcode))
     {
-        arg("n", verificationcode.c_str());
+        arg("c", verificationcode.c_str());
     }
 
     tag = client->reqtag;
