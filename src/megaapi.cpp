@@ -5783,6 +5783,11 @@ bool MegaPushNotificationSettings::isSharesEnabled() const
     return false;
 }
 
+bool MegaPushNotificationSettings::isChatsEnabled() const
+{
+    return false;
+}
+
 void MegaPushNotificationSettings::enableGlobal(bool /*enable*/)
 {
 
@@ -5829,6 +5834,11 @@ void MegaPushNotificationSettings::enableContacts(bool /*enable*/)
 }
 
 void MegaPushNotificationSettings::enableShares(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableChats(bool /*enable*/)
 {
 
 }

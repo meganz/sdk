@@ -3864,6 +3864,12 @@ public:
     virtual bool isSharesEnabled() const;
 
     /**
+     * @brief Returns whether notifications about chats are enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isChatsEnabled() const;
+
+    /**
      * @brief Enable or disable notifications globally
      *
      * If notifications are globally disabled, the DND global setting will be
@@ -3970,7 +3976,11 @@ public:
      */
     virtual void enableShares(bool enable);
 
-
+    /**
+     * @brief Enable or disable notifications related to all chats
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableChats(bool enable);
 
 protected:
     MegaPushNotificationSettings();
@@ -13757,23 +13767,24 @@ class MegaApi
         void chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Returns if system has to create a notification for chat event
+         * @brief Returns whether notifications about a chat have to be generated
          *
          * @param chatid MegaHandle that identifies the chat room
          * @return true if notification has to be created
          */
         bool isChatNotificable(MegaHandle chatid);
+
 #endif
 
         /**
-         * @brief Returns if system has to create a notification for an event from incoming shares
+         * @brief Returns whether notifications about incoming shares have to be generated
          *
          * @return true if notification has to be created
          */
         bool isSharesNotifiable();
 
         /**
-         * @brief Returns if system has to create a notification for a new pending contact request
+         * @brief Returns whether notifications about pending contact requests have to be generated
          *
          * @return true if notification has to be created
          */

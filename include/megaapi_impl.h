@@ -845,11 +845,10 @@ private:
 
     m_time_t mContactsDND = -1;      // defaults to -1 if not defined
     m_time_t mSharesDND = -1;        // defaults to -1 if not defined
+    m_time_t mGlobalChatsDND = -1;        // defaults to -1 if not defined
 
     std::string getGlobalSetting() const;
     std::string getChatsSetting() const;
-    std::string getContactSetting() const;
-    std::string getSharesSetting() const;
 
 public:
 
@@ -870,6 +869,7 @@ public:
 
     virtual bool isContactsEnabled() const;
     virtual bool isSharesEnabled() const;
+    virtual bool isChatsEnabled() const;
 
     // setters
 
@@ -885,6 +885,7 @@ public:
 
     virtual void enableContacts(bool enable);
     virtual void enableShares(bool enable);
+    virtual void enableChats(bool enable);
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest

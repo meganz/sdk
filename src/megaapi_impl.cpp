@@ -9204,7 +9204,7 @@ bool MegaApiImpl::isChatNotificable(MegaHandle chatid)
             return true;
         }
 
-        return (mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable());
+        return (mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && isChatsNotificable());
     }
 
     return true;
@@ -29706,9 +29706,17 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const s
             assert(subname == "dnd");
             mSharesDND = jsonShareds.getint();
         }
+        else if (name == "CHAT")
+        {
+            JSON jsonChats;
+            jsonChats.begin(globalObject.c_str() + 1);
+            std::string subname = jsonChats.getname();
+            assert(subname == "dnd");
+            mGlobalChatsDND = jsonChats.getint();
+        }
         else
         {
-            int base64Size = MegaClient::CHATHANDLE * 4 / 3 + 4;
+            unsigned int base64Size = MegaClient::CHATHANDLE * 4 / 3 + 4;
             assert(name.length() != base64Size);
             MegaHandle chatid;
             Base64::atob(name.c_str(), (byte*)&chatid, base64Size);
@@ -29747,6 +29755,7 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate()
     mGlobalScheduleEnd = -1;
     mContactsDND = -1;
     mSharesDND = -1;
+    mGlobalChatsDND = -1;
 }
 
 MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings)
@@ -29759,6 +29768,7 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const M
     mChatAlwaysNotify = settings->mChatAlwaysNotify;
     mContactsDND = settings->mContactsDND;
     mSharesDND = settings->mSharesDND;
+    mGlobalChatsDND = settings->mGlobalChatsDND;
 }
 
 string MegaPushNotificationSettingsPrivate::generateJson() const
@@ -29783,7 +29793,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
             json.append(",");
         }
 
-        json.append(getContactSetting());
+        json.append("\"PCR\":{\"dnd\":").append(std::to_string(mContactsDND)).append("}");
     }
 
     if (mSharesDND > -1)
@@ -29793,8 +29803,19 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
             json.append(",");
         }
 
-        json.append(getSharesSetting());
+        json.append("\"INSHARE\":{\"dnd\":").append(std::to_string(mSharesDND)).append("}");
     }
+
+    if (mGlobalChatsDND > -1)
+    {
+        if (json != "{")
+        {
+            json.append(",");
+        }
+
+        json.append("\"CHAT\":{\"dnd\":").append(std::to_string(mGlobalChatsDND)).append("}");
+    }
+
 
     if (!mChatDND.empty() || !mChatAlwaysNotify.empty())
     {
@@ -29871,7 +29892,7 @@ int64_t MegaPushNotificationSettingsPrivate::getChatDnd(MegaHandle chatid) const
         return it->second;
     }
 
-    return 0;
+    return -1;
 }
 
 bool MegaPushNotificationSettingsPrivate::isChatAlwaysNotifyEnabled(MegaHandle chatid) const
@@ -29888,6 +29909,11 @@ bool MegaPushNotificationSettingsPrivate::isContactsEnabled() const
 bool MegaPushNotificationSettingsPrivate::isSharesEnabled() const
 {
     return (mSharesDND == -1 && mGlobalDND < m_time(NULL));
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatsEnabled() const
+{
+    return (mGlobalChatsDND == -1 && mGlobalDND < m_time(NULL));
 }
 
 MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
@@ -29971,20 +29997,6 @@ std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
 
     delete []chatid;
     return chats;
-}
-
-std::string MegaPushNotificationSettingsPrivate::getContactSetting() const
-{
-    std::string contacts = "\"PCR\":{\"dnd\":";
-    contacts.append(std::to_string(mContactsDND)).append("}");
-    return contacts;
-}
-
-std::string MegaPushNotificationSettingsPrivate::getSharesSetting() const
-{
-    std::string shares = "\"INSHARE\":{\"dnd\":";
-    shares.append(std::to_string(mSharesDND)).append("}");
-    return shares;
 }
 
 void MegaPushNotificationSettingsPrivate::enableGlobal(bool enable)
@@ -30097,5 +30109,9 @@ void MegaPushNotificationSettingsPrivate::enableShares(bool enable)
     mSharesDND = enable ? -1 : 0;
 }
 
+void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
+{
+    mGlobalChatsDND = enable ? -1 : 0;
+}
 
 }
