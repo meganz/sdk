@@ -9204,7 +9204,7 @@ bool MegaApiImpl::isChatNotificable(MegaHandle chatid)
             return true;
         }
 
-        return (mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && isChatsNotificable());
+        return (mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && mPushSettings->isChatsEnabled());
     }
 
     return true;
