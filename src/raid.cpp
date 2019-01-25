@@ -23,9 +23,57 @@
 
 #include "mega/transfer.h" 
 #include "mega/testhooks.h" 
+#include "mega.h" // for thread definitions
 
 namespace mega
 {
+    struct FaultyURLs
+    {
+        // Records URLs that had recent problems, so we can start the next raid download with URLs that can work first try.
+        // In particular this is useful when one server in a raid set is unavailable for an extended period
+        // This class may be shared amongst many megaclients, so thread safety is needed
+        typedef map<string, m_time_t> Map;
+        Map recentFails;
+        MUTEX_CLASS m;
+
+        FaultyURLs()
+        {
+            m.init(false);
+        }
+
+        void add(const string& url)
+        {
+            MutexGuard g(m);
+            recentFails[url] = m_time();
+        }
+
+        unsigned selectWorstServer(vector<string> urls)
+        {
+            MutexGuard g(m);
+            m_time_t now = m_time();
+            m_time_t worsttime = now - 10 * 3600;
+            unsigned worstindex = rand() % RAIDPARTS;
+            for (unsigned i = urls.size(); i--; )
+            {
+                Map::iterator j = recentFails.find(urls[i]);
+                if (j != recentFails.end() && j->second > worsttime)
+                {
+                    worstindex = i;
+                    worsttime = j->second;
+                }
+            }
+            bool cleanup = false;
+            for (Map::iterator j = recentFails.begin(); j != recentFails.end(); cleanup ? (j = recentFails.erase(j)) : ++j)
+            {
+                cleanup = j->second < (now - 3600);
+            }
+            return worstindex;
+        }
+
+    };
+
+    FaultyURLs g_faultyURLs;
+
 
     RaidBufferManager::FilePiece::FilePiece() 
         : pos(0)
@@ -58,7 +106,6 @@ namespace mega
     RaidBufferManager::RaidBufferManager()
         : is_raid(false)
         , raidKnown(false)
-        , useOnlyFiveRaidConnections(false)
         , unusedRaidConnection(0)
         , raidpartspos(0)
         , outputfilepos(0)
@@ -136,12 +183,7 @@ namespace mega
             raidLinesPerChunk = std::min<unsigned>(raidLinesPerChunk, 64 * 1024);
             raidLinesPerChunk = std::max<unsigned>(raidLinesPerChunk, 8 * 1024);
 
-            //If we can get the whole file (or requested part) with just 5 requests then do that to avoid latency of subsequent http requests
-            if ((readtopos - resumepos) / (RAIDPARTS - 1) <= RaidMaxChunksPerRead * raidLinesPerChunk * RAIDSECTOR)
-            {
-                useOnlyFiveRaidConnections = true;
-                unusedRaidConnection = rand() % RAIDPARTS;
-            }
+            unusedRaidConnection = g_faultyURLs.selectWorstServer(tempurls);
         }
 
         DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(this)
@@ -303,64 +345,12 @@ namespace mega
                 connectionPaused[connectionNum] = false;
             }
 
-            // if we were in 6 connection mode, and had to switch to 5 connection due to a failure/timeout, check if there is an already downloaded piece we can use
-            std::map<m_off_t, FilePiece*>::iterator recovery_it = raidinputparts_recovery[connectionNum].begin();
-            if (recovery_it != raidinputparts_recovery[connectionNum].end())
+            m_off_t npos = std::min<m_off_t>(curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead, maxpos);
+            if (unusedRaidConnection == connectionNum && npos > curpos)
             {
-                assert(recovery_it->second->pos >= curpos);
-                if (recovery_it->second->pos == curpos)
-                {
-                    // use previously received piece that was beyond a skip point
-                    newInputBufferSupplied = true;
-                    m_off_t npos = recovery_it->second->pos + recovery_it->second->buf.datalen();
-                    submitBuffer(connectionNum, recovery_it->second);
-                    raidinputparts_recovery[connectionNum].erase(recovery_it);
-                    transferPos(connectionNum) = npos;
-                    return std::make_pair(curpos, npos);
-                }
-                else if (recovery_it->second->pos > curpos)
-                {
-                    // only allow downloading new data up to an existing downloaded piece
-                    maxpos = recovery_it->second->pos;  
-                }
-            }
-
-            m_off_t npos;
-            if (useOnlyFiveRaidConnections)
-            {
-                // 5 connection mode.  Either download the next large piece, or put a NULL buffer with similar offsets into the mechanism
-                npos = std::min<m_off_t>(curpos + raidLinesPerChunk * RAIDSECTOR * RaidMaxChunksPerRead, maxpos);
-                if (unusedRaidConnection == connectionNum && npos > curpos)
-                {
-                    submitBuffer(connectionNum, new RaidBufferManager::FilePiece(curpos, new HttpReq::http_buf_t(NULL, 0, size_t(npos - curpos))));
-                    transferPos(connectionNum) = npos;
-                    newInputBufferSupplied = true;
-                }
-            }
-            else
-            {
-                // 6 connection mode.  Figure out where the next piece to skip for this connection is, and load up to that. 
-                // If we're at a skip point, put a NULL buffer with those offsets into the mechanism
-                m_off_t skipPointBlockPos = curpos - (curpos % (raidLinesPerChunk * RAIDSECTOR * RAIDPARTS));
-                m_off_t skipPoint = skipPointBlockPos + connectionNum * raidLinesPerChunk * RAIDSECTOR;
-                if (curpos < skipPoint)
-                {
-                    npos = skipPoint;
-                }
-                else if (curpos < skipPoint + raidLinesPerChunk * RAIDSECTOR)
-                {
-                    npos = std::min<m_off_t>(skipPoint + raidLinesPerChunk * RAIDSECTOR, maxpos);
-                    if (npos > curpos)
-                    {
-                        submitBuffer(connectionNum, new RaidBufferManager::FilePiece(curpos, new HttpReq::http_buf_t(NULL, 0, size_t(npos - curpos))));
-                        transferPos(connectionNum) = npos;
-                        newInputBufferSupplied = true;
-                    }
-                }
-                else
-                {
-                    npos = skipPoint + raidLinesPerChunk * RAIDSECTOR * std::min<unsigned>(RAIDPARTS, RaidMaxChunksPerRead + 1);
-                }
+                submitBuffer(connectionNum, new RaidBufferManager::FilePiece(curpos, new HttpReq::http_buf_t(NULL, 0, size_t(npos - curpos))));
+                transferPos(connectionNum) = npos;
+                newInputBufferSupplied = true;
             }
             return std::make_pair(curpos, std::min<m_off_t>(npos, maxpos));
         }
@@ -668,70 +658,27 @@ namespace mega
         {
             raidHttpGetErrorCount[errorConnectionNum] += 1;
 
+            g_faultyURLs.add(tempurls[unusedRaidConnection]);
+
             unsigned errorSum = 0;
             for (unsigned i = RAIDPARTS; i--; )
             {
                 errorSum += raidHttpGetErrorCount[i];
             }
 
-            if (errorSum >= 3)
+            if (errorSum < 3)
             {
-                return false;
-            }
+                LOG_warn << "5 connection cloudraid shutting down connection " << errorConnectionNum << " due to error, and starting " << unusedRaidConnection << " instead";
 
-            // try to switch to 5 connection raid, or a different 5 connections
-            if (useOnlyFiveRaidConnections)
-            {
-                if (tempurls[unusedRaidConnection].empty())
-                {
-                    LOG_warn << "Only 5 URLs were available for Raid, failing";
-                    return false;
-                }
-                else
-                {
-                    LOG_warn << "5 connection cloudraid shutting down connection " << errorConnectionNum << " due to error, and starting " << unusedRaidConnection << " instead";
+                // start up the old unused connection, and cancel this one.  Other connections all have real data since we were already in 5 connection mode
+                clearOwningFilePieces(raidinputparts[unusedRaidConnection]);
+                clearOwningFilePieces(raidinputparts[errorConnectionNum]);
+                clearOwningFilePieces(raidinputparts_recovery[unusedRaidConnection]);
+                clearOwningFilePieces(raidinputparts_recovery[errorConnectionNum]);
+                raidrequestpartpos[unusedRaidConnection] = raidpartspos;
+                raidrequestpartpos[errorConnectionNum] = raidpartspos;
 
-                    // start up the old unused connection, and cancel this one.  Other connections all have real data since we were already in 5 connection mode
-                    clearOwningFilePieces(raidinputparts[unusedRaidConnection]);
-                    clearOwningFilePieces(raidinputparts[errorConnectionNum]);
-                    clearOwningFilePieces(raidinputparts_recovery[unusedRaidConnection]);
-                    clearOwningFilePieces(raidinputparts_recovery[errorConnectionNum]);
-                    raidrequestpartpos[unusedRaidConnection] = raidpartspos;
-                    raidrequestpartpos[errorConnectionNum] = raidpartspos;
-
-                    unusedRaidConnection = errorConnectionNum;
-                    return true;
-                }
-            }
-            else
-            {
-                // running in 6 connection mode. switch to 5 connection, while keeping already downloaded input buffers (including thosein progress), discarding and re-requesting skipped sections.
-                LOG_warn << "6 connection cloudraid shutting down connection " << errorConnectionNum << " due to error";
-
-                useOnlyFiveRaidConnections = true;
                 unusedRaidConnection = errorConnectionNum;
-                for (unsigned j = RAIDPARTS; j--; )
-                {
-                    raidrequestpartpos[j] = raidpartspos;
-                    std::deque<FilePiece*> fixedraidinputparts;
-                    for (std::deque<FilePiece*>::iterator i = raidinputparts[j].begin(); i != raidinputparts[j].end(); ++i)
-                    {
-                        if ((*i)->buf.isNull())
-                        {
-                            delete *i;
-                        }
-                        else if ((*i)->pos == raidrequestpartpos[j])
-                        {
-                            fixedraidinputparts.push_back(*i);
-                            raidrequestpartpos[j] += (*i)->buf.datalen();
-                        }
-                        else
-                        {
-                            raidinputparts_recovery[j][(*i)->pos] = *i;
-                        }
-                    }
-                    raidinputparts[j].swap(fixedraidinputparts);
-                }
                 return true;
             }
         }
@@ -740,15 +687,15 @@ namespace mega
 
     bool RaidBufferManager::connectionRaidPeersAreAllPaused(unsigned slowConnection)
     {
-        if (!isRaid() || useOnlyFiveRaidConnections)
+        if (!isRaid())
         {
             return false;
         }
 
-        // see if one connection is stalled or running much slower than the others, in which case try 5 channel mode instead
+        // see if one connection is stalled or running much slower than the others, in which case try the other 5 instead
         for (unsigned j = RAIDPARTS; j--; )
         {
-            if (j != slowConnection && !connectionPaused[j])
+            if (j != slowConnection && j != unusedRaidConnection && !connectionPaused[j])
             {
                 return false;
             }

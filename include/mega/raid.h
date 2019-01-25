@@ -113,10 +113,7 @@ namespace mega {
         // controls buffer sizes used
         unsigned raidLinesPerChunk;
 
-        // If one connection has an error then we can continue with just 5, or if a file is small then 5 connections can be quicker due sending fewer requests per connection
-        bool useOnlyFiveRaidConnections;
-        
-        // only if useOnlyFiveRaidConnections==true
+        // of the six raid URLs, which 5 are we downloading from
         unsigned unusedRaidConnection;
 
         // storage server access URLs.  It either has 6 entries for a raid file, or 1 entry for a non-raid file, or empty if we have not looked up a tempurl yet.
