@@ -3237,6 +3237,7 @@ void CommandGetUserData::procresult()
     bool nsre = false;
     bool aplvp = false;
     int  smsve = -1;
+    string smsv;
 
     if (client->json.isnumeric())
     {
@@ -3322,6 +3323,13 @@ void CommandGetUserData::procresult()
             }
             break;
 
+        case MAKENAMEID4('s', 'm', 's', 'v'):
+            if (!client->json.storeobject(&smsv))
+            {
+                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+            }
+            break;
+
         case EOO:            
             if (v)
             {
@@ -3339,6 +3347,7 @@ void CommandGetUserData::procresult()
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
             client->smsve_state = smsve;
+            client->sms_verifiedphone = smsv;
             client->k = k;
             if (len_privk)
             {
@@ -6744,13 +6753,18 @@ void CommandSetLastAcknowledged::procresult()
     }
 };
 
-CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phonenumber)
+CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phonenumber, bool reverifying_whitelisted)
 {
     cmd("smss");
 
     if (isphonenumber(phonenumber))
     {
         arg("n", phonenumber.c_str());
+    }
+
+    if (reverifying_whitelisted)
+    {
+        arg("to", 1);
     }
 
     tag = client->reqtag;

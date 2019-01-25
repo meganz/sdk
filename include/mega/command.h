@@ -1092,7 +1092,7 @@ public:
     // don't request if it's definitely not a phone number
     static bool isphonenumber(const string& s); 
 
-    CommandSMSVerificationSend(MegaClient*, const string& phonenumber);
+    CommandSMSVerificationSend(MegaClient*, const string& phonenumber, bool reverifying_whitelisted = false);
 };
 
 class MEGA_API CommandSMSVerificationCheck : public Command

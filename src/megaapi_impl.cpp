@@ -5142,6 +5142,12 @@ int MegaApiImpl::smsAllowedState()
     return (client->smsve_state < 1 || client->smsve_state > 2) ? 0 : client->smsve_state;
 }
 
+char* MegaApiImpl::smsVerifiedPhoneNumber()
+{
+    MutexGuard g(sdkMutex);
+    return client->sms_verifiedphone.empty() ? NULL : MegaApi::strdup(client->sms_verifiedphone.c_str());
+}
+
 bool MegaApiImpl::multiFactorAuthAvailable()
 {
     return client->gmfa_enabled;
@@ -9126,10 +9132,11 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener)
+void MegaApiImpl::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE, listener);
     request->setText(phoneNumber);
+    request->setFlag(reverifying_whitelisted);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -19820,9 +19827,10 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE:
         {
             string phoneNumber = request->getText();
+            bool reverifying_whitelisted = request->getFlag();
             if (CommandSMSVerificationSend::isphonenumber(phoneNumber))
             {
-                client->reqs.add(new CommandSMSVerificationSend(client, phoneNumber));
+                client->reqs.add(new CommandSMSVerificationSend(client, phoneNumber, reverifying_whitelisted));
             }
             else
             {

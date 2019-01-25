@@ -1671,6 +1671,11 @@ int MegaApi::smsAllowedState()
     return pImpl->smsAllowedState();
 }
 
+char* MegaApi::smsVerifiedPhoneNumber()
+{
+    return pImpl->smsVerifiedPhoneNumber();
+}
+
 bool MegaApi::multiFactorAuthAvailable()
 {
     return pImpl->multiFactorAuthAvailable();
@@ -3528,9 +3533,9 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
     pImpl->getMegaAchievements(listener);
 }
 
-void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener)
+void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
 {
-    pImpl->sendSMSVerificationCode(phoneNumber, listener);
+    pImpl->sendSMSVerificationCode(phoneNumber, listener, reverifying_whitelisted);
 }
 
 void MegaApi::checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener)

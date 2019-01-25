@@ -6299,6 +6299,18 @@ class MegaApi
         int smsAllowedState();
 
         /**
+         * @brief Check if the opt-in or account unblocking SMS is allowed
+         *
+         * Returns the phone number previously confirmed with sendSMSVerificationCode()
+         * and checkSMSVerificationCode().
+         *
+         * You take the ownership of the returned value.
+         * 
+         * @return NULL if there no verified number, otherwise a string containing that phone number.
+         */
+        char* smsVerifiedPhoneNumber();
+
+        /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
          * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
@@ -13501,7 +13513,7 @@ class MegaApi
          *
          * @param listener MegaRequestListener to track this request
          */
-        void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL);
+        void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
 
         /**
          * @brief Check a verification code that the user should have received via txt
