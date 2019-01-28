@@ -19831,6 +19831,10 @@ void MegaApiImpl::sendPendingRequests()
             if (CommandSMSVerificationSend::isphonenumber(phoneNumber))
             {
                 client->reqs.add(new CommandSMSVerificationSend(client, phoneNumber, reverifying_whitelisted));
+                if (reverifying_whitelisted)
+                {
+                    client->reqs.add(new CommandGetUserData(client));
+                }
             }
             else
             {
@@ -19844,6 +19848,7 @@ void MegaApiImpl::sendPendingRequests()
             if (CommandSMSVerificationCheck::isverificationcode(code))
             {
                 client->reqs.add(new CommandSMSVerificationCheck(client, code));
+                client->reqs.add(new CommandGetUserData(client));
             }
             else
             {
