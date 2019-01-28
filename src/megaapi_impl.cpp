@@ -30037,9 +30037,19 @@ void MegaPushNotificationSettingsPrivate::setGlobalSchedule(int start, int end, 
         return;
     }
 
-    mGlobalScheduleStart = start;
-    mGlobalScheduleEnd = end;
-    mGlobalScheduleTimezone.assign(timezone);
+    if (start == end)
+    {
+        mGlobalScheduleStart = -1;
+        mGlobalScheduleEnd = -1;
+        mGlobalScheduleTimezone.assign("");
+    }
+    else
+    {
+        mGlobalScheduleStart = start;
+        mGlobalScheduleEnd = end;
+        mGlobalScheduleTimezone.assign(timezone);
+    }
+
 }
 
 void MegaPushNotificationSettingsPrivate::disableGlobalSchedule()
