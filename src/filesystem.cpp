@@ -172,7 +172,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
         for (notify_deque::reverse_iterator it = notifyq[q].rbegin();
              it != notifyq[q].rend(); ++it )
         {
-            auto x = *it;
+            Notification &x = *it;
             if (x.localnode == l && x.path == path)
             {
                 if (x.timestamp)
