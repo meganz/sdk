@@ -165,6 +165,30 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
     path.assign(localpath, len);
 
 #ifdef ENABLE_SYNC
+#ifdef __linux__
+    if ((q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
+            && notifyq[q].size() )
+    {
+        for (notify_deque::reverse_iterator it = notifyq[q].rbegin();
+             it != notifyq[q].rend(); ++it )
+        {
+            auto x = *it;
+            if (x.localnode == l && x.path == path)
+            {
+                if (x.timestamp)
+                {
+                    x.timestamp = immediate ? 0 : Waiter::ds;
+                }
+                LOG_debug << "Repeated notification skipped";
+                return;
+            }
+            if (x.timestamp && x.timestamp < Waiter::ds)
+            {
+                break; // stop searching backwards in notifications when encountered one not added now
+            }
+        }
+    }
+#else
     if ((q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
             && notifyq[q].size()
             && notifyq[q].back().localnode == l
@@ -177,6 +201,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
         LOG_debug << "Repeated notification skipped";
         return;
     }
+#endif
 
     if (!immediate && sync && !sync->initializing && q == DirNotify::DIREVENTS)
     {
