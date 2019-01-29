@@ -6608,10 +6608,7 @@ bool MegaApiImpl::isScheduleNotifiable()
         return true;
     }
 
-    int end = mPushSettings->getGlobalScheduleEnd();
-    int start = mPushSettings->getGlobalScheduleStart();
-
-    if (end == -1 && start == -1)
+    if (!mPushSettings->isGlobalScheduleEnabled())
     {
         return true;
     }
@@ -6626,6 +6623,9 @@ bool MegaApiImpl::isScheduleNotifiable()
         }
     }
 
+
+    int end = mPushSettings->getGlobalScheduleEnd();
+    int start = mPushSettings->getGlobalScheduleStart();
     if (start > end) // If start > stop, stop is in the next day, we add 24 hours in minutes
     {
         end += 24 * 60;
@@ -29930,7 +29930,7 @@ MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
 std::string MegaPushNotificationSettingsPrivate::getGlobalSetting() const
 {
     std::string global = "\"GLOBAL\":{";
-    if (mGlobalDND > -1)
+    if (isGlobalDndEnabled())
     {
         global.append("\"dnd\":").append(std::to_string(mGlobalDND));
     }
@@ -29957,7 +29957,7 @@ std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
     if (!mChatDND.empty())
     {
         std::map<uint64_t, time_t>::const_iterator it;
-        for (it = mChatDND.begin(); it != --mChatDND.end(); it++)
+        for (it = mChatDND.begin(); it != mChatDND.end(); it++)
         {
             if (isChatDndEnabled(it->first))
             {
@@ -29967,11 +29967,9 @@ std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
             }
         }
 
-        if (isChatDndEnabled(it->first))
+        if (chats.back() == ',')
         {
-            Base64::btoa((byte*)&(it->first), MegaClient::CHATHANDLE, chatid);
-            chats.append("\"").append(chatid).append("\":{");
-            chats.append("\"dnd\":").append(std::to_string(it->second)).append("}");
+            chats.pop_back();
         }
     }
 
@@ -29983,7 +29981,7 @@ std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
         }
 
         std::map<uint64_t, bool>::const_iterator it;
-        for (it = mChatAlwaysNotify.begin(); it != --mChatAlwaysNotify.end(); it++)
+        for (it = mChatAlwaysNotify.begin(); it != mChatAlwaysNotify.end(); it++)
         {
             if (it->second)
             {
@@ -29993,11 +29991,9 @@ std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
             }
         }
 
-        if (it->second)
+        if (chats.back() == ',')
         {
-            Base64::btoa((byte*)&(it->first), MegaClient::CHATHANDLE, chatid);
-            chats.append("\"").append(chatid).append("\":{");
-            chats.append("\"an\":").append(std::to_string(1)).append("}");
+            chats.pop_back();
         }
     }
 
