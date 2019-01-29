@@ -6608,6 +6608,14 @@ bool MegaApiImpl::isScheduleNotifiable()
         return true;
     }
 
+    int end = mPushSettings->getGlobalScheduleEnd();
+    int start = mPushSettings->getGlobalScheduleStart();
+
+    if (end == -1 && start == -1)
+    {
+        return true;
+    }
+
     int timezoneOffset = 0;
     for (int i = 0; i < mTimezones->getNumTimeZones(); i++)
     {
@@ -6618,8 +6626,6 @@ bool MegaApiImpl::isScheduleNotifiable()
         }
     }
 
-    int end = mPushSettings->getGlobalScheduleEnd();
-    int start = mPushSettings->getGlobalScheduleStart();
     if (start > end) // If start > stop, stop is in the next day, we add 24 hours in minutes
     {
         end += 24 * 60;
@@ -6636,7 +6642,7 @@ bool MegaApiImpl::isScheduleNotifiable()
     structTime.tm_sec = 0;
 
     m_time_t startDayLocalTime = mktime(&structTime);
-    m_time_t startDayTimeZone = startDayLocalTime + myTimeZone + (timezoneOffset - myTimeZone);
+    m_time_t startDayTimeZone = startDayLocalTime + (timezoneOffset - myTimeZone);
 
     m_time_t startSchedulePeriod = startDayTimeZone + start * 60;
     m_time_t stopSchedulePeriod = startDayTimeZone + end * 60;
