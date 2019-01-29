@@ -47,6 +47,10 @@
     return self.mediaUpload;
 }
 
+- (void)analyseMediaInfoForFileAtPath:(NSString *)inputFilepath {
+    self.mediaUpload->analyseMediaInfo(inputFilepath.UTF8String);
+}
+
 - (BOOL)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(unsigned *)length outputFilePath:(NSString *)outputFilePath urlSuffix:(NSString **)urlSuffix adjustsSizeOnly:(BOOL)adjustsSizeOnly {
     std::string suffix;
     BOOL succeed = self.mediaUpload->encryptFile(inputFilePath.UTF8String, start, length, outputFilePath.UTF8String, &suffix, adjustsSizeOnly);

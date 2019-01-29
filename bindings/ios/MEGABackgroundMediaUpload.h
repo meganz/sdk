@@ -26,6 +26,17 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MEGABackgroundMediaUpload : NSObject
 
 /**
+ * @brief Extract mediainfo information about the photo or video.
+ *
+ * Call this function once with the file to be uploaded.  It uses mediainfo to extract information that will
+ * help the webclient show or play the file in various browsers.  The information is stored in this object
+ * until the whole operation completes.
+ *
+ * @param inputFilepath The file to analyse with MediaInfo.
+ */
+- (void)analyseMediaInfoForFileAtPath:(NSString *)inputFilepath;
+
+/**
  * @brief Encrypt the file or a portion of it.
  *
  * Call this function once with the file to be uploaded. It uses mediainfo to extract information that will
