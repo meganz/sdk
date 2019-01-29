@@ -13772,7 +13772,7 @@ class MegaApi
          * @param chatid MegaHandle that identifies the chat room
          * @return true if notification has to be created
          */
-        bool isChatNotificable(MegaHandle chatid);
+        bool isChatNotifiable(MegaHandle chatid);
 
 #endif
 

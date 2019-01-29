@@ -9195,7 +9195,7 @@ void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
     waiter->notify();
 }
 
-bool MegaApiImpl::isChatNotificable(MegaHandle chatid)
+bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
 {
     if (mPushSettings)
     {

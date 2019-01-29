@@ -2336,7 +2336,7 @@ class MegaApiImpl : public MegaApp
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
-        bool isChatNotificable(MegaHandle chatid);
+        bool isChatNotifiable(MegaHandle chatid);
 #endif
 
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
