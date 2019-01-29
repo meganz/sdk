@@ -64,7 +64,7 @@ namespace mega
             }
             bool cleanup = false;
             Map::iterator jj;
-            for (Map::iterator j = recentFails.begin(); j != recentFails.end(); cleanup ? (jj = j, ++j, recentFails.erase(jj)) : ++j)
+            for (Map::iterator j = recentFails.begin(); j != recentFails.end(); cleanup ? (jj = j, ++j, recentFails.erase(jj)) : (void)++j)
             {
                 cleanup = j->second < (now - 3600);
             }
