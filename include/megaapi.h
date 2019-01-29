@@ -3722,7 +3722,9 @@ public:
  *  1.2. Notify only during a schedule: from one time to another time of the day, specifying the timezone of reference
  *  1.3. Do Not Disturb for a period of time: it overrides the schedule, if any (no notification will be generated)
  *
- * 2. Per chat:
+ * 2. Chats: Mute for all chats notifications
+ *
+ * 3. Per chat:
  *  2.1. Mute all notifications from the specified chat
  *  2.2. Always notify for the specified chat
  *  2.3. Do Not Disturb for a period of time for the specified chat
@@ -3730,8 +3732,8 @@ public:
  * @note Notification settings per chat override any global notification setting.
  * @note The DND mode per chat is not compatible with the option to always notify and viceversa.
  *
- * 3. Contacts: new incoming contact request, outgoing contact request accepted...
- * 4. Shared folders: new shared folder, access removed...
+ * 4. Contacts: new incoming contact request, outgoing contact request accepted...
+ * 5. Shared folders: new shared folder, access removed...
  *
  */
 class MegaPushNotificationSettings
@@ -3774,8 +3776,8 @@ public:
     /**
      * @brief Returns the timestamp until the DND mode is enabled
      *
-     * This method returns a valid value only if both MegaPushNotificationSettings::isGlobalEnabled
-     * and MegaPushNotificationSettings::isGlobalDndEnabled return true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalEnabled
+     * returns false and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
      *
      * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
      */
@@ -3834,7 +3836,7 @@ public:
     virtual bool isChatDndEnabled(MegaHandle chatid) const;
 
     /**
-     * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat is enabled
+     * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
      *
      * @param chatid MegaHandle that identifies the chat room
      * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
@@ -13777,7 +13779,7 @@ class MegaApi
 #endif
 
         /**
-         * @brief Returns whether notifications about incoming shares have to be generated
+         * @brief Returns whether notifications about incoming have to be generated
          *
          * @return true if notification has to be created
          */
