@@ -35,6 +35,7 @@ public:
     void onContactRequestsUpdate(mega::MegaApi* api, mega::MegaContactRequestList* contactRequestList);
     void onReloadNeeded(mega::MegaApi* api);
     void onEvent(mega::MegaApi* api, mega::MegaEvent *event);
+    void onMediaDetectionAvailable();
     
 private:
     MEGASdk *megaSDK;

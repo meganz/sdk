@@ -168,4 +168,11 @@
  */
 - (void)onEvent:(MEGASdk *)api event:(MEGAEvent *)event;
 
+/**
+ * @brief This function is called when lookups from media type names to MEGA encodings is available
+ *
+ * Clients should call ensureMediaInfo in MEGASdk before attempting to analyse media, and wait for this callback.
+ */
+- (void)onMediaDetectionAvailable;
+
 @end

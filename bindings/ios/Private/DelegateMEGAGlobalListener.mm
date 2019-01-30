@@ -123,3 +123,11 @@ void DelegateMEGAGlobalListener::onEvent(mega::MegaApi *api, mega::MegaEvent *ev
         });
     }
 }
+
+void DelegateMEGAGlobalListener::onMediaDetectionAvailable() {
+    if ([listener respondsToSelector:@selector(onMediaDetectionAvailable)]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [listener onMediaDetectionAvailable];
+        });
+    }
+}
