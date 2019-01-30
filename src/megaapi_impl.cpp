@@ -29799,7 +29799,9 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
             json.append(",");
         }
 
-        json.append("\"PCR\":{\"dnd\":").append(std::to_string(mContactsDND)).append("}");
+        std::stringstream contactStream;
+        contactStream << mContactsDND;
+        json.append("\"PCR\":{\"dnd\":").append(contactStream.str()).append("}");
     }
 
     if (mSharesDND > -1)
@@ -29809,7 +29811,9 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
             json.append(",");
         }
 
-        json.append("\"INSHARE\":{\"dnd\":").append(std::to_string(mSharesDND)).append("}");
+        std::stringstream sharesStream;
+        sharesStream << mSharesDND;
+        json.append("\"INSHARE\":{\"dnd\":").append(sharesStream.str()).append("}");
     }
 
     if (mGlobalChatsDND > -1)
@@ -29819,7 +29823,9 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
             json.append(",");
         }
 
-        json.append("\"CHAT\":{\"dnd\":").append(std::to_string(mGlobalChatsDND)).append("}");
+        std::stringstream globalStream;
+        globalStream << mGlobalChatsDND;
+        json.append("\"CHAT\":{\"dnd\":").append(globalStream.str()).append("}");
     }
 
 
@@ -29932,7 +29938,9 @@ std::string MegaPushNotificationSettingsPrivate::getGlobalSetting() const
     std::string global = "\"GLOBAL\":{";
     if (isGlobalDndEnabled())
     {
-        global.append("\"dnd\":").append(std::to_string(mGlobalDND));
+        std::stringstream globalStream;
+        globalStream << mGlobalDND;
+        global.append("\"dnd\":").append(globalStream.str());
     }
 
     if (isGlobalScheduleEnabled())
@@ -29942,7 +29950,14 @@ std::string MegaPushNotificationSettingsPrivate::getGlobalSetting() const
             global.append(",");
         }
 
-        global.append("\"nsch\":{\"start\":").append(std::to_string(mGlobalScheduleStart)).append(",\"end\":").append(std::to_string(mGlobalScheduleEnd)).append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}");
+        std::stringstream startStream;
+        startStream << mGlobalScheduleStart;
+
+        std::stringstream stopStream;
+        stopStream << mGlobalScheduleEnd;
+
+        global.append("\"nsch\":{\"start\":").append(startStream.str()).append(",\"end\":").append(stopStream.str())
+                .append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}");
     }
 
     global.append("}");
@@ -29961,13 +29976,15 @@ std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
         {
             if (isChatDndEnabled(it->first))
             {
+                std::stringstream chatStream;
+                chatStream << it->second;
                 Base64::btoa((byte*)&(it->first), MegaClient::CHATHANDLE, chatid);
                 chats.append("\"").append(chatid).append("\":{");
-                chats.append("\"dnd\":").append(std::to_string(it->second)).append("},");
+                chats.append("\"dnd\":").append(chatStream.str()).append("},");
             }
         }
 
-        if (chats.back() == ',')
+        if (!chats.empty() && chats.at(chats.length() - 1) == ',')
         {
             chats.pop_back();
         }
@@ -29975,7 +29992,7 @@ std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
 
     if (!mChatAlwaysNotify.empty())
     {
-        if (chats.size() > 0 && chats.back() == '}')
+        if (!chats.empty() &&  chats.at(chats.length() - 1) == '}')
         {
             chats.append(",");
         }
@@ -29987,11 +30004,11 @@ std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
             {
                 Base64::btoa((byte*)&(it->first), MegaClient::CHATHANDLE, chatid);
                 chats.append("\"").append(chatid).append("\":{");
-                chats.append("\"an\":").append(std::to_string(1)).append("},");
+                chats.append("\"an\":").append("1").append("},");
             }
         }
 
-        if (chats.back() == ',')
+        if (!chats.empty() && chats.at(chats.length() - 1) == ',')
         {
             chats.pop_back();
         }
