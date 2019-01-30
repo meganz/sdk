@@ -14238,7 +14238,7 @@ public:
         MEGA_ACHIEVEMENT_INVITE             = 3,
         MEGA_ACHIEVEMENT_DESKTOP_INSTALL    = 4,
         MEGA_ACHIEVEMENT_MOBILE_INSTALL     = 5,
-        MEGA_ACHIEVEMENT_ADD_PHONE          = 6
+        MEGA_ACHIEVEMENT_ADD_PHONE          = 9
     };
 
     virtual ~MegaAchievementsDetails();
@@ -14257,7 +14257,7 @@ public:
      *  - MEGA_ACHIEVEMENT_INVITE = 3
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
-     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 6
+     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
      *
      * @param class_id Id of the MEGA achievement
      * @return Storage granted by this MEGA achievement class, in bytes
@@ -14272,7 +14272,7 @@ public:
      *  - MEGA_ACHIEVEMENT_INVITE = 3
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
-     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 6
+     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
      *
      * @param class_id Id of the MEGA achievement
      * @return Transfer quota granted by this MEGA achievement class, in bytes
@@ -14287,7 +14287,7 @@ public:
      *  - MEGA_ACHIEVEMENT_INVITE = 3
      *  - MEGA_ACHIEVEMENT_DESKTOP_INSTALL = 4
      *  - MEGA_ACHIEVEMENT_MOBILE_INSTALL = 5
-     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 6
+     *  - MEGA_ACHIEVEMENT_ADD_PHONE = 9
      *
      * The storage and transfer quota resulting from a MEGA achievement may expire after
      * certain number of days. In example, the "Welcome" reward lasts for 30 days and afterwards
