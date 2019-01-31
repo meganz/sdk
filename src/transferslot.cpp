@@ -300,14 +300,14 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     return MemAccess::get<int64_t>((const char*)mac);
 }
 
-void chunkmac_map::serialize(string *d)
+void chunkmac_map::serialize(string& d) const
 {
     unsigned short ll = (unsigned short)size();
-    d->append((char*)&ll, sizeof(ll));
-    for (iterator it = begin(); it != end(); it++)
+    d.append((char*)&ll, sizeof(ll));
+    for (const_iterator it = begin(); it != end(); it++)
     {
-        d->append((char*)&it->first, sizeof(it->first));
-        d->append((char*)&it->second, sizeof(it->second));
+        d.append((char*)&it->first, sizeof(it->first));
+        d.append((char*)&it->second, sizeof(it->second));
     }
 }
 

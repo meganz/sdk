@@ -129,7 +129,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)transferkey, sizeof (transferkey));
 
-    chunkmacs.serialize(d);
+    chunkmacs.serialize(*d);
 
     if (!FileFingerprint::serialize(d))
     {

@@ -1569,9 +1569,7 @@ public:
     string url;
     chunkmac_map chunkmacs;
     byte filekey[FILENODEKEYLENGTH];
-#ifdef USE_MEDIAINFO
     MediaProperties mediaproperties;
-#endif
 };
 
 

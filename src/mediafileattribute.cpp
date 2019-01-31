@@ -74,7 +74,7 @@ MediaFileInfo::MediaFileInfo()
 
 void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename)
 {
-    if (!mediaCodecsRequested)
+    if (!mediaCodecsReceived && !mediaCodecsRequested)
     {
         if (ifSuitableFilename)
         {
@@ -421,6 +421,37 @@ MediaProperties::MediaProperties()
     , is_VFR(false)
     , no_audio(false)
 {
+}
+
+MediaProperties::MediaProperties(const std::string& deserialize)
+{
+    CacheableReader r(deserialize);
+    r.unserializebyte(shortformat);
+    r.unserializeu32(width);
+    r.unserializeu32(height);
+    r.unserializeu32(fps);
+    r.unserializeu32(containerid);
+    r.unserializeu32(videocodecid);
+    r.unserializeu32(audiocodecid);
+    r.unserializebool(is_VFR);
+    r.unserializebool(no_audio);
+}
+
+std::string MediaProperties::serialize()
+{
+    std::string s;
+    CacheableWriter r(s);
+    r.serializebyte(shortformat);
+    r.serializeu32(width);
+    r.serializeu32(height);
+    r.serializeu32(fps);
+    r.serializeu32(containerid);
+    r.serializeu32(videocodecid);
+    r.serializeu32(audiocodecid);
+    r.serializebool(is_VFR);
+    r.serializebool(no_audio);
+    r.serializeexpansionflags();
+    return s;
 }
 
 bool MediaProperties::operator==(const MediaProperties& o) const

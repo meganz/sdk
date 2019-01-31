@@ -926,15 +926,35 @@ MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApiImpl* 
 MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(const string& serialised, MegaApiImpl* capi)
     : api(capi)
 {
-    if (serialised.size() > 36)
+    CacheableReader r(serialised);
+    string mediapropertiesstr;
+    unsigned char expansions[8];
+    string fileattrstring; // fileattrstring is not serialized
+    if (!r.unserializebinary(filekey, sizeof(filekey)) ||
+        !r.unserializechunkmacs(chunkmacs) ||
+        !r.unserializestring(mediapropertiesstr) ||
+        !r.unserializestring(url) ||
+        !r.unserializeexpansionflags(expansions))
     {
-        const char* ptr = (const char*)serialised.data();
-        const char* end = ptr + serialised.size();
-        memcpy(filekey, serialised.data(), sizeof filekey);
-        ptr += sizeof filekey;
-        chunkmacs.unserialize(ptr, end);
+        LOG_err << "MegaBackgroundMediaUploadPrivate unserialization failed at field " << r.fieldnum;
+    }
+    else
+    {
+        mediaproperties = MediaProperties(mediapropertiesstr);
     }
 }
+
+std::string MegaBackgroundMediaUploadPrivate::serialize()
+{
+    std::string s;
+    CacheableWriter w(s);
+    w.serializebinary(filekey, sizeof(filekey));
+    w.serializechunkmacs(chunkmacs);
+    w.serializestring(mediaproperties.serialize());
+    w.serializeexpansionflags(false, false);
+    return s;
+}
+
 
 MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
 {
@@ -1049,13 +1069,6 @@ void MegaBackgroundMediaUploadPrivate::getUploadURL(std::string* uploadurl)
     *uploadurl = url;
 }
 
-std::string MegaBackgroundMediaUploadPrivate::serialize()
-{
-    string s;
-    s.append((char*)filekey, sizeof(filekey));
-    chunkmacs.serialize(&s);
-    return s;
-}
 
 #ifdef ENABLE_SYNC
 bool MegaNodePrivate::isSyncDeleted()
@@ -20017,8 +20030,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD:
         {
             #ifdef USE_MEDIAINFO
-                // if we don't have the codec id mappings yet, send the request
-                // todo: wait for notification we got them
+                // the client app should already have requested these but just in case: 
                 client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
             #endif
 

@@ -170,7 +170,7 @@ class chunkmac_map : public map<m_off_t, ChunkMAC>
 {
 public:
     int64_t macsmac(SymmCipher *cipher);
-    void serialize(string *d);
+    void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
 };
 
@@ -257,11 +257,15 @@ struct CacheableWriter
     CacheableWriter(string& d);
     string& dest;
 
+    void serializebinary(byte* data, size_t len); 
     void serializecstr(const char* field);
     void serializestring(const string& field);
     void serializei64(int64_t field);
+    void serializeu32(uint32_t field);
     void serializehandle(handle field);
     void serializebool(bool field);
+    void serializebyte(byte field);
+    void serializechunkmacs(const chunkmac_map& m);
     void serializeexpansionflags(bool b1 = false, bool b2 = false, bool b3 = false, bool b4 = false, bool b5 = false, bool b6 = false, bool b7 = false, bool b8 = false);
 };
 
@@ -273,10 +277,14 @@ struct CacheableReader
     const char* end;
     unsigned fieldnum;
 
+    bool unserializebinary(byte* data, size_t len); 
     bool unserializestring(string& s);
     bool unserializei64(int64_t& s);
+    bool unserializeu32(uint32_t& s);
+    bool unserializebyte(byte& s);
     bool unserializehandle(handle& s);
     bool unserializebool(bool& s);
+    bool unserializechunkmacs(chunkmac_map& m);
     bool unserializeexpansionflags(unsigned char field[8]);
 
 };

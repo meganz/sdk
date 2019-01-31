@@ -53,6 +53,16 @@ CacheableWriter::CacheableWriter(string& d)
 {
 }
 
+void CacheableWriter::serializebinary(byte* data, size_t len)
+{
+    dest.append((char*)data, len);
+}
+
+void CacheableWriter::serializechunkmacs(const chunkmac_map& m)
+{
+    m.serialize(dest);
+}
+
 void CacheableWriter::serializecstr(const char* field)
 {
     unsigned short ll = (unsigned short)(field ? strlen(field) + 1 : 0);
@@ -72,12 +82,23 @@ void CacheableWriter::serializei64(int64_t field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializeu32(uint32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializehandle(handle field)
 {
     dest.append((char*)&field, sizeof(field));
 }
 
 void CacheableWriter::serializebool(bool field)
+{
+    byte b = field ? 1 : 0;
+    dest.append((char*)&b, sizeof(byte));
+}
+
+void CacheableWriter::serializebyte(byte field)
 {
     dest.append((char*)&field, sizeof(field));
 }
@@ -126,6 +147,23 @@ bool CacheableReader::unserializestring(string& s)
     return true;
 }
 
+bool CacheableReader::unserializebinary(byte* data, size_t len)
+{
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    memcpy(data, ptr, len);
+    ptr += len;
+    return true;
+}
+
+bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
+{
+    return m.unserialize(ptr, end);   // ptr is adjusted by reference
+}
+
 bool CacheableReader::unserializei64(int64_t& field)
 {
     if (ptr + sizeof(int64_t) > end)
@@ -134,6 +172,17 @@ bool CacheableReader::unserializei64(int64_t& field)
     }
     field = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
+    return true;
+}
+
+bool CacheableReader::unserializeu32(uint32_t& field)
+{
+    if (ptr + sizeof(uint32_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint32_t>(ptr);
+    ptr += sizeof(uint32_t);
     return true;
 }
 
@@ -150,12 +199,23 @@ bool CacheableReader::unserializehandle(handle& field)
 
 bool CacheableReader::unserializebool(bool& field)
 {
-    if (ptr + sizeof(bool) > end)
+    if (ptr + sizeof(byte) > end)
     {
         return false;
     }
-    field = MemAccess::get<bool>(ptr);
-    ptr += sizeof(bool);
+    field = 0 != MemAccess::get<byte>(ptr);
+    ptr += sizeof(byte);
+    return true;
+}
+
+bool CacheableReader::unserializebyte(byte& field)
+{
+    if (ptr + sizeof(byte) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<byte>(ptr);
+    ptr += sizeof(byte);
     return true;
 }
 
