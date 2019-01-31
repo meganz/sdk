@@ -68,6 +68,10 @@ CONFIG(USE_AUTOCOMPLETE) {
 
 CONFIG(USE_CONSOLE) {
     win32 {
+
+        HEADERS += include/mega/win32/megaconsole.h
+        HEADERS += include/mega/win32/megaconsolewaiter.h
+
         CONFIG(noreadline) {
             DEFINES += NO_READLINE
             SOURCES += src/win32/console.cpp
@@ -82,6 +86,8 @@ CONFIG(USE_CONSOLE) {
         QMAKE_CXXFLAGS+=/Zc:__cplusplus /std:c++ #this will set _cplusplus correctly in MSVC >= 2017 15.7 Preview 3
     }
     else {
+        HEADERS += include/mega/posix/megaconsole.h
+        HEADERS += include/mega/posix/megaconsolewaiter.h
         SOURCES += src/posix/console.cpp
         SOURCES += src/posix/consolewaiter.cpp
         LIBS += -lreadline
@@ -362,9 +368,7 @@ CONFIG(USE_MEGAAPI) {
 win32 {
     HEADERS  += include/mega/win32/megasys.h  \
             include/mega/win32/megafs.h  \
-            include/mega/win32/megawaiter.h \
-            include/mega/win32/megaconsole.h \
-            include/mega/win32/megaconsolewaiter.h
+            include/mega/win32/megawaiter.h
 
     SOURCES += bindings/qt/3rdparty/libs/sqlite3.c
 }
