@@ -734,12 +734,23 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 }
                             }
                         }
+                        else
+                        {
+                        LOG_debug << "Inotify notification root not found."
+                                  << " wd = " << in->wd
+                                  << " mask = " << in->mask
+                                  << " cookie = " << in->cookie
+                                  << " len = " << in->len
+                                  << " name = " << in->name
+                                  //<< " lastlocalnodename = " << (lastlocalnode?lastlocalnode->name:"NONE") // this might crash
+                                  << " lastname = " << lastname;
+                        }
                     }
                 }
             }
         }
 
-        // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
+        // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_TO pairs are never notified separately
         if (lastcookie)
         {
             ignore = &lastlocalnode->sync->dirnotify->ignore;
@@ -760,6 +771,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
             lastcookie = 0;
         }
+
+        LOG_debug << "Inotify notifications processed.";
     }
 #endif
 
