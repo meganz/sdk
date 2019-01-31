@@ -6222,9 +6222,12 @@ void DemoApp::whyamiblocked_result(int code)
 
 
         cout << "Reason: " << reason << endl;
-        cout << "Logging out..." << endl;
 
-        client->locallogout();
+        if (code != 500)
+        {
+            cout << "Logging out..." << endl;
+            client->locallogout();
+        }
     }
 }
 
