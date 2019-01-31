@@ -6214,6 +6214,10 @@ void DemoApp::whyamiblocked_result(int code)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        else if (code == 500)
+        {
+            reason = "Your account has been blocked, pending verification via SMS.";
+        }
         //else if (code == 300) --> default reason
 
 

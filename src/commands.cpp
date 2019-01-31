@@ -1468,6 +1468,7 @@ CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
 {
     cmd("us0");
     arg("user", email);
+    batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
     this->email = email;
     tag = client->reqtag;
@@ -1525,6 +1526,7 @@ void CommandPrelogin::procresult()
 CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion, const char *pin)
 {
     cmd("us");
+    batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
     // are we just performing a session validation?
     checksession = !email;
@@ -2758,7 +2760,7 @@ void CommandGetUA::procresult()
         }
 
 #ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
+        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me && e != API_EBLOCKED)
         {
             client->initializekeys(); // we have now all the required data
         }
@@ -4057,6 +4059,7 @@ void CommandResumeEphemeralSession::procresult()
 CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
 {
     cmd("whyamiblocked");
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
     tag = client->reqtag;
 }
@@ -6756,6 +6759,7 @@ void CommandSetLastAcknowledged::procresult()
 CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phonenumber, bool reverifying_whitelisted)
 {
     cmd("smss");
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
     if (isphonenumber(phonenumber))
     {
@@ -6798,6 +6802,7 @@ void CommandSMSVerificationSend::procresult()
 CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, const string& verificationcode)
 {
     cmd("smsv");
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
     if (isverificationcode(verificationcode))
     {

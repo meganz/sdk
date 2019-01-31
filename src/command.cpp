@@ -32,6 +32,7 @@ Command::Command()
     result = API_OK;
     client = NULL;
     tag = 0;
+    batchSeparately = false;
 }
 
 void Command::cancel()

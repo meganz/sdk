@@ -1621,8 +1621,7 @@ void MegaClient::exec()
                                 }
 
                                 // request succeeded, process result array
-                                json.begin(pendingcs->in.c_str());
-                                reqs.procresult(this);
+                                reqs.serverresponse(pendingcs->in, this);
 
                                 WAIT_CLASS::bumpds();
 
@@ -1666,6 +1665,8 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
                                 csretrying = false;
+
+                                reqs.servererror(e, this);
                                 break;
                             }
 
@@ -1730,6 +1731,8 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
                                 csretrying = false;
+
+                                reqs.servererror(API_ESSL, this);
                                 break;
                             }
                         }
@@ -1744,6 +1747,8 @@ void MegaClient::exec()
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
 
+                        reqs.requeuerequest();
+
                     default:
                         ;
                 }
@@ -1756,18 +1761,13 @@ void MegaClient::exec()
 
             if (btcs.armed())
             {
-                if (btcs.nextset())
-                {
-                    reqs.nextRequest();
-                }
-
                 if (reqs.cmdspending())
                 {
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
                     pendingcs->logname = clientname + "cs ";
 
-                    reqs.get(pendingcs->out);
+                    reqs.serverrequest(pendingcs->out);
 
                     pendingcs->posturl = APIURL;
 
@@ -1782,8 +1782,6 @@ void MegaClient::exec()
                     pendingcs->type = REQ_JSON;
 
                     pendingcs->post(this);
-
-                    reqs.nextRequest();
                     continue;
                 }
                 else
@@ -10654,7 +10652,7 @@ void MegaClient::initializekeys()
         // Check completeness of keypairs
         if (!pubk.isvalid() || puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
         {
-            LOG_warn << "Public keys and/or signatures found witout their respective private key.";
+            LOG_warn << "Public keys and/or signatures found without their respective private key.";
 
             sendevent(99415, "Incomplete keypair detected", 0);
 

@@ -13696,7 +13696,7 @@ void MegaApiImpl::whyamiblocked_result(int code)
         return;
     }
 
-    if (request->getFlag())
+    if (request->getFlag() && code != 500)  // don't log out if we can be unblocked via sms verification
     {
         client->removecaches();
         client->locallogout();
@@ -13724,6 +13724,10 @@ void MegaApiImpl::whyamiblocked_result(int code)
         else if (code == 200)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
+        }
+        else if (code == 500)
+        {
+            reason = "Your account has been blocked pending verification via SMS.";
         }
         //else if (code == 300) --> default reason
 

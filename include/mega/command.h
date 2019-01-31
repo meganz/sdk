@@ -50,6 +50,9 @@ public:
     char level;
     bool persistent;
 
+    // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
+    bool batchSeparately;
+
     void cmd(const char*);
     void notself(MegaClient*);
     virtual void cancel(void);
