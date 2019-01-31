@@ -989,6 +989,7 @@ void MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
 #ifdef USE_MEDIAINFO
     FileAccess *fain = api->fsAccess->newfileaccess();
     string inputFilepathtmp(inputFilepath), localfilename;
+    api->fsAccess->path2local(&inputFilepathtmp, &localfilename);
     mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
     delete fain;
 #endif
