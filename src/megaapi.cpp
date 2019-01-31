@@ -2058,6 +2058,21 @@ void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
     pImpl->getUserAttribute((MegaUser*)NULL, type, listener);
 }
 
+const char *MegaApi::userAttributeToString(int attr)
+{
+    return MegaApi::strdup(pImpl->userAttributeToString(attr).c_str());
+}
+
+const char *MegaApi::userAttributeToLongName(int attr)
+{
+    return MegaApi::strdup(pImpl->userAttributeToLongName(attr).c_str());
+}
+
+int MegaApi::userAttributeFromString(const char *name)
+{
+    return pImpl->userAttributeFromString(name);
+}
+
 void MegaApi::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
 {
     pImpl->getUserEmail(handle, listener);
