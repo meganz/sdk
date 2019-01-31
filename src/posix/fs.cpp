@@ -676,7 +676,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                               << " cookie = " << in->cookie
                               << " len = " << in->len
                               << " name = " << in->name
-                              << " lastlocalnodename = " << ((lastlocalnode?lastlocalnode->name:"NONE");
+                              << " lastlocalnodename = " << (lastlocalnode?lastlocalnode->name:"NONE")
                               << " lastname = " << lastname;
 
                     if (true || (in->mask & (IN_CREATE | IN_ISDIR)) != IN_CREATE)
