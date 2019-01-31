@@ -4997,6 +4997,10 @@ string MegaApiImpl::userAttributeToLongName(int type)
 
 int MegaApiImpl::userAttributeFromString(const char *name)
 {
+    if (!name)
+    {
+        return MegaApi::USER_ATTR_UNKNOWN;
+    }
     return User::string2attr(name);
 }
 
