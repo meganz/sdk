@@ -670,6 +670,15 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 if (in->mask & (IN_CREATE | IN_DELETE | IN_MOVED_FROM
                               | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
                 {
+                    LOG_debug << "Inotify notification."
+                              << " wd = " << in->wd
+                              << " mask = " << in->mask
+                              << " cookie = " << in->cookie
+                              << " len = " << in->len
+                              << " name = " << in->name
+                              << " lastlocalnodename = " << ((lastlocalnode?lastlocalnode->name:"NONE");
+                              << " lastname = " << lastname;
+
                     if (true || (in->mask & (IN_CREATE | IN_ISDIR)) != IN_CREATE)
                     {
                         it = wdnodes.find(in->wd);
