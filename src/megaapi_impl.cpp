@@ -13708,6 +13708,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             break;
     }
 
+    delete pushSettings;
     fireOnRequestFinish(request, MegaError(e));
 }
 

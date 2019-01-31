@@ -3815,6 +3815,8 @@ public:
      * This method returns a valid value only if MegaPushNotificationSettings::isGlobalScheduleEnabled
      * returns true.
      *
+     * You take the ownership of the returned value
+     *
      * @return Minutes counting from 00:00 (based on the configured timezone)
      */
     virtual const char *getGlobalScheduleTimezone() const;
