@@ -3974,7 +3974,7 @@ void CommandCreateEphemeralSession::procresult()
     }
 }
 
-CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient*, handle cuh, const byte* cpw, int ctag)
+CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient *client, handle cuh, const byte* cpw, int ctag)
 {
     memcpy(pw, cpw, sizeof pw);
 
@@ -3982,6 +3982,32 @@ CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient*, handle
 
     cmd("us");
     arg("user", (byte*)&uh, MegaClient::USERHANDLE);
+
+    string id;
+    if (!MegaClient::statsid)
+    {
+        client->fsaccess->statsid(&id);
+        if (id.size())
+        {
+            size_t len = id.size() + 1;
+            char *buff = new char[len];
+            memcpy(buff, id.c_str(), len);
+            MegaClient::statsid = buff;
+        }
+    }
+    else
+    {
+        id = MegaClient::statsid;
+    }
+
+    if (id.size())
+    {
+        string hash;
+        HashSHA256 hasher;
+        hasher.add((const byte*)id.data(), unsigned(id.size()));
+        hasher.get(&hash);
+        arg("si", (const byte*)hash.data(), int(hash.size()));
+    }
 
     tag = ctag;
 }
