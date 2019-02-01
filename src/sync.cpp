@@ -513,6 +513,12 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                         // LocalNode structure (always the last path component
                         // that does not have a corresponding LocalNode yet)
 
+    LOG_debug << "checking path. h=" << LOG_NODEHANDLE(l && l->node? l->node->nodehandle:0)
+              << " localname=" << (localname?*localname:"NONE")
+              << " wejustcreatedthisfolder=" << wejustcreatedthisfolder
+              << " backoffds = " << (backoffds?*backoffds:-9);
+
+
     if (localname)
     {
         // shortcut case (from within syncdown())
