@@ -161,7 +161,8 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
 {
-    LOG_debug << "considering notification event q=" << q << " localpath = " << localpath << " immediate = " << immediate;
+    LOG_debug << "considering notification event q=" << q << " localpath = " << localpath << " immediate = " << immediate
+                  << " h = " << LOG_NODEHANDLE(l&&l->node?l->node->nodehandle:0);
     string path;
     path.assign(localpath, len);
 

@@ -25,6 +25,14 @@
 #include "mega/logging.h"
 #include <time.h>
 
+#ifdef MEGA_LOGMICROSECONDS
+#include <sys/time.h>
+#include <cmath>
+#include <stdio.h>
+
+#endif
+
+
 namespace mega {
 
 // static member initialization
@@ -76,14 +84,30 @@ SimpleLogger::~SimpleLogger()
 std::string SimpleLogger::getTime()
 {
     char ts[50];
-    time_t t = time(NULL);
-#ifdef MEGA_LOGMILLISECONDS
-    if (!strftime(ts, sizeof(ts), "%H:%M:%S:%f", gmtime(&t))) {
+#ifdef MEGA_LOGMICROSECONDS
+    long microsec;
+    struct tm* tm_info;
+    struct timeval tv;
+
+    gettimeofday(&tv, NULL);
+
+    microsec = tv.tv_usec;
+    tm_info = localtime(&tv.tv_sec);
+
+    char buffer[50];
+    if (!strftime(buffer, sizeof(buffer), "%H:%M:%S", tm_info)) {
+        buffer[0] = '\0';
+    }
+
+    sprintf(ts, "%s.%06ld", buffer, microsec);
+
 #else
+    time_t t = time(NULL);
     if (!strftime(ts, sizeof(ts), "%H:%M:%S", gmtime(&t))) {
-#endif
         ts[0] = '\0';
     }
+#endif
+
     return ts;
 }
 
