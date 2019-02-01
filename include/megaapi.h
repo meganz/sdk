@@ -5766,6 +5766,7 @@ class MegaApi
         };
 
         enum {
+            USER_ATTR_UNKNOWN = -1,
             USER_ATTR_AVATAR = 0,               // public - char array
             USER_ATTR_FIRSTNAME = 1,            // public - char array
             USER_ATTR_LASTNAME = 2,             // public - char array
@@ -8017,6 +8018,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the name associated to a user attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param attr Attribute
+         * @return name associated to the user attribute
+         */
+        const char *userAttributeToString(int attr);
+
+        /**
+         * @brief Get the long descriptive name associated to a user attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param attr Attribute
+         * @return descriptive name associated to the user attribute
+         */
+        const char *userAttributeToLongName(int attr);
+
+        /**
+         * @brief Get numeric value for user attribute given a string
+         * @param name Name of the attribute
+         * @return numeric value for user attribute
+         */
+        int userAttributeFromString(const char *name);
 
         /**
          * @brief Get the email address of any user in MEGA.

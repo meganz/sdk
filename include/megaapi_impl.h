@@ -1762,6 +1762,8 @@ class MegaApiImpl : public MegaApp
         void setDnsServers(const char *dnsServers, MegaRequestListener* listener = NULL);
         static void addEntropy(char* data, unsigned int size);
         static string userAttributeToString(int);
+        static string userAttributeToLongName(int);
+        static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
 

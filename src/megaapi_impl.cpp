@@ -4987,86 +4987,21 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
 
 string MegaApiImpl::userAttributeToString(int type)
 {
-    string attrname;
+    return User::attr2string((::mega::attr_t) type);
+}
 
-    switch(type)
+string MegaApiImpl::userAttributeToLongName(int type)
+{
+    return User::attr2longname((::mega::attr_t) type);
+}
+
+int MegaApiImpl::userAttributeFromString(const char *name)
+{
+    if (!name)
     {
-        case MegaApi::USER_ATTR_AVATAR:
-            attrname = "+a";
-            break;
-
-        case MegaApi::USER_ATTR_FIRSTNAME:
-            attrname = "firstname";
-            break;
-
-        case MegaApi::USER_ATTR_LASTNAME:
-            attrname = "lastname";
-            break;
-
-        case MegaApi::USER_ATTR_AUTHRING:
-            attrname = "*!authring";
-            break;
-
-        case MegaApi::USER_ATTR_LAST_INTERACTION:
-            attrname = "*!lstint";
-            break;
-
-        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-            attrname = "+puEd255";
-            break;
-
-        case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-            attrname = "+puCu255";
-            break;
-
-        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
-            attrname = "+sigPubk";
-            break;
-
-        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            attrname = "+sigCu255";
-            break;
-
-        case MegaApi::USER_ATTR_KEYRING:
-            attrname = "*keyring";
-            break;
-
-        case MegaApi::USER_ATTR_LANGUAGE:
-            attrname = "^!lang";
-
-        case MegaApi::USER_ATTR_PWD_REMINDER:
-            attrname = "^!prd";
-            break;
-
-        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-            attrname = "^!dv";
-            break;
-
-        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "^clv";
-            break;
-
-        case MegaApi::USER_ATTR_RICH_PREVIEWS:
-            attrname = "*!rp";
-            break;
-
-        case MegaApi::USER_ATTR_LAST_PSA:
-            attrname = "^!lastPsa";
-            break;
-
-        case MegaApi::USER_ATTR_RUBBISH_TIME:
-            attrname = "^!rubbishtime";
-            break;
-
-        case MegaApi::USER_ATTR_STORAGE_STATE:
-            attrname = "^!usl";
-
-        case MegaApi::USER_ATTR_GEOLOCATION:
-            attrname = "*!geo";
-            break;
+        return MegaApi::USER_ATTR_UNKNOWN;
     }
-
-    return attrname;
+    return User::string2attr(name);
 }
 
 char MegaApiImpl::userAttributeToScope(int type)
