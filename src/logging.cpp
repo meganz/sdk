@@ -77,8 +77,11 @@ std::string SimpleLogger::getTime()
 {
     char ts[50];
     time_t t = time(NULL);
-
+#ifdef MEGA_LOGMILLISECONDS
+    if (!strftime(ts, sizeof(ts), "%H:%M:%S:%f", gmtime(&t))) {
+#else
     if (!strftime(ts, sizeof(ts), "%H:%M:%S", gmtime(&t))) {
+#endif
         ts[0] = '\0';
     }
     return ts;
