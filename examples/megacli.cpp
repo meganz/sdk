@@ -2074,6 +2074,89 @@ static void store_line(char* l)
     line = l;
 }
 
+
+class GetFileURLs : public Command
+{
+    string filename;
+
+public:
+    GetFileURLs::GetFileURLs(handle h, string s, MegaClient* mc)
+    {
+        client = mc;
+        filename = s;
+
+        cmd("g");
+        arg(true ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+        arg("g", 1);
+        arg("v", 2);  // version 2: server can supply details for cloudraid files
+
+        if (mc->usehttps)
+        {
+            arg("ssl", 2);
+        }
+
+    }
+
+    // process file credentials
+    void procresult() override
+    {
+        if (client->json.isnumeric())
+        {
+            error e = (error)client->json.getint();
+        }
+        else
+        {
+            std::vector<string> tempurls;
+            for (;;)
+            {
+                switch (client->json.getnameid())
+                {
+                case EOO:
+                    return;
+
+                case 'g':
+                    if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                    {
+                        for (;;) {
+                            std::string tu;
+                            if (!client->json.storeobject(&tu))
+                            {
+                                break;
+                            }
+                            tempurls.push_back(tu);
+                        }
+                        client->json.leavearray();
+                        if (tempurls.size() == 6)
+                        {
+                            cout << filename << endl;
+                        }
+                    }
+                    break;
+
+                default:
+                    client->json.storeobject();
+                }
+            }
+        }
+    }
+
+};
+
+void exec_find(autocomplete::ACState& s)
+{
+    if (s.words[1].s == "raided")
+    {
+        if (Node* n = client->nodebyhandle(cwd))
+        {
+            for (auto& c : n->children)
+            {
+                client->reqs.add(new GetFileURLs(c->nodehandle, c->displaypath(), client));
+            }
+        }
+    }
+}
+
+
 #ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
 
@@ -2178,6 +2261,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
     p->Add(sequence(text("history")));
     p->Add(sequence(text("quit")));
+
+    p->Add(exec_find, sequence(text("find"), text("raided")));
+
 
     return autocompleteTemplate = std::move(p);
 }
@@ -2427,6 +2513,17 @@ static void process_line(char* l)
 
 #if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
             using namespace ::mega::autocomplete;
+
+            string consoleOutput;
+            if (autoExec(line, strlen(line), autocompleteTemplate, false, consoleOutput, false))
+            {
+                if (!consoleOutput.empty())
+                {
+                    cout << consoleOutput << endl;
+                }
+                return;
+            }
+
             ACState acs = prepACState(l, strlen(l), static_cast<WinConsole*>(console)->getAutocompleteStyle());
             for (unsigned i = 0; i < acs.words.size(); ++i)
             {

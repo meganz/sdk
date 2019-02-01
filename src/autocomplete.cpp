@@ -983,6 +983,10 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
                 {
                     f(acs);
                 }
+                else if (!reportNoMatch)
+                {
+                    return false;
+                }
                 else
                 {
                     conout << "Operation not implemented yet" << std::endl;
