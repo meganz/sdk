@@ -5625,7 +5625,10 @@ static void process_line(char* l)
                             if (client->fsaccess->getextension(&localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
                             {
                                 mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
-                                cout << showMediaInfo(mp, client->mediaFileInfo, false) << endl;
+                                uint32_t dummykey[4] = { 1, 2, 3, 4 };  // check encode/decode
+                                string attrs = mp.convertMediaPropertyFileAttributes(dummykey, client->mediaFileInfo);
+                                MediaProperties dmp = MediaProperties::decodeMediaPropertiesAttributes(":" + attrs, dummykey);
+                                cout << showMediaInfo(dmp, client->mediaFileInfo, false) << endl;
                             }
                             else
                             {
