@@ -2075,18 +2075,23 @@ static void store_line(char* l)
 }
 
 
-class GetFileURLs : public Command
+class FileFindCommand : public Command
 {
-    string filename;
+    typedef std::deque<handle> Stack;
+    handle h;
+    std::shared_ptr<Stack> stack;
 
 public:
-    GetFileURLs::GetFileURLs(handle h, string s, MegaClient* mc)
+
+    FileFindCommand::FileFindCommand(std::shared_ptr<Stack>& s, MegaClient* mc) : stack(s)
     {
+        h = stack->front();
+        stack->pop_front();
+
         client = mc;
-        filename = s;
 
         cmd("g");
-        arg(true ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
+        arg("n", (byte*)&h, MegaClient::NODEHANDLE);
         arg("g", 1);
         arg("v", 2);  // version 2: server can supply details for cloudraid files
 
@@ -2094,7 +2099,6 @@ public:
         {
             arg("ssl", 2);
         }
-
     }
 
     // process file credentials
@@ -2107,12 +2111,14 @@ public:
         else
         {
             std::vector<string> tempurls;
-            for (;;)
+            bool done = false;
+            while (!done)
             {
                 switch (client->json.getnameid())
                 {
                 case EOO:
-                    return;
+                    done = true;
+                    break;
 
                 case 'g':
                     if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
@@ -2128,19 +2134,51 @@ public:
                         client->json.leavearray();
                         if (tempurls.size() == 6)
                         {
-                            cout << filename << endl;
+                            if (Node* n = client->nodebyhandle(h))
+                            {
+                                cout << n->displaypath() << endl;
+                            }
                         }
+                        break;
                     }
-                    break;
+                    // otherwise fall through
 
                 default:
                     client->json.storeobject();
                 }
             }
         }
-    }
 
+        // now query for the next one - we don't send them all at once as there may be a lot!
+        if (!stack->empty())
+        {
+            client->reqs.add(new FileFindCommand(stack, client));
+        }
+        else
+        {
+            cout << "<find complete>" << endl;
+        }
+    }
 };
+
+
+void getDepthFirstFileHandles(Node* n, deque<handle>& q)
+{
+    for (auto c : n->children)
+    {
+        if (c->type == FILENODE)
+        {
+            q.push_back(c->nodehandle);
+        }
+    }
+    for (auto& c : n->children)
+    {
+        if (c->type > FILENODE)
+        {
+            getDepthFirstFileHandles(c, q);
+        }
+    }
+}
 
 void exec_find(autocomplete::ACState& s)
 {
@@ -2148,14 +2186,132 @@ void exec_find(autocomplete::ACState& s)
     {
         if (Node* n = client->nodebyhandle(cwd))
         {
-            for (auto& c : n->children)
+            auto q = std::make_shared<deque<handle>>();
+            getDepthFirstFileHandles(n, *q);
+            cout << "<find checking " << q->size() << " files>" << endl;
+            if (q->empty())
             {
-                client->reqs.add(new GetFileURLs(c->nodehandle, c->displaypath(), client));
+                cout << "<find complete>" << endl;
+            }
+            else
+            {
+                for (int i = 0; i < 25 && !q->empty(); ++i)
+                {
+                    client->reqs.add(new FileFindCommand(q, client));
+                }
             }
         }
     }
 }
 
+bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
+{
+    switch (pathtype)
+    {
+    case FILENODE: 
+    case FOLDERNODE: return nodetype == pathtype;
+    }
+    return false;
+}
+
+bool recursiveCompare(Node* mn, fs::path p)
+{
+    nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
+    if (!typematchesnodetype(pathtype, mn->type))
+    {
+        cout << "Path type mismatch: " << mn->displaypath() << ":" << mn->type << " " << p.u8string() << ":" << pathtype << endl;
+        return false;
+    }
+
+    if (pathtype == FILENODE)
+    {
+        uint64_t size = fs::file_size(p);
+        if (size != mn->size)
+        {
+            cout << "File size mismatch: " << mn->displaypath() << ":" << mn->size << " " << p.u8string() << ":" << size << endl;
+        }
+    }
+
+    if (pathtype != FOLDERNODE)
+    {
+        return true;
+    }
+
+    multimap<string, Node*> ms;
+    multimap<string, fs::path> ps;
+    for (auto& m : mn->children) ms.emplace(m->displayname(), m);
+    for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) ps.emplace(pi->path().filename().u8string(), pi->path());
+
+    for (auto p_iter = ps.begin(); p_iter != ps.end(); )
+    {
+        auto a = ms.begin()->first;
+        auto er = ms.equal_range(p_iter->first);
+        auto next_p = p_iter;
+        ++next_p;
+        bool any_equal_matched = false;
+        for (auto i = er.first; i != er.second; ++i)
+        {
+            if (recursiveCompare(i->second, p_iter->second))
+            {
+                ms.erase(i);
+                ps.erase(p_iter);
+                any_equal_matched = true;
+                break;
+            }
+        }
+        p_iter = next_p;
+    }
+    if (ps.empty() && ms.empty())
+    {
+        return true;
+    }
+    else
+    {
+        cout << "Extra content detected between " << mn->displaypath() << " and " << p.u8string() << endl;
+        for (auto& m : ms) cout << "Extra remote: " << m.first << endl;
+        for (auto& p : ps) cout << "Extra local: " << p.second << endl;
+        return false;
+    };
+}
+
+Node* nodeFromRemotePath(const string& s)
+{
+    Node* n;
+    if (s.empty())
+    {
+        n = client->nodebyhandle(cwd);
+    }
+    else 
+    {
+        n = nodebypath(s.c_str());
+    }
+    if (!n)
+    {
+        cout << "remote path not found: '" << s << "'" << endl;
+    }
+    return n;
+}
+
+fs::path pathFromLocalPath(const string& s, bool mustexist)
+{
+    fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
+    if (mustexist && !fs::exists(p))
+    {
+        cout << "local path not found: '" << s << "'";
+        return fs::path();
+    }
+    return p;
+}
+void exec_treecompare(autocomplete::ACState& s)
+{
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    Node* n = nodeFromRemotePath(s.words[2].s);
+    if (n && !p.empty())
+    {
+        int descendants = 0;
+        recursiveCompare(n, p);
+    }
+}
 
 #ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
@@ -2263,7 +2419,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("quit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
-
+    p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
 
     return autocompleteTemplate = std::move(p);
 }
