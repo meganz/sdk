@@ -707,7 +707,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                             else
                             {
                                 lastcookie = 0;
+                            }
 
+                            //if (!(in->mask & IN_MOVED_FROM))
+                            {
                                 ignore = &it->second->sync->dirnotify->ignore;
                                 unsigned int insize = strlen(in->name);
 
