@@ -2331,9 +2331,9 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
     // which is clearer in the help output - one line or 3?
-    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
-    //p->Add(sequence(text("login"), param("exportedfolderurl#key")));
+    //p->Add(sequence(text("login"), exportedLink(false, true)));
     //p->Add(sequence(text("login"), param("session")));
     p->Add(sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
@@ -2349,8 +2349,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("lpwd")));
     p->Add(sequence(text("lmkdir"), localFSFolder()));
 #endif
-    p->Add(sequence(text("import"), param("exportedfilelink#key")));
-    p->Add(sequence(text("open"), param("exportedfolderlink#key")));
+    p->Add(sequence(text("import"), exportedLink(true, false)));
+    p->Add(sequence(text("open"), exportedLink(false, true)));
     p->Add(sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(sequence(text("putq"), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
@@ -2358,7 +2358,7 @@ autocomplete::ACN autocompleteSyntax()
 #else
     p->Add(sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
 #endif
-    p->Add(sequence(text("get"), param("exportedfilelink#key"), opt(sequence(param("offset"), opt(param("length"))))));
+    p->Add(sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(sequence(text("getq"), opt(param("cancelslot"))));
     p->Add(sequence(text("pause"), opt(either(text("get"), text("put"))), opt(text("hard")), opt(text("status"))));
     p->Add(sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));

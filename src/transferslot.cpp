@@ -854,7 +854,7 @@ void TransferSlot::doio(MegaClient* client)
 
                         return transfer->failed(API_EOVERQUOTA, backoff);
                     }
-                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404)
+                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404 || reqs[i]->httpstatus == 0)
                     {
                         if (!tryRaidRecoveryFromHttpGetError(i))
                         {

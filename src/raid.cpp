@@ -2,7 +2,7 @@
  * @file mega/raid.cpp
  * @brief helper classes for managing cloudraid downloads
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2019 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -41,32 +41,54 @@ namespace mega
             m.init(false);
         }
 
+        string server(const string& url)
+        {
+            size_t n = url.find("://");
+            if (n != string::npos)
+            {
+                n += 3;
+                size_t m = url.find("/", n);
+                if (m != string::npos)
+                {
+                    return url.substr(n, m - n);
+                }
+            }
+            return "";
+        }
+
         void add(const string& url)
         {
             MutexGuard g(m);
-            recentFails[url] = m_time();
+            if (recentFails.find(server(url)) == recentFails.end())
+            {
+                recentFails[server(url)] = m_time();
+            }
         }
 
         unsigned selectWorstServer(vector<string> urls)
         {
-            MutexGuard g(m);
-            m_time_t now = m_time();
-            m_time_t worsttime = now - 10 * 3600;
             unsigned worstindex = rand() % RAIDPARTS;
-            for (unsigned i = urls.size(); i--; )
+
+            MutexGuard g(m);
+            if (!recentFails.empty())
             {
-                Map::iterator j = recentFails.find(urls[i]);
-                if (j != recentFails.end() && j->second > worsttime)
+                m_time_t now = m_time();
+                m_time_t worsttime = now - 10 * 3600;
+                for (unsigned i = urls.size(); i--; )
                 {
-                    worstindex = i;
-                    worsttime = j->second;
+                    Map::iterator j = recentFails.find(server(urls[i]));
+                    if (j != recentFails.end() && j->second > worsttime)
+                    {
+                        worstindex = i;
+                        worsttime = j->second;
+                    }
                 }
-            }
-            bool cleanup = false;
-            Map::iterator jj;
-            for (Map::iterator j = recentFails.begin(); j != recentFails.end(); cleanup ? (jj = j, ++j, recentFails.erase(jj)) : (void)++j)
-            {
-                cleanup = j->second < (now - 3600);
+                bool cleanup = false;
+                Map::iterator jj;
+                for (Map::iterator j = recentFails.begin(); j != recentFails.end(); cleanup ? (jj = j, ++j, recentFails.erase(jj)) : (void)++j)
+                {
+                    cleanup = j->second < (now - 3600);
+                }
             }
             return worstindex;
         }
@@ -659,7 +681,7 @@ namespace mega
         {
             raidHttpGetErrorCount[errorConnectionNum] += 1;
 
-            g_faultyURLs.add(tempurls[unusedRaidConnection]);
+            g_faultyURLs.add(tempurls[errorConnectionNum]);
 
             unsigned errorSum = 0;
             for (unsigned i = RAIDPARTS; i--; )

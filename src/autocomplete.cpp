@@ -327,10 +327,82 @@ bool Text::match(ACState& s) const
     return false;
 }
 
-
 std::ostream& Text::describe(std::ostream& s) const
 {
     return s << (param ? "<" + exactText + ">" : exactText);
+}
+
+bool ExportedLink::isLink(const string& s, bool file, bool folder)
+{
+    bool filestr = s.find("#!") != string::npos;
+    bool folderstr = s.find("#F!") != string::npos;
+    if (file && !folder)
+    {
+        return filestr;
+    }
+    else if (!file && folder)
+    {
+        return folderstr;
+    }
+    return filestr || folderstr;
+}
+
+ExportedLink::ExportedLink(bool file, bool folder) 
+    : filelink(file), folderlink(folder)
+{
+}
+
+bool ExportedLink::addCompletions(ACState& s)
+{
+    if (s.atCursor())
+    {
+        if (filelink && !folderlink)
+        {
+            s.addCompletion("<exportedfilelink#key>");
+        }
+        else if (!filelink && folderlink)
+        {
+            s.addCompletion("<exportedfolderlink#key>");
+        }
+        else
+        {
+            s.addCompletion("<exportedlink#key>");
+        }
+        return true;
+    }
+    else
+    {
+        bool matches = !s.word().s.empty() && s.word().s[0] != '-' && isLink(s.word().s, filelink, folderlink);
+        s.i += matches ? 1 : 0;
+        return !matches;
+    }
+}
+
+bool ExportedLink::match(ACState& s) const
+{
+    if (s.i < s.words.size() && (!s.word().s.empty() && s.word().s[0] != '-' && isLink(s.word().s, filelink, folderlink)))
+    {
+        s.i += 1;
+        return true;
+    }
+    return false;
+}
+
+
+std::ostream& ExportedLink::describe(std::ostream& s) const
+{
+    if (filelink && !folderlink)
+    {
+        return s << "<exportedfilelink#key>";
+    }
+    else if (!filelink && folderlink)
+    {
+        return s << "<exportedfolderlink#key>";
+    }
+    else
+    {
+        return s << "<exportedlink#key>";
+    }
 }
 
 Flag::Flag(const std::string& s)
@@ -741,7 +813,7 @@ bool MegaFS::match(ACState& s) const
 {
     if (s.i < s.words.size())
     {
-        if (!s.word().s.empty() && s.word().s[0] != '-')
+        if (!s.word().s.empty() && s.word().s[0] != '-' && !ExportedLink::isLink(s.word().s, true, true))
         {
             s.i += 1;
             return true;
@@ -1223,6 +1295,11 @@ ACN text(const std::string s)
 ACN param(const std::string s)
 {
     return std::make_shared<Text>(s, true);
+}
+
+ACN exportedLink(bool file, bool folder)
+{
+    return std::make_shared<ExportedLink>(file, folder);
 }
 
 ACN flag(const std::string s)
