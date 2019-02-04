@@ -716,23 +716,23 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                             else
                             {
                                 lastcookie = 0;
-
-                                ignore = &it->second->sync->dirnotify->ignore;
-                                unsigned int insize = strlen(in->name);
-
-                                if (insize < ignore->size()
-                                 || memcmp(in->name, ignore->data(), ignore->size())
-                                 || (insize > ignore->size()
-                                  && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
-                                {
-                                    LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
-                                    it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                        it->second, in->name,
-                                                                        insize);
-
-                                    r |= Waiter::NEEDEXEC;
-                                }
                             }
+                            unsigned int insize = strlen(in->name);
+                            ignore = &it->second->sync->dirnotify->ignore;
+
+                            if (insize < ignore->size()
+                             || memcmp(in->name, ignore->data(), ignore->size())
+                             || (insize > ignore->size()
+                              && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
+                            {
+                                LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
+                                it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
+                                                                    it->second, in->name,
+                                                                    insize);
+
+                                r |= Waiter::NEEDEXEC;
+                            }
+
                         }
                         else
                         {
