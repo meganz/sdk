@@ -2264,6 +2264,47 @@ GTEST_TEST(BasicSync, SpecialCreateFile)
 }
 #endif
 
+GTEST_TEST(BasicSync, moveAndDeleteLocalFile)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+
+    // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
+    error_code rename_error;
+    fs::rename(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "renamed", rename_error);
+    ASSERT_TRUE(!rename_error) << rename_error;
+    fs::remove(clientA1.syncSet[1].localpath / "renamed");
+
+    // let them catch up
+    waitonsyncs(20s, &clientA1, &clientA2);
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(model.movetosynctrash("f/f_0", "f"));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    ASSERT_TRUE(model.removesynctrash("f"));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+}
+
 class MegaCLILogger : public ::mega::Logger {
 public:
     virtual void log(const char *time, int loglevel, const char *source, const char *message)
