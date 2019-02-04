@@ -59,10 +59,7 @@ namespace mega
         void add(const string& url)
         {
             MutexGuard g(m);
-            if (recentFails.find(server(url)) == recentFails.end())
-            {
-                recentFails[server(url)] = m_time();
-            }
+            recentFails[server(url)] = m_time();
         }
 
         unsigned selectWorstServer(vector<string> urls)
