@@ -2074,15 +2074,16 @@ static void store_line(char* l)
     line = l;
 }
 
+#if __cplusplus >= 201100L
 
 class FileFindCommand : public Command
 {
-    typedef std::deque<handle> Stack;
-    handle h;
-    std::shared_ptr<Stack> stack;
-
 public:
-
+    struct Stack : public std::deque<handle>
+    {
+        int filesLeft = 0;
+    };
+        
     FileFindCommand::FileFindCommand(std::shared_ptr<Stack>& s, MegaClient* mc) : stack(s)
     {
         h = stack->front();
@@ -2150,15 +2151,20 @@ public:
         }
 
         // now query for the next one - we don't send them all at once as there may be a lot!
+        --stack->filesLeft;
         if (!stack->empty())
         {
             client->reqs.add(new FileFindCommand(stack, client));
         }
-        else
+        else if (!stack->filesLeft)
         {
             cout << "<find complete>" << endl;
         }
     }
+
+private:
+    handle h;
+    std::shared_ptr<Stack> stack;
 };
 
 
@@ -2186,8 +2192,9 @@ void exec_find(autocomplete::ACState& s)
     {
         if (Node* n = client->nodebyhandle(cwd))
         {
-            auto q = std::make_shared<deque<handle>>();
+            auto q = std::make_shared<FileFindCommand::Stack>();
             getDepthFirstFileHandles(n, *q);
+            q->filesLeft = q->size();
             cout << "<find checking " << q->size() << " files>" << endl;
             if (q->empty())
             {
@@ -2312,6 +2319,7 @@ void exec_treecompare(autocomplete::ACState& s)
         recursiveCompare(n, p);
     }
 }
+#endif // __cplusplus >= 201100L
 
 #ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
@@ -2418,8 +2426,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("history")));
     p->Add(sequence(text("quit")));
 
+#if __cplusplus >= 201100L
     p->Add(exec_find, sequence(text("find"), text("raided")));
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
+#endif
 
     return autocompleteTemplate = std::move(p);
 }
