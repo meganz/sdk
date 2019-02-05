@@ -631,6 +631,32 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
     }
 }
 
+#ifdef ENABLE_SYNC
+typedef struct localnodemovement
+{
+    LocalNode *nodefrom;
+    string namefrom;
+    LocalNode *nodeto;
+    string nameto;
+}localnodemovement;
+
+// read all pending inotify events and queue them for processing
+void PosixFileSystemAccess::notifyIfNotIgnore(int &r, string *ignore, unsigned int insize, const char *inname, LocalNode *localnode, bool immediate)
+{
+    if (insize < ignore->size()
+     || memcmp(inname, ignore->data(), ignore->size())
+     || (insize > ignore->size()
+      && memcmp(inname + ignore->size(), localseparator.c_str(), localseparator.size())))
+    {
+
+        LOG_debug << "Filesystem notification. " << localnode->name << "   Path: " << inname;
+        localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, localnode, inname, insize, immediate);
+
+        r |= Waiter::NEEDEXEC;
+    }
+}
+#endif
+
 // read all pending inotify events and queue them for processing
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
@@ -651,6 +677,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         inotify_event* in;
         wdlocalnode_map::iterator it;
         string localpath;
+
+        vector<localnodemovement> movements;
 
         while ((l = read(notifyfd, buf, sizeof buf)) > 0)
         {
@@ -676,23 +704,32 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                         if (it != wdnodes.end())
                         {
-                            if (lastcookie && lastcookie != in->cookie)
-                            {
-                                ignore = &lastlocalnode->sync->dirnotify->ignore;
-                                if (lastname.size() < ignore->size()
-                                 || memcmp(lastname.c_str(), ignore->data(), ignore->size())
-                                 || (lastname.size() > ignore->size()
-                                  && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
-                                {                                    
-                                    // previous IN_MOVED_FROM is not followed by the
-                                    // corresponding IN_MOVED_TO, so was actually a deletion
-                                    LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
-                                    lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                           lastlocalnode,
-                                                                           lastname.c_str(),
-                                                                           lastname.size());
+                            unsigned int insize = strlen(in->name);
+                            ignore = &it->second->sync->dirnotify->ignore;
 
-                                    r |= Waiter::NEEDEXEC;
+                            if (!(in->mask & IN_MOVED_FROM))
+                            {
+                                notifyIfNotIgnore(r, ignore, insize, in->name, it->second);
+                                r |= Waiter::NEEDEXEC;
+                            }
+
+
+                            if (in->mask & IN_MOVED_TO)
+                            {
+                                if (lastcookie == in->cookie) // we are assuming that IN_MOVE_FROM is followed by IN_MOVE_TO inmediately.
+                                {
+                                    localnodemovement movement;
+
+                                    movement.nodefrom = lastlocalnode;
+                                    movement.namefrom = lastname;
+                                    movement.nodeto = it->second;
+                                    movement.nameto = in->name;
+
+                                    movements.push_back(movement);
+                                }
+                                else
+                                {
+                                    LOG_debug << "Filesystem notification, IN_MOVE_TO from non watched location";
                                 }
                             }
 
@@ -700,31 +737,39 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                             {
                                 // could be followed by the corresponding IN_MOVE_TO or not..
                                 // retain in case it's not (in which case it's a deletion)
-                                lastcookie = in->cookie;
+                                lastcookie = in->cookie; //not used!
                                 lastlocalnode = it->second;
-                                lastname = in->name;
+                                lastname = in->name; //TODO: use const char* always insted for the shake of efficiency
                             }
                             else
                             {
                                 lastcookie = 0;
                             }
 
-                            //if (!(in->mask & IN_MOVED_FROM))
+                            if (in->mask & IN_DELETE)
                             {
-                                ignore = &it->second->sync->dirnotify->ignore;
-                                unsigned int insize = strlen(in->name);
-
-                                if (insize < ignore->size()
-                                 || memcmp(in->name, ignore->data(), ignore->size())
-                                 || (insize > ignore->size()
-                                  && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
+                                bool movementfound = false;
+                                LocalNode *lnfrom;
+                                string namefrom;
+                                for (vector<localnodemovement>::reverse_iterator itmov = movements.rbegin();
+                                     itmov != movements.rend();
+                                     ++itmov)
                                 {
-                                    LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
-                                    it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                        it->second, in->name,
-                                                                        insize);
+                                    localnodemovement &mit= (*itmov);
 
-                                    r |= Waiter::NEEDEXEC;
+                                    if (mit.nodeto == it->second && mit.nameto == in->name )
+                                    {
+                                        movementfound = true;
+                                        lnfrom = mit.nodefrom;
+                                        namefrom = mit.namefrom;
+                                    }
+                                }
+
+                                if (movementfound)
+                                {
+                                    LOG_debug << "Found delete filesystem notification corresponding to moved node. " << it->second->name << "   Path: " << in->name
+                                              << " Original file procedence: " << lnfrom->name << "   Path: " << namefrom ;
+                                    notifyIfNotIgnore(r, ignore, namefrom.size(), namefrom.c_str(), lnfrom);
                                 }
                             }
                         }
@@ -733,7 +778,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             }
         }
 
-        // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_FROM pairs are never notified separately
+        // this assumes that corresponding IN_MOVED_FROM / IN_MOVED_TO pairs are never notified separately
         if (lastcookie)
         {
             ignore = &lastlocalnode->sync->dirnotify->ignore;
