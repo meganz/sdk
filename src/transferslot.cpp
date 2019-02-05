@@ -389,6 +389,16 @@ void TransferSlot::doio(MegaClient* client)
     {
         if (reqs[i])
         {
+            
+            unsigned slowestConnection;
+            if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size)
+                if (transferbuf.detectSlowestRaidConnection(i, slowestConnection))
+            {
+                LOG_debug << "Connection " << slowestConnection << " is the slowest to reply, using the other 5.";
+                delete reqs[slowestConnection];
+                reqs[slowestConnection] = NULL;
+            }
+
             switch (reqs[i]->status)
             {
                 case REQ_INFLIGHT:

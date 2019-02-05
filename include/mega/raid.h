@@ -94,6 +94,9 @@ namespace mega {
         // check to see if all other channels than the one specified are up to date with data and so we could go faster with 5 connections rather than 6.
         bool connectionRaidPeersAreAllPaused(unsigned slowConnection);
 
+        // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
+        bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
+
         RaidBufferManager();
         ~RaidBufferManager();
 
@@ -124,19 +127,16 @@ namespace mega {
         bool connectionPaused[RAIDPARTS];
         
         // for raid, how far through the raid part we are currently
-        m_off_t raidrequestpartpos[RAIDPARTS];                  
+        m_off_t raidrequestpartpos[RAIDPARTS];
         
         // for raid, the http requested data before combining
         std::deque<FilePiece*> raidinputparts[RAIDPARTS];
 
-        // for raid, contains previously downloaded pieces that are beyond where raidinputparts is at. Only used when failing over from 6 Connection.
-        std::map<m_off_t, FilePiece*> raidinputparts_recovery[RAIDPARTS];
-
         // the data to output currently, per connection, raid or non-raid.  re-accessible in case retries are needed
-        std::map<unsigned, FilePiece*> asyncoutputbuffers;      
+        std::map<unsigned, FilePiece*> asyncoutputbuffers;
         
         // piece to carry over to the next combine operation, when we don't get pieces that match the chunkceil boundaries
-        FilePiece leftoverchunk;                                
+        FilePiece leftoverchunk;
 
         // the point we are at in the raid input parts.  raidinputparts buffers contain data from this point in their part.
         m_off_t raidpartspos;
@@ -150,6 +150,8 @@ namespace mega {
 
         // track errors across the connections.  A successful fetch resets the error count for a connection.  Stop trying to recover if we hit 3 total.
         unsigned raidHttpGetErrorCount[RAIDPARTS];
+
+        bool connectionStarted[RAIDPARTS];
 
         // take raid input part buffers and combine to form the asyncoutputbuffers
         void combineRaidParts(unsigned connectionNum);
