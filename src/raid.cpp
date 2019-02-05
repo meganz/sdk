@@ -66,7 +66,8 @@ namespace mega
         {
             // start with 6 connections and drop the slowest to respond 
             // (unless we know one of the 6 URLs is on a dodgy server, in which case start with the other 5)
-            unsigned worstindex = RAIDPARTS; 
+           // unsigned worstindex = RAIDPARTS; 
+            unsigned worstindex = rand() % RAIDPARTS;
 
             MutexGuard g(m);
             if (!recentFails.empty())
