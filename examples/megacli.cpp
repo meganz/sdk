@@ -2240,7 +2240,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 
 struct Login
 {
-    string email ="", password = "", salt = "", pin = "";
+    string email, password, salt, pin;
     int version;
 
     Login() : version(0)
