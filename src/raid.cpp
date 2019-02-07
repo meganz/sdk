@@ -129,11 +129,11 @@ namespace mega
     RaidBufferManager::RaidBufferManager()
         : is_raid(false)
         , raidKnown(false)
+        , raidLinesPerChunk(16 * 1024)
         , unusedRaidConnection(0)
         , raidpartspos(0)
         , outputfilepos(0)
         , resumewastedbytes(0)
-        , raidLinesPerChunk(16 * 1024)
     {
         for (int i = RAIDPARTS; i--; )
         {

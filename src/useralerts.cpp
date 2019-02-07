@@ -694,9 +694,9 @@ UserAlerts::UserAlerts(MegaClient& cmc)
     , lsn(UNDEF)
     , fsn(UNDEF)
     , lastTimeDelta(0)
+    , provisionalmode(false)
     , notingSharedNodes(false)
     , ignoreNodesUnderShare(UNDEF)
-    , provisionalmode(false)
 {
 }
 
