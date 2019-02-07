@@ -25994,8 +25994,8 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
 
 /**
  * Gets permissions string: e.g: 777 -> rwxrwxrwx
- * @param perm numeric permissions
- * @param str_perm out permission string buffer
+ * @param permissions permissions
+ * @param permsString permission string buffer
  */
 void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
 {

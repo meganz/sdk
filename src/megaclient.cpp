@@ -8522,11 +8522,11 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * "+" - Public and plain text, accessible by anyone knowing userhandle
  * "^" - Private and non-encrypted.
  *
- * @param an Attribute name.
+ * @param at Attribute name.
  * @param av Attribute value.
  * @param avl Attribute value length.
  * @param ctag Tag to identify the request at intermediate layer
- * @return Void.
+
  */
 void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
 {
@@ -8614,9 +8614,8 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
  * @brief Queue a user attribute retrieval.
  *
  * @param u User.
- * @param an Attribute name.
+ * @param at Attribute name.
  * @param ctag Tag to identify the request at intermediate layer
- * @return Void.
  */
 void MegaClient::getua(User* u, const attr_t at, int ctag)
 {
