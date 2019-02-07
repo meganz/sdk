@@ -466,6 +466,11 @@ MegaNodeList *MegaNode::getChildren()
     return NULL;
 }
 
+MegaHandle MegaNode::getOwner() const
+{
+    return INVALID_HANDLE;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;

@@ -1031,6 +1031,8 @@ class MegaNode
         virtual std::string getLocalPath();
 #endif
 
+        virtual MegaHandle getOwner() const;
+
         /**
          * @brief Provides a serialization of the MegaNode object
          *
