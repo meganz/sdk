@@ -7954,37 +7954,4 @@ public class MegaApiJava {
 
         return result;
     }
-
-    /**
-     * Provide a phone number to get verification code.
-     *
-     * @param phoneNumber the phone number to receive the txt with verification code.
-     * @param listener callback of this request.
-     */
-    public void sendSMSVerificationCode(String phoneNumber,nz.mega.sdk.MegaRequestListenerInterface listener) {
-        megaApi.sendSMSVerificationCode(phoneNumber,createDelegateRequestListener(listener));
-    }
-
-    public void sendSMSVerificationCode(String phoneNumber,nz.mega.sdk.MegaRequestListenerInterface listener,boolean reverifying_whitelisted) {
-        megaApi.sendSMSVerificationCode(phoneNumber,createDelegateRequestListener(listener),reverifying_whitelisted);
-    }
-
-    /**
-     * Send the verification code to verifiy phone number.
-     *
-     * @param verificationCode received 6 digits verification code.
-     * @param listener callback of this request.
-     */
-    public void checkSMSVerificationCode(String verificationCode,nz.mega.sdk.MegaRequestListenerInterface listener) {
-        megaApi.checkSMSVerificationCode(verificationCode,createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the verified phone number of the mega account.
-     *
-     * @return verified phone number.
-     */
-    public String smsVerifiedPhoneNumber() {
-        return megaApi.smsVerifiedPhoneNumber();
-    }
 }
