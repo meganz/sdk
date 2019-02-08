@@ -1693,10 +1693,13 @@ using namespace mega;
 
 - (NSString *)fingerprintForInputStream:(MegaInputStream *)stream modificationTime:(NSDate *)modificationTime {
     const char *val = self.megaApi->getFingerprint(stream, (long long)[modificationTime timeIntervalSince1970]);
-    NSString *ret = [[NSString alloc] initWithUTF8String:val];
-    
-    delete [] val;
-    return ret;
+    if (val != NULL) {
+        NSString *ret = [[NSString alloc] initWithUTF8String:val];
+        delete [] val;
+        return ret;
+    } else {
+        return nil;
+    }
 }
 
 - (NSString *)fingerprintForNode:(MEGANode *)node {
