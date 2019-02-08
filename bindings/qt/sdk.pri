@@ -370,7 +370,7 @@ win32 {
             include/mega/win32/megafs.h  \
             include/mega/win32/megawaiter.h
 
-    SOURCES += bindings/qt/3rdparty/libs/sqlite3.c
+    SOURCES += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/sqlite3.c
 }
 
 unix {
