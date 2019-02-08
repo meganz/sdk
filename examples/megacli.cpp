@@ -2264,7 +2264,7 @@ struct Login
             }
             else
             {
-                client->login(email.c_str(), pwkey, pin.c_str());
+                client->login(email.c_str(), pwkey, (!pin.empty()) ? pin.c_str() : NULL);
             }
         }
         else if (version == 2 && !salt.empty())
