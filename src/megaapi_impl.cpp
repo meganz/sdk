@@ -951,6 +951,7 @@ std::string MegaBackgroundMediaUploadPrivate::serialize()
     w.serializebinary(filekey, sizeof(filekey));
     w.serializechunkmacs(chunkmacs);
     w.serializestring(mediaproperties.serialize());
+    w.serializestring(url);
     w.serializeexpansionflags(false, false);
     return s;
 }
@@ -1011,6 +1012,11 @@ void MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     string inputFilepathtmp(inputFilepath), localfilename;
     api->fsAccess->path2local(&inputFilepathtmp, &localfilename);
     mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
+
+    // cause the codec IDs to be looked up before serialization
+    uint32_t dummykey[4];
+    mediaproperties.convertMediaPropertyFileAttributes(dummykey, api->client->mediaFileInfo);
+
     delete fain;
 #endif
 }

@@ -144,6 +144,7 @@ bool CacheableReader::unserializestring(string& s)
         s.assign(ptr, len - 1);
     }
     ptr += len;
+    fieldnum += 1;
     return true;
 }
 
@@ -156,6 +157,7 @@ bool CacheableReader::unserializebinary(byte* data, size_t len)
 
     memcpy(data, ptr, len);
     ptr += len;
+    fieldnum += 1;
     return true;
 }
 
@@ -172,6 +174,7 @@ bool CacheableReader::unserializei64(int64_t& field)
     }
     field = MemAccess::get<int64_t>(ptr);
     ptr += sizeof(int64_t);
+    fieldnum += 1;
     return true;
 }
 
@@ -183,6 +186,7 @@ bool CacheableReader::unserializeu32(uint32_t& field)
     }
     field = MemAccess::get<uint32_t>(ptr);
     ptr += sizeof(uint32_t);
+    fieldnum += 1;
     return true;
 }
 
@@ -194,6 +198,7 @@ bool CacheableReader::unserializehandle(handle& field)
     }
     field = MemAccess::get<handle>(ptr);
     ptr += sizeof(handle);
+    fieldnum += 1;
     return true;
 }
 
@@ -205,6 +210,7 @@ bool CacheableReader::unserializebool(bool& field)
     }
     field = 0 != MemAccess::get<byte>(ptr);
     ptr += sizeof(byte);
+    fieldnum += 1;
     return true;
 }
 
@@ -216,6 +222,7 @@ bool CacheableReader::unserializebyte(byte& field)
     }
     field = MemAccess::get<byte>(ptr);
     ptr += sizeof(byte);
+    fieldnum += 1;
     return true;
 }
 
@@ -227,6 +234,7 @@ bool CacheableReader::unserializeexpansionflags(unsigned char field[8])
     }
     memcpy(field, ptr, 8);
     ptr += 8;
+    fieldnum += 1;
     return true;
 }
 
