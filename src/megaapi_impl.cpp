@@ -631,7 +631,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         LOG_err << "MegaNodePrivate unserialization failed - invalid version";
         return NULL;
     }
-    ptr += 7;
+    ptr += 6;
 
     string chatauth;
     if (hasChatAuth)
@@ -660,8 +660,16 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     handle owner = INVALID_HANDLE;
     if (hasOwner)
     {
-        owner = MemAccess::get<handle>(ptr);
-        ptr += sizeof(handle);
+        if (ptr + sizeof(handle) <= end)
+        {
+            owner = MemAccess::get<handle>(ptr);
+            ptr += sizeof(handle);
+        }
+        else
+        {
+            LOG_err << "MegaNodePrivate unserialization failed - owner not found";
+            return NULL;
+        }
     }
 
     d->erase(0, ptr - d->data());
