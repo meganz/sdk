@@ -412,12 +412,123 @@ string User::attr2string(attr_t type)
             attrname = "^!usl";
             break;
 
+        case ATTR_GEOLOCATION:
+            attrname = "*!geo";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
 
     return attrname;
 }
+
+string User::attr2longname(attr_t type)
+{
+    string longname;
+
+    switch(type)
+    {
+    case ATTR_AVATAR:
+        longname = "AVATAR";
+        break;
+
+    case ATTR_FIRSTNAME:
+        longname = "FIRSTNAME";
+        break;
+
+    case ATTR_LASTNAME:
+        longname = "LASTNAME";
+        break;
+
+    case ATTR_AUTHRING:
+        longname = "AUTHRING";
+        break;
+
+    case ATTR_LAST_INT:
+        longname = "LAST_INT";
+        break;
+
+    case ATTR_ED25519_PUBK:
+        longname = "ED25519_PUBK";
+        break;
+
+    case ATTR_CU25519_PUBK:
+        longname = "CU25519_PUBK";
+        break;
+
+    case ATTR_SIG_RSA_PUBK:
+        longname = "SIG_RSA_PUBK";
+        break;
+
+    case ATTR_SIG_CU255_PUBK:
+        longname = "SIG_CU255_PUBK";
+        break;
+
+    case ATTR_KEYRING:
+        longname = "KEYRING";
+        break;
+
+    case ATTR_COUNTRY:
+        longname = "COUNTRY";
+        break;
+
+    case ATTR_BIRTHDAY:
+        longname = "BIRTHDAY";
+        break;
+
+    case ATTR_BIRTHMONTH:
+        longname = "BIRTHMONTH";
+        break;
+
+    case ATTR_BIRTHYEAR:
+        longname = "BIRTHYEAR";
+        break;
+
+    case ATTR_LANGUAGE:
+        longname = "LANGUAGE";
+        break;
+
+    case ATTR_PWD_REMINDER:
+        longname = "PWD_REMINDER";
+        break;
+
+    case ATTR_DISABLE_VERSIONS:
+        longname = "DISABLE_VERSIONS";
+        break;
+
+    case ATTR_CONTACT_LINK_VERIFICATION:
+        longname = "CONTACT_LINK_VERIFICATION";
+        break;
+
+    case ATTR_RICH_PREVIEWS:
+        longname = "RICH_PREVIEWS";
+        break;
+
+    case ATTR_LAST_PSA:
+        longname = "LAST_PSA";
+        break;
+
+    case ATTR_RUBBISH_TIME:
+        longname = "RUBBISH_TIME";
+        break;
+
+    case ATTR_STORAGE_STATE:
+        longname = "STORAGE_STATE";
+        break;
+
+    case ATTR_GEOLOCATION:
+        longname = "GEOLOCATION";
+        break;
+
+    case ATTR_UNKNOWN:
+        longname = "";  // empty string
+        break;
+    }
+
+    return longname;
+}
+
 
 attr_t User::string2attr(const char* name)
 {
@@ -509,6 +620,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_STORAGE_STATE;
     }
+    else if(!strcmp(name, "*!geo"))
+    {
+        return ATTR_GEOLOCATION;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -532,6 +647,7 @@ bool User::needversioning(attr_t at)
         case ATTR_RICH_PREVIEWS:
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
+        case ATTR_GEOLOCATION:
             return 0;
 
         case ATTR_AUTHRING:
@@ -558,6 +674,7 @@ char User::scope(attr_t at)
         case ATTR_AUTHRING:
         case ATTR_LAST_INT:
         case ATTR_RICH_PREVIEWS:
+        case ATTR_GEOLOCATION:
             return '*';
 
         case ATTR_AVATAR:
@@ -944,6 +1061,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_STORAGE_STATE:
             changed.storageState = true;
+            break;
+
+        case ATTR_GEOLOCATION:
+            changed.geolocation = true;
             break;
 
         default:

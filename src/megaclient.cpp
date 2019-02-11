@@ -5171,13 +5171,12 @@ void MegaClient::sc_userattr()
                 else if (ualist.size() == uavlist.size())
                 {
                     // invalidate only out-of-date attributes
-                    const string *cacheduav;
                     for (itua = ualist.begin(), ituav = uavlist.begin();
                          itua != ualist.end();
                          itua++, ituav++)
                     {
                         attr_t type = User::string2attr(itua->c_str());
-                        cacheduav = u->getattrversion(type);
+                        const string *cacheduav = u->getattrversion(type);
                         if (cacheduav)
                         {
                             if (*cacheduav != *ituav)
@@ -5189,6 +5188,11 @@ void MegaClient::sc_userattr()
                                     resetKeyring();
                                 }
 #endif
+                            }
+                            else
+                            {
+                                LOG_info << "User attribute already up to date";
+                                return;
                             }
                         }
                         else
@@ -5534,7 +5538,7 @@ void MegaClient::sc_upc(bool incoming)
                     pcr->uts = uts;
                 }
 
-                if (statecurrent && ou != me)
+                if (statecurrent && ou != me && (incoming || s != 2))
                 {
                     string email;
                     Node::copystring(&email, m);
@@ -5866,6 +5870,15 @@ void MegaClient::sc_chatupdate()
                             }
                         }
                     }
+
+                    if (chat->priv == PRIV_RM)
+                    {
+                        // clear the list of peers because API still includes peers in the
+                        // actionpacket, but not in a fresh fetchnodes
+                        delete userpriv;
+                        userpriv = NULL;
+                    }
+
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
@@ -8781,7 +8794,7 @@ void MegaClient::notifynode(Node* n)
 
 void MegaClient::transfercacheadd(Transfer *transfer)
 {
-    if (tctable)
+    if (tctable && !transfer->skipserialization)
     {
         LOG_debug << "Caching transfer";
         tctable->put(MegaClient::CACHEDTRANSFER, transfer, &tckey);
@@ -9096,18 +9109,28 @@ void MegaClient::procmcf(JSON *j)
                                     // remove yourself from the list of users (only peers matter)
                                     if (userpriv)
                                     {
-                                        userpriv_vector::iterator upvit;
-                                        for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
+                                        if (chat->priv == PRIV_RM)
                                         {
-                                            if (upvit->first == me)
+                                            // clear the list of peers because API still includes peers in the
+                                            // actionpacket, but not in a fresh fetchnodes
+                                            delete userpriv;
+                                            userpriv = NULL;
+                                        }
+                                        else
+                                        {
+                                            userpriv_vector::iterator upvit;
+                                            for (upvit = userpriv->begin(); upvit != userpriv->end(); upvit++)
                                             {
-                                                userpriv->erase(upvit);
-                                                if (userpriv->empty())
+                                                if (upvit->first == me)
                                                 {
-                                                    delete userpriv;
-                                                    userpriv = NULL;
+                                                    userpriv->erase(upvit);
+                                                    if (userpriv->empty())
+                                                    {
+                                                        delete userpriv;
+                                                        userpriv = NULL;
+                                                    }
+                                                    break;
                                                 }
-                                                break;
                                             }
                                         }
                                     }
@@ -10831,9 +10854,9 @@ void MegaClient::pread(Node* n, m_off_t count, m_off_t offset, void* appdata)
 }
 
 // request direct read by exported handle / key
-void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata, bool isforeign, const char *privauth, const char *pubauth)
+void MegaClient::pread(handle ph, SymmCipher* key, int64_t ctriv, m_off_t count, m_off_t offset, void* appdata, bool isforeign, const char *privauth, const char *pubauth, const char *cauth)
 {
-    queueread(ph, isforeign, key, ctriv, count, offset, appdata, privauth, pubauth);
+    queueread(ph, isforeign, key, ctriv, count, offset, appdata, privauth, pubauth, cauth);
 }
 
 // since only the first six bytes of a handle are in use, we use the seventh to encode its type
@@ -10850,7 +10873,7 @@ bool MegaClient::isprivatehandle(handle* hp)
     return ((char*)hp)[NODEHANDLE] != 0;
 }
 
-void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata, const char* privauth, const char *pubauth)
+void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_off_t offset, m_off_t count, void* appdata, const char* privauth, const char *pubauth, const char *cauth)
 {
     handledrn_map::iterator it;
 
@@ -10861,7 +10884,7 @@ void MegaClient::queueread(handle h, bool p, SymmCipher* key, int64_t ctriv, m_o
     if (it == hdrns.end())
     {
         // this handle is not being accessed yet: insert
-        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv, privauth, pubauth)));
+        it = hdrns.insert(hdrns.end(), pair<handle, DirectReadNode*>(h, new DirectReadNode(this, h, p, key, ctriv, privauth, pubauth, cauth)));
         it->second->hdrn_it = it;
         it->second->enqueue(offset, count, reqtag, appdata);
 
@@ -12561,7 +12584,7 @@ void MegaClient::putnodes_syncdebris_result(error, NewNode* nn)
 // inject file into transfer subsystem
 // if file's fingerprint is not valid, it will be obtained from the local file
 // (PUT) or the file's key (GET)
-bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfirst)
+bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfirst, bool donotpersist)
 {
     if (!f->transfer)
     {
@@ -12625,7 +12648,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
             f->tag = reqtag;
-            if (!f->dbid)
+            if (!f->dbid && !donotpersist)
             {
                 filecacheadd(f);
             }
@@ -12723,6 +12746,8 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                 *(FileFingerprint*)t = *(FileFingerprint*)f;
             }
 
+            t->skipserialization = donotpersist;
+
             t->lastaccesstime = m_time();
             t->tag = reqtag;
             f->tag = reqtag;
@@ -12730,7 +12755,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
 
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
-            if (!f->dbid)
+            if (!f->dbid && !donotpersist)
             {
                 filecacheadd(f);
             }

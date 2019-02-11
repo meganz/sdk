@@ -408,6 +408,11 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
         arg("en", drn->publicauth.c_str());
     }
 
+    if (drn->chatauth.size())
+    {
+        arg("cauth", drn->chatauth.c_str());
+    }
+
     if (client->usehttps)
     {
         arg("ssl", 2);
@@ -2473,8 +2478,6 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
         endarray();
     }
 
-    notself(client);
-
     tag = ctag;
 }
 
@@ -2603,8 +2606,6 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
 
     endarray();
 
-    notself(client);
-
     tag = ctag;
 }
 
@@ -2668,8 +2669,6 @@ CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsign
     {
         arg(an.c_str(), av, avl);
     }
-
-    notself(client);
 
     tag = ctag;
 }
@@ -5390,6 +5389,10 @@ void CommandChatRemove::procresult()
             if (uh == client->me)
             {
                 chat->priv = PRIV_RM;
+
+                // clear the list of peers (if re-invited, peers will be re-added)
+                delete chat->userpriv;
+                chat->userpriv = NULL;
             }
 
             chat->setTag(tag ? tag : -1);

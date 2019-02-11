@@ -1171,7 +1171,8 @@ class MegaUser
             CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
             CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
             CHANGE_TYPE_RUBBISH_TIME    = 0x40000,
-            CHANGE_TYPE_STORAGE_STATE   = 0x80000
+            CHANGE_TYPE_STORAGE_STATE   = 0x80000,
+            CHANGE_TYPE_GEOLOCATION     = 0x100000
         };
 
         /**
@@ -1244,6 +1245,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
          * Check if the state of the storage has changed
          *
+         * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
+         * Check if option for geolocation messages has changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1315,6 +1319,10 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_STORAGE_STATE   = 0x80000
          * Check if the state of the storage has changed
+         *
+         * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
+         * Check if option for geolocation messages has changed
+         *
          */
         virtual int getChanges();
 
@@ -3422,6 +3430,16 @@ class MegaTransfer
         virtual bool isSyncTransfer() const;
 
         /**
+         * @brief Returns true if this transfer belongs to the backups engine
+         *
+         * This data is important to know if the transfer will resume when enableTransferResumption is called.
+         * Regular transfers are resumed, but backup transfers aren't.
+         *
+         * @return true if this transfer belongs to the backups engine, otherwise false
+         */
+        virtual bool isBackupTransfer() const;
+
+        /**
          * @brief Returns true is this is a streaming transfer
          * @return true if this is a streaming transfer, false otherwise
          * @see MegaApi::startStreaming
@@ -4111,7 +4129,7 @@ public:
      * @brief Get the path of the local folder that is being synced
      *
      * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaRequest object is deleted.
+     * the MegaSync object is deleted.
      *
      * @return Local folder that is being synced
      */
@@ -4210,8 +4228,13 @@ public:
      * the application deletes it.
      *
      * There won't be more callbacks about this backup.
-     * The last parameter provides the result of the backup. If the backup finished without problems,
-     * the error code will be API_OK
+     * The last parameter provides the result of the backup:
+     * If the backup finished without problems,
+     * the error code will be API_OK.
+     * If some transfer failed, the error code will be API_EINCOMPLETE.
+     * If the backup has been skipped the error code will be API_EEXPIRED.
+     * If the backup folder cannot be found, the error will be API_ENOENT.
+     *
      *
      * @param api MegaApi object that started the backup
      * @param backup Information about the backup
@@ -4295,7 +4318,7 @@ public:
      * @brief Get the path of the local folder that is being backed up
      *
      * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaRequest object is deleted.
+     * the MegaBackup object is deleted.
      *
      * @return Local folder that is being backed up
      */
@@ -4426,25 +4449,25 @@ public:
     virtual int64_t getCurrentBKStartTime() const;
 
     /**
-     * @brief Returns the number of transferred bytes during this request
+     * @brief Returns the number of transferred bytes during last backup
      * @return Transferred bytes during this backup
      */
     virtual long long getTransferredBytes() const;
 
     /**
-     * @brief Returns the total bytes to be transferred to complete the backup
+     * @brief Returns the total bytes to be transferred to complete last backup
      * @return Total bytes to be transferred to complete the backup
      */
     virtual long long getTotalBytes() const;
 
     /**
-     * @brief Returns the current speed of this backup
+     * @brief Returns the current speed of last backup
      * @return Current speed of this backup
      */
     virtual long long getSpeed() const;
 
     /**
-     * @brief Returns the average speed of this backup
+     * @brief Returns the average speed of last backup
      * @return Average speed of this backup
      */
     virtual long long getMeanSpeed() const;
@@ -4460,6 +4483,15 @@ public:
      */
     virtual int64_t getUpdateTime() const;
 
+    /**
+     * @brief Returns the list with the transfers that have failed for during last backup
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Names of the custom attributes of the node
+     * @see MegaApi::setCustomNodeAttribute
+     */
+    virtual MegaTransferList *getFailedTransfers();
 };
 
 
@@ -5734,6 +5766,7 @@ class MegaApi
         };
 
         enum {
+            USER_ATTR_UNKNOWN = -1,
             USER_ATTR_AVATAR = 0,               // public - char array
             USER_ATTR_FIRSTNAME = 1,            // public - char array
             USER_ATTR_LASTNAME = 2,             // public - char array
@@ -5751,7 +5784,8 @@ class MegaApi
             USER_ATTR_RICH_PREVIEWS = 18,        // private - byte array
             USER_ATTR_RUBBISH_TIME = 19,         // private - byte array
             USER_ATTR_LAST_PSA = 20,             // private - char array
-            USER_ATTR_STORAGE_STATE = 21         // private - char array
+            USER_ATTR_STORAGE_STATE = 21,        // private - char array
+            USER_ATTR_GEOLOCATION = 22           // private - byte array
         };
 
         enum {
@@ -6217,6 +6251,31 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Use custom DNS servers
+         *
+         * The SDK tries to automatically get and use DNS servers configured in the system at startup. This function can be used
+         * to override that automatic detection and use a custom list of DNS servers. It is also useful to provide working
+         * DNS servers to the SDK in platforms in which it can't get them from the system (Windows Phone and Universal Windows Platform).
+         *
+         * Since the usage of this function implies a change in DNS servers used by the SDK, all connections are
+         * closed and restarted using the new list of new DNS servers, so calling this function too often can cause
+         * many retries and problems to complete requests. Please use it only at startup or when DNS servers need to be changed.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the new list of DNS servers
+         *
+         * @param dnsServers New list of DNS servers. It must be a list of IPs separated by a comma character ",".
+         * IPv6 servers are allowed (without brackets).
+         *
+         * The usage of this function will trigger the callback MegaGlobalListener::onEvent and the callback
+         * MegaListener::onEvent with the event type MegaEvent::EVENT_DISCONNECT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void setDnsServers(const char *dnsServers, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
@@ -7953,10 +8012,39 @@ class MegaApi
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
+         * Get whether the user has enabled send geolocation messages (private)
          *
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the name associated to a user attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param attr Attribute
+         * @return name associated to the user attribute
+         */
+        const char *userAttributeToString(int attr);
+
+        /**
+         * @brief Get the long descriptive name associated to a user attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param attr Attribute
+         * @return descriptive name associated to the user attribute
+         */
+        const char *userAttributeToLongName(int attr);
+
+        /**
+         * @brief Get numeric value for user attribute given a string
+         * @param name Name of the attribute
+         * @return numeric value for user attribute
+         */
+        int userAttributeFromString(const char *name);
 
         /**
          * @brief Get the email address of any user in MEGA.
@@ -8098,6 +8186,8 @@ class MegaApi
          * Get whether user generates rich-link messages or not (private)
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
+         * MegaApi::USER_ATTR_GEOLOCATION = 22
+         * Set whether the user can send geolocation messages (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -8605,6 +8695,7 @@ class MegaApi
          */
         void isMasterKeyExported(MegaRequestListener *listener = NULL);
 
+#ifdef ENABLE_CHAT
         /**
          * @brief Enable or disable the generation of rich previews
          *
@@ -8671,6 +8762,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable the sending of geolocation messages
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void enableGeolocation(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Check if the sending of geolocation messages is enabled
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_GEOLOCATION
+         *
+         * Sending a Geolocation message is enabled if the MegaRequest object, received in onRequestFinish,
+         * has error code MegaError::API_OK. In other cases, send geolocation messages is not enabled and
+         * the application has to answer before send a message of this type.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+#endif
 
         /**
          * @brief Get the number of days for rubbish-bin cleaning scheduler
@@ -12774,8 +12892,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getMegaTextChatList - Returns the new chat's information
          *
-         * @note If you are trying to create a chat with more than 1 other person, then it will be forced
-         * to be a group chat.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - If more than 1 peer is provided for a 1on1 chatroom.
          *
          * @note If peers list contains only one person, group chat is not set and a permament chat already
          * exists with that person, then this call will return the information for the existing chat, rather
@@ -12816,6 +12934,9 @@ class MegaApi
          * is MegaError::ERROR_OK:
          * - MegaChatRequest::getChatHandle - Returns the handle of the new chatroom
          *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the number of keys doesn't match the number of peers plus one (own user)
+         *
          * @param peers MegaChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
@@ -12841,10 +12962,11 @@ class MegaApi
          * - MegaRequest::getFlag - Returns false (private/closed mode)
          * - MegaRequest::getSessionKey - Returns the unified key for the new peer
          *
-         * On the onTransferFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
-         * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
-
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers or the chatroom is in public mode.
+         * - MegaError::API_EINCOMPLETE - If no valid title is provided and the chatroom has a custom title already.
+         * - MegaError::API_ENOENT- If no valid chatid or user handle is provided, of if the chatroom does not exists.
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user
          * @param privilege Privilege level for the new peers. Valid values are:
@@ -12871,10 +12993,12 @@ class MegaApi
          * - MegaRequest::getFlag - Returns true (open/public mode)
          * - MegaRequest::getSessionKey - Returns the unified key for the new peer
          *
-         * On the onTransferFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers or the chatroom is in private mode.
          * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
-
+         * - MegaError::API_ENOENT- If no valid chatid or user handle is provided, of if the chatroom does not exists.
+         * - MegaError::API_EINCOMPLETE - If no unified key is provided.
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user
          * @param privilege Privilege level for the new peers. Valid values are:
@@ -12897,6 +13021,11 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user to be removed
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT- If no valid chatid is provided or the chatroom does not exists.
+         * - MegaError::API_EACCESS - If the chatroom is 1on1 or the caller is not operator or is not a
+         * chat member, or the target is not a chat member.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user. If not provided (INVALID_HANDLE), the requester is removed
@@ -12932,6 +13061,12 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getEmail - Returns the MegaHandle of the user in Base64 enconding
          *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT- If the chatroom, the node or the target user don't exist.
+         * - MegaError::API_EACCESS- If the target user is the same as caller, or if the target
+         * user is anonymous but the chatroom is in private mode, or if caller is not an operator
+         * or the target user is not a chat member.
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param n MegaNode that wants to be shared
          * @param uh MegaHandle that identifies the user
@@ -12947,6 +13082,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the node handle
          * - MegaRequest::getParentHandle - Returns the chat identifier
          * - MegaRequest::getEmail - Returns the MegaHandle of the user in Base64 enconding
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT- If the chatroom, the node or the target user don't exist.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param n MegaNode whose access wants to be revokesd
@@ -12965,6 +13103,10 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the MegaHandle of the user whose permission
          * is to be upgraded
          * - MegaRequest::getAccess - Returns the privilege level wanted for the user
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT- If the chatroom doesn't exist or if the user specified is not a participant.
+         * - MegaError::API_EACCESS- If caller is not operator or the chatroom is 1on1.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param uh MegaHandle that identifies the user
@@ -13003,7 +13145,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - Returns the title of the chat.
          *
-         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EACCESS - If the logged in user doesn't have privileges to invite peers.
          * - MegaError::API_EARGS - If there's a title and it's not Base64url encoded.
          *
@@ -13139,6 +13281,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getFlag - Returns chat desired state
          *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not exists.
+         *
          * @param chatid MegaHandle that identifies the chat room
          * @param archive Desired chat state
          * @param listener MegaRequestListener to track this request
@@ -13176,9 +13321,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the public handle of the chat link, if any
          *
-         * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
-         * will return API_EACCESS.
-         * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
+         * On the onTransferFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not have a valid chatlink, or the chatroom does not exists.
+         * - MegaError::API_EACCESS - If caller is not operator or the chat is not a public chat or it's a 1on1 room.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param listener MegaRequestListener to track this request
@@ -13200,8 +13345,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getParentHandle - Returns the public handle of the chat link
          *
-         * If caller is not operator or the chat is not a public chat or it's a 1on1 room, this request
-         * will return API_EACCESS.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not have a valid chatlink, or the chatroom does not exists.
+         * - MegaError::API_EACCESS - If caller is not operator or the chat is not a public chat or it's a 1on1 room.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param listener MegaRequestListener to track this request
@@ -13219,9 +13365,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          *
-         * If caller is not operator or the chat is not an public chat or it's a 1on1 room, this request
-         * will return MegaError::API_EACCESS.
-         * If the chatroom does not have a chatlink, this request will return MegaError::API_ENOENT.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not have a valid chatlink, or the chatroom does not exists.
+         * - MegaError::API_EACCESS - If caller is not operator or the chat is not a public chat or it's a 1on1 room.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param listener MegaRequestListener to track this request
@@ -13252,6 +13398,9 @@ class MegaApi
          * - MegaRequest::getNumDetails - Returns the current number of participants
          * - MegaRequest::getNumber - Returns the creation timestamp
          *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the public handle is not valid or the chatroom does not exists.
+         *
          * @note This function can be called without being logged in. In that case, the returned
          * URL will be different than for logged in users, so chatd knows whether user has a session.
          *
@@ -13275,8 +13424,11 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the chat identifier
          * - MegaRequest::getText - Returns the title of the chat
          *
-         * If caller is not operator or it's a 1on1 room, this request will return MegaError::API_EACCESS.
-         * If the chat is not an public chat, this request will return MegaError::API_EEXIST.
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the chatroom does not exists.
+         * - MegaError::API_EACCESS - If caller is not operator or it's a 1on1 room.
+         * - MegaError::API_EEXIST - If the chat is already in private mode.
+         * - MegaError::API_EARGS - If custom title is set and no title is provided.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param title Byte array representing the title, already encrypted and converted to Base64url
@@ -13298,6 +13450,10 @@ class MegaApi
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getNodeHandle - Returns the public handle of the chat link
          * - MegaRequest::getSessionKey - Returns the unified key of the chat link
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_ENOENT - If the public handle is not valid.
+         * - MegaError::API_EINCOMPLETE - If the no unified key is provided.
          *
          * @param publichandle MegaHandle that represents the public handle of the chat link
          * @param unifiedKey Byte array that contains the unified key, already encrypted and

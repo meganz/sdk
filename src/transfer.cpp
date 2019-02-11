@@ -56,6 +56,8 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
     priority = 0;
     state = TRANSFERSTATE_NONE;
 
+    skipserialization = false;
+
     faputcompletion_it = client->faputcompletion.end();
     transfers_it = client->transfers[type].end();
 }
@@ -1038,7 +1040,7 @@ m_off_t Transfer::nextpos()
     return pos;
 }
 
-DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth)
+DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCipher* csymmcipher, int64_t cctriv, const char *privauth, const char *pubauth, const char *cauth)
 {
     client = cclient;
 
@@ -1053,6 +1055,11 @@ DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCiph
     if (pubauth)
     {
         publicauth = pubauth;
+    }
+
+    if (cauth)
+    {
+        chatauth = cauth;
     }
 
     symmcipher = *csymmcipher;

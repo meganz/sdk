@@ -66,9 +66,36 @@ CONFIG(USE_AUTOCOMPLETE) {
     }
 }
 
-CONFIG(USE_LIBWEBSOCKETS) {
+CONFIG(USE_CONSOLE) {
+    win32 {
+
+        HEADERS += include/mega/win32/megaconsole.h
+        HEADERS += include/mega/win32/megaconsolewaiter.h
+
+        CONFIG(noreadline) {
+            DEFINES += NO_READLINE
+            SOURCES += src/win32/console.cpp
+            SOURCES += src/win32/consolewaiter.cpp
+        }
+        else {
+            DEFINES += USE_READLINE_STATIC
+            SOURCES += src/wincurl/console.cpp
+            SOURCES += src/wincurl/consolewaiter.cpp
+            LIBS += -lreadline
+        }
+        QMAKE_CXXFLAGS+=/Zc:__cplusplus /std:c++ #this will set _cplusplus correctly in MSVC >= 2017 15.7 Preview 3
+    }
+    else {
+        HEADERS += include/mega/posix/megaconsole.h
+        HEADERS += include/mega/posix/megaconsolewaiter.h
+        SOURCES += src/posix/console.cpp
+        SOURCES += src/posix/consolewaiter.cpp
+        LIBS += -lreadline
+    }
+}
+
+CONFIG(ENABLE_CHAT) {
     CONFIG += USE_LIBUV
-    DEFINES += USE_LIBWEBSOCKETS=1
 
     !macx {
         exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libwebsockets.a) {
@@ -341,9 +368,7 @@ CONFIG(USE_MEGAAPI) {
 win32 {
     HEADERS  += include/mega/win32/megasys.h  \
             include/mega/win32/megafs.h  \
-            include/mega/win32/megawaiter.h \
-            include/mega/win32/megaconsole.h \
-            include/mega/win32/megaconsolewaiter.h
+            include/mega/win32/megawaiter.h
 
     SOURCES += bindings/qt/3rdparty/libs/sqlite3.c
 }
