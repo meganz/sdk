@@ -28,8 +28,8 @@ NS_ASSUME_NONNULL_BEGIN
 /**
  * @brief Extract mediainfo information about the photo or video.
  *
- * Call this function once with the file to be uploaded.  It uses mediainfo to extract information that will
- * help the webclient show or play the file in various browsers.  The information is stored in this object
+ * Call this function once with the file to be uploaded. It uses mediainfo to extract information that will
+ * help the webclient show or play the file in various browsers. The information is stored in this object
  * until the whole operation completes.
  *
  * @param inputFilepath The file to analyse with MediaInfo.
@@ -54,10 +54,10 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @param inputFilePath The file to encrypt a portion of (and the one that is ultimately being uploaded).
  * @param start The index of the first byte of the file to encrypt
- * @param length The number of bytes of the file to encrypt.  The function will round this value up by up to 1MB to fit the
- *        MEGA internal chunking algorithm.  The number of bytes acutally encrypted and stored in the new file is the updated number.
+ * @param length The number of bytes of the file to encrypt. The function will round this value up by up to 1MB to fit the
+ *        MEGA internal chunking algorithm. The number of bytes acutally encrypted and stored in the new file is the updated number.
  * @param outputFilePath The name of the new file to create, and store the encrypted data in.
- * @param urlSuffix The function will update the string passed in.  The content of the string must be appended to the URL
+ * @param urlSuffix The function will update the string passed in. The content of the string must be appended to the URL
  *        when this portion is uploaded.
  * @param adjustsSizeOnly If this is set YES, then encryption is not performed, and only the length parameter is adjusted.
  *        This feature is to enable precalculating the exact sizes of the file portions for upload.
