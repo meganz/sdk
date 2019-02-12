@@ -2297,6 +2297,8 @@ class MegaApiImpl : public MegaApp
         void fireOnBackupUpdate(MegaBackupController *backup);
         void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
 
+        void yield();
+
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
 

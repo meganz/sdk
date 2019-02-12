@@ -16605,6 +16605,15 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
     return e;
 }
 
+void MegaApiImpl::yield()
+{
+#if __cplusplus >= 201100L
+    std::this_thread::yield();
+#elif !defined(_WIN32)
+    sched_yield();
+#endif
+}
+
 void MegaApiImpl::sendPendingRequests()
 {
     MegaRequestPrivate *request;
@@ -19745,8 +19754,9 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(e));
         }
 
-		sdkMutex.unlock();
-	}
+        sdkMutex.unlock();
+        yield();
+    }
 }
 
 char* MegaApiImpl::stringToArray(string &buffer)
