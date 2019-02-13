@@ -451,234 +451,75 @@ char *MegaNodePrivate::serialize()
 
 bool MegaNodePrivate::serialize(string *d)
 {
-    unsigned short ll;
-    bool flag;
+    CacheableWriter w(*d);
+    w.serializecstr(name, true);
+    w.serializecstr(fingerprint, true);
+    w.serializei64(size);
+    w.serializei64(ctime);
+    w.serializei64(mtime);
+    w.serializehandle(nodehandle);
+    w.serializehandle(parenthandle);
+    w.serializestring(attrstring);
+    w.serializestring(nodekey);
+    w.serializestring(privateAuth);
+    w.serializestring(publicAuth);
+    w.serializebool(isPublicNode);
+    w.serializebool(foreign);
 
-    ll = (unsigned short)(name ? strlen(name) + 1 : 0);
-    d->append((char*)&ll, sizeof(ll));
-    d->append(name, ll);
+    bool hasChatAuth = chatAuth && chatAuth[0];
+    bool hasOwner = true;
 
-    ll = (unsigned short)(fingerprint ? strlen(fingerprint) + 1 : 0);
-    d->append((char*)&ll, sizeof(ll));
-    d->append(fingerprint, ll);
-
-    d->append((char*)&size, sizeof(size));
-    d->append((char*)&ctime, sizeof(ctime));
-    d->append((char*)&mtime, sizeof(mtime));
-    d->append((char*)&nodehandle, sizeof(nodehandle));
-    d->append((char*)&parenthandle, sizeof(parenthandle));
-
-    ll = (unsigned short)attrstring.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(attrstring.data(), ll);
-
-    ll = (unsigned short)nodekey.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(nodekey.data(), ll);
-
-    ll = (unsigned short)privateAuth.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(privateAuth.data(), ll);
-
-    ll = (unsigned short)publicAuth.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(publicAuth.data(), ll);
-
-    flag = isPublicNode;
-    d->append((char*)&flag, sizeof(flag));
-
-    flag = foreign;
-    d->append((char*)&flag, sizeof(flag));
-
-    char hasChatAuth = (chatAuth && chatAuth[0]) ? 1 : 0;
-    d->append((char *)&hasChatAuth, 1);
-
-    char hasOwner = 1;
-    d->append((char *)&hasOwner, 1);
-
-    d->append("\0\0\0\0\0", 6);
+    w.serializeexpansionflags(hasChatAuth, hasOwner);
 
     if (hasChatAuth)
     {
-        ll = (unsigned short) strlen(chatAuth);
-        d->append((char*)&ll, sizeof(ll));
-        d->append(chatAuth, ll);
+        w.serializecstr(chatAuth, false);
     }
-
-    d->append((char *)&owner, sizeof(handle));
+    if (hasOwner)
+    {
+        w.serializehandle(owner);
+    }
 
     return true;
 }
 
 MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
 {
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + sizeof(unsigned short) > end)
+    CacheableReader r(*d);
+    string name, fingerprint, originalfingerprint, attrstring, nodekey, privauth, pubauth, chatauth;
+    int64_t size, ctime, mtime;
+    MegaHandle nodehandle, parenthandle, owner = INVALID_HANDLE;
+    bool isPublicNode, foreign;
+    unsigned char expansions[8];
+    string fileattrstring; // fileattrstring is not serialized
+    if (!r.unserializecstr(name, true) ||
+        !r.unserializecstr(fingerprint, true) ||
+        !r.unserializei64(size) ||
+        !r.unserializei64(ctime) ||
+        !r.unserializei64(mtime) ||
+        !r.unserializehandle(nodehandle) ||
+        !r.unserializehandle(parenthandle) ||
+        !r.unserializestring(attrstring) ||
+        !r.unserializestring(nodekey) ||
+        !r.unserializestring(privauth) ||
+        !r.unserializestring(pubauth) ||
+        !r.unserializebool(isPublicNode) ||
+        !r.unserializebool(foreign) ||
+        !r.unserializeexpansionflags(expansions) ||
+        (expansions[0] && !r.unserializecstr(chatauth, false)) ||
+        (expansions[1] && !r.unserializehandle(owner)))
     {
-        LOG_err << "MegaNode unserialization failed - data too short";
+        LOG_err << "MegaNode unserialization failed at field " << r.fieldnum;
         return NULL;
     }
 
-    unsigned short namelen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(namelen);
-    if (ptr + namelen + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - name too long";
-        return NULL;
-    }
-    string name;
-    if (namelen)
-    {
-        name.assign(ptr, namelen - 1);
-    }
-    ptr += namelen;
+    r.eraseused(*d);
 
-    unsigned short fingerprintlen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(fingerprintlen);
-    if (ptr + fingerprintlen + sizeof(unsigned short)
-            + sizeof(int64_t) + sizeof(int64_t)
-            + sizeof(int64_t) + sizeof(MegaHandle)
-            + sizeof(MegaHandle) + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - fingerprint too long";
-        return NULL;
-    }
-    string fingerprint;
-    if (fingerprintlen)
-    {
-        fingerprint.assign(ptr, fingerprintlen - 1);
-    }
-    ptr += fingerprintlen;
-
-    int64_t size = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    int64_t ctime = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    int64_t mtime = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    MegaHandle nodehandle = MemAccess::get<MegaHandle>(ptr);
-    ptr += sizeof(MegaHandle);
-
-    MegaHandle parenthandle = MemAccess::get<MegaHandle>(ptr);
-    ptr += sizeof(MegaHandle);
-
-    unsigned short ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-    if (ptr + ll + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - attrstring too long";
-        return NULL;
-    }
-    string attrstring;
-    attrstring.assign(ptr, ll);
-    ptr += ll;
-
-    string fileattrstring;  // not serialized
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-    if (ptr + ll + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - nodekey too long";
-        return NULL;
-    }
-    string nodekey;
-    nodekey.assign(ptr, ll);
-    ptr += ll;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-    if (ptr + ll + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - auth too long";
-        return NULL;
-    }
-    string privauth;
-    privauth.assign(ptr, ll);
-    ptr += ll;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-    if (ptr + ll + sizeof(bool) + sizeof(bool) + 8 > end)
-    {
-        LOG_err << "MegaNode unserialization failed - auth too long";
-        return NULL;
-    }
-
-    string pubauth;
-    pubauth.assign(ptr, ll);
-    ptr += ll;
-
-    bool isPublicNode = MemAccess::get<bool>(ptr);
-    ptr += sizeof(bool);
-
-    bool foreign = MemAccess::get<bool>(ptr);
-    ptr += sizeof(bool);
-
-    char hasChatAuth = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    char hasOwner = MemAccess::get<handle>(ptr);
-    ptr += sizeof(char);
-
-    if (memcmp(ptr, "\0\0\0\0\0", 6))
-    {
-        LOG_err << "MegaNodePrivate unserialization failed - invalid version";
-        return NULL;
-    }
-    ptr += 6;
-
-    string chatauth;
-    if (hasChatAuth)
-    {
-        if (ptr + sizeof(unsigned short) <= end)
-        {
-            unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
-            ptr += sizeof(chatauthlen);
-
-            if (!chatauthlen || ptr + chatauthlen > end)
-            {
-                LOG_err << "MegaNodePrivate unserialization failed - incorrect size of chat auth";
-                return NULL;
-            }
-
-            chatauth.assign(ptr, chatauthlen);
-            ptr += chatauthlen;
-        }
-        else
-        {
-            LOG_err << "MegaNodePrivate unserialization failed - chat auth not found";
-            return NULL;
-        }
-    }
-
-    handle owner = INVALID_HANDLE;
-    if (hasOwner)
-    {
-        if (ptr + sizeof(handle) <= end)
-        {
-            owner = MemAccess::get<handle>(ptr);
-            ptr += sizeof(handle);
-        }
-        else
-        {
-            LOG_err << "MegaNodePrivate unserialization failed - owner not found";
-            return NULL;
-        }
-    }
-
-    d->erase(0, ptr - d->data());
-
-    return new MegaNodePrivate(namelen ? name.c_str() : NULL, FILENODE, size, ctime,
+    return new MegaNodePrivate(name.empty() ? NULL : name.c_str(), FILENODE, size, ctime,
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
-                               fingerprintlen ? fingerprint.c_str() : NULL, owner,
+                               fingerprint.empty() ? NULL : fingerprint.c_str(), owner,
                                parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign, hasChatAuth ? chatauth.c_str() : NULL);
+                               isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str());
 }
 
 char *MegaNodePrivate::getBase64Handle()
