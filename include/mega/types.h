@@ -258,7 +258,7 @@ struct CacheableWriter
     string& dest;
 
     void serializebinary(byte* data, size_t len); 
-    void serializecstr(const char* field);
+    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility
     void serializestring(const string& field);
     void serializei64(int64_t field);
     void serializeu32(uint32_t field);
@@ -278,6 +278,7 @@ struct CacheableReader
     unsigned fieldnum;
 
     bool unserializebinary(byte* data, size_t len); 
+    bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);

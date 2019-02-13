@@ -63,9 +63,9 @@ void CacheableWriter::serializechunkmacs(const chunkmac_map& m)
     m.serialize(dest);
 }
 
-void CacheableWriter::serializecstr(const char* field)
+void CacheableWriter::serializecstr(const char* field, bool storeNull)
 {
-    unsigned short ll = (unsigned short)(field ? strlen(field) + 1 : 0);
+    unsigned short ll = (unsigned short)(field ? strlen(field) + (storeNull ? 1 : 0) : 0);
     dest.append((char*)&ll, sizeof(ll));
     dest.append(field, ll);
 }
@@ -124,6 +124,31 @@ CacheableReader::CacheableReader(const string& d)
     fieldnum = 0;
 }
 
+bool CacheableReader::unserializecstr(string& s, bool removeNull)
+{
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        return false;
+    }
+
+    unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len - (removeNull ? 1 : 0));
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+
 bool CacheableReader::unserializestring(string& s)
 {
     if (ptr + sizeof(unsigned short) > end)
@@ -141,7 +166,7 @@ bool CacheableReader::unserializestring(string& s)
 
     if (len)
     {
-        s.assign(ptr, len - 1);
+        s.assign(ptr, len);
     }
     ptr += len;
     fieldnum += 1;

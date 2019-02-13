@@ -487,8 +487,8 @@ char *MegaNodePrivate::serialize()
 bool MegaNodePrivate::serialize(string *d)
 {
     CacheableWriter w(*d);
-    w.serializecstr(name);
-    w.serializecstr(fingerprint);
+    w.serializecstr(name, true);
+    w.serializecstr(fingerprint, true);
     w.serializei64(size);
     w.serializei64(ctime);
     w.serializei64(mtime);
@@ -508,11 +508,11 @@ bool MegaNodePrivate::serialize(string *d)
 
     if (hasChatAuth)
     {
-        w.serializecstr(chatAuth);
+        w.serializecstr(chatAuth, false);
     }
     if (hasOriginalFingerprint)
     {
-        w.serializecstr(originalfingerprint);
+        w.serializecstr(originalfingerprint, false);
     }
 
     return true;
@@ -527,8 +527,8 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     bool isPublicNode, foreign;
     unsigned char expansions[8];
     string fileattrstring; // fileattrstring is not serialized
-    if (!r.unserializestring(name) ||
-        !r.unserializestring(fingerprint) ||
+    if (!r.unserializecstr(name, true) ||
+        !r.unserializecstr(fingerprint, true) ||
         !r.unserializei64(size) ||
         !r.unserializei64(ctime) ||
         !r.unserializei64(mtime) ||
@@ -541,8 +541,8 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         !r.unserializebool(isPublicNode) ||
         !r.unserializebool(foreign) ||
         !r.unserializeexpansionflags(expansions) ||
-        (expansions[0] && !r.unserializestring(chatauth)) ||
-        (expansions[1] && !r.unserializestring(originalfingerprint)))
+        (expansions[0] && !r.unserializecstr(chatauth, false)) ||
+        (expansions[1] && !r.unserializecstr(originalfingerprint, false)))
     {
         LOG_err << "MegaNode unserialization failed at field " << r.fieldnum;
         return NULL;
