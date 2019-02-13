@@ -10513,6 +10513,10 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
     case PUT:
     {
         file = MegaFilePut::unserialize(d);
+        if (!file)
+        {
+            break;
+        }
         MegaTransferPrivate* transfer = file->getTransfer();
         Node *parent = client->nodebyhandle(transfer->getParentHandle());
         node_vector *nodes = client->nodesbyfingerprint(file);
