@@ -528,6 +528,11 @@ MegaNodeList *MegaNode::getChildren()
     return NULL;
 }
 
+MegaHandle MegaNode::getOwner() const
+{
+    return INVALID_HANDLE;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -2118,6 +2123,21 @@ void MegaApi::getChatUserAttribute(const char *email_or_handle, int type, const 
 void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
 {
     pImpl->getUserAttribute((MegaUser*)NULL, type, listener);
+}
+
+const char *MegaApi::userAttributeToString(int attr)
+{
+    return MegaApi::strdup(pImpl->userAttributeToString(attr).c_str());
+}
+
+const char *MegaApi::userAttributeToLongName(int attr)
+{
+    return MegaApi::strdup(pImpl->userAttributeToLongName(attr).c_str());
+}
+
+int MegaApi::userAttributeFromString(const char *name)
+{
+    return pImpl->userAttributeFromString(name);
 }
 
 void MegaApi::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
