@@ -805,7 +805,7 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
     newname->append("", 1);
 
 #ifdef WINDOWS_PHONE
-    bool r = !!CopyFile2((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), NULL);
+    bool r = SUCCEEDED(CopyFile2((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), NULL));
 #else
     bool r = !!CopyFileW((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), FALSE);
 #endif

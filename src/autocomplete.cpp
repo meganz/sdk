@@ -76,7 +76,7 @@ ACState::quoting::quoting()
 
 ACState::quoting::quoting(std::string& s)
 {
-    quoted = !s.empty() && s[0] == '\"' || s[0] == '\'';
+    quoted = (!s.empty() && s[0] == '\"') || (s[0] == '\'');
     if (quoted)
     {
         quote_char = s[0];
@@ -187,6 +187,10 @@ std::ostream& operator<<(std::ostream& s, const ACNode& n)
     return n.describe(s);
 }
 
+ACNode::~ACNode()
+{
+}
+
 Optional::Optional(ACN n)
     : subnode(n)
 {
@@ -211,7 +215,7 @@ std::ostream& Optional::describe(std::ostream& s) const
     if (auto e = dynamic_cast<Either*>(subnode.get()))
     {
         std::ostringstream s2;
-        s2 << *subnode;
+        s2 << *e;
         std::string str = s2.str();
         if (str.size() >= 2 && str.front() == '(' && str.back() == ')')
         {
@@ -542,8 +546,8 @@ bool LocalFS::addCompletions(ACState& s)
             {
                 for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
                 {
-                    if (reportFolders && fs::is_directory(iter->status()) ||
-                        reportFiles && fs::is_regular_file(iter->status()))
+                    if ((reportFolders && fs::is_directory(iter->status())) ||
+                        (reportFiles && fs::is_regular_file(iter->status())))
                     {
                         s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep, true);
                     }
@@ -580,10 +584,10 @@ std::ostream& LocalFS::describe(std::ostream& s) const
 }
 
 MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::handle* curDirHandle, const std::string descriptionPrefix)
-    : reportFiles(files)
-    , reportFolders(folders)
-    , client(c)
+    : client(c)
     , cwd(curDirHandle)
+    , reportFiles(files)
+    , reportFolders(folders)
     , descPref(descriptionPrefix)
 {
 }
@@ -713,8 +717,8 @@ bool MegaFS::addCompletions(ACState& s)
                 {
                     for (Node* subnode : n->children)
                     {
-                        if (reportFolders && subnode->type == FOLDERNODE ||
-                            reportFiles && subnode->type == FILENODE)
+                        if ((reportFolders && subnode->type == FOLDERNODE) ||
+                            (reportFiles && subnode->type == FILENODE))
                         {
                             s.addPathCompletion(pathprefix + subnode->displayname(), "", subnode->type == FOLDERNODE, '/', false);
                         }

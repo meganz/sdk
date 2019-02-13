@@ -171,7 +171,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         return 20.0
     }
     
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCellEditingStyle, forRowAt indexPath: IndexPath) {
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
         if editingStyle == .delete {
             let node = nodes.node(at: indexPath.row)
             megaapi.remove(node)
@@ -217,7 +217,7 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         } else if buttonIndex == 2 { //Upload photo
             let imagePickerController = UIImagePickerController()
             imagePickerController.modalPresentationStyle = UIModalPresentationStyle.currentContext
-            imagePickerController.sourceType = UIImagePickerControllerSourceType.photoLibrary
+            imagePickerController.sourceType = UIImagePickerController.SourceType.photoLibrary
             imagePickerController.delegate = self
             
             self.tabBarController?.present(imagePickerController, animated: true, completion: nil)
@@ -239,15 +239,18 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
     }
     
     // MARK: - UIImagePickerControllerDelegate
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
-        let assetURL = info[UIImagePickerControllerReferenceURL] as! URL
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+        // Local variable inserted by Swift 4.2 migrator.
+        let info = convertFromUIImagePickerControllerInfoKeyDictionary(info)
+
+        let assetURL = info[convertFromUIImagePickerControllerInfoKey(UIImagePickerController.InfoKey.referenceURL)] as! URL
         let library = ALAssetsLibrary()
         library.asset(for: assetURL, resultBlock: { (asset: ALAsset!) in
             let name: String = asset.defaultRepresentation().filename()
             let modificationTime: Date = asset.value(forProperty: ALAssetPropertyDate) as! Date
             let imageView = UIImageView()
-            imageView.image = (info[UIImagePickerControllerOriginalImage] as! UIImage)
-            let webData: Data = UIImageJPEGRepresentation(imageView.image!, 0.9)!
+            imageView.image = (info[convertFromUIImagePickerControllerInfoKey(UIImagePickerController.InfoKey.originalImage)] as! UIImage)
+            let webData: Data = imageView.image!.jpegData(compressionQuality: 0.9)!
             
             let localFileURL = URL(fileURLWithPath:NSTemporaryDirectory());
             let localFilePath = localFileURL.appendingPathComponent(name)
@@ -279,10 +282,10 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         }
         
         switch request.type {
-        case MEGARequestType.fetchNodes:
+        case MEGARequestType.MEGARequestTypeFetchNodes:
             SVProgressHUD.dismiss()
             
-        case MEGARequestType.getAttrFile:
+        case MEGARequestType.MEGARequestTypeGetAttrFile:
             for tableViewCell in tableView.visibleCells as! [NodeTableViewCell] {
                 if request?.nodeHandle == tableViewCell.nodeHandle {
                     let node = megaapi.node(forHandle: request.nodeHandle)
@@ -306,4 +309,14 @@ class CloudDriveTableViewController: UITableViewController, MEGADelegate, UIActi
         reloadUI()
     }
     
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertFromUIImagePickerControllerInfoKeyDictionary(_ input: [UIImagePickerController.InfoKey: Any]) -> [String: Any] {
+	return Dictionary(uniqueKeysWithValues: input.map {key, value in (key.rawValue, value)})
+}
+
+// Helper function inserted by Swift 4.2 migrator.
+fileprivate func convertFromUIImagePickerControllerInfoKey(_ input: UIImagePickerController.InfoKey) -> String {
+	return input.rawValue
 }

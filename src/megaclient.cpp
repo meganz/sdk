@@ -5178,13 +5178,12 @@ void MegaClient::sc_userattr()
                 else if (ualist.size() == uavlist.size())
                 {
                     // invalidate only out-of-date attributes
-                    const string *cacheduav;
                     for (itua = ualist.begin(), ituav = uavlist.begin();
                          itua != ualist.end();
                          itua++, ituav++)
                     {
                         attr_t type = User::string2attr(itua->c_str());
-                        cacheduav = u->getattrversion(type);
+                        const string *cacheduav = u->getattrversion(type);
                         if (cacheduav)
                         {
                             if (*cacheduav != *ituav)
@@ -5196,6 +5195,11 @@ void MegaClient::sc_userattr()
                                     resetKeyring();
                                 }
 #endif
+                            }
+                            else
+                            {
+                                LOG_info << "User attribute already up to date";
+                                return;
                             }
                         }
                         else
@@ -8530,11 +8534,11 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * "+" - Public and plain text, accessible by anyone knowing userhandle
  * "^" - Private and non-encrypted.
  *
- * @param an Attribute name.
+ * @param at Attribute name.
  * @param av Attribute value.
  * @param avl Attribute value length.
  * @param ctag Tag to identify the request at intermediate layer
- * @return Void.
+
  */
 void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag)
 {
@@ -8622,9 +8626,8 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
  * @brief Queue a user attribute retrieval.
  *
  * @param u User.
- * @param an Attribute name.
+ * @param at Attribute name.
  * @param ctag Tag to identify the request at intermediate layer
- * @return Void.
  */
 void MegaClient::getua(User* u, const attr_t at, int ctag)
 {
