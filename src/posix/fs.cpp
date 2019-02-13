@@ -631,6 +631,30 @@ void PosixFileSystemAccess::addevents(Waiter* w, int flags)
     }
 }
 
+typedef struct localnodemovement
+{
+    LocalNode *nodefrom;
+    string namefrom;
+    LocalNode *nodeto;
+    string nameto;
+}localnodemovement;
+
+// read all pending inotify events and queue them for processing
+void PosixFileSystemAccess::notifyIfNotIgnore(int &r, string *ignore, unsigned int insize, const char *inname, LocalNode *localnode, bool immediate)
+{
+    if (insize < ignore->size()
+     || memcmp(inname, ignore->data(), ignore->size())
+     || (insize > ignore->size()
+      && memcmp(inname + ignore->size(), localseparator.c_str(), localseparator.size())))
+    {
+
+        LOG_debug << "Filesystem notification. " << localnode->name << "   Path: " << inname;
+        localnode->sync->dirnotify->notify(DirNotify::DIREVENTS, localnode, inname, insize, immediate);
+
+        r |= Waiter::NEEDEXEC;
+    }
+}
+
 // read all pending inotify events and queue them for processing
 int PosixFileSystemAccess::checkevents(Waiter* w)
 {
@@ -640,6 +664,11 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         return r;
     }
 #ifdef ENABLE_SYNC
+
+//#define OLDWAY
+#define ALWAYSINMOVEDFROM
+#ifdef OLDWAY
+
 #ifdef USE_INOTIFY
     PosixWaiter* pw = (PosixWaiter*)w;
     string *ignore;
@@ -692,7 +721,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                  || memcmp(lastname.c_str(), ignore->data(), ignore->size())
                                  || (lastname.size() > ignore->size()
                                   && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
-                                {                                    
+                                {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
                                     LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
@@ -771,9 +800,154 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
             lastcookie = 0;
         }
+    }
+#endif
+
+#else
+
+#ifdef USE_INOTIFY
+    PosixWaiter* pw = (PosixWaiter*)w;
+    string *ignore;
+
+    if (FD_ISSET(notifyfd, &pw->rfds))
+    {
+        char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
+        int p, l;
+        inotify_event* in;
+        wdlocalnode_map::iterator it;
+        string localpath;
+
+        vector<localnodemovement> movements;
+
+        while ((l = read(notifyfd, buf, sizeof buf)) > 0)
+        {
+            for (p = 0; p < l; p += offsetof(inotify_event, name) + in->len)
+            {
+                in = (inotify_event*)(buf + p);
+
+                if (in->mask & (IN_Q_OVERFLOW | IN_UNMOUNT))
+                {
+                    notifyerr = true;
+                }
+
+// this flag was introduced in glibc 2.13 and Linux 2.6.36 (released October 20, 2010)
+#ifndef IN_EXCL_UNLINK
+#define IN_EXCL_UNLINK 0x04000000
+#endif
+                if (in->mask & (IN_CREATE | IN_DELETE | IN_MOVED_FROM
+                              | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK))
+                {
+                    LOG_debug << "Inotify notification."
+                              << " wd = " << in->wd
+                              << " mask = " << in->mask
+                              << " cookie = " << in->cookie
+                              << " len = " << in->len
+                              << " name = " << in->name
+                              //<< " lastlocalnodename = " << (lastlocalnode?lastlocalnode->name:"NONE") // this might crash
+                              << " lastname = " << lastname;
+
+                    //if ((in->mask & (IN_CREATE | IN_ISDIR)) != IN_CREATE) //certain operations (e.g: QFile::copy, Qt 5.11) might produce IN_CREATE with no further IN_CLOSE_WRITE
+                    {
+                        it = wdnodes.find(in->wd);
+
+                        if (it != wdnodes.end())
+                        {
+                            unsigned int insize = strlen(in->name);
+                            ignore = &it->second->sync->dirnotify->ignore;
+
+#ifndef ALWAYSINMOVEDFROM
+                            if (!(in->mask & IN_MOVED_FROM))
+#endif
+                            {
+                                notifyIfNotIgnore(r, ignore, insize, in->name, it->second);
+                                r |= Waiter::NEEDEXEC;
+                            }
+
+
+                            if (in->mask & IN_MOVED_TO)
+                            {
+                                if (lastcookie == in->cookie) // we are assuming that IN_MOVE_FROM is followed by IN_MOVE_TO inmediately.
+                                {
+                                    localnodemovement movement;
+
+                                    movement.nodefrom = lastlocalnode;
+                                    movement.namefrom = lastname; // beware scope of lastname! Ideally one should do a move
+                                    movement.nodeto = it->second;
+                                    movement.nameto = in->name;
+
+                                    movements.push_back(movement);
+                                }
+                                else
+                                {
+                                    LOG_debug << "Filesystem notification, IN_MOVE_TO from non watched location";
+                                }
+                            }
+
+                            if (in->mask & IN_MOVED_FROM)
+                            {
+                                // could be followed by the corresponding IN_MOVE_TO or not..
+                                // retain in case it's not (in which case it's a deletion)
+                                lastcookie = in->cookie; //not used!
+                                lastlocalnode = it->second;
+                                lastname = in->name; //TODO: use const char* always insted for the shake of efficiency
+                            }
+                            else
+                            {
+                                lastcookie = 0;
+                            }
+
+                            if (in->mask & IN_DELETE)
+                            {
+                                bool movementfound = false;
+                                LocalNode *lnfrom;
+                                string namefrom;
+                                for (vector<localnodemovement>::reverse_iterator itmov = movements.rbegin();
+                                     itmov != movements.rend();
+                                     ++itmov)
+                                {
+                                    localnodemovement &mit= (*itmov);
+
+                                    if (mit.nodeto == it->second && mit.nameto == in->name )
+                                    {
+                                        movementfound = true;
+                                        lnfrom = mit.nodefrom;
+                                        namefrom = mit.namefrom;
+                                    }
+                                }
+
+                                if (movementfound)
+                                {
+                                    LOG_debug << "Found delete filesystem notification corresponding to moved node. " << it->second->name << "   Path: " << in->name
+                                              << " Original file procedence: " << lnfrom->name << "   Path: " << namefrom ;
+                                    notifyIfNotIgnore(r, ignore, namefrom.size(), namefrom.c_str(), lnfrom);
+                                }
+                            }
+                        }
+                        else
+                        {
+                        LOG_debug << "Inotify notification root not found."
+                                  << " wd = " << in->wd
+                                  << " mask = " << in->mask
+                                  << " cookie = " << in->cookie
+                                  << " len = " << in->len
+                                  << " name = " << in->name
+                                  //<< " lastlocalnodename = " << (lastlocalnode?lastlocalnode->name:"NONE") // this might crash
+                                  << " lastname = " << lastname;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (lastcookie)
+        {
+            lastcookie = 0;
+        }
 
         LOG_debug << "Inotify notifications processed.";
     }
+#endif
+
 #endif
 
 #ifdef __MACH__
@@ -1734,6 +1908,8 @@ void PosixDirNotify::addnotify(LocalNode* l, string* path)
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     int wd;
+
+    LOG_debug << "Adding inotify watch " << *path;
 
     wd = inotify_add_watch(fsaccess->notifyfd, path->c_str(),
                            IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO

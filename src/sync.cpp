@@ -591,6 +591,17 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
         isroot = l == &localroot && !newname.size();
     }
 
+    LOG_debug << "checking path2 . h=" << LOG_NODEHANDLE(l && l->node? l->node->nodehandle:0)
+              << " localname=" << (localname?*localname:"NONE")
+              << " wejustcreatedthisfolder=" << wejustcreatedthisfolder
+              << " backoffds = " << (backoffds?*backoffds:-9)
+              << " path = " << path
+              << " tmppath = " << tmppath
+              << " localpath = " << *localpath;
+
+
+
+
     LOG_verbose << "Scanning: " << path;
 
     // postpone moving nodes into nonexistent parents
@@ -975,7 +986,7 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                     it->second->setnotseen(0);
 
                     // immediately scan folder to detect deviations from cached state
-                    if (fullscan)
+//                    if (fullscan) // || potentially changed folder
                     {
                         scan(localname ? localpath : &tmppath, fa);
                     }

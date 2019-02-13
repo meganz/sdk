@@ -118,6 +118,7 @@ public:
 
     PosixFileSystemAccess(int = -1);
     ~PosixFileSystemAccess();
+    void notifyIfNotIgnore(int &r, std::string *ignore, unsigned int insize, const char* inname, LocalNode *localnode, bool immediate = false);
 };
 
 #ifdef HAVE_AIO_RT

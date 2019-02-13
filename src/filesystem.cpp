@@ -162,7 +162,8 @@ DirNotify::DirNotify(string* clocalbasepath, string* cignore)
 void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
 {
     LOG_debug << "considering notification event q=" << q << " localpath = " << localpath << " immediate = " << immediate
-                  << " h = " << LOG_NODEHANDLE(l&&l->node?l->node->nodehandle:0);
+              << " l.name = " << (l?l->name:"NO_FOUN")
+              << " h = " << LOG_NODEHANDLE(l&&l->node?l->node->nodehandle:0);
     string path;
     path.assign(localpath, len);
 
@@ -234,7 +235,14 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_
                 && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
                 && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
         {
-            LOG_debug << "Self filesystem notification skipped";
+            LOG_debug << "Self filesystem notification skipped"
+                      << " success=" << success
+                      << " ll=" << ll
+                      << " fa->retry=" << fa->retry
+                      << " success=" << success
+                      << " success=" << success
+                         ;
+
             delete fa;
             return;
         }
