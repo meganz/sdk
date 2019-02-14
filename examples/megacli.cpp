@@ -2264,12 +2264,12 @@ struct Login
             }
             else
             {
-                client->login(email.c_str(), pwkey, pin.c_str());
+                client->login(email.c_str(), pwkey, (!pin.empty()) ? pin.c_str() : NULL);
             }
         }
         else if (version == 2 && !salt.empty())
         {
-            client->login2(email.c_str(), password.c_str(), &salt, pin.c_str());
+            client->login2(email.c_str(), password.c_str(), &salt, (!pin.empty()) ? pin.c_str() : NULL);
         }
         else
         {
@@ -2286,7 +2286,16 @@ static void process_line(char* l)
     switch (prompt)
     {
         case LOGINTFA:
-                client->login(login.email.c_str(), pwkey, l);
+                if (strlen(l) > 1)
+                {
+                    login.pin = l;
+                    login.login(client);
+                }
+                else
+                {
+                    cout << endl << "The pin length is invalid, please try to login again." << endl;
+                }
+
                 setprompt(COMMAND);
                 return;
 

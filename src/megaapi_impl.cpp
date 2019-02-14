@@ -71,7 +71,7 @@
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle parentHandle,
+                                 string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
                                  const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth)
 : MegaNode()
 {
@@ -106,6 +106,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->sharekey = NULL;
     this->foreign = isForeign;
     this->children = NULL;
+    this->owner = owner;
 
     if (privateauth)
     {
@@ -182,6 +183,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->foreign = node->isForeign();
     this->sharekey = NULL;
     this->children = NULL;
+    this->owner = node->getOwner();
 
     if (node->isExported())
     {
@@ -374,6 +376,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->mtime = node->mtime;
     this->nodehandle = node->nodehandle;
     this->parenthandle = node->parent ? node->parent->nodehandle : INVALID_HANDLE;
+    this->owner = node->owner;
 
     if(node->attrstring)
     {
@@ -502,13 +505,19 @@ bool MegaNodePrivate::serialize(string *d)
     w.serializebool(foreign);
 
     bool hasChatAuth = chatAuth && chatAuth[0];
+    bool hasOwner = true;
+
     bool hasOriginalFingerprint = originalfingerprint && originalfingerprint[0];
 
-    w.serializeexpansionflags(hasChatAuth, hasOriginalFingerprint);
+    w.serializeexpansionflags(hasChatAuth, hasOwner, hasOriginalFingerprint);
 
     if (hasChatAuth)
     {
         w.serializecstr(chatAuth, false);
+    }
+    if (hasOwner)
+    {
+        w.serializehandle(owner);
     }
     if (hasOriginalFingerprint)
     {
@@ -523,7 +532,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     CacheableReader r(*d);
     string name, fingerprint, originalfingerprint, attrstring, nodekey, privauth, pubauth, chatauth;
     int64_t size, ctime, mtime;
-    MegaHandle nodehandle, parenthandle;
+    MegaHandle nodehandle, parenthandle, owner;
     bool isPublicNode, foreign;
     unsigned char expansions[8];
     string fileattrstring; // fileattrstring is not serialized
@@ -542,7 +551,8 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         !r.unserializebool(foreign) ||
         !r.unserializeexpansionflags(expansions) ||
         (expansions[0] && !r.unserializecstr(chatauth, false)) ||
-        (expansions[1] && !r.unserializecstr(originalfingerprint, false)))
+        (expansions[1] && !r.unserializehandle(owner)) ||
+        (expansions[2] && !r.unserializecstr(originalfingerprint, false)))
     {
         LOG_err << "MegaNode unserialization failed at field " << r.fieldnum;
         return NULL;
@@ -551,7 +561,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     return new MegaNodePrivate(name.c_str(), FILENODE, size, ctime,
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
                                fingerprint.empty() ? NULL : fingerprint.c_str(), originalfingerprint.empty() ? NULL : originalfingerprint.c_str(),
-                               parenthandle, privauth.c_str(), pubauth.c_str(),
+                               owner, parenthandle, privauth.c_str(), pubauth.c_str(),
                                isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str());
 }
 
@@ -912,6 +922,10 @@ int MegaNodePrivate::getChanges()
     return changed;
 }
 
+MegaHandle MegaNodePrivate::getOwner() const
+{
+    return owner;
+}
 
 const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
 
@@ -5071,86 +5085,21 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
 
 string MegaApiImpl::userAttributeToString(int type)
 {
-    string attrname;
+    return User::attr2string((::mega::attr_t) type);
+}
 
-    switch(type)
+string MegaApiImpl::userAttributeToLongName(int type)
+{
+    return User::attr2longname((::mega::attr_t) type);
+}
+
+int MegaApiImpl::userAttributeFromString(const char *name)
+{
+    if (!name)
     {
-        case MegaApi::USER_ATTR_AVATAR:
-            attrname = "+a";
-            break;
-
-        case MegaApi::USER_ATTR_FIRSTNAME:
-            attrname = "firstname";
-            break;
-
-        case MegaApi::USER_ATTR_LASTNAME:
-            attrname = "lastname";
-            break;
-
-        case MegaApi::USER_ATTR_AUTHRING:
-            attrname = "*!authring";
-            break;
-
-        case MegaApi::USER_ATTR_LAST_INTERACTION:
-            attrname = "*!lstint";
-            break;
-
-        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-            attrname = "+puEd255";
-            break;
-
-        case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-            attrname = "+puCu255";
-            break;
-
-        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
-            attrname = "+sigPubk";
-            break;
-
-        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            attrname = "+sigCu255";
-            break;
-
-        case MegaApi::USER_ATTR_KEYRING:
-            attrname = "*keyring";
-            break;
-
-        case MegaApi::USER_ATTR_LANGUAGE:
-            attrname = "^!lang";
-
-        case MegaApi::USER_ATTR_PWD_REMINDER:
-            attrname = "^!prd";
-            break;
-
-        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-            attrname = "^!dv";
-            break;
-
-        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "^clv";
-            break;
-
-        case MegaApi::USER_ATTR_RICH_PREVIEWS:
-            attrname = "*!rp";
-            break;
-
-        case MegaApi::USER_ATTR_LAST_PSA:
-            attrname = "^!lastPsa";
-            break;
-
-        case MegaApi::USER_ATTR_RUBBISH_TIME:
-            attrname = "^!rubbishtime";
-            break;
-
-        case MegaApi::USER_ATTR_STORAGE_STATE:
-            attrname = "^!usl";
-
-        case MegaApi::USER_ATTR_GEOLOCATION:
-            attrname = "*!geo";
-            break;
+        return MegaApi::USER_ATTR_UNKNOWN;
     }
-
-    return attrname;
+    return User::string2attr(name);
 }
 
 char MegaApiImpl::userAttributeToScope(int type)
@@ -9829,8 +9778,8 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     string fileattrsting;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, &fileattrsting, NULL, NULL, parentHandle,
-                               privateauth, publicauth, false, true);
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, &fileattrsting, NULL, NULL, INVALID_HANDLE,
+                               parentHandle, privateauth, publicauth, false, true);
 }
 
 MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
@@ -9838,7 +9787,7 @@ MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *na
     string nodekey;
     string attrstring;
     string fileattrsting;
-    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, &fileattrsting, NULL, NULL, parentHandle,
+    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, &fileattrsting, NULL, NULL, INVALID_HANDLE, parentHandle,
                                privateauth, publicauth, false, true);
 }
 
@@ -21925,7 +21874,7 @@ MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int fo
         megaApi->startTimer(this->startTime - Waiter::ds + 1); //wake the sdk when required
         this->state = MegaBackup::BACKUP_ACTIVE;
         megaApi->fireOnBackupStateChanged(this);
-        removeexceeding();
+        removeexceeding(false);
     }
     else
     {
@@ -22082,7 +22031,7 @@ void MegaBackupController::update()
     }
 }
 
-void MegaBackupController::removeexceeding()
+void MegaBackupController::removeexceeding(bool currentoneOK)
 {
     map<int64_t, MegaNode *> backupTimesNodes;
     int ncompleted=0;
@@ -22110,7 +22059,9 @@ void MegaBackupController::removeexceeding()
                         megaApi->setCustomNodeAttribute(childNode, "BACKST", "MISCARRIED", this);
                     }
 
-                    if (backstvalue && !strcmp(backstvalue,"COMPLETE"))
+                    if ( (backstvalue && !strcmp(backstvalue,"COMPLETE"))
+                            || ( childNode->getHandle() == currentHandle && currentoneOK ) //either its completed or is the current one and it went ok (it might not have backstvalue yet set
+                            )
                     {
                         ncompleted++;
                     }
@@ -22636,7 +22587,7 @@ bool MegaBackupController::checkCompletion()
         megaApi->fireOnBackupFinish(this, MegaError(e));
         megaApi->fireOnBackupStateChanged(this);
 
-        removeexceeding();
+        removeexceeding(e == API_OK);
 
         return true;
     }
@@ -26373,8 +26324,8 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
 
 /**
  * Gets permissions string: e.g: 777 -> rwxrwxrwx
- * @param perm numeric permissions
- * @param str_perm out permission string buffer
+ * @param permissions permissions
+ * @param permsString permission string buffer
  */
 void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
 {
@@ -29757,3 +29708,4 @@ int MegaTimeZoneDetailsPrivate::getDefault() const
 }
 
 }
+
