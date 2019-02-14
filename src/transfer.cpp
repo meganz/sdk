@@ -1918,7 +1918,7 @@ Transfer *TransferList::transferat(direction_t direction, unsigned int position)
     return NULL;
 }
 
-void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator srcit, transfer_list::iterator dstit)
+void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::iterator /*srcit*/, transfer_list::iterator dstit)
 {
     if (dstit == transfers[transfer->type].end())
     {

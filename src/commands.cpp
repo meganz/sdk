@@ -2771,7 +2771,7 @@ void CommandPutUA::procresult()
     client->app->putua_result(e);
 }
 
-CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, const char* ph, int ctag)
+CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag)
 {
     this->uid = uid;
     this->at = at;

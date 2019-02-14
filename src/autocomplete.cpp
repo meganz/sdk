@@ -388,7 +388,6 @@ bool ExportedLink::match(ACState& s) const
     return false;
 }
 
-
 std::ostream& ExportedLink::describe(std::ostream& s) const
 {
     if (filelink && !folderlink)

@@ -54,7 +54,7 @@ struct Base64Str
     Base64Str(const byte* b, int size)
     {
         int n = Base64::btoa(b, size, chars);
-        assert(n + 1 <= sizeof(chars));
+        assert(n + 1 <= (int)sizeof(chars));
     }
     Base64Str(const handle& h)
     {

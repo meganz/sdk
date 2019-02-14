@@ -261,7 +261,7 @@ static void displaytransferdetails(Transfer* t, const char* action)
 }
 
 // a new transfer was added
-void DemoApp::transfer_added(Transfer* t)
+void DemoApp::transfer_added(Transfer* /*t*/)
 {
 }
 
@@ -271,7 +271,7 @@ void DemoApp::transfer_removed(Transfer* t)
     displaytransferdetails(t, "removed\n");
 }
 
-void DemoApp::transfer_update(Transfer* t)
+void DemoApp::transfer_update(Transfer* /*t*/)
 {
     // (this is handled in the prompt logic)
 }
@@ -1110,7 +1110,7 @@ void DemoApp::updatepcr_result(error e, ipcactions_t action)
     }
 }
 
-void DemoApp::fa_complete(handle h, fatype type, const char* data, uint32_t len)
+void DemoApp::fa_complete(handle h, fatype type, const char* /*data*/, uint32_t len)
 {
     cout << "Got attribute of type " << type << " (" << len << " byte(s))";
     Node *n = client->nodebyhandle(h);
@@ -2037,7 +2037,7 @@ string showMediaInfo(const std::string& fileattributes, uint32_t fakey[4], Media
     return showMediaInfo(mp, mediaInfo, oneline);
 }
 
-string showMediaInfo(Node* n, MediaFileInfo& mediaInfo, bool oneline)
+string showMediaInfo(Node* n, MediaFileInfo& /*mediaInfo*/, bool oneline)
 {
     if (n->hasfileattribute(fa_media))
     {
@@ -2084,7 +2084,7 @@ public:
         int filesLeft = 0;
     };
         
-    FileFindCommand::FileFindCommand(std::shared_ptr<Stack>& s, MegaClient* mc) : stack(s)
+    FileFindCommand(std::shared_ptr<Stack>& s, MegaClient* mc) : stack(s)
     {
         h = stack->front();
         stack->pop_front();
@@ -2107,7 +2107,7 @@ public:
     {
         if (client->json.isnumeric())
         {
-            error e = (error)client->json.getint();
+            client->json.getint();
         }
         else
         {
@@ -2217,8 +2217,8 @@ bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
     {
     case FILENODE: 
     case FOLDERNODE: return nodetype == pathtype;
+    default: return false;
     }
-    return false;
 }
 
 bool recursiveCompare(Node* mn, fs::path p)
@@ -2232,8 +2232,8 @@ bool recursiveCompare(Node* mn, fs::path p)
 
     if (pathtype == FILENODE)
     {
-        uint64_t size = fs::file_size(p);
-        if (size != mn->size)
+        uint64_t size = (uint64_t) fs::file_size(p);
+        if (size != (uint64_t) mn->size)
         {
             cout << "File size mismatch: " << mn->displaypath() << ":" << mn->size << " " << p.u8string() << ":" << size << endl;
         }
@@ -2251,18 +2251,15 @@ bool recursiveCompare(Node* mn, fs::path p)
 
     for (auto p_iter = ps.begin(); p_iter != ps.end(); )
     {
-        auto a = ms.begin()->first;
         auto er = ms.equal_range(p_iter->first);
         auto next_p = p_iter;
         ++next_p;
-        bool any_equal_matched = false;
         for (auto i = er.first; i != er.second; ++i)
         {
             if (recursiveCompare(i->second, p_iter->second))
             {
                 ms.erase(i);
                 ps.erase(p_iter);
-                any_equal_matched = true;
                 break;
             }
         }
@@ -2315,7 +2312,6 @@ void exec_treecompare(autocomplete::ACState& s)
     Node* n = nodeFromRemotePath(s.words[2].s);
     if (n && !p.empty())
     {
-        int descendants = 0;
         recursiveCompare(n, p);
     }
 }
@@ -2843,7 +2839,7 @@ static void process_line(char* l)
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
-                cout << "      chatc group [t title64] [email ro|sta|mod]*" << endl;    // group can be 1 or 0
+                cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
                 cout << "      chati chatid email ro|sta|mod [t title] [unifiedkey]" << endl;
                 cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
                 cout << "      chatr chatid [email]" << endl;
@@ -4498,7 +4494,7 @@ static void process_line(char* l)
                         if (wordscount < 2 || wordscount == 3)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            cout << "      chatc group [email ro|sta|mod]* " << endl;
                             return;
                         }
 
@@ -4506,36 +4502,11 @@ static void process_line(char* l)
                         if (group != 0 && group != 1)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            cout << "      chatc group [email ro|sta|mod]* " << endl;
                             return;
                         }
 
                         unsigned parseoffset = 2;
-                        const char *title = NULL;
-
-                        if (wordscount >= 4)
-                        {
-                            if (words[2] == "t")
-                            {
-                                if (words[3].empty())
-                                {
-                                    cout << "Title cannot be set to empty string" << endl;
-                                    return;
-                                }
-
-                                if (group)
-                                {
-                                    title =  words[3].c_str();
-                                    parseoffset = 4;
-                                }
-                                else
-                                {
-                                    cout << "Only group chats have Title" << endl;
-                                    return;
-                                }
-                            }
-                        }
-
                         if (((wordscount - parseoffset) % 2) == 0)
                         {
                             if (!group && (wordscount - parseoffset) != 2)
@@ -4597,7 +4568,7 @@ static void process_line(char* l)
                         else
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            cout << "      chatc group [email ro|sta|mod]* " << endl;
                             return;
                         }
                     }
@@ -5480,7 +5451,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "alerts")
                     {
-                        bool shownew = false, showold = false, toggleNotify = false;
+                        bool shownew = false, showold = false;
                         size_t showN = 0; 
                         if (words.size() == 1)
                         {
@@ -5537,7 +5508,7 @@ static void process_line(char* l)
                             {
                                 if ((*i)->relevant)
                                 {
-                                    if (--n < showN || shownew && !(*i)->seen || showold && (*i)->seen)
+                                    if ((--n < showN || shownew) && (!(*i)->seen || showold) && (*i)->seen)
                                     {
                                         printAlert(**i);
                                     }
@@ -5917,6 +5888,7 @@ static void process_line(char* l)
                                         }
                                     }
                                     break;
+                                case TYPE_UNKNOWN: break;
                                 }
                             }
                             else
@@ -6157,7 +6129,7 @@ void DemoApp::multifactorauthsetup_result(string *code, error e)
 }
 
 
-void DemoApp::prelogin_result(int version, string* email, string *salt, error e)
+void DemoApp::prelogin_result(int version, string* /*email*/, string *salt, error e)
 {
     if (e)
     {
@@ -6224,7 +6196,7 @@ void DemoApp::sendsignuplink_result(error e)
 }
 
 // signup link query result
-void DemoApp::querysignuplink_result(handle uh, const char* email, const char* name, const byte* pwc, const byte* kc,
+void DemoApp::querysignuplink_result(handle /*uh*/, const char* email, const char* name, const byte* pwc, const byte* /*kc*/,
                                      const byte* c, size_t len)
 {
     cout << "Ready to confirm user account " << email << " (" << name << ") - enter confirm to execute." << endl;
@@ -6285,7 +6257,7 @@ void DemoApp::queryrecoverylink_result(error e)
         cout << "The link is invalid (" << errorstring(e) << ")." << endl;
 }
 
-void DemoApp::queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails)
+void DemoApp::queryrecoverylink_result(int type, const char *email, const char */*ip*/, time_t /*ts*/, handle /*uh*/, const vector<string> */*emails*/)
 {
     recoveryemail = email ? email : "";
     hasMasterKey = (type == RECOVER_WITH_MASTERKEY);
@@ -6553,7 +6525,7 @@ void DemoApp::openfilelink_result(error e)
 
 // the requested link was opened successfully - import to cwd
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
-                                  string* a, string* fa, int)
+                                  string* a, string* /*fa*/, int)
 {
     Node* n;
 
@@ -6661,12 +6633,12 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     delete [] buf;
 }
 
-void DemoApp::checkfile_result(handle h, error e)
+void DemoApp::checkfile_result(handle /*h*/, error e)
 {
     cout << "Link check failed: " << errorstring(e) << endl;
 }
 
-void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename,
+void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t /*ts*/, m_time_t tm, string* filename,
                                string* fingerprint, string* fileattrstring)
 {
     cout << "Name: " << *filename << ", size: " << size;
@@ -6697,7 +6669,7 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
     }
 }
 
-bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* appdata)
+bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* /*appdata*/)
 {
     cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
     fwrite(data, 1, size_t(len), stdout);
@@ -6706,7 +6678,7 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t,
     return true;
 }
 
-dstime DemoApp::pread_failure(error e, int retry, void* appdata)
+dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/)
 {
     if (retry < 5)
     {
@@ -6821,7 +6793,7 @@ void DemoApp::checkout_result(const char*)
     // FIXME: implement
 }
 
-void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
+void DemoApp::getmegaachievements_result(AchievementsDetails *details, error /*e*/)
 {
     // FIXME: implement display of values
     delete details;
@@ -6866,7 +6838,7 @@ void DemoApp::contactlinkcreate_result(error e, handle h)
     }
 }
 
-void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln, string *avatar)
+void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln, string */*avatar*/)
 {
     if (e)
     {
@@ -7030,7 +7002,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 }
 
 // account details could not be retrieved
-void DemoApp::account_details(AccountDetails* ad, error e)
+void DemoApp::account_details(AccountDetails* /*ad*/, error e)
 {
     if (e)
     {
@@ -7085,7 +7057,7 @@ char* longestCommonPrefix(ac::CompletionState& acs)
     return strdup(s.c_str());
 }
 
-char** my_rl_completion(const char *text, int start, int end)
+char** my_rl_completion(const char */*text*/, int /*start*/, int end)
 {
     rl_attempted_completion_over = 1;
 
@@ -7293,7 +7265,7 @@ void megacli()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    virtual void log(const char *time, int loglevel, const char *source, const char *message)
+    virtual void log(const char */*time*/, int loglevel, const char */*source*/, const char *message)
     {
 #ifdef _WIN32
         OutputDebugStringA(message);

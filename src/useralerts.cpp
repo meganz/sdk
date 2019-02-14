@@ -633,7 +633,7 @@ UserAlert::Takedown::Takedown(UserAlertRaw& un, unsigned int id)
     relevant = isTakedown || isReinstate;
 }
 
-UserAlert::Takedown::Takedown(bool down, bool reinstate, int t, handle nh, m_time_t timestamp, unsigned int id)
+UserAlert::Takedown::Takedown(bool down, bool reinstate, int /*t*/, handle nh, m_time_t timestamp, unsigned int id)
     : Base(type_ph, UNDEF, "", timestamp, id)
 {
     isTakedown = down;
