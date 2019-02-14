@@ -89,3 +89,5 @@ megaclient_statecache*
 /third_party/Makefile
 
 /contrib/QtCreator/build-*
+/contrib/QtCreator/MEGACli/MEGACli.pro.user
+/contrib/QtCreator/MEGATests/MEGATests.pro.user
