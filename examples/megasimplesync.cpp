@@ -30,12 +30,57 @@ using std::cout;
 using std::cerr;
 using std::endl;
 
+
+
+struct Login
+{
+    string email, password, salt, pin;
+    int version;
+
+    Login() : version(0)
+    {
+    }
+
+    void reset()
+    {
+        *this = Login();
+    }
+
+    void login(MegaClient* client)
+    {
+        byte pwkey[SymmCipher::KEYLENGTH];
+
+        if (version == 1)
+        {
+            if (error e = client->pw_key(password.c_str(), pwkey))
+            {
+                cout << "Login error: " << e << endl;
+            }
+            else
+            {
+                client->login(email.c_str(), pwkey, pin.c_str());
+            }
+        }
+        else if (version == 2 && !salt.empty())
+        {
+            client->login2(email.c_str(), password.c_str(), &salt, pin.c_str());
+        }
+        else
+        {
+            cout << "Login unexpected error" << endl;
+        }
+    }
+};
+static Login login;
+
 class SyncApp : public MegaApp, public Logger
 {
     string local_folder;
     string remote_folder;
     handle cwd;
     bool initial_fetch;
+
+    void prelogin_result(int version, string* email, string *salt, error e);
 
     void login_result(error e);
 
@@ -319,6 +364,28 @@ void SyncApp::log(const char *time, int loglevel, const char *source, const char
     cout << "[" << time << "][" << SimpleLogger::toStr((LogLevel)loglevel) << "] " << message << endl;
 }
 
+void SyncApp::prelogin_result(int version, std::string* email, std::string *salt, error e)
+{
+    if (e)
+    {
+        cout << "Login error: " << e << endl;
+        return;
+    }
+
+    login.version = version;
+    login.salt = (version == 2 && salt ? *salt : string());
+
+    if (login.password.empty())
+    {
+        cerr << "invalid empty password" << endl;
+    }
+    else
+    {
+        login.login(client);
+    }
+}
+
+
 // this callback function is called when we have login result (success or
 // error)
 // TODO: check for errors
@@ -570,8 +637,9 @@ int main(int argc, char *argv[])
     //client->followsymlinks = true;
 
     // get values from env
-    client->pw_key(getenv("MEGA_PWD"), pwkey);
-    client->login(getenv("MEGA_EMAIL"), pwkey);
+    login.password = getenv("MEGA_PWD");
+    login.email = getenv("MEGA_EMAIL");
+    client->prelogin(login.email.c_str());
 
     while (true)
     {

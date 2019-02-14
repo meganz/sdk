@@ -70,7 +70,7 @@
 namespace mega {
 
 MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, MegaHandle parentHandle,
+                                 string *nodekey, string *attrstring, string *fileattrstring, const char *fingerprint, MegaHandle owner, MegaHandle parentHandle,
                                  const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth)
 : MegaNode()
 {
@@ -104,6 +104,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->sharekey = NULL;
     this->foreign = isForeign;
     this->children = NULL;
+    this->owner = owner;
 
     if (privateauth)
     {
@@ -179,6 +180,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->foreign = node->isForeign();
     this->sharekey = NULL;
     this->children = NULL;
+    this->owner = node->getOwner();
 
     if (node->isExported())
     {
@@ -336,6 +338,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->mtime = node->mtime;
     this->nodehandle = node->nodehandle;
     this->parenthandle = node->parent ? node->parent->nodehandle : INVALID_HANDLE;
+    this->owner = node->owner;
 
     if(node->attrstring)
     {
@@ -490,7 +493,10 @@ bool MegaNodePrivate::serialize(string *d)
     char hasChatAuth = (chatAuth && chatAuth[0]) ? 1 : 0;
     d->append((char *)&hasChatAuth, 1);
 
-    d->append("\0\0\0\0\0\0", 7);
+    char hasOwner = 1;
+    d->append((char *)&hasOwner, 1);
+
+    d->append("\0\0\0\0\0", 6);
 
     if (hasChatAuth)
     {
@@ -498,6 +504,8 @@ bool MegaNodePrivate::serialize(string *d)
         d->append((char*)&ll, sizeof(ll));
         d->append(chatAuth, ll);
     }
+
+    d->append((char *)&owner, sizeof(handle));
 
     return true;
 }
@@ -615,12 +623,15 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     char hasChatAuth = MemAccess::get<char>(ptr);
     ptr += sizeof(char);
 
-    if (memcmp(ptr, "\0\0\0\0\0\0", 7))
+    char hasOwner = MemAccess::get<handle>(ptr);
+    ptr += sizeof(char);
+
+    if (memcmp(ptr, "\0\0\0\0\0", 6))
     {
         LOG_err << "MegaNodePrivate unserialization failed - invalid version";
         return NULL;
     }
-    ptr += 7;
+    ptr += 6;
 
     string chatauth;
     if (hasChatAuth)
@@ -646,11 +657,26 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         }
     }
 
+    handle owner = INVALID_HANDLE;
+    if (hasOwner)
+    {
+        if (ptr + sizeof(handle) <= end)
+        {
+            owner = MemAccess::get<handle>(ptr);
+            ptr += sizeof(handle);
+        }
+        else
+        {
+            LOG_err << "MegaNodePrivate unserialization failed - owner not found";
+            return NULL;
+        }
+    }
+
     d->erase(0, ptr - d->data());
 
     return new MegaNodePrivate(namelen ? name.c_str() : NULL, FILENODE, size, ctime,
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
-                               fingerprintlen ? fingerprint.c_str() : NULL,
+                               fingerprintlen ? fingerprint.c_str() : NULL, owner,
                                parenthandle, privauth.c_str(), pubauth.c_str(),
                                isPublicNode, foreign, hasChatAuth ? chatauth.c_str() : NULL);
 }
@@ -1007,6 +1033,10 @@ int MegaNodePrivate::getChanges()
     return changed;
 }
 
+MegaHandle MegaNodePrivate::getOwner() const
+{
+    return owner;
+}
 
 const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
 
@@ -4987,86 +5017,21 @@ void MegaApiImpl::addEntropy(char *data, unsigned int size)
 
 string MegaApiImpl::userAttributeToString(int type)
 {
-    string attrname;
+    return User::attr2string((::mega::attr_t) type);
+}
 
-    switch(type)
+string MegaApiImpl::userAttributeToLongName(int type)
+{
+    return User::attr2longname((::mega::attr_t) type);
+}
+
+int MegaApiImpl::userAttributeFromString(const char *name)
+{
+    if (!name)
     {
-        case MegaApi::USER_ATTR_AVATAR:
-            attrname = "+a";
-            break;
-
-        case MegaApi::USER_ATTR_FIRSTNAME:
-            attrname = "firstname";
-            break;
-
-        case MegaApi::USER_ATTR_LASTNAME:
-            attrname = "lastname";
-            break;
-
-        case MegaApi::USER_ATTR_AUTHRING:
-            attrname = "*!authring";
-            break;
-
-        case MegaApi::USER_ATTR_LAST_INTERACTION:
-            attrname = "*!lstint";
-            break;
-
-        case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
-            attrname = "+puEd255";
-            break;
-
-        case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
-            attrname = "+puCu255";
-            break;
-
-        case MegaApi::USER_ATTR_SIG_RSA_PUBLIC_KEY:
-            attrname = "+sigPubk";
-            break;
-
-        case MegaApi::USER_ATTR_SIG_CU255_PUBLIC_KEY:
-            attrname = "+sigCu255";
-            break;
-
-        case MegaApi::USER_ATTR_KEYRING:
-            attrname = "*keyring";
-            break;
-
-        case MegaApi::USER_ATTR_LANGUAGE:
-            attrname = "^!lang";
-
-        case MegaApi::USER_ATTR_PWD_REMINDER:
-            attrname = "^!prd";
-            break;
-
-        case MegaApi::USER_ATTR_DISABLE_VERSIONS:
-            attrname = "^!dv";
-            break;
-
-        case MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION:
-            attrname = "^clv";
-            break;
-
-        case MegaApi::USER_ATTR_RICH_PREVIEWS:
-            attrname = "*!rp";
-            break;
-
-        case MegaApi::USER_ATTR_LAST_PSA:
-            attrname = "^!lastPsa";
-            break;
-
-        case MegaApi::USER_ATTR_RUBBISH_TIME:
-            attrname = "^!rubbishtime";
-            break;
-
-        case MegaApi::USER_ATTR_STORAGE_STATE:
-            attrname = "^!usl";
-
-        case MegaApi::USER_ATTR_GEOLOCATION:
-            attrname = "*!geo";
-            break;
+        return MegaApi::USER_ATTR_UNKNOWN;
     }
-
-    return attrname;
+    return User::string2attr(name);
 }
 
 char MegaApiImpl::userAttributeToScope(int type)
@@ -9660,8 +9625,8 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     string fileattrsting;
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
-    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, &fileattrsting, NULL, parentHandle,
-                               privateauth, publicauth, false, true);
+    return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, &fileattrsting, NULL, INVALID_HANDLE,
+                               parentHandle, privateauth, publicauth, false, true);
 }
 
 MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
@@ -9669,7 +9634,7 @@ MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *na
     string nodekey;
     string attrstring;
     string fileattrsting;
-    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, &fileattrsting, NULL, parentHandle,
+    return new MegaNodePrivate(name, FOLDERNODE, 0, 0, 0, handle, &nodekey, &attrstring, &fileattrsting, NULL, INVALID_HANDLE, parentHandle,
                                privateauth, publicauth, false, true);
 }
 
@@ -26065,8 +26030,8 @@ void MegaHTTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError
 
 /**
  * Gets permissions string: e.g: 777 -> rwxrwxrwx
- * @param perm numeric permissions
- * @param str_perm out permission string buffer
+ * @param permissions permissions
+ * @param permsString permission string buffer
  */
 void MegaFTPServer::getPermissionsString(int permissions, char *permsString)
 {
@@ -29449,3 +29414,4 @@ int MegaTimeZoneDetailsPrivate::getDefault() const
 }
 
 }
+

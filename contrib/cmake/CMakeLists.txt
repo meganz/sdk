@@ -14,14 +14,12 @@
 
 cmake_minimum_required(VERSION 3.7.2)
 
-#set this to 1 if building 64 bit with eg. cmake . -G "Visual Studio 15 2017 Win64"
-#set this to 0 if building 32 bit with eg. cmake . -G "Visual Studio 15 2017"
-set (build_64_bit 1 CACHE TYPE BOOL)
+set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
+set(Mega3rdPartyDir "${MegaDir}/../3rdParty/" CACHE TYPE STRING)
 
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE TYPE BOOL)
 set (USE_OPENSSL 1 CACHE TYPE BOOL)
-set (OPENSSL_IS_BORINGSSL 0 CACHE TYPE BOOL)
 set (USE_CURL 1 CACHE TYPE BOOL)
 set (USE_SQLITE 1 CACHE TYPE BOOL)
 set (USE_MEDIAINFO 1 CACHE TYPE BOOL)
@@ -30,15 +28,27 @@ set (USE_SODIUM 0 CACHE TYPE BOOL)
 set (ENABLE_SYNC 1 CACHE TYPE BOOL)
 set (ENABLE_CHAT 0 CACHE TYPE BOOL)
 set (HAVE_FFMPEG 1 CACHE TYPE BOOL)
+set (USE_WEBRTC 0 CACHE TYPE BOOL)
 
 if (WIN32)
     set (NO_READLINE 1 CACHE TYPE BOOL)
+    set (UNCHECKED_ITERATORS 0 CACHE TYPE BOOL)
 else(WIN32)
     set(NO_READLINE 0)
 endif(WIN32)
 
 if (ENABLE_CHAT AND NOT USE_SODIUM)
     message(FATAL_ERROR "ENABLE_CHAT (${ENABLE_CHAT}) requires USE_SODIUM (${USE_SODIUM})")
+endif()
+
+if (WIN32)
+    if("${CMAKE_GENERATOR}" MATCHES "(Win64|IA64)")
+        SET(build_64_bit 1)
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
+        SET(build_64_bit 0)
+    endif()
+else()
+    set (build_64_bit 1 CACHE TYPE BOOL)
 endif()
 
 if(build_64_bit)
@@ -48,23 +58,19 @@ else(build_64_bit)
 endif(build_64_bit)
 
 IF(WIN32)
-    set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
-    if ("${Mega3rdPartyDir}" STREQUAL "")
-        set(Mega3rdPartyDir "${MegaDir}/../3rdParty")
+    if (UNCHECKED_ITERATORS)
+        if(build_64_bit)
+            set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-windows-static-uncheckediterators")
+        else(build_64_bit)
+            set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static-uncheckediterators")
+        endif(build_64_bit)
+    else() 
+        if(build_64_bit)
+            set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-windows-static")
+        else(build_64_bit)
+            set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static")
+        endif(build_64_bit)
     endif()
-ELSE(WIN32)
-    set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
-    if ("${Mega3rdPartyDir}" STREQUAL "")
-        set (Mega3rdPartyDir "${MegaDir}/../3rdParty/")
-    endif()
-ENDIF(WIN32)
-
-IF(WIN32)
-    if(build_64_bit)
-        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-windows-static-uncheckediterators")
-    else(build_64_bit)
-        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static-uncheckediterators")
-    endif(build_64_bit)
 ELSE(WIN32)
     set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-linux")
     include_directories( "${vcpkg_dir}/include" )
@@ -83,8 +89,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 
 # node deletion in debug under VC++ is pretty slow without this.  However libraries we depend on need to be built with the same setting or linking fails 
 # (hence the build3rdParty script using the xNN-windows-static-uncheckediterators triplets)
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
-
+if (UNCHECKED_ITERATORS)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
+endif()
 
 # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
 if(WIN32)
@@ -154,19 +161,35 @@ IF(WIN32)
     ENDIF(USE_CRYPTOPP)
 
     IF(USE_SODIUM)
-        ImportVcpkgLibrary(sodium          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
+        ImportVcpkgLibrary(sodium      "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
     ENDIF(USE_SODIUM)
 
     IF(USE_CURL)
-        ImportVcpkgLibrary(curl        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libcurl.lib"  "${vcpkg_dir}/lib/libcurl.lib")
-        ImportVcpkgLibrary(cares       "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cares.lib" "${vcpkg_dir}/lib/cares.lib")
-    ENDIF(USE_CURL)
+        IF(USE_WEBRTC)
+            ImportVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
+        ELSE()
+            ImportVcpkgLibrary(curl        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libcurl.lib"  "${vcpkg_dir}/lib/libcurl.lib")
+        ENDIF()
+    ENDIF()
 
-    IF(USE_OPENSSL)
-        ImportVcpkgLibrary(ssl         "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/ssleay32.lib" "${vcpkg_dir}/lib/ssleay32.lib")
-        ImportVcpkgLibrary(crypto      "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libeay32.lib" "${vcpkg_dir}/lib/libeay32.lib")
-    ENDIF(USE_OPENSSL)
-    
+    IF(USE_CURL)
+        ImportVcpkgLibrary(cares       "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cares.lib" "${vcpkg_dir}/lib/cares.lib")
+    ENDIF()
+
+    IF(USE_OPENSSL) 
+        IF(USE_WEBRTC)
+            include_directories( "${WebRtcDir}/webrtc/src/third_party/boringssl/src/include" )
+        ELSE()
+            ImportVcpkgLibrary(ssl         "${vcpkg_dir}/include"  ${vcpkg_dir}/debug/lib/ssleay32.lib ${vcpkg_dir}/lib/ssleay32.lib)
+            ImportVcpkgLibrary(crypto      "${vcpkg_dir}/include" ${vcpkg_dir}/debug/lib/libeay32.lib ${vcpkg_dir}/lib/libeay32.lib)
+        ENDIF()
+    ENDIF()
+
+    IF(USE_WEBRTC)
+        ImportVcpkgLibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
+        add_definitions( -DWEBRTC_WIN )
+    ENDIF()
+
     ImportVcpkgLibrary(z               "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
 
     ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/manual-link/gtestd.lib" "${vcpkg_dir}/lib/manual-link/gtest.lib") 
@@ -227,7 +250,7 @@ IF(WIN32)
 
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib)
+    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
     ${MegaDir}/src/win32/consolewaiter.cpp 
@@ -252,6 +275,11 @@ ELSE(WIN32)
     SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
     SET(Mega_PlatformSpecificLibs crypto pthread rt z dl termcap stdc++fs)
+
+    IF(USE_WEBRTC)
+        ImportVcpkgLibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
+        add_definitions( -DWEBRTC_POSIX )
+    ENDIF()
 
 ENDIF(WIN32)
 
@@ -311,8 +339,11 @@ target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecifi
 target_link_libraries(Mega PUBLIC z 
                 $<${USE_CRYPTOPP}:cryptopp> 
                 $<${USE_SODIUM}:sodium> 
-                $<${USE_OPENSSL}:ssl> $<${USE_OPENSSL}:crypto> 
-                $<${USE_CURL}:curl>  $<${USE_CURL}:cares> 
+                $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl> 
+                $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto> 
+                $<${USE_WEBRTC}:webrtc> 
+                $<${USE_CURL}:curl>  
+                $<${USE_CURL}:cares> 
                 $<${USE_SQLITE}:sqlite3> 
                 $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> 
                 $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:freeimage_IlmImf> $<${USE_FREEIMAGE}:freeimage_IlmImfUtil> $<${USE_FREEIMAGE}:freeimage_IlmThread> $<${USE_FREEIMAGE}:freeimage_Iex> $<${USE_FREEIMAGE}:freeimage_IexMath>

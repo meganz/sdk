@@ -109,6 +109,7 @@ public:
     void removeattr(attr_t at);
 
     static string attr2string(attr_t at);
+    static string attr2longname(attr_t at);
     static attr_t string2attr(const char *name);
     static bool needversioning(attr_t at);
     static char scope(attr_t at);
