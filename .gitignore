@@ -80,6 +80,10 @@ doc/example/lsmega
 *~
 Debug
 Release
+/contrib/QtCreator/build-*
+/contrib/QtCreator/MEGAcli/MEGAcli.pro.user
+/contrib/QtCreator/MEGAtests/MEGAtests.pro.user
+/contrib/QtCreator/MEGAsymplesync/MEGAsymplesync.pro.user
 /contrib/QtCreator/megacli.creator.user
 megaclient_statecache*
 
@@ -88,6 +92,3 @@ megaclient_statecache*
 
 /third_party/Makefile
 
-/contrib/QtCreator/build-*
-/contrib/QtCreator/MEGACli/MEGACli.pro.user
-/contrib/QtCreator/MEGATests/MEGATests.pro.user
