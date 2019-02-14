@@ -2124,7 +2124,8 @@ public:
                 case 'g':
                     if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
                     {
-                        for (;;) {
+                        for (;;)
+                        {
                             std::string tu;
                             if (!client->json.storeobject(&tu))
                             {
