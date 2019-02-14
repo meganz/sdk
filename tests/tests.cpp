@@ -156,8 +156,8 @@ TEST(Cacheable, CacheableReaderWriter)
     ASSERT_EQ(check_cm[777].offset, cm[777].offset);
 
     unsigned char expansions[8];
-    ASSERT_FALSE(r.unserializeexpansionflags(expansions, 1));
-    ASSERT_TRUE(r.unserializeexpansionflags(expansions, 0));
+    ASSERT_FALSE(r.unserializeexpansionflags(expansions, 7));
+    ASSERT_TRUE(r.unserializeexpansionflags(expansions, 8));
     ASSERT_EQ(expansions[0], 1);
     ASSERT_EQ(expansions[1], 0);
     ASSERT_EQ(expansions[2], 1);

@@ -262,7 +262,7 @@ bool CacheableReader::unserializebyte(byte& field)
     return true;
 }
 
-bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned unusedFlagCount)
+bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount)
 {
     if (ptr + 8 > end)
     {
@@ -270,9 +270,9 @@ bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned
     }
     memcpy(field, ptr, 8);
 
-    for (int i = unusedFlagCount; i--; )
+    for (int i = usedFlagCount;  i < 8; i++ )
     {
-        if (field[7 - unusedFlagCount])
+        if (field[i])
         {
             LOG_err << "Unserialization failed in expansion flags, invalid version detected.  Fieldnum: " << fieldnum;
             return false;
