@@ -379,7 +379,7 @@ struct CacheableReader
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
 
-    bool unserializeexpansionflags(unsigned char field[8]);
+    bool unserializeexpansionflags(unsigned char field[8], unsigned unusedFlagCount);
 
     void eraseused(string& d); // must be the same string, unchanged
 };

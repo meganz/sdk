@@ -156,7 +156,8 @@ TEST(Cacheable, CacheableReaderWriter)
     ASSERT_EQ(check_cm[777].offset, cm[777].offset);
 
     unsigned char expansions[8];
-    ASSERT_TRUE(r.unserializeexpansionflags(expansions));
+    ASSERT_FALSE(r.unserializeexpansionflags(expansions, 1));
+    ASSERT_TRUE(r.unserializeexpansionflags(expansions, 0));
     ASSERT_EQ(expansions[0], 1);
     ASSERT_EQ(expansions[1], 0);
     ASSERT_EQ(expansions[2], 1);
@@ -168,6 +169,31 @@ TEST(Cacheable, CacheableReaderWriter)
 
     r.eraseused(readstring);
     ASSERT_EQ(readstring, "abc");
+
+    MediaProperties mp;
+    mp.shortformat = 1;
+    mp.width = 2;
+    mp.height = 3;
+    mp.fps = 4;
+    mp.playtime = 5;
+    mp.containerid = 6;
+    mp.videocodecid = 7;
+    mp.audiocodecid = 8;
+    mp.is_VFR = true;
+    mp.no_audio = false;
+    string mps = mp.serialize();
+    MediaProperties mp2(mps);
+    ASSERT_EQ(mps, mp2.serialize());
+    ASSERT_EQ(mp2.shortformat, 1);
+    ASSERT_EQ(mp2.width, 2);
+    ASSERT_EQ(mp2.height, 3);
+    ASSERT_EQ(mp2.fps, 4);
+    ASSERT_EQ(mp2.playtime, 5);
+    ASSERT_EQ(mp2.containerid, 6);
+    ASSERT_EQ(mp2.videocodecid, 7);
+    ASSERT_EQ(mp2.audiocodecid, 8);
+    ASSERT_EQ(mp2.is_VFR, true);
+    ASSERT_EQ(mp2.no_audio, false);
 }
 
 

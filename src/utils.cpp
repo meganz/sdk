@@ -194,7 +194,12 @@ bool CacheableReader::unserializebinary(byte* data, size_t len)
 
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 {
-    return m.unserialize(ptr, end);   // ptr is adjusted by reference
+    if (m.unserialize(ptr, end))   // ptr is adjusted by reference
+    {
+        fieldnum += 1;
+        return true;
+    }
+    return false;
 }
 
 bool CacheableReader::unserializei64(int64_t& field)
@@ -257,13 +262,23 @@ bool CacheableReader::unserializebyte(byte& field)
     return true;
 }
 
-bool CacheableReader::unserializeexpansionflags(unsigned char field[8])
+bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned unusedFlagCount)
 {
     if (ptr + 8 > end)
     {
         return false;
     }
     memcpy(field, ptr, 8);
+
+    for (int i = unusedFlagCount; i--; )
+    {
+        if (field[7 - unusedFlagCount])
+        {
+            LOG_err << "Unserialization failed in expansion flags, invalid version detected.  Fieldnum: " << fieldnum;
+            return false;
+        }
+    }
+
     ptr += 8;
     fieldnum += 1;
     return true;
