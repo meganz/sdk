@@ -492,7 +492,7 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, const char*);
+    void sendchatlogs(const char*, const char*, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
