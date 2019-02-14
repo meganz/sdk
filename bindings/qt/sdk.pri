@@ -41,7 +41,8 @@ SOURCES += src/attrmap.cpp \
     src/mega_ccronexpr.cpp \
     src/mega_evt_tls.cpp \
     src/mega_zxcvbn.cpp \
-    src/mediafileattribute.cpp
+    src/mediafileattribute.cpp \
+    src/raid.cpp
 
 CONFIG(USE_MEGAAPI) {
   SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
@@ -348,7 +349,8 @@ HEADERS  += include/mega.h \
             include/mega/mega_evt_queue.h \
             include/mega/thread/posixthread.h \
             include/mega/mega_zxcvbn.h \
-            include/mega/mediafileattribute.h
+            include/mega/mediafileattribute.h \
+            include/mega/raid.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
