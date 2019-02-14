@@ -80,6 +80,9 @@
 #include <windows.h>
 
 #ifndef WINDOWS_PHONE
+#ifdef __MINGW32__
+#include <wincrypt.h>
+#endif
  //#include <wincrypt.h> // x509 define clashes with webrtc
  #include <shlwapi.h>
 #endif
