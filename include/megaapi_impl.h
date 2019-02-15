@@ -392,7 +392,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
-                        const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
+                        const char *fingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false, const char *chatauth = NULL);
 
@@ -453,7 +453,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isOutShare();
         virtual bool isInShare();
         std::string* getSharekey();
-
+        virtual MegaHandle getOwner() const;
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -505,6 +505,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         double latitude;
         double longitude;
         MegaNodeList *children;
+        MegaHandle owner;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
