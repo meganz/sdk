@@ -1027,7 +1027,7 @@ void MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     api->fsAccess->path2local(&inputFilepathtmp, &localfilename);
     mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
 
-    // cause the codec IDs to be looked up before serialization
+    // cause the codec IDs to be looked up before serialization. Codec names are not serialized, just the codec IDs
     uint32_t dummykey[4];
     mediaproperties.convertMediaPropertyFileAttributes(dummykey, api->client->mediaFileInfo);
 
@@ -20000,7 +20000,7 @@ void MegaApiImpl::sendPendingRequests()
             newnode->uploadhandle = client->getuploadhandle();
             newnode->attrstring = new string();
 #ifdef USE_MEDIAINFO
-            newnode->fileattributes = new string(bg->mediaproperties.convertMediaPropertyFileAttributes((uint32_t*)(bg->filekey + FILENODEKEYLENGTH / 2), client->mediaFileInfo));
+            newnode->fileattributes = new string(MediaProperties::encodeMediaPropertiesAttributes(bg->mediaproperties, (uint32_t*)(bg->filekey + FILENODEKEYLENGTH / 2)));
 #endif
             string name = sm->get("n");
             AttrMap attrs;
