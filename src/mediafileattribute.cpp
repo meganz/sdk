@@ -430,6 +430,7 @@ MediaProperties::MediaProperties(const std::string& deserialize)
     r.unserializeu32(width);
     r.unserializeu32(height);
     r.unserializeu32(fps);
+    r.unserializeu32(playtime);
     r.unserializeu32(containerid);
     r.unserializeu32(videocodecid);
     r.unserializeu32(audiocodecid);
@@ -445,6 +446,7 @@ std::string MediaProperties::serialize()
     r.serializeu32(width);
     r.serializeu32(height);
     r.serializeu32(fps);
+    r.serializeu32(playtime);
     r.serializeu32(containerid);
     r.serializeu32(videocodecid);
     r.serializeu32(audiocodecid);
