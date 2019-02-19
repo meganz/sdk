@@ -152,14 +152,14 @@ namespace mega
         }
         q.clear();
     }
-    static void clearOwningFilePieces(std::map<m_off_t, RaidBufferManager::FilePiece*>& q)
-    {
-        for (std::map<m_off_t, RaidBufferManager::FilePiece*>::iterator i = q.begin(); i != q.end(); ++i)
-        {
-            delete i->second;
-        }
-        q.clear();
-    }
+    //static void clearOwningFilePieces(std::map<m_off_t, RaidBufferManager::FilePiece*>& q)
+    //{
+    //    for (std::map<m_off_t, RaidBufferManager::FilePiece*>::iterator i = q.begin(); i != q.end(); ++i)
+    //    {
+    //        delete i->second;
+    //    }
+    //    q.clear();
+    //}
 
     RaidBufferManager::~RaidBufferManager()
     {
@@ -271,7 +271,7 @@ namespace mega
         if (isRaid())
         {
             assert(connectionNum < RAIDPARTS);
-            assert(piece->buf.datalen() % RAIDSECTOR == 0 || piece->pos + piece->buf.datalen() == raidPartSize(connectionNum, acquirelimitpos));
+            assert(piece->buf.datalen() % RAIDSECTOR == 0 || piece->pos + m_off_t(piece->buf.datalen()) == raidPartSize(connectionNum, acquirelimitpos));
             if (!piece->buf.isNull())
             {
                 raidHttpGetErrorCount[connectionNum] = 0;
@@ -411,7 +411,7 @@ namespace mega
     void RaidBufferManager::combineRaidParts(unsigned connectionNum)
     {
         assert(asyncoutputbuffers.find(connectionNum) == asyncoutputbuffers.end() || !asyncoutputbuffers[connectionNum]);
-        assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + leftoverchunk.buf.datalen());
+        assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
 
         size_t partslen = 0x10000000, sumdatalen = 0, xorlen = 0;
         for (unsigned i = RAIDPARTS; i--; )
@@ -433,8 +433,8 @@ namespace mega
         // for correct mac processing, we need to process the output file in pieces delimited by the chunkfloor / chunkceil algorithm
         m_off_t newdatafilepos = outputfilepos + leftoverchunk.buf.datalen();
         assert(newdatafilepos + m_off_t(sumdatalen) <= acquirelimitpos);
-        bool processToEnd =  newdatafilepos + sumdatalen == acquirelimitpos  &&  // data to the end
-                             newdatafilepos / (RAIDPARTS - 1) + xorlen == raidPartSize(0, acquirelimitpos);   // parity to the end
+        bool processToEnd =  (newdatafilepos + m_off_t(sumdatalen) == acquirelimitpos)   // data to the end
+                  &&  (newdatafilepos / (RAIDPARTS - 1) + m_off_t(xorlen) == raidPartSize(0, acquirelimitpos));  // parity to the end
 
         assert(!partslen || !processToEnd || sumdatalen - partslen * (RAIDPARTS - 1) <= RAIDLINE);
 
@@ -455,7 +455,7 @@ namespace mega
             if (processToEnd && sumdatalen > 0)
             {
                 // fill in the last of the buffer with non-full sectors from the end of the file
-                assert(outputfilepos + sumdatalen == acquirelimitpos);
+                assert(outputfilepos + m_off_t(sumdatalen) == acquirelimitpos);
                 combineLastRaidLine(dest, sumdatalen);
                 rollInputBuffers(RAIDSECTOR);
             }
@@ -468,7 +468,7 @@ namespace mega
                 memcpy(leftoverchunk.buf.datastart(), outputrec->buf.datastart() + outputrec->buf.datalen() - excessdata, excessdata);
                 outputrec->buf.end -= excessdata;
                 outputfilepos -= excessdata;
-                assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + leftoverchunk.buf.datalen());
+                assert(raidpartspos * (RAIDPARTS - 1) == outputfilepos + m_off_t(leftoverchunk.buf.datalen()));
             }
 
             // discard any excess data that we had to fetch when resuming a file (to align the parts appropriately)
