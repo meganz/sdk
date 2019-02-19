@@ -5518,7 +5518,7 @@ static void process_line(char* l)
                             {
                                 if ((*i)->relevant)
                                 {
-                                    if ((--n < showN || shownew) && (!(*i)->seen || showold) && (*i)->seen)
+                                    if (--n < showN || (shownew && !(*i)->seen) || (showold && (*i)->seen))
                                     {
                                         printAlert(**i);
                                     }
