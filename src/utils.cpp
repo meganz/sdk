@@ -703,7 +703,7 @@ bool TextChat::setFlag(bool value, uint8_t offset)
  *     for encryption will be generated and available through the reference.
  * @return Void.
  */
-void PaddedCBC::encrypt(string* data, SymmCipher* key, string* iv)
+void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
 {
     if (iv)
     {
@@ -711,7 +711,7 @@ void PaddedCBC::encrypt(string* data, SymmCipher* key, string* iv)
         if (iv->size() == 0)
         {
             byte* buf = new byte[8];
-            PrnGen::genblock(buf, 8);
+            rng.genblock(buf, 8);
             iv->append((char*)buf);
             delete [] buf;
         }
@@ -895,13 +895,14 @@ bool HashSignature::checksignature(AsymmCipher* pubk, const byte* sig, unsigned 
     return s == h;
 }
 
-PayCrypter::PayCrypter()
+PayCrypter::PayCrypter(PrnGen &rng)
+    : rng(rng)
 {
-    PrnGen::genblock(keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
+    rng.genblock(keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
     encKey = keys;
     hmacKey = keys+ENC_KEY_BYTES;
 
-    PrnGen::genblock(iv, IV_BYTES);
+    rng.genblock(iv, IV_BYTES);
 }
 
 void PayCrypter::setKeys(const byte *newEncKey, const byte *newHmacKey, const byte *newIv)
@@ -967,7 +968,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     //Add padding
     if(randompadding)
     {
-        PrnGen::genblock((byte *)keyString.data() + keylen, keyString.size() - keylen);
+        rng.genblock((byte *)keyString.data() + keylen, keyString.size() - keylen);
     }
 
     //RSA encryption
@@ -1023,7 +1024,7 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 }
 #endif
 
-string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting)
+string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
 {    
     // decide nonce/IV and auth. tag lengths based on the `mode`
     unsigned ivlen = TLVstore::getIvlen(encSetting);
@@ -1040,7 +1041,7 @@ string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t en
 
     // generate IV array
     byte *iv = new byte[ivlen];
-    PrnGen::genblock(iv, ivlen);
+    rng.genblock(iv, ivlen);
 
     string cipherText;
 

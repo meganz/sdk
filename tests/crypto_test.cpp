@@ -210,7 +210,8 @@ TEST(Crypto, Ed25519_Signing)
     ASSERT_EQ(keySeedLen, Base64::atob(prEd255str.data(), keySeed, keySeedLen))
             << "Failed to convert Ed25519 private key to binary";
 
-    EdDSA signkey(keySeed);
+    PrnGen rng;
+    EdDSA signkey(rng, keySeed);
 
     string puEd255bin;
     puEd255bin.resize(puEd255str.size() * 3 / 4 + 3);
@@ -311,7 +312,7 @@ TEST(Crypto, Ed25519_Signing)
     string sig;
     for (int i = 0; i < 100; i++)
     {
-        PrnGen::genblock(key, keylen);
+        rng.genblock(key, keylen);
         signkey.signKey((unsigned char *) key, keylen, &sig);
 
         ASSERT_TRUE(signkey.verifyKey((unsigned char*) pubRSAbin.data(), pubRSAbin.size(),

@@ -50,6 +50,7 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks)
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
+    : retrybt(transfer->client->rng)
 {
     starttime = 0;
     lastprogressreport = 0;

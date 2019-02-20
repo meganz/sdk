@@ -1259,6 +1259,9 @@ public:
     void proccr(JSON*);
     void procsr(JSON*);
 
+    // pseudo-random number generator
+    PrnGen rng;
+
     // account access: master key
     // folder link access: folder key
     SymmCipher key;
