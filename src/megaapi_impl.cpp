@@ -13285,13 +13285,16 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 {
                     m_time_t currenttime = m_time();
                     bool isMasterKeyExported = User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len);
-                    if (!isMasterKeyExported
-                            && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
+                    bool isLogout = request->getNumber();
+                    bool pwdDontShow = User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len);
+                    if ((!isMasterKeyExported
+                            && !pwdDontShow
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_LOGIN, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTLOGIN
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SKIPPED, (const char*)data, len)) > (request->getNumber() ? User::PWD_SHOW_AFTER_LASTSKIP_LOGOUT : User::PWD_SHOW_AFTER_LASTSKIP)
                             && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
+                            || (isLogout && !pwdDontShow))
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
