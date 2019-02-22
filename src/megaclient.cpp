@@ -3730,13 +3730,20 @@ void MegaClient::sendchatstats(const char *json, int port)
     req->post(this);
 }
 
-void MegaClient::sendchatlogs(const char *json, const char *aid)
+void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
 {
     GenericHttpReq *req = new GenericHttpReq();
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
+    if (port > 0)
+    {
+        req->posturl.append(":");
+        char stringPort[6];
+        sprintf(stringPort, "%d", port);
+        req->posturl.append(stringPort);
+    }
     req->posturl.append("/msglog?aid=");
     req->posturl.append(aid);
     req->posturl.append("&t=e");
