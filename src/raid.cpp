@@ -85,12 +85,12 @@ struct FaultyServers
                 }
             }
 
-            // cleanup recentFails from URLs older than 1 hour
+            // cleanup recentFails from URLs older than 10 hours
             bool cleanup = false;
             Map::iterator jj;
             for (Map::iterator j = recentFails.begin(); j != recentFails.end(); cleanup ? (jj = j, ++j, (void)recentFails.erase(jj)) : (void)++j)
             {
-                cleanup = j->second < (now - 3600);
+                cleanup = j->second < (now - 10 * 3600);
             }
         }
 
@@ -245,8 +245,6 @@ bool RaidBufferManager::isRaid()
     return is_raid;
 }
 
-std::string RaidBufferManager::emptyReturnString;
-
 const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
 {
     if (isRaid())
@@ -260,6 +258,7 @@ const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
     }
     else
     {
+        assert(false); // this class shouldn't be used until we have the URLs, but don't crash
         return emptyReturnString;
     }
 }

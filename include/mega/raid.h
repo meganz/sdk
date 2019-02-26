@@ -121,7 +121,7 @@ namespace mega {
 
         // storage server access URLs.  It either has 6 entries for a raid file, or 1 entry for a non-raid file, or empty if we have not looked up a tempurl yet.
         std::vector<std::string> tempurls;
-        static std::string emptyReturnString;
+        std::string emptyReturnString;
 
         // a connection is paused if it reads too far ahead of others.  This prevents excessive buffer usage
         bool connectionPaused[RAIDPARTS];
