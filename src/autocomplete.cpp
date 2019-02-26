@@ -1078,18 +1078,18 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
 }
 
 
-static size_t utf8strlen(const std::string s)
-{
-    size_t len = 0;
-    for (char c : s)
-    {
-        if ((c & 0xC0) != 0x80)
-        {
-            len += 1;
-        }
-    }
-    return len;
-}
+//static size_t utf8strlen(const std::string s)
+//{
+//    size_t len = 0;
+//    for (char c : s)
+//    {
+//        if ((c & 0xC0) != 0x80)
+//        {
+//            len += 1;
+//        }
+//    }
+//    return len;
+//}
 
 unsigned utf8GlyphCount(const string &str) 
 {

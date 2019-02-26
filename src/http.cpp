@@ -495,7 +495,7 @@ void HttpReq::put(void* data, unsigned len, bool purge)
 
 
 HttpReq::http_buf_t::http_buf_t(byte* b, size_t s, size_t e)
-    : buf(b), start(s), end(e)
+    : start(s), end(e), buf(b)
 {
 }
 
