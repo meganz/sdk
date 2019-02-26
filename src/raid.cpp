@@ -64,25 +64,28 @@ struct FaultyServers
 
     unsigned selectWorstServer(vector<string> urls)
     {
-        // start with 6 connections and drop the slowest to respond
+        // TODO: start with 6 connections and drop the slowest to respond
         // (unless we know one of the 6 URLs is on a dodgy server, in which case start with the other 5)
-       // unsigned worstindex = RAIDPARTS;
-        unsigned worstindex = rand() % RAIDPARTS;
+        //unsigned worstindex = RAIDPARTS;  // indicates no dodgy server was identified (yet)
+        unsigned worstindex = rand() % RAIDPARTS;   // by now, always discard a random server (or a dodgy one, if any)
 
         MutexGuard g(m);
         if (!recentFails.empty())
         {
             m_time_t now = m_time();
-            m_time_t worsttime = now - 10 * 3600;
+            m_time_t worsttime = now - 10 * 3600;   // 10 hours
             for (unsigned i = urls.size(); i--; )
             {
                 Map::iterator j = recentFails.find(server(urls[i]));
                 if (j != recentFails.end() && j->second > worsttime)
                 {
+                    // select URL that failed less than 10 hours ago
                     worstindex = i;
                     worsttime = j->second;
                 }
             }
+
+            // cleanup recentFails from URLs older than 1 hour
             bool cleanup = false;
             Map::iterator jj;
             for (Map::iterator j = recentFails.begin(); j != recentFails.end(); cleanup ? (jj = j, ++j, (void)recentFails.erase(jj)) : (void)++j)
@@ -90,6 +93,7 @@ struct FaultyServers
                 cleanup = j->second < (now - 3600);
             }
         }
+
         return worstindex;
     }
 
