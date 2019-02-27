@@ -44,6 +44,10 @@ extern "C" {
 #include <libraw/libraw.h>
 #endif
 
+#ifdef HAVE_PDFIUM
+#include <fpdfview.h>
+#endif
+
 namespace mega {
 
 QByteArray *GfxProcQT::formatstring = NULL;
@@ -370,9 +374,27 @@ GfxProcQT::GfxProcQT()
 //    av_log_set_level(AV_LOG_VERBOSE);
     gfxMutex.unlock();
 #endif
+
+#ifdef HAVE_PDFIUM
+    gfxMutex.lock();
+    FPDF_LIBRARY_CONFIG config;
+    config.version = 2;
+    config.m_pUserFontPaths = NULL;
+    config.m_pIsolate = NULL;
+    config.m_v8EmbedderSlot = 0;
+    FPDF_InitLibraryWithConfig(&config);
+    gfxMutex.unlock();
+#endif
     image = NULL;
     orientation = -1;
     imageType = TYPE_NONE;
+}
+
+GfxProcQT::~GfxProcQT()
+{
+#ifdef HAVE_PDFIUM
+    FPDF_DestroyLibrary();
+#endif
 }
 
 bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
@@ -486,6 +508,14 @@ QImageReader *GfxProcQT::readbitmapQT(int &w, int &h, int &orientation, int &ima
     {
         imageType = TYPE_RAW;
         return readbitmapLibraw(w, h, orientation, imagePath);
+    }
+#endif
+
+#ifdef HAVE_PDFIUM
+    if (strstr(GfxProcQT::supportedformatsPDF(), ext.toUtf8().constData()))
+    {
+        imageType = TYPE_PDF;
+        return readbitmapPdf(w, h, orientation, imagePath);
     }
 #endif
 
@@ -614,6 +644,11 @@ const char *GfxProcQT::supportedformatsQT()
 #ifdef HAVE_LIBRAW
         formatstring->resize(formatstring->size() - 1);
         formatstring->append(supportedformatsLibraw());
+#endif
+
+#ifdef HAVE_PDFIUM
+        formatstring->resize(formatstring->size() - 1);
+        formatstring->append(supportedformatsPDF());
 #endif
     }
     return formatstring->constData();
@@ -786,9 +821,99 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
     QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
     return imageReader;
 }
-
 #endif
 
+#ifdef HAVE_PDFIUM
+const char *GfxProcQT::supportedformatsPDF()
+{
+    return ".pdf.";
+}
+
+QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString imagePath)
+{
+    FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toUtf8().constData(), NULL);
+    if (pdf_doc != NULL)
+    {
+        int page_count = FPDF_GetPageCount(pdf_doc);
+        if (page_count  > 0)
+        {
+            FPDF_PAGE page = FPDF_LoadPage(pdf_doc, 0 /*pageIndex*/);
+            if (page != NULL)
+            {
+                double page_width  = FPDF_GetPageWidth(page);
+                double page_height = FPDF_GetPageHeight(page);
+
+                QImage image(page_width, page_height, QImage::Format_ARGB32);
+                image.fill(0xFFFFFFFF);
+
+                FPDF_BITMAP bitmap = FPDFBitmap_CreateEx(image.width(), image.height(),
+                                                                 FPDFBitmap_BGRA,
+                                                                 image.scanLine(0), image.bytesPerLine());
+                if (!bitmap) //out of memory
+                {
+                    LOG_warn << "Error generating bitmap image (OOM)";
+                    FPDF_ClosePage(page);
+                    FPDF_CloseDocument(pdf_doc);
+                    return NULL;
+                }
+
+                FPDF_RenderPageBitmap(bitmap, page, 0, 0, image.width(), image.height(), 0, 0);
+                FPDFBitmap_Destroy(bitmap);
+
+                bool ok = image.save(QString::fromUtf8("/Users/vt/Desktop/test.jpg"), "JPG", 85);
+
+                if (image.isNull())
+                {
+                    LOG_warn << "Unable to convert image from PDF file";
+                    FPDFBitmap_Destroy(bitmap);
+                    bitmap = NULL;
+                    FPDF_ClosePage(page);
+                    FPDF_CloseDocument(pdf_doc);
+                    return NULL;
+                }
+
+                QBuffer *buffer = new QBuffer();
+                if (!buffer->open(QIODevice::ReadWrite) || !image.save(buffer, "JPG", 85))
+                {
+                    LOG_warn << "Error extracting image";
+                    delete buffer;
+                    FPDFBitmap_Destroy(bitmap);
+                    bitmap = NULL;
+                    FPDF_ClosePage(page);
+                    FPDF_CloseDocument(pdf_doc);
+                    return NULL;
+                }
+
+                bitmap = NULL;
+                FPDFBitmap_Destroy(bitmap);
+                FPDF_ClosePage(page);
+                FPDF_CloseDocument(pdf_doc);
+
+                w = image.width();
+                h = image.height();
+
+                buffer->seek(0);
+                QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
+                return imageReader;
+            }
+            {
+                FPDF_CloseDocument(pdf_doc);
+                LOG_err << "Error loading PDF page to create thumb for " << imagePath;
+            }
+        }
+        {
+            FPDF_CloseDocument(pdf_doc);
+            LOG_err << "Error getting number of pages for " << imagePath;
+        }
+    }
+    {
+        LOG_err << "Error loading PDF to create thumbnail for " << imagePath << " " << FPDF_GetLastError();
+    }
+
+    return NULL;
+}
+
+#endif
 
 #ifdef HAVE_FFMPEG
 
