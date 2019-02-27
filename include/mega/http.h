@@ -293,7 +293,7 @@ struct MEGA_API HttpReq
 
 struct MEGA_API GenericHttpReq : public HttpReq
 {
-    GenericHttpReq(bool = false);
+    GenericHttpReq(PrnGen &rng, bool = false);
 
     // tag related to the request
     int tag;

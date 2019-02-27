@@ -1723,7 +1723,7 @@ void MegaApi::fetchTimeZone(MegaRequestListener *listener)
 
 void MegaApi::addEntropy(char *data, unsigned int size)
 {
-    MegaApiImpl::addEntropy(data, size);
+    pImpl->addEntropy(data, size);
 }
 
 #ifdef WINDOWS_PHONE

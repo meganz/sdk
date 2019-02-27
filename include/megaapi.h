@@ -6204,7 +6204,7 @@ class MegaApi
          * @param data Byte array with random data
          * @param size Size of the byte array (in bytes)
          */
-        static void addEntropy(char* data, unsigned int size);
+        void addEntropy(char* data, unsigned int size);
 
 #ifdef WINDOWS_PHONE
         /**

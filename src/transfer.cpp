@@ -33,6 +33,7 @@
 namespace mega {
 
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
+    : bt(cclient->rng)
 {
     type = ctype;
     client = cclient;

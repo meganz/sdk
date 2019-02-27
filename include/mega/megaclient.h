@@ -216,6 +216,9 @@ public:
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
+    // pseudo-random number generator
+    PrnGen rng;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;

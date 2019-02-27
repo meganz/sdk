@@ -1761,7 +1761,7 @@ class MegaApiImpl : public MegaApp
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         void setDnsServers(const char *dnsServers, MegaRequestListener* listener = NULL);
-        static void addEntropy(char* data, unsigned int size);
+        void addEntropy(char* data, unsigned int size);
         static string userAttributeToString(int);
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);

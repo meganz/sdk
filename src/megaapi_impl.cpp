@@ -4846,9 +4846,9 @@ void MegaApiImpl::setDnsServers(const char *dnsServers, MegaRequestListener *lis
 
 void MegaApiImpl::addEntropy(char *data, unsigned int size)
 {
-    if(PrnGen::rng.CanIncorporateEntropy())
+    if(client && client->rng.CanIncorporateEntropy())
     {
-        PrnGen::rng.IncorporateEntropy((const byte*)data, size);
+        client->rng.IncorporateEntropy((const byte*)data, size);
     }
 
 #ifdef USE_OPENSSL
@@ -16616,7 +16616,7 @@ void MegaApiImpl::sendPendingRequests()
 			newnode->parenthandle = UNDEF;
 
 			// generate fresh random key for this folder node
-			PrnGen::genblock(buf,FOLDERNODEKEYLENGTH);
+            client->rng.genblock(buf,FOLDERNODEKEYLENGTH);
 			newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 			key.setkey(buf);
 
@@ -17432,7 +17432,7 @@ void MegaApiImpl::sendPendingRequests()
                 delete keys;
 
                 // serialize and encrypt the TLV container
-                string *container = tlv.tlvRecordsToContainer(&client->key);
+                string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
 
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
                 delete container;
@@ -18664,7 +18664,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_TIMER:
         {
             int delta = int(request->getNumber());
-            TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
+            TimerWithBackoff *twb = new TimerWithBackoff(client->rng, request->getTag());
             twb->backoff(delta);
             e = client->addtimer(twb);
             break;
@@ -19734,7 +19734,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		else
 		{
 			byte buf[FOLDERNODEKEYLENGTH];
-			PrnGen::genblock(buf,sizeof buf);
+            client->rng.genblock(buf,sizeof buf);
 			t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 		}
 
@@ -21136,7 +21136,7 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
         else
         {
             byte buf[FOLDERNODEKEYLENGTH];
-            PrnGen::genblock(buf,sizeof buf);
+            client->rng.genblock(buf,sizeof buf);
             t->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
         }
 

@@ -769,7 +769,8 @@ m_off_t SpeedController::getMeanSpeed()
     return meanSpeed;
 }
 
-GenericHttpReq::GenericHttpReq(bool binary) : HttpReq(binary)
+GenericHttpReq::GenericHttpReq(PrnGen &rng, bool binary)
+    : HttpReq(binary), bt(rng), maxbt(rng)
 {
     tag = 0;
     maxretries = 0;
