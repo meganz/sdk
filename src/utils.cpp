@@ -48,6 +48,242 @@ Cachable::Cachable()
     notified = 0;
 }
 
+CacheableWriter::CacheableWriter(string& d)
+    : dest(d)
+{
+}
+
+void CacheableWriter::serializebinary(byte* data, size_t len)
+{
+    dest.append((char*)data, len);
+}
+
+void CacheableWriter::serializechunkmacs(const chunkmac_map& m)
+{
+    m.serialize(dest);
+}
+
+void CacheableWriter::serializecstr(const char* field, bool storeNull)
+{
+    unsigned short ll = (unsigned short)(field ? strlen(field) + (storeNull ? 1 : 0) : 0);
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field, ll);
+}
+
+void CacheableWriter::serializestring(const string& field)
+{
+    unsigned short ll = (unsigned short)field.size();
+    dest.append((char*)&ll, sizeof(ll));
+    dest.append(field.data(), ll);
+}
+
+void CacheableWriter::serializei64(int64_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeu32(uint32_t field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializehandle(handle field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializebool(bool field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializebyte(byte field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
+void CacheableWriter::serializeexpansionflags(bool b0, bool b1, bool b2, bool b3, bool b4, bool b5, bool b6, bool b7)
+{
+    unsigned char b[8];
+    b[0] = b0;
+    b[1] = b1;
+    b[2] = b2;
+    b[3] = b3;
+    b[4] = b4;
+    b[5] = b5;
+    b[6] = b6;
+    b[7] = b7;
+    dest.append((char*)b, 8);
+}
+
+
+CacheableReader::CacheableReader(const string& d)
+    : ptr(d.data())
+    , end(ptr + d.size())
+    , fieldnum(0)
+{
+}
+
+void CacheableReader::eraseused(string& d)
+{
+    assert(end == d.data() + d.size());
+    d.erase(0, ptr - d.data());
+}
+
+bool CacheableReader::unserializecstr(string& s, bool removeNull)
+{
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        return false;
+    }
+
+    unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len - (removeNull ? 1 : 0));
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+
+bool CacheableReader::unserializestring(string& s)
+{
+    if (ptr + sizeof(unsigned short) > end)
+    {
+        return false;
+    }
+
+    unsigned short len = MemAccess::get<unsigned short>(ptr);
+    ptr += sizeof(len);
+
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    if (len)
+    {
+        s.assign(ptr, len);
+    }
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializebinary(byte* data, size_t len)
+{
+    if (ptr + len > end)
+    {
+        return false;
+    }
+
+    memcpy(data, ptr, len);
+    ptr += len;
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
+{
+    if (m.unserialize(ptr, end))   // ptr is adjusted by reference
+    {
+        fieldnum += 1;
+        return true;
+    }
+    return false;
+}
+
+bool CacheableReader::unserializei64(int64_t& field)
+{
+    if (ptr + sizeof(int64_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<int64_t>(ptr);
+    ptr += sizeof(int64_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeu32(uint32_t& field)
+{
+    if (ptr + sizeof(uint32_t) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<uint32_t>(ptr);
+    ptr += sizeof(uint32_t);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializehandle(handle& field)
+{
+    if (ptr + sizeof(handle) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<handle>(ptr);
+    ptr += sizeof(handle);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializebool(bool& field)
+{
+    if (ptr + sizeof(bool) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializebyte(byte& field)
+{
+    if (ptr + sizeof(byte) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<byte>(ptr);
+    ptr += sizeof(byte);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount)
+{
+    if (ptr + 8 > end)
+    {
+        return false;
+    }
+    memcpy(field, ptr, 8);
+
+    for (int i = usedFlagCount;  i < 8; i++ )
+    {
+        if (field[i])
+        {
+            LOG_err << "Unserialization failed in expansion flags, invalid version detected.  Fieldnum: " << fieldnum;
+            return false;
+        }
+    }
+
+    ptr += 8;
+    fieldnum += 1;
+    return true;
+}
+
 #ifdef ENABLE_CHAT
 TextChat::TextChat()
 {
