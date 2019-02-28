@@ -860,8 +860,6 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                 FPDF_RenderPageBitmap(bitmap, page, 0, 0, image.width(), image.height(), 0, 0);
                 FPDFBitmap_Destroy(bitmap);
 
-                bool ok = image.save(QString::fromUtf8("/Users/vt/Desktop/test.jpg"), "JPG", 85);
-
                 if (image.isNull())
                 {
                     LOG_warn << "Unable to convert image from PDF file";
