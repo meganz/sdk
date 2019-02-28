@@ -28,6 +28,8 @@
 
 namespace mega {
 
+class PrnGen;
+
 /**
  * @brief Asymmetric cryptographic signature using EdDSA with Edwards 25519.
  */
@@ -41,7 +43,7 @@ public:
     static const string TLV_KEY;
     bool initializationOK;
 
-    EdDSA(unsigned char* keySeed = NULL);
+    EdDSA(PrnGen &rng, unsigned char* keySeed = NULL);
     ~EdDSA();
 
     unsigned char keySeed[SEED_KEY_LENGTH];

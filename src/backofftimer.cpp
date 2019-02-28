@@ -25,7 +25,8 @@
 
 namespace mega {
 // timer with capped exponential backoff
-BackoffTimer::BackoffTimer()
+BackoffTimer::BackoffTimer(PrnGen &rng)
+    : rng(rng)
 {
     reset();
 }
@@ -48,7 +49,7 @@ void BackoffTimer::backoff()
         base = 6000;
     }
 
-    delta = base + (dstime)((base / 2.0) * (PrnGen::genuint32(RAND_MAX)/(float)RAND_MAX));
+    delta = base + (dstime)((base / 2.0) * (rng.genuint32(RAND_MAX)/(float)RAND_MAX));
 }
 
 void BackoffTimer::backoff(dstime newdelta)
@@ -129,7 +130,8 @@ void BackoffTimer::update(dstime* waituntil)
     }
 }
 
-TimerWithBackoff::TimerWithBackoff(int tag)
+TimerWithBackoff::TimerWithBackoff(PrnGen &rng, int tag)
+    : BackoffTimer(rng)
 {
     this->tag = tag;
 }
