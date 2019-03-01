@@ -94,8 +94,7 @@ void CacheableWriter::serializehandle(handle field)
 
 void CacheableWriter::serializebool(bool field)
 {
-    byte b = field ? 1 : 0;
-    dest.append((char*)&b, sizeof(byte));
+    dest.append((char*)&field, sizeof(field));
 }
 
 void CacheableWriter::serializebyte(byte field)
@@ -117,11 +116,18 @@ void CacheableWriter::serializeexpansionflags(bool b0, bool b1, bool b2, bool b3
     dest.append((char*)b, 8);
 }
 
+
 CacheableReader::CacheableReader(const string& d)
+    : ptr(d.data())
+    , end(ptr + d.size())
+    , fieldnum(0)
 {
-    ptr = d.data();
-    end = ptr + d.size();
-    fieldnum = 0;
+}
+
+void CacheableReader::eraseused(string& d)
+{
+    assert(end == d.data() + d.size());
+    d.erase(0, ptr - d.data());
 }
 
 bool CacheableReader::unserializecstr(string& s, bool removeNull)
@@ -188,7 +194,12 @@ bool CacheableReader::unserializebinary(byte* data, size_t len)
 
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 {
-    return m.unserialize(ptr, end);   // ptr is adjusted by reference
+    if (m.unserialize(ptr, end))   // ptr is adjusted by reference
+    {
+        fieldnum += 1;
+        return true;
+    }
+    return false;
 }
 
 bool CacheableReader::unserializei64(int64_t& field)
@@ -229,12 +240,12 @@ bool CacheableReader::unserializehandle(handle& field)
 
 bool CacheableReader::unserializebool(bool& field)
 {
-    if (ptr + sizeof(byte) > end)
+    if (ptr + sizeof(bool) > end)
     {
         return false;
     }
-    field = 0 != MemAccess::get<byte>(ptr);
-    ptr += sizeof(byte);
+    field = MemAccess::get<bool>(ptr);
+    ptr += sizeof(bool);
     fieldnum += 1;
     return true;
 }
@@ -251,13 +262,23 @@ bool CacheableReader::unserializebyte(byte& field)
     return true;
 }
 
-bool CacheableReader::unserializeexpansionflags(unsigned char field[8])
+bool CacheableReader::unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount)
 {
     if (ptr + 8 > end)
     {
         return false;
     }
     memcpy(field, ptr, 8);
+
+    for (int i = usedFlagCount;  i < 8; i++ )
+    {
+        if (field[i])
+        {
+            LOG_err << "Unserialization failed in expansion flags, invalid version detected.  Fieldnum: " << fieldnum;
+            return false;
+        }
+    }
+
     ptr += 8;
     fieldnum += 1;
     return true;
@@ -682,7 +703,7 @@ bool TextChat::setFlag(bool value, uint8_t offset)
  *     for encryption will be generated and available through the reference.
  * @return Void.
  */
-void PaddedCBC::encrypt(string* data, SymmCipher* key, string* iv)
+void PaddedCBC::encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv)
 {
     if (iv)
     {
@@ -690,7 +711,7 @@ void PaddedCBC::encrypt(string* data, SymmCipher* key, string* iv)
         if (iv->size() == 0)
         {
             byte* buf = new byte[8];
-            PrnGen::genblock(buf, 8);
+            rng.genblock(buf, 8);
             iv->append((char*)buf);
             delete [] buf;
         }
@@ -874,13 +895,14 @@ bool HashSignature::checksignature(AsymmCipher* pubk, const byte* sig, unsigned 
     return s == h;
 }
 
-PayCrypter::PayCrypter()
+PayCrypter::PayCrypter(PrnGen &rng)
+    : rng(rng)
 {
-    PrnGen::genblock(keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
+    rng.genblock(keys, ENC_KEY_BYTES + MAC_KEY_BYTES);
     encKey = keys;
     hmacKey = keys+ENC_KEY_BYTES;
 
-    PrnGen::genblock(iv, IV_BYTES);
+    rng.genblock(iv, IV_BYTES);
 }
 
 void PayCrypter::setKeys(const byte *newEncKey, const byte *newHmacKey, const byte *newIv)
@@ -946,7 +968,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     //Add padding
     if(randompadding)
     {
-        PrnGen::genblock((byte *)keyString.data() + keylen, keyString.size() - keylen);
+        rng.genblock((byte *)keyString.data() + keylen, keyString.size() - keylen);
     }
 
     //RSA encryption
@@ -1002,7 +1024,7 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 }
 #endif
 
-string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting)
+string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
 {    
     // decide nonce/IV and auth. tag lengths based on the `mode`
     unsigned ivlen = TLVstore::getIvlen(encSetting);
@@ -1019,7 +1041,7 @@ string * TLVstore::tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t en
 
     // generate IV array
     byte *iv = new byte[ivlen];
-    PrnGen::genblock(iv, ivlen);
+    rng.genblock(iv, ivlen);
 
     string cipherText;
 

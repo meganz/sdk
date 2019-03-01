@@ -1735,7 +1735,7 @@ void MegaApi::fetchTimeZone(MegaRequestListener *listener)
 
 void MegaApi::addEntropy(char *data, unsigned int size)
 {
-    MegaApiImpl::addEntropy(data, size);
+    pImpl->addEntropy(data, size);
 }
 
 #ifdef WINDOWS_PHONE
@@ -4444,9 +4444,9 @@ void MegaApi::sendChatStats(const char *data, int port, MegaRequestListener *lis
     pImpl->sendChatStats(data, port, listener);
 }
 
-void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
+void MegaApi::sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener)
 {
-    pImpl->sendChatLogs(data, aid, listener);
+    pImpl->sendChatLogs(data, aid, port, listener);
 }
 
 MegaTextChatList* MegaApi::getChatList()

@@ -549,7 +549,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
         !r.unserializestring(pubauth) ||
         !r.unserializebool(isPublicNode) ||
         !r.unserializebool(foreign) ||
-        !r.unserializeexpansionflags(expansions) ||
+        !r.unserializeexpansionflags(expansions, 3) ||
         (expansions[0] && !r.unserializecstr(chatauth, false)) ||
         (expansions[1] && !r.unserializehandle(owner)) ||
         (expansions[2] && !r.unserializecstr(originalfingerprint, false)))
@@ -934,7 +934,7 @@ MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApiImpl* 
     : api(capi)
 {
     // generate fresh random encryption key/CTR IV for this file
-    PrnGen::genblock(filekey, sizeof filekey);
+    api->client->rng.genblock(filekey, sizeof filekey);
 }
 
 MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(const string& serialised, MegaApiImpl* capi)
@@ -948,7 +948,7 @@ MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(const string&
         !r.unserializechunkmacs(chunkmacs) ||
         !r.unserializestring(mediapropertiesstr) ||
         !r.unserializestring(url) ||
-        !r.unserializeexpansionflags(expansions))
+        !r.unserializeexpansionflags(expansions, 0))
     {
         LOG_err << "MegaBackgroundMediaUploadPrivate unserialization failed at field " << r.fieldnum;
     }
@@ -5073,9 +5073,9 @@ void MegaApiImpl::setDnsServers(const char *dnsServers, MegaRequestListener *lis
 
 void MegaApiImpl::addEntropy(char *data, unsigned int size)
 {
-    if(PrnGen::rng.CanIncorporateEntropy())
+    if(client && client->rng.CanIncorporateEntropy())
     {
-        PrnGen::rng.IncorporateEntropy((const byte*)data, size);
+        client->rng.IncorporateEntropy((const byte*)data, size);
     }
 
 #ifdef USE_OPENSSL
@@ -9019,12 +9019,13 @@ void MegaApiImpl::sendChatStats(const char *data, int port, MegaRequestListener 
     waiter->notify();
 }
 
-void MegaApiImpl::sendChatLogs(const char *data, const char* aid, MegaRequestListener *listener)
+void MegaApiImpl::sendChatLogs(const char *data, const char* aid, int port, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
     request->setSessionKey(aid);
     request->setParamType(2);
+    request->setNumber(port);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -10848,6 +10849,10 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
     case PUT:
     {
         file = MegaFilePut::unserialize(d);
+        if (!file)
+        {
+            break;
+        }
         MegaTransferPrivate* transfer = file->getTransfer();
         Node *parent = client->nodebyhandle(transfer->getParentHandle());
         node_vector *nodes = client->nodesbyfingerprint(file);
@@ -13651,13 +13656,16 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 {
                     m_time_t currenttime = m_time();
                     bool isMasterKeyExported = User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len);
-                    if (!isMasterKeyExported
-                            && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
+                    bool isLogout = request->getNumber();
+                    bool pwdDontShow = User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len);
+                    if ((!isMasterKeyExported
+                            && !pwdDontShow
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_LOGIN, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTLOGIN
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SKIPPED, (const char*)data, len)) > (request->getNumber() ? User::PWD_SHOW_AFTER_LASTSKIP_LOGOUT : User::PWD_SHOW_AFTER_LASTSKIP)
                             && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
+                            || (isLogout && !pwdDontShow))
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
@@ -16987,7 +16995,7 @@ void MegaApiImpl::sendPendingRequests()
 			newnode->parenthandle = UNDEF;
 
 			// generate fresh random key for this folder node
-			PrnGen::genblock(buf,FOLDERNODEKEYLENGTH);
+            client->rng.genblock(buf,FOLDERNODEKEYLENGTH);
 			newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 			key.setkey(buf);
 
@@ -17803,7 +17811,7 @@ void MegaApiImpl::sendPendingRequests()
                 delete keys;
 
                 // serialize and encrypt the TLV container
-                string *container = tlv.tlvRecordsToContainer(&client->key);
+                string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
 
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
                 delete container;
@@ -19063,7 +19071,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_TIMER:
         {
             int delta = int(request->getNumber());
-            TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
+            TimerWithBackoff *twb = new TimerWithBackoff(client->rng, request->getTag());
             twb->backoff(delta);
             e = client->addtimer(twb);
             break;
@@ -19743,16 +19751,16 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            int port = int(request->getNumber());
+            if (port < 0 || port > 65535)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             int type = request->getParamType();
             if (type == 1)
             {
-               int port = int(request->getNumber());
-               if (port < 0 || port > 65535)
-               {
-                   e = API_EARGS;
-                   break;
-               }
-
                client->sendchatstats(json, port);
             }
             else if (type == 2)
@@ -19764,7 +19772,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->sendchatlogs(json, aid);
+                client->sendchatlogs(json, aid, port);
             }
             else
             {
@@ -20185,7 +20193,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		else
 		{
 			byte buf[FOLDERNODEKEYLENGTH];
-			PrnGen::genblock(buf,sizeof buf);
+            client->rng.genblock(buf,sizeof buf);
 			t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 		}
 
@@ -21587,7 +21595,7 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
         else
         {
             byte buf[FOLDERNODEKEYLENGTH];
-            PrnGen::genblock(buf,sizeof buf);
+            client->rng.genblock(buf,sizeof buf);
             t->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
         }
 
