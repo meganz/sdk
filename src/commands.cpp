@@ -4777,6 +4777,11 @@ void CommandQueryRecoveryLink::procresult()
         return client->app->queryrecoverylink_result(API_EINTERNAL);
     }
 
+    if (client->loggedin() == FULLACCOUNT && uh != client->me)
+    {
+        return client->app->queryrecoverylink_result(API_EACCESS);
+    }
+
     return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), time_t(ts), uh, &emails);
 }
 
