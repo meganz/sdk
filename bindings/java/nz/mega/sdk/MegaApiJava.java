@@ -481,8 +481,8 @@ public class MegaApiJava {
      * @param size
      *            Size of the byte array (in bytes).
      */
-    public static void addEntropy(String data, long size) {
-        MegaApi.addEntropy(data, size);
+    public void addEntropy(String data, long size) {
+        megaApi.addEntropy(data, size);
     }
 
     /**
@@ -6928,6 +6928,35 @@ public class MegaApiJava {
      */
     public MegaNode authorizeNode(MegaNode node){
         return megaApi.authorizeNode(node);
+    }
+
+    /**
+     * @brief Returns a MegaNode that can be downloaded with any instance of MegaApi
+     *
+     * You can use MegaApi::startDownload with the resulting node with any instance
+     * of MegaApi, even if it's logged into another account, a public folder, or not
+     * logged in.
+     *
+     * If the first parameter is a public node or an already authorized node, this
+     * function returns a copy of the node, because it can be already downloaded
+     * with any MegaApi instance.
+     *
+     * If the node in the first parameter belongs to the account or public folder
+     * in which the current MegaApi object is logged in, this funtion returns an
+     * authorized node.
+     *
+     * If the first parameter is NULL or a node that is not a public node, is not
+     * already authorized and doesn't belong to the current MegaApi, this function
+     * returns NULL.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param node MegaNode to authorize
+     * @return Authorized node, or NULL if the node can't be authorized
+     */
+
+    public MegaNode authorizeChatNode(MegaNode node, String cauth){
+        return megaApi.authorizeChatNode(node, cauth);
     }
 
     /**
