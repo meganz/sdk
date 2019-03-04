@@ -6931,30 +6931,24 @@ public class MegaApiJava {
     }
 
     /**
-     * @brief Returns a MegaNode that can be downloaded with any instance of MegaApi
      *
-     * You can use MegaApi::startDownload with the resulting node with any instance
-     * of MegaApi, even if it's logged into another account, a public folder, or not
-     * logged in.
+     * Returns a MegaNode that can be downloaded/copied with a chat-authorization
      *
-     * If the first parameter is a public node or an already authorized node, this
-     * function returns a copy of the node, because it can be already downloaded
-     * with any MegaApi instance.
+     * During preview of chat-links, you need to call this method to authorize the MegaNode
+     * from a node-attachment message, so the API allows to access to it. The parameter to
+     * authorize the access can be retrieved from MegaChatRoom::getAuthorizationToken when
+     * the chatroom in in preview mode.
      *
-     * If the node in the first parameter belongs to the account or public folder
-     * in which the current MegaApi object is logged in, this funtion returns an
-     * authorized node.
-     *
-     * If the first parameter is NULL or a node that is not a public node, is not
-     * already authorized and doesn't belong to the current MegaApi, this function
-     * returns NULL.
+     * You can use MegaApi::startDownload and/or MegaApi::copyNode with the resulting
+     * node with any instance of MegaApi, even if it's logged into another account,
+     * a public folder, or not logged in.
      *
      * You take the ownership of the returned value.
      *
      * @param node MegaNode to authorize
+     * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
      * @return Authorized node, or NULL if the node can't be authorized
      */
-
     public MegaNode authorizeChatNode(MegaNode node, String cauth){
         return megaApi.authorizeChatNode(node, cauth);
     }
