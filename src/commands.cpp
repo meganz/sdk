@@ -4356,6 +4356,7 @@ void CommandFetchNodes::procresult()
                 client->procmcf(&client->json);
                 break;
 
+            case MAKENAMEID5('m', 'c', 'p', 'n', 'a'):   // fall-through
             case MAKENAMEID4('m', 'c', 'n', 'a'):
                 // nodes shared in chatrooms
                 client->procmcna(&client->json);
