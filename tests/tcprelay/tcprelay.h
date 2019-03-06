@@ -26,6 +26,9 @@
 #include <chrono>
 #include <functional>
 #include <string>
+#include <iostream>
+
+extern std::ostream* logstream;
 
 template <unsigned BucketCount>
 class BucketCountArray

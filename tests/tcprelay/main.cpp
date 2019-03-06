@@ -264,6 +264,58 @@ void exec_pauserelay(ac::ACState& ac)
     }
 }
 
+void randompause(int periodsec, int pausesec)
+{
+    lock_guard g(g_relays.relaycollectionmutex);
+    vector<TcpRelay*> tr;
+    for (auto& r : g_relays.acceptedrelays)
+    {
+        if (!r->stopped && !r->paused) tr.push_back(r.get());
+    }
+    if (!tr.empty())
+    {
+        int n = rand() % tr.size();
+        tr[n]->Pause(true);
+        cout << "paused " << tr[n]->reporting_name << endl;
+        DelayAndDo(chrono::seconds(pausesec), [=, p = tr[n]]() { 
+            p->Pause(false);
+            cout << "unpaused " << tr[n]->reporting_name << endl;
+        }, g_relays.asio_service);
+    }
+    DelayAndDo(chrono::seconds(periodsec), [=]() { randompause(periodsec, pausesec); }, g_relays.asio_service);
+}
+
+
+void exec_randompauses(ac::ACState& ac)
+{
+    int periodsec = atoi(ac.words[1].s.c_str());
+    int pausesec = atoi(ac.words[2].s.c_str());
+    randompause(periodsec, pausesec);
+}
+
+void randomclose(int periodsec)
+{
+    lock_guard g(g_relays.relaycollectionmutex);
+    vector<TcpRelay*> tr;
+    for (auto& r : g_relays.acceptedrelays)
+    {
+        if (!r->stopped && !r->paused) tr.push_back(r.get());
+    }
+    if (!tr.empty())
+    {
+        int n = rand() % tr.size();
+        tr[n]->StopNow();
+        cout << "random closed " << tr[n]->reporting_name << endl;
+    }
+    DelayAndDo(chrono::seconds(periodsec), [=]() { randomclose(periodsec); }, g_relays.asio_service);
+}
+
+void exec_randomcloses(ac::ACState& ac)
+{
+    int periodsec = atoi(ac.words[1].s.c_str());
+    randomclose(periodsec);
+}
+
 void exec_relayspeed(ac::ACState& ac)
 {
     bool all = ac.words[1].s == "all";
@@ -320,16 +372,19 @@ ac::ACN autocompleteSyntax()
     using namespace autocomplete;
     std::unique_ptr<Either> p(new Either("      "));
 
+    p->Add(exec_nextport, sequence(text("nextport"), opt(param("port"))));
+    p->Add(exec_addrelay, sequence(text("addrelay"), param("server")));
+    p->Add(exec_adddefaultrelays, sequence(text("adddefaultrelays")));
     p->Add(exec_acceptorspeed, sequence(text("acceptorspeed"), either(text("all"), param("id")), param("bytespersec")));
+    p->Add(exec_getcode, sequence(text("getcode")));
+
     p->Add(exec_relayspeed, sequence(text("relayspeed"), either(text("all"), param("id")), param("bytespersec")));
     p->Add(exec_pauserelay, sequence(text("pauserelay"), either(text("all"), param("id")), opt(either(text("1"), text("0")))));
     p->Add(exec_closerelay, sequence(text("closerelay"), either(text("all"), param("id"))));
     p->Add(exec_closeacceptor, sequence(text("closeacceptor"), either(text("all"), param("id"))));
+    p->Add(exec_randomcloses, sequence(text("randomcloses"), param("period-sec")));
+    p->Add(exec_randompauses, sequence(text("randompauses"), param("period-sec"), param("paused-sec")));
 
-    p->Add(exec_nextport, sequence(text("nextport"), opt(param("port"))));
-    p->Add(exec_addrelay, sequence(text("addrelay"), param("server")));
-    p->Add(exec_adddefaultrelays, sequence(text("adddefaultrelays")));
-    p->Add(exec_getcode, sequence(text("getcode")));
     p->Add(exec_report, sequence(text("report")));
     p->Add(exec_help, sequence(either(text("help"), text("?"))));
     p->Add(exec_exit, sequence(either(text("exit"))));
@@ -361,6 +416,9 @@ Console* console;
 
 int main()
 {
+    ofstream mylog("c:\\tmp\\tcprelaylog.txt");
+    logstream = &mylog;
+
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&logger);

@@ -23,8 +23,11 @@
 #include <functional>
 #include <regex>
 #include <iostream>
+#include <sys/timeb.h>
 
 using namespace std;
+
+std::ostream* logstream = nullptr;
 
 void DelayAndDo(std::chrono::steady_clock::duration delayTime, std::function<void()>&& action, asio::io_service& as)
 {
@@ -72,6 +75,8 @@ void TcpRelay::SetBytesPerSecond(size_t n)
 {
     forwardingDirection.outgoing.target_bytes_per_second = n;  // variable is atomic so ok to assign from another thread
     replyDirection.outgoing.target_bytes_per_second = n;  // variable is atomic so ok to assign from another thread
+    //connect_side.asio_socket.set_option(asio::ip::tcp::no_delay(true));
+    //acceptor_side.asio_socket.set_option(asio::ip::tcp::no_delay(true));
 }
 
 void TcpRelay::Stop()
@@ -143,6 +148,7 @@ void TcpRelay::ConnectHandler(const asio::error_code& ec)
     else
     {
         cout << reporting_name << " connect success" << endl;
+        //connect_side.asio_socket.set_option(asio::ip::tcp::no_delay(true));
         StartReceiving(forwardingDirection);
         StartReceiving(replyDirection);
     }
@@ -185,6 +191,7 @@ void TcpRelay::ReceiveHandler(Direction& d, const asio::error_code& ec, std::siz
             auto pos = r.find_first_of("\r\n");
             if (pos != string::npos) r.erase(pos);
             cout << reporting_name << " " << bytes_received << " byte request: " << r << endl;
+            if (logstream) *logstream << this << " " << reporting_name << " " << bytes_received << " byte request: " << r << "\n";
 
             std::regex re("([0-9]+)-([0-9]+)");
             std::smatch m;
@@ -240,7 +247,7 @@ void TcpRelay::StartSending(Direction& d, bool restarted)
         return;   // rate is too high, give up sending for a little.  The timer will restart us when the rate falls enough.
     }
 
-    auto range = d.circular_buf.PeekTailBytes(ReadSize);
+    auto range = d.circular_buf.PeekTailBytes(d.outgoing.target_bytes_per_second / 5 /*ReadSize*/);
 
     if (range.len > 0)
     {
@@ -249,6 +256,15 @@ void TcpRelay::StartSending(Direction& d, bool restarted)
         //LOGF("%s %s sending data %d id %d %p %s", reporting_name.c_str(), d.directionName.c_str(), (int)range.len, (int)id, range.start_pos, (restarted?"(restarted)" : ""));
         d.outgoing.send_in_progress = true;
         d.outgoing.asio_socket.async_write_some(asio::buffer(range.start_pos, range.len), [this, &d, id](const asio::error_code& ec, std::size_t n) { SendHandler(d, ec, n, id); });
+        if (logstream)
+        {
+            struct _timeb timebuffer;
+            _ftime(&timebuffer); 
+            struct tm * timeinfo = localtime(&timebuffer.time);
+            char stringtime[100];
+            strftime(stringtime, 80, "%T.", timeinfo);
+            *logstream << stringtime << timebuffer.millitm << " " << this << " wrote " << range.len << '\n';
+        }
     }
     else
     {
