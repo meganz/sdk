@@ -10,7 +10,15 @@ Source0:	pdfium.tar.gz
 Vendor:		TODO
 Packager:	TODO
 
-BuildRequires: autoconf, automake, libtool, gcc-c++, unzip, rsync, python, libatomic
+BuildRequires: autoconf, automake, libtool, gcc-c++, unzip, rsync, python
+
+%if 0%{?fedora}
+BuildRequires: libatomic
+%endif
+
+%if 0%{?suse_version}
+BuildRequires: libxml2
+%endif
 
 %description
 TODO
@@ -35,7 +43,7 @@ echo installiiing
 for i in `find public -type f -name "*.h"`; do %{__install} -D -m 444 $i $RPM_BUILD_ROOT%{_includedir}/${i/public\//}; done
 
 (cd $RPM_BUILD_ROOT; for i in `find ./%{_libdir} -type f`; do echo $i | sed "s#^./#/#g"; done) >> %{_topdir}/ExtraFiles.list
-(cd $RPM_BUILD_ROOT; for i in `find ./%{_includedir} -type f`; do echo $i | sed "s#^./#/#g"; done) >> %{_topdir}/ExtraFiles.list
+(cd $RPM_BUILD_ROOT; for i in `find ./%{_includedir}`; do echo $i | sed "s#^./#/#g"; done) >> %{_topdir}/ExtraFiles.list
 
 #echo /%{_includedir}/pdfium  >> %{_topdir}/ExtraFiles.list
 
