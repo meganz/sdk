@@ -17949,7 +17949,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            if(!f->fread(attributedata, unsigned(f->size), 0, 0))
+            // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid growing it for the encryption
+            if(!f->fread(attributedata, unsigned(f->size), SymmCipher::BLOCKSIZE, 0))
             {
                 delete f;
                 delete attributedata;
