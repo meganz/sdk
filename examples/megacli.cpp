@@ -2307,6 +2307,7 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
     }
     return p;
 }
+
 void exec_treecompare(autocomplete::ACState& s)
 {
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -2316,7 +2317,17 @@ void exec_treecompare(autocomplete::ACState& s)
         recursiveCompare(n, p);
     }
 }
+
+void exec_querytransferquota(autocomplete::ACState& ac)
+{
+    client->querytransferquota(atoll(ac.words[1].s.c_str()));
+}
 #endif // __cplusplus >= 201100L
+
+void DemoApp::querytransferquota_result(int n)
+{
+    cout << "querytransferquota_result: " << n << endl;
+}
 
 #ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
@@ -2382,7 +2393,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
     p->Add(sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
-    p->Add(sequence(text("whoami")));
+    p->Add(sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(sequence(text("passwd")));
     p->Add(sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(sequence(text("recover"), param("recoverylink")));
@@ -2426,6 +2437,7 @@ autocomplete::ACN autocompleteSyntax()
 #if __cplusplus >= 201100L
     p->Add(exec_find, sequence(text("find"), text("raided")));
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
+    p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
 #endif
 
     return autocompleteTemplate = std::move(p);
@@ -2527,6 +2539,9 @@ struct Login
     }
 };
 static Login login;
+
+ofstream* pread_file = NULL;
+m_off_t pread_file_end = 0;
 
 
 // execute command
@@ -3347,13 +3362,19 @@ static void process_line(char* l)
 
                             if (n)
                             {
-                                if (words.size() > 4)
+                                if (words.size() > 5)
                                 {
                                     reportsyntax = true;
                                 }
                                 if (words.size() > 2)
                                 {
                                     // read file slice
+                                    if (words.size() == 5)
+                                    {
+                                        pread_file = new ofstream(words[4].c_str(), std::ios_base::binary);
+                                        pread_file_end = atol(words[2].c_str()) + atol(words[3].c_str());
+                                    }
+
                                     client->pread(n, atol(words[2].c_str()), (words.size() > 3) ? atol(words[3].c_str()) : 0, NULL);
                                 }
                                 else
@@ -5043,9 +5064,18 @@ static void process_line(char* l)
 #endif
                             }
 
+                            bool storage = extractparam("storage", words);
+                            bool transfer = extractparam("transfer", words);
+                            bool pro = extractparam("pro", words);
+                            bool transactions = extractparam("transactions", words);
+                            bool purchases = extractparam("purchases", words);
+                            bool sessions = extractparam("sessions", words);
+
+                            bool all = !storage && !transfer && !pro && !transactions && !purchases && !sessions;
+
                             cout << "Retrieving account status..." << endl;
 
-                            client->getaccountdetails(&account, true, true, true, true, true, true);
+                            client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
                         }
 
                         return;
@@ -6267,7 +6297,7 @@ void DemoApp::queryrecoverylink_result(error e)
         cout << "The link is invalid (" << errorstring(e) << ")." << endl;
 }
 
-void DemoApp::queryrecoverylink_result(int type, const char *email, const char */*ip*/, time_t /*ts*/, handle /*uh*/, const vector<string> */*emails*/)
+void DemoApp::queryrecoverylink_result(int type, const char *email, const char* /*ip*/, time_t /*ts*/, handle /*uh*/, const vector<string>* /*emails*/)
 {
     recoveryemail = email ? email : "";
     hasMasterKey = (type == RECOVER_WITH_MASTERKEY);
@@ -6681,10 +6711,23 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
 
 bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* /*appdata*/)
 {
-    cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
-    fwrite(data, 1, size_t(len), stdout);
-    cout << endl;
-
+    if (pread_file)
+    {
+        pread_file->write((const char*)data, (size_t)len);
+        cout << "Received " << len << " partial read byte(s) at position " << pos << endl;
+        if (pread_file_end == pos + len)
+        {
+            delete pread_file;
+            pread_file = NULL;
+            cout << "Completed pread" << endl;
+        }
+    }
+    else
+    {
+        cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
+        fwrite(data, 1, size_t(len), stdout);
+        cout << endl;
+    }
     return true;
 }
 
@@ -6698,6 +6741,11 @@ dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/)
     else
     {
         cout << "Too many failures (" << errorstring(e) << "), giving up" << endl;
+        if (pread_file)
+        {
+            delete pread_file;
+            pread_file = NULL;
+        }
         return ~(dstime)0;
     }
 }
@@ -6848,7 +6896,7 @@ void DemoApp::contactlinkcreate_result(error e, handle h)
     }
 }
 
-void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln, string */*avatar*/)
+void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln, string* /*avatar*/)
 {
     if (e)
     {
@@ -7275,7 +7323,7 @@ void megacli()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    virtual void log(const char */*time*/, int loglevel, const char */*source*/, const char *message)
+    virtual void log(const char* /*time*/, int loglevel, const char* /*source*/, const char *message)
     {
 #ifdef _WIN32
         OutputDebugStringA(message);

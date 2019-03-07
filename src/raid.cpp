@@ -64,10 +64,9 @@ struct FaultyServers
 
     unsigned selectWorstServer(vector<string> urls)
     {
-        // TODO: start with 6 connections and drop the slowest to respond
-        // (unless we know one of the 6 URLs is on a dodgy server, in which case start with the other 5)
-        //unsigned worstindex = RAIDPARTS;  // indicates no dodgy server was identified (yet)
-        unsigned worstindex = rand() % RAIDPARTS;   // by now, always discard a random server (or a dodgy one, if any)
+        // TODO: start with 6 connections and drop the slowest to respond, build the file from the other 5.
+        // (unless we recently had problems with the server of one of the 6 URLs, in which case start with the other 5 right away)
+        unsigned worstindex = RAIDPARTS;
 
         MutexGuard g(m);
         if (!recentFails.empty())
@@ -376,6 +375,16 @@ std::pair<m_off_t, m_off_t> RaidBufferManager::nextNPosForConnection(unsigned co
         return std::make_pair(curpos, std::min<m_off_t>(npos, maxpos));
     }
 }
+
+void RaidBufferManager::resetPart(unsigned connectionNum)
+{
+    assert(isRaid());
+    transferPos(connectionNum) = raidpartspos;
+
+    // if we are downloading many files at once, eg. initial sync, or large manual folder, it's better to just use 5 connections immediately after the first
+    g_faultyServers.add(tempurls[connectionNum]);
+}
+
 
 m_off_t RaidBufferManager::transferSize(unsigned connectionNum)
 {

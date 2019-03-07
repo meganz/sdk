@@ -79,6 +79,9 @@ namespace mega {
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the position through the full file.
         virtual m_off_t& transferPos(unsigned connectionNum);
 
+        // start this part off again (eg. after abandoning slowest connection)
+        void resetPart(unsigned connectionNum);
+
         // Return the size of a particluar part of the file, for raid.  Or for non-raid the size of the whole wile.
         m_off_t transferSize(unsigned connectionNum);
 
