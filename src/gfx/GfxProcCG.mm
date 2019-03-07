@@ -92,7 +92,10 @@ bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
         CMTime requestedTime = CMTimeMake(1, 60);
         CGImageRef imgRef = [generator copyCGImageAtTime:requestedTime actualTime:NULL error:NULL];
         if (imgRef) {
-            imageSource = CGImageSourceCreateWithDataProvider(CGImageGetDataProvider(imgRef), imageOptions);
+            NSData *imgData = UIImageJPEGRepresentation([UIImage imageWithCGImage:imgRef], 1);
+            if (imgData) {
+                imageSource = CGImageSourceCreateWithData((__bridge CFDataRef)imgData, imageOptions);
+            }
             CGImageRelease(imgRef);
         }
     } else {
