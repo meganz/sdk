@@ -64,7 +64,7 @@ struct FaultyServers
 
     unsigned selectWorstServer(vector<string> urls)
     {
-        // TODO: start with 6 connections and drop the slowest to respond, build the file from the other 5.
+        // start with 6 connections and drop the slowest to respond, build the file from the other 5.
         // (unless we recently had problems with the server of one of the 6 URLs, in which case start with the other 5 right away)
         unsigned worstindex = RAIDPARTS;
 
