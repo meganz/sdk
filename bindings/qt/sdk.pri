@@ -188,17 +188,21 @@ CONFIG(USE_LIBRAW) {
 }
 
 CONFIG(USE_PDFIUM) {
-    DEFINES += HAVE_PDFIUM
-
-    win32 {
-
-    }
-
-    macx {
-        LIBS += -lpdfium
-    }
-
     unix:!macx {
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a) {
+            DEFINES += HAVE_PDFIUM
+            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a
+        }
+        else:exists(/usr/include/fpdfview.h) {
+            DEFINES += HAVE_PDFIUM
+            LIBS += -lpdfium
+        }
+    }
+    else {#win/mac
+        DEFINES += HAVE_PDFIUM
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+        LIBS += -lpdfium
     }
 }
 
