@@ -15,8 +15,8 @@ clean:
 	rm -f build-stamp
 
 install: build
-	dh_install out/obj/lib*a /usr/lib/
-	for i in `find public -type f`; do a=`echo $$i | awk -F "/" 'BEGIN{OFS="/"}{NF--;print $$0}' | sed "s#public/##g"`; dh_install $$i /usr/include/$$a; done
+	dh_install out/obj/libpdfium.a /usr/lib/
+	for i in `find public -type f`; do a=`echo $$i | awk -F "/" 'BEGIN{OFS="/"}{NF--;print $$0}' | sed "s#public##g"`; dh_install $$i /usr/include/$$a; done
 
 # Build architecture-independent files here.
 binary-indep: build install

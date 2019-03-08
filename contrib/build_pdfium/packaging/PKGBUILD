@@ -45,6 +45,6 @@ check() {
 
 package() {
     cd "$pkgname-$pkgver"
-    for i in `find out/obj -name "lib*a" -type f`; do install -D $i $pkgdir/usr/lib/${i/out\/obj\/lib\//}; done
+    for i in `find out/obj -name "libpdfium.a" -type f`; do install -D $i $pkgdir/usr/lib/${i/out\/obj\//}; done
     for i in `find public -type f`; do install -D -m 444 $i $pkgdir/usr/include/${i/public\//}; done
 }
