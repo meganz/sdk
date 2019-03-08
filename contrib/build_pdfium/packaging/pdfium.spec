@@ -12,7 +12,7 @@ Packager:	TODO
 
 BuildRequires: autoconf, automake, libtool, gcc-c++, unzip, rsync, python
 
-%if 0%{?fedora}
+%if 0%{?fedora} || 0%{?rhel_version} || 0%{?centos_version} || 0%{?scientificlinux_version}
 BuildRequires: libatomic
 %endif
 
