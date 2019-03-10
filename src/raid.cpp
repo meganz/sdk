@@ -684,42 +684,44 @@ void TransferBufferManager::finalize(FilePiece& r)
 
 bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
 {
-    if (isRaid())
+    assert(isRaid());
+
+    raidHttpGetErrorCount[errorConnectionNum] += 1;
+
+    g_faultyServers.add(tempurls[errorConnectionNum]);
+
+    unsigned errorSum = 0;
+    for (unsigned i = RAIDPARTS; i--; )
     {
-        raidHttpGetErrorCount[errorConnectionNum] += 1;
-
-        g_faultyServers.add(tempurls[errorConnectionNum]);
-
-        unsigned errorSum = 0;
-        for (unsigned i = RAIDPARTS; i--; )
-        {
-            errorSum += raidHttpGetErrorCount[i];
-        }
-
-        if (errorSum < 3)
-        {
-            if (unusedRaidConnection < RAIDPARTS)
-            {
-                LOG_warn << "5 connection cloudraid shutting down connection " << errorConnectionNum << " due to error, and starting " << unusedRaidConnection << " instead";
-
-                // start up the old unused connection, and cancel this one.  Other connections all have real data since we were already in 5 connection mode
-                clearOwningFilePieces(raidinputparts[unusedRaidConnection]);
-                clearOwningFilePieces(raidinputparts[errorConnectionNum]);
-                raidrequestpartpos[unusedRaidConnection] = raidpartspos;
-                raidrequestpartpos[errorConnectionNum] = raidpartspos;
-            }
-            else
-            {
-                LOG_warn << "6 connection cloudraid shutting down connection " << errorConnectionNum << " due to error";
-                clearOwningFilePieces(raidinputparts[errorConnectionNum]);
-                raidrequestpartpos[errorConnectionNum] = raidpartspos;
-            }
-
-            unusedRaidConnection = errorConnectionNum;
-            return true;
-        }
+        errorSum += raidHttpGetErrorCount[i];
     }
-    return false;
+
+    if (errorSum < 3)
+    {
+        if (unusedRaidConnection < RAIDPARTS)
+        {
+            LOG_warn << "5 connection cloudraid shutting down connection " << errorConnectionNum << " due to error, and starting " << unusedRaidConnection << " instead";
+
+            // start up the old unused connection, and cancel this one.  Other connections all have real data since we were already in 5 connection mode
+            clearOwningFilePieces(raidinputparts[unusedRaidConnection]);
+            clearOwningFilePieces(raidinputparts[errorConnectionNum]);
+            raidrequestpartpos[unusedRaidConnection] = raidpartspos;
+            raidrequestpartpos[errorConnectionNum] = raidpartspos;
+        }
+        else
+        {
+            LOG_warn << "6 connection cloudraid shutting down connection " << errorConnectionNum << " due to error";
+            clearOwningFilePieces(raidinputparts[errorConnectionNum]);
+            raidrequestpartpos[errorConnectionNum] = raidpartspos;
+        }
+
+        unusedRaidConnection = errorConnectionNum;
+        return true;
+    }
+    else
+    {
+        return false;
+    }
 }
 
 bool RaidBufferManager::connectionRaidPeersAreAllPaused(unsigned slowConnection)

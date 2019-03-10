@@ -390,8 +390,7 @@ void TransferSlot::doio(MegaClient* client)
         if (reqs[i])
         {
             unsigned slowestConnection;
-            if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size)
-                if (transferbuf.detectSlowestRaidConnection(i, slowestConnection))
+            if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size && transferbuf.detectSlowestRaidConnection(i, slowestConnection))
             {
                 LOG_debug << "Connection " << slowestConnection << " is the slowest to reply, using the other 5.";
                 delete reqs[slowestConnection];
@@ -414,7 +413,7 @@ void TransferSlot::doio(MegaClient* client)
                         // switch to 5 channel raid to avoid the slow/delayed connection. (or if already switched, try a different 5).  If we already tried too many times then let the usual timeout occur
                         if (tryRaidRecoveryFromHttpGetError(i))
                         {
-                            LOG_warn << "Connection " << i << " is slow or stalled, trying the other 5 cloudraid connections --------------------------------------------------------------------------------------------------------";
+                            LOG_warn << "Connection " << i << " is slow or stalled, trying the other 5 cloudraid connections";
                             reqs[i]->disconnect();
                             reqs[i]->status = REQ_READY;
                         }
