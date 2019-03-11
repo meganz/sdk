@@ -787,17 +787,19 @@ m_off_t TransferBufferManager::nextTransferPos()
 {
     assert(!isRaid());
     chunkmac_map& chunkmacs = transfer->chunkmacs;
-    while (chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos)) != chunkmacs.end())
+    chunkmac_map::const_iterator it = chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos));
+    while (it != chunkmacs.end())
     {
-        if (chunkmacs[ChunkedHash::chunkfloor(transfer->pos)].finished)
+        if (it->second.finished)
         {
             transfer->pos = ChunkedHash::chunkceil(transfer->pos);
         }
         else
         {
-            transfer->pos += chunkmacs[ChunkedHash::chunkfloor(transfer->pos)].offset;
+            transfer->pos += it->second.offset;
             break;
         }
+        it = chunkmacs.find(ChunkedHash::chunkfloor(transfer->pos));
     }
     return transfer->pos;
 }
