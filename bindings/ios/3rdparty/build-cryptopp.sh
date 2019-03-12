@@ -1,40 +1,43 @@
 #!/bin/sh
 
-PROJECT_NAME="cryptopp"
-CRYPTOPP_VERSION="565"
+CURRENTPATH=`pwd`
 
-UNIVERSAL_OUTPUTFOLDER="lib"
-BUILD_DIR="cryptopp"
-CONFIGURATION="Release"
-BUILD_ROOT="cryptopp"
-
-##############################################
+CRYPTOPP_VERSION="982655845a784a9a4cfbc92221359a25a74184a3"
 
 set -e
 
-if [ ! -e "cryptopp${CRYPTOPP_VERSION}.zip" ]
+NPROCESSORS=$(getconf NPROCESSORS_ONLN 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null)
+
+if [ ! -e "${CRYPTOPP_VERSION}.tar.gz" ]
 then
-curl -LO "http://www.cryptopp.com/cryptopp${CRYPTOPP_VERSION}.zip"
+curl -LO "https://github.com/weidai11/cryptopp/archive/${CRYPTOPP_VERSION}.tar.gz"
 fi
 
-unzip cryptopp${CRYPTOPP_VERSION}.zip -d cryptopp
- 
-# Step 1. Build versions for devices and simulator
-xcodebuild -jobs 8 -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphoneos  BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
-xcodebuild -jobs 8 -target cryptopp ONLY_ACTIVE_ARCH=NO -configuration ${CONFIGURATION} -sdk iphonesimulator BUILD_DIR="${BUILD_DIR}" BUILD_ROOT="${BUILD_ROOT}"
- 
-# Make sure the output directory exists
-mkdir -p "${UNIVERSAL_OUTPUTFOLDER}"
- 
-# Step 2.  Create universal binary file, using lipo
-lipo -create -output "${UNIVERSAL_OUTPUTFOLDER}/lib${PROJECT_NAME}.a" "${BUILD_DIR}/${CONFIGURATION}-iphoneos/lib${PROJECT_NAME}.a" "${BUILD_DIR}/${CONFIGURATION}-iphonesimulator/lib${PROJECT_NAME}.a"
+ARCHS="x86_64 armv7 armv7s arm64"
 
+for ARCH in ${ARCHS}
+do
+tar zxf ${CRYPTOPP_VERSION}.tar.gz
+pushd cryptopp-${CRYPTOPP_VERSION}
+source setenv-ios.sh ${ARCH}
+mkdir -p "${CURRENTPATH}/bin/${ARCH}.sdk"
+make -f GNUmakefile-cross lean -j ${NPROCESSORS}
+mv libcryptopp.a "${CURRENTPATH}/bin/${ARCH}.sdk"
+popd
+rm -rf cryptopp-${CRYPTOPP_VERSION}
+done
+
+mkdir -p lib
+
+lipo -create "${CURRENTPATH}/bin/x86_64.sdk/libcryptopp.a" "${CURRENTPATH}/bin/armv7.sdk/libcryptopp.a" "${CURRENTPATH}/bin/armv7s.sdk/libcryptopp.a" "${CURRENTPATH}/bin/arm64.sdk/libcryptopp.a" -output "${CURRENTPATH}/libcryptopp.a"
+
+tar zxf ${CRYPTOPP_VERSION}.tar.gz
 mkdir -p include/cryptopp || true
-cp -f cryptopp/*.h include/cryptopp
-sed -i '' $'s/\#ifdef CRYPTOPP_DISABLE_X86ASM/\#define CRYPTOPP_DISABLE_X86ASM\\\n\#ifdef CRYPTOPP_DISABLE_X86ASM/' include/cryptopp/config.h
+cp -f cryptopp-${CRYPTOPP_VERSION}/*.h include/cryptopp
+rm -rf cryptopp-${CRYPTOPP_VERSION}
+mv -f libcryptopp.a lib/
 
-rm -rf cryptopp
-rm -rf build
 rm -rf bin
+rm -rf ${CRYPTOPP_VERSION}.tar.gz
 
 echo "Done."

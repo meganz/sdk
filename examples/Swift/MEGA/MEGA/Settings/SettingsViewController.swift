@@ -67,7 +67,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
     // MARK: - MEGA Request delegate
     
     func onRequestStart(_ api: MEGASdk!, request: MEGARequest!) {
-        if request.type == MEGARequestType.logout {
+        if request.type == MEGARequestType.MEGARequestTypeLogout {
             SVProgressHUD.show(withStatus: "Logout")
         }
     }
@@ -78,7 +78,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
         }
         
         switch request.type {
-        case MEGARequestType.logout:
+        case MEGARequestType.MEGARequestTypeLogout:
             SSKeychain.deletePassword(forService: "MEGA", account: "session")
             
             let thumbsURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
@@ -94,7 +94,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
                 success = false
             }
             if (!success || error != nil) {
-                print("(Cache) Remove file error: \(error)")
+                print("(Cache) Remove file error: \(error!)")
             }
             
             let documentDirectory : String = NSSearchPathForDirectoriesInDomains(FileManager.SearchPathDirectory.documentDirectory, FileManager.SearchPathDomainMask.userDomainMask, true)[0] 
@@ -106,7 +106,7 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
                 success = false
             }
             if (!success || error != nil) {
-                print("(Document) Remove file error: \(error)")
+                print("(Document) Remove file error: \(error!)")
             }
             
             SVProgressHUD.dismiss()
@@ -114,10 +114,10 @@ class SettingsViewController: UIViewController, MEGARequestDelegate {
             let lvc = storyboard.instantiateViewController(withIdentifier: "LoginViewControllerID") as! LoginViewController
             present(lvc, animated: true, completion: nil)
             
-        case MEGARequestType.getAttrUser:
+        case MEGARequestType.MEGARequestTypeGetAttrUser:
             setUserAvatar()
             
-        case MEGARequestType.accountDetails:
+        case MEGARequestType.MEGARequestTypeAccountDetails:
             spaceUsedLabel.text = "\(ByteCountFormatter.string(fromByteCount: request.megaAccountDetails.storageUsed.int64Value, countStyle: ByteCountFormatter.CountStyle.memory)) of \(ByteCountFormatter.string(fromByteCount: request.megaAccountDetails.storageMax.int64Value, countStyle: ByteCountFormatter.CountStyle.memory))"
             let progress = request.megaAccountDetails.storageUsed.floatValue / request.megaAccountDetails.storageMax.floatValue
             spaceUsedProgressView.setProgress(progress, animated: true)

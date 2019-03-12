@@ -805,7 +805,7 @@ bool WinFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t)
     newname->append("", 1);
 
 #ifdef WINDOWS_PHONE
-    bool r = !!CopyFile2((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), NULL);
+    bool r = SUCCEEDED(CopyFile2((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), NULL));
 #else
     bool r = !!CopyFileW((LPCWSTR)oldname->data(), (LPCWSTR)newname->data(), FALSE);
 #endif
@@ -1148,7 +1148,14 @@ bool WinFileSystemAccess::expanselocalpath(string *path, string *absolutepath)
 
     if (memcmp(absolutepath->data(), L"\\\\?\\", 8))
     {
-        absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\", 8);
+        if (!memcmp(absolutepath->data(), L"\\\\", 4)) //network location
+        {
+            absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\UNC\\", 16);
+        }
+        else
+        {
+            absolutepath->insert(0, (const char *)(const wchar_t*)L"\\\\?\\", 8);
+        }
     }
     absolutepath->resize(absolutepath->size() - 2);
     return true;
@@ -1272,11 +1279,13 @@ void WinDirNotify::process(DWORD dwBytes)
 #ifndef WINDOWS_PHONE
     if (!dwBytes)
     {
+#ifdef ENABLE_SYNC
         LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
                 << " errors: " << error;
         error++;
         readchanges();
         notify(DIREVENTS, localrootnode, NULL, 0);
+#endif
     }
     else
     {
@@ -1314,9 +1323,14 @@ void WinDirNotify::process(DWORD dwBytes)
                                                      (char*)path.data(),
                                                      int(path.size() + 1),
                                                      NULL, NULL));
+#ifdef ENABLE_SYNC
+
                     LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+#endif
                 }
+#ifdef ENABLE_SYNC
                 notify(DIREVENTS, localrootnode, (char*)fni->FileName, fni->FileNameLength);
+#endif
             }
             else if (SimpleLogger::logCurrentLevel >= logDebug)
             {
@@ -1328,7 +1342,9 @@ void WinDirNotify::process(DWORD dwBytes)
                                                  (char*)path.data(),
                                                  int(path.size() + 1),
                                                  NULL, NULL));
+#ifdef ENABLE_SYNC
                 LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
+#endif
             }
 
 

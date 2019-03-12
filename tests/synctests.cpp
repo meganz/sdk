@@ -339,7 +339,7 @@ struct StandardClient : public MegaApp
 #endif
             "N9tSBJDC", "synctests")
         , clientname(name)
-        , fsBasePath(basepath / name)
+        , fsBasePath(basepath / fs::u8path(name))
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
@@ -808,7 +808,7 @@ struct StandardClient : public MegaApp
         multimap<string, Model::ModelNode*> ms;
         multimap<string, Node*> ns;
         for (auto& m : mn->kids) ms.emplace(m->name, m.get());
-        for (auto& n : n->children) ns.emplace(n->displayname(), n);
+        for (auto& n2 : n->children) ns.emplace(n2->displayname(), n2);
 
         int matched = 0;
         vector<string> matchedlist;
@@ -911,8 +911,14 @@ struct StandardClient : public MegaApp
 
         multimap<string, Model::ModelNode*> ms;
         multimap<string, LocalNode*> ns;
-        for (auto& m : mn->kids) ms.emplace(m->name, m.get());
-        for (auto& n : n->children) if (!n.second->deleted) ns.emplace(n.second->name, n.second); // todo: should LocalNodes marked as deleted actually have been removed by now?  
+        for (auto& m : mn->kids)
+        {
+            ms.emplace(m->name, m.get());
+        }
+        for (auto& n2 : n->children)
+        {
+            if (!n2.second->deleted) ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
+        }
 
         int matched = 0;
         vector<string> matchedlist;
@@ -1339,7 +1345,7 @@ struct StandardClient : public MegaApp
 
     bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
     {
-        fs::path syncdir = fsBasePath / localsyncrootfolder;
+        fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
         future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncid, remotesyncrootfolder, syncdir)); });
         return fb.get();
@@ -1430,7 +1436,7 @@ void moveToTrash(const fs::path& p)
     fs::path newpath = trashpath / p.filename();
     for (int i = 2; fs::exists(newpath); ++i)
     {
-        newpath = trashpath / (p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
+        newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
     }
     fs::rename(p, newpath);
 }
@@ -1452,15 +1458,19 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
 {
     if (suppressfiles) filesperfolder = 0;
 
-    fs::path p = targetfolder / prefix;
+    fs::path p = targetfolder / fs::u8path(prefix);
     if (!fs::create_directory(p))
         return false;
 
     for (int i = 0; i < filesperfolder; ++i)
     {
         string filename = "file" + to_string(i) + "_" + prefix;
-        fs::path fp = p / filename;
-        ofstream fs(fp.string()/*, ios::binary*/);
+        fs::path fp = p / fs::u8path(filename);
+#if (__cplusplus >= 201700L)
+        ofstream fs(fp/*, ios::binary*/);
+#else
+        ofstream fs(fp.u8string()/*, ios::binary*/);
+#endif
         fs << filename;
         //int thisSize = (++fileSizeCount)/2;
         //for (int j = 0; j < thisSize; ++j) fs << ('0' + j % 10);
@@ -1477,6 +1487,35 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
 
     return true;
 }
+
+#ifdef __linux__
+bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
+{
+    fs::path p = targetfolder;
+    for (int i = 0; i < n; ++i)
+    {
+        string filename = "file" + to_string(i) + "_" + prefix;
+        fs::path fp = p / fs::u8path(filename);
+
+        int fdtmp = openat(AT_FDCWD, p.c_str(), O_RDWR|O_CLOEXEC|O_TMPFILE, 0600);
+        write(fdtmp, filename.data(), filename.size());
+
+        stringstream fdproc;
+        fdproc << "/proc/self/fd/";
+        fdproc << fdtmp;
+
+        int r = linkat(AT_FDCWD, fdproc.str().c_str() , AT_FDCWD, fp.c_str(), AT_SYMLINK_FOLLOW);
+        if (r)
+        {
+            cerr << " errno =" << errno << endl;
+            return false;
+        }
+        close(fdtmp);
+    }
+    return true;
+}
+#endif
+
 
 GTEST_TEST(BasicSync, DelRemoteFolder)
 {
@@ -1745,7 +1784,7 @@ GTEST_TEST(BasicSync, MAX_NEWNODES2)
 
     // make new folders in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
     assert(MegaClient::MAX_NEWNODES < 3000);
-    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "g", 3000, 1, 0));  
+    ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "g", 3000, 1, 0));
 
     // let them catch up
     waitonsyncs(30s, &clientA1, &clientA2);
@@ -1932,7 +1971,7 @@ GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), 1));
 }
 
-/* not expected to work yet 
+/* not expected to work yet
 GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
@@ -2148,7 +2187,7 @@ GTEST_TEST(CmdChecks, RRAttributeAfterMoveNode)
 
     // remove remote folder via A2
     future<bool> p1 = pclientA1->thread_do([](StandardClient& sc, promise<bool>& pb)
-        { 
+        {
             sc.movenodetotrash("f", pb);
         });
     ASSERT_TRUE(waitonresults(&p1));
@@ -2174,12 +2213,97 @@ GTEST_TEST(CmdChecks, RRAttributeAfterMoveNode)
 
     WaitMillisec(3000);  // allow for attribute delivery too
 
-    // check it's back and the rr attribute is gone 
+    // check it's back and the rr attribute is gone
     f = pclientA1->drillchildnodebyname(pclientA1->gettestbasenode(), "f");
     ASSERT_TRUE(f != nullptr);
     ASSERT_EQ(f->attrs.map[rrname], string());
 }
 
+
+#ifdef __linux__
+GTEST_TEST(BasicSync, SpecialCreateFile)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 2, 2));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 2, 2, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    // make new folders (and files) in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
+    ASSERT_TRUE(createSpecialFiles(clientA1.syncSet[1].localpath / "f_0", "newkid", 2));
+
+    for (int i = 0; i < 2; ++i)
+    {
+        string filename = "file" + to_string(i) + "_" + "newkid";
+        model.findnode("f/f_0")->addkid(model.makeModelSubfile(filename));
+    }
+
+    // let them catch up
+    waitonsyncs(20s, &clientA1, &clientA2);
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+}
+#endif
+
+GTEST_TEST(BasicSync, moveAndDeleteLocalFile)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
+    StandardClient clientA2(localtestroot, "clientA2");   // user 1 client 2
+
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1", "f", 1, 1));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGAAUTOTESTUSER1", "MEGAAUTOTESTPWD1"));
+    ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
+
+    Model model;
+    model.root->addkid(model.buildModelSubdirs("f", 1, 1, 0));
+
+    // set up sync for A1, it should build matching local folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
+    ASSERT_TRUE(clientA2.setupSync_mainthread("sync2", "f", 2));
+
+    waitonsyncs(4s, &clientA1, &clientA2);
+    clientA1.logcb = clientA2.logcb = true;
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+
+    // move something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
+    error_code rename_error;
+    fs::rename(clientA1.syncSet[1].localpath / "f_0", clientA1.syncSet[1].localpath / "renamed", rename_error);
+    ASSERT_TRUE(!rename_error) << rename_error;
+    fs::remove(clientA1.syncSet[1].localpath / "renamed");
+
+    // let them catch up
+    waitonsyncs(20s, &clientA1, &clientA2);
+
+    // check everything matches (model has expected state of remote and local)
+    ASSERT_TRUE(model.movetosynctrash("f/f_0", "f"));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    ASSERT_TRUE(model.removesynctrash("f"));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
+}
 
 class MegaCLILogger : public ::mega::Logger {
 public:

@@ -29,7 +29,7 @@ namespace mega
 
 const std::string EdDSA::TLV_KEY = "prEd255";
 
-EdDSA::EdDSA(unsigned char *keySeed)
+EdDSA::EdDSA(PrnGen &rng, unsigned char *keySeed)
 {
     initializationOK = false;
 
@@ -45,7 +45,7 @@ EdDSA::EdDSA(unsigned char *keySeed)
     }
     else    // make the new key seed.
     {
-        PrnGen::genblock(this->keySeed, EdDSA::SEED_KEY_LENGTH);
+        rng.genblock(this->keySeed, EdDSA::SEED_KEY_LENGTH);
     }
 
     // derive public and private keys from the seed

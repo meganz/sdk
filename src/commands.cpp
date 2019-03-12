@@ -209,7 +209,7 @@ void CommandGetFA::procresult()
                     {
                         Node::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
-                        it->second->dispatch(client);
+                        it->second->dispatch();
                     }
                     else
                     {
@@ -406,6 +406,11 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     if (drn->publicauth.size())
     {
         arg("en", drn->publicauth.c_str());
+    }
+
+    if (drn->chatauth.size())
+    {
+        arg("cauth", drn->chatauth.c_str());
     }
 
     if (client->usehttps)
@@ -732,7 +737,7 @@ void CommandGetFile::procresult()
                                             return tslot->progress();
                                         }
 
-                                        if (e == API_EOVERQUOTA && !tl)
+                                        if (e == API_EOVERQUOTA && tl <= 0)
                                         {
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
@@ -1852,7 +1857,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
 
         if (u && u->pubk.isvalid())
         {
-            t = u->pubk.encrypt(asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
+            t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
         }
 
         // outgoing handle authentication
@@ -2473,8 +2478,6 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
         endarray();
     }
 
-    notself(client);
-
     tag = ctag;
 }
 
@@ -2530,7 +2533,7 @@ void CommandPutMultipleUAVer::procresult()
                         string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
                         if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                         {
-                            client->signkey = new EdDSA((unsigned char *) prEd255.data());
+                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                         }
                     }
 
@@ -2603,8 +2606,6 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
 
     endarray();
 
-    notself(client);
-
     tag = ctag;
 }
 
@@ -2650,7 +2651,7 @@ void CommandPutUAVer::procresult()
     }
 }
 
-CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
+CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -2668,8 +2669,6 @@ CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsign
     {
         arg(an.c_str(), av, avl);
     }
-
-    notself(client);
 
     tag = ctag;
 }
@@ -2763,12 +2762,6 @@ void CommandGetUA::procresult()
         {
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
-        }
-
-        if (at == ATTR_STORAGE_STATE && e == API_ENOENT)
-        {
-            LOG_debug << "There are no storage problems";
-            client->setstoragestatus(STORAGE_GREEN);
         }
     }
     else
@@ -2875,7 +2868,7 @@ void CommandGetUA::procresult()
                             }
 
                             // store the value for private user attributes (decrypted version of serialized TLV)
-                            string *tlvString = tlvRecords->tlvRecordsToContainer(&client->key);
+                            string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
                             client->app->getua_result(tlvRecords);
@@ -2919,30 +2912,6 @@ void CommandGetUA::procresult()
                                     LOG_info << "File versioning is enabled";
                                 }
                             }
-
-                            if (at == ATTR_STORAGE_STATE)
-                            {
-                                if (value == "2")
-                                {
-                                    LOG_debug << "Account full";
-                                    client->activateoverquota(0);
-                                }
-                                else if (value == "1")
-                                {
-                                    LOG_debug << "Few storage space available";
-                                    client->setstoragestatus(STORAGE_ORANGE);
-                                }
-                                else if (value == "0")
-                                {
-                                    LOG_debug << "There are no storage problems";
-                                    client->setstoragestatus(STORAGE_GREEN);
-                                }
-                                else
-                                {
-                                    LOG_err << "Unknown state of storage. State: " << value;
-                                }
-                            }
-
                             break;
 
                         default:    // legacy attributes or unknown attribute
@@ -3411,6 +3380,7 @@ void CommandGetUserQuota::procresult()
     bool got_storage = false;
     bool got_transfer = false;
     bool got_pro = false;
+    int uslw = -1;
 
     if (client->json.isnumeric())
     {
@@ -3633,7 +3603,36 @@ void CommandGetUserQuota::procresult()
                 }
                 break;
 
-            case EOO:
+            case MAKENAMEID4('u', 's', 'l', 'w'):
+                uslw = int(client->json.getint());
+                break;
+
+            case EOO:                
+                if (uslw <= 0)
+                {
+                    uslw = 9000;
+                    LOG_warn << "Using default almost overstorage threshold";
+                }
+
+                if (got_storage)
+                {
+                    if (details->storage_used >= details->storage_max)
+                    {
+                        LOG_debug << "Account full";
+                        client->activateoverquota(0);
+                    }
+                    else if (details->storage_used >= (details->storage_max / 10000 * uslw))
+                    {
+                        LOG_debug << "Few storage space available";
+                        client->setstoragestatus(STORAGE_ORANGE);
+                    }
+                    else
+                    {
+                        LOG_debug << "There are no storage problems";
+                        client->setstoragestatus(STORAGE_GREEN);
+                    }
+                }
+
                 client->app->account_details(details, got_storage, got_transfer, got_pro, false, false, false);
                 return;
 
@@ -4357,6 +4356,7 @@ void CommandFetchNodes::procresult()
                 client->procmcf(&client->json);
                 break;
 
+            case MAKENAMEID5('m', 'c', 'p', 'n', 'a'):   // fall-through
             case MAKENAMEID4('m', 'c', 'n', 'a'):
                 // nodes shared in chatrooms
                 client->procmcna(&client->json);
@@ -5390,6 +5390,10 @@ void CommandChatRemove::procresult()
             if (uh == client->me)
             {
                 chat->priv = PRIV_RM;
+
+                // clear the list of peers (if re-invited, peers will be re-added)
+                delete chat->userpriv;
+                chat->userpriv = NULL;
             }
 
             chat->setTag(tag ? tag : -1);

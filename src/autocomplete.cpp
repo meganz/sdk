@@ -76,7 +76,7 @@ ACState::quoting::quoting()
 
 ACState::quoting::quoting(std::string& s)
 {
-    quoted = !s.empty() && s[0] == '\"' || s[0] == '\'';
+    quoted = (!s.empty() && s[0] == '\"') || (s[0] == '\'');
     if (quoted)
     {
         quote_char = s[0];
@@ -187,6 +187,10 @@ std::ostream& operator<<(std::ostream& s, const ACNode& n)
     return n.describe(s);
 }
 
+ACNode::~ACNode()
+{
+}
+
 Optional::Optional(ACN n)
     : subnode(n)
 {
@@ -211,7 +215,7 @@ std::ostream& Optional::describe(std::ostream& s) const
     if (auto e = dynamic_cast<Either*>(subnode.get()))
     {
         std::ostringstream s2;
-        s2 << *subnode;
+        s2 << *e;
         std::string str = s2.str();
         if (str.size() >= 2 && str.front() == '(' && str.back() == ')')
         {
@@ -514,7 +518,7 @@ bool LocalFS::addCompletions(ACState& s)
 {
     if (s.atCursor())
     {
-        fs::path searchPath(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
+        fs::path searchPath = fs::u8path(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
 #ifdef WIN32
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
 #else
@@ -542,8 +546,8 @@ bool LocalFS::addCompletions(ACState& s)
             {
                 for (fs::directory_iterator iter(searchPath); iter != fs::directory_iterator(); ++iter)
                 {
-                    if (reportFolders && fs::is_directory(iter->status()) ||
-                        reportFiles && fs::is_regular_file(iter->status()))
+                    if ((reportFolders && fs::is_directory(iter->status())) ||
+                        (reportFiles && fs::is_regular_file(iter->status())))
                     {
                         s.addPathCompletion(iter->path().u8string(), cp, fs::is_directory(iter->status()), sep, true);
                     }
@@ -580,53 +584,44 @@ std::ostream& LocalFS::describe(std::ostream& s) const
 }
 
 MegaFS::MegaFS(bool files, bool folders, MegaClient* c, ::mega::handle* curDirHandle, const std::string descriptionPrefix)
-    : reportFiles(files)
-    , reportFolders(folders)
-    , client(c)
+    : client(c)
     , cwd(curDirHandle)
+    , reportFiles(files)
+    , reportFolders(folders)
     , descPref(descriptionPrefix)
 {
 }
 
 Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix)
 {
-    string path = s.word().s;
-
+    const string& path = s.word().s;
     string::size_type t = path.find_first_of(":/");
 
-    if (t != string::npos && path[t] == '/')
+    if (t == string::npos || path[t] == ':')
     {
-        return NULL;
-    }
-    else if (t != string::npos && path[t] == ':')
-    {
-        pathprefix = path.substr(0, t);
-    }
-
-    for (const user_map::value_type& u : client->users)
-    {
-        if (pathprefix.empty() && !u.second.sharing.empty())
+        for (const user_map::value_type& u : client->users)
         {
-            string str;
-            s.addCompletion(u.second.email + ":", true);
-        }
-        else if (u.second.email == path.substr(0, t))
-        {
-            path.erase(0, t + 1);
-            t = path.find_first_of("/");
-            for (handle h : u.second.sharing)
+            if (t == string::npos && !u.second.sharing.empty())
             {
-                if (Node* n = client->nodebyhandle(h))
+                string str;
+                s.addCompletion(u.second.email + ":", true, true);
+            }
+            else if (u.second.email == path.substr(0, t))
+            {
+                string::size_type pos = path.find_first_of("/", t + 1);
+                for (handle h : u.second.sharing)
                 {
-                    if (t == string::npos)
+                    if (Node* n = client->nodebyhandle(h))
                     {
-                        string str = pathprefix + ":" + n->displayname();
-                        s.addPathCompletion(move(str), "", n->type != FILENODE, '/', false);
-                    }
-                    else if (!strncmp(n->displayname(), path.c_str(), t))
-                    {
-                        (pathprefix += ":") += n->displayname();
-                        return n;
+                        if (pos == string::npos)
+                        {
+                            s.addPathCompletion(path.substr(0, t + 1) + n->displayname(), "", n->type != FILENODE, '/', false);
+                        }
+                        else if (n->displayname() == path.substr(t + 1, pos - t - 1))
+                        {
+                            pathprefix = path.substr(0, pos + 1);
+                            return n;
+                        }
                     }
                 }
             }
@@ -677,6 +672,7 @@ bool MegaFS::addCompletions(ACState& s)
                 if (!n && *cwd != UNDEF)
                 {
                     n = client->nodebyhandle(*cwd);
+                    pathprefix.clear();
                 }
             }
 
@@ -721,8 +717,8 @@ bool MegaFS::addCompletions(ACState& s)
                 {
                     for (Node* subnode : n->children)
                     {
-                        if (reportFolders && subnode->type == FOLDERNODE ||
-                            reportFiles && subnode->type == FILENODE)
+                        if ((reportFolders && subnode->type == FOLDERNODE) ||
+                            (reportFiles && subnode->type == FILENODE))
                         {
                             s.addPathCompletion(pathprefix + subnode->displayname(), "", subnode->type == FOLDERNODE, '/', false);
                         }
@@ -931,7 +927,12 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
 {
     ACState acs = prepACState(line, insertPos, unixStyle);
 
-    if (!acs.words.empty() && (acs.words[0].s.size() || acs.words.size() > 1))
+    while (!acs.words.empty() && acs.words.back().s.empty() && !acs.words.back().q.quoted)
+    {
+        acs.words.pop_back();
+    }
+
+    if (!acs.words.empty())
     {
         if (auto e = dynamic_cast<autocomplete::Either*>(syntax.get()))
         {

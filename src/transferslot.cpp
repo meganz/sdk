@@ -50,6 +50,7 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
 const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks)
 
 TransferSlot::TransferSlot(Transfer* ctransfer)
+    : retrybt(ctransfer->client->rng)
 {
     starttime = 0;
     lastprogressreport = 0;
@@ -299,6 +300,38 @@ int64_t TransferSlot::macsmac(chunkmac_map* macs)
     m[1] = m[2] ^ m[3];
 
     return MemAccess::get<int64_t>((const char*)mac);
+}
+
+void chunkmac_map::serialize(string& d) const
+{
+    unsigned short ll = (unsigned short)size();
+    d.append((char*)&ll, sizeof(ll));
+    for (const_iterator it = begin(); it != end(); it++)
+    {
+        d.append((char*)&it->first, sizeof(it->first));
+        d.append((char*)&it->second, sizeof(it->second));
+    }
+}
+
+bool chunkmac_map::unserialize(const char*& ptr, const char* end)
+{
+    unsigned short ll;
+    if ((ptr + sizeof(ll) > end) || ptr + (ll = MemAccess::get<unsigned short>(ptr)) * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    {
+        return false;
+    }
+
+    ptr += sizeof(ll);
+
+    for (int i = 0; i < ll; i++)
+    {
+        m_off_t pos = MemAccess::get<m_off_t>(ptr);
+        ptr += sizeof(m_off_t);
+
+        memcpy(&((*this)[pos]), ptr, sizeof(ChunkMAC));
+        ptr += sizeof(ChunkMAC);
+    }
+    return true;
 }
 
 // file transfer state machine

@@ -378,6 +378,22 @@ void MegaSDK::setStatsID(String^ id)
     MegaApi::setStatsID((id != nullptr) ? utf8id.c_str() : NULL);
 }
 
+void MegaSDK::setDnsServers(String^ dnsServers, MRequestListenerInterface^ listener)
+{
+    std::string utf8dnsServers;
+    if (dnsServers != nullptr)
+        MegaApi::utf16ToUtf8(dnsServers->Data(), dnsServers->Length(), &utf8dnsServers);
+
+    megaApi->setDnsServers(
+        (dnsServers != nullptr) ? utf8dnsServers.c_str() : NULL,
+        createDelegateMRequestListener(listener));
+}
+
+void MegaSDK::setDnsServers(String^ dnsServers)
+{
+    this->setDnsServers(dnsServers, nullptr);
+}
+
 bool MegaSDK::serverSideRubbishBinAutopurgeEnabled()
 {
     return megaApi->serverSideRubbishBinAutopurgeEnabled();
@@ -2469,16 +2485,6 @@ void MegaSDK::setRubbishBinAutopurgePeriod(int days, MRequestListenerInterface^ 
 void MegaSDK::setRubbishBinAutopurgePeriod(int days)
 {
     megaApi->setRubbishBinAutopurgePeriod(days);
-}
-
-void MegaSDK::getStorageState(MRequestListenerInterface^ listener)
-{
-    megaApi->getStorageState(createDelegateMRequestListener(listener));
-}
-
-void MegaSDK::getStorageState()
-{
-    megaApi->getStorageState();
 }
 
 void MegaSDK::changePassword(String^ oldPassword, String^ newPassword, MRequestListenerInterface^ listener)

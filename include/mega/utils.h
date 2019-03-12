@@ -66,7 +66,7 @@ struct MEGA_API PaddedCBC
      *     for encryption will be generated and available through the reference.
      * @return Void.
      */
-    static void encrypt(string* data, SymmCipher* key, string* iv = NULL);
+    static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 
     /**
      * @brief Decrypts a string and strips the padding.
@@ -141,12 +141,17 @@ class MEGA_API PayCrypter
      */
     byte iv[IV_BYTES];
 
+    /**
+     * @brief Random blocks generator
+     */
+    PrnGen &rng;
+
 public:
 
     /**
      * @brief Constructor. Initializes keys with random values.
      */
-    PayCrypter();
+    PayCrypter(PrnGen &rng);
 
     /**
      * @brief Updates the crypto keys (mainly for testing)
@@ -256,7 +261,7 @@ private:
      * @param encSetting Block encryption mode to be used by AES
      * @return A new string holding the encrypted byte array. You take the ownership of the string.
      */
-    string *tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
+    string *tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
 
     /**
      * @brief Converts the TLV records into a byte array
@@ -340,6 +345,49 @@ std::string rfc1123_datetime( time_t time );
 std::string webdavurlescape(const std::string &value);
 std::string escapewebdavchar(const char c);
 std::string webdavnameescape(const std::string &value);
+
+struct CacheableWriter
+{
+    CacheableWriter(string& d);
+    string& dest;
+
+    void serializebinary(byte* data, size_t len);
+    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility
+    void serializestring(const string& field);
+    void serializei64(int64_t field);
+    void serializeu32(uint32_t field);
+    void serializehandle(handle field);
+    void serializebool(bool field);
+    void serializebyte(byte field);
+    void serializechunkmacs(const chunkmac_map& m);
+
+    // Each class that might get extended should store expansion flags at the end
+    // When adding new fields to an existing class, set the next expansion flag true to indicate they are present.
+    // If you turn on the last flag, then you must also add another set of expansion flags (all false) after the new fields, for further expansion later.
+    void serializeexpansionflags(bool b1 = false, bool b2 = false, bool b3 = false, bool b4 = false, bool b5 = false, bool b6 = false, bool b7 = false, bool b8 = false);
+};
+
+struct CacheableReader
+{
+    CacheableReader(const string& d);
+    const char* ptr;
+    const char* end;
+    unsigned fieldnum;
+
+    bool unserializebinary(byte* data, size_t len);
+    bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
+    bool unserializestring(string& s);
+    bool unserializei64(int64_t& s);
+    bool unserializeu32(uint32_t& s);
+    bool unserializebyte(byte& s);
+    bool unserializehandle(handle& s);
+    bool unserializebool(bool& s);
+    bool unserializechunkmacs(chunkmac_map& m);
+
+    bool unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount);
+
+    void eraseused(string& d); // must be the same string, unchanged
+};
 
 } // namespace
 

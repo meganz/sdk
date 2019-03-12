@@ -97,7 +97,8 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeRichPreviews            = 18, // private - byte array
     MEGAUserAttributeRubbishTime             = 19, // private - byte array
     MEGAUserAttributeLastPSA                 = 20, // private - char array
-    MEGAUserAttributeStorageState            = 21 // private - char array
+    MEGAUserAttributeStorageState            = 21, // private - char array
+    MEGAUserAttributeGeolocation             = 22 // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -155,7 +156,8 @@ typedef NS_ENUM(NSInteger, KeepMeAlive) {
 typedef NS_ENUM(NSUInteger, StorageState) {
     StorageStateGreen = 0,
     StorageStateOrange = 1,
-    StorageStateRed = 2
+    StorageStateRed = 2,
+    StorageStateChange = 3
 };
 
 /**
@@ -3050,6 +3052,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  */
 - (void)getUserAttributeForUser:(MEGAUser *)user type:(MEGAUserAttribute)type;
@@ -3101,6 +3105,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3156,6 +3162,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  */
 - (void)getUserAttributeForEmailOrHandle:(NSString *)emailOrHandle type:(MEGAUserAttribute)type;
@@ -3210,6 +3218,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3263,6 +3273,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  */
 - (void)getUserAttributeType:(MEGAUserAttribute)type;
@@ -3315,6 +3327,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Get number of days for rubbish-bin cleaning scheduler (private, non-encrypted)
  * MEGAUserAttributeStorageState = 21
  * Get the state of the storage (private non-encrypted)
+ * MEGAUserAttributeGeolocation = 22
+ * Get whether the user has enabled send geolocation messages (private)
  *
  * @param delegate MEGARequestDelegate to track this request
  */
@@ -3925,6 +3939,54 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 - (void)setRichLinkWarningCounterValue:(NSUInteger)value;
 
 /**
+ * @brief Enable the sending of geolocation messages
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)enableGeolocationWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Enable the sending of geolocation messages
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
+ */
+- (void)enableGeolocation;
+
+/**
+ * @brief Check if the sending of geolocation messages is enabled
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
+ *
+ * Sending a Geolocation message is enabled if the MEGARequest object, received in onRequestFinish,
+ * has error code MEGAErrorTypeApiOk. In other cases, send geolocation messages is not enabled and
+ * the application has to answer before send a message of this type.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)isGeolocationEnabledWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the sending of geolocation messages is enabled
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeGeolocation
+ *
+ * Sending a Geolocation message is enabled if the MEGARequest object, received in onRequestFinish,
+ * has error code MEGAErrorTypeApiOk. In other cases, send geolocation messages is not enabled and
+ * the application has to answer before send a message of this type.
+ */
+- (void)isGeolocationEnabled;
+
+/**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
  *
  * The associated request type with this request is MEGARequestTypeGetAttrUser
@@ -3985,48 +4047,6 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  */
 - (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days;
-
-/**
- * @brief Get the state of the storage
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeStorageState
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest number] - Returns one of these storage states:
- * StorageStateGreen = 0 - The account has no problems with storage space
- * StorageStateOrange = 1 - The account is almost full
- * StorageStateRed = 2 - The account is full
- *
- * If the state is not set on the server side, the request will finish with the error
- * MEGAErrorTypeApiENoent, but [MEGARequest number] will be valid and will have the
- * number 0 (StorageStateGreen).
- *
- * @param delegate MEGARequestDelegate to track this request
- */
-- (void)getStorageStateWithDelegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Get the state of the storage
- *
- * The associated request type with this request is MEGARequestTypeGetAttrUser
- * Valid data in the MegaRequest object received on callbacks:
- * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeStorageState
- *
- * Valid data in the MegaRequest object received in onRequestFinish when the error code
- * is MEGAErrorTypeApiOk:
- * - [MEGARequest number] - Returns one of these storage states:
- * StorageStateGreen = 0 - The account has no problems with storage space
- * StorageStateOrange = 1 - The account is almost full
- * StorageStateRed = 2 - The account is full
- *
- * If the state is not set on the server side, the request will finish with the error
- * MEGAErrorTypeApiENoent, but [MEGARequest number] will be valid and will have the
- * number 0 (StorageStateGreen).
- */
-- (void)getStorageState;
 
 /**
  * @brief Use HTTPS communications only
@@ -6033,7 +6053,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Even if files are allowed to be served by this function, restrictions related to
  * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
  *
- * @param YES to allow to server files, NO to forbid it
+ * @param enable YES to allow to server files, NO to forbid it
  */
 - (void)httpServerEnableFileServer:(BOOL)enable;
 
@@ -6057,7 +6077,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Even if folders are allowed to be served by this function, restrictions related to
  * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
  *
- * @param YES to allow to server folders, NO to forbid it
+ * @param enable YES to allow to server folders, NO to forbid it
  */
 - (void)httpServerEnableFolderServer:(BOOL)enable;
 
@@ -6105,7 +6125,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * other configuration options ([MEGASdk httpServerEnableFileServer],
  * [MEGASdk httpServerEnableFolderServer]) are still applied.
  *
- * @param Required state for the restricted mode of the HTTP proxy server
+ * @param mode Required state for the restricted mode of the HTTP proxy server
  */
 - (void)httpServerSetRestrictedMode:(NSInteger)mode;
 
