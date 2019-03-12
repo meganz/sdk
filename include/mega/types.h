@@ -166,7 +166,12 @@ struct ChunkMAC
 };
 
 // file chunk macs
-typedef map<m_off_t, ChunkMAC> chunkmac_map;
+class chunkmac_map : public map<m_off_t, ChunkMAC>
+{
+public:
+    void serialize(string& d) const;
+    bool unserialize(const char*& ptr, const char* end);
+};
 
 /**
  * @brief Declaration of API error codes.

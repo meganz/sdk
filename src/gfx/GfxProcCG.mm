@@ -59,7 +59,7 @@ GfxProcCG::~GfxProcCG() {
 }
 
 const char* GfxProcCG::supportedformats() {
-    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.";
+    return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.";
 }
 
 bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {

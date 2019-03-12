@@ -29,6 +29,7 @@ namespace mega {
 class MEGA_API DbTable
 {
     static const int IDSPACING = 16;
+    PrnGen &rng;
 
 public:
     // for a full sequential get: rewind to first record
@@ -67,7 +68,7 @@ public:
     // autoincrement
     uint32_t nextid;
 
-    DbTable();
+    DbTable(PrnGen &rng);
     virtual ~DbTable() { }
 };
 
@@ -77,7 +78,7 @@ struct MEGA_API DbAccess
     static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();
-    virtual DbTable* open(FileSystemAccess*, string*, bool = false) = 0;
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool = false) = 0;
 
     virtual ~DbAccess() { }
 

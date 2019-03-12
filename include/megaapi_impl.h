@@ -1829,7 +1829,7 @@ class MegaApiImpl : public MegaApp
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         void setDnsServers(const char *dnsServers, MegaRequestListener* listener = NULL);
-        static void addEntropy(char* data, unsigned int size);
+        void addEntropy(char* data, unsigned int size);
         static string userAttributeToString(int);
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
@@ -2170,7 +2170,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
-                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth);
+                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
 
@@ -2322,7 +2322,7 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         void sendChatStats(const char *data, int port, MegaRequestListener *listener = NULL);
-        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
@@ -3005,6 +3005,7 @@ public:
     m_off_t nodesize;
     std::string nodepubauth;
     std::string nodeprivauth;
+    std::string nodechatauth;
     int resultCode;
 
 

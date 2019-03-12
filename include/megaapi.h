@@ -6505,7 +6505,7 @@ class MegaApi
          * @param data Byte array with random data
          * @param size Size of the byte array (in bytes)
          */
-        static void addEntropy(char* data, unsigned int size);
+        void addEntropy(char* data, unsigned int size);
 
 #ifdef WINDOWS_PHONE
         /**
@@ -11962,10 +11962,11 @@ class MegaApi
          * @param parentHandle Handle of the parent node
          * @param privateAuth Private authentication token to access the node
          * @param publicAuth Public authentication token to access the node
+         * @param chatAuth Chat authentication token to access the node
          * @return MegaNode object
          */
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
+                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account
@@ -13558,6 +13559,7 @@ class MegaApi
          * - MegaRequest::getName - Returns the data provided.
          * - MegaRequest::getSessionKey - Returns the aid provided
          * - MegaRequest::getParamType - Returns number 2
+         * - MegaRequest::getNumber - Returns the connection port
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -13567,9 +13569,10 @@ class MegaApi
          *
          * @param data JSON data to send to the logs server
          * @param aid User's anonymous identifier for logging
+         * @param port Server port to connect
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, const char *aid, int port = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the list of chatrooms for this account

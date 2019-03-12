@@ -230,7 +230,7 @@ User* User::unserialize(MegaClient* client, string* d)
         {
             if (tlvRecords->find(EdDSA::TLV_KEY))
             {
-                client->signkey = new EdDSA((unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
+                client->signkey = new EdDSA(client->rng, (unsigned char *) tlvRecords->get(EdDSA::TLV_KEY).data());
                 if (!client->signkey->initializationOK)
                 {
                     delete client->signkey;
