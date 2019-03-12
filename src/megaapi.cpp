@@ -2060,6 +2060,11 @@ void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
     pImpl->setAvatar(dstFilePath, listener);
 }
 
+bool MegaApi::testAllocation(unsigned allocCount, size_t allocSize)
+{
+    return pImpl->testAllocation(allocCount, allocSize);
+}
+
 void MegaApi::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
 {
     pImpl->getUserAttribute(user, type, listener);

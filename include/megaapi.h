@@ -8251,6 +8251,26 @@ class MegaApi
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief confirm available memory to avoid OOM situations
+         *
+         * Before queueing a thumbnail or preview upload (or other memory intensive task),
+         * it may be useful on some devices to check if there is plenty of memory available
+         * in the memory pool used by MegaApi (especially since some platforms may not have
+         * the facility to check for themselves, and/or deallocation may need to wait on a GC)
+         * and if not, delay until any current resource constraints (eg. other current operations,
+         * or other RAM-hungry apps in the device), have finished.  This function just
+         * makes several memory allocations and then immediately releases them.  If all allocations
+         * succeeded, it returns true, indicating that memory is (probably) available.
+         * Of course, another app or operation may grab that memory immediately so it not a
+         * guarantee.   However it may help to reduce the frequency of OOM situations on phones for example.
+         *
+         * @param allocCount The number of allocations to make
+         * @param allocSize The size of those memory allocations.
+         * @return True if all the allocations succeeded
+         */
+        bool testAllocation(unsigned allocCount, size_t allocSize);
+
+        /**
          * @brief Set a public attribute of the current user
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER

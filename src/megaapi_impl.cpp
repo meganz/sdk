@@ -5962,6 +5962,29 @@ void MegaApiImpl::getUserAttribute(MegaUser* user, int type, MegaRequestListener
     getUserAttr(email, type ? type : -1, NULL, 0, listener);
 }
 
+bool MegaApiImpl::testAllocation(unsigned allocCount, size_t allocSize)
+{
+    bool success = true;
+    std::vector<char*> v;
+    try
+    {
+        for (unsigned i = allocCount; i--; )
+        {
+            v.push_back(new char[allocSize]);
+        }
+    }
+    catch (std::bad_alloc&)
+    {
+        LOG_warn << "MegaApi::testAllocation detected low memory: " << allocCount << " " << allocSize;
+        success = false;
+    }
+    for (unsigned i = v.size(); i--; )
+    {
+        delete[] v[i];
+    }
+    return success;
+}
+
 void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRequestListener *listener)
 {
     getUserAttr(email_or_handle, type ? type : -1, NULL, 0, listener);
@@ -17950,7 +17973,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap activity growing it for the encryption
-            attributedata->reserve(f->size + SymmCipher::BLOCKSIZE);
+            attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
             if(!f->fread(attributedata, unsigned(f->size), 0, 0))
             {
                 delete f;
