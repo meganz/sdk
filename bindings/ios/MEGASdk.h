@@ -5121,6 +5121,26 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  */
 - (BOOL)ensureMediaInfo;
 
+/**
+ * @brief confirm available memory to avoid OOM situations
+ *
+ * Before queueing a thumbnail or preview upload (or other memory intensive task),
+ * it may be useful on some devices to check if there is plenty of memory available
+ * in the memory pool used by MegaApi (especially since some platforms may not have
+ * the facility to check for themselves, and/or deallocation may need to wait on a GC)
+ * and if not, delay until any current resource constraints (eg. other current operations,
+ * or other RAM-hungry apps in the device), have finished. This function just
+ * makes several memory allocations and then immediately releases them. If all allocations
+ * succeeded, it returns true, indicating that memory is (probably) available.
+ * Of course, another app or operation may grab that memory immediately so it not a
+ * guarantee. However it may help to reduce the frequency of OOM situations on phones for example.
+ *
+ * @param count The number of allocations to make
+ * @param size The size of those memory allocations
+ * @return YES if all the allocations succeeded
+ */
+- (BOOL)testAllocationByAllocationCount:(NSUInteger)count allocationSize:(NSUInteger)size;
+
 #pragma mark - Filesystem inspection
 
 /**

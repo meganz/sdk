@@ -1506,6 +1506,10 @@ using namespace mega;
     return self.megaApi->ensureMediaInfo();
 }
 
+- (BOOL)testAllocationByAllocationCount:(NSUInteger)count allocationSize:(NSUInteger)size {
+    return self.megaApi->testAllocation((unsigned)count, size);
+}
+
 #pragma mark - Filesystem inspection
 
 - (NSInteger)numberChildrenForParent:(MEGANode *)parent {
