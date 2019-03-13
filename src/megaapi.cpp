@@ -1785,7 +1785,7 @@ void MegaApi::fetchTimeZone(MegaRequestListener *listener)
 
 void MegaApi::addEntropy(char *data, unsigned int size)
 {
-    MegaApiImpl::addEntropy(data, size);
+    pImpl->addEntropy(data, size);
 }
 
 #ifdef WINDOWS_PHONE
@@ -3110,9 +3110,9 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 
 MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
                                     const char *name, int64_t size, int64_t mtime,
-                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
+                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth)
 {
-    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth, chatAuth);
 }
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)

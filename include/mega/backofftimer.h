@@ -31,6 +31,7 @@ class MEGA_API BackoffTimer
     dstime next;
     dstime delta;
     dstime base;
+    PrnGen &rng;
 
 public:
     // reset timer
@@ -63,7 +64,7 @@ public:
     // update time to wait
     void update(dstime*);
 
-    BackoffTimer();
+    BackoffTimer(PrnGen &rng);
 };
 
 
@@ -71,7 +72,7 @@ class MEGA_API TimerWithBackoff: public BackoffTimer {
 
 public:
     int tag;
-    TimerWithBackoff(int tag);
+    TimerWithBackoff(PrnGen &rng, int tag);
 };
 
 } // namespace

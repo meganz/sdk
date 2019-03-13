@@ -1867,7 +1867,7 @@ public:
             else
             {
                 byte buf[FOLDERNODEKEYLENGTH];
-                PrnGen::genblock(buf, sizeof buf);
+                client->rng.genblock(buf, sizeof buf);
                 t->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
             }
 
@@ -3885,7 +3885,7 @@ static void process_line(char* l)
                                     newnode->parenthandle = UNDEF;
 
                                     // generate fresh random key for this folder node
-                                    PrnGen::genblock(buf, FOLDERNODEKEYLENGTH);
+                                    client->rng.genblock(buf, FOLDERNODEKEYLENGTH);
                                     newnode->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
                                     key.setkey(buf);
 

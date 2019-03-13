@@ -4975,9 +4975,9 @@ void MegaApiImpl::setDnsServers(const char *dnsServers, MegaRequestListener *lis
 
 void MegaApiImpl::addEntropy(char *data, unsigned int size)
 {
-    if(PrnGen::rng.CanIncorporateEntropy())
+    if(client && client->rng.CanIncorporateEntropy())
     {
-        PrnGen::rng.IncorporateEntropy((const byte*)data, size);
+        client->rng.IncorporateEntropy((const byte*)data, size);
     }
 
 #ifdef USE_OPENSSL
@@ -9590,7 +9590,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
 }
 
 MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
-                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth)
+                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth, const char *chatauth)
 {
     string nodekey;
     string attrstring;
@@ -9598,7 +9598,7 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
     return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, &fileattrsting, NULL, INVALID_HANDLE,
-                               parentHandle, privateauth, publicauth, false, true);
+                               parentHandle, privateauth, publicauth, false, true, chatauth);
 }
 
 MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
@@ -16752,7 +16752,7 @@ void MegaApiImpl::sendPendingRequests()
 			newnode->parenthandle = UNDEF;
 
 			// generate fresh random key for this folder node
-			PrnGen::genblock(buf,FOLDERNODEKEYLENGTH);
+            client->rng.genblock(buf,FOLDERNODEKEYLENGTH);
 			newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 			key.setkey(buf);
 
@@ -17568,7 +17568,7 @@ void MegaApiImpl::sendPendingRequests()
                 delete keys;
 
                 // serialize and encrypt the TLV container
-                string *container = tlv.tlvRecordsToContainer(&client->key);
+                string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
 
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
                 delete container;
@@ -18800,7 +18800,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_TIMER:
         {
             int delta = int(request->getNumber());
-            TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
+            TimerWithBackoff *twb = new TimerWithBackoff(client->rng, request->getTag());
             twb->backoff(delta);
             e = client->addtimer(twb);
             break;
@@ -19870,7 +19870,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		else
 		{
 			byte buf[FOLDERNODEKEYLENGTH];
-			PrnGen::genblock(buf,sizeof buf);
+            client->rng.genblock(buf,sizeof buf);
 			t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 		}
 
@@ -21272,7 +21272,7 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
         else
         {
             byte buf[FOLDERNODEKEYLENGTH];
-            PrnGen::genblock(buf,sizeof buf);
+            client->rng.genblock(buf,sizeof buf);
             t->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
         }
 
@@ -23345,13 +23345,18 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
             oss << "!" << node->getSize();
             string *publicAuth = node->getPublicAuth();
             string *privAuth = node->getPrivateAuth();
+            const char *chatAuth = node->getChatAuth();
             if (privAuth->size())
             {
-                oss << "!" << *privAuth;
+                oss << "!f" << *privAuth;
             }
             else if (publicAuth->size())
             {
-                oss << "!" << *publicAuth;
+                oss << "!p" << *publicAuth;
+            }
+            else if (chatAuth && chatAuth[0])
+            {
+                oss << "!c" << chatAuth;
             }
         }
     }
@@ -24103,18 +24108,32 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
                    index += (endptr - startsize) + 1;
                    if (url[index] == '!')
                    {
+                       const char *typeauth = url + index + 1;
+                       index++;
+
                        const char *ptr = url + index + 1;
                        string auth;
                        auth.assign(ptr, endsize - ptr);
-                       if (auth.size() == 8)
+                       if (*typeauth == 'p')
                        {
+                           assert(auth.size() == 8);
                            httpctx->nodepubauth = auth;
                            LOG_debug << "Link public auth: " << auth;
                        }
-                       else
+                       else if (*typeauth == 'c')
+                       {
+                           assert(auth.size() == 8);
+                           httpctx->nodechatauth = auth;
+                           LOG_debug << "Chat link auth: " << auth;
+                       }
+                       else if (*typeauth == 'f')
                        {
                            httpctx->nodeprivauth = auth;
                            LOG_debug << "Link private auth: " << auth;
+                       }
+                       else
+                       {
+                           LOG_err << "Unknown type of auth token: " << *typeauth;
                        }
                        index += auth.size() + 1;
                    }
@@ -24855,7 +24874,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                         h, httpctx->nodekey.c_str(),
                         httpctx->nodename.c_str(),
                         httpctx->nodesize,
-                        -1, UNDEF, httpctx->nodeprivauth.c_str(), httpctx->nodepubauth.c_str());
+                        -1, UNDEF, httpctx->nodeprivauth.c_str(), httpctx->nodepubauth.c_str(), httpctx->nodechatauth.c_str());
         }
         else
         {
