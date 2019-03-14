@@ -3776,7 +3776,7 @@ void CommandGetUserQuota::procresult()
                         LOG_debug << "Account full";
                         client->activateoverquota(0);
                     }
-                    else if (details->storage_used >= (details->storage_max * uslw / 10000))
+                    else if (details->storage_used >= (details->storage_max / 10000 * uslw))
                     {
                         LOG_debug << "Few storage space available";
                         client->setstoragestatus(STORAGE_ORANGE);
@@ -4513,6 +4513,7 @@ void CommandFetchNodes::procresult()
                 client->procmcf(&client->json);
                 break;
 
+            case MAKENAMEID5('m', 'c', 'p', 'n', 'a'):   // fall-through
             case MAKENAMEID4('m', 'c', 'n', 'a'):
                 // nodes shared in chatrooms
                 client->procmcna(&client->json);

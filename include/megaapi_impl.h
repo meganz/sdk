@@ -2130,7 +2130,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
-                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth);
+                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
 
@@ -2966,6 +2966,7 @@ public:
     m_off_t nodesize;
     std::string nodepubauth;
     std::string nodeprivauth;
+    std::string nodechatauth;
     int resultCode;
 
 
