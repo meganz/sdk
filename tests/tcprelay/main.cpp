@@ -61,6 +61,8 @@ struct RelayRunner
     asio::io_service asio_service;											// a single service object so all socket callbacks are serviced by just one thread
     std::unique_ptr<asio::io_service::work> asio_dont_exit;
     asio::steady_timer logTimer;
+    bool stopped = false;
+    asio::steady_timer send_rate_timer;
 
     mutex relaycollectionmutex;
     vector<unique_ptr<TcpRelayAcceptor>> relayacceptors;
@@ -69,8 +71,10 @@ struct RelayRunner
     RelayRunner()
         : asio_dont_exit(std::make_unique<asio::io_service::work>(asio_service))
         , logTimer(asio_service)
+        , send_rate_timer(asio_service)
     {
         StartLogTimer();
+        QueueRateTimer();
     }
 
     void AddAcceptor(const string& name, uint16_t port, asio::ip::address_v6 targetAddress, bool start)
@@ -106,7 +110,7 @@ struct RelayRunner
 
     void StartLogTimer()
     {
-        logTimer.expires_from_now(std::chrono::seconds(5));
+        logTimer.expires_from_now(std::chrono::seconds(1));
         logTimer.async_wait([this](const asio::error_code&) { Log(); });
     }
 
@@ -131,7 +135,8 @@ struct RelayRunner
             eversent += acceptedrelays[i]->acceptor_side.totalbytes;
             everreceived += acceptedrelays[i]->connect_side.totalbytes;
         }
-        cout << "active: " << active << " senders: " << senders << " rate " << sendRate << " receivers: " << receivers << " rate " << receiveRate << " totals: " << eversent << " " << everreceived << endl;
+        cout << "active: " << active << " senders: " << senders << " rate " << sendRate << " receivers: " << receivers << " rate " << receiveRate << " totals: " << eversent << " " << everreceived << " 3sec-rate: " << TcpRelay::s_send_rate_all_buckets.CalculatRate() << endl;
+        //TcpRelay::s_send_rate_all_buckets.show();
         StartLogTimer();
     }
 
@@ -143,6 +148,22 @@ struct RelayRunner
             cout << " " << r->reporting_name << ": " << r->acceptor_side.totalbytes << " " << r->connect_side.totalbytes << " " << (r->stopped ? "stopped" : "active") << (r->paused ? " (paused)" : "") << endl;
         }
     }
+
+    void QueueRateTimer()
+    {
+        if (stopped) return;
+        send_rate_timer.expires_from_now(std::chrono::milliseconds(TcpRelay::MillisecPerBucket));
+        send_rate_timer.async_wait([this](const asio::error_code& ec) { RateTimerHandler(ec); });
+    }
+
+    void RateTimerHandler(const asio::error_code& ec)
+    {
+        if (stopped) return;
+        TcpRelay::s_send_rate_all_buckets.RollBucket();
+        TcpRelay::s_send_rate_all_buckets.AddToCurrentBucket(0); // all buckets valid
+        QueueRateTimer();
+    }
+
 };
 
 RelayRunner g_relays;
@@ -200,6 +221,21 @@ void exec_adddefaultrelays(ac::ACState& ac)
     addRelay("gfs214n108.userstorage.mega.co.nz", g_nextPort++);
     addRelay("gfs270n221.userstorage.mega.co.nz", g_nextPort++);
     addRelay("gfs302n108.userstorage.mega.co.nz", g_nextPort++);
+
+    addRelay("gfs270n212.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n211.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n210.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n209.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n208.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n207.userstorage.mega.co.nz", g_nextPort++);
+
+    addRelay("gfs302n117.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n117.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n127.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n117.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n309.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n128.userstorage.mega.co.nz", g_nextPort++);
+
 }
 
 void exec_getcode(ac::ACState& ac)
@@ -209,7 +245,7 @@ void exec_getcode(ac::ACState& ac)
     {
         cout << "pieceUrl = pieceUrl.replace(\"" << ra->reporting_name << "\", \"localhost:" << ra->listen_port << "\");" << endl;
     }
-    cout << "pieceUrl = pieceUrl.replace(\"https:\", \"http:\");" << endl;
+    cout << "if (pieceUrl.includes(\"localhost\")) pieceUrl = pieceUrl.replace(\"https:\", \"http:\");" << endl;
 }
 
 void exec_closeacceptor(ac::ACState& ac)
@@ -367,6 +403,21 @@ void exec_help(ac::ACState&)
     cout << *autocompleteTemplate << flush;
 }
 
+void exec_showrequest(ac::ACState& s)
+{
+    g_showreplyheaders = s.words.size() < 2 || s.words[1].s == "on";
+}
+
+void exec_showreply(ac::ACState& s)
+{
+    g_showrequest = s.words.size() < 2 || s.words[1].s == "on";
+}
+
+void exec_speed(ac::ACState& s)
+{
+    g_overallspeed = unsigned(atoi(s.words[1].s.c_str()));
+}
+
 ac::ACN autocompleteSyntax()
 {
     using namespace autocomplete;
@@ -384,6 +435,9 @@ ac::ACN autocompleteSyntax()
     p->Add(exec_closeacceptor, sequence(text("closeacceptor"), either(text("all"), param("id"))));
     p->Add(exec_randomcloses, sequence(text("randomcloses"), param("period-sec")));
     p->Add(exec_randompauses, sequence(text("randompauses"), param("period-sec"), param("paused-sec")));
+    p->Add(exec_showrequest, sequence(text("showrequest"), opt(either(text("on"), text("off")))));
+    p->Add(exec_showreply, sequence(text("showreply"), opt(either(text("on"), text("off")))));
+    p->Add(exec_speed, sequence(text("speed"), param("bytespersec")));
 
     p->Add(exec_report, sequence(text("report")));
     p->Add(exec_help, sequence(either(text("help"), text("?"))));

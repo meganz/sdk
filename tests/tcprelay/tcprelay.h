@@ -27,8 +27,12 @@
 #include <functional>
 #include <string>
 #include <iostream>
+#include <atomic>
 
 extern std::ostream* logstream;
+extern bool g_showreplyheaders;
+extern bool g_showrequest;
+extern uint64_t g_overallspeed;
 
 template <unsigned BucketCount>
 class BucketCountArray
@@ -103,6 +107,14 @@ public:
         if (millisec < 100)
             millisec = 100;
         return size_t(buckets[BucketCount - 1].bytes * 1000 / millisec);
+    }
+    void show()
+    {
+        for (int i = 0; i < buckets.size(); ++i)
+        {
+            cout << buckets[i].bytes << "/" << buckets[i].millisec << "/" << buckets[i].valid << " ";
+        }
+        cout << endl;
     }
 };
 
@@ -207,13 +219,16 @@ public:
     std::string reporting_name;
     bool stopped = false;
     bool paused = false;
+    bool restInProgress = false;
 
     int expected_incoming = 0;
+    int original_expected_incoming = 0;
 
+    enum { MillisecPerBucket = 100 };
+    static BucketCountArray<30> s_send_rate_all_buckets;
 private:
     enum { BufSize = 150 * 1024 };
     enum { ReadSize = 16 * 1024 };
-    enum { MillisecPerBucket = 100 };
 
     asio::io_service& asio_service;
     asio::ip::tcp::endpoint connect_address;
@@ -230,6 +245,8 @@ private:
         std::atomic<size_t> target_bytes_per_second = 1024 * 1024;
         BucketCountArray<30> send_rate_buckets;
         size_t totalbytes = 0;
+        
+        static std::atomic<unsigned> s_activesenders;
 
         Side(asio::io_service& as) 
             : asio_socket(as) 

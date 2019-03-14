@@ -29,6 +29,13 @@ using namespace std;
 
 std::ostream* logstream = nullptr;
 
+bool g_showreplyheaders = false;
+bool g_showrequest = true;
+uint64_t g_overallspeed = 1000000000;
+
+atomic<unsigned> TcpRelay::Side::s_activesenders = 0;
+BucketCountArray<30> TcpRelay::s_send_rate_all_buckets;
+
 void DelayAndDo(std::chrono::steady_clock::duration delayTime, std::function<void()>&& action, asio::io_service& as)
 {
     auto t = std::make_shared<DelayAndDoRecord>(as, action);
@@ -187,29 +194,58 @@ void TcpRelay::ReceiveHandler(Direction& d, const asio::error_code& ec, std::siz
         d.incoming.totalbytes += bytes_received;
         if (d.directionName == "forwarding")
         {
-            auto r = d.circular_buf.PeekAheadBytes(bytes_received).tostring();
-            auto pos = r.find_first_of("\r\n");
-            if (pos != string::npos) r.erase(pos);
-            cout << reporting_name << " " << bytes_received << " byte request: " << r << endl;
-            if (logstream) *logstream << this << " " << reporting_name << " " << bytes_received << " byte request: " << r << "\n";
-
-            std::regex re("([0-9]+)-([0-9]+)");
-            std::smatch m;
-            std::regex_search(r, m, re);
-            if (m.size() == 3)
+            if (!restInProgress)
             {
-                //LOGF("from %u to %u", atoi(m[1].str().c_str()), atoi(m[2].str().c_str()));
-                expected_incoming = atoi(m[2].str().c_str()) - atoi(m[1].str().c_str());
+                auto r = d.circular_buf.PeekAheadBytes(bytes_received).tostring();
+                auto pos = r.find_first_of("\r\n");
+                if (pos != string::npos) r.erase(pos);
+
+                if (g_showrequest)
+                {
+                    cout << reporting_name << " " << bytes_received << " byte request: " << r << endl;
+                    if (logstream) *logstream << this << " " << reporting_name << " " << bytes_received << " byte request: " << r << "\n";
+                }
+
+                std::regex re("([0-9]+)-([0-9]+)");
+                std::smatch m;
+                std::regex_search(r, m, re);
+                if (m.size() == 3)
+                {
+                    //LOGF("from %u to %u", atoi(m[1].str().c_str()), atoi(m[2].str().c_str()));
+                    expected_incoming = atoi(m[2].str().c_str()) - atoi(m[1].str().c_str());
+                    original_expected_incoming = expected_incoming;
+                }
+
+                ++TcpRelay::Side::s_activesenders;
+                restInProgress = true;
             }
         }
         else
         {
+            if (original_expected_incoming == expected_incoming)
+            {
+                if (g_showreplyheaders)
+                {
+                    auto r = d.circular_buf.PeekAheadBytes(bytes_received).tostring();
+                    auto pos = r.find("\r\n\r\n");
+                    if (pos == string::npos) pos = r.size();
+                    r.erase(pos);
+                    cout << reporting_name << " " << bytes_received << " reply headers: " << r << endl;
+                    if (logstream) *logstream << this << " " << reporting_name << " " << bytes_received << " reply headers: " << r << "\n";
+                }
+            }
+
             if (expected_incoming > 0)
             {
                 expected_incoming -= bytes_received;
                 if (expected_incoming <= 0)
                 {
                     cout << reporting_name << " " << d.directionName << " all data received: " << expected_incoming << endl;
+                    if (restInProgress)
+                    {
+                        restInProgress = false;
+                        --TcpRelay::Side::s_activesenders;
+                    }
                 }
             }
             //LOGF("received %d bytes, passing them on", (int)bytes_received);
@@ -223,13 +259,16 @@ void TcpRelay::ReceiveHandler(Direction& d, const asio::error_code& ec, std::siz
 
 void TcpRelay::RestartSending(Direction& d, const asio::error_code& ec)
 {
+    //--Side::s_activesenders;
     if (stopped) return;
     // we were sending too fast, now check again
     if (!ec)
     {
         //LOGF("%s %s restart send timer handler", reporting_name.c_str(), d.directionName.c_str());
         if (!d.outgoing.send_in_progress)
+        {
             StartSending(d, true);
+        }
     }
 }
 
@@ -238,16 +277,28 @@ void TcpRelay::StartSending(Direction& d, bool restarted)
     if (stopped) return;
     assert(!d.outgoing.send_in_progress);
 
+    //++Side::s_activesenders;
+
     auto rate1 = d.outgoing.send_rate_buckets.CalculatRate();
     auto rate2 = d.outgoing.send_rate_buckets.RateThisBucket();
-    if (rate1 >= d.outgoing.target_bytes_per_second || rate2 >= d.outgoing.target_bytes_per_second)
+    auto rate3 = s_send_rate_all_buckets.CalculatRate();
+    auto rate4 = s_send_rate_all_buckets.RateThisBucket();
+    if (rate1 >= d.outgoing.target_bytes_per_second || rate2 >= d.outgoing.target_bytes_per_second ||
+        rate3 >= g_overallspeed || rate4 >= g_overallspeed)
     {
         d.outgoing.send_timer.expires_from_now(std::chrono::milliseconds(100));
         d.outgoing.send_timer.async_wait([this, &d](const asio::error_code& ec) { RestartSending(d, ec); });
         return;   // rate is too high, give up sending for a little.  The timer will restart us when the rate falls enough.
     }
 
-    auto range = d.circular_buf.PeekTailBytes(d.outgoing.target_bytes_per_second / 5 /*ReadSize*/);
+    unsigned sendrate = d.outgoing.target_bytes_per_second;
+
+    if (Side::s_activesenders)
+    {
+        sendrate = min<unsigned>(sendrate, unsigned(g_overallspeed / Side::s_activesenders));
+    }
+
+    auto range = d.circular_buf.PeekTailBytes(sendrate / 5 /*ReadSize*/);   // 10 shots per second so we can catch up when needed, on average we send / skip / send / skip
 
     if (range.len > 0)
     {
@@ -269,6 +320,7 @@ void TcpRelay::StartSending(Direction& d, bool restarted)
     else
     {
         //LOGF("%s %s no more to send at this time", reporting_name.c_str(), d.directionName.c_str());
+        //--Side::s_activesenders;
     }
 }
 
@@ -277,6 +329,7 @@ void TcpRelay::SendHandler(Direction& d, const asio::error_code& ec, std::size_t
     if (stopped) return;
     assert(d.outgoing.send_in_progress);
     d.outgoing.send_in_progress = false;
+    //--Side::s_activesenders;
 
     if (ec)
     {
@@ -287,6 +340,7 @@ void TcpRelay::SendHandler(Direction& d, const asio::error_code& ec, std::size_t
     {
         //LOGF("%s %s sent data %d callback id %d", reporting_name.c_str(), d.directionName.c_str(), (int)bytes_sent, (int)id);
         d.outgoing.send_rate_buckets.AddToCurrentBucket(bytes_sent);
+        s_send_rate_all_buckets.AddToCurrentBucket(bytes_sent);
 
         d.circular_buf.RecycleTailBytes(bytes_sent);
         StartSending(d);  // if any more data has arrived in the meantime, send it now
