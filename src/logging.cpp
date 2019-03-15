@@ -24,10 +24,12 @@
 
 #include "mega/logging.h"
 #include <time.h>
+#include <assert.h>
 
 namespace mega {
 
 // static member initialization
+std::mutex SimpleLogger::outputs_mutex;
 OutputMap SimpleLogger::outputs;
 Logger *SimpleLogger::logger = NULL;
 
@@ -86,18 +88,44 @@ std::string SimpleLogger::getTime()
 
 void SimpleLogger::flush()
 {
-    for (int i = logFatal; i < logMax; i++)
+    for (auto& o : outputs)
     {
         OutputStreams::iterator iter;
         OutputStreams vec;
 
-        vec = outputs[static_cast<LogLevel>(i)];;
+        {
+            std::lock_guard<std::mutex> guard(outputs_mutex);
+            vec = o;
+        }
 
         for (iter = vec.begin(); iter != vec.end(); iter++)
         {
             std::ostream *os = *iter;
             os->flush();
         }
+    }
+}
+
+OutputStreams SimpleLogger::getOutput(enum LogLevel ll)
+{
+    assert(unsigned(ll) < outputs.size());
+    std::lock_guard<std::mutex> guard(outputs_mutex);
+    return outputs[ll];
+}
+
+void SimpleLogger::addOutput(enum LogLevel ll, std::ostream *os)
+{
+    assert(unsigned(ll) < outputs.size());
+    std::lock_guard<std::mutex> guard(outputs_mutex);
+    outputs[ll].push_back(os);
+}
+
+void SimpleLogger::setAllOutputs(std::ostream *os)
+{
+    std::lock_guard<std::mutex> guard(outputs_mutex);
+    for (auto& o : outputs)
+    {
+        o.push_back(os);
     }
 }
 
