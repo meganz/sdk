@@ -216,6 +216,9 @@ public:
     // Account has VOIP push enabled (only for Apple)
     bool aplvp_enabled;
 
+    // pseudo-random number generator
+    PrnGen rng;
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
@@ -793,7 +796,7 @@ private:
     void sc_ph();
     void sc_se();
 #ifdef ENABLE_CHAT
-    void sc_chatupdate();
+    void sc_chatupdate(bool readingPublicChat);
     void sc_chatnode();
     void sc_chatflags();
 #endif

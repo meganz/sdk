@@ -6204,7 +6204,7 @@ class MegaApi
          * @param data Byte array with random data
          * @param size Size of the byte array (in bytes)
          */
-        static void addEntropy(char* data, unsigned int size);
+        void addEntropy(char* data, unsigned int size);
 
 #ifdef WINDOWS_PHONE
         /**
@@ -11626,10 +11626,11 @@ class MegaApi
          * @param parentHandle Handle of the parent node
          * @param privateAuth Private authentication token to access the node
          * @param publicAuth Public authentication token to access the node
+         * @param chatAuth Chat authentication token to access the node
          * @return MegaNode object
          */
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
+                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account

@@ -66,7 +66,7 @@ struct MEGA_API PaddedCBC
      *     for encryption will be generated and available through the reference.
      * @return Void.
      */
-    static void encrypt(string* data, SymmCipher* key, string* iv = NULL);
+    static void encrypt(PrnGen &rng, string* data, SymmCipher* key, string* iv = NULL);
 
     /**
      * @brief Decrypts a string and strips the padding.
@@ -141,12 +141,17 @@ class MEGA_API PayCrypter
      */
     byte iv[IV_BYTES];
 
+    /**
+     * @brief Random blocks generator
+     */
+    PrnGen &rng;
+
 public:
 
     /**
      * @brief Constructor. Initializes keys with random values.
      */
-    PayCrypter();
+    PayCrypter(PrnGen &rng);
 
     /**
      * @brief Updates the crypto keys (mainly for testing)
@@ -256,7 +261,7 @@ private:
      * @param encSetting Block encryption mode to be used by AES
      * @return A new string holding the encrypted byte array. You take the ownership of the string.
      */
-    string *tlvRecordsToContainer(SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
+    string *tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting = AES_GCM_12_16);
 
     /**
      * @brief Converts the TLV records into a byte array

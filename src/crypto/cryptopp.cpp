@@ -28,12 +28,10 @@ namespace mega {
 
 using namespace CryptoPP;
 
-AutoSeededRandomPool PrnGen::rng;
-
 // cryptographically strong random byte sequence
 void PrnGen::genblock(byte* buf, int len)
 {
-    rng.GenerateBlock(buf, len);
+    GenerateBlock(buf, len);
 }
 
 // random number from 0 ... max-1
@@ -345,7 +343,7 @@ unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int
     return t.ByteCount();
 }
 
-int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
+int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, int plainlen, byte* buf, int buflen)
 {
     if ((int)key[PUB_PQ].ByteCount() + 2 > buflen)
     {
@@ -358,7 +356,7 @@ int AsymmCipher::encrypt(const byte* plain, int plainlen, byte* buf, int buflen)
     }
 
     // add random padding
-    PrnGen::genblock(buf + plainlen, key[PUB_PQ].ByteCount() - plainlen - 2);
+    rng.genblock(buf + plainlen, key[PUB_PQ].ByteCount() - plainlen - 2);
 
     Integer t(buf, key[PUB_PQ].ByteCount() - 2);
 
@@ -600,7 +598,7 @@ public:
 };
 
 // generate RSA keypair
-void AsymmCipher::genkeypair(Integer* privk, Integer* pubk, int size)
+void AsymmCipher::genkeypair(PrnGen &rng, Integer* privk, Integer* pubk, int size)
 {
     pubk[PUB_E] = 17;
 
@@ -609,8 +607,8 @@ void AsymmCipher::genkeypair(Integer* privk, Integer* pubk, int size)
             = MakeParametersForTwoPrimesOfEqualSize(size)
                 (Name::PointerToPrimeSelector(), selector.GetSelectorPointer());
 
-    privk[PRIV_P].GenerateRandom(PrnGen::rng, primeParam);
-    privk[PRIV_Q].GenerateRandom(PrnGen::rng, primeParam);
+    privk[PRIV_P].GenerateRandom(rng, primeParam);
+    privk[PRIV_Q].GenerateRandom(rng, primeParam);
 
     privk[PRIV_D] = pubk[PUB_E].InverseMod(LCM(privk[PRIV_P] - Integer::One(), privk[PRIV_Q] - Integer::One()));
     pubk[PUB_PQ] = privk[PRIV_P] * privk[PRIV_Q];
