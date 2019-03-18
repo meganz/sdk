@@ -11712,6 +11712,8 @@ class MegaApi
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
+         * The function that takes no parameters uses the defaults for the MEGA apps
+         * which are (currently) within the last 30 days, and max 10000 nodes.
          *
          * @param since      Only return nodes that are more recent than this time.
          * @param maxnodes   Only return nodes up to this many.
@@ -11719,6 +11721,7 @@ class MegaApi
          * @return List of buckets containing nodes that were added/modifed as a set
          */
         MegaRecentActionBucketList* getRecentActions(int64_t since, unsigned maxnodes);
+        MegaRecentActionBucketList* getRecentActions();
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation

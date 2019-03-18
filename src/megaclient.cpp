@@ -12947,7 +12947,13 @@ node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
     return nodes;
 }
 
-static bool nodes_ctime_decreasing(const Node* a, const Node* b)
+static bool nodes_ctime_less(const Node* a, const Node* b)
+{
+    // heaps return the largest element
+    return a->ctime < b->ctime;
+}
+
+static bool nodes_ctime_greater(const Node* a, const Node* b)
 {
     return a->ctime > b->ctime;
 }
@@ -12964,13 +12970,14 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
         }
     }
 
-    std::make_heap(v.begin(), v.end(), nodes_ctime_decreasing);
+    // heaps use a 'less' function, and pop_heap returns the largest item stored.
+    std::make_heap(v.begin(), v.end(), nodes_ctime_less);
 
     node_vector v2;
     v2.reserve(maxcount);
     while (v2.size() < maxcount && !v.empty())
     {
-        std::pop_heap(v.begin(), v.end(), nodes_ctime_decreasing);
+        std::pop_heap(v.begin(), v.end(), nodes_ctime_less);
         Node* n = v.back();
         v.pop_back();
         if (includerubbishbin || n->firstancestor()->type != RUBBISHNODE)
@@ -13066,7 +13073,8 @@ MegaClient::recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
     }
     for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
     {
-        std::sort(i->v.begin(), i->v.end(), nodes_ctime_decreasing);
+        // for the bucket vector, most recent (larger ctime) first
+        std::sort(i->v.begin(), i->v.end(), nodes_ctime_greater);
         i->time = i->v.front()->ctime;
     }
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);

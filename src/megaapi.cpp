@@ -3103,6 +3103,13 @@ MegaRecentActionBucketList* MegaApi::getRecentActions(int64_t since, unsigned ma
     return pImpl->getRecentActions(since, maxnodes);
 }
 
+MegaRecentActionBucketList* MegaApi::getRecentActions()
+{
+    m_time_t since = m_time() - 30 * 86400;
+    size_t maxnodes = 10000;
+    return pImpl->getRecentActions(since, maxnodes);
+}
+
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
 {
     return pImpl->processMegaTree(n, processor, recursive);
