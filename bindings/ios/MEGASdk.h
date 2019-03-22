@@ -5638,6 +5638,17 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
  *
  * Each bucket contains files that were added/modified in a set, by a single user.
+ * This function, that takes no parameters, uses the defaults for the MEGA apps
+ * which are (currently) within the last 30 days, and max 10000 nodes.
+ *
+ * @return Array of buckets containing nodes that were added/modifed as a set
+ */
+- (NSMutableArray *)recentActions;
+
+/**
+ * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
+ *
+ * Each bucket contains files that were added/modified in a set, by a single user.
  *
  * @param date       Only return nodes that are more recent than this time.
  * @param maxNodes   Only return nodes up to this many.

@@ -1789,6 +1789,18 @@ using namespace mega;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
 
+- (NSMutableArray *)recentActions {
+    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
+    NSUInteger count = (NSUInteger)megaRecentActionBucketList->size();
+    NSMutableArray *recentActionBucketMutableArray = NSMutableArray.alloc.init;
+    for (NSUInteger i = 0; i < count; i++) {
+        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get((int)i)->copy() cMemoryOwn:YES];
+        [recentActionBucketMutableArray addObject:recentActionBucket];
+    }
+    
+    return recentActionBucketMutableArray;
+}
+
 - (NSMutableArray *)recentActionsSinceDate:(NSDate *)date maxNodes:(NSUInteger)maxNodes {
     MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions((int64_t)date.timeIntervalSince1970, (unsigned)maxNodes);
     NSUInteger count = (NSUInteger)megaRecentActionBucketList->size();
