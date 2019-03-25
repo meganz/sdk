@@ -13446,9 +13446,10 @@ void MegaApiImpl::nodes_current()
 
 void MegaApiImpl::catchup_result()
 {
-    // sc requests are sent sequentially, it must be the one at front
-    MegaRequestPrivate *request = scRequestQueue.pop();
-    if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP)) return;
+    // sc requests are sent sequentially, it must be the one at front and already started (tag == 1)
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP) || !request->getTag()) return;
+    request = scRequestQueue.pop();
 
     fireOnRequestFinish(request, API_OK);
 
