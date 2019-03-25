@@ -388,6 +388,17 @@ GfxProcQT::GfxProcQT()
     config.m_pIsolate = NULL;
     config.m_v8EmbedderSlot = 0;
     FPDF_InitLibraryWithConfig(&config);
+#ifdef _WIN32
+    //Remove temporary files from previous executions:
+    QDir dir(QDir::tempPath());
+    dir.setNameFilters(QStringList() << QString::fromUtf8(".megasyncpdftmp*"));
+    dir.setFilter(QDir::Files);
+    foreach(QString dirFile, dir.entryList())
+    {
+        LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile;
+        dir.remove(dirFile);
+    }
+#endif
     gfxMutex.unlock();
 #endif
     image = NULL;
@@ -398,7 +409,9 @@ GfxProcQT::GfxProcQT()
 GfxProcQT::~GfxProcQT()
 {
 #ifdef HAVE_PDFIUM
+    gfxMutex.lock();
     FPDF_DestroyLibrary();
+    gfxMutex.unlock();
 #endif
 }
 
@@ -836,6 +849,7 @@ const char *GfxProcQT::supportedformatsPDF()
 
 QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString imagePath)
 {
+    MutexGuard g(gfxMutex);
 #ifdef _WIN32
     FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toLocal8Bit().constData(), NULL);
     QString temporaryfile;
@@ -849,7 +863,7 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
         if (qf.size() > MAX_PDF_MEM_SIZE )
         {
             {
-                QTemporaryFile tmpfile(QDir::tempPath() + QDir::separator() + QString::fromUtf8( ".megasyncptmpXXXXXX"));
+                QTemporaryFile tmpfile(QDir::tempPath() + QDir::separator() + QString::fromUtf8( ".megasyncpdftmpXXXXXX"));
                 if (tmpfile.open())
                 {
                     temporaryfile = tmpfile.fileName();
