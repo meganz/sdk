@@ -25,6 +25,7 @@
 /tests/sdk_test
 /tests/misc_test
 /tests/purge_account
+/tests/sync_test
 examples/megacli
 examples/megasimplesync
 examples/linux/megafuse

@@ -1,5 +1,5 @@
 # applications
-TESTS = tests/misc_test tests/sdk_test tests/purge_account
+TESTS = tests/misc_test tests/sdk_test tests/purge_account tests/sync_test
 
 if BUILD_TESTS
 noinst_PROGRAMS += $(TESTS)
@@ -17,11 +17,12 @@ tests_misc_test_SOURCES = \
 tests_sdk_test_SOURCES = \
     tests/sdktests.cpp \
     tests/sdk_test.cpp
-## include here additional SDK test sources ##
-
 
 tests_purge_account_SOURCES = \
     tests/purge_account.cpp
+
+tests_sync_test_SOURCES = \
+    tests/synctests.cpp
 
 tests_misc_test_CXXFLAGS = -I$(GTEST_DIR)/include $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
 tests_misc_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(top_builddir)/src/libmega.la
@@ -31,3 +32,6 @@ tests_sdk_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_ma
 
 tests_purge_account_CXXFLAGS = -I$(top_builddir)/include $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
 tests_purge_account_LDADD = $(top_builddir)/src/libmega.la
+
+tests_sync_test_CXXFLAGS = -I$(GTEST_DIR)/include -I$(top_builddir)/include $(FI_CXXFLAGS) $(RL_CXXFLAGS) $(ZLIB_CXXFLAGS) $(CARES_FLAGS) $(LIBCURL_FLAGS) $(CRYPTO_CXXFLAGS) $(DB_CXXFLAGS) $(SODIUM_CXXFLAGS) $(LIBSSL_FLAGS)
+tests_sync_test_LDADD = $(GTEST_DIR)/lib/libgtest.la $(GTEST_DIR)/lib/libgtest_main.la $(CRYPTO_LIBS) $(SODIUM_LDFLAGS) $(SODIUM_LIBS) $(top_builddir)/src/libmega.la
