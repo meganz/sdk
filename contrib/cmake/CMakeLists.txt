@@ -34,6 +34,8 @@ if (WIN32)
     set (UNCHECKED_ITERATORS 0 CACHE TYPE BOOL)
 else(WIN32)
     set(NO_READLINE 0)
+    set(USE_PREBUILT_3RDPARTY 0)
+    set(HAVE_LIBUV 0)
 endif(WIN32)
 
 if (ENABLE_CHAT AND NOT USE_SODIUM)
@@ -422,7 +424,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE> 
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
-                $<${HAVE_LIBUV}:HAVE_LIBUV> HAVE_LIBUV)
+                $<${HAVE_LIBUV}:HAVE_LIBUV>)
 
 if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)
