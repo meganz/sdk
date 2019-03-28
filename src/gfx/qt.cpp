@@ -46,6 +46,11 @@ extern "C" {
 
 #ifdef HAVE_PDFIUM
 #include <fpdfview.h>
+#ifdef _WIN32
+#include <QDir>
+#include <QTemporaryFile>
+#define MAX_PDF_MEM_SIZE 1024*1024*100
+#endif
 #endif
 
 namespace mega {
@@ -383,6 +388,17 @@ GfxProcQT::GfxProcQT()
     config.m_pIsolate = NULL;
     config.m_v8EmbedderSlot = 0;
     FPDF_InitLibraryWithConfig(&config);
+#ifdef _WIN32
+    //Remove temporary files from previous executions:
+    QDir dir(QDir::tempPath());
+    dir.setNameFilters(QStringList() << QString::fromUtf8(".megasyncpdftmp*"));
+    dir.setFilter(QDir::Files);
+    foreach(QString dirFile, dir.entryList())
+    {
+        LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile;
+        dir.remove(dirFile);
+    }
+#endif
     gfxMutex.unlock();
 #endif
     image = NULL;
@@ -393,7 +409,9 @@ GfxProcQT::GfxProcQT()
 GfxProcQT::~GfxProcQT()
 {
 #ifdef HAVE_PDFIUM
+    gfxMutex.lock();
     FPDF_DestroyLibrary();
+    gfxMutex.unlock();
 #endif
 }
 
@@ -831,7 +849,41 @@ const char *GfxProcQT::supportedformatsPDF()
 
 QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString imagePath)
 {
+    MutexGuard g(gfxMutex);
+#ifdef _WIN32
+    FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toLocal8Bit().constData(), NULL);
+    QString temporaryfile;
+    bool removetemporaryfile = false;
+    QByteArray qba;
+
+    if (pdf_doc == NULL && FPDF_GetLastError() == FPDF_ERR_FILE)
+    {
+        QFile qf(imagePath);
+
+        if (qf.size() > MAX_PDF_MEM_SIZE )
+        {
+            {
+                QTemporaryFile tmpfile(QDir::tempPath() + QDir::separator() + QString::fromUtf8( ".megasyncpdftmpXXXXXX"));
+                if (tmpfile.open())
+                {
+                    temporaryfile = tmpfile.fileName();
+                }
+            }
+            if (temporaryfile.size() && QFile::copy(imagePath,temporaryfile))
+            {
+                pdf_doc  = FPDF_LoadDocument(temporaryfile.toLocal8Bit().constData(), NULL);
+                removetemporaryfile = true;
+            }
+        }
+        else if (qf.open(QIODevice::ReadOnly))
+        {
+            qba = qf.readAll();
+            pdf_doc  = FPDF_LoadMemDocument(qba.constData(), qba.size(), NULL);
+        }
+    }
+#else
     FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toUtf8().constData(), NULL);
+#endif
     if (pdf_doc != NULL)
     {
         int page_count = FPDF_GetPageCount(pdf_doc);
@@ -854,6 +906,12 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                     LOG_warn << "Error generating bitmap image (OOM)";
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);
+#ifdef _WIN32
+                    if (removetemporaryfile)
+                    {
+                        QFile::remove(temporaryfile);
+                    }
+#endif
                     return NULL;
                 }
 
@@ -867,6 +925,12 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                     bitmap = NULL;
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);
+#ifdef _WIN32
+                    if (removetemporaryfile)
+                    {
+                        QFile::remove(temporaryfile);
+                    }
+#endif
                     return NULL;
                 }
 
@@ -879,6 +943,12 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                     bitmap = NULL;
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);
+#ifdef _WIN32
+                    if (removetemporaryfile)
+                    {
+                        QFile::remove(temporaryfile);
+                    }
+#endif
                     return NULL;
                 }
 
@@ -886,7 +956,12 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                 FPDFBitmap_Destroy(bitmap);
                 FPDF_ClosePage(page);
                 FPDF_CloseDocument(pdf_doc);
-
+#ifdef _WIN32
+                if (removetemporaryfile)
+                {
+                    QFile::remove(temporaryfile);
+                }
+#endif
                 w = image.width();
                 h = image.height();
 
@@ -908,6 +983,12 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
         LOG_err << "Error loading PDF to create thumbnail for " << imagePath << " " << FPDF_GetLastError();
     }
 
+#ifdef _WIN32
+    if (removetemporaryfile)
+    {
+        QFile::remove(temporaryfile);
+    }
+#endif
     return NULL;
 }
 
