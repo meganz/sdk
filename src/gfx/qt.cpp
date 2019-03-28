@@ -917,12 +917,11 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
 
                 FPDF_RenderPageBitmap(bitmap, page, 0, 0, image.width(), image.height(), 0, 0);
                 FPDFBitmap_Destroy(bitmap);
+                bitmap = NULL;
 
                 if (image.isNull())
                 {
                     LOG_warn << "Unable to convert image from PDF file";
-                    FPDFBitmap_Destroy(bitmap);
-                    bitmap = NULL;
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);
 #ifdef _WIN32
@@ -939,8 +938,6 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                 {
                     LOG_warn << "Error extracting image";
                     delete buffer;
-                    FPDFBitmap_Destroy(bitmap);
-                    bitmap = NULL;
                     FPDF_ClosePage(page);
                     FPDF_CloseDocument(pdf_doc);
 #ifdef _WIN32
@@ -952,8 +949,6 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                     return NULL;
                 }
 
-                bitmap = NULL;
-                FPDFBitmap_Destroy(bitmap);
                 FPDF_ClosePage(page);
                 FPDF_CloseDocument(pdf_doc);
 #ifdef _WIN32
