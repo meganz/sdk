@@ -62,6 +62,11 @@ struct FaultyServers
         recentFails[server(url)] = m_time();
     }
 
+    /**
+     * @brief Select the worst server based on records of recent failures
+     * @param urls The set of URLs to check against previosly failing servers
+     * @return The index from 0 to 5, or 6 (RAIDPARTS) if none of the URLs have failed recently.
+     */
     unsigned selectWorstServer(vector<string> urls)
     {
         // start with 6 connections and drop the slowest to respond, build the file from the other 5.
@@ -155,14 +160,6 @@ static void clearOwningFilePieces(std::deque<RaidBufferManager::FilePiece*>& q)
     }
     q.clear();
 }
-//static void clearOwningFilePieces(std::map<m_off_t, RaidBufferManager::FilePiece*>& q)
-//{
-//    for (std::map<m_off_t, RaidBufferManager::FilePiece*>::iterator i = q.begin(); i != q.end(); ++i)
-//    {
-//        delete i->second;
-//    }
-//    q.clear();
-//}
 
 RaidBufferManager::~RaidBufferManager()
 {
@@ -732,6 +729,8 @@ bool RaidBufferManager::connectionRaidPeersAreAllPaused(unsigned slowConnection)
     }
 
     // see if one connection is stalled or running much slower than the others, in which case try the other 5 instead
+    // (if already using 5 connections and all of them are paused, except slowConnection, the unusedRaidConnection will
+    // be started again and the slowConnection will become the new unusedRaidConnection)
     for (unsigned j = RAIDPARTS; j--; )
     {
         if (j != slowConnection && j != unusedRaidConnection && !connectionPaused[j])

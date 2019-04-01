@@ -1324,7 +1324,7 @@ bool DirectReadSlot::doio()
 
                     dr->drn->schedule(DirectReadSlot::TIMEOUT_DS);
 
-                    // we might have a raid-reassmbled block to write now, or this very block in non-raid
+                    // we might have a raid-reassembled block to write now, or this very block in non-raid
                     if (!processAnyOutputPieces())
                     {
                         // app-requested abort
@@ -1345,7 +1345,7 @@ bool DirectReadSlot::doio()
             bool newBufferSupplied = false, pauseForRaid = false;
             std::pair<m_off_t, m_off_t> posrange = dr->drbuf.nextNPosForConnection(connectionNum, newBufferSupplied, pauseForRaid);
 
-            // we might have a raid-reassmbled block to write, or a previously loaded block, or a skip block to process.
+            // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
             processAnyOutputPieces();
 
             if (!newBufferSupplied && !pauseForRaid)

@@ -916,7 +916,7 @@ void TransferSlot::doio(MegaClient* client)
                 bool pauseConnectionInputForRaid = false;
                 std::pair<m_off_t, m_off_t> posrange = transferbuf.nextNPosForConnection(i, maxRequestSize, connections, newInputBufferSupplied, pauseConnectionInputForRaid);
 
-                // we might have a raid-reassmbled block to write, or a previously loaded block, or a skip block to process.
+                // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                 bool newOutputBufferSupplied = false;
                 TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece && reqs[i])
@@ -1084,7 +1084,7 @@ void TransferSlot::doio(MegaClient* client)
 
         if (transfer->type == GET && client->autodownport && !memcmp(transferbuf.tempURL(0).c_str(), "http:", 5))
         {
-            LOG_debug << "Automatically changing download port due to a timeout";   
+            LOG_debug << "Automatically changing download port due to a timeout";
             client->usealtdownport = !client->usealtdownport;
             changeport = true;
         }

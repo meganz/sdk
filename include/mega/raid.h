@@ -221,7 +221,6 @@ namespace mega {
         // decrypt and mac downloaded chunk
         void finalize(FilePiece& r) /* override */;
         m_off_t calcOutputChunkPos(m_off_t acquiredpos) /* override */;
-        void bufferWriteCompletedAction(unsigned connectionNum, FilePiece& r) /* override */;
 
         friend class DebugTestHook;
     };
