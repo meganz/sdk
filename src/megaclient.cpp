@@ -688,11 +688,11 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         {
             // create a new masterkey
             byte masterkey[SymmCipher::KEYLENGTH];
-            PrnGen::genblock(masterkey, sizeof masterkey);
+            rng.genblock(masterkey, sizeof masterkey);
 
             // generate a new session
             byte initialSession[2 * SymmCipher::KEYLENGTH];
-            PrnGen::genblock(initialSession, sizeof initialSession);
+            rng.genblock(initialSession, sizeof initialSession);
             key.setkey(masterkey);
             key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
 
@@ -705,7 +705,7 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
     else
     {
         byte clientkey[SymmCipher::KEYLENGTH];
-        PrnGen::genblock(clientkey, sizeof(clientkey));
+        rng.genblock(clientkey, sizeof(clientkey));
 
         string salt;
         HashSHA256 hasher;
@@ -741,11 +741,11 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         {
             // create a new masterkey
             byte masterkey[SymmCipher::KEYLENGTH];
-            PrnGen::genblock(masterkey, sizeof masterkey);
+            rng.genblock(masterkey, sizeof masterkey);
 
             // generate a new session
             byte initialSession[2 * SymmCipher::KEYLENGTH];
-            PrnGen::genblock(initialSession, sizeof initialSession);
+            rng.genblock(initialSession, sizeof initialSession);
             key.setkey(masterkey);
             key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
 
@@ -1041,7 +1041,10 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
-    : useralerts(*this)
+    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
+#ifdef ENABLE_SYNC
+    ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
+#endif
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -1142,13 +1145,13 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     // actions in server-client stream)
     for (i = sizeof sessionid; i--; )
     {
-        sessionid[i] = 'a' + PrnGen::genuint32(26);
+        sessionid[i] = 'a' + rng.genuint32(26);
     }
 
     // initialize random API request sequence ID (server API is idempotent)
     for (i = sizeof reqid; i--; )
     {
-        reqid[i] = 'a' + PrnGen::genuint32(26);
+        reqid[i] = 'a' + rng.genuint32(26);
     }
 
     nextuh = 0;  
@@ -1490,11 +1493,11 @@ void MegaClient::exec()
                         }
                         else
                         {
-                            fc->parse(this, cit->first, true);
+                            fc->parse(cit->first, true);
                         }
 
                         // notify app in case some attributes were not returned, then redispatch
-                        fc->failed(this);
+                        fc->failed();
                         fc->req.disconnect();
                         fc->req.status = REQ_PREPARED;
                         fc->timeout.reset();
@@ -1510,7 +1513,7 @@ void MegaClient::exec()
                         if (fc->inbytes != fc->req.in.size())
                         {
                             httpio->lock();
-                            fc->parse(this, cit->first, false);
+                            fc->parse(cit->first, false);
                             httpio->unlock();
 
                             fc->timeout.backoff(100);
@@ -1535,7 +1538,7 @@ void MegaClient::exec()
                             sendevent(99436, "Automatic change to HTTPS", 0);
                         }
 
-                        fc->failed(this);
+                        fc->failed();
                         fc->timeout.reset();
                         fc->bt.backoff();
                         fc->urltime = 0;
@@ -1561,7 +1564,7 @@ void MegaClient::exec()
                     {
                         // redispatch cached URL if not older than one minute
                         LOG_debug << "Using cached download URL";
-                        fc->dispatch(this);
+                        fc->dispatch();
                     }
                 }
             }
@@ -3065,7 +3068,7 @@ bool MegaClient::dispatch(direction_t d)
             {
                 // generate fresh random encryption key/CTR IV for this file
                 byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
-                PrnGen::genblock(keyctriv, sizeof keyctriv);
+                rng.genblock(keyctriv, sizeof keyctriv);
                 memcpy(nexttransfer->transferkey, keyctriv, SymmCipher::KEYLENGTH);
                 nexttransfer->ctriv = MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH);
             }
@@ -3686,7 +3689,7 @@ void MegaClient::getlocalsslcertificate()
 
 void MegaClient::dnsrequest(const char *hostname)
 {
-    GenericHttpReq *req = new GenericHttpReq();
+    GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
@@ -3696,7 +3699,7 @@ void MegaClient::dnsrequest(const char *hostname)
 
 void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
 {
-    GenericHttpReq *req = new GenericHttpReq();
+    GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
     req->maxretries = retries;
     if (timeoutds > 0)
@@ -3713,7 +3716,7 @@ void MegaClient::gelbrequest(const char *service, int timeoutds, int retries)
 
 void MegaClient::sendchatstats(const char *json, int port)
 {
-    GenericHttpReq *req = new GenericHttpReq();
+    GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
@@ -3731,13 +3734,20 @@ void MegaClient::sendchatstats(const char *json, int port)
     req->post(this);
 }
 
-void MegaClient::sendchatlogs(const char *json, const char *aid)
+void MegaClient::sendchatlogs(const char *json, const char *aid, int port)
 {
-    GenericHttpReq *req = new GenericHttpReq();
+    GenericHttpReq *req = new GenericHttpReq(rng);
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
     req->posturl = CHATSTATSURL;
+    if (port > 0)
+    {
+        req->posturl.append(":");
+        char stringPort[6];
+        sprintf(stringPort, "%d", port);
+        req->posturl.append(stringPort);
+    }
     req->posturl.append("/msglog?aid=");
     req->posturl.append(aid);
     req->posturl.append("&t=e");
@@ -3748,7 +3758,7 @@ void MegaClient::sendchatlogs(const char *json, const char *aid)
 
 void MegaClient::httprequest(const char *url, int method, bool binary, const char *json, int retries)
 {
-    GenericHttpReq *req = new GenericHttpReq(binary);
+    GenericHttpReq *req = new GenericHttpReq(rng, binary);
     req->tag = reqtag;
     req->maxretries = retries;
     pendinghttp[reqtag] = req;
@@ -3946,6 +3956,7 @@ bool MegaClient::procsc()
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
                     {
+                        bool readingPublicChat = false;
                         switch (name)
                         {
                             case 'u':
@@ -4100,16 +4111,22 @@ bool MegaClient::procsc()
                                 sc_se();
                                 break;
 #ifdef ENABLE_CHAT
+                            case MAKENAMEID4('m', 'c', 'p', 'c'):      // fall-through
+                            {
+                                readingPublicChat = true;
+                            }
                             case MAKENAMEID3('m', 'c', 'c'):
                                 // chat creation / peer's invitation / peer's removal
-                                sc_chatupdate();
+                                sc_chatupdate(readingPublicChat);
                                 break;
 
+                            case MAKENAMEID5('m', 'c', 'f', 'p', 'c'):      // fall-through
                             case MAKENAMEID4('m', 'c', 'f', 'c'):
                                 // chat flags update
                                 sc_chatflags();
                                 break;
 
+                            case MAKENAMEID5('m', 'c', 'p', 'n', 'a'):      // fall-through
                             case MAKENAMEID4('m', 'c', 'n', 'a'):
                                 // granted / revoked access to a node
                                 sc_chatnode();
@@ -4442,7 +4459,7 @@ error MegaClient::getfa(handle h, string *fileattrstring, string *nodekey, fatyp
 
         if (!*fafcp)
         {
-            *fafcp = new FileAttributeFetchChannel();
+            *fafcp = new FileAttributeFetchChannel(this);
         }
 
         if (!(*fafcp)->fafs[1].count(fah))
@@ -5735,7 +5752,7 @@ void MegaClient::sc_se()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::sc_chatupdate()
+void MegaClient::sc_chatupdate(bool readingPublicChat)
 {
     // fields: id, u, cs, n, g, ou, ct, ts, m, ck
     handle chatid = UNDEF;
@@ -5787,10 +5804,12 @@ void MegaClient::sc_chatupdate()
                 break;
 
             case 'm':
+                assert(readingPublicChat);
                 publicchat = jsonsc.getint();
                 break;
 
             case MAKENAMEID2('c','k'):
+                assert(readingPublicChat);
                 jsonsc.storeobject(&unifiedkey);
                 break;
 
@@ -5884,14 +5903,17 @@ void MegaClient::sc_chatupdate()
                     delete chat->userpriv;  // discard any existing `userpriv`
                     chat->userpriv = userpriv;
 
-                    chat->setMode(publicchat);
-                    if (!unifiedkey.empty())    // not all actionpackets include it
+                    if (readingPublicChat)
                     {
-                        chat->unifiedKey = unifiedkey;
-                    }
-                    else if (publicchat && mustHaveUK)
-                    {
-                        LOG_err << "Public chat without unified key detected";
+                        chat->setMode(publicchat);
+                        if (!unifiedkey.empty())    // not all actionpackets include it
+                        {
+                            chat->unifiedKey = unifiedkey;
+                        }
+                        else if (mustHaveUK)
+                        {
+                            LOG_err << "Public chat without unified key detected";
+                        }
                     }
 
                     chat->setTag(0);    // external change
@@ -7661,7 +7683,7 @@ void MegaClient::login(const char* email, const byte* pwkey, const char* pin)
     uint64_t emailhash = stringhash64(&lcemail, &key);
 
     byte sek[SymmCipher::KEYLENGTH];
-    PrnGen::genblock(sek, sizeof sek);
+    rng.genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek, 0, pin));
 }
@@ -7686,7 +7708,7 @@ void MegaClient::login2(const char *email, const byte *derivedKey, const char* p
     const byte *authKey = derivedKey + SymmCipher::KEYLENGTH;
 
     byte sek[SymmCipher::KEYLENGTH];
-    PrnGen::genblock(sek, sizeof sek);
+    rng.genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, authKey, SymmCipher::KEYLENGTH, sek, 0, pin));
 }
@@ -7696,7 +7718,7 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     key.setkey((byte*)pwkey);
 
     byte sek[SymmCipher::KEYLENGTH];
-    PrnGen::genblock(sek, sizeof sek);
+    rng.genblock(sek, sizeof sek);
 
     reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
 }
@@ -7746,7 +7768,7 @@ void MegaClient::login(const byte* session, int size)
         }
 
         byte sek[SymmCipher::KEYLENGTH];
-        PrnGen::genblock(sek, sizeof sek);
+        rng.genblock(sek, sizeof sek);
 
         reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
         getuserdata();
@@ -7902,7 +7924,7 @@ void MegaClient::opensctable()
 
         if (dbname.size())
         {
-            sctable = dbaccess->open(fsaccess, &dbname);
+            sctable = dbaccess->open(rng, fsaccess, &dbname);
             pendingsccommit = false;
         }
     }
@@ -8441,7 +8463,7 @@ error MegaClient::creditcardstore(const char *ccplain)
 
     string ccenc;
     string ccplain1 = ccplain;
-    PayCrypter payCrypter;
+    PayCrypter payCrypter(rng);
     if (!payCrypter.hybridEncrypt(&ccplain1, pubkdata, pubkdatalen, &ccenc))
     {
         return API_EARGS;
@@ -9026,8 +9048,13 @@ void MegaClient::procmcf(JSON *j)
         bool done = false;
         while (!done)
         {
+            bool readingPublicChats = false;
             switch(j->getnameid())
             {
+                case MAKENAMEID2('p', 'c'):   // list of public and/or formerly public chatrooms
+                {
+                    readingPublicChats = true;
+                }   // fall-through
                 case 'c':   // list of chatrooms
                 {
                     j->enterarray();
@@ -9074,6 +9101,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case MAKENAMEID2('c', 'k'):  // store unified key for public chats
+                                assert(readingPublicChats);
                                 j->storeobject(&unifiedKey);
                                 break;
 
@@ -9082,6 +9110,7 @@ void MegaClient::procmcf(JSON *j)
                                 break;
 
                             case 'm':   // operation mode: 1 -> public chat; 0 -> private chat
+                                assert(readingPublicChats);
                                 publicchat = j->getint();
                                 break;
 
@@ -9100,11 +9129,16 @@ void MegaClient::procmcf(JSON *j)
                                     chat->group = group;
                                     chat->title = title;
                                     chat->ts = (ts != -1) ? ts : 0;
-                                    chat->publicchat = publicchat;
-                                    chat->unifiedKey = unifiedKey;
-                                    if (publicchat && unifiedKey.empty())
+
+                                    if (readingPublicChats)
                                     {
-                                        LOG_err << "Received public chat without unified key";
+                                        chat->publicchat = publicchat;  // true or false (formerly public, now private)
+                                        chat->unifiedKey = unifiedKey;
+
+                                        if (unifiedKey.empty())
+                                        {
+                                            LOG_err << "Received public (or formerly public) chat without unified key";
+                                        }
                                     }
 
                                     // remove yourself from the list of users (only peers matter)
@@ -9163,6 +9197,10 @@ void MegaClient::procmcf(JSON *j)
                     break;
                 }
 
+                case MAKENAMEID3('p', 'c', 'f'):    // list of flags for public and/or formerly public chatrooms
+                {
+                    readingPublicChats = true;
+                }   // fall-through
                 case MAKENAMEID2('c', 'f'):
                 {
                     j->enterarray();
@@ -9200,6 +9238,7 @@ void MegaClient::procmcf(JSON *j)
                                     else
                                     {
                                         it->second->setFlags(flags);
+                                        assert(!readingPublicChats || !it->second->unifiedKey.empty());
                                     }
                                 }
                                 else
@@ -9798,7 +9837,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
         // Derive MAC key with salt+pwd
         byte derivedKey[64];
         byte salt[32];
-        PrnGen::genblock(salt, 32);
+        rng.genblock(salt, 32);
         unsigned int iterations = 100000;
         PBKDF2_HMAC_SHA512 pbkdf2;
         pbkdf2.deriveKey(derivedKey, sizeof derivedKey,
@@ -9923,7 +9962,7 @@ error MegaClient::changepw(const char* password, const char *pin)
     }
 
     byte clientRandomValue[SymmCipher::KEYLENGTH];
-    PrnGen::genblock(clientRandomValue, sizeof(clientRandomValue));
+    rng.genblock(clientRandomValue, sizeof(clientRandomValue));
 
     string salt;
     HashSHA256 hasher;
@@ -9961,9 +10000,9 @@ void MegaClient::createephemeral()
     byte pwbuf[SymmCipher::KEYLENGTH];
     byte sscbuf[2 * SymmCipher::KEYLENGTH];
 
-    PrnGen::genblock(keybuf, sizeof keybuf);
-    PrnGen::genblock(pwbuf, sizeof pwbuf);
-    PrnGen::genblock(sscbuf, sizeof sscbuf);
+    rng.genblock(keybuf, sizeof keybuf);
+    rng.genblock(pwbuf, sizeof pwbuf);
+    rng.genblock(sscbuf, sizeof sscbuf);
 
     key.setkey(keybuf);
     key.ecb_encrypt(sscbuf, sscbuf + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
@@ -9985,9 +10024,9 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
     byte c[2 * SymmCipher::KEYLENGTH];
 
     memcpy(c, key.key, sizeof key.key);
-    PrnGen::genblock(c + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH / 4);
+    rng.genblock(c + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH / 4);
     memset(c + SymmCipher::KEYLENGTH + SymmCipher::KEYLENGTH / 4, 0, SymmCipher::KEYLENGTH / 2);
-    PrnGen::genblock(c + 2 * SymmCipher::KEYLENGTH - SymmCipher::KEYLENGTH / 4, SymmCipher::KEYLENGTH / 4);
+    rng.genblock(c + 2 * SymmCipher::KEYLENGTH - SymmCipher::KEYLENGTH / 4, SymmCipher::KEYLENGTH / 4);
 
     pwcipher.ecb_encrypt(c, c, sizeof c);
 
@@ -9997,7 +10036,7 @@ void MegaClient::sendsignuplink(const char* email, const char* name, const byte*
 string MegaClient::sendsignuplink2(const char *email, const char *password, const char* name)
 {
     byte clientrandomvalue[SymmCipher::KEYLENGTH];
-    PrnGen::genblock(clientrandomvalue, sizeof(clientrandomvalue));
+    rng.genblock(clientrandomvalue, sizeof(clientrandomvalue));
 
     string salt;
     HashSHA256 hasher;
@@ -10058,7 +10097,7 @@ void MegaClient::setkeypair()
 
     string privks, pubks;
 
-    asymkey.genkeypair(asymkey.key, pubk, 2048);
+    asymkey.genkeypair(rng, asymkey.key, pubk, 2048);
 
     AsymmCipher::serializeintarray(pubk, AsymmCipher::PUBKEY, &pubks);
     AsymmCipher::serializeintarray(asymkey.key, AsymmCipher::PRIVKEY, &privks);
@@ -10067,7 +10106,7 @@ void MegaClient::setkeypair()
     unsigned t = unsigned(privks.size());
 
     privks.resize((t + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE);
-    PrnGen::genblock((byte*)(privks.data() + t), int(privks.size() - t));
+    rng.genblock((byte*)(privks.data() + t), int(privks.size() - t));
 
     key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), (unsigned)privks.size());
 
@@ -10266,7 +10305,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname, true);
+    tctable = dbaccess->open(rng, fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -10360,7 +10399,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(fsaccess, &dbname, true);
+    tctable = dbaccess->open(rng, fsaccess, &dbname, true);
     if (!tctable)
     {
         return;
@@ -10528,7 +10567,7 @@ void MegaClient::initializekeys()
                 string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
                 if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                 {
-                    signkey = new EdDSA((unsigned char *) prEd255.data());
+                    signkey = new EdDSA(rng, (unsigned char *) prEd255.data());
                     if (!signkey->initializationOK)
                     {
                         delete signkey;
@@ -10667,7 +10706,7 @@ void MegaClient::initializekeys()
         else    // No keys were set --> generate keypairs and related attributes
         {
             // generate keypairs
-            EdDSA *signkey = new EdDSA();
+            EdDSA *signkey = new EdDSA(rng);
             ECDH *chatkey = new ECDH();
 
             if (!chatkey->initializationOK || !signkey->initializationOK)
@@ -10683,7 +10722,7 @@ void MegaClient::initializekeys()
             TLVstore tlvRecords;
             tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
             tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-            string *tlvContainer = tlvRecords.tlvRecordsToContainer(&key);
+            string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
 
             // prepare signatures
             string pubkStr;
@@ -12193,7 +12232,7 @@ void MegaClient::syncupdate()
                 {
                     // this is a folder - create, use fresh key & attributes
                     nnp->nodekey.resize(FOLDERNODEKEYLENGTH);
-                    PrnGen::genblock((byte*)nnp->nodekey.data(), FOLDERNODEKEYLENGTH);
+                    rng.genblock((byte*)nnp->nodekey.data(), FOLDERNODEKEYLENGTH);
                     tattrs.map.clear();
                 }
 
@@ -12542,7 +12581,7 @@ void MegaClient::execmovetosyncdebris()
             nn->parenthandle = i ? 0 : UNDEF;
 
             nn->nodekey.resize(FOLDERNODEKEYLENGTH);
-            PrnGen::genblock((byte*)nn->nodekey.data(), FOLDERNODEKEYLENGTH);
+            rng.genblock((byte*)nn->nodekey.data(), FOLDERNODEKEYLENGTH);
 
             // set new name, encrypt and attach attributes
             tattrs.map['n'] = (i || target == SYNCDEL_DEBRIS) ? buf : SYNCDEBRISFOLDERNAME;

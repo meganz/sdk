@@ -35,7 +35,7 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool recycleLegacyDB)
+DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* name, bool recycleLegacyDB)
 {
     //Each table will use its own database object and its own file
     sqlite3* db;
@@ -134,10 +134,11 @@ DbTable* SqliteDbAccess::open(FileSystemAccess* fsaccess, string* name, bool rec
         return NULL;
     }
 
-    return new SqliteDbTable(db, fsaccess, &dbfile);
+    return new SqliteDbTable(rng, db, fsaccess, &dbfile);
 }
 
-SqliteDbTable::SqliteDbTable(sqlite3* cdb, FileSystemAccess *fs, string *filepath)
+SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* cdb, FileSystemAccess *fs, string *filepath)
+    : DbTable(rng)
 {
     db = cdb;
     pStmt = NULL;

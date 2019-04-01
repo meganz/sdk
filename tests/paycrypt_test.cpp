@@ -121,8 +121,9 @@ TEST(PayCrypterTest, allFeatures)
 
 
     //Test PayCrypter:encryptPayload()
+    PrnGen rng;
     string payCrypterResult;
-    PayCrypter payCrypter;
+    PayCrypter payCrypter(rng);
     payCrypter.setKeys(enckey, hmacKey, iv);
     ASSERT_TRUE(payCrypter.encryptPayload(&input, &payCrypterResult));
 
