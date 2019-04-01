@@ -44,11 +44,9 @@ using std::string;
 /**
  * @brief A generic pseudo-random number generator.
  */
-class MEGA_API PrnGen
+class MEGA_API PrnGen : public CryptoPP::AutoSeededRandomPool
 {
 public:
-    static CryptoPP::AutoSeededRandomPool rng;
-
     /**
      * @brief Generates a block of random bytes of length `len` into a buffer
      *        `buf`.
@@ -58,7 +56,7 @@ public:
      * @param len The number of random bytes to generate.
      * @return Void.
      */
-    static void genblock(byte* buf, int len);
+    void genblock(byte* buf, int len);
 
     /**
      * @brief Generates a random integer between 0 ... max - 1.
@@ -66,7 +64,7 @@ public:
      * @param max The maximum of which the number is to generate under.
      * @return The random number generated.
      */
-    static uint32_t genuint32(uint64_t max);
+    uint32_t genuint32(uint64_t max);
 };
 
 // symmetric cryptography: AES-128
@@ -307,13 +305,14 @@ public:
     /**
      * @brief Encrypts a randomly padded plain text into a buffer.
      *
+     * @param rng Reference to the random block generator
      * @param plain The plain text to encrypt.
      * @param plainlen Length of the plain text.
      * @param buf Buffer to take the cipher text..
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    int encrypt(const byte* plain, int plainlen, byte* buf, int buflen);
+    int encrypt(PrnGen &rng, const byte* plain, int plainlen, byte* buf, int buflen);
 
     /**
      * @brief Decrypts a cipher text into a buffer and strips random padding.
@@ -374,12 +373,13 @@ public:
     /**
      * @brief Generates an RSA key pair of a given key size.
      *
+     * @param rng Reference to the random block generator
      * @param privk Private key.
      * @param pubk Public key.
      * @param size Size of key to generate in bits (key strength).
      * @return Always returns 1.
      */
-    void genkeypair(CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
+    void genkeypair(PrnGen &rng, CryptoPP::Integer* privk, CryptoPP::Integer* pubk, int size);
 };
 
 class MEGA_API Hash
