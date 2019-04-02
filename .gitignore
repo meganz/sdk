@@ -90,3 +90,5 @@ megaclient_statecache*
 /third_party/Makefile
 
 /contrib/QtCreator/build-*
+/contrib/cmake/.idea
+/contrib/cmake/cmake-build-*
