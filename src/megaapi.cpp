@@ -3543,6 +3543,11 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
     pImpl->getMegaAchievements(listener);
 }
 
+void MegaApi::catchup(MegaRequestListener *listener)
+{
+    pImpl->catchup(listener);
+}
+
 #ifdef HAVE_LIBUV
 bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
 {
