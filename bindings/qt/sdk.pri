@@ -187,6 +187,25 @@ CONFIG(USE_LIBRAW) {
     }
 }
 
+CONFIG(USE_PDFIUM) {
+    unix:!macx {
+        exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a) {
+            DEFINES += HAVE_PDFIUM
+            INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+            LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libpdfium.a
+        }
+        else:exists(/usr/include/fpdfview.h) {
+            DEFINES += HAVE_PDFIUM
+            LIBS += -lpdfium
+        }
+    }
+    else {#win/mac
+        DEFINES += HAVE_PDFIUM
+        INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
+        LIBS += -lpdfium
+    }
+}
+
 CONFIG(USE_FFMPEG) {
 
     unix:!macx {
@@ -546,6 +565,7 @@ macx {
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/cares
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/mediainfo
    INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/zenlib
+   INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pdfium
 
    CONFIG(USE_PCRE) {
     INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/pcre

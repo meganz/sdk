@@ -29,7 +29,9 @@
 #cmakedefine HAVE_FDOPENDIR
 
 /* Define to use FFMPEG */
+#ifndef HAVE_FFMPEG
 #cmakedefine HAVE_FFMPEG 
+#endif
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #cmakedefine HAVE_INTTYPES_H

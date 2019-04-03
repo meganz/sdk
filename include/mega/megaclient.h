@@ -464,6 +464,8 @@ public:
     // close all open HTTP connections
     void disconnect();
 
+    // close server-client HTTP connection
+    void catchup();
     // abort lock request
     void abortlockrequest();
 
@@ -796,7 +798,7 @@ private:
     void sc_ph();
     void sc_se();
 #ifdef ENABLE_CHAT
-    void sc_chatupdate();
+    void sc_chatupdate(bool readingPublicChat);
     void sc_chatnode();
     void sc_chatflags();
 #endif
