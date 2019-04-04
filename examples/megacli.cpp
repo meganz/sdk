@@ -5792,7 +5792,7 @@ static void process_line(char* l)
                                 cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].user, client) << " " << (nvv[i].updated ? "updated" : "uploaded") << " " << (nvv[i].media ? "media" : "files") << endl;
                                 for (unsigned j = 0; j < nvv[i].v.size(); ++j)
                                 {
-                                    cout << nvv[i].v[j]->displaypath() << endl;
+                                    cout << nvv[i].v[j]->displaypath() << "  (" << displayTime(nvv[i].v[j]->ctime) << ")" << endl;
                                 }
                             }
                         }

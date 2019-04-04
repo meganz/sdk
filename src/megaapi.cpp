@@ -3106,7 +3106,7 @@ MegaRecentActionBucketList* MegaApi::getRecentActions(int64_t since, unsigned ma
 MegaRecentActionBucketList* MegaApi::getRecentActions()
 {
     m_time_t since = m_time() - 30 * 86400;
-    size_t maxnodes = 10000;
+    unsigned maxnodes = 10000;
     return pImpl->getRecentActions(since, maxnodes);
 }
 

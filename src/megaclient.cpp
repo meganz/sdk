@@ -12994,20 +12994,58 @@ namespace action_bucket_compare
     MUTEX_CLASS media_check(false);   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
     MegaClient* mc;
 
+    const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
+    const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
+    const static string webclient_is_image_thumb = "psd.svg.tif.tiff.webp";  // leaving out .pdf
+    const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
+    const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
+
+    static bool isvideo(const Node* n, char ext[10])
+    {
+        if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
+        {
+#ifdef USE_MEDIAINFO
+            if (mc->mediaFileInfo.mediaCodecsReceived)
+            {
+                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
+                unsigned videocodec = mp.videocodecid;
+                if (!videocodec && mp.shortformat) {
+                    auto& v =mc->mediaFileInfo.mediaCodecs.shortformats;
+                    if (mp.shortformat < v.size())
+                    {
+                        videocodec = v[mp.shortformat].videocodecid;
+                    }
+                }
+                // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
+                if (!videocodec)
+                {
+                    return false; // otherwise double-check by extension
+                }
+            }
+#endif  
+        }
+        return webclient_mime_video_extensions.find(ext) != string::npos;
+    }
+
     static bool ismedia(const Node* n)
     {
-        bool media = false;
+        // evaluate according to the webclient rules, so that we get exactly the same bucketing.
         string localname, name = n->displayname();
         mc->fsaccess->path2local(&name, &localname);
-#ifdef USE_MEDIAINFO
-        char ext[8];
-        media = mc->fsaccess->getextension(&localname, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext);
-#endif
-        if (mc->gfx)
+        char ext[10];
+        if (mc->fsaccess->getextension(&localname, ext, sizeof(ext)))
         {
-            media = media || mc->gfx->isgfx(&localname);
+            strcat(ext, ".");
+
+            if (webclient_is_image_def.find(ext) != string::npos ||
+                webclient_is_image_raw.find(ext) != string::npos ||
+                (webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW)) ||
+                isvideo(n, ext))
+            {
+                return true;
+            }
         }
-        return media;
+        return false;
     }
 
     static bool compare(const Node* a, const Node* b)
@@ -13044,7 +13082,7 @@ MegaClient::recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {
         node_vector::iterator bucketend = i + 1;
-        while (bucketend != v.end() && (*bucketend)->ctime < (*i)->ctime + 6 * 3600)
+        while (bucketend != v.end() && (*bucketend)->ctime > (*i)->ctime - 6 * 3600)
         {
             ++bucketend;
         }
