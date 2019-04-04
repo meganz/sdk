@@ -28812,7 +28812,7 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
-const int MegaEventPrivate::getNumber() const
+int MegaEventPrivate::getNumber() const
 {
     return number;
 }

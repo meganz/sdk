@@ -3971,7 +3971,9 @@ bool MegaClient::procsc()
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
                     {
+#ifdef ENABLE_CHAT
                         bool readingPublicChat = false;
+#endif
                         switch (name)
                         {
                             case 'u':
