@@ -8996,11 +8996,12 @@ class MegaApi
          * is sent to MEGA servers.
          *
          * @note Event types are restricted to the following ranges:
-         *  - MEGAchat: [99000, 99150)
-         *  - Android:  [99200, 99300)
-         *  - iOS:      [99300, 99400)
-         *  - MEGA SDK: [99400, 99500)
-         *  - MEGAsync: [99500, 99600)
+         *  - MEGAchat:  [99000, 99150)
+         *  - Android:   [99200, 99300)
+         *  - iOS:       [99300, 99400)
+         *  - MEGA SDK:  [99400, 99500)
+         *  - MEGAsync:  [99500, 99600)
+         *  - Webclient: [99600, 99800]
          */
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
