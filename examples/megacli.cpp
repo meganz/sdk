@@ -4833,7 +4833,7 @@ static void process_line(char* l)
                                     deltmp = (words[2] == "del");
                                     if (!deltmp)
                                     {
-                                        etstmp = atol(words[2].c_str());
+                                        etstmp = atoi(words[2].c_str());
                                     }
                                 }
 
@@ -6817,7 +6817,7 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
     string s = acs.completions[0].s;
-    for (int i = acs.completions.size(); i--; )
+    for (size_t i = acs.completions.size(); i--; )
     {
         for (unsigned j = 0; j < s.size() && j < acs.completions[i].s.size(); ++j)
         {
@@ -6845,11 +6845,11 @@ char** my_rl_completion(const char *text, int start, int end)
 
     if (acs.completions.size() == 1 && !acs.completions[0].couldExtend)
     {
-        acs.completions[0].s += " "; 
+        acs.completions[0].s += " ";
     }
 
     char** result = (char**)malloc((sizeof(char*)*(2+acs.completions.size())));
-    for (int i = acs.completions.size(); i--; )
+    for (size_t i = acs.completions.size(); i--; )
     {
         result[i+1] = strdup(acs.completions[i].s.c_str());
     }
@@ -7046,10 +7046,7 @@ public:
         OutputDebugStringA("\r\n");
 #endif
 
-        if (loglevel <= logWarning)
-        {
-            std::cout << message << std::endl;
-        }
+        std::cout << time << " - " << source << " - " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << " - " << message << std::endl;
     }
 };
 
@@ -7061,7 +7058,7 @@ int main()
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&logger);
 #else
-    SimpleLogger::setAllOutputs(&std::cout);
+    SimpleLogger::setOutputClass(&logger);
 #endif
 
     console = new CONSOLE_CLASS;
