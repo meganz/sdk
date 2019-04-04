@@ -464,6 +464,8 @@ public:
     // close all open HTTP connections
     void disconnect();
 
+    // close server-client HTTP connection
+    void catchup();
     // abort lock request
     void abortlockrequest();
 

@@ -3437,6 +3437,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PSA: return "GET_PSA";
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
         case TYPE_USERALERT_ACKNOWLEDGE: return "TYPE_USERALERT_ACKNOWLEDGE";
+        case TYPE_CATCHUP: return "CATCHUP";
     }
     return "UNKNOWN";
 }
@@ -5587,6 +5588,7 @@ void MegaApiImpl::loop()
             updateBackups();
             sendPendingTransfers();
             sendPendingRequests();
+            sendPendingScRequest();
             if(threadExit)
                 break;
 
@@ -9052,6 +9054,13 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
     request->setFlag(true);
     requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::catchup(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CATCHUP, listener);
+    scRequestQueue.push(request);
     waiter->notify();
 }
 
@@ -13571,6 +13580,22 @@ void MegaApiImpl::nodes_current()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::catchup_result()
+{
+    // sc requests are sent sequentially, it must be the one at front and already started (tag == 1)
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP) || !request->getTag()) return;
+    request = scRequestQueue.pop();
+
+    fireOnRequestFinish(request, API_OK);
+
+    // if there are more sc requests in the queue, send the next one
+    if (scRequestQueue.front())
+    {
+        waiter->notify();
+    }
+}
+
 void MegaApiImpl::ephemeral_result(error e)
 {
 	MegaError megaError(e);
@@ -16590,6 +16615,24 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
     return e;
 }
 
+void MegaApiImpl::sendPendingScRequest()
+{
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || request->getTag())
+    {
+        return;
+    }
+    assert(request->getType() == MegaRequest::TYPE_CATCHUP);
+
+    sdkMutex.lock();
+
+    request->setTag(1);
+    fireOnRequestStart(request);
+    client->catchup();
+
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::sendPendingRequests()
 {
     MegaRequestPrivate *request;
@@ -19544,7 +19587,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             TextChat *chat = it->second;
-            if (!chat->group || !chat->publicchat || chat->priv != PRIV_MODERATOR)
+            if (!chat->group || !chat->publicchat || chat->priv == PRIV_RM
+                    || ((del || createifmissing) && chat->priv != PRIV_MODERATOR))
             {
                 e = API_EACCESS;
                 break;
@@ -19974,6 +20018,19 @@ MegaRequestPrivate *RequestQueue::pop()
     }
     MegaRequestPrivate *request = requests.front();
     requests.pop_front();
+    mutex.unlock();
+    return request;
+}
+
+MegaRequestPrivate *RequestQueue::front()
+{
+    mutex.lock();
+    if(requests.empty())
+    {
+        mutex.unlock();
+        return NULL;
+    }
+    MegaRequestPrivate *request = requests.front();
     mutex.unlock();
     return request;
 }

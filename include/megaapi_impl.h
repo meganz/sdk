@@ -1735,6 +1735,7 @@ class RequestQueue
         void push(MegaRequestPrivate *request);
         void push_front(MegaRequestPrivate *request);
         MegaRequestPrivate * pop();
+        MegaRequestPrivate * front();
         void removeListener(MegaRequestListener *listener);
 #ifdef ENABLE_SYNC
         void removeListener(MegaSyncListener *listener);
@@ -2317,6 +2318,8 @@ class MegaApiImpl : public MegaApp
         void getAccountAchievements(MegaRequestListener *listener = NULL);
         void getMegaAchievements(MegaRequestListener *listener = NULL);
 
+        void catchup(MegaRequestListener *listener = NULL);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -2413,6 +2416,9 @@ protected:
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
+
+        // sc requests to close existing wsc and immediately retrieve pending actionpackets
+        RequestQueue scRequestQueue;
 
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;
@@ -2526,6 +2532,7 @@ protected:
         virtual void userattr_update(User*, int, const char*);
 
         virtual void nodes_current();
+        virtual void catchup_result();
 
         virtual void fetchnodes_result(error);
         virtual void putnodes_result(error, targettype_t, NewNode*);
@@ -2696,6 +2703,7 @@ protected:
         // notify about a finished timer
         virtual void timer_result(error);
 
+        void sendPendingScRequest();
         void sendPendingRequests();
         void sendPendingTransfers();
         void updateBackups();
