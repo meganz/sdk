@@ -466,6 +466,11 @@ MegaNodeList *MegaNode::getChildren()
     return NULL;
 }
 
+MegaHandle MegaNode::getOwner() const
+{
+    return INVALID_HANDLE;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -1728,7 +1733,7 @@ void MegaApi::fetchTimeZone(MegaRequestListener *listener)
 
 void MegaApi::addEntropy(char *data, unsigned int size)
 {
-    MegaApiImpl::addEntropy(data, size);
+    pImpl->addEntropy(data, size);
 }
 
 #ifdef WINDOWS_PHONE
@@ -2066,6 +2071,21 @@ void MegaApi::getChatUserAttribute(const char *email_or_handle, int type, const 
 void MegaApi::getUserAttribute(int type, MegaRequestListener *listener)
 {
     pImpl->getUserAttribute((MegaUser*)NULL, type, listener);
+}
+
+const char *MegaApi::userAttributeToString(int attr)
+{
+    return MegaApi::strdup(pImpl->userAttributeToString(attr).c_str());
+}
+
+const char *MegaApi::userAttributeToLongName(int attr)
+{
+    return MegaApi::strdup(pImpl->userAttributeToLongName(attr).c_str());
+}
+
+int MegaApi::userAttributeFromString(const char *name)
+{
+    return pImpl->userAttributeFromString(name);
 }
 
 void MegaApi::getUserEmail(MegaHandle handle, MegaRequestListener *listener)
@@ -3033,9 +3053,9 @@ bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool re
 
 MegaNode *MegaApi::createForeignFileNode(MegaHandle handle, const char *key,
                                     const char *name, int64_t size, int64_t mtime,
-                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth)
+                                        MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth)
 {
-    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth);
+    return pImpl->createForeignFileNode(handle, key, name, size, mtime, parentHandle, privateAuth, publicAuth, chatAuth);
 }
 
 void MegaApi::getLastAvailableVersion(const char *appKey, MegaRequestListener *listener)
@@ -3531,6 +3551,11 @@ void MegaApi::getAccountAchievements(MegaRequestListener *listener)
 void MegaApi::getMegaAchievements(MegaRequestListener *listener)
 {
     pImpl->getMegaAchievements(listener);
+}
+
+void MegaApi::catchup(MegaRequestListener *listener)
+{
+    pImpl->catchup(listener);
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
@@ -4423,9 +4448,9 @@ void MegaApi::sendChatStats(const char *data, int port, MegaRequestListener *lis
     pImpl->sendChatStats(data, port, listener);
 }
 
-void MegaApi::sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener)
+void MegaApi::sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener)
 {
-    pImpl->sendChatLogs(data, aid, listener);
+    pImpl->sendChatLogs(data, aid, port, listener);
 }
 
 MegaTextChatList* MegaApi::getChatList()

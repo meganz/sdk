@@ -392,7 +392,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
     public:
         MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime,
                         MegaHandle nodeMegaHandle, std::string *nodekey, std::string *attrstring, std::string *fileattrstring,
-                        const char *fingerprint, MegaHandle parentHandle = INVALID_HANDLE,
+                        const char *fingerprint, MegaHandle owner, MegaHandle parentHandle = INVALID_HANDLE,
                         const char *privateauth = NULL, const char *publicauth = NULL, bool isPublic = true,
                         bool isForeign = false, const char *chatauth = NULL);
 
@@ -453,7 +453,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         virtual bool isOutShare();
         virtual bool isInShare();
         std::string* getSharekey();
-
+        virtual MegaHandle getOwner() const;
 
 #ifdef ENABLE_SYNC
         virtual bool isSyncDeleted();
@@ -505,6 +505,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         double latitude;
         double longitude;
         MegaNodeList *children;
+        MegaHandle owner;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -1695,6 +1696,7 @@ class RequestQueue
         void push(MegaRequestPrivate *request);
         void push_front(MegaRequestPrivate *request);
         MegaRequestPrivate * pop();
+        MegaRequestPrivate * front();
         void removeListener(MegaRequestListener *listener);
 #ifdef ENABLE_SYNC
         void removeListener(MegaSyncListener *listener);
@@ -1760,8 +1762,10 @@ class MegaApiImpl : public MegaApp
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         void setDnsServers(const char *dnsServers, MegaRequestListener* listener = NULL);
-        static void addEntropy(char* data, unsigned int size);
+        void addEntropy(char* data, unsigned int size);
         static string userAttributeToString(int);
+        static string userAttributeToLongName(int);
+        static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
         static void setStatsID(const char *id);
 
@@ -2101,7 +2105,7 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
-                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth);
+                                       MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,
                                          const char *privateauth, const char *publicauth);
 
@@ -2253,7 +2257,7 @@ class MegaApiImpl : public MegaApp
         void getChatPresenceURL(MegaRequestListener *listener = NULL);
         void registerPushNotification(int deviceType, const char *token, MegaRequestListener *listener = NULL);
         void sendChatStats(const char *data, int port, MegaRequestListener *listener = NULL);
-        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, const char *aid, int port, MegaRequestListener *listener = NULL);
         MegaTextChatList *getChatList();
         MegaHandleList *getAttachmentAccess(MegaHandle chatid, MegaHandle h);
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
@@ -2274,6 +2278,8 @@ class MegaApiImpl : public MegaApp
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
         void getMegaAchievements(MegaRequestListener *listener = NULL);
+
+        void catchup(MegaRequestListener *listener = NULL);
 
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
@@ -2374,6 +2380,9 @@ protected:
         RequestQueue requestQueue;
         TransferQueue transferQueue;
         map<int, MegaRequestPrivate *> requestMap;
+
+        // sc requests to close existing wsc and immediately retrieve pending actionpackets
+        RequestQueue scRequestQueue;
 
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;
@@ -2491,6 +2500,7 @@ protected:
         virtual void userattr_update(User*, int, const char*);
 
         virtual void nodes_current();
+        virtual void catchup_result();
 
         virtual void fetchnodes_result(error);
         virtual void putnodes_result(error, targettype_t, NewNode*);
@@ -2661,6 +2671,7 @@ protected:
         // notify about a finished timer
         virtual void timer_result(error);
 
+        void sendPendingScRequest();
         void sendPendingRequests();
         void sendPendingTransfers();
         void updateBackups();
@@ -2931,6 +2942,7 @@ public:
     m_off_t nodesize;
     std::string nodepubauth;
     std::string nodeprivauth;
+    std::string nodechatauth;
     int resultCode;
 
 

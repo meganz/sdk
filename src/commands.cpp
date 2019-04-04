@@ -209,7 +209,7 @@ void CommandGetFA::procresult()
                     {
                         Node::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
-                        it->second->dispatch(client);
+                        it->second->dispatch();
                     }
                     else
                     {
@@ -1859,7 +1859,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
 
         if (u && u->pubk.isvalid())
         {
-            t = u->pubk.encrypt(asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
+            t = u->pubk.encrypt(client->rng, asymmkey, SymmCipher::KEYLENGTH, asymmkey, sizeof asymmkey);
         }
 
         // outgoing handle authentication
@@ -2480,8 +2480,6 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
         endarray();
     }
 
-    notself(client);
-
     tag = ctag;
 }
 
@@ -2537,7 +2535,7 @@ void CommandPutMultipleUAVer::procresult()
                         string prEd255 = tlvRecords->get(EdDSA::TLV_KEY);
                         if (prEd255.size() == EdDSA::SEED_KEY_LENGTH)
                         {
-                            client->signkey = new EdDSA((unsigned char *) prEd255.data());
+                            client->signkey = new EdDSA(client->rng, (unsigned char *) prEd255.data());
                         }
                     }
 
@@ -2610,8 +2608,6 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
 
     endarray();
 
-    notself(client);
-
     tag = ctag;
 }
 
@@ -2657,7 +2653,7 @@ void CommandPutUAVer::procresult()
     }
 }
 
-CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
+CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -2675,8 +2671,6 @@ CommandPutUA::CommandPutUA(MegaClient* client, attr_t at, const byte* av, unsign
     {
         arg(an.c_str(), av, avl);
     }
-
-    notself(client);
 
     tag = ctag;
 }
@@ -2876,7 +2870,7 @@ void CommandGetUA::procresult()
                             }
 
                             // store the value for private user attributes (decrypted version of serialized TLV)
-                            string *tlvString = tlvRecords->tlvRecordsToContainer(&client->key);
+                            string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
                             client->app->getua_result(tlvRecords);
@@ -3643,7 +3637,7 @@ void CommandGetUserQuota::procresult()
                         LOG_debug << "Account full";
                         client->activateoverquota(0);
                     }
-                    else if (details->storage_used >= (details->storage_max * uslw / 10000))
+                    else if (details->storage_used >= (details->storage_max / 10000 * uslw))
                     {
                         LOG_debug << "Few storage space available";
                         client->setstoragestatus(STORAGE_ORANGE);
@@ -4379,6 +4373,7 @@ void CommandFetchNodes::procresult()
                 client->procmcf(&client->json);
                 break;
 
+            case MAKENAMEID5('m', 'c', 'p', 'n', 'a'):   // fall-through
             case MAKENAMEID4('m', 'c', 'n', 'a'):
                 // nodes shared in chatrooms
                 client->procmcna(&client->json);

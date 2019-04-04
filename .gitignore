@@ -25,6 +25,7 @@
 /tests/sdk_test
 /tests/misc_test
 /tests/purge_account
+/tests/sync_test
 examples/megacli
 examples/megasimplesync
 examples/linux/megafuse
@@ -68,6 +69,7 @@ py-compile
 # Documentation generator
 doc/_build
 doc/api
+doc/lib
 doc/sphinx_api
 doc/Doxyfile
 doc/example/lsmega
@@ -89,3 +91,5 @@ megaclient_statecache*
 /third_party/Makefile
 
 /contrib/QtCreator/build-*
+/contrib/cmake/.idea
+/contrib/cmake/cmake-build-*

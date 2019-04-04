@@ -481,8 +481,8 @@ public class MegaApiJava {
      * @param size
      *            Size of the byte array (in bytes).
      */
-    public static void addEntropy(String data, long size) {
-        MegaApi.addEntropy(data, size);
+    public void addEntropy(String data, long size) {
+        megaApi.addEntropy(data, size);
     }
 
     /**
@@ -6928,6 +6928,29 @@ public class MegaApiJava {
      */
     public MegaNode authorizeNode(MegaNode node){
         return megaApi.authorizeNode(node);
+    }
+
+    /**
+     *
+     * Returns a MegaNode that can be downloaded/copied with a chat-authorization
+     *
+     * During preview of chat-links, you need to call this method to authorize the MegaNode
+     * from a node-attachment message, so the API allows to access to it. The parameter to
+     * authorize the access can be retrieved from MegaChatRoom::getAuthorizationToken when
+     * the chatroom in in preview mode.
+     *
+     * You can use MegaApi::startDownload and/or MegaApi::copyNode with the resulting
+     * node with any instance of MegaApi, even if it's logged into another account,
+     * a public folder, or not logged in.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param node MegaNode to authorize
+     * @param cauth Authorization token (public handle of the chatroom in B64url encoding)
+     * @return Authorized node, or NULL if the node can't be authorized
+     */
+    public MegaNode authorizeChatNode(MegaNode node, String cauth){
+        return megaApi.authorizeChatNode(node, cauth);
     }
 
     /**

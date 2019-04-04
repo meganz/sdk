@@ -6053,7 +6053,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Even if files are allowed to be served by this function, restrictions related to
  * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
  *
- * @param YES to allow to server files, NO to forbid it
+ * @param enable YES to allow to server files, NO to forbid it
  */
 - (void)httpServerEnableFileServer:(BOOL)enable;
 
@@ -6077,7 +6077,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Even if folders are allowed to be served by this function, restrictions related to
  * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
  *
- * @param YES to allow to server folders, NO to forbid it
+ * @param enable YES to allow to server folders, NO to forbid it
  */
 - (void)httpServerEnableFolderServer:(BOOL)enable;
 
@@ -6125,7 +6125,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * other configuration options ([MEGASdk httpServerEnableFileServer],
  * [MEGASdk httpServerEnableFolderServer]) are still applied.
  *
- * @param Required state for the restricted mode of the HTTP proxy server
+ * @param mode Required state for the restricted mode of the HTTP proxy server
  */
 - (void)httpServerSetRestrictedMode:(NSInteger)mode;
 

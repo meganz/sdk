@@ -221,6 +221,9 @@ public:
 
     // the verified account phone number, filled in from 'ug'
     string sms_verifiedphone;
+	
+    // pseudo-random number generator
+    PrnGen rng;
 
 #ifdef ENABLE_CHAT
     // all chats
@@ -467,6 +470,8 @@ public:
     // close all open HTTP connections
     void disconnect();
 
+    // close server-client HTTP connection
+    void catchup();
     // abort lock request
     void abortlockrequest();
 
@@ -498,7 +503,7 @@ public:
     void sendchatstats(const char*, int port);
 
     // send chat logs with user's annonymous id
-    void sendchatlogs(const char*, const char*);
+    void sendchatlogs(const char*, const char*, int port);
 
     // send a HTTP request
     void httprequest(const char*, int, bool = false, const char* = NULL, int = 1);
@@ -799,7 +804,7 @@ private:
     void sc_ph();
     void sc_se();
 #ifdef ENABLE_CHAT
-    void sc_chatupdate();
+    void sc_chatupdate(bool readingPublicChat);
     void sc_chatnode();
     void sc_chatflags();
 #endif

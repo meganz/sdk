@@ -1031,6 +1031,8 @@ class MegaNode
         virtual std::string getLocalPath();
 #endif
 
+        virtual MegaHandle getOwner() const;
+
         /**
          * @brief Provides a serialization of the MegaNode object
          *
@@ -2454,6 +2456,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
+            TYPE_CATCHUP,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TOTAL_OF_REQUEST_TYPES
         };
@@ -5767,6 +5770,7 @@ class MegaApi
         };
 
         enum {
+            USER_ATTR_UNKNOWN = -1,
             USER_ATTR_AVATAR = 0,               // public - char array
             USER_ATTR_FIRSTNAME = 1,            // public - char array
             USER_ATTR_LASTNAME = 2,             // public - char array
@@ -6202,7 +6206,7 @@ class MegaApi
          * @param data Byte array with random data
          * @param size Size of the byte array (in bytes)
          */
-        static void addEntropy(char* data, unsigned int size);
+        void addEntropy(char* data, unsigned int size);
 
 #ifdef WINDOWS_PHONE
         /**
@@ -8039,6 +8043,33 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(int type, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the name associated to a user attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param attr Attribute
+         * @return name associated to the user attribute
+         */
+        const char *userAttributeToString(int attr);
+
+        /**
+         * @brief Get the long descriptive name associated to a user attribute
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param attr Attribute
+         * @return descriptive name associated to the user attribute
+         */
+        const char *userAttributeToLongName(int attr);
+
+        /**
+         * @brief Get numeric value for user attribute given a string
+         * @param name Name of the attribute
+         * @return numeric value for user attribute
+         */
+        int userAttributeFromString(const char *name);
 
         /**
          * @brief Get the email address of any user in MEGA.
@@ -11618,10 +11649,11 @@ class MegaApi
          * @param parentHandle Handle of the parent node
          * @param privateAuth Private authentication token to access the node
          * @param publicAuth Public authentication token to access the node
+         * @param chatAuth Chat authentication token to access the node
          * @return MegaNode object
          */
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name,
-                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth);
+                                       int64_t size, int64_t mtime, MegaHandle parentHandle, const char *privateAuth, const char *publicAuth, const char *chatAuth);
 
         /**
          * @brief Create a MegaNode that represents a folder of a different account
@@ -13214,6 +13246,7 @@ class MegaApi
          * - MegaRequest::getName - Returns the data provided.
          * - MegaRequest::getSessionKey - Returns the aid provided
          * - MegaRequest::getParamType - Returns number 2
+         * - MegaRequest::getNumber - Returns the connection port
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -13223,9 +13256,10 @@ class MegaApi
          *
          * @param data JSON data to send to the logs server
          * @param aid User's anonymous identifier for logging
+         * @param port Server port to connect
          * @param listener MegaRequestListener to track this request
          */
-        void sendChatLogs(const char *data, const char *aid, MegaRequestListener *listener = NULL);
+        void sendChatLogs(const char *data, const char *aid, int port = 0, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the list of chatrooms for this account
@@ -13497,6 +13531,12 @@ class MegaApi
         void getMegaAchievements(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Catch up with API for pending actionpackets
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CATCHUP
+         *
+         * When onRequestFinish is called with MegaError::API_OK, the SDK is guaranteed to be
+         * up to date (as for the time this function is called).
          * @brief Send a verification code txt to the supplied phone number
          *
          * Sends a 6 digit code to the user's phone.  The number is supplied in this function call.
@@ -13514,7 +13554,8 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
-
+        
+		void catchup(MegaRequestListener *listener = NULL);
         /**
          * @brief Check a verification code that the user should have received via txt
          *

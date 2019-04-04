@@ -33,6 +33,7 @@
 namespace mega {
 
 Transfer::Transfer(MegaClient* cclient, direction_t ctype)
+    : bt(cclient->rng)
 {
     type = ctype;
     client = cclient;
@@ -129,13 +130,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&metamac, sizeof(metamac));
     d->append((const char*)transferkey, sizeof (transferkey));
 
-    ll = (unsigned short)chunkmacs.size();
-    d->append((char*)&ll, sizeof(ll));
-    for (chunkmac_map::iterator it = chunkmacs.begin(); it != chunkmacs.end(); it++)
-    {
-        d->append((char*)&it->first, sizeof(it->first));
-        d->append((char*)&it->second, sizeof(it->second));
-    }
+    chunkmacs.serialize(*d);
 
     if (!FileFingerprint::serialize(d))
     {
@@ -221,23 +216,11 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     t->localfilename.assign(filepath, ll);
 
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-
-    if (ptr + ll * (sizeof(m_off_t) + sizeof(ChunkMAC)) + sizeof(ll) > end)
+    if (!t->chunkmacs.unserialize(ptr, end))
     {
         LOG_err << "Transfer unserialization failed - chunkmacs too long";
         delete t;
         return NULL;
-    }
-
-    for (int i = 0; i < ll; i++)
-    {
-        m_off_t pos = MemAccess::get<m_off_t>(ptr);
-        ptr += sizeof(m_off_t);
-
-        memcpy(&(t->chunkmacs[pos]), ptr, sizeof(ChunkMAC));
-        ptr += sizeof(ChunkMAC);
     }
 
     d->erase(0, ptr - d->data());

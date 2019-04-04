@@ -115,6 +115,9 @@ struct MEGA_API MegaApp
     // nodes now (nearly) current
     virtual void nodes_current() { }
 
+    // up to date with API (regarding actionpackets)
+    virtual void catchup_result() { }
+
     // node addition has failed
     virtual void putnodes_result(error, targettype_t, NewNode*) { }
 
