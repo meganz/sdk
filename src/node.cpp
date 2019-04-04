@@ -755,7 +755,7 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
     char buf[24];
 
     sprintf(buf, ":%u*", t);
-    return fileattrstring->find(buf) + 1;
+    return static_cast<int>(fileattrstring->find(buf) + 1);
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful

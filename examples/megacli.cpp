@@ -5226,7 +5226,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "alerts")
                     {
-                        bool shownew = false, showold = false, toggleNotify = false;
+                        bool shownew = false, showold = false;
                         size_t showN = 0; 
                         if (words.size() == 1)
                         {
@@ -5283,7 +5283,7 @@ static void process_line(char* l)
                             {
                                 if ((*i)->relevant)
                                 {
-                                    if (--n < showN || shownew && !(*i)->seen || showold && (*i)->seen)
+                                    if (--n < showN || (shownew && !(*i)->seen) || (showold && (*i)->seen))
                                     {
                                         printAlert(**i);
                                     }

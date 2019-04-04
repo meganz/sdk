@@ -1533,7 +1533,7 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
         }
         else
         {
-            for (unsigned int i = startport; i < endport; i++)
+            for (size_t i = startport; i < endport; i++)
             {
                 int c = url->data()[i];
 

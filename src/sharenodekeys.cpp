@@ -29,7 +29,7 @@ namespace mega {
 // add share node and return its index
 int ShareNodeKeys::addshare(Node* sn)
 {
-    for (int i = shares.size(); i--;)
+    for (int i = static_cast<int>(shares.size()); i--;)
     {
         if (shares[i] == sn)
         {
@@ -39,7 +39,7 @@ int ShareNodeKeys::addshare(Node* sn)
 
     shares.push_back(sn);
 
-    return shares.size() - 1;
+    return static_cast<int>(shares.size() - 1);
 }
 
 void ShareNodeKeys::add(Node* n, Node* sn, int specific)

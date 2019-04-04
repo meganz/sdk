@@ -1115,7 +1115,7 @@ public:
 
     virtual int getType() const;
     virtual const char *getText() const;
-    virtual const int getNumber() const;
+    virtual int getNumber() const;
 
     void setText(const char* text);
     void setNumber(int number);

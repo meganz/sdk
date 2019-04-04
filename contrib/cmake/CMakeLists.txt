@@ -471,3 +471,8 @@ endif(WIN32)
 #add_test(NAME SdkTestStreaming COMMAND test_sdk "--gtest_filter=\"*Streaming*\"")
 #add_test(NAME SdkTestAll COMMAND test_sdk )
 
+if (WIN32)
+    set(CMAKE_CXX_FLAGS "/W4 /wd4503 /wd4996 /wd4702 /wd4100")
+else()
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wconversion -Wno-unused-parameter")
+endif()

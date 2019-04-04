@@ -155,12 +155,12 @@ void GfxProc::loop()
         }
     }
 
-    while (job = requests.pop())
+    while ((job = requests.pop()))
     {
         delete job;
     }
 
-    while (job = responses.pop())
+    while ((job = responses.pop()))
     {
         for (unsigned i = 0; i < job->imagetypes.size(); i++)
         {
@@ -180,7 +180,7 @@ int GfxProc::checkevents(Waiter *)
     GfxJob *job = NULL;
     bool needexec = false;
     SymmCipher key;
-    while (job = responses.pop())
+    while ((job = responses.pop()))
     {
         for (unsigned i = 0; i < job->images.size(); i++)
         {
