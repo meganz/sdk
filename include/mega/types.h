@@ -411,29 +411,31 @@ typedef string_map TLV_map;
 // user attribute types
 typedef enum {
     ATTR_UNKNOWN = -1,
-    ATTR_AVATAR = 0,            // public - char array - non-versioned
-    ATTR_FIRSTNAME = 1,         // public - char array - non-versioned
-    ATTR_LASTNAME = 2,          // public - char array - non-versioned
-    ATTR_AUTHRING = 3,          // private - byte array
-    ATTR_LAST_INT = 4,          // private - byte array
-    ATTR_ED25519_PUBK = 5,      // public - byte array - versioned
-    ATTR_CU25519_PUBK = 6,      // public - byte array - versioned
-    ATTR_KEYRING = 7,           // private - byte array - versioned
-    ATTR_SIG_RSA_PUBK = 8,      // public - byte array - versioned
-    ATTR_SIG_CU255_PUBK = 9,    // public - byte array - versioned
-    ATTR_COUNTRY = 10,          // public - char array - non-versioned
-    ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
-    ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
-    ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
-    ATTR_LANGUAGE = 14,         // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_PWD_REMINDER = 15,     // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_DISABLE_VERSIONS = 16, // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,  // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_RICH_PREVIEWS = 18,     // private - byte array
-    ATTR_RUBBISH_TIME = 19,      // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_LAST_PSA = 20,          // private - char array
-    ATTR_STORAGE_STATE = 21,     // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_GEOLOCATION = 22        // private - byte array
+    ATTR_AVATAR = 0,                        // public - char array - non-versioned
+    ATTR_FIRSTNAME = 1,                     // public - char array - non-versioned
+    ATTR_LASTNAME = 2,                      // public - char array - non-versioned
+    ATTR_AUTHRING = 3,                      // private - byte array
+    ATTR_LAST_INT = 4,                      // private - byte array
+    ATTR_ED25519_PUBK = 5,                  // public - byte array - versioned
+    ATTR_CU25519_PUBK = 6,                  // public - byte array - versioned
+    ATTR_KEYRING = 7,                       // private - byte array - versioned
+    ATTR_SIG_RSA_PUBK = 8,                  // public - byte array - versioned
+    ATTR_SIG_CU255_PUBK = 9,                // public - byte array - versioned
+    ATTR_COUNTRY = 10,                      // public - char array - non-versioned
+    ATTR_BIRTHDAY = 11,                     // public - char array - non-versioned
+    ATTR_BIRTHMONTH = 12,                   // public - char array - non-versioned
+    ATTR_BIRTHYEAR = 13,                    // public - char array - non-versioned
+    ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_RICH_PREVIEWS = 18,                // private - byte array
+    ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_LAST_PSA = 20,                     // private - char array
+    ATTR_STORAGE_STATE = 21,                // private - non-encrypted - char array in B64 - non-versioned
+    ATTR_GEOLOCATION = 22,                  // private - byte array
+    ATTR_CAMERA_UPLOAD_FOLDER = 23,         // private - byte array
+    ATTR_MY_CHAT_FILES_FOLDER = 24          // private - byte array
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 

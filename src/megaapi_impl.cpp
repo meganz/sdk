@@ -1453,6 +1453,14 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_GEOLOCATION;
     }
+    if(user->changed.cameraUploadsFolder)
+    {
+        changed |= MegaUser::CHANGE_TYPE_CAMERA_UPLOAD_FOLDER;
+    }
+    if(user->changed.myChatFilesFolder)
+    {
+        changed |= MegaUser::CHANGE_TYPE_MY_CHAT_FILES_FOLDER;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -4901,6 +4909,8 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_KEYRING:
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
         case MegaApi::USER_ATTR_GEOLOCATION:
+        case MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER:
+        case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
             scope = '*';
             break;
 
@@ -8891,6 +8901,42 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     Base64::btoa(oss.str(), base64value);
     stringMap->set("c", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::getCameraUploadsFolder(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    std::string nodehandleBin((const char*)&nodehandle, sizeof(nodehandle));
+    stringMap->set("h", nodehandleBin.c_str());
+    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER, stringMap, listener);
+    delete stringMap;
+
+}
+
+void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    char buffer[12];
+    Base64::btoa((byte*)&nodehandle, MegaClient::NODEHANDLE, buffer);
+    stringMap->set("h", buffer);
+    setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, stringMap, listener);
     delete stringMap;
 }
 
@@ -13366,40 +13412,58 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         request->setMegaStringMap(stringMap);
 
         // prepare request params to know if a warning should show or not
-        if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
+        switch (request->getParamType())
         {
-            const char *num = stringMap->get("num");
-
-            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+            case MegaApi::USER_ATTR_RICH_PREVIEWS:
             {
-                if (num)
+                const char *num = stringMap->get("num");
+
+                if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
                 {
-                    string sValue = num;
-                    string bValue;
-                    Base64::atob(sValue, bValue);
-                    request->setFlag(bValue == "1");
+                    if (num)
+                    {
+                        string sValue = num;
+                        string bValue;
+                        Base64::atob(sValue, bValue);
+                        request->setFlag(bValue == "1");
+                    }
+                    else
+                    {
+                        request->setFlag(false);
+                    }
                 }
-                else
+                else if (request->getNumDetails() == 1) // used to check if should show warning
                 {
-                    request->setFlag(false);
+                    request->setFlag(!num);
+                    // it doesn't matter the value, just if it exists
+
+                    const char *value = stringMap->get("c");
+                    if (value)
+                    {
+                        string sValue = value;
+                        string bValue;
+                        Base64::atob(sValue, bValue);
+                        request->setNumber(atoi(bValue.c_str()));
+                    }
                 }
+                break;
             }
-            else if (request->getNumDetails() == 1) // used to check if should show warning
+            case MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER:
+            case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
             {
-                request->setFlag(!num);
-                // it doesn't matter the value, just if it exists
-
-                const char *value = stringMap->get("c");
+                const char *value = stringMap->get("h");
                 if (value)
                 {
-                    string sValue = value;
-                    string bValue;
-                    Base64::atob(sValue, bValue);
-                    request->setNumber(atoi(bValue.c_str()));
+                    handle nodehandle;
+                    Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
+                    request->setNodeHandle(nodehandle);
                 }
+                break;
             }
+            default:
+                fireOnRequestFinish(request, MegaError(API_EINTERNAL));
+                break;
         }
-
         delete stringMap;
     }
 

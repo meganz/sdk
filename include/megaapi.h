@@ -1154,27 +1154,29 @@ class MegaUser
 
         enum
         {
-            CHANGE_TYPE_AUTHRING        = 0x01,
-            CHANGE_TYPE_LSTINT          = 0x02,
-            CHANGE_TYPE_AVATAR          = 0x04,
-            CHANGE_TYPE_FIRSTNAME       = 0x08,
-            CHANGE_TYPE_LASTNAME        = 0x10,
-            CHANGE_TYPE_EMAIL           = 0x20,
-            CHANGE_TYPE_KEYRING         = 0x40,
-            CHANGE_TYPE_COUNTRY         = 0x80,
-            CHANGE_TYPE_BIRTHDAY        = 0x100,
-            CHANGE_TYPE_PUBKEY_CU255    = 0x200,
-            CHANGE_TYPE_PUBKEY_ED255    = 0x400,
-            CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
-            CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
-            CHANGE_TYPE_LANGUAGE        = 0x2000,
-            CHANGE_TYPE_PWD_REMINDER    = 0x4000,
-            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
-            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
-            CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
-            CHANGE_TYPE_RUBBISH_TIME    = 0x40000,
-            CHANGE_TYPE_STORAGE_STATE   = 0x80000,
-            CHANGE_TYPE_GEOLOCATION     = 0x100000
+            CHANGE_TYPE_AUTHRING                    = 0x01,
+            CHANGE_TYPE_LSTINT                      = 0x02,
+            CHANGE_TYPE_AVATAR                      = 0x04,
+            CHANGE_TYPE_FIRSTNAME                   = 0x08,
+            CHANGE_TYPE_LASTNAME                    = 0x10,
+            CHANGE_TYPE_EMAIL                       = 0x20,
+            CHANGE_TYPE_KEYRING                     = 0x40,
+            CHANGE_TYPE_COUNTRY                     = 0x80,
+            CHANGE_TYPE_BIRTHDAY                    = 0x100,
+            CHANGE_TYPE_PUBKEY_CU255                = 0x200,
+            CHANGE_TYPE_PUBKEY_ED255                = 0x400,
+            CHANGE_TYPE_SIG_PUBKEY_RSA              = 0x800,
+            CHANGE_TYPE_SIG_PUBKEY_CU255            = 0x1000,
+            CHANGE_TYPE_LANGUAGE                    = 0x2000,
+            CHANGE_TYPE_PWD_REMINDER                = 0x4000,
+            CHANGE_TYPE_DISABLE_VERSIONS            = 0x8000,
+            CHANGE_TYPE_CONTACT_LINK_VERIFICATION   = 0x10000,
+            CHANGE_TYPE_RICH_PREVIEWS               = 0x20000,
+            CHANGE_TYPE_RUBBISH_TIME                = 0x40000,
+            CHANGE_TYPE_STORAGE_STATE               = 0x80000,
+            CHANGE_TYPE_GEOLOCATION                 = 0x100000,
+            CHANGE_TYPE_CAMERA_UPLOAD_FOLDER        = 0x200000,
+            CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000
         };
 
         /**
@@ -5788,7 +5790,9 @@ class MegaApi
             USER_ATTR_RUBBISH_TIME = 19,         // private - byte array
             USER_ATTR_LAST_PSA = 20,             // private - char array
             USER_ATTR_STORAGE_STATE = 21,        // private - char array
-            USER_ATTR_GEOLOCATION = 22           // private - byte array
+            USER_ATTR_GEOLOCATION = 22,          // private - byte array
+            USER_ATTR_CAMERA_UPLOAD_FOLDER = 23, // private - byte array
+            USER_ATTR_MY_CHAT_FILES_FOLDER = 24  // private - byte array
         };
 
         enum {
@@ -7868,7 +7872,12 @@ class MegaApi
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
-         *
+         * MegaApi::ATTR_GEOLOCATION = 22
+         * Get the user geolocation (private)
+         * MegaApi::ATTR_CAMERA_UPLOAD_FOLDER = 23
+         * Get the target folder for Camera Uploads (private)
+         * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
+         * Get the target folder for "My chat files" (private)
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -8791,6 +8800,26 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+
+        /**
+         * TODO ADD DOCUMENTATION
+         */
+        void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * TODO ADD DOCUMENTATION
+         */
+        void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
+
+        /**
+         * TODO ADD DOCUMENTATION
+         */
+        void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * TODO ADD DOCUMENTATION
+         */
+        void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
 
         /**
