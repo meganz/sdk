@@ -452,234 +452,75 @@ char *MegaNodePrivate::serialize()
 
 bool MegaNodePrivate::serialize(string *d)
 {
-    unsigned short ll;
-    bool flag;
+    CacheableWriter w(*d);
+    w.serializecstr(name, true);
+    w.serializecstr(fingerprint, true);
+    w.serializei64(size);
+    w.serializei64(ctime);
+    w.serializei64(mtime);
+    w.serializehandle(nodehandle);
+    w.serializehandle(parenthandle);
+    w.serializestring(attrstring);
+    w.serializestring(nodekey);
+    w.serializestring(privateAuth);
+    w.serializestring(publicAuth);
+    w.serializebool(isPublicNode);
+    w.serializebool(foreign);
 
-    ll = (unsigned short)(name ? strlen(name) + 1 : 0);
-    d->append((char*)&ll, sizeof(ll));
-    d->append(name, ll);
+    bool hasChatAuth = chatAuth && chatAuth[0];
+    bool hasOwner = true;
 
-    ll = (unsigned short)(fingerprint ? strlen(fingerprint) + 1 : 0);
-    d->append((char*)&ll, sizeof(ll));
-    d->append(fingerprint, ll);
-
-    d->append((char*)&size, sizeof(size));
-    d->append((char*)&ctime, sizeof(ctime));
-    d->append((char*)&mtime, sizeof(mtime));
-    d->append((char*)&nodehandle, sizeof(nodehandle));
-    d->append((char*)&parenthandle, sizeof(parenthandle));
-
-    ll = (unsigned short)attrstring.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(attrstring.data(), ll);
-
-    ll = (unsigned short)nodekey.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(nodekey.data(), ll);
-
-    ll = (unsigned short)privateAuth.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(privateAuth.data(), ll);
-
-    ll = (unsigned short)publicAuth.size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(publicAuth.data(), ll);
-
-    flag = isPublicNode;
-    d->append((char*)&flag, sizeof(flag));
-
-    flag = foreign;
-    d->append((char*)&flag, sizeof(flag));
-
-    char hasChatAuth = (chatAuth && chatAuth[0]) ? 1 : 0;
-    d->append((char *)&hasChatAuth, 1);
-
-    char hasOwner = 1;
-    d->append((char *)&hasOwner, 1);
-
-    d->append("\0\0\0\0\0", 6);
+    w.serializeexpansionflags(hasChatAuth, hasOwner);
 
     if (hasChatAuth)
     {
-        ll = (unsigned short) strlen(chatAuth);
-        d->append((char*)&ll, sizeof(ll));
-        d->append(chatAuth, ll);
+        w.serializecstr(chatAuth, false);
     }
-
-    d->append((char *)&owner, sizeof(handle));
+    if (hasOwner)
+    {
+        w.serializehandle(owner);
+    }
 
     return true;
 }
 
 MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
 {
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
-
-    if (ptr + sizeof(unsigned short) > end)
+    CacheableReader r(*d);
+    string name, fingerprint, originalfingerprint, attrstring, nodekey, privauth, pubauth, chatauth;
+    int64_t size, ctime, mtime;
+    MegaHandle nodehandle, parenthandle, owner = INVALID_HANDLE;
+    bool isPublicNode, foreign;
+    unsigned char expansions[8];
+    string fileattrstring; // fileattrstring is not serialized
+    if (!r.unserializecstr(name, true) ||
+        !r.unserializecstr(fingerprint, true) ||
+        !r.unserializei64(size) ||
+        !r.unserializei64(ctime) ||
+        !r.unserializei64(mtime) ||
+        !r.unserializehandle(nodehandle) ||
+        !r.unserializehandle(parenthandle) ||
+        !r.unserializestring(attrstring) ||
+        !r.unserializestring(nodekey) ||
+        !r.unserializestring(privauth) ||
+        !r.unserializestring(pubauth) ||
+        !r.unserializebool(isPublicNode) ||
+        !r.unserializebool(foreign) ||
+        !r.unserializeexpansionflags(expansions, 2) ||
+        (expansions[0] && !r.unserializecstr(chatauth, false)) ||
+        (expansions[1] && !r.unserializehandle(owner)))
     {
-        LOG_err << "MegaNode unserialization failed - data too short";
+        LOG_err << "MegaNode unserialization failed at field " << r.fieldnum;
         return NULL;
     }
 
-    unsigned short namelen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(namelen);
-    if (ptr + namelen + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - name too long";
-        return NULL;
-    }
-    string name;
-    if (namelen)
-    {
-        name.assign(ptr, namelen - 1);
-    }
-    ptr += namelen;
+    r.eraseused(*d);
 
-    unsigned short fingerprintlen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(fingerprintlen);
-    if (ptr + fingerprintlen + sizeof(unsigned short)
-            + sizeof(int64_t) + sizeof(int64_t)
-            + sizeof(int64_t) + sizeof(MegaHandle)
-            + sizeof(MegaHandle) + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - fingerprint too long";
-        return NULL;
-    }
-    string fingerprint;
-    if (fingerprintlen)
-    {
-        fingerprint.assign(ptr, fingerprintlen - 1);
-    }
-    ptr += fingerprintlen;
-
-    int64_t size = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    int64_t ctime = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    int64_t mtime = MemAccess::get<int64_t>(ptr);
-    ptr += sizeof(int64_t);
-
-    MegaHandle nodehandle = MemAccess::get<MegaHandle>(ptr);
-    ptr += sizeof(MegaHandle);
-
-    MegaHandle parenthandle = MemAccess::get<MegaHandle>(ptr);
-    ptr += sizeof(MegaHandle);
-
-    unsigned short ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-    if (ptr + ll + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - attrstring too long";
-        return NULL;
-    }
-    string attrstring;
-    attrstring.assign(ptr, ll);
-    ptr += ll;
-
-    string fileattrstring;  // not serialized
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-    if (ptr + ll + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - nodekey too long";
-        return NULL;
-    }
-    string nodekey;
-    nodekey.assign(ptr, ll);
-    ptr += ll;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-    if (ptr + ll + sizeof(unsigned short) > end)
-    {
-        LOG_err << "MegaNode unserialization failed - auth too long";
-        return NULL;
-    }
-    string privauth;
-    privauth.assign(ptr, ll);
-    ptr += ll;
-
-    ll = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(ll);
-    if (ptr + ll + sizeof(bool) + sizeof(bool) + 8 > end)
-    {
-        LOG_err << "MegaNode unserialization failed - auth too long";
-        return NULL;
-    }
-
-    string pubauth;
-    pubauth.assign(ptr, ll);
-    ptr += ll;
-
-    bool isPublicNode = MemAccess::get<bool>(ptr);
-    ptr += sizeof(bool);
-
-    bool foreign = MemAccess::get<bool>(ptr);
-    ptr += sizeof(bool);
-
-    char hasChatAuth = MemAccess::get<char>(ptr);
-    ptr += sizeof(char);
-
-    char hasOwner = MemAccess::get<handle>(ptr);
-    ptr += sizeof(char);
-
-    if (memcmp(ptr, "\0\0\0\0\0", 6))
-    {
-        LOG_err << "MegaNodePrivate unserialization failed - invalid version";
-        return NULL;
-    }
-    ptr += 6;
-
-    string chatauth;
-    if (hasChatAuth)
-    {
-        if (ptr + sizeof(unsigned short) <= end)
-        {
-            unsigned short chatauthlen = MemAccess::get<unsigned short>(ptr);
-            ptr += sizeof(chatauthlen);
-
-            if (!chatauthlen || ptr + chatauthlen > end)
-            {
-                LOG_err << "MegaNodePrivate unserialization failed - incorrect size of chat auth";
-                return NULL;
-            }
-
-            chatauth.assign(ptr, chatauthlen);
-            ptr += chatauthlen;
-        }
-        else
-        {
-            LOG_err << "MegaNodePrivate unserialization failed - chat auth not found";
-            return NULL;
-        }
-    }
-
-    handle owner = INVALID_HANDLE;
-    if (hasOwner)
-    {
-        if (ptr + sizeof(handle) <= end)
-        {
-            owner = MemAccess::get<handle>(ptr);
-            ptr += sizeof(handle);
-        }
-        else
-        {
-            LOG_err << "MegaNodePrivate unserialization failed - owner not found";
-            return NULL;
-        }
-    }
-
-    d->erase(0, ptr - d->data());
-
-    return new MegaNodePrivate(namelen ? name.c_str() : NULL, FILENODE, size, ctime,
+    return new MegaNodePrivate(name.empty() ? NULL : name.c_str(), FILENODE, size, ctime,
                                mtime, nodehandle, &nodekey, &attrstring, &fileattrstring,
-                               fingerprintlen ? fingerprint.c_str() : NULL, owner,
+                               fingerprint.empty() ? NULL : fingerprint.c_str(), owner,
                                parenthandle, privauth.c_str(), pubauth.c_str(),
-                               isPublicNode, foreign, hasChatAuth ? chatauth.c_str() : NULL);
+                               isPublicNode, foreign, chatauth.empty() ? NULL : chatauth.c_str());
 }
 
 char *MegaNodePrivate::getBase64Handle()
@@ -3597,6 +3438,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PSA: return "GET_PSA";
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
         case TYPE_USERALERT_ACKNOWLEDGE: return "TYPE_USERALERT_ACKNOWLEDGE";
+        case TYPE_CATCHUP: return "CATCHUP";
     }
     return "UNKNOWN";
 }
@@ -5006,9 +4848,9 @@ void MegaApiImpl::setDnsServers(const char *dnsServers, MegaRequestListener *lis
 
 void MegaApiImpl::addEntropy(char *data, unsigned int size)
 {
-    if(PrnGen::rng.CanIncorporateEntropy())
+    if(client && client->rng.CanIncorporateEntropy())
     {
-        PrnGen::rng.IncorporateEntropy((const byte*)data, size);
+        client->rng.IncorporateEntropy((const byte*)data, size);
     }
 
 #ifdef USE_OPENSSL
@@ -5618,6 +5460,7 @@ void MegaApiImpl::loop()
             updateBackups();
             sendPendingTransfers();
             sendPendingRequests();
+            sendPendingScRequest();
             if(threadExit)
                 break;
 
@@ -8861,12 +8704,13 @@ void MegaApiImpl::sendChatStats(const char *data, int port, MegaRequestListener 
     waiter->notify();
 }
 
-void MegaApiImpl::sendChatLogs(const char *data, const char* aid, MegaRequestListener *listener)
+void MegaApiImpl::sendChatLogs(const char *data, const char* aid, int port, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHAT_STATS, listener);
     request->setName(data);
     request->setSessionKey(aid);
     request->setParamType(2);
+    request->setNumber(port);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9082,6 +8926,13 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
     request->setFlag(true);
     requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::catchup(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CATCHUP, listener);
+    scRequestQueue.push(request);
     waiter->notify();
 }
 
@@ -9613,7 +9464,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, int order)
 }
 
 MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
-                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth)
+                                            MegaHandle parentHandle, const char* privateauth, const char *publicauth, const char *chatauth)
 {
     string nodekey;
     string attrstring;
@@ -9621,7 +9472,7 @@ MegaNode *MegaApiImpl::createForeignFileNode(MegaHandle handle, const char *key,
     nodekey.resize(strlen(key) * 3 / 4 + 3);
     nodekey.resize(Base64::atob(key, (byte *)nodekey.data(), int(nodekey.size())));
     return new MegaNodePrivate(name, FILENODE, size, mtime, mtime, handle, &nodekey, &attrstring, &fileattrsting, NULL, INVALID_HANDLE,
-                               parentHandle, privateauth, publicauth, false, true);
+                               parentHandle, privateauth, publicauth, false, true, chatauth);
 }
 
 MegaNode *MegaApiImpl::createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle, const char *privateauth, const char *publicauth)
@@ -10673,6 +10524,10 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
     case PUT:
     {
         file = MegaFilePut::unserialize(d);
+        if (!file)
+        {
+            break;
+        }
         MegaTransferPrivate* transfer = file->getTransfer();
         Node *parent = client->nodebyhandle(transfer->getParentHandle());
         node_vector *nodes = client->nodesbyfingerprint(file);
@@ -13440,13 +13295,16 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
                 {
                     m_time_t currenttime = m_time();
                     bool isMasterKeyExported = User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len);
-                    if (!isMasterKeyExported
-                            && !User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len)
+                    bool isLogout = request->getNumber();
+                    bool pwdDontShow = User::getPwdReminderData(User::PWD_DONT_SHOW, (const char*)data, len);
+                    if ((!isMasterKeyExported
+                            && !pwdDontShow
                             && (currenttime - client->accountsince) > User::PWD_SHOW_AFTER_ACCOUNT_AGE
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SUCCESS, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTSUCCESS
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_LOGIN, (const char*)data, len)) > User::PWD_SHOW_AFTER_LASTLOGIN
                             && (currenttime - User::getPwdReminderData(User::PWD_LAST_SKIPPED, (const char*)data, len)) > (request->getNumber() ? User::PWD_SHOW_AFTER_LASTSKIP_LOGOUT : User::PWD_SHOW_AFTER_LASTSKIP)
                             && (currenttime - client->tsLogin) > User::PWD_SHOW_AFTER_LASTLOGIN)
+                            || (isLogout && !pwdDontShow))
                     {
                         request->setFlag(true); // the password reminder dialog should be shown
                     }
@@ -13585,6 +13443,22 @@ void MegaApiImpl::nodes_current()
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_NODES_CURRENT);
     fireOnEvent(event);
+}
+
+void MegaApiImpl::catchup_result()
+{
+    // sc requests are sent sequentially, it must be the one at front and already started (tag == 1)
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP) || !request->getTag()) return;
+    request = scRequestQueue.pop();
+
+    fireOnRequestFinish(request, API_OK);
+
+    // if there are more sc requests in the queue, send the next one
+    if (scRequestQueue.front())
+    {
+        waiter->notify();
+    }
 }
 
 void MegaApiImpl::ephemeral_result(error e)
@@ -16615,6 +16489,24 @@ void MegaApiImpl::yield()
 #endif
 }
 
+void MegaApiImpl::sendPendingScRequest()
+{
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || request->getTag())
+    {
+        return;
+    }
+    assert(request->getType() == MegaRequest::TYPE_CATCHUP);
+
+    sdkMutex.lock();
+
+    request->setTag(1);
+    fireOnRequestStart(request);
+    client->catchup();
+
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::sendPendingRequests()
 {
     MegaRequestPrivate *request;
@@ -16777,7 +16669,7 @@ void MegaApiImpl::sendPendingRequests()
 			newnode->parenthandle = UNDEF;
 
 			// generate fresh random key for this folder node
-			PrnGen::genblock(buf,FOLDERNODEKEYLENGTH);
+            client->rng.genblock(buf,FOLDERNODEKEYLENGTH);
 			newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 			key.setkey(buf);
 
@@ -17593,7 +17485,7 @@ void MegaApiImpl::sendPendingRequests()
                 delete keys;
 
                 // serialize and encrypt the TLV container
-                string *container = tlv.tlvRecordsToContainer(&client->key);
+                string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
 
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
                 delete container;
@@ -18825,7 +18717,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_TIMER:
         {
             int delta = int(request->getNumber());
-            TimerWithBackoff *twb = new TimerWithBackoff(request->getTag());
+            TimerWithBackoff *twb = new TimerWithBackoff(client->rng, request->getTag());
             twb->backoff(delta);
             e = client->addtimer(twb);
             break;
@@ -19505,16 +19397,16 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            int port = int(request->getNumber());
+            if (port < 0 || port > 65535)
+            {
+                e = API_EARGS;
+                break;
+            }
+
             int type = request->getParamType();
             if (type == 1)
             {
-               int port = int(request->getNumber());
-               if (port < 0 || port > 65535)
-               {
-                   e = API_EARGS;
-                   break;
-               }
-
                client->sendchatstats(json, port);
             }
             else if (type == 2)
@@ -19526,7 +19418,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                client->sendchatlogs(json, aid);
+                client->sendchatlogs(json, aid, port);
             }
             else
             {
@@ -19569,7 +19461,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             TextChat *chat = it->second;
-            if (!chat->group || !chat->publicchat || chat->priv != PRIV_MODERATOR)
+            if (!chat->group || !chat->publicchat || chat->priv == PRIV_RM
+                    || ((del || createifmissing) && chat->priv != PRIV_MODERATOR))
             {
                 e = API_EACCESS;
                 break;
@@ -19896,7 +19789,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 		else
 		{
 			byte buf[FOLDERNODEKEYLENGTH];
-			PrnGen::genblock(buf,sizeof buf);
+            client->rng.genblock(buf,sizeof buf);
 			t->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
 		}
 
@@ -20000,6 +19893,19 @@ MegaRequestPrivate *RequestQueue::pop()
     }
     MegaRequestPrivate *request = requests.front();
     requests.pop_front();
+    mutex.unlock();
+    return request;
+}
+
+MegaRequestPrivate *RequestQueue::front()
+{
+    mutex.lock();
+    if(requests.empty())
+    {
+        mutex.unlock();
+        return NULL;
+    }
+    MegaRequestPrivate *request = requests.front();
     mutex.unlock();
     return request;
 }
@@ -21298,7 +21204,7 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
         else
         {
             byte buf[FOLDERNODEKEYLENGTH];
-            PrnGen::genblock(buf,sizeof buf);
+            client->rng.genblock(buf,sizeof buf);
             t->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
         }
 
@@ -23371,13 +23277,18 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
             oss << "!" << node->getSize();
             string *publicAuth = node->getPublicAuth();
             string *privAuth = node->getPrivateAuth();
+            const char *chatAuth = node->getChatAuth();
             if (privAuth->size())
             {
-                oss << "!" << *privAuth;
+                oss << "!f" << *privAuth;
             }
             else if (publicAuth->size())
             {
-                oss << "!" << *publicAuth;
+                oss << "!p" << *publicAuth;
+            }
+            else if (chatAuth && chatAuth[0])
+            {
+                oss << "!c" << chatAuth;
             }
         }
     }
@@ -24129,18 +24040,32 @@ int MegaHTTPServer::onUrlReceived(http_parser *parser, const char *url, size_t l
                    index += (endptr - startsize) + 1;
                    if (url[index] == '!')
                    {
+                       const char *typeauth = url + index + 1;
+                       index++;
+
                        const char *ptr = url + index + 1;
                        string auth;
                        auth.assign(ptr, endsize - ptr);
-                       if (auth.size() == 8)
+                       if (*typeauth == 'p')
                        {
+                           assert(auth.size() == 8);
                            httpctx->nodepubauth = auth;
                            LOG_debug << "Link public auth: " << auth;
                        }
-                       else
+                       else if (*typeauth == 'c')
+                       {
+                           assert(auth.size() == 8);
+                           httpctx->nodechatauth = auth;
+                           LOG_debug << "Chat link auth: " << auth;
+                       }
+                       else if (*typeauth == 'f')
                        {
                            httpctx->nodeprivauth = auth;
                            LOG_debug << "Link private auth: " << auth;
+                       }
+                       else
+                       {
+                           LOG_err << "Unknown type of auth token: " << *typeauth;
                        }
                        index += auth.size() + 1;
                    }
@@ -24881,7 +24806,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                         h, httpctx->nodekey.c_str(),
                         httpctx->nodename.c_str(),
                         httpctx->nodesize,
-                        -1, UNDEF, httpctx->nodeprivauth.c_str(), httpctx->nodepubauth.c_str());
+                        -1, UNDEF, httpctx->nodeprivauth.c_str(), httpctx->nodepubauth.c_str(), httpctx->nodechatauth.c_str());
         }
         else
         {
@@ -28898,7 +28823,7 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
-const int MegaEventPrivate::getNumber() const
+int MegaEventPrivate::getNumber() const
 {
     return number;
 }

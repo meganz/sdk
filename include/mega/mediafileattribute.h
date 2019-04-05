@@ -54,7 +54,6 @@ struct MEGA_API MediaProperties
     bool is_VFR;
     bool no_audio;
 
-
     MediaProperties();
     bool operator==(const MediaProperties& o) const;
 
@@ -75,6 +74,8 @@ struct MEGA_API MediaProperties
     std::string convertMediaPropertyFileAttributes(uint32_t attributekey[4], MediaFileInfo& mediaInfo);
 #endif
 
+    std::string serialize();
+    MediaProperties(const std::string& deserialize);
 };
 
 struct MEGA_API JSON;

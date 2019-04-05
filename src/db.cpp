@@ -24,7 +24,8 @@
 #include "mega/logging.h"
 
 namespace mega {
-DbTable::DbTable()
+DbTable::DbTable(PrnGen &rng)
+    : rng(rng)
 {
     nextid = 0;
 }
@@ -48,7 +49,7 @@ bool DbTable::put(uint32_t type, Cachable* record, SymmCipher* key)
         return true;
     }
 
-    PaddedCBC::encrypt(&data, key);
+    PaddedCBC::encrypt(rng, &data, key);
 
     if (!record->dbid)
     {
