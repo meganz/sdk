@@ -87,7 +87,8 @@
 #include <sstream>
 #include <vector>
 #include <string>
-#include <map>
+#include <array>
+#include <mutex>
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
@@ -114,17 +115,7 @@ public:
 
 typedef std::vector<std::ostream *> OutputStreams;
 
-class OutputMap : public std::map<enum LogLevel, OutputStreams>
-{
-public:
-    OutputMap() : std::map<enum LogLevel, OutputStreams>()
-    {
-        for (int i = logFatal; i <= logMax; i++)
-        {
-            (*this)[static_cast<LogLevel>(i)];
-        }
-    }
-};
+class OutputMap : public std::array<OutputStreams, unsigned(logMax)+1> {};
 
 class SimpleLogger {
     enum LogLevel level;
@@ -132,15 +123,16 @@ class SimpleLogger {
     std::string t;
     std::string fname;
 
-    OutputStreams getOutput(enum LogLevel ll)
-    {
-        return outputs[ll];
-    }
-
     std::string getTime();
 
-public:
+    // logging can occur from multiple threads, so we need to protect the lists of loggers to send to
+    // though the loggers themselves are presumed to be owned elsewhere, and the pointers must remain valid
+    // actual output to the loggers is not synchronised (at least, not by this class)
+    static std::mutex outputs_mutex;
     static OutputMap outputs;
+    static OutputStreams getOutput(enum LogLevel ll);
+
+public:
     static Logger *logger;
 
     static enum LogLevel logCurrentLevel;
@@ -195,17 +187,10 @@ public:
     }
 
     // register output stream for log level
-    static void addOutput(enum LogLevel ll, std::ostream *os)
-    {
-        outputs[ll].push_back(os);
-    }
+    static void addOutput(enum LogLevel ll, std::ostream *os);
 
     // register output stream for all log levels
-    static void setAllOutputs(std::ostream *os)
-    {
-        for (int i = logFatal; i <= logMax; i++)
-            outputs[static_cast<LogLevel>(i)].push_back(os);
-    }
+    static void setAllOutputs(std::ostream *os);
 
     // set the current log level. all logs which are higher than this level won't be handled
     static void setLogLevel(enum LogLevel ll)
