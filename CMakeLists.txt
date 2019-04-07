@@ -20,7 +20,37 @@ else()
     set(build_type "")
     set(build_type2 "")
 endif()
+if (WIN32)
+    if(EXISTS "C:/Program Files (x86)/7-Zip/7z.exe")
+        SET (7ZIP_EXECUTABLE "C:/Program Files (x86)/7-Zip/7z.exe")
+    elseif(EXISTS "C:/Program Files/7-Zip/7z.exe")
+        SET (7ZIP_EXECUTABLE "C:/Program Files/7-Zip/7z.exe")
+    endif()
+else()
+    SET (7ZIP_EXECUTABLE "7z")
+endif()
+if(NOT EXISTS "${PROJECT_SOURCE_DIR}/3rdparty")
+    if(EXISTS "${PROJECT_SOURCE_DIR}/3rdparty.zip" OR FORCE_OPERATIONS)
+        if (WIN32)
+                message("Extracting cef_binary.tar.bz")
+                execute_process(
+                    COMMAND ${7ZIP_EXECUTABLE} x -y -r 3rdparty.zip
+                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+                    )
+        else()
+                message("Extracting cef_binary.tar.bz")
+                    execute_process(
+                    COMMAND ${CMAKE_COMMAND} -E unzip 3rdparty.zip 
+                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+                    )
+        endif()
+    else()
+        message("Could not find:${PROJECT_SOURCE_DIR}/3rdparty.zip")
+    endif()
+else()
+    message("3RD PARTY DEPENDANCIES FOUND")
 
+endif()
 #file(GLOB SOURCES ${CMAKE_SOURCE_DIR}/${PROJECT_SOURCE_DIR}/src/*.cpp )
 if(NOT DEFINED THIRDPARTY)
     SET(THIRDPARTY ${PROJECT_SOURCE_DIR}/3rdparty)
