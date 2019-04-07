@@ -30,22 +30,40 @@ else()
     SET (7ZIP_EXECUTABLE "7z")
 endif()
 if(NOT EXISTS "${PROJECT_SOURCE_DIR}/3rdparty")
-    if(EXISTS "${PROJECT_SOURCE_DIR}/3rdparty.zip" OR FORCE_OPERATIONS)
+    if(EXISTS "${PROJECT_SOURCE_DIR}/3rdparty.zip")
         if (WIN32)
-                message("Extracting cef_binary.tar.bz")
+                message("Extracting 3rdparty.zip")
                 execute_process(
                     COMMAND ${7ZIP_EXECUTABLE} x -y -r 3rdparty.zip
                     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
                     )
         else()
-                message("Extracting cef_binary.tar.bz")
+                message("Extracting ${PROJECT_SOURCE_DIR}/3rdparty.zip")
                     execute_process(
-                    COMMAND ${CMAKE_COMMAND} -E unzip 3rdparty.zip 
+                        COMMAND ${7ZIP_EXECUTABLE} x -y -r 3rdparty.zip
                     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
                     )
         endif()
     else()
-        message("Could not find:${PROJECT_SOURCE_DIR}/3rdparty.zip")
+        message("Could not find:${PROJECT_SOURCE_DIR}/3rdparty.zip Downloading")
+        file(DOWNLOAD "https://github.com/kenkit/Cloud_Commander_UI/blob/master/3rdparty.zip?raw=true" ${PROJECT_SOURCE_DIR}/3rdparty.zip  SHOW_PROGRESS STATUS status)
+        if(NOT status EQUAL 0)
+            message("Download failed!")
+            file(REMOVE  ${PROJECT_SOURCE_DIR}/3rdparty.zip)
+        endif()
+        if (WIN32)
+                message("Extracting ${PROJECT_SOURCE_DIR}/3rdparty.zip")
+                execute_process(
+                    COMMAND ${7ZIP_EXECUTABLE} x -y -r ${PROJECT_SOURCE_DIR}/3rdparty.zip
+                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+                    )
+        else()
+                message("Extracting ${PROJECT_SOURCE_DIR}/3rdparty.zip")
+                    execute_process(
+                        COMMAND ${7ZIP_EXECUTABLE} x -y -r ${PROJECT_SOURCE_DIR}/3rdparty.zip
+                    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+                    )
+        endif()
     endif()
 else()
     message("3RD PARTY DEPENDANCIES FOUND")
