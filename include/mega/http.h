@@ -278,11 +278,9 @@ struct MEGA_API HttpReq
         ~http_buf_t();
         void swap(http_buf_t& other);
         bool isNull();
+
     private: 
         byte* buf;
-    private:
-        http_buf_t(const http_buf_t&); // prevent accidental copying since the buffer can only be owned by one
-        void operator=(const http_buf_t&);
     };
     
     // give up ownership of the buffer for client to use.  The caller is the new owner of the http_buf_t, and the HttpReq no longer has the buffer or any info about it.
