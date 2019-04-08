@@ -24,6 +24,7 @@
 #include "mega/logging.h"
 #include "mega/proxy.h"
 #include "mega/base64.h"
+#include "mega/testhooks.h"
 
 #if defined(WIN32) && !defined(WINDOWS_PHONE)
 #include <winhttp.h>
@@ -356,6 +357,8 @@ void HttpReq::post(MegaClient* client, const char* data, unsigned len)
     contentlength = -1;
     lastdata = Waiter::ds;
 
+    DEBUG_TEST_HOOK_HTTPREQ_POST(this)
+
     httpio->post(this, data, len);
 }
 
@@ -490,6 +493,56 @@ void HttpReq::put(void* data, unsigned len, bool purge)
     bufpos += len;
 }
 
+
+HttpReq::http_buf_t::http_buf_t(byte* b, size_t s, size_t e)
+    : start(s), end(e), buf(b)
+{
+}
+
+HttpReq::http_buf_t::~http_buf_t()
+{
+    delete[] buf;
+}
+
+void HttpReq::http_buf_t::swap(http_buf_t& other)
+{
+    byte* tb = buf; buf = other.buf; other.buf = tb;
+    size_t ts = start; start = other.start; other.start = ts;
+    size_t te = end; end = other.end; other.end = te;
+}
+
+bool HttpReq::http_buf_t::isNull()
+{
+    return buf == NULL;
+}
+
+byte* HttpReq::http_buf_t::datastart()
+{ 
+    return buf + start; 
+}
+
+size_t HttpReq::http_buf_t::datalen() 
+{ 
+    return end - start; 
+}
+
+
+// give up ownership of the buffer for client to use.  
+struct HttpReq::http_buf_t* HttpReq::release_buf()
+{
+    HttpReq::http_buf_t* result = new HttpReq::http_buf_t(buf, inpurge, (size_t)bufpos);
+    buf = NULL;
+    inpurge = 0;
+    buflen = 0;
+    bufpos = 0;
+    outpos = 0;
+    notifiedbufpos = 0;
+    contentlength = -1;
+    in.clear();
+    return result;
+}
+
+
 char* HttpReq::data()
 {
     return (char*)in.data() + inpurge;
@@ -563,6 +616,12 @@ m_off_t HttpReq::transferred(MegaClient*)
     }
 }
 
+HttpReqDL::HttpReqDL()
+    : dlpos(0)
+    , buffer_released(false)
+{
+}
+
 // prepare file chunk download
 void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
                         chunkmac_map* /*macs*/, uint64_t /*ctriv*/, m_off_t pos,
@@ -575,6 +634,7 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
 
     dlpos = pos;
     size = (unsigned)(npos - pos);
+    buffer_released = false;
 
     if (!buf || buflen != size)
     {
@@ -593,50 +653,7 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
     }
 }
 
-// decrypt, mac and write downloaded chunk
-void HttpReqDL::finalize(Transfer *transfer)
-{
-    byte *chunkstart = buf;
-    m_off_t startpos = dlpos;
-    m_off_t finalpos = startpos + bufpos;
-    assert(finalpos <= transfer->size);
-    if (finalpos != transfer->size)
-    {
-        finalpos &= -SymmCipher::BLOCKSIZE;
-        bufpos &= -SymmCipher::BLOCKSIZE;
-    }
 
-    m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
-    m_off_t chunksize = endpos - startpos;
-    SymmCipher *cipher = transfer->transfercipher();
-    while (chunksize)
-    {
-        m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
-        ChunkMAC &chunkmac = chunkmacs[chunkid];
-        if (!chunkmac.finished)
-        {
-            chunkmac = transfer->chunkmacs[chunkid];
-            cipher->ctr_crypt(chunkstart, chunksize, startpos, transfer->ctriv,
-                                    chunkmac.mac, false, !chunkmac.finished && !chunkmac.offset);
-            if (endpos == ChunkedHash::chunkceil(chunkid, transfer->size))
-            {
-                LOG_debug << "Finished chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-                chunkmac.finished = true;
-                chunkmac.offset = 0;
-            }
-            else
-            {
-                LOG_debug << "Decrypted partial chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-                chunkmac.finished = false;
-                chunkmac.offset += chunksize;
-            }
-        }
-        chunkstart += chunksize;
-        startpos = endpos;
-        endpos = ChunkedHash::chunkceil(startpos, finalpos);
-        chunksize = endpos - startpos;
-    }
-}
 
 // prepare chunk for uploading: mac and encrypt
 void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,

@@ -82,14 +82,16 @@ doc/example/lsmega
 *~
 Debug
 Release
+/contrib/QtCreator/build-*
+/contrib/QtCreator/MEGAcli/MEGAcli.pro.user
+/contrib/QtCreator/MEGAtests/MEGAtests.pro.user
+/contrib/QtCreator/MEGAsymplesync/MEGAsymplesync.pro.user
 /contrib/QtCreator/megacli.creator.user
+/contrib/cmake/cmake-build-*
+/contrib/cmake/.idea
 megaclient_statecache*
 
 # Mega SDK runtime
 *.db-journal
 
 /third_party/Makefile
-
-/contrib/QtCreator/build-*
-/contrib/cmake/.idea
-/contrib/cmake/cmake-build-*

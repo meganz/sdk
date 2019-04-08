@@ -152,3 +152,5 @@
 ../../include/mega/version.h
 ../../src/mediafileattribute.cpp
 ../../include/mega/mediafileattribute.h
+../../include/mega/raid.h
+../../src/raid.cpp
