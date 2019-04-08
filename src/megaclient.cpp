@@ -1983,6 +1983,7 @@ void MegaClient::exec()
             }
             pendingsc->posturl.append(auth);
             pendingsc->type = REQ_JSON;
+            LOG_debug << "Sending keep-alive to waitd";
             pendingsc->post(this);
             jsonsc.pos = NULL;
         }
@@ -3503,6 +3504,21 @@ void MegaClient::disconnect()
     app->notify_disconnect();
 }
 
+// force retrieval of pending actionpackets immediately
+// by closing pending sc, reset backoff and clear waitd URL
+void MegaClient::catchup()
+{
+    if (pendingsc)
+    {
+        pendingsc->disconnect();
+
+        delete pendingsc;
+        pendingsc = NULL;
+    }
+    btcs.reset();
+    scnotifyurl.clear();
+}
+
 void MegaClient::abortlockrequest()
 {
     delete workinglockcs;
@@ -3916,6 +3932,7 @@ bool MegaClient::procsc()
                             useralerts.begincatchup = true;
                         }
                     }
+                    app->catchup_result();
                     return true;
 
                 case 'a':
@@ -3956,7 +3973,9 @@ bool MegaClient::procsc()
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
                     {
+#ifdef ENABLE_CHAT
                         bool readingPublicChat = false;
+#endif
                         switch (name)
                         {
                             case 'u':

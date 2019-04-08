@@ -35,8 +35,14 @@ set (USE_LIBUV 0 CACHE TYPE BOOL)
 
 if (WIN32)
     set (NO_READLINE 1 CACHE TYPE BOOL)
-    set (USE_PREBUILT_3RDPARTY 0 CACHE TYPE BOOL)
-    set (HAVE_LIBUV ${USE_LIBUV})
+    set (UNCHECKED_ITERATORS 0 CACHE TYPE BOOL)
+    set(USE_PREBUILT_3RDPARTY 0 CACHE TYPE BOOL)
+    set(HAVE_LIBUV ${USE_LIBUV})
+    IF (USE_WEBRTC)
+        IF ("${WebRtcDir}" STREQUAL "")
+            SET (WebRtcDir "${Mega3rdPartyDir}/libwebrtc/build32debug")
+        ENDIF()
+    ENDIF()
 else(WIN32)
     set(NO_READLINE 0)
     set(USE_PREBUILT_3RDPARTY 0)
@@ -499,3 +505,15 @@ endif(WIN32)
 #add_test(NAME SdkTestStreaming COMMAND test_sdk "--gtest_filter=\"*Streaming*\"")
 #add_test(NAME SdkTestAll COMMAND test_sdk )
 
+if (WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4201")  # nameless struct/union (nonstandard)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4100")  # unreferenced formal parameter
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4706")  # assignment within conditional
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4458")  # identifier hides class member
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4324")  # structure was padded due to alignment specifier (common in Sodium)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
+    #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
+endif()

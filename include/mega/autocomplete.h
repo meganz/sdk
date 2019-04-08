@@ -266,6 +266,6 @@ namespace autocomplete {
     ACN remoteFSFolder(MegaClient*, ::mega::handle*, const std::string descriptionPrefix = "");
     ACN contactEmail(MegaClient*);
 
-}}; //namespaces
+}} //namespaces
 #endif
 #endif

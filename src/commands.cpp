@@ -2902,7 +2902,14 @@ void CommandGetUA::procresult()
 
                     if (!u) // retrieval of attributes without contact-relationship
                     {
-                        client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                        if (at == ATTR_AVATAR && buf == "none")
+                        {
+                            client->app->getua_result(API_ENOENT);
+                        }
+                        else
+                        {
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                        }
                         return;
                     }
 

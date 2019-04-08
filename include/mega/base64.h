@@ -49,17 +49,17 @@ struct Base64Str
     Base64Str(const byte* b)
     {
         int n = Base64::btoa(b, BINARYSIZE, chars);
-        assert(n + 1 == sizeof(chars));
+        assert(static_cast<size_t>(n + 1) == sizeof(chars));
     }
     Base64Str(const byte* b, int size)
     {
         int n = Base64::btoa(b, size, chars);
-        assert(n + 1 <= (int)sizeof(chars));
+        assert(static_cast<size_t>(n + 1) <= sizeof(chars));
     }
     Base64Str(const handle& h)
     {
         int n = Base64::btoa((const byte*)&h, BINARYSIZE, chars);
-        assert(n + 1 == sizeof(chars));
+        assert(static_cast<size_t>(n + 1) == sizeof(chars));
     }
     operator const char* () const
     {

@@ -1,8 +1,8 @@
 diff --git a/toolchain/win/BUILD.gn b/toolchain/win/BUILD.gn
-index 43fecc65d..cb6ccd6fd 100644
+index a7d7bfd9..102a8f1d 100644
 --- a/toolchain/win/BUILD.gn
 +++ b/toolchain/win/BUILD.gn
-@@ -198,7 +198,7 @@ template("msvc_toolchain") {
+@@ -205,7 +205,7 @@ template("msvc_toolchain") {
      }
  
      tool("rc") {
