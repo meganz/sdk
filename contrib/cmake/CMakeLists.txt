@@ -29,12 +29,22 @@ set (ENABLE_SYNC 1 CACHE TYPE BOOL)
 set (ENABLE_CHAT 0 CACHE TYPE BOOL)
 set (HAVE_FFMPEG 1 CACHE TYPE BOOL)
 set (USE_WEBRTC 0 CACHE TYPE BOOL)
+set (USE_LIBUV 0 CACHE TYPE BOOL)
 
 if (WIN32)
     set (NO_READLINE 1 CACHE TYPE BOOL)
     set (UNCHECKED_ITERATORS 0 CACHE TYPE BOOL)
+    set(USE_PREBUILT_3RDPARTY 0 CACHE TYPE BOOL)
+    set(HAVE_LIBUV ${USE_LIBUV})
+    IF (USE_WEBRTC)
+        IF ("${WebRtcDir}" STREQUAL "")
+            SET (WebRtcDir "${Mega3rdPartyDir}/libwebrtc/build32debug")
+        ENDIF()
+    ENDIF()
 else(WIN32)
     set(NO_READLINE 0)
+    set(USE_PREBUILT_3RDPARTY 0)
+    set(HAVE_LIBUV 0)
 endif(WIN32)
 
 if (ENABLE_CHAT AND NOT USE_SODIUM)
@@ -77,6 +87,7 @@ ELSE(WIN32)
     link_directories( "${vcpkg_dir}/lib" )
 ENDIF(WIN32)
 
+
 if (NOT CMAKE_BUILD_TYPE)
     message("Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
 else(NOT CMAKE_BUILD_TYPE)
@@ -89,7 +100,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 
 # node deletion in debug under VC++ is pretty slow without this.  However libraries we depend on need to be built with the same setting or linking fails 
 # (hence the build3rdParty script using the xNN-windows-static-uncheckediterators triplets)
-if (UNCHECKED_ITERATORS)
+if (UNCHECKED_ITERATORS OR NOT USE_PREBUILT_3RDPARTY)
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
 endif()
 
@@ -100,15 +111,17 @@ add_definitions( -DNOMINMAX -DUSE_CPPTHREAD )  # also don't allow min and max ma
 endif()
 
 IF(WIN32)
-    #Link against the static C/C++ libraries on windows
-    foreach(flag_var
-            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE 
-            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-       if(${flag_var} MATCHES "/MD")
-          string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-       endif(${flag_var} MATCHES "/MD")
-    endforeach(flag_var)
+    IF (NOT USE_PREBUILT_3RDPARTY)
+        #Link against the static C/C++ libraries on windows
+        foreach(flag_var
+                CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE 
+                CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+                CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+           if(${flag_var} MATCHES "/MD")
+              string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+           endif(${flag_var} MATCHES "/MD")
+        endforeach(flag_var)
+    ENDIF()
 ENDIF(WIN32)
 
 include(CheckIncludeFile)
@@ -155,102 +168,144 @@ function(ImportHeaderLibrary libName includeDir)
 endfunction(ImportHeaderLibrary)
 
 IF(WIN32)
+    if(USE_PREBUILT_3RDPARTY)
+    
+        ImportVcpkgLibrary(z               "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/zlibstat.lib" "${prebuilt_dir}/libs/x32/zlibstat.lib") 	
+        
+        IF(USE_CRYPTOPP)
+            ImportVcpkgLibrary(cryptopp        "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/cryptopp.lib"  "${prebuilt_dir}/libs/x32/cryptopp.lib")
+        ENDIF(USE_CRYPTOPP)
 
-    IF(USE_CRYPTOPP)
-    ImportVcpkgLibrary(cryptopp        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cryptopp-static.lib"  "${vcpkg_dir}/lib/cryptopp-static.lib")
-    ENDIF(USE_CRYPTOPP)
+        IF(USE_CURL)
+            ImportVcpkgLibrary(curl        "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/libcurl.lib"  "${prebuilt_dir}/libs/x32/libcurl.lib")
+            ImportVcpkgLibrary(cares       "${prebuilt_dir}/include/cares" "${prebuilt_dir}/libs/x32d/cares.lib" "${prebuilt_dir}/libs/x32/cares.lib")
+        ENDIF(USE_CURL)
+        
+        IF(USE_SODIUM)
+            ImportVcpkgLibrary(sodium      "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/sodium.lib"  "${prebuilt_dir}/libs/x32/sodium.lib")
+        ENDIF(USE_SODIUM)
+        
+        IF(USE_OPENSSL)
+            ImportVcpkgLibrary(ssl         "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/ssleay32.lib" "${prebuilt_dir}/libs/x32/ssleay32.lib")
+            ImportVcpkgLibrary(crypto      "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/libeay32.lib" "${prebuilt_dir}/libs/x32/libeay32.lib")
+        ENDIF(USE_OPENSSL)
+        
+        IF(USE_MEDIAINFO)
+            ImportVcpkgLibrary(mediainfo    "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/MediaInfo.lib" "${prebuilt_dir}/libs/x32/MediaInfo.lib")
+            ImportVcpkgLibrary(zen      	"${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/ZenLib.lib" "${prebuilt_dir}/libs/x32/ZenLib.lib")
+        ENDIF(USE_MEDIAINFO)
+        
+        IF(HAVE_FFMPEG)
+            ImportVcpkgLibrary(ffmpeg_avformat "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
+            ImportVcpkgLibrary(ffmpeg_avutil "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
+            ImportVcpkgLibrary(ffmpeg_avcodec "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
+            ImportVcpkgLibrary(ffmpeg_avfilter "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
+            ImportVcpkgLibrary(ffmpeg_avdevice "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
+        ENDIF(HAVE_FFMPEG)
+        
+        IF(USE_LIBUV)
+            ImportVcpkgLibrary(uv       "${prebuilt_dir}/include/libuv" "${prebuilt_dir}/libs/x32d/libuv.lib" "${prebuilt_dir}/libs/x32/libuv.lib")
+            SET(HAVE_LIBUV 1)
+        ENDIF(USE_LIBUV)
+        
+    else(USE_PREBUILT_3RDPARTY)
 
-    IF(USE_SODIUM)
-        ImportVcpkgLibrary(sodium      "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
-    ENDIF(USE_SODIUM)
+        IF(USE_CRYPTOPP)
+            ImportVcpkgLibrary(cryptopp        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cryptopp-static.lib"  "${vcpkg_dir}/lib/cryptopp-static.lib")
+        ENDIF(USE_CRYPTOPP)
 
-    IF(USE_CURL)
-        IF(USE_WEBRTC)
-            ImportVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
-        ELSE()
-            ImportVcpkgLibrary(curl        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libcurl.lib"  "${vcpkg_dir}/lib/libcurl.lib")
+        IF(USE_SODIUM)
+            ImportVcpkgLibrary(sodium          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libsodium.lib"  "${vcpkg_dir}/lib/libsodium.lib")
+        ENDIF(USE_SODIUM)
+
+        IF(USE_CURL)
+            IF(USE_WEBRTC)
+                ImportVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
+            ELSE()
+                ImportVcpkgLibrary(curl        "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libcurl.lib"  "${vcpkg_dir}/lib/libcurl.lib")
+            ENDIF()
         ENDIF()
-    ENDIF()
-
-    IF(USE_CURL)
-        ImportVcpkgLibrary(cares       "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cares.lib" "${vcpkg_dir}/lib/cares.lib")
-    ENDIF()
-
-    IF(USE_OPENSSL) 
-        IF(USE_WEBRTC)
-            include_directories( "${WebRtcDir}/webrtc/src/third_party/boringssl/src/include" )
-        ELSE()
-            ImportVcpkgLibrary(ssl         "${vcpkg_dir}/include"  ${vcpkg_dir}/debug/lib/ssleay32.lib ${vcpkg_dir}/lib/ssleay32.lib)
-            ImportVcpkgLibrary(crypto      "${vcpkg_dir}/include" ${vcpkg_dir}/debug/lib/libeay32.lib ${vcpkg_dir}/lib/libeay32.lib)
+        IF(USE_CURL)
+            ImportVcpkgLibrary(cares       "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/cares.lib" "${vcpkg_dir}/lib/cares.lib")
         ENDIF()
-    ENDIF()
 
-    IF(USE_WEBRTC)
-        ImportVcpkgLibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
-        add_definitions( -DWEBRTC_WIN )
-    ENDIF()
+        IF(USE_OPENSSL)
+            IF(USE_WEBRTC)
+                include_directories( "${WebRtcDir}/webrtc/src/third_party/boringssl/src/include" )
+            ELSE()
+                ImportVcpkgLibrary(ssl         "${vcpkg_dir}/include"  "${vcpkg_dir}/debug/lib/ssleay32.lib" "${vcpkg_dir}/lib/ssleay32.lib")
+                ImportVcpkgLibrary(crypto      "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libeay32.lib" "${vcpkg_dir}/lib/libeay32.lib")
+            ENDIF()
+        ENDIF()
 
-    ImportVcpkgLibrary(z               "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
+        IF(USE_WEBRTC)
+            ImportVcpkgLibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
+            add_definitions( -DWEBRTC_WIN )
+        ENDIF()
+    
+        ImportVcpkgLibrary(z               "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
 
-    ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/manual-link/gtestd.lib" "${vcpkg_dir}/lib/manual-link/gtest.lib") 
+        ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/manual-link/gtestd.lib" "${vcpkg_dir}/lib/manual-link/gtest.lib") 
 
-    IF(USE_MEDIAINFO)
-        ImportStaticLibrary(mediainfo   "${Mega3rdPartyDir}/MediaInfoLib-mw/Source"
-                                        "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/MediaInfo-Static.lib" 
-                                        "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/MediaInfo-Static.lib"
-                                        "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/MediaInfo-Static.lib"
-                                        "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/MediaInfo-Static.lib")
+        IF(USE_MEDIAINFO)
+            ImportStaticLibrary(mediainfo   "${Mega3rdPartyDir}/MediaInfoLib-mw/Source"
+                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/MediaInfo-Static.lib" 
+                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/MediaInfo-Static.lib"
+                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/MediaInfo-Static.lib"
+                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/MediaInfo-Static.lib")
 
-        ImportStaticLibrary(zen         "${Mega3rdPartyDir}/ZenLib/Source"
-                                        "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/ZenLib.lib"
-                                        "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/ZenLib.lib"
-                                        "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/ZenLib.lib"
-                                        "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/ZenLib.lib")
-    ENDIF(USE_MEDIAINFO)
+            ImportStaticLibrary(zen         "${Mega3rdPartyDir}/ZenLib/Source"
+                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Debug/ZenLib.lib"
+                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/Win32/Release/ZenLib.lib"
+                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Debug/ZenLib.lib"
+                                            "${Mega3rdPartyDir}/MediaInfoLib-mw/Project/MSVC2017/x64/Release/ZenLib.lib")
+        ENDIF(USE_MEDIAINFO)
 
-    IF(USE_FREEIMAGE)
-        ImportVcpkgLibrary(freeimage    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/FreeImaged.lib"  "${vcpkg_dir}/lib/FreeImage.lib")
-        ImportVcpkgLibrary(freeimage_Iex "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/Iex-2_2.lib"  "${vcpkg_dir}/lib/Iex-2_2.lib")
-        ImportVcpkgLibrary(freeimage_IexMath "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IexMath-2_2.lib"  "${vcpkg_dir}/lib/IexMath-2_2.lib")
-        ImportVcpkgLibrary(freeimage_IlmImf "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImf-2_2.lib"  "${vcpkg_dir}/lib/IlmImf-2_2.lib")
-        ImportVcpkgLibrary(freeimage_IlmImfUtil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImfUtil-2_2.lib"  "${vcpkg_dir}/lib/IlmImfUtil-2_2.lib")
-        ImportVcpkgLibrary(freeimage_IlmThread "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmThread-2_2.lib"  "${vcpkg_dir}/lib/IlmThread-2_2.lib")
-        ImportVcpkgLibrary(freeimage_jpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpeg.lib"  "${vcpkg_dir}/lib/jpeg.lib")
-        ImportVcpkgLibrary(freeimage_turbojpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/turbojpeg.lib"  "${vcpkg_dir}/lib/turbojpeg.lib")
-        ImportVcpkgLibrary(freeimage_jpegxr "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpegxrd.lib"  "${vcpkg_dir}/lib/jpegxr.lib")
-        ImportVcpkgLibrary(freeimage_jxrglue "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jxrglued.lib"  "${vcpkg_dir}/lib/jxrglue.lib")
-        ImportVcpkgLibrary(freeimage_openjp2 "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/openjp2.lib"  "${vcpkg_dir}/lib/openjp2.lib")
-        ImportVcpkgLibrary(freeimage_half "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/half.lib"  "${vcpkg_dir}/lib/half.lib")
-        ImportVcpkgLibrary(freeimage_jasper "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jasper.lib"  "${vcpkg_dir}/lib/jasper.lib")
-        ImportVcpkgLibrary(freeimage_libpng "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libpng16d.lib"  "${vcpkg_dir}/lib/libpng16.lib")
-        ImportVcpkgLibrary(freeimage_lzma    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lzma.lib"  "${vcpkg_dir}/lib/lzma.lib")
-        ImportVcpkgLibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcms2d.lib"  "${vcpkg_dir}/lib/lcms2.lib")
-        ImportVcpkgLibrary(freeimage_raw    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/rawd.lib"  "${vcpkg_dir}/lib/raw.lib")
-        ImportVcpkgLibrary(freeimage_swscale  "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swscale.lib"  "${vcpkg_dir}/lib/swscale.lib")
-        ImportVcpkgLibrary(freeimage_swresample "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swresample.lib"  "${vcpkg_dir}/lib/swresample.lib")
-        ImportVcpkgLibrary(freeimage_tiff    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffd.lib"  "${vcpkg_dir}/lib/tiff.lib")
-        ImportVcpkgLibrary(freeimage_tiffxx    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffxxd.lib"  "${vcpkg_dir}/lib/tiffxx.lib")
-        ImportVcpkgLibrary(freeimage_webp    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpd.lib"  "${vcpkg_dir}/lib/webp.lib")
-        ImportVcpkgLibrary(freeimage_webpdecoder    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdecoderd.lib"  "${vcpkg_dir}/lib/webpdecoder.lib")
-        ImportVcpkgLibrary(freeimage_webpdemux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdemuxd.lib"  "${vcpkg_dir}/lib/webpdemux.lib")
-        ImportVcpkgLibrary(freeimage_webpmux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpmuxd.lib"  "${vcpkg_dir}/lib/webpmux.lib")
-    ENDIF(USE_FREEIMAGE)
+        IF(USE_FREEIMAGE)
+            ImportVcpkgLibrary(freeimage    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/FreeImaged.lib"  "${vcpkg_dir}/lib/FreeImage.lib")
+            ImportVcpkgLibrary(freeimage_Iex "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/Iex-2_2.lib"  "${vcpkg_dir}/lib/Iex-2_2.lib")
+            ImportVcpkgLibrary(freeimage_IexMath "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IexMath-2_2.lib"  "${vcpkg_dir}/lib/IexMath-2_2.lib")
+            ImportVcpkgLibrary(freeimage_IlmImf "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImf-2_2.lib"  "${vcpkg_dir}/lib/IlmImf-2_2.lib")
+            ImportVcpkgLibrary(freeimage_IlmImfUtil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmImfUtil-2_2.lib"  "${vcpkg_dir}/lib/IlmImfUtil-2_2.lib")
+            ImportVcpkgLibrary(freeimage_IlmThread "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/IlmThread-2_2.lib"  "${vcpkg_dir}/lib/IlmThread-2_2.lib")
+            ImportVcpkgLibrary(freeimage_jpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpeg.lib"  "${vcpkg_dir}/lib/jpeg.lib")
+            ImportVcpkgLibrary(freeimage_turbojpeg "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/turbojpeg.lib"  "${vcpkg_dir}/lib/turbojpeg.lib")
+            ImportVcpkgLibrary(freeimage_jpegxr "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jpegxrd.lib"  "${vcpkg_dir}/lib/jpegxr.lib")
+            ImportVcpkgLibrary(freeimage_jxrglue "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jxrglued.lib"  "${vcpkg_dir}/lib/jxrglue.lib")
+            ImportVcpkgLibrary(freeimage_openjp2 "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/openjp2.lib"  "${vcpkg_dir}/lib/openjp2.lib")
+            ImportVcpkgLibrary(freeimage_half "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/half.lib"  "${vcpkg_dir}/lib/half.lib")
+            ImportVcpkgLibrary(freeimage_jasper "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/jasper.lib"  "${vcpkg_dir}/lib/jasper.lib")
+            ImportVcpkgLibrary(freeimage_libpng "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libpng16d.lib"  "${vcpkg_dir}/lib/libpng16.lib")
+            ImportVcpkgLibrary(freeimage_lzma    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lzma.lib"  "${vcpkg_dir}/lib/lzma.lib")
+            ImportVcpkgLibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcms2d.lib"  "${vcpkg_dir}/lib/lcms2.lib")
+            ImportVcpkgLibrary(freeimage_raw    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/rawd.lib"  "${vcpkg_dir}/lib/raw.lib")
+            ImportVcpkgLibrary(freeimage_swscale  "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swscale.lib"  "${vcpkg_dir}/lib/swscale.lib")
+            ImportVcpkgLibrary(freeimage_swresample "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swresample.lib"  "${vcpkg_dir}/lib/swresample.lib")
+            ImportVcpkgLibrary(freeimage_tiff    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffd.lib"  "${vcpkg_dir}/lib/tiff.lib")
+            ImportVcpkgLibrary(freeimage_tiffxx    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffxxd.lib"  "${vcpkg_dir}/lib/tiffxx.lib")
+            ImportVcpkgLibrary(freeimage_webp    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpd.lib"  "${vcpkg_dir}/lib/webp.lib")
+            ImportVcpkgLibrary(freeimage_webpdecoder    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdecoderd.lib"  "${vcpkg_dir}/lib/webpdecoder.lib")
+            ImportVcpkgLibrary(freeimage_webpdemux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpdemuxd.lib"  "${vcpkg_dir}/lib/webpdemux.lib")
+            ImportVcpkgLibrary(freeimage_webpmux    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpmuxd.lib"  "${vcpkg_dir}/lib/webpmux.lib")
+        ENDIF(USE_FREEIMAGE)
 
-    IF(HAVE_FFMPEG)
-        ImportVcpkgLibrary(ffmpeg_avformat "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avformat.lib" "${vcpkg_dir}/lib/avformat.lib")
-        ImportVcpkgLibrary(ffmpeg_avutil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avutil.lib" "${vcpkg_dir}/lib/avutil.lib")
-        ImportVcpkgLibrary(ffmpeg_avcodec "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avcodec.lib" "${vcpkg_dir}/lib/avcodec.lib")
-        ImportVcpkgLibrary(ffmpeg_avfilter "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avfilter.lib" "${vcpkg_dir}/lib/avfilter.lib")
-        ImportVcpkgLibrary(ffmpeg_avdevice "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avdevice.lib" "${vcpkg_dir}/lib/avdevice.lib")
-    ENDIF(HAVE_FFMPEG)
+        IF(HAVE_FFMPEG)
+            ImportVcpkgLibrary(ffmpeg_avformat "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avformat.lib" "${vcpkg_dir}/lib/avformat.lib")
+            ImportVcpkgLibrary(ffmpeg_avutil "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avutil.lib" "${vcpkg_dir}/lib/avutil.lib")
+            ImportVcpkgLibrary(ffmpeg_avcodec "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avcodec.lib" "${vcpkg_dir}/lib/avcodec.lib")
+            ImportVcpkgLibrary(ffmpeg_avfilter "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avfilter.lib" "${vcpkg_dir}/lib/avfilter.lib")
+            ImportVcpkgLibrary(ffmpeg_avdevice "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avdevice.lib" "${vcpkg_dir}/lib/avdevice.lib")
+        ENDIF(HAVE_FFMPEG)
 
-    IF(USE_SQLITE)
-        ImportVcpkgLibrary(sqlite3          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/sqlite3.lib" "${vcpkg_dir}/lib/sqlite3.lib")
-    ENDIF(USE_SQLITE)
+        IF(USE_SQLITE)
+            ImportVcpkgLibrary(sqlite3          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/sqlite3.lib" "${vcpkg_dir}/lib/sqlite3.lib")
+        ENDIF(USE_SQLITE)
 
+    endif(USE_PREBUILT_3RDPARTY)
+    
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
+    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
     ${MegaDir}/src/win32/consolewaiter.cpp 
@@ -275,7 +330,6 @@ ELSE(WIN32)
     SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
     SET(Mega_PlatformSpecificLibs crypto pthread rt z dl termcap stdc++fs)
-
     IF(USE_WEBRTC)
         ImportVcpkgLibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
         add_definitions( -DWEBRTC_POSIX )
@@ -318,11 +372,13 @@ add_library(Mega STATIC
             ${MegaDir}/src/pendingcontactrequest.cpp 
             ${MegaDir}/src/proxy.cpp 
             ${MegaDir}/src/pubkeyaction.cpp 
+            ${MegaDir}/src/raid.cpp 
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp 
             ${MegaDir}/src/share.cpp 
             ${MegaDir}/src/sharenodekeys.cpp 
             ${MegaDir}/src/sync.cpp 
+            ${MegaDir}/src/testhooks.cpp 
             ${MegaDir}/src/transfer.cpp 
             ${MegaDir}/src/transferslot.cpp 
             ${MegaDir}/src/treeproc.cpp 
@@ -330,7 +386,9 @@ add_library(Mega STATIC
             ${MegaDir}/src/useralerts.cpp 
             ${MegaDir}/src/utils.cpp 
             ${MegaDir}/src/waiterbase.cpp 
-            ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}  )
+            ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}  
+            $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>  
+            $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
@@ -342,8 +400,9 @@ target_link_libraries(Mega PUBLIC z
                 $<${USE_WEBRTC}:webrtc> 
                 $<${USE_CURL}:curl>  
                 $<${USE_CURL}:cares> 
-                $<${USE_SQLITE}:sqlite3> 
+                $<$<NOT:${USE_PREBUILT_3RDPARTY}>:$<${USE_SQLITE}:sqlite3>>
                 $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen> 
+                $<${USE_LIBUV}:uv> 
                 $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:freeimage_IlmImf> $<${USE_FREEIMAGE}:freeimage_IlmImfUtil> $<${USE_FREEIMAGE}:freeimage_IlmThread> $<${USE_FREEIMAGE}:freeimage_Iex> $<${USE_FREEIMAGE}:freeimage_IexMath>
                                               $<${USE_FREEIMAGE}:freeimage_jpeg> $<${USE_FREEIMAGE}:freeimage_turbojpeg> $<${USE_FREEIMAGE}:freeimage_jpegxr> $<${USE_FREEIMAGE}:freeimage_jxrglue> $<${USE_FREEIMAGE}:freeimage_openjp2>
                                               $<${USE_FREEIMAGE}:freeimage_lzma>  $<${USE_FREEIMAGE}:freeimage_lcms2>  $<${USE_FREEIMAGE}:freeimage_raw>  
@@ -364,7 +423,8 @@ target_compile_definitions(Mega PUBLIC
                 $<${ENABLE_CHAT}:ENABLE_CHAT> 
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE> 
-                $<${HAVE_FFMPEG}:HAVE_FFMPEG> )
+                $<${HAVE_FFMPEG}:HAVE_FFMPEG>
+                $<${HAVE_LIBUV}:HAVE_LIBUV>)
 
 if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)
@@ -407,7 +467,27 @@ add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
 target_link_libraries(testmega Mega )
 endif(WIN32)
 
+if(WIN32)
+
+add_executable(tcprelay "${MegaDir}/tests/tcprelay/main.cpp" "${MegaDir}/tests/tcprelay/tcprelay.cpp")
+target_include_directories(tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
+target_compile_definitions(tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
+target_link_libraries(tcprelay Mega Dnsapi.lib)
+endif(WIN32)
+
 #enable_testing()
 #add_test(NAME SdkTestStreaming COMMAND test_sdk "--gtest_filter=\"*Streaming*\"")
 #add_test(NAME SdkTestAll COMMAND test_sdk )
 
+if (WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4201")  # nameless struct/union (nonstandard)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4100")  # unreferenced formal parameter
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4706")  # assignment within conditional
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4458")  # identifier hides class member
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4324")  # structure was padded due to alignment specifier (common in Sodium)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
+    #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
+endif()

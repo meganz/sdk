@@ -10,6 +10,9 @@ CONFIG(release, debug|release) {
 TARGET = MEGAsimplesync
 TEMPLATE = app
 CONFIG += console
+CONFIG -= qt
+
+CONFIG += USE_MEDIAINFO
 
 SOURCES += ../../../examples/megasimplesync.cpp
 include(../../../bindings/qt/sdk.pri)

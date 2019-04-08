@@ -1953,7 +1953,7 @@ using namespace mega;
 #pragma mark - HTTP Proxy Server
 
 - (BOOL)httpServerStart:(BOOL)localOnly port:(NSInteger)port {
-    return self.megaApi->httpServerStart();
+    return self.megaApi->httpServerStart(localOnly, (int)port);
 }
 
 - (void)httpServerStop {

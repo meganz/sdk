@@ -158,7 +158,7 @@ static void ReadShortFormats(std::vector<MediaFileInfo::MediaCodecs::shortformat
         {
             MediaFileInfo::MediaCodecs::shortformatrec rec;
             unsigned id = atoi(json.getvalue());
-            assert(id >= 0 && id < 256);
+            assert(id < 256);
             std::string a, b, c;
             working = json.storeobject(&a) && json.storeobject(&b) && json.storeobject(&c);
             if (working)

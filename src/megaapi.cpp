@@ -2684,6 +2684,11 @@ void MegaApi::startStreaming(MegaNode* node, int64_t startPos, int64_t size, Meg
     pImpl->startStreaming(node, startPos, size, listener);
 }
 
+void MegaApi::setStreamingMinimumRate(int bytesPerSecond)
+{
+    pImpl->setStreamingMinimumRate(bytesPerSecond);
+}
+
 #ifdef ENABLE_SYNC
 
 //Move local files inside synced folders to the "Rubbish" folder.
@@ -3568,6 +3573,11 @@ void MegaApi::getAccountAchievements(MegaRequestListener *listener)
 void MegaApi::getMegaAchievements(MegaRequestListener *listener)
 {
     pImpl->getMegaAchievements(listener);
+}
+
+void MegaApi::catchup(MegaRequestListener *listener)
+{
+    pImpl->catchup(listener);
 }
 
 #ifdef HAVE_LIBUV
@@ -5538,7 +5548,7 @@ const char *MegaEvent::getText() const
     return NULL;
 }
 
-const int MegaEvent::getNumber() const
+int MegaEvent::getNumber() const
 {
     return 0;
 }

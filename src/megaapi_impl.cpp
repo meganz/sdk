@@ -35,6 +35,7 @@
 #include <functional>
 #include <cctype>
 #include <locale>
+#include <thread>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
@@ -3663,6 +3664,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PSA: return "GET_PSA";
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
         case TYPE_USERALERT_ACKNOWLEDGE: return "TYPE_USERALERT_ACKNOWLEDGE";
+        case TYPE_CATCHUP: return "CATCHUP";
         case TYPE_GET_BACKGROUND_UPLOAD_URL: return "TYPE_GET_BACKGROUND_UPLOAD_URL";
     }
     return "UNKNOWN";
@@ -5687,6 +5689,7 @@ void MegaApiImpl::loop()
             updateBackups();
             sendPendingTransfers();
             sendPendingRequests();
+            sendPendingScRequest();
             if(threadExit)
                 break;
 
@@ -7361,6 +7364,12 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
     transfer->setMaxRetries(maxRetries);
     transferQueue.push(transfer);
     waiter->notify();
+}
+
+void MegaApiImpl::setStreamingMinimumRate(int bytesPerSecond)
+{
+    MutexGuard g(sdkMutex);
+    client->minstreamingrate = bytesPerSecond;
 }
 
 void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
@@ -9264,6 +9273,13 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ACHIEVEMENTS, listener);
     request->setFlag(true);
     requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::catchup(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CATCHUP, listener);
+    scRequestQueue.push(request);
     waiter->notify();
 }
 
@@ -13829,6 +13845,22 @@ void MegaApiImpl::nodes_current()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::catchup_result()
+{
+    // sc requests are sent sequentially, it must be the one at front and already started (tag == 1)
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP) || !request->getTag()) return;
+    request = scRequestQueue.pop();
+
+    fireOnRequestFinish(request, API_OK);
+
+    // if there are more sc requests in the queue, send the next one
+    if (scRequestQueue.front())
+    {
+        waiter->notify();
+    }
+}
+
 void MegaApiImpl::ephemeral_result(error e)
 {
 	MegaError megaError(e);
@@ -16856,6 +16888,33 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
     return e;
 }
 
+void MegaApiImpl::yield()
+{
+#if __cplusplus >= 201100L
+    std::this_thread::yield();
+#elif !defined(_WIN32)
+    sched_yield();
+#endif
+}
+
+void MegaApiImpl::sendPendingScRequest()
+{
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || request->getTag())
+    {
+        return;
+    }
+    assert(request->getType() == MegaRequest::TYPE_CATCHUP);
+
+    sdkMutex.lock();
+
+    request->setTag(1);
+    fireOnRequestStart(request);
+    client->catchup();
+
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::sendPendingRequests()
 {
     MegaRequestPrivate *request;
@@ -19840,7 +19899,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             TextChat *chat = it->second;
-            if (!chat->group || !chat->publicchat || chat->priv != PRIV_MODERATOR)
+            if (!chat->group || !chat->publicchat || chat->priv == PRIV_RM
+                    || ((del || createifmissing) && chat->priv != PRIV_MODERATOR))
             {
                 e = API_EACCESS;
                 break;
@@ -20078,8 +20138,9 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(e));
         }
 
-		sdkMutex.unlock();
-	}
+        sdkMutex.unlock();
+        yield();
+    }
 }
 
 char* MegaApiImpl::stringToArray(string &buffer)
@@ -20322,6 +20383,19 @@ MegaRequestPrivate *RequestQueue::pop()
     }
     MegaRequestPrivate *request = requests.front();
     requests.pop_front();
+    mutex.unlock();
+    return request;
+}
+
+MegaRequestPrivate *RequestQueue::front()
+{
+    mutex.lock();
+    if(requests.empty())
+    {
+        mutex.unlock();
+        return NULL;
+    }
+    MegaRequestPrivate *request = requests.front();
     mutex.unlock();
     return request;
 }
@@ -29239,7 +29313,7 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
-const int MegaEventPrivate::getNumber() const
+int MegaEventPrivate::getNumber() const
 {
     return number;
 }

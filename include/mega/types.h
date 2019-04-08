@@ -289,8 +289,6 @@ typedef vector<LocalNode*> localnode_vector;
 
 typedef map<handle, LocalNode*> handlelocalnode_map;
 
-typedef list<LocalNode*> localnode_list;
-
 typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
@@ -344,7 +342,6 @@ typedef vector<handle> handle_vector;
 typedef set<pair<handle, handle> > handlepair_set;
 
 // node and user vectors
-typedef vector<struct NodeCore*> nodecore_vector;
 typedef vector<struct User*> user_vector;
 typedef vector<UserAlert::Base*> useralert_vector;
 typedef vector<struct PendingContactRequest*> pcr_vector;
@@ -358,18 +355,6 @@ typedef map<handle, int> uh_map;
 // maps lowercase user e-mail addresses to userids
 typedef map<string, int> um_map;
 
-// file attribute data
-typedef map<unsigned, string> fadata_map;
-
-// syncid to node handle mapping
-typedef map<handle, handle> syncidhandle_map;
-
-// NewNodes index to syncid mapping
-typedef map<int, handle> newnodesyncid_map;
-
-// for dynamic node addition requests, used by the sync subsystem
-typedef vector<struct NewNode*> newnode_vector;
-
 // file attribute fetch map
 typedef map<handle, FileAttributeFetch*> faf_map;
 
@@ -378,8 +363,6 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
-
-typedef set<pair<int, handle> > fareq_set;
 
 struct StringCmp
 {
@@ -396,14 +379,6 @@ typedef list<DirectReadSlot*> drs_list;
 
 typedef map<const string*, LocalNode*, StringCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
-
-// FIXME: use forward_list instead
-typedef list<NewNode*> newnode_list;
-typedef list<handle> handle_list;
-
-typedef map<handle, NewNode*> handlenewnode_map;
-
-typedef map<handle, char> handlecount_map;
 
 // maps FileFingerprints to node
 typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;

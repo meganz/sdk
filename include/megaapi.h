@@ -2472,6 +2472,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
+            TYPE_CATCHUP,
             TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
             TOTAL_OF_REQUEST_TYPES
         };
@@ -3170,7 +3171,7 @@ public:
      *
      * @return Number relative to this event
      */
-    virtual const int getNumber() const;
+    virtual int getNumber() const;
 };
 
 /**
@@ -9357,6 +9358,20 @@ class MegaApi
         void startStreaming(MegaNode* node, int64_t startPos, int64_t size, MegaTransferListener *listener);
 
         /**
+         * @brief Set the miniumum acceptable streaming speed for streaming transfers
+         *
+         * When streaming a file with startStreaming(), the SDK monitors the transfer rate.
+         * After a few seconds grace period, the monitoring starts. If the average rate is below 
+         * the minimum rate specified (determined by this function, or by default a reasonable rate
+         * for audio/video, then the streaming operation will fail with MegaError::API_EAGAIN.
+         *
+         * @param bytesPerSecond The minimum acceptable rate for streaming.
+         *                       Use -1 to use the default built into the library.
+         *                       Use 0 to prevent the check.
+         */
+        void setStreamingMinimumRate(int bytesPerSecond);
+
+        /**
          * @brief Cancel a transfer
          *
          * When a transfer is cancelled, it will finish and will provide the error code
@@ -13759,6 +13774,18 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Catch up with API for pending actionpackets
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CATCHUP
+         *
+         * When onRequestFinish is called with MegaError::API_OK, the SDK is guaranteed to be
+         * up to date (as for the time this function is called).
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void catchup(MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;
