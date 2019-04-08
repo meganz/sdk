@@ -7075,6 +7075,7 @@ class MegaApi
          *     0: The account is not blocked
          *     200: suspension message for any type of suspension, but copyright suspension.
          *     300: suspension only for multiple copyright violations.
+         *     500: The account needs to be verified by an SMS code.
          *
          * If the error code in the MegaRequest object received in onRequestFinish
          * is MegaError::API_OK, the user is not blocked.
