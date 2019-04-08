@@ -11,6 +11,7 @@ TARGET = MEGAcli
 TEMPLATE = app
 CONFIG += console
 CONFIG += noreadline
+CONFIG -= qt
 
 win32 {
     DEFINES += __STDC_LIMIT_MACROS #this is required to include <thread> or <mutex>
