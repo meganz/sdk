@@ -480,6 +480,10 @@ void CommandDirectRead::procresult()
                         drn->tempurls.swap(tempurls);
                         e = API_OK;
                     }
+                    else
+                    {
+                        e = API_EINCOMPLETE;
+                    }
                     break;
 
                 case 's':
