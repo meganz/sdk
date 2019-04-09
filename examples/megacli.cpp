@@ -2898,6 +2898,8 @@ static void process_line(char* l)
                 cout << "      mfac" << endl;
                 cout << "      mfae" << endl;
                 cout << "      mfad pin" << endl;
+                cout << "      recentnodes hours maxcount" << endl;
+                cout << "      recentactions hours maxcount" << endl;
                 cout << "      quit" << endl;
 #endif
                 return;
@@ -6009,7 +6011,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "syntax error" << endl;
+                            cout << "      recentnodes hours maxcount" << endl;
                         }
                         return;
                     }
@@ -6064,7 +6066,7 @@ static void process_line(char* l)
                         }
                         else
                         {
-                            cout << "syntax error" << endl;
+                            cout << "      recentactions hours maxcount" << endl;
                         }
                         return;
                     }
