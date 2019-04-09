@@ -20069,6 +20069,11 @@ void MegaApiImpl::sendPendingRequests()
             }
             break;
         }
+        case MegaRequest::TYPE_USERALERT_ACKNOWLEDGE:
+        {
+            client->acknowledgeuseralerts();
+            break;
+        }
         case MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL:
         {
             MegaBackgroundMediaUploadPrivate* bg = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
