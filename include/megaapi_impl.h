@@ -1551,7 +1551,7 @@ protected:
 class MegaRecentActionBucketPrivate : public MegaRecentActionBucket
 {
 public:
-    MegaRecentActionBucketPrivate(MegaClient::recentaction& ra, MegaClient* mc);
+    MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc);
     MegaRecentActionBucketPrivate(int64_t timestamp, const string& user, handle parent, bool update, bool media, MegaNodeList*);
     virtual ~MegaRecentActionBucketPrivate();
     virtual MegaRecentActionBucket *copy() const;
@@ -1574,7 +1574,7 @@ class MegaRecentActionBucketListPrivate : public MegaRecentActionBucketList
 {
 public:
     MegaRecentActionBucketListPrivate();
-    MegaRecentActionBucketListPrivate(MegaClient::recentactions_vector& v, MegaClient* mc);
+    MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc);
     MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &userList);
     virtual ~MegaRecentActionBucketListPrivate();
     virtual MegaRecentActionBucketList *copy() const;

@@ -3838,7 +3838,7 @@ int MegaUserAlertListPrivate::size() const
     return s;
 }
 
-MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(MegaClient::recentaction& ra, MegaClient* mc)
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc)
 {
     User* u = mc->finduser(ra.user);
 
@@ -3906,7 +3906,7 @@ MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
     s = 0;
 }
 
-MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(MegaClient::recentactions_vector& v, MegaClient* mc)
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc)
 {
     list = NULL;
     s = v.size();
@@ -9453,7 +9453,7 @@ MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigne
 {
     MutexGuard g(sdkMutex);
     m_time_t since = m_time() - days * 86400;
-    MegaClient::recentactions_vector v = client->getRecentActions(maxnodes, since);
+    recentactions_vector v = client->getRecentActions(maxnodes, since);
     return new MegaRecentActionBucketListPrivate(v, client);
 }
 
