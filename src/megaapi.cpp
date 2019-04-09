@@ -227,17 +227,17 @@ MegaHandle MegaRecentActionBucket::getParentHandle() const
     return INVALID_HANDLE;
 }
 
-bool MegaRecentActionBucket::getIsUpdate() const
+bool MegaRecentActionBucket::isUpdate() const
 {
     return false;
 }
 
-bool MegaRecentActionBucket::getIsMedia() const
+bool MegaRecentActionBucket::isMedia() const
 {
     return false;
 }
 
-MegaNodeList* MegaRecentActionBucket::getNodes()
+const MegaNodeList* MegaRecentActionBucket::getNodes() const
 {
     return NULL;
 }

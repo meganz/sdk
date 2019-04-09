@@ -1079,7 +1079,7 @@ public:
         handle parent;
         bool updated;
         bool media;
-        node_vector v;
+        node_vector nodes;
     };
     typedef vector<recentaction> recentactions_vector;
 

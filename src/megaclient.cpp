@@ -13129,7 +13129,7 @@ MegaClient::recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
                 ra.media = ismedia(*j);
                 rav.push_back(ra);
             }
-            rav.back().v.push_back(*j);
+            rav.back().nodes.push_back(*j);
             i = j;
         }
         i = bucketend;
@@ -13137,8 +13137,8 @@ MegaClient::recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
     for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
     {
         // for the bucket vector, most recent (larger ctime) first
-        std::sort(i->v.begin(), i->v.end(), nodes_ctime_greater);
-        i->time = i->v.front()->ctime;
+        std::sort(i->nodes.begin(), i->nodes.end(), nodes_ctime_greater);
+        i->time = i->nodes.front()->ctime;
     }
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
     return rav;

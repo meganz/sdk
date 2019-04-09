@@ -2439,6 +2439,9 @@ public:
     /**
     * @brief Returns the email of the user who made the changes
     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRecentActionBucket object is deleted.
+    *
     * @return The associated user's email
     */
     virtual const char* getUserEmail() const;
@@ -2455,14 +2458,14 @@ public:
     *
     * @return True if the changes are updates rather than newly uploaded files.
     */
-    virtual bool getIsUpdate() const;
+    virtual bool isUpdate() const;
 
     /**
     * @brief Returns whether the files are photos or videos
     *
     * @return True if the files in this change are media files.
     */
-    virtual bool getIsMedia() const;
+    virtual bool isMedia() const;
 
     /**
     * @brief Returns nodes representing the files changed in this bucket
@@ -2472,7 +2475,7 @@ public:
      *
     * @return A MegaNodeList containing the files in the bucket
     */
-    virtual MegaNodeList* getNodes();
+    virtual const MegaNodeList* getNodes() const;
 };
 
 /**

@@ -1558,16 +1558,16 @@ public:
     virtual int64_t getTimestamp() const;
     virtual const char* getUserEmail() const;
     virtual MegaHandle getParentHandle() const;
-    virtual bool getIsUpdate() const;
-    virtual bool getIsMedia() const;
-    MegaNodeList* getNodes();
+    virtual bool isUpdate() const;
+    virtual bool isMedia() const;
+    virtual const MegaNodeList* getNodes() const;
 
 private:
     int64_t timestamp;
     string user;
     handle parent;
     bool update, media;
-    MegaNodeList* list;
+    MegaNodeList* nodes;
 };
 
 class MegaRecentActionBucketListPrivate : public MegaRecentActionBucketList

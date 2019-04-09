@@ -3847,7 +3847,7 @@ MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(MegaClient::recenta
     parent = ra.parent;
     update = ra.updated;
     media = ra.media;
-    list = new MegaNodeListPrivate(ra.v);
+    nodes = new MegaNodeListPrivate(ra.nodes);
 }
 
 MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(int64_t ts, const string& u, handle p, bool up, bool m, MegaNodeList* l)
@@ -3857,17 +3857,17 @@ MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(int64_t ts, const s
     parent = p;
     update = up;
     media = m;
-    list = l;
+    nodes = l;
 }
 
 MegaRecentActionBucketPrivate::~MegaRecentActionBucketPrivate()
 {
-    delete list;
+    delete nodes;
 }
 
 MegaRecentActionBucket *MegaRecentActionBucketPrivate::copy() const
 {
-    return new MegaRecentActionBucketPrivate(timestamp, user, parent, update, media, list->copy());
+    return new MegaRecentActionBucketPrivate(timestamp, user, parent, update, media, nodes->copy());
 }
 
 int64_t MegaRecentActionBucketPrivate::getTimestamp() const
@@ -3885,19 +3885,19 @@ MegaHandle MegaRecentActionBucketPrivate::getParentHandle() const
     return parent;
 }
 
-bool MegaRecentActionBucketPrivate::getIsUpdate() const
+bool MegaRecentActionBucketPrivate::isUpdate() const
 {
     return update;
 }
 
-bool MegaRecentActionBucketPrivate::getIsMedia() const
+bool MegaRecentActionBucketPrivate::isMedia() const
 {
     return media;
 }
 
-MegaNodeList* MegaRecentActionBucketPrivate::getNodes()
+const MegaNodeList* MegaRecentActionBucketPrivate::getNodes() const
 {
-    return list;
+    return nodes;
 }
 
 MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()

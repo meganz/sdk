@@ -6056,9 +6056,9 @@ static void process_line(char* l)
                                     cout << "---" << endl;
                                 }
                                 cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].user, client) << " " << (nvv[i].updated ? "updated" : "uploaded") << " " << (nvv[i].media ? "media" : "files") << endl;
-                                for (unsigned j = 0; j < nvv[i].v.size(); ++j)
+                                for (unsigned j = 0; j < nvv[i].nodes.size(); ++j)
                                 {
-                                    cout << nvv[i].v[j]->displaypath() << "  (" << displayTime(nvv[i].v[j]->ctime) << ")" << endl;
+                                    cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;
                                 }
                             }
                         }
