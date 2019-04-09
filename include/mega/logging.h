@@ -89,6 +89,7 @@
 #include <string>
 #include <array>
 #include <mutex>
+#include <assert.h>
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
