@@ -504,7 +504,7 @@ bool PosixFileAccess::fopen(string* f, bool read, bool write)
     return false;
 }
 
-PosixFileSystemAccess::PosixFileSystemAccess(int /*fseventsfd*/)
+PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
 {
     assert(sizeof(off_t) == 8);
 
@@ -606,6 +606,8 @@ PosixFileSystemAccess::PosixFileSystemAccess(int /*fseventsfd*/)
             close(fd);
         }
     }
+#else
+    (void)fseventsfd;  // suppress warning
 #endif
 }
 
