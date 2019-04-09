@@ -271,7 +271,7 @@ IF(WIN32)
     
         ImportVcpkgLibrary(z               "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
 
-        ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/manual-link/gtestd.lib" "${vcpkg_dir}/lib/manual-link/gtest.lib") 
+        ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/gtestd.lib" "${vcpkg_dir}/lib/gtest.lib") 
 
         IF(USE_MEDIAINFO)
             ImportStaticLibrary(mediainfo   "${Mega3rdPartyDir}/MediaInfoLib-mw/Source"
@@ -331,7 +331,7 @@ IF(WIN32)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib)
+    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib Wldap32.lib)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
     ${MegaDir}/src/win32/consolewaiter.cpp 
@@ -469,7 +469,7 @@ target_compile_definitions(test_sdk PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_W
 target_compile_definitions(test_misc PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_sync PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_link_libraries(test_sdk gtest Mega )
+target_link_libraries(test_sdk gtest Mega)
 target_link_libraries(test_misc gtest Mega )
 target_link_libraries(test_purge_account gtest Mega )
 target_link_libraries(test_sync gtest Mega )
