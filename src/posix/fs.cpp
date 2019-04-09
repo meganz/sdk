@@ -607,7 +607,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
         }
     }
 #else
-    fseventsfd;  // suppress warning
+    (void)fseventsfd;  // suppress warning
 #endif
 }
 
