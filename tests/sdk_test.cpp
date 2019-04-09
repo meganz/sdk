@@ -3296,7 +3296,6 @@ namespace mega
 
         static void onSetIsRaid_smallchunks10(::mega::RaidBufferManager* tbm)
         {
-            unsigned oldvalue = tbm->raidLinesPerChunk;
             tbm->raidLinesPerChunk = 10;
         };
 
@@ -3334,7 +3333,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
     MegaHandle imported_file_handle = h;
 
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
@@ -3457,7 +3456,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
     MegaHandle imported_file_handle = h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -3514,7 +3513,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
     MegaHandle imported_file_handle = h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -3636,7 +3635,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 #else
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
     MegaHandle imported_file_handle = h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
@@ -3798,7 +3797,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 
     // ensure we have our standard raid test file
-    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
     MegaHandle imported_file_handle = h;
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 

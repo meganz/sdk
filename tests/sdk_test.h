@@ -111,27 +111,27 @@ protected:
     bool checkAlert(int apiIndex, const string& title, const string& path);
     bool checkAlert(int apiIndex, const string& title, handle h, int n);
 
-    void onRequestStart(MegaApi *api, MegaRequest *request) {}
-    void onRequestUpdate(MegaApi*api, MegaRequest *request) {}
-    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e);
-    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
-    void onTransferStart(MegaApi *api, MegaTransfer *transfer) { }
-    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
-    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
-    void onUsersUpdate(MegaApi* api, MegaUserList *users);
-    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
+    void onRequestStart(MegaApi *api, MegaRequest *request) override {}
+    void onRequestUpdate(MegaApi*api, MegaRequest *request) override {}
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
+    void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) override {}
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override { }
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e) override;
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) override {}
+    void onUsersUpdate(MegaApi* api, MegaUserList *users) override;
+    void onNodesUpdate(MegaApi* api, MegaNodeList *nodes) override;
     void onAccountUpdate(MegaApi *api);
-    void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
-    void onReloadNeeded(MegaApi *api) {}
+    void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
+    void onReloadNeeded(MegaApi *api) override {}
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState) {}
-    void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) {}
-    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) {}
-    void onGlobalSyncStateChanged(MegaApi* api) {}
+    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState) override {}
+    void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) override {}
+    void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
+    void onGlobalSyncStateChanged(MegaApi* api) override {}
 #endif
 #ifdef ENABLE_CHAT
-    void onChatsUpdate(MegaApi *api, MegaTextChatList *chats);
+    void onChatsUpdate(MegaApi *api, MegaTextChatList *chats) override;
 #endif
 
 public:
