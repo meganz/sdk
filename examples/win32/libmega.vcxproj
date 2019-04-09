@@ -166,6 +166,8 @@
     <ClCompile Include="..\..\src\mega_evt_tls.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\src\posix\net.cpp" />
+    <ClCompile Include="..\..\src\raid.cpp" />
+    <ClCompile Include="..\..\src\testhooks.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\src\gfx.cpp" />
@@ -225,6 +227,7 @@
     <ClInclude Include="..\..\include\mega\mega_evt_tls.h" />
     <ClInclude Include="..\..\include\mega\mega_evt_queue.h" />
     <ClInclude Include="..\..\include\mega\posix\meganet.h" />
+    <ClInclude Include="..\..\include\mega\raid.h" />
     <ClInclude Include="..\..\include\mega\thread\win32thread.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsole.h" />
     <ClInclude Include="..\..\include\mega\win32\megaconsolewaiter.h" />

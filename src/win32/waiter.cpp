@@ -36,6 +36,7 @@ WinWaiter::WinWaiter()
 #ifndef WINDOWS_PHONE
     if (!pGTC) 
     {
+        #pragma warning(suppress:4191)
         pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
     }
 
@@ -108,13 +109,13 @@ int WinWaiter::wait()
         EnterCriticalSection(pcsHTTP);
     }
 
-    if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION))
+    if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION) || maxds == 0)
     {
         r = NEEDEXEC;
     }
-    else if ((dwWaitResult >= WAIT_OBJECT_0) && (dwWaitResult < WAIT_OBJECT_0 + flags.size()))
+    if ((dwWaitResult >= WAIT_OBJECT_0) && (dwWaitResult < WAIT_OBJECT_0 + flags.size()))
     {
-        r = flags[dwWaitResult - WAIT_OBJECT_0];
+        r |= flags[dwWaitResult - WAIT_OBJECT_0];
     }
 
     handles.clear();

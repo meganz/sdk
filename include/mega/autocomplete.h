@@ -143,7 +143,17 @@ namespace autocomplete {
         bool match(ACState& s) const override;
     };
 
-    struct MEGA_API Flag : public ACNode
+    struct MEGA_API ExportedLink : public ACNode
+    {
+        bool filelink, folderlink;
+        static bool isLink(const string& s, bool file, bool folder);
+        ExportedLink(bool file = true, bool folder = true);
+        bool addCompletions(ACState& s) override;
+        std::ostream& describe(std::ostream& s) const override;
+        bool match(ACState& s) const override;
+    };
+
+   struct MEGA_API Flag : public ACNode
     {
         std::string flagText;
         Flag(const std::string& s);
@@ -239,13 +249,14 @@ namespace autocomplete {
     bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput, bool reportNoMatch);
 
     // functions to bulid command descriptions
-    ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr);
+    ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr);
     ACN sequence(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr);
     ACN text(const std::string s);
     ACN param(const std::string s);
     ACN flag(const std::string s);
     ACN opt(ACN n);
     ACN repeat(ACN n);
+    ACN exportedLink(bool file = true, bool folder = true);
     ACN wholenumber(size_t defaultvalue);
     ACN localFSPath(const std::string descriptionPrefix = "");
     ACN localFSFile(const std::string descriptionPrefix = "");
@@ -255,6 +266,6 @@ namespace autocomplete {
     ACN remoteFSFolder(MegaClient*, ::mega::handle*, const std::string descriptionPrefix = "");
     ACN contactEmail(MegaClient*);
 
-}}; //namespaces
+}} //namespaces
 #endif
 #endif

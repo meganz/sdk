@@ -26,6 +26,7 @@
 #include "backofftimer.h"
 #include "http.h"
 #include "command.h"
+#include "raid.h"
 
 namespace mega {
 // pending/active up/download ordered by file fingerprint (size - mtime - sparse CRC)
@@ -116,8 +117,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // transfer state
     bool finished;
 
-    // temp URL for upload/download data.  It can be cached.  For uploads, a new url means any previously uploaded data is abandoned.
-    string tempurl;
+    // temp URLs for upload/download data.  They can be cached.  For uploads, a new url means any previously uploaded data is abandoned.
+    // downloads can have 6 for raid, 1 for non-raid.  Uploads always have 1
+    std::vector<string> tempurls;
 
     // context of the async fopen operation
     AsyncIOContext* asyncopencontext;
@@ -195,7 +197,7 @@ struct MEGA_API DirectReadSlot
     static const int TEMPURL_TIMEOUT_DS = 3000;
 
     DirectRead* dr;
-    HttpReq* req;
+    std::vector<HttpReq*> reqs;
 
     drs_list::iterator drs_it;
     SpeedController speedController;
@@ -206,6 +208,10 @@ struct MEGA_API DirectReadSlot
 
     DirectReadSlot(DirectRead*);
     ~DirectReadSlot();
+
+private:
+    std::string adjustURLPort(std::string url);
+    bool processAnyOutputPieces();
 };
 
 struct MEGA_API DirectRead
@@ -213,6 +219,9 @@ struct MEGA_API DirectRead
     m_off_t count;
     m_off_t offset;
     m_off_t progress;
+    m_off_t nextrequestpos;
+
+    DirectReadBufferManager drbuf;
 
     DirectReadNode* drn;
     DirectReadSlot* drs;
@@ -240,7 +249,7 @@ struct MEGA_API DirectReadNode
     m_off_t partiallen;
     dstime partialstarttime;
 
-    string tempurl;
+    std::vector<std::string> tempurls;
 
     m_off_t size;
 

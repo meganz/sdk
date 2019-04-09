@@ -34,6 +34,7 @@
 #include <functional>
 #include <cctype>
 #include <locale>
+#include <thread>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
@@ -7239,6 +7240,12 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
     transfer->setMaxRetries(maxRetries);
     transferQueue.push(transfer);
     waiter->notify();
+}
+
+void MegaApiImpl::setStreamingMinimumRate(int bytesPerSecond)
+{
+    MutexGuard g(sdkMutex);
+    client->minstreamingrate = bytesPerSecond;
 }
 
 void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
@@ -16615,6 +16622,15 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
     return e;
 }
 
+void MegaApiImpl::yield()
+{
+#if __cplusplus >= 201100L
+    std::this_thread::yield();
+#elif !defined(_WIN32)
+    sched_yield();
+#endif
+}
+
 void MegaApiImpl::sendPendingScRequest()
 {
     MegaRequestPrivate *request = scRequestQueue.front();
@@ -19774,8 +19790,9 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(e));
         }
 
-		sdkMutex.unlock();
-	}
+        sdkMutex.unlock();
+        yield();
+    }
 }
 
 char* MegaApiImpl::stringToArray(string &buffer)
@@ -28948,7 +28965,7 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
-const int MegaEventPrivate::getNumber() const
+int MegaEventPrivate::getNumber() const
 {
     return number;
 }

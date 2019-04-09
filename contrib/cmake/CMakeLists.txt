@@ -14,10 +14,14 @@
 
 cmake_minimum_required(VERSION 3.7.2)
 
+#set this to 1 if building 64 bit with eg. cmake . -G "Visual Studio 15 2017 Win64"
+#set this to 0 if building 32 bit with eg. cmake . -G "Visual Studio 15 2017"
+set (build_64_bit 1 CACHE TYPE BOOL)
 
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE TYPE BOOL)
 set (USE_OPENSSL 1 CACHE TYPE BOOL)
+set (OPENSSL_IS_BORINGSSL 0 CACHE TYPE BOOL)
 set (USE_CURL 1 CACHE TYPE BOOL)
 set (USE_SQLITE 1 CACHE TYPE BOOL)
 set (USE_MEDIAINFO 1 CACHE TYPE BOOL)
@@ -32,6 +36,13 @@ set (USE_LIBUV 0 CACHE TYPE BOOL)
 if (WIN32)
     set (NO_READLINE 1 CACHE TYPE BOOL)
     set (UNCHECKED_ITERATORS 0 CACHE TYPE BOOL)
+    set(USE_PREBUILT_3RDPARTY 0 CACHE TYPE BOOL)
+    set(HAVE_LIBUV ${USE_LIBUV})
+    IF (USE_WEBRTC)
+        IF ("${WebRtcDir}" STREQUAL "")
+            SET (WebRtcDir "${Mega3rdPartyDir}/libwebrtc/build32debug")
+        ENDIF()
+    ENDIF()
 else(WIN32)
     set(NO_READLINE 0)
     set(USE_PREBUILT_3RDPARTY 0)
@@ -57,6 +68,7 @@ if (WIN32)
 else()
     set (build_64_bit 1 CACHE TYPE BOOL)
 endif()
+
 if(build_64_bit)
     project (MegaSDK64 LANGUAGES CXX C)
 else(build_64_bit)
@@ -89,6 +101,19 @@ IF(WIN32)
             set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static")
         endif(build_64_bit)
     endif()
+ELSE(WIN32)
+    set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
+    if ("${Mega3rdPartyDir}" STREQUAL "")
+        set (Mega3rdPartyDir "${MegaDir}/../3rdParty/")
+    endif()
+ENDIF(WIN32)
+
+IF(WIN32)
+    if(build_64_bit)
+        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-windows-static")
+    else(build_64_bit)
+        set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static")
+    endif(build_64_bit)
 ELSE(WIN32)
     set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-linux")
     include_directories( "${vcpkg_dir}/include" )
@@ -175,7 +200,6 @@ function(ImportHeaderLibrary libName includeDir)
 endfunction(ImportHeaderLibrary)
 
 IF(WIN32)
-
     if(USE_PREBUILT_3RDPARTY)
     
         ImportVcpkgLibrary(z               "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/zlibstat.lib" "${prebuilt_dir}/libs/x32/zlibstat.lib") 	
@@ -313,7 +337,7 @@ IF(WIN32)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
+    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
     ${MegaDir}/src/win32/consolewaiter.cpp 
@@ -380,11 +404,13 @@ add_library(Mega STATIC
             ${MegaDir}/src/pendingcontactrequest.cpp 
             ${MegaDir}/src/proxy.cpp 
             ${MegaDir}/src/pubkeyaction.cpp 
+            ${MegaDir}/src/raid.cpp 
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp 
             ${MegaDir}/src/share.cpp 
             ${MegaDir}/src/sharenodekeys.cpp 
             ${MegaDir}/src/sync.cpp 
+            ${MegaDir}/src/testhooks.cpp 
             ${MegaDir}/src/transfer.cpp 
             ${MegaDir}/src/transferslot.cpp 
             ${MegaDir}/src/treeproc.cpp 
@@ -473,7 +499,27 @@ add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
 target_link_libraries(testmega Mega )
 endif(WIN32)
 
+if(WIN32)
+
+add_executable(tcprelay "${MegaDir}/tests/tcprelay/main.cpp" "${MegaDir}/tests/tcprelay/tcprelay.cpp")
+target_include_directories(tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
+target_compile_definitions(tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
+target_link_libraries(tcprelay Mega Dnsapi.lib)
+endif(WIN32)
+
 #enable_testing()
 #add_test(NAME SdkTestStreaming COMMAND test_sdk "--gtest_filter=\"*Streaming*\"")
 #add_test(NAME SdkTestAll COMMAND test_sdk )
 
+if (WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4201")  # nameless struct/union (nonstandard)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4100")  # unreferenced formal parameter
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4706")  # assignment within conditional
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4458")  # identifier hides class member
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4324")  # structure was padded due to alignment specifier (common in Sodium)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
+    #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
+endif()
