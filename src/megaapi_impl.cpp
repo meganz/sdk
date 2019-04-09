@@ -9449,9 +9449,10 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
     }
 }
 
-MegaRecentActionBucketList* MegaApiImpl::getRecentActions(int64_t since, unsigned maxnodes)
+MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigned maxnodes)
 {
     MutexGuard g(sdkMutex);
+    m_time_t since = m_time() - days * 86400;
     MegaClient::recentactions_vector v = client->getRecentActions(maxnodes, since);
     return new MegaRecentActionBucketListPrivate(v, client);
 }
