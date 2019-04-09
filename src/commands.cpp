@@ -3213,6 +3213,8 @@ CommandGetUserData::CommandGetUserData(MegaClient *client)
 {
     cmd("ug");
 
+    batchSeparately = true;  // we need this command in a separate batch so we can get the smsve flag when the account is blocked
+
     tag = client->reqtag;
 }
 
