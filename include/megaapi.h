@@ -2432,42 +2432,45 @@ public:
     /**
     * @brief Returns a timestamp reflecting when these changes occurred
     *
-    * @return Timestamp indicating when the changes occurred
+    * @return Timestamp indicating when the changes occurred (in seconds since the Epoch)
     */
     virtual int64_t getTimestamp() const;
 
     /**
     * @brief Returns the email of the user who made the changes
     *
-    * @return the associated user's email
+    * @return The associated user's email
     */
     virtual const char* getUserEmail() const;
 
     /**
     * @brief Returns the handle of the parent folder these changes occurred in
     *
-    * @return the handle of the parent folder for these changes.
+    * @return The handle of the parent folder for these changes.
     */
     virtual MegaHandle getParentHandle() const;
 
     /**
     * @brief Returns whether the changes are updated files, or new files
     *
-    * @return true if the changes are updates rather than newly uploaded files.
+    * @return True if the changes are updates rather than newly uploaded files.
     */
     virtual bool getIsUpdate() const;
 
     /**
     * @brief Returns whether the files are photos or videos
     *
-    * @return true if the files in this change are media files.
+    * @return True if the files in this change are media files.
     */
     virtual bool getIsMedia() const;
 
     /**
-    * @brief Returns nodes representing the files chanvged in this bucket
+    * @brief Returns nodes representing the files changed in this bucket
     *
-    * @return A list of the files in the bucket.  The bucket retains ownership.
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRecentActionBucket object is deleted.
+     *
+    * @return A MegaNodeList containing the files in the bucket
     */
     virtual MegaNodeList* getNodes();
 };
@@ -2489,6 +2492,17 @@ class MegaRecentActionBucketList
 public:
     virtual ~MegaRecentActionBucketList();
 
+    /**
+    * @brief Creates a copy of this MegaRecentActionBucketList object.
+    *
+    * The resulting object is fully independent of the source MegaRecentActionBucketList,
+    * it contains a copy of all internal attributes, so it will be valid after
+    * the original object is deleted.
+    *
+    * You are the owner of the returned object
+    *
+    * @return Copy of the MegaRecentActionBucketList object
+    */
     virtual MegaRecentActionBucketList *copy() const;
 
     /**
@@ -11727,15 +11741,23 @@ class MegaApi
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
-         * The function that takes no parameters uses the defaults for the MEGA apps
-         * which are (currently) within the last 30 days, and max 10000 nodes.
          *
-         * @param since      Only return nodes that are more recent than this time.
-         * @param maxnodes   Only return nodes up to this many.
+         * @param since Unix timestamp since added/modified nodes will be considered (in seconds since the Epoch)
+         * @param maxnodes Maximum amount of nodes to be considered
          *
          * @return List of buckets containing nodes that were added/modifed as a set
          */
         MegaRecentActionBucketList* getRecentActions(int64_t since, unsigned maxnodes);
+
+        /**
+         * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
+         *
+         * Each bucket contains files that were added/modified in a set, by a single user.
+         * This function takes uses the default parameters for the MEGA apps,
+         * which consider (currently) interaction during the last 30 days, and max 10.000 nodes.
+         *
+         * @return List of buckets containing nodes that were added/modifed as a set
+         */
         MegaRecentActionBucketList* getRecentActions();
 
         /**

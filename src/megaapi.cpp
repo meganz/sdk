@@ -224,7 +224,7 @@ const char* MegaRecentActionBucket::getUserEmail() const
 
 MegaHandle MegaRecentActionBucket::getParentHandle() const
 {
-    return UNDEF;
+    return INVALID_HANDLE;
 }
 
 bool MegaRecentActionBucket::getIsUpdate() const
@@ -251,7 +251,7 @@ MegaRecentActionBucketList* MegaRecentActionBucketList::copy() const
     return NULL;
 }
 
-MegaRecentActionBucket* MegaRecentActionBucketList::get(int i) const
+MegaRecentActionBucket* MegaRecentActionBucketList::get(int /*i*/) const
 {
     return NULL;
 }
@@ -640,12 +640,12 @@ const char *MegaUserAlert::getTypeString() const
 
 MegaHandle MegaUserAlert::getUserHandle() const
 {
-    return UNDEF;
+    return INVALID_HANDLE;
 }
 
 MegaHandle MegaUserAlert::getNodeHandle() const
 {
-    return UNDEF;
+    return INVALID_HANDLE;
 }
 
 const char* MegaUserAlert::getEmail() const
@@ -3110,8 +3110,8 @@ MegaRecentActionBucketList* MegaApi::getRecentActions(int64_t since, unsigned ma
 
 MegaRecentActionBucketList* MegaApi::getRecentActions()
 {
-    m_time_t since = m_time() - 30 * 86400;
-    unsigned maxnodes = 10000;
+    m_time_t since = m_time() - 30 * 86400; // last 30 days
+    unsigned maxnodes = 10000;              // up to 10.000 nodes
     return pImpl->getRecentActions(since, maxnodes);
 }
 
