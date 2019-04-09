@@ -2138,7 +2138,7 @@ class MegaApiImpl : public MegaApp
 
         long long getBandwidthOverquotaDelay();
 
-        MegaRecentActionBucketList* getRecentActions(unsigned days = 30, unsigned maxnodes = 10000);
+        MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
 
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
