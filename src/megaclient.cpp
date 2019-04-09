@@ -13088,14 +13088,14 @@ namespace action_bucket_compare
         return false;
     }
 
-    static bool comparetime(const MegaClient::recentaction& a, const MegaClient::recentaction& b)
+    static bool comparetime(const recentaction& a, const recentaction& b)
     {
         return a.time > b.time;
     }
 
 };
 
-MegaClient::recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
+recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
     recentactions_vector rav;
     node_vector v = getRecentNodes(maxcount, since, false);

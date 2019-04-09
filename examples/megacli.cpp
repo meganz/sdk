@@ -6048,7 +6048,7 @@ static void process_line(char* l)
                     {
                         if (words.size() == 3)
                         {
-                            MegaClient::recentactions_vector nvv = client->getRecentActions(atoi(words[2].c_str()), m_time() - 60 * 60 * atoi(words[1].c_str()));
+                            recentactions_vector nvv = client->getRecentActions(atoi(words[2].c_str()), m_time() - 60 * 60 * atoi(words[1].c_str()));
                             for (unsigned i = 0; i < nvv.size(); ++i)
                             {
                                 if (i != 0)

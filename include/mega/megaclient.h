@@ -1072,17 +1072,7 @@ public:
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);
 
-    struct recentaction
-    {
-        m_time_t time;
-        handle user;
-        handle parent;
-        bool updated;
-        bool media;
-        node_vector nodes;
-    };
-    typedef vector<recentaction> recentactions_vector;
-
+    // get a vector of recent actions in the account
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
 
     // generate & return upload handle
