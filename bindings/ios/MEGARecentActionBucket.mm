@@ -78,11 +78,11 @@ using namespace mega;
 }
 
 - (BOOL)isUpdate {
-    return self.recentActionBucket->getIsUpdate();
+    return self.recentActionBucket->isUpdate();
 }
 
 - (BOOL)isMedia {
-    return self.recentActionBucket->getIsMedia();
+    return self.recentActionBucket->isMedia();
 }
 
 - (MEGANodeList *)nodesList {
