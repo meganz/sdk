@@ -7387,11 +7387,12 @@ public:
 #ifdef _WIN32
         OutputDebugStringA(message);
         OutputDebugStringA("\r\n");
-#endif
+#else
         if (loglevel >= SimpleLogger::logCurrentLevel)
         {
             std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
         }
+#endif
     }
 };
 

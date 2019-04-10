@@ -2154,7 +2154,7 @@ class MegaNodeList
 
 		virtual ~MegaNodeList();
 
-        virtual MegaNodeList *copy();
+        virtual MegaNodeList *copy() const;
 
         /**
          * @brief Returns the MegaNode at the position i in the MegaNodeList
@@ -2167,13 +2167,13 @@ class MegaNodeList
          * @param i Position of the MegaNode that we want to get for the list
          * @return MegaNode at the position i in the list
          */
-        virtual MegaNode* get(int i);
+        virtual MegaNode* get(int i) const;
 
         /**
          * @brief Returns the number of MegaNode objects in the list
          * @return Number of MegaNode objects in the list
          */
-        virtual int size();
+        virtual int size() const;
 
         /**
          * @brief Add new node to list

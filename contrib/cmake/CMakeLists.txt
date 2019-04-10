@@ -324,7 +324,7 @@ IF(WIN32)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib)
+    SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib Wldap32.lib)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp 
     ${MegaDir}/src/win32/consolewaiter.cpp 

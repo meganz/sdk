@@ -117,17 +117,17 @@ MegaNodeList *MegaNodeList::createInstance()
 
 MegaNodeList::~MegaNodeList() { }
 
-MegaNodeList *MegaNodeList::copy()
+MegaNodeList *MegaNodeList::copy() const
 {
     return NULL;
 }
 
-MegaNode *MegaNodeList::get(int)
+MegaNode *MegaNodeList::get(int) const
 {
     return NULL;
 }
 
-int MegaNodeList::size()
+int MegaNodeList::size() const
 {
     return 0;
 }

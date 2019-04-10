@@ -1442,11 +1442,11 @@ class MegaNodeListPrivate : public MegaNodeList
         MegaNodeListPrivate();
         MegaNodeListPrivate(node_vector& v);
         MegaNodeListPrivate(Node** newlist, int size);
-        MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren = false);
+        MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
-		virtual MegaNodeList *copy();
-		virtual MegaNode* get(int i);
-		virtual int size();
+		virtual MegaNodeList *copy() const override;
+		virtual MegaNode* get(int i) const override;
+		virtual int size() const override;
 
         virtual void addNode(MegaNode* node);
 	

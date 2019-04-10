@@ -3650,7 +3650,7 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 		list[i] = MegaNodePrivate::fromNode(newlist[i]);
 }
 
-MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren)
+MegaNodeListPrivate::MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren)
 {
     s = nodeList->size();
     if (!s)
@@ -3683,12 +3683,12 @@ MegaNodeListPrivate::~MegaNodeListPrivate()
 	delete [] list;
 }
 
-MegaNodeList *MegaNodeListPrivate::copy()
+MegaNodeList *MegaNodeListPrivate::copy() const
 {
     return new MegaNodeListPrivate(this);
 }
 
-MegaNode *MegaNodeListPrivate::get(int i)
+MegaNode *MegaNodeListPrivate::get(int i) const
 {
 	if(!list || (i < 0) || (i >= s))
 		return NULL;
@@ -3696,7 +3696,7 @@ MegaNode *MegaNodeListPrivate::get(int i)
 	return list[i];
 }
 
-int MegaNodeListPrivate::size()
+int MegaNodeListPrivate::size() const
 {
     return s;
 }
