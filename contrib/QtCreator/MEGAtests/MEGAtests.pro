@@ -7,14 +7,18 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGAsimplesync
+TARGET = MEGASdkTests
 TEMPLATE = app
-CONFIG += console
 
+CONFIG += USE_LIBUV
+CONFIG += USE_MEGAAPI
 CONFIG += USE_MEDIAINFO
-CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
+CONFIG -= qt
 
-SOURCES += ../../../examples/megasimplesync.cpp
+LIBS+=-lgtest
+
 include(../../../bindings/qt/sdk.pri)
 
+SOURCES += ../../../tests/sdk_test.cpp \
+           ../../../tests/sdktests.cpp

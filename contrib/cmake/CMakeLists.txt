@@ -14,10 +14,14 @@
 
 cmake_minimum_required(VERSION 3.7.2)
 
+#set this to 1 if building 64 bit with eg. cmake . -G "Visual Studio 15 2017 Win64"
+#set this to 0 if building 32 bit with eg. cmake . -G "Visual Studio 15 2017"
+set (build_64_bit 1 CACHE TYPE BOOL)
 
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE TYPE BOOL)
 set (USE_OPENSSL 1 CACHE TYPE BOOL)
+set (OPENSSL_IS_BORINGSSL 0 CACHE TYPE BOOL)
 set (USE_CURL 1 CACHE TYPE BOOL)
 set (USE_SQLITE 1 CACHE TYPE BOOL)
 set (USE_MEDIAINFO 1 CACHE TYPE BOOL)
@@ -58,6 +62,7 @@ if (WIN32)
 else()
     set (build_64_bit 1 CACHE TYPE BOOL)
 endif()
+
 if(build_64_bit)
     project (MegaSDK64 LANGUAGES CXX C)
 else(build_64_bit)
@@ -95,6 +100,7 @@ ELSE(WIN32)
     include_directories( "${vcpkg_dir}/include" )
     link_directories( "${vcpkg_dir}/lib" )
 ENDIF(WIN32)
+
 
 if (NOT CMAKE_BUILD_TYPE)
     message("Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
@@ -176,7 +182,6 @@ function(ImportHeaderLibrary libName includeDir)
 endfunction(ImportHeaderLibrary)
 
 IF(WIN32)
-
     if(USE_PREBUILT_3RDPARTY)
     
         ImportVcpkgLibrary(z               "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/zlibstat.lib" "${prebuilt_dir}/libs/x32/zlibstat.lib") 	
@@ -381,11 +386,13 @@ add_library(Mega STATIC
             ${MegaDir}/src/pendingcontactrequest.cpp 
             ${MegaDir}/src/proxy.cpp 
             ${MegaDir}/src/pubkeyaction.cpp 
+            ${MegaDir}/src/raid.cpp 
             ${MegaDir}/src/request.cpp
             ${MegaDir}/src/serialize64.cpp 
             ${MegaDir}/src/share.cpp 
             ${MegaDir}/src/sharenodekeys.cpp 
             ${MegaDir}/src/sync.cpp 
+            ${MegaDir}/src/testhooks.cpp 
             ${MegaDir}/src/transfer.cpp 
             ${MegaDir}/src/transferslot.cpp 
             ${MegaDir}/src/treeproc.cpp 
@@ -472,6 +479,14 @@ target_link_libraries(megasimplesync Mega )
 if(WIN32)
 add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
 target_link_libraries(testmega Mega )
+endif(WIN32)
+
+if(WIN32)
+
+add_executable(tcprelay "${MegaDir}/tests/tcprelay/main.cpp" "${MegaDir}/tests/tcprelay/tcprelay.cpp")
+target_include_directories(tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
+target_compile_definitions(tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
+target_link_libraries(tcprelay Mega Dnsapi.lib)
 endif(WIN32)
 
 #enable_testing()

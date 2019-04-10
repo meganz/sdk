@@ -4544,6 +4544,16 @@ public:
         PAYMENT_EGENERIC = -106
     };
 
+
+    /**
+     * @brief Api error code context.
+     */
+    enum ErrorContexts
+    {
+        API_EC_DEFAULT = 0,         ///< Default error code context
+        API_EC_DOWNLOAD = 1,        ///< Download transfer context.
+    };
+
     /**
      * @brief Creates a new MegaError object
      * @param errorCode Error code for this error
@@ -4655,6 +4665,20 @@ public:
 		 * @return Description associated with the error code
 		 */
         static const char *getErrorString(int errorCode);
+
+        /**
+         * @brief Provides the error description associated with an error code
+         * given a certain context.
+         *
+         * This function returns a pointer to a statically allocated buffer.
+         * You don't have to free the returned pointer
+         *
+         * @param errorCode Error code for which the description will be returned
+         * @param context Context to provide a more accurate description (MegaError::ErrorContexts)
+         * @return Description associated with the error code
+         */
+        static const char *getErrorString(int errorCode, ErrorContexts context);
+
 
     private:
         //< 0 = API error code, > 0 = http error, 0 = No error
@@ -9219,6 +9243,20 @@ class MegaApi
          * @param listener MegaTransferListener to track this transfer
          */
         void startStreaming(MegaNode* node, int64_t startPos, int64_t size, MegaTransferListener *listener);
+
+        /**
+         * @brief Set the miniumum acceptable streaming speed for streaming transfers
+         *
+         * When streaming a file with startStreaming(), the SDK monitors the transfer rate.
+         * After a few seconds grace period, the monitoring starts. If the average rate is below 
+         * the minimum rate specified (determined by this function, or by default a reasonable rate
+         * for audio/video, then the streaming operation will fail with MegaError::API_EAGAIN.
+         *
+         * @param bytesPerSecond The minimum acceptable rate for streaming.
+         *                       Use -1 to use the default built into the library.
+         *                       Use 0 to prevent the check.
+         */
+        void setStreamingMinimumRate(int bytesPerSecond);
 
         /**
          * @brief Cancel a transfer

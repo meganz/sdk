@@ -43,7 +43,7 @@ struct MEGA_API SockInfo
     };
 
     SockInfo();
-    int fd;
+    curl_socket_t fd;
     int mode;
 #if defined(_WIN32)
     HANDLE handle;
@@ -143,7 +143,8 @@ protected:
     void processaresevents();
     void processcurlevents(direction_t d);
     std::vector<SockInfo> aressockets;
-    std::map<int, SockInfo> curlsockets[3];
+    typedef std::map<curl_socket_t, SockInfo> SockInfoMap;
+    SockInfoMap curlsockets[3];
     m_time_t curltimeoutreset[3];
     bool arerequestspaused[3];
     int numconnections[3];

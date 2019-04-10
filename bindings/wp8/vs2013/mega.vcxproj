@@ -477,6 +477,7 @@
     <ClCompile Include="..\..\..\src\waiterbase.cpp" />
     <ClCompile Include="..\..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\..\src\win32\waiter.cpp" />
+    <ClCompile Include="..\..\..\src\win32\raid.cpp" />
     <ClCompile Include="..\DelegateMGfxProcessor.cpp" />
     <ClCompile Include="..\DelegateMGlobalListener.cpp" />
     <ClCompile Include="..\DelegateMListener.cpp" />
