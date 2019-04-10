@@ -64,6 +64,7 @@ CONFIG(USE_AUTOCOMPLETE) {
     !win32 {
         #to have autocomplete support, c++11 & libstdc++fs are required:
         CONFIG+=c++11
+        QMAKE_CXXFLAGS+=-std=c++11
         LIBS+=-lstdc++fs
     }
 }
