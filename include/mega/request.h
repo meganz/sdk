@@ -42,7 +42,7 @@ public:
 
     size_t size() const;
 
-    void get(string*) const;
+    void get(string*, bool& suppressSID) const;
 
     void serverresponse(string& movestring, MegaClient*);
     void servererror(error e, MegaClient* client);
@@ -76,7 +76,7 @@ public:
     bool cmdspending() const;
 
     // get the set of commands to be sent to the server (could be a retry)
-    void serverrequest(string*);
+    void serverrequest(string*, bool& suppressSID);
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();

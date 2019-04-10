@@ -3213,8 +3213,6 @@ CommandGetUserData::CommandGetUserData(MegaClient *client)
 {
     cmd("ug");
 
-    batchSeparately = true;  // we need this command in a separate batch so we can get the smsve flag when the account is blocked
-
     tag = client->reqtag;
 }
 
@@ -3368,6 +3366,63 @@ void CommandGetUserData::procresult()
         }
     }
 }
+
+CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
+{
+    cmd("gmf");
+
+    // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
+    batchSeparately = true;  
+    suppressSID = true;
+
+    tag = client->reqtag;
+}
+
+void CommandGetMiscFlags::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+        if (!e)
+        {
+            e = API_ENOENT;
+        }
+        LOG_err << "gmf failed: " << e;
+        return;
+    }
+
+    bool endobject = false;
+    while (!endobject)
+    {
+        switch (client->json.getnameid())
+        {
+        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
+            client->gmfa_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
+            client->ssrs_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
+            client->nsr_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
+            client->aplvp_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
+            client->smsve_state = int(client->json.getint());
+            break;
+        case EOO:
+            endobject = true;
+            break;
+        default:
+            if (!client->json.storeobject())
+            {
+                return;
+            }
+        }
+    }
+}
+
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro)
 {

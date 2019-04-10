@@ -184,7 +184,7 @@ size_t Request::size() const
     return cmds.size();
 }
 
-void Request::get(string* req) const
+void Request::get(string* req, bool& suppressSID) const
 {
     // concatenate all command objects, resulting in an API request
     *req = "[";
@@ -194,6 +194,7 @@ void Request::get(string* req) const
         req->append(i ? ",{" : "{");
         req->append(cmds[i]->getstring());
         req->append("}");
+        suppressSID = suppressSID && cmds[i]->suppressSID;
     }
 
     req->append("]");
@@ -331,7 +332,7 @@ bool RequestDispatcher::cmdspending() const
     return !nextreqs.front().empty();
 }
 
-void RequestDispatcher::serverrequest(string *out)
+void RequestDispatcher::serverrequest(string *out, bool& suppressSID)
 {
     assert(inflightreq.empty());
     inflightreq.swap(nextreqs.front());
@@ -340,7 +341,7 @@ void RequestDispatcher::serverrequest(string *out)
     {
         nextreqs.push_back(Request());
     }
-    inflightreq.get(out);
+    inflightreq.get(out, suppressSID);
 }
 
 void RequestDispatcher::requeuerequest()

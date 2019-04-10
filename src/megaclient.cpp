@@ -1770,13 +1770,17 @@ void MegaClient::exec()
                     pendingcs->protect = true;
                     pendingcs->logname = clientname + "cs ";
 
-                    reqs.serverrequest(pendingcs->out);
+                    bool suppressSID = true;
+                    reqs.serverrequest(pendingcs->out, suppressSID);
 
                     pendingcs->posturl = APIURL;
 
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(reqid, sizeof reqid);
-                    pendingcs->posturl.append(auth);
+                    if (!suppressSID)
+                    {
+                        pendingcs->posturl.append(auth);
+                    }
                     pendingcs->posturl.append(appkey);
                     if (lang.size())
                     {
@@ -9943,6 +9947,10 @@ sessiontype_t MegaClient::loggedin()
 
 void MegaClient::whyamiblocked()
 {
+    // make sure the smsve flag is up to date when we get the response
+    reqs.add(new CommandGetMiscFlags(this));
+
+    // queue the actual request
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
