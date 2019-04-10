@@ -524,6 +524,9 @@
     <ClCompile Include="..\..\..\src\mega_zxcvbn.cpp">
       <Filter>SDK\Source</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\src\raid.cpp">
+      <Filter>SDK\Source</Filter>
+    </ClCompile>
     <ClCompile Include="..\MAchievementsDetails.cpp">
       <Filter>Bindings</Filter>
     </ClCompile>

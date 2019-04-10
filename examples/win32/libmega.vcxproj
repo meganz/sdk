@@ -165,6 +165,7 @@
     <ClCompile Include="..\..\src\mega_ccronexpr.cpp" />
     <ClCompile Include="..\..\src\mega_evt_tls.cpp" />
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
+    <ClCompile Include="..\..\src\raid.cpp" />
     <ClCompile Include="..\..\src\posix\net.cpp" />
     <ClCompile Include="..\..\src\raid.cpp" />
     <ClCompile Include="..\..\src\testhooks.cpp" />
