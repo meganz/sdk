@@ -7,17 +7,21 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGAsimplesync
+TARGET = MEGAsynctests
 TEMPLATE = app
-CONFIG += console
-CONFIG -= qt
-
-CONFIG += USE_MEDIAINFO
 
 CONFIG += USE_MEDIAINFO
 CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
+CONFIG -= qt
 
-SOURCES += ../../../examples/megasimplesync.cpp
-include(../../../bindings/qt/sdk.pri)
+LIBS += -lgtest
 
+include(../../../../bindings/qt/sdk.pri)
+
+CONFIG -= c++11
+QMAKE_CXXFLAGS-=-std=c++11
+CONFIG += c++17
+QMAKE_CXXFLAGS+=-std=c++17
+
+SOURCES += ../../../../tests/synctests.cpp
