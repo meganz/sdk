@@ -1,5 +1,5 @@
 TEMPLATE = subdirs
 
-SUBDIRS += MEGACli
-SUBDIRS += MEGASimplesync
+SUBDIRS += MEGAcli
+SUBDIRS += MEGAsimplesync
 SUBDIRS += MEGATestSuite

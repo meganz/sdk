@@ -7,7 +7,7 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGASyncTests
+TARGET = MEGAsynctests
 TEMPLATE = app
 
 CONFIG += USE_MEDIAINFO

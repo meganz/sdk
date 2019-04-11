@@ -7,7 +7,7 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGASdkTests
+TARGET = MEGAsdktests
 TEMPLATE = app
 
 CONFIG += USE_LIBUV
