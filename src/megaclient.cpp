@@ -12985,7 +12985,8 @@ static bool nodes_ctime_greater(const Node* a, const Node* b)
 
 node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin)
 {
-    node_vector  v;
+    // 1. Get nodes added/modified not older than `since`
+    node_vector v;
     v.reserve(nodes.size());
     for (node_map::iterator i = nodes.begin(); i != nodes.end(); ++i)
     {
@@ -12998,6 +12999,7 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
     // heaps use a 'less' function, and pop_heap returns the largest item stored.
     std::make_heap(v.begin(), v.end(), nodes_ctime_less);
 
+    // 2. Order them chronologically and restrict them to a maximum of `maxcount`
     node_vector v2;
     unsigned maxItems = std::max(maxcount, unsigned(v.size()));
     v2.reserve(maxItems);
@@ -13035,8 +13037,9 @@ namespace action_bucket_compare
             {
                 MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
                 unsigned videocodec = mp.videocodecid;
-                if (!videocodec && mp.shortformat) {
-                    auto& v =mc->mediaFileInfo.mediaCodecs.shortformats;
+                if (!videocodec && mp.shortformat)
+                {
+                    auto& v = mc->mediaFileInfo.mediaCodecs.shortformats;
                     if (mp.shortformat < v.size())
                     {
                         videocodec = v[mp.shortformat].videocodecid;
@@ -13094,7 +13097,7 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-};
+}   // end namespace action_bucket_compare
 
 recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
 {
@@ -13107,40 +13110,44 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
     {
+        // find the oldest node, maximum 6h
         node_vector::iterator bucketend = i + 1;
         while (bucketend != v.end() && (*bucketend)->ctime > (*i)->ctime - 6 * 3600)
         {
             ++bucketend;
         }
 
+        // sort the defined bucket by owner, parent folder, added/updated and ismedia
         std::sort(i, bucketend, action_bucket_compare::compare);
 
+        // split the 6h-bucket in different buckets according to their content
         for (node_vector::iterator j = i; j != bucketend; ++j)
         {
-            string a = (*i)->displaypath();
-            string b = (*j)->displaypath();
-
             if (i == j || action_bucket_compare::compare(*i, *j))
             {
+                // add a new bucket
                 recentaction ra;
                 ra.time = (*j)->ctime;
                 ra.user = (*j)->owner;
                 ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
-                ra.updated = !(*j)->children.empty();
+                ra.updated = !(*j)->children.empty();   // children of files represent previous versions
                 ra.media = ismedia(*j);
                 rav.push_back(ra);
             }
+            // add the node to the bucket
             rav.back().nodes.push_back(*j);
             i = j;
         }
         i = bucketend;
     }
+    // sort nodes inside each bucket
     for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
     {
         // for the bucket vector, most recent (larger ctime) first
         std::sort(i->nodes.begin(), i->nodes.end(), nodes_ctime_greater);
         i->time = i->nodes.front()->ctime;
     }
+    // sort buckets in the vector
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
     return rav;
 }
