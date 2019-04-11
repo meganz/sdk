@@ -12999,8 +12999,9 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
     std::make_heap(v.begin(), v.end(), nodes_ctime_less);
 
     node_vector v2;
-    v2.reserve(maxcount);
-    while (v2.size() < maxcount && !v.empty())
+    unsigned maxItems = std::max(maxcount, unsigned(v.size()));
+    v2.reserve(maxItems);
+    while (v2.size() < maxItems && !v.empty())
     {
         std::pop_heap(v.begin(), v.end(), nodes_ctime_less);
         Node* n = v.back();
