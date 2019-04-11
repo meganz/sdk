@@ -1151,6 +1151,11 @@ const char* MegaError::getErrorString() const
 
 const char* MegaError::getErrorString(int errorCode)
 {
+    return MegaError::getErrorString(errorCode, API_EC_DEFAULT);
+}
+
+const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
+{
     if(errorCode <= 0)
     {
         switch(errorCode)
@@ -1168,7 +1173,13 @@ const char* MegaError::getErrorString(int errorCode)
         case API_EFAILED:
             return "Failed permanently";
         case API_ETOOMANY:
-            return "Too many concurrent connections or transfers";
+            switch (context)
+            {
+                case API_EC_DOWNLOAD:
+                    return "Terms of Service breached";
+                default:
+                    return "Too many concurrent connections or transfers";
+            }
         case API_ERANGE:
             return "Out of range";
         case API_EEXPIRED:

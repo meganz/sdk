@@ -19,8 +19,8 @@
 * program.
 */
 
-#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) )
-// autocomplete for clients using c++11 capabilities
+#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
+// autocomplete for clients using c++11 capabilities (and that have filesystem available - the one in experimental namespace is ok)
 
 #include <mega/autocomplete.h>
 #include <mega/megaclient.h>

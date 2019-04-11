@@ -4673,6 +4673,16 @@ public:
         PAYMENT_EGENERIC = -106
     };
 
+
+    /**
+     * @brief Api error code context.
+     */
+    enum ErrorContexts
+    {
+        API_EC_DEFAULT = 0,         ///< Default error code context
+        API_EC_DOWNLOAD = 1,        ///< Download transfer context.
+    };
+
     /**
      * @brief Creates a new MegaError object
      * @param errorCode Error code for this error
@@ -4784,6 +4794,20 @@ public:
 		 * @return Description associated with the error code
 		 */
         static const char *getErrorString(int errorCode);
+
+        /**
+         * @brief Provides the error description associated with an error code
+         * given a certain context.
+         *
+         * This function returns a pointer to a statically allocated buffer.
+         * You don't have to free the returned pointer
+         *
+         * @param errorCode Error code for which the description will be returned
+         * @param context Context to provide a more accurate description (MegaError::ErrorContexts)
+         * @return Description associated with the error code
+         */
+        static const char *getErrorString(int errorCode, ErrorContexts context);
+
 
     private:
         //< 0 = API error code, > 0 = http error, 0 = No error
