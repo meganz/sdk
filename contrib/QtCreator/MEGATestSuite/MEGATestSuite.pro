@@ -1,5 +1,5 @@
 TEMPLATE = subdirs
 
-SUBDIRS += ../MEGAtests
-SUBDIRS += ../MEGAsynctests
-SUBDIRS += ../MEGAcryptotests
+SUBDIRS += MEGAtests
+SUBDIRS += MEGAsynctests
+SUBDIRS += MEGAcryptotests

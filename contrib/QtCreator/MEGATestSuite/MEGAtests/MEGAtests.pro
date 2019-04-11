@@ -7,19 +7,18 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGAsynctests
+TARGET = MEGAsdktests
 TEMPLATE = app
 
+CONFIG += USE_LIBUV
+CONFIG += USE_MEGAAPI
 CONFIG += USE_MEDIAINFO
-CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
-LIBS+=-lgtest
+CONFIG -= qt
 
-include(../../../bindings/qt/sdk.pri)
+LIBS += -lgtest
 
-CONFIG -= c++11
-QMAKE_CXXFLAGS-=-std=c++11
-CONFIG += c++17
-QMAKE_CXXFLAGS+=-std=c++17
+include(../../../../bindings/qt/sdk.pri)
 
-SOURCES += ../../../tests/synctests.cpp
+SOURCES += ../../../../tests/sdk_test.cpp \
+           ../../../../tests/sdktests.cpp

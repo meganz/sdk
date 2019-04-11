@@ -7,16 +7,17 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGACryptoTests
+TARGET = MEGAcryptotests
 TEMPLATE = app
 
 CONFIG += USE_MEDIAINFO
 CONFIG += USE_LIBRAW
 CONFIG += USE_FFMPEG
+CONFIG -= qt
 
-LIBS+=-lgtest
+LIBS += -lgtest
 
-include(../../../bindings/qt/sdk.pri)
-SOURCES += ../../../tests/crypto_test.cpp \
-           ../../../tests/tests.cpp  \
-           ../../../tests/paycrypt_test.cpp
+include(../../../../bindings/qt/sdk.pri)
+SOURCES += ../../../../tests/crypto_test.cpp \
+           ../../../../tests/tests.cpp  \
+           ../../../../tests/paycrypt_test.cpp
