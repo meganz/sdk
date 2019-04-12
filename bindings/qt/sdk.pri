@@ -58,10 +58,13 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
-CONFIG+=c++11
+CONFIG += c++11
 !win32 {
-    QMAKE_CXXFLAGS+=-std=c++11
-    LIBS+=-lstdc++fs
+    QMAKE_CXXFLAGS += -std=c++11
+
+    unix:!macx {
+        LIBS += -lstdc++fs
+    }
 }
 
 CONFIG(USE_AUTOCOMPLETE) {
