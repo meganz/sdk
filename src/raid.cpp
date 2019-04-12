@@ -25,6 +25,8 @@
 #include "mega/testhooks.h" 
 #include "mega.h" // for thread definitions
 
+#undef min //avoids issues with std::min
+
 namespace mega
 {
 struct FaultyServers
