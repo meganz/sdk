@@ -167,7 +167,6 @@
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp" />
     <ClCompile Include="..\..\src\raid.cpp" />
     <ClCompile Include="..\..\src\posix\net.cpp" />
-    <ClCompile Include="..\..\src\raid.cpp" />
     <ClCompile Include="..\..\src\testhooks.cpp" />
     <ClCompile Include="..\..\src\thread\win32thread.cpp" />
     <ClCompile Include="..\..\src\win32\fs.cpp" />
