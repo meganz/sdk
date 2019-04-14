@@ -49,6 +49,12 @@ else(WIN32)
     set(HAVE_LIBUV 0)
 endif(WIN32)
 
+if (USE_WEBRTC)
+    if ("${WebRtcDir}" STREQUAL "")
+        SET(WebRtcDir ${Mega3rdPartyDir}/libwebrtc/build32debug)
+    endif()
+endif()
+
 if (ENABLE_CHAT AND NOT USE_SODIUM)
     message(FATAL_ERROR "ENABLE_CHAT (${ENABLE_CHAT}) requires USE_SODIUM (${USE_SODIUM})")
 endif()

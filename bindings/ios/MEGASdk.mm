@@ -20,29 +20,32 @@
  */
 
 #import "MEGASdk.h"
-#import "megaapi.h"
-#import "MEGANode+init.h"
-#import "MEGAUser+init.h"
-#import "MEGATransfer+init.h"
-#import "MEGATransferList+init.h"
-#import "MEGANodeList+init.h"
-#import "MEGAUserList+init.h"
-#import "MEGAUserAlertList+init.h"
-#import "MEGAError+init.h"
-#import "MEGAShareList+init.h"
-#import "MEGAContactRequest+init.h"
-#import "MEGAContactRequestList+init.h"
-#import "MEGAChildrenLists+init.h"
-#import "DelegateMEGARequestListener.h"
-#import "DelegateMEGATransferListener.h"
-#import "DelegateMEGAGlobalListener.h"
-#import "DelegateMEGAListener.h"
-#import "DelegateMEGALoggerListener.h"
-#import "DelegateMEGATreeProcessorListener.h"
-#import "MEGAInputStream.h"
 
 #import <set>
 #import <pthread.h>
+
+#import "megaapi.h"
+
+#import "DelegateMEGAGlobalListener.h"
+#import "DelegateMEGAListener.h"
+#import "DelegateMEGALoggerListener.h"
+#import "DelegateMEGATransferListener.h"
+#import "DelegateMEGATreeProcessorListener.h"
+#import "DelegateMEGARequestListener.h"
+#import "MEGAChildrenLists+init.h"
+#import "MEGAContactRequest+init.h"
+#import "MEGAContactRequestList+init.h"
+#import "MEGAError+init.h"
+#import "MEGAInputStream.h"
+#import "MEGANode+init.h"
+#import "MEGANodeList+init.h"
+#import "MEGARecentActionBucket+init.h"
+#import "MEGAShareList+init.h"
+#import "MEGATransfer+init.h"
+#import "MEGATransferList+init.h"
+#import "MEGAUser+init.h"
+#import "MEGAUserAlertList+init.h"
+#import "MEGAUserList+init.h"
 
 using namespace mega;
 
@@ -1784,6 +1787,30 @@ using namespace mega;
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
+}
+
+- (NSMutableArray *)recentActions {
+    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
+    NSUInteger count = (NSUInteger)megaRecentActionBucketList->size();
+    NSMutableArray *recentActionBucketMutableArray = NSMutableArray.alloc.init;
+    for (NSUInteger i = 0; i < count; i++) {
+        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get((int)i)->copy() cMemoryOwn:YES];
+        [recentActionBucketMutableArray addObject:recentActionBucket];
+    }
+    
+    return recentActionBucketMutableArray;
+}
+
+- (NSMutableArray *)recentActionsSinceDate:(NSDate *)date maxNodes:(NSUInteger)maxNodes {
+    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions((int64_t)date.timeIntervalSince1970, (unsigned)maxNodes);
+    NSUInteger count = (NSUInteger)megaRecentActionBucketList->size();
+    NSMutableArray *recentActionBucketMutableArray = NSMutableArray.alloc.init;
+    for (NSUInteger i = 0; i < count; i++) {
+        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get((int)i)->copy() cMemoryOwn:YES];
+        [recentActionBucketMutableArray addObject:recentActionBucket];
+    }
+    
+    return recentActionBucketMutableArray;
 }
 
 - (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate {    
