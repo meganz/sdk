@@ -539,7 +539,8 @@ struct StandardClient : public MegaApp
         newnode->parenthandle = UNDEF;
 
         // generate fresh random key for this folder node
-        PrnGen::genblock(buf, FOLDERNODEKEYLENGTH);
+        PrnGen prngen;
+        prngen.genblock(buf, FOLDERNODEKEYLENGTH);
         newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
         key.setkey(buf);
 
