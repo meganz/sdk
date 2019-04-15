@@ -1461,11 +1461,6 @@ m_time_t m_mktime(struct tm* stm)
 
 int m_clock_gettime(clockid_t clock_id, timespec *t)
 {
-    if (!t)
-    {
-        return -1;
-    }
-
 #ifdef __APPLE__
 #define CLOCK_MONOTONIC 0
     struct timeval now;
@@ -1477,7 +1472,6 @@ int m_clock_gettime(clockid_t clock_id, timespec *t)
     t->tv_sec = now.tv_sec;
     t->tv_nsec = now.tv_usec * 1000;
     return 0;
-}
 #elif defined(_WIN32) && defined(_MSC_VER)
     struct __timeb64 tb;
     _ftime64(&tb);
