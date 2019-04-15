@@ -340,6 +340,7 @@ extern m_time_t m_time(m_time_t* tt = NULL);
 extern struct tm* m_localtime(m_time_t, struct tm *dt);
 extern struct tm* m_gmtime(m_time_t, struct tm *dt);
 extern m_time_t m_mktime(struct tm*);
+extern int m_clock_gettime(clockid_t clock_id, struct timespec *t);
 
 std::string rfc1123_datetime( time_t time );
 std::string webdavurlescape(const std::string &value);

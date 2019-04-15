@@ -1459,6 +1459,36 @@ m_time_t m_mktime(struct tm* stm)
     return mktime(stm);
 }
 
+int m_clock_gettime(clockid_t clock_id, timespec *t)
+{
+    if (!t)
+    {
+        return -1;
+    }
+
+#ifdef __APPLE__
+#define CLOCK_MONOTONIC 0
+    struct timeval now;
+    int rv = gettimeofday(&now, NULL);
+    if (rv)
+    {
+        return rv;
+    }
+    t->tv_sec = now.tv_sec;
+    t->tv_nsec = now.tv_usec * 1000;
+    return 0;
+}
+#elif defined(_WIN32) && defined(_MSC_VER)
+    struct __timeb64 tb;
+    _ftime64(&tb);
+    t->tv_sec = tb.time;
+    t->tv_nsec = tb.millitm = tb.millitm * 1000000;
+    return 0;
+#else
+    return clock_gettime(clock_id, t);
+#endif
+
+}
 
 std::string rfc1123_datetime( time_t time )
 {
