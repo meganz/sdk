@@ -189,6 +189,7 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
     acquirelimitpos -= acquirelimitpos % RAIDLINE;
     acquirelimitpos = std::min<m_off_t>(acquirelimitpos, fullfilesize);
     outputfilepos = resumepos;
+    startfilepos = resumepos;
     if (is_raid)
     {
         raidpartspos = resumepos / (RAIDPARTS - 1);
@@ -688,12 +689,15 @@ bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
     g_faultyServers.add(tempurls[errorConnectionNum]);
 
     unsigned errorSum = 0;
+    unsigned highestErrors = 0;
     for (unsigned i = RAIDPARTS; i--; )
     {
         errorSum += raidHttpGetErrorCount[i];
+        highestErrors = std::max<unsigned>(highestErrors, raidHttpGetErrorCount[i]);
     }
 
-    if (errorSum < 3)
+    // Allow for one nonfunctional channel and one glitchy channel.  We can still make progress swapping back and forth
+    if ((errorSum - highestErrors) < 5)
     {
         if (unusedRaidConnection < RAIDPARTS)
         {
@@ -764,6 +768,27 @@ bool RaidBufferManager::detectSlowestRaidConnection(unsigned thisConnection, uns
     }
     return false;
 }
+
+
+m_off_t RaidBufferManager::progress()
+{
+    assert(isRaid());
+    m_off_t reportPos = 0;
+
+    for (unsigned j = RAIDPARTS; j--; )
+    {
+        for (auto& p : raidinputparts[j])
+        {
+            if (!p->buf.isNull())
+            {
+                reportPos += p->buf.datalen();
+            }
+        }
+    }
+
+    return raidpartspos * (RAIDPARTS - 1) + reportPos - startfilepos;
+}
+
 
 TransferBufferManager::TransferBufferManager()
     : transfer(NULL)

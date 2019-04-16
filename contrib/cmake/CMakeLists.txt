@@ -315,6 +315,11 @@ IF(WIN32)
             ImportVcpkgLibrary(sqlite3          "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/sqlite3.lib" "${vcpkg_dir}/lib/sqlite3.lib")
         ENDIF(USE_SQLITE)
 
+        IF(USE_LIBUV)
+            ImportVcpkgLibrary(uv       "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/libuv.lib" "${vcpkg_dir}/lib/libuv.lib")
+            SET(HAVE_LIBUV 1)
+        ENDIF(USE_LIBUV)
+
     endif(USE_PREBUILT_3RDPARTY)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)

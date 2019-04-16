@@ -2082,6 +2082,7 @@ public:
     struct Stack : public std::deque<handle>
     {
         int filesLeft = 0;
+        set<string> servers;
     };
         
     FileFindCommand(std::shared_ptr<Stack>& s, MegaClient* mc) : stack(s)
@@ -2100,6 +2101,21 @@ public:
         {
             arg("ssl", 2);
         }
+    }
+
+    static string server(const string& url)
+    {
+        size_t n = url.find("://");
+        if (n != string::npos)
+        {
+            n += 3;
+            size_t m = url.find("/", n);
+            if (m != string::npos)
+            {
+                return url.substr(n, m - n);
+            }
+        }
+        return "";
     }
 
     // process file credentials
@@ -2139,6 +2155,11 @@ public:
                             if (Node* n = client->nodebyhandle(h))
                             {
                                 cout << n->displaypath() << endl;
+
+                                for (auto& url : tempurls)
+                                {
+                                    stack->servers.insert(server(url));
+                                }
                             }
                         }
                         break;
@@ -2160,6 +2181,10 @@ public:
         else if (!stack->filesLeft)
         {
             cout << "<find complete>" << endl;
+            for (auto s : stack->servers)
+            {
+                cout << s << endl;
+            }
         }
     }
 
@@ -7323,16 +7348,17 @@ void megacli()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    virtual void log(const char* time, int loglevel, const char* source, const char *message)
+    void log(const char* time, int loglevel, const char* source, const char *message) override
     {
 #ifdef _WIN32
         OutputDebugStringA(message);
         OutputDebugStringA("\r\n");
-#endif
+#else
         if (loglevel >= SimpleLogger::logCurrentLevel)
         {
             std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
         }
+#endif
     }
 };
 
