@@ -26,6 +26,10 @@
 
 #include <iomanip>
 
+#if defined(_WIN32) && defined(_MSC_VER)
+#include <sys/timeb.h>
+#endif
+
 namespace mega {
 
 string toNodeHandle(handle nodeHandle)
@@ -1459,10 +1463,9 @@ m_time_t m_mktime(struct tm* stm)
     return mktime(stm);
 }
 
-int m_clock_gettime(int clock_id, timespec *t)
+int m_clock_getmonotonictime(timespec *t)
 {
 #ifdef __APPLE__
-#define CLOCK_MONOTONIC 0
     struct timeval now;
     int rv = gettimeofday(&now, NULL);
     if (rv)
@@ -1479,7 +1482,7 @@ int m_clock_gettime(int clock_id, timespec *t)
     t->tv_nsec = tb.millitm = tb.millitm * 1000000;
     return 0;
 #else
-    return clock_gettime(clock_id, t);
+    return clock_gettime(CLOCK_MONOTONIC, t);
 #endif
 
 }
