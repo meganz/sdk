@@ -64,7 +64,7 @@ void Waiter::bumpds()
 {
     timespec ts;
 
-    m_clock_gettime(CLOCK_MONOTONIC, &ts);
+    m_clock_getmonotonictime(&ts);
 
     ds = ts.tv_sec * 10 + ts.tv_nsec / 100000000;
 }
