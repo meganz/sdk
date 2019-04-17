@@ -5655,7 +5655,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * @return Array of buckets containing nodes that were added/modifed as a set
  */
-- (NSMutableArray *)recentActionsSinceDate:(NSDate *)date maxNodes:(NSUInteger)maxNodes;
+- (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
 
 /**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
