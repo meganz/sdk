@@ -1791,22 +1791,22 @@ using namespace mega;
 
 - (NSMutableArray *)recentActions {
     MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
-    NSUInteger count = (NSUInteger)megaRecentActionBucketList->size();
-    NSMutableArray *recentActionBucketMutableArray = NSMutableArray.alloc.init;
-    for (NSUInteger i = 0; i < count; i++) {
-        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get((int)i)->copy() cMemoryOwn:YES];
+    int count = megaRecentActionBucketList->size();
+    NSMutableArray *recentActionBucketMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
+    for (int i = 0; i < count; i++) {
+        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
         [recentActionBucketMutableArray addObject:recentActionBucket];
     }
     
     return recentActionBucketMutableArray;
 }
 
-- (NSMutableArray *)recentActionsSinceDate:(NSDate *)date maxNodes:(NSUInteger)maxNodes {
-    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions((int64_t)date.timeIntervalSince1970, (unsigned)maxNodes);
-    NSUInteger count = (NSUInteger)megaRecentActionBucketList->size();
-    NSMutableArray *recentActionBucketMutableArray = NSMutableArray.alloc.init;
-    for (NSUInteger i = 0; i < count; i++) {
-        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get((int)i)->copy() cMemoryOwn:YES];
+- (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes {
+    MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions((int)days, (int)maxNodes);
+    int count = megaRecentActionBucketList->size();
+    NSMutableArray *recentActionBucketMutableArray = [NSMutableArray.alloc initWithCapacity:(NSInteger)count];
+    for (int i = 0; i < count; i++) {
+        MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
         [recentActionBucketMutableArray addObject:recentActionBucket];
     }
     
