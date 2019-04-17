@@ -300,7 +300,7 @@ struct StandardClient : public MegaApp
 
     string client_dbaccess_path; 
     MegaClient client;
-    bool clientthreadexit = false;
+    std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
     string clientname;
     std::function<void(MegaClient&, promise<bool>&)> nextfunctionMC;
@@ -309,7 +309,7 @@ struct StandardClient : public MegaApp
     std::promise<bool> nextfunctionSCpromise;
     std::condition_variable functionDone;
     std::mutex functionDoneMutex;
-
+    std::string salt;
 
     fs::path fsBasePath;
 
@@ -348,7 +348,7 @@ struct StandardClient : public MegaApp
     ~StandardClient()
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-        thread_do([](MegaClient& mc, promise<bool>&) { mc.locallogout(); /* mc.purgenodesusersabortsc();*/ }); 
+        thread_do([](MegaClient& mc, promise<bool>&) { mc.logout(); /* mc.purgenodesusersabortsc();*/ });
 
         clientthreadexit = true;
         waiter.notify();
@@ -461,7 +461,17 @@ struct StandardClient : public MegaApp
         return nextfunctionSCpromise.get_future();
     }
 
-    enum resultprocenum { LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE };
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE };
+
+    void preloginFromEnv(const string& userenv, promise<bool>& pb)
+    {
+        string user = getenv(userenv.c_str());
+
+        ASSERT_FALSE(user.empty());
+
+        resultproc.prepresult(PRELOGIN, [this, &pb](error e) { pb.set_value(!e); });
+        client.prelogin(user.c_str());
+    }
 
     void loginFromEnv(const string& userenv, const string& pwdenv, promise<bool>& pb)
     {
@@ -472,10 +482,27 @@ struct StandardClient : public MegaApp
         ASSERT_FALSE(pwd.empty());
 
         byte pwkey[SymmCipher::KEYLENGTH];
-        ASSERT_TRUE(API_OK == client.pw_key(pwd.c_str(), pwkey));
 
         resultproc.prepresult(LOGIN, [this, &pb](error e) { pb.set_value(!e); });
-        client.login(user.c_str(), pwkey);
+        if (client.accountversion == 1)
+        {
+            if (error e = client.pw_key(pwd.c_str(), pwkey))
+            {
+                ASSERT_TRUE(false) << "login error: " << e;
+            }
+            else
+            {
+                client.login(user.c_str(), pwkey);
+            }
+        }
+        else if (client.accountversion == 2 && !salt.empty())
+        {
+            client.login2(user.c_str(), pwd.c_str(), &salt);
+        }
+        else
+        {
+            ASSERT_TRUE(false) << "Login unexpected error";
+        }
     }
 
     void loginFromSession(const string& session, promise<bool>& pb)
@@ -1105,7 +1132,17 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    void login_result(error e) override 
+    void prelogin_result(int, string*, string* salt, error e) override
+    {
+        cout << clientname << " Prelogin: " << e << endl;
+        if (!e)
+        {
+            this->salt = *salt;
+        }
+        resultproc.processresult(PRELOGIN, e);
+    }
+
+    void login_result(error e) override
     {
         cout << clientname << " Login: " << e << endl;
         resultproc.processresult(LOGIN, e);
@@ -1259,6 +1296,12 @@ struct StandardClient : public MegaApp
     bool login_reset(const string& user, const string& pw)
     {
         future<bool> p1;
+        p1 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.preloginFromEnv(user, pb); });
+        if (!waitonresults(&p1))
+        {
+            cout << "preloginFromEnv failed" << endl;
+            return false;
+        }
         p1 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromEnv(user, pw, pb); });
         if (!waitonresults(&p1))
         {
@@ -1302,6 +1345,8 @@ struct StandardClient : public MegaApp
     bool login_fetchnodes(const string& user, const string& pw)
     {
         future<bool> p2;
+        p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.preloginFromEnv(user, pb); });
+        if (!waitonresults(&p2)) return false;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromEnv(user, pw, pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
