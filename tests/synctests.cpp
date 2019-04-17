@@ -348,7 +348,14 @@ struct StandardClient : public MegaApp
     ~StandardClient()
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-        thread_do([](MegaClient& mc, promise<bool>&) { mc.logout(); /* mc.purgenodesusersabortsc();*/ });
+        thread_do([](MegaClient& mc, promise<bool>&) { 
+            #ifdef _WIN32
+                // logout stalls in windows due to the issue above
+                mc.purgenodesusersabortsc(); 
+            #else
+                mc.logout();
+            #endif
+        });
 
         clientthreadexit = true;
         waiter.notify();
