@@ -3239,6 +3239,11 @@ bool MegaClient::dispatch(direction_t d)
                               << " Contiguous: " << ts->progresscontiguous
                               << " Partial: " << p << " Size: " << nexttransfer->size
                               << " ultoken: " << (nexttransfer->ultoken != NULL);
+
+                    if (!nexttransfer->tempurls.empty())
+                    {
+                        ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->tempurls, nexttransfer->pos, ts->maxRequestSize);
+                    }
                 }
                 else
                 {
