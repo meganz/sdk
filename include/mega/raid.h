@@ -100,6 +100,9 @@ namespace mega {
         // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
 
+        // returns how far we are through the file on average, including uncombined data
+        m_off_t progress();
+
         RaidBufferManager();
         ~RaidBufferManager();
 
@@ -146,6 +149,9 @@ namespace mega {
         
         // the point we are at in the output file.  asyncoutputbuffers contain data from this point.
         m_off_t outputfilepos;
+
+        // the point we started at in the output file.
+        m_off_t startfilepos;
 
         // In the case of resuming a file, the point we got to in the output might not line up nicely with a sector in an input part.  
         // This field allows us to start reading on a sector boundary but skip outputting data until we match where we got to last time.
