@@ -35,9 +35,9 @@ set (USE_LIBUV 0 CACHE TYPE BOOL)
 set (USE_QT 0 CACHE TYPE BOOL)
 
 if (USE_QT)
-    set( USE_CPPTHREAD 1)
-else()
     set( USE_CPPTHREAD 0)
+else()
+    set( USE_CPPTHREAD 1)
 ENDIF()
 
 if (WIN32)
