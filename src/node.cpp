@@ -905,6 +905,16 @@ bool Node::setparent(Node* p)
     return true;
 }
 
+Node* Node::firstancestor()
+{
+    Node* n = this;
+    while (n->parent != NULL)
+    {
+        n = n->parent;
+    }
+    return n;
+}
+
 // returns 1 if n is under p, 0 otherwise
 bool Node::isbelow(Node* p) const
 {

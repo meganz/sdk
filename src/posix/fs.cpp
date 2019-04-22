@@ -606,6 +606,8 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
             close(fd);
         }
     }
+#else
+    (void)fseventsfd;  // suppress warning
 #endif
 }
 
@@ -618,7 +620,7 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 }
 
 // wake up from filesystem updates
-void PosixFileSystemAccess::addevents(Waiter* w, int flags)
+void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
 {
     if (notifyfd >= 0)
     {
@@ -1073,7 +1075,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
 }
 
 // FIXME: add platform support for recycle bins
-bool PosixFileSystemAccess::rubbishlocal(string* name)
+bool PosixFileSystemAccess::rubbishlocal(string* /*name*/)
 {
     return false;
 }

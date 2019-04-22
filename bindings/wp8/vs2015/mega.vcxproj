@@ -160,6 +160,7 @@
     <ClCompile Include="..\..\..\src\serialize64.cpp" />
     <ClCompile Include="..\..\..\src\share.cpp" />
     <ClCompile Include="..\..\..\src\sharenodekeys.cpp" />
+    <ClCompile Include="..\..\..\src\raid.cpp" />
     <ClCompile Include="..\..\..\src\sync.cpp" />
     <ClCompile Include="..\..\..\src\thread\cppthread.cpp" />
     <ClCompile Include="..\..\..\src\transfer.cpp" />

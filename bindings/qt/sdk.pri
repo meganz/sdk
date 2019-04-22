@@ -41,7 +41,9 @@ SOURCES += src/attrmap.cpp \
     src/mega_ccronexpr.cpp \
     src/mega_evt_tls.cpp \
     src/mega_zxcvbn.cpp \
-    src/mediafileattribute.cpp
+    src/mediafileattribute.cpp \
+    src/raid.cpp \
+    src/testhooks.cpp
 
 CONFIG(USE_MEGAAPI) {
   SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
@@ -56,14 +58,18 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
+CONFIG += c++11
+!win32 {
+    QMAKE_CXXFLAGS += -std=c++11
+
+    unix:!macx {
+        LIBS += -lstdc++fs
+    }
+}
+
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
-    !win32 {
-        #to have autocomplete support, c++11 & libstdc++fs are required:
-        CONFIG+=c++11
-        LIBS+=-lstdc++fs
-    }
 }
 
 CONFIG(USE_CONSOLE) {
@@ -373,7 +379,9 @@ HEADERS  += include/mega.h \
             include/mega/mega_evt_queue.h \
             include/mega/thread/posixthread.h \
             include/mega/mega_zxcvbn.h \
-            include/mega/mediafileattribute.h
+            include/mega/mediafileattribute.h \
+            include/mega/raid.h \
+            include/mega/testhooks.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
