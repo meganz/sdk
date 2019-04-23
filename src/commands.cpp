@@ -369,6 +369,7 @@ void CommandPutFile::procresult()
 
                 if (tempurls.size() == 1)
                 {
+                    tslot->transfer->tempurls = tempurls;
                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
                     return tslot->progress();
@@ -789,6 +790,7 @@ void CommandGetFile::procresult()
 
                                         if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                                         {
+                                            tslot->transfer->tempurls = tempurls;
                                             tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                                             return tslot->progress();
                                         }
