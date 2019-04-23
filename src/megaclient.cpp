@@ -3240,10 +3240,6 @@ bool MegaClient::dispatch(direction_t d)
                               << " Partial: " << p << " Size: " << nexttransfer->size
                               << " ultoken: " << (nexttransfer->ultoken != NULL);
 
-                    if (!nexttransfer->tempurls.empty())
-                    {
-                        ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->tempurls, nexttransfer->pos, ts->maxRequestSize);
-                    }
                 }
                 else
                 {
@@ -3298,6 +3294,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 if (nexttransfer->tempurls.size())
                 {
+                    ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->tempurls, nexttransfer->pos, ts->maxRequestSize);
                     app->transfer_prepare(nexttransfer);
                 }
                 else
