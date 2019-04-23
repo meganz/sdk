@@ -2042,6 +2042,12 @@ using namespace mega;
     self.megaApi->getMegaAchievements();
 }
 
+#pragma mark - SMS
+
+- (SMSState)smsAllowedState {
+    return (SMSState)self.megaApi->smsAllowedState();
+}
+
 #pragma mark - Debug log messages
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {

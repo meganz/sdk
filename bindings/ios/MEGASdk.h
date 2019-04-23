@@ -160,6 +160,12 @@ typedef NS_ENUM(NSUInteger, StorageState) {
     StorageStateChange = 3
 };
 
+typedef NS_ENUM(NSInteger, SMSState) {
+    SMSStateNotAllowed = 0,
+    SMSStateOnlyUnblock = 1,
+    SMSStateOptInAndUnblock = 2,
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -6454,6 +6460,17 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  */
 - (void)getMegaAchievements;
+
+#pragma mark - SMS
+
+/**
+ * @brief Check if the opt-in or account ublocking SMS is allowed.
+ *
+ * The result indicated whether the sendSMSVerificationCode() function can be used.
+ *
+ * @return SMSState enum to indicate the SMS state for the current account.
+ */
+- (SMSState)smsAllowedState;
 
 #pragma mark - Debug log messages
 
