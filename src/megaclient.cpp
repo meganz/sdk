@@ -24,6 +24,10 @@
 #include <cctype>
 #include <algorithm>
 
+#undef min // avoid issues with std::min and std::max
+#undef min
+#undef max
+
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -13002,8 +13006,9 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
     std::make_heap(v.begin(), v.end(), nodes_ctime_less);
 
     // 2. Order them chronologically and restrict them to a maximum of `maxcount`
+
     node_vector v2;
-    unsigned maxItems = std::max<unsigned>(maxcount, unsigned(v.size()));
+    unsigned maxItems = std::max(maxcount, unsigned(v.size()));
     v2.reserve(maxItems);
     while (v2.size() < maxItems && !v.empty())
     {
