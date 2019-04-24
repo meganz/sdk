@@ -9050,11 +9050,11 @@ void MegaApiImpl::getCameraUploadsFolder(MegaRequestListener *listener)
 void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
 {
     MegaStringMap *stringMap = new MegaStringMapPrivate();
-    std::string nodehandleBin((const char*)&nodehandle, sizeof(nodehandle));
-    stringMap->set("h", nodehandleBin.c_str());
+    char buffer[12];
+    Base64::btoa((byte*)&nodehandle, MegaClient::NODEHANDLE, buffer);
+    stringMap->set("h", buffer);
     setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER, stringMap, listener);
     delete stringMap;
-
 }
 
 void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)

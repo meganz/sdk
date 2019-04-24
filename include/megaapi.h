@@ -8030,7 +8030,7 @@ class MegaApi
          * MegaApi::ATTR_CAMERA_UPLOAD_FOLDER = 23
          * Get the target folder for Camera Uploads (private)
          * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
-         * Get the target folder for "My chat files" (private)
+         * Get the target folder for My chat files (private)
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
