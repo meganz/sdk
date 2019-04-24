@@ -166,6 +166,13 @@ typedef NS_ENUM(NSInteger, SMSState) {
     SMSStateOptInAndUnblock = 2,
 };
 
+typedef NS_ENUM(NSUInteger, AccountSuspensionType) {
+    AccountSuspensionTypeNone = 0, // The account is not blocked
+    AccountSuspensionTypeNonCopyright = 200, // suspension for any type of suspension, but copyright suspension
+    AccountSuspensionTypeCopyright = 300, // suspension only for multiple copyright violations
+    AccountSuspensionTypeSMSVerification = 500, // The account needs to be verified by an SMS code.
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
