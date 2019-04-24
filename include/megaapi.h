@@ -1175,7 +1175,7 @@ class MegaUser
             CHANGE_TYPE_RUBBISH_TIME                = 0x40000,
             CHANGE_TYPE_STORAGE_STATE               = 0x80000,
             CHANGE_TYPE_GEOLOCATION                 = 0x100000,
-            CHANGE_TYPE_CAMERA_UPLOAD_FOLDER        = 0x200000,
+            CHANGE_TYPE_CAMERA_UPLOADS_FOLDER       = 0x200000,
             CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000
         };
 
@@ -5944,7 +5944,7 @@ class MegaApi
             USER_ATTR_LAST_PSA = 20,             // private - char array
             USER_ATTR_STORAGE_STATE = 21,        // private - char array
             USER_ATTR_GEOLOCATION = 22,          // private - byte array
-            USER_ATTR_CAMERA_UPLOAD_FOLDER = 23, // private - byte array
+            USER_ATTR_CAMERA_UPLOADS_FOLDER = 23,// private - byte array
             USER_ATTR_MY_CHAT_FILES_FOLDER = 24  // private - byte array
         };
 
@@ -8027,7 +8027,7 @@ class MegaApi
          * Get the state of the storage (private non-encrypted)
          * MegaApi::ATTR_GEOLOCATION = 22
          * Get the user geolocation (private)
-         * MegaApi::ATTR_CAMERA_UPLOAD_FOLDER = 23
+         * MegaApi::ATTR_CAMERA_UPLOADS_FOLDER = 23
          * Get the target folder for Camera Uploads (private)
          * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
          * Get the target folder for My chat files (private)
@@ -8955,22 +8955,56 @@ class MegaApi
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
 
         /**
-         * TODO ADD DOCUMENTATION
+         * @brief Set My Chat Files target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+         *
+         * @param listener MegaRequestListener to track this request
          */
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
 
         /**
-         * TODO ADD DOCUMENTATION
+         * @brief Gets My chat files target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
+         * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
+         *
+         * @param listener MegaRequestListener to track this request
          */
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
 
         /**
-         * TODO ADD DOCUMENTATION
+         * @brief Set Camera Uploads target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         *
+         * @param listener MegaRequestListener to track this request
          */
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
 
         /**
-         * TODO ADD DOCUMENTATION
+         * @brief Gets Camera Uploads target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the node where Camera Uploads files are stored
+         * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
+         *
+         * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif

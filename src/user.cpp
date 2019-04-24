@@ -416,7 +416,7 @@ string User::attr2string(attr_t type)
             attrname = "*!geo";
             break;
 
-        case ATTR_CAMERA_UPLOAD_FOLDER:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
             attrname = "*!cam";
             break;
 
@@ -529,8 +529,8 @@ string User::attr2longname(attr_t type)
         longname = "GEOLOCATION";
         break;
 
-    case ATTR_CAMERA_UPLOAD_FOLDER:
-        longname = "CAMERA_UPLOAD_FOLDER";
+    case ATTR_CAMERA_UPLOADS_FOLDER:
+        longname = "CAMERA_UPLOADS_FOLDER";
         break;
 
     case ATTR_MY_CHAT_FILES_FOLDER:
@@ -642,7 +642,7 @@ attr_t User::string2attr(const char* name)
     }
     else if(!strcmp(name, "*!cam"))
     {
-        return ATTR_CAMERA_UPLOAD_FOLDER;
+        return ATTR_CAMERA_UPLOADS_FOLDER;
     }
     else if(!strcmp(name, "*!cf"))
     {
@@ -672,7 +672,7 @@ bool User::needversioning(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_GEOLOCATION:
-        case ATTR_CAMERA_UPLOAD_FOLDER:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_MY_CHAT_FILES_FOLDER:
             return 0;
 
@@ -701,7 +701,7 @@ char User::scope(attr_t at)
         case ATTR_LAST_INT:
         case ATTR_RICH_PREVIEWS:
         case ATTR_GEOLOCATION:
-        case ATTR_CAMERA_UPLOAD_FOLDER:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_MY_CHAT_FILES_FOLDER:
             return '*';
 
@@ -1095,7 +1095,7 @@ bool User::setChanged(attr_t at)
             changed.geolocation = true;
             break;
 
-        case ATTR_CAMERA_UPLOAD_FOLDER:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
             changed.cameraUploadsFolder = true;
             break;
 

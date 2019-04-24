@@ -1455,7 +1455,7 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     }
     if(user->changed.cameraUploadsFolder)
     {
-        changed |= MegaUser::CHANGE_TYPE_CAMERA_UPLOAD_FOLDER;
+        changed |= MegaUser::CHANGE_TYPE_CAMERA_UPLOADS_FOLDER;
     }
     if(user->changed.myChatFilesFolder)
     {
@@ -5038,7 +5038,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_KEYRING:
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
         case MegaApi::USER_ATTR_GEOLOCATION:
-        case MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER:
+        case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
             scope = '*';
             break;
@@ -9042,7 +9042,7 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
 void MegaApiImpl::getCameraUploadsFolder(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER);
+    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -9053,7 +9053,7 @@ void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListe
     char buffer[12];
     Base64::btoa((byte*)&nodehandle, MegaClient::NODEHANDLE, buffer);
     stringMap->set("h", buffer);
-    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER, stringMap, listener);
+    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, stringMap, listener);
     delete stringMap;
 }
 
@@ -13591,7 +13591,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
                 }
                 break;
             }
-            case MegaApi::USER_ATTR_CAMERA_UPLOAD_FOLDER:
+            case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
             case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
             {
                 const char *value = stringMap->get("h");
@@ -13604,7 +13604,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
                 break;
             }
             default:
-                fireOnRequestFinish(request, MegaError(API_EINTERNAL));
                 break;
         }
         delete stringMap;
