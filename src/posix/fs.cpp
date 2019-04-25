@@ -978,7 +978,7 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool o
     bool existingandcare = !override && (0 == access(newname->c_str(), F_OK));
     if (!existingandcare && !rename(oldname->c_str(), newname->c_str()))
     {
-        LOG_verbose << "Succesfully moved file: " << oldname->c_str() << " to " << newname->c_str();
+        LOG_verbose << "Successfully moved file: " << oldname->c_str() << " to " << newname->c_str();
         return true;
     }
 
