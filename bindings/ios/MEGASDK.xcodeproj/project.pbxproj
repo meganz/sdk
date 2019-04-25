@@ -20,6 +20,7 @@
 		41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */; };
 		41D98D011BD54B5200764370 /* MEGAContactRequest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D001BD54B5200764370 /* MEGAContactRequest.mm */; };
 		41D98D071BD562AD00764370 /* MEGAContactRequestList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */; };
+		5B1D7CE221F1E07200B0215E /* MEGARecentActionBucket.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B1D7CE121F1E07200B0215E /* MEGARecentActionBucket.mm */; };
 		5B23B77C2164FC7C00600733 /* MEGAUserAlert.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B23B77A2164FC7C00600733 /* MEGAUserAlert.mm */; };
 		5B23B77D2164FC7C00600733 /* MEGAUserAlertList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B23B77B2164FC7C00600733 /* MEGAUserAlertList.mm */; };
 		5B72A14D20D3B3FB007FE4FD /* mega_ccronexpr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5B72A14C20D3B3FB007FE4FD /* mega_ccronexpr.cpp */; };
@@ -89,6 +90,7 @@
 		A88722DC1FFE6A8B00E3F443 /* mediafileattribute.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */; };
 		A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */; };
 		A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7B631E93B40E0031FC50 /* osxutils.mm */; };
+		B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6657E9B225C2B6200EF8D91 /* raid.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -135,6 +137,9 @@
 		41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAContactRequestList.mm; sourceTree = "<group>"; };
 		41D98D081BD5679C00764370 /* MEGAContactRequestList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAContactRequestList+init.h"; sourceTree = "<group>"; };
 		41F01E301C087D4C001E18E6 /* GfxProcCG.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GfxProcCG.h; sourceTree = "<group>"; };
+		5B0670CD21F5BABD00AD9F99 /* MEGARecentActionBucket+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGARecentActionBucket+init.h"; sourceTree = "<group>"; };
+		5B1D7CDD21F1E01E00B0215E /* MEGARecentActionBucket.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGARecentActionBucket.h; sourceTree = "<group>"; };
+		5B1D7CE121F1E07200B0215E /* MEGARecentActionBucket.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGARecentActionBucket.mm; sourceTree = "<group>"; };
 		5B23B7782164FC7C00600733 /* MEGAUserAlert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAUserAlert.h; sourceTree = "<group>"; };
 		5B23B7792164FC7C00600733 /* MEGAUserAlertList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAUserAlertList.h; sourceTree = "<group>"; };
 		5B23B77A2164FC7C00600733 /* MEGAUserAlert.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAUserAlert.mm; sourceTree = "<group>"; };
@@ -301,6 +306,8 @@
 		A8EBFDD21EFAE14C00DF89DA /* MEGAEvent+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAEvent+init.h"; sourceTree = "<group>"; };
 		A8FD7B611E93B3ED0031FC50 /* osxutils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = osxutils.h; path = osx/osxutils.h; sourceTree = "<group>"; };
 		A8FD7B631E93B40E0031FC50 /* osxutils.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = osxutils.mm; path = ../../src/osx/osxutils.mm; sourceTree = "<group>"; };
+		B6657E9B225C2B6200EF8D91 /* raid.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = raid.cpp; path = ../../src/raid.cpp; sourceTree = "<group>"; };
+		B6657E9D225C2BE600EF8D91 /* raid.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = raid.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -352,6 +359,7 @@
 				41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */,
 				940BEFAA19ED92C2007E7FA2 /* proxy.cpp */,
 				940BEFAB19ED92C2007E7FA2 /* pubkeyaction.cpp */,
+				B6657E9B225C2B6200EF8D91 /* raid.cpp */,
 				940BEFAC19ED92C2007E7FA2 /* request.cpp */,
 				940BEFAD19ED92C2007E7FA2 /* serialize64.cpp */,
 				940BEFAE19ED92C2007E7FA2 /* share.cpp */,
@@ -476,6 +484,8 @@
 				A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */,
 				A820A3082155111C00C8B6A5 /* MEGATimeZoneDetails.h */,
 				A820A3092155111C00C8B6A5 /* MEGATimeZoneDetails.mm */,
+				5B1D7CDD21F1E01E00B0215E /* MEGARecentActionBucket.h */,
+				5B1D7CE121F1E07200B0215E /* MEGARecentActionBucket.mm */,
 			);
 			name = bindings;
 			sourceTree = "<group>";
@@ -525,6 +535,7 @@
 				940BF06219EDBCAD007E7FA2 /* proxy.h */,
 				414820961C523B2D00552E76 /* pendingcontactrequest.h */,
 				940BF06319EDBCAD007E7FA2 /* pubkeyaction.h */,
+				B6657E9D225C2BE600EF8D91 /* raid.h */,
 				940BF06419EDBCAD007E7FA2 /* request.h */,
 				940BF06519EDBCAD007E7FA2 /* serialize64.h */,
 				940BF06619EDBCAD007E7FA2 /* share.h */,
@@ -630,6 +641,7 @@
 				A87D97A61F4AD9C300A98C0E /* MEGAAchievementsDetails+init.h */,
 				A827F4DE204D450E006A1962 /* MEGAFolderInfo+init.h */,
 				A808E4862158DAC400BDCE82 /* MEGATimeZoneDetails+init.h */,
+				5B0670CD21F5BABD00AD9F99 /* MEGARecentActionBucket+init.h */,
 			);
 			path = Private;
 			sourceTree = "<group>";
@@ -701,7 +713,7 @@
 		9472043B19ED916F00F6805F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0930;
+				LastUpgradeCheck = 1020;
 				ORGANIZATIONNAME = MEGA;
 				TargetAttributes = {
 					9472044219ED916F00F6805F = {
@@ -711,10 +723,9 @@
 			};
 			buildConfigurationList = 9472043E19ED916F00F6805F /* Build configuration list for PBXProject "MEGASDK" */;
 			compatibilityVersion = "Xcode 3.2";
-			developmentRegion = English;
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
-				en,
 			);
 			mainGroup = 9472043A19ED916F00F6805F;
 			productRefGroup = 9472044419ED916F00F6805F /* Products */;
@@ -769,6 +780,7 @@
 				940BEFCD19ED92C2007E7FA2 /* share.cpp in Sources */,
 				940BEFC019ED92C2007E7FA2 /* filesystem.cpp in Sources */,
 				940BEFB919ED92C2007E7FA2 /* base64.cpp in Sources */,
+				B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */,
 				940BEFC819ED92C2007E7FA2 /* node.cpp in Sources */,
 				940BF00F19ED97B9007E7FA2 /* MEGASdk.mm in Sources */,
 				940BEFBC19ED92C2007E7FA2 /* db.cpp in Sources */,
@@ -806,6 +818,7 @@
 				940BEFCA19ED92C2007E7FA2 /* pubkeyaction.cpp in Sources */,
 				41AB68F21A094194003FE608 /* GfxProcCG.mm in Sources */,
 				940BEFEE19ED9351007E7FA2 /* external.cpp in Sources */,
+				5B1D7CE221F1E07200B0215E /* MEGARecentActionBucket.mm in Sources */,
 				940BEFD319ED92C2007E7FA2 /* user.cpp in Sources */,
 				940BEFEA19ED9351007E7FA2 /* cryptopp.cpp in Sources */,
 				940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */,

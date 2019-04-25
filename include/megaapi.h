@@ -2162,7 +2162,7 @@ class MegaNodeList
 
 		virtual ~MegaNodeList();
 
-        virtual MegaNodeList *copy();
+        virtual MegaNodeList *copy() const;
 
         /**
          * @brief Returns the MegaNode at the position i in the MegaNodeList
@@ -2175,13 +2175,13 @@ class MegaNodeList
          * @param i Position of the MegaNode that we want to get for the list
          * @return MegaNode at the position i in the list
          */
-        virtual MegaNode* get(int i);
+        virtual MegaNode* get(int i) const;
 
         /**
          * @brief Returns the number of MegaNode objects in the list
          * @return Number of MegaNode objects in the list
          */
-        virtual int size();
+        virtual int size() const;
 
         /**
          * @brief Add new node to list
@@ -2407,6 +2407,135 @@ public:
     virtual int size() const;
 };
 
+
+/**
+* @brief Represents a set of files uploaded or updated in MEGA.
+* These are used to display the recent changes to an account.
+*
+* Objects of this class aren't live, they are snapshots of the state
+* in MEGA when the object is created, they are immutable.
+*
+* MegaRecentActionBuckets can be retrieved with MegaApi::getRecentActions
+*
+*/
+class MegaRecentActionBucket
+{
+public:
+
+    virtual ~MegaRecentActionBucket();
+
+    /**
+    * @brief Creates a copy of this MegaRecentActionBucket object.
+    *
+    * The resulting object is fully independent of the source MegaRecentActionBucket,
+    * it contains a copy of all internal attributes, so it will be valid after
+    * the original object is deleted.
+    *
+    * You are the owner of the returned object
+    *
+    * @return Copy of the MegaRecentActionBucket object
+    */
+    virtual MegaRecentActionBucket *copy() const;
+
+    /**
+    * @brief Returns a timestamp reflecting when these changes occurred
+    *
+    * @return Timestamp indicating when the changes occurred (in seconds since the Epoch)
+    */
+    virtual int64_t getTimestamp() const;
+
+    /**
+    * @brief Returns the email of the user who made the changes
+    *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRecentActionBucket object is deleted.
+    *
+    * @return The associated user's email
+    */
+    virtual const char* getUserEmail() const;
+
+    /**
+    * @brief Returns the handle of the parent folder these changes occurred in
+    *
+    * @return The handle of the parent folder for these changes.
+    */
+    virtual MegaHandle getParentHandle() const;
+
+    /**
+    * @brief Returns whether the changes are updated files, or new files
+    *
+    * @return True if the changes are updates rather than newly uploaded files.
+    */
+    virtual bool isUpdate() const;
+
+    /**
+    * @brief Returns whether the files are photos or videos
+    *
+    * @return True if the files in this change are media files.
+    */
+    virtual bool isMedia() const;
+
+    /**
+    * @brief Returns nodes representing the files changed in this bucket
+    *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRecentActionBucket object is deleted.
+     *
+    * @return A MegaNodeList containing the files in the bucket
+    */
+    virtual const MegaNodeList* getNodes() const;
+};
+
+/**
+* @brief List of MegaRecentActionBucket objects
+*
+* A MegaRecentActionBucketList has the ownership of the MegaRecentActionBucket objects that it contains, so they will be
+* only valid until the MegaRecentActionBucketList is deleted. If you want to retain a MegaRecentActionBucket returned by
+* a MegaRecentActionBucketList, use MegaRecentActionBucket::copy.
+*
+* Objects of this class are immutable.
+*
+* @see MegaApi::getRecentActions
+*
+*/
+class MegaRecentActionBucketList
+{
+public:
+    virtual ~MegaRecentActionBucketList();
+
+    /**
+    * @brief Creates a copy of this MegaRecentActionBucketList object.
+    *
+    * The resulting object is fully independent of the source MegaRecentActionBucketList,
+    * it contains a copy of all internal attributes, so it will be valid after
+    * the original object is deleted.
+    *
+    * You are the owner of the returned object
+    *
+    * @return Copy of the MegaRecentActionBucketList object
+    */
+    virtual MegaRecentActionBucketList *copy() const;
+
+    /**
+    * @brief Returns the MegaRecentActionBucket at the position i in the MegaRecentActionBucketList
+    *
+    * The MegaRecentActionBucketList retains the ownership of the returned MegaRecentActionBucket. It will be only valid until
+    * the MegaRecentActionBucketList is deleted.
+    *
+    * If the index is >= the size of the list, this function returns NULL.
+    *
+    * @param i Position of the MegaRecentActionBucket that we want to get for the list
+    * @return MegaRecentActionBucket at the position i in the list
+    */
+    virtual MegaRecentActionBucket* get(int i) const;
+
+    /**
+    * @brief Returns the number of MegaRecentActionBucket objects in the list
+    * @return Number of MegaRecentActionBucket objects in the list
+    */
+    virtual int size() const;
+};
+
 /**
  * @brief Provides information about an asynchronous request
  *
@@ -2464,6 +2593,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
+            TYPE_CATCHUP,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3161,7 +3291,7 @@ public:
      *
      * @return Number relative to this event
      */
-    virtual const int getNumber() const;
+    virtual int getNumber() const;
 };
 
 /**
@@ -4843,6 +4973,16 @@ public:
         PAYMENT_EGENERIC = -106
     };
 
+
+    /**
+     * @brief Api error code context.
+     */
+    enum ErrorContexts
+    {
+        API_EC_DEFAULT = 0,         ///< Default error code context
+        API_EC_DOWNLOAD = 1,        ///< Download transfer context.
+    };
+
     /**
      * @brief Creates a new MegaError object
      * @param errorCode Error code for this error
@@ -4954,6 +5094,20 @@ public:
 		 * @return Description associated with the error code
 		 */
         static const char *getErrorString(int errorCode);
+
+        /**
+         * @brief Provides the error description associated with an error code
+         * given a certain context.
+         *
+         * This function returns a pointer to a statically allocated buffer.
+         * You don't have to free the returned pointer
+         *
+         * @param errorCode Error code for which the description will be returned
+         * @param context Context to provide a more accurate description (MegaError::ErrorContexts)
+         * @return Description associated with the error code
+         */
+        static const char *getErrorString(int errorCode, ErrorContexts context);
+
 
     private:
         //< 0 = API error code, > 0 = http error, 0 = No error
@@ -9556,6 +9710,20 @@ class MegaApi
         void startStreaming(MegaNode* node, int64_t startPos, int64_t size, MegaTransferListener *listener);
 
         /**
+         * @brief Set the miniumum acceptable streaming speed for streaming transfers
+         *
+         * When streaming a file with startStreaming(), the SDK monitors the transfer rate.
+         * After a few seconds grace period, the monitoring starts. If the average rate is below 
+         * the minimum rate specified (determined by this function, or by default a reasonable rate
+         * for audio/video, then the streaming operation will fail with MegaError::API_EAGAIN.
+         *
+         * @param bytesPerSecond The minimum acceptable rate for streaming.
+         *                       Use -1 to use the default built into the library.
+         *                       Use 0 to prevent the check.
+         */
+        void setStreamingMinimumRate(int bytesPerSecond);
+
+        /**
          * @brief Cancel a transfer
          *
          * When a transfer is cancelled, it will finish and will provide the error code
@@ -11933,6 +12101,30 @@ class MegaApi
         MegaNodeList* search(const char* searchString, int order = ORDER_NONE);
 
         /**
+         * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
+         *
+         * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * @param days Age of actions since added/modified nodes will be considered (in days)
+         * @param maxnodes Maximum amount of nodes to be considered
+         *
+         * @return List of buckets containing nodes that were added/modifed as a set
+         */
+        MegaRecentActionBucketList* getRecentActions(unsigned days, unsigned maxnodes);
+
+        /**
+         * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
+         *
+         * Each bucket contains files that were added/modified in a set, by a single user.
+         *
+         * This function uses the default parameters for the MEGA apps, which consider (currently)
+         * interactions during the last 30 days and max 10.000 nodes.
+         *
+         * @return List of buckets containing nodes that were added/modifed as a set
+         */
+        MegaRecentActionBucketList* getRecentActions();
+
+        /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
          * @param node The parent node of the tree to explore
          * @param processor MegaTreeProcessor that will receive callbacks for every node in the tree
@@ -13865,6 +14057,18 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Catch up with API for pending actionpackets
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CATCHUP
+         *
+         * When onRequestFinish is called with MegaError::API_OK, the SDK is guaranteed to be
+         * up to date (as for the time this function is called).
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void catchup(MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;

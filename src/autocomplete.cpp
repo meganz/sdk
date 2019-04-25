@@ -19,8 +19,8 @@
 * program.
 */
 
-#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) )
-// autocomplete for clients using c++11 capabilities
+#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
+// autocomplete for clients using c++11 capabilities (and that have filesystem available - the one in experimental namespace is ok)
 
 #include <mega/autocomplete.h>
 #include <mega/megaclient.h>
@@ -327,10 +327,81 @@ bool Text::match(ACState& s) const
     return false;
 }
 
-
 std::ostream& Text::describe(std::ostream& s) const
 {
     return s << (param ? "<" + exactText + ">" : exactText);
+}
+
+bool ExportedLink::isLink(const string& s, bool file, bool folder)
+{
+    bool filestr = s.find("#!") != string::npos;
+    bool folderstr = s.find("#F!") != string::npos;
+    if (file && !folder)
+    {
+        return filestr;
+    }
+    else if (!file && folder)
+    {
+        return folderstr;
+    }
+    return filestr || folderstr;
+}
+
+ExportedLink::ExportedLink(bool file, bool folder) 
+    : filelink(file), folderlink(folder)
+{
+}
+
+bool ExportedLink::addCompletions(ACState& s)
+{
+    if (s.atCursor())
+    {
+        if (filelink && !folderlink)
+        {
+            s.addCompletion("<exportedfilelink#key>");
+        }
+        else if (!filelink && folderlink)
+        {
+            s.addCompletion("<exportedfolderlink#key>");
+        }
+        else
+        {
+            s.addCompletion("<exportedlink#key>");
+        }
+        return true;
+    }
+    else
+    {
+        bool matches = !s.word().s.empty() && s.word().s[0] != '-' && isLink(s.word().s, filelink, folderlink);
+        s.i += matches ? 1 : 0;
+        return !matches;
+    }
+}
+
+bool ExportedLink::match(ACState& s) const
+{
+    if (s.i < s.words.size() && (!s.word().s.empty() && s.word().s[0] != '-' && isLink(s.word().s, filelink, folderlink)))
+    {
+        s.i += 1;
+        return true;
+    }
+    return false;
+}
+
+std::ostream& ExportedLink::describe(std::ostream& s) const
+{
+    if (filelink && !folderlink)
+    {
+        return s << "<exportedfilelink#key>";
+    }
+    else if (!filelink && folderlink)
+    {
+        return s << "<exportedfolderlink#key>";
+    }
+    else
+    {
+        return s << "<exportedlink#key>";
+    }
 }
 
 Flag::Flag(const std::string& s)
@@ -741,7 +812,7 @@ bool MegaFS::match(ACState& s) const
 {
     if (s.i < s.words.size())
     {
-        if (!s.word().s.empty() && s.word().s[0] != '-')
+        if (!s.word().s.empty() && s.word().s[0] != '-' && !ExportedLink::isLink(s.word().s, true, true))
         {
             s.i += 1;
             return true;
@@ -983,6 +1054,10 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
                 {
                     f(acs);
                 }
+                else if (!reportNoMatch)
+                {
+                    return false;
+                }
                 else
                 {
                     conout << "Operation not implemented yet" << std::endl;
@@ -1000,20 +1075,6 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
         }
     }
     return true;
-}
-
-
-static size_t utf8strlen(const std::string s)
-{
-    size_t len = 0;
-    for (char c : s)
-    {
-        if ((c & 0xC0) != 0x80)
-        {
-            len += 1;
-        }
-    }
-    return len;
 }
 
 unsigned utf8GlyphCount(const string &str) 
@@ -1185,7 +1246,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
     }
 }
 
-ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5)
+ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
 {
 #if (__cplusplus < 201400L)
     auto n = std::unique_ptr<Either>(new Either());
@@ -1198,6 +1259,9 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5)
     n->Add(n3);
     n->Add(n4);
     n->Add(n5);
+    n->Add(n6);
+    n->Add(n7);
+    n->Add(n8);
     return n;
 }
 
@@ -1219,6 +1283,11 @@ ACN text(const std::string s)
 ACN param(const std::string s)
 {
     return std::make_shared<Text>(s, true);
+}
+
+ACN exportedLink(bool file, bool folder)
+{
+    return std::make_shared<ExportedLink>(file, folder);
 }
 
 ACN flag(const std::string s)

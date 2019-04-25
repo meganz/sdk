@@ -177,6 +177,8 @@ struct DemoApp : public MegaApp
     void delua_result(error);
 #endif
 
+    void querytransferquota_result(int);
+
     void account_details(AccountDetails*, bool, bool, bool, bool, bool, bool);
     void account_details(AccountDetails*, error);
 

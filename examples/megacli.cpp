@@ -36,7 +36,7 @@
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
-#elif !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) )
+#elif !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
 #define USE_FILESYSTEM
 #ifdef WIN32
     #include <filesystem>
@@ -261,7 +261,7 @@ static void displaytransferdetails(Transfer* t, const char* action)
 }
 
 // a new transfer was added
-void DemoApp::transfer_added(Transfer* t)
+void DemoApp::transfer_added(Transfer* /*t*/)
 {
 }
 
@@ -271,7 +271,7 @@ void DemoApp::transfer_removed(Transfer* t)
     displaytransferdetails(t, "removed\n");
 }
 
-void DemoApp::transfer_update(Transfer* t)
+void DemoApp::transfer_update(Transfer* /*t*/)
 {
     // (this is handled in the prompt logic)
 }
@@ -580,15 +580,26 @@ void DemoApp::users_updated(User** u, int count)
 
 bool notifyAlerts = true;
 
-void printAlert(UserAlert::Base& b)
+string displayUser(handle user, MegaClient* mc)
+{
+    User* u = mc->finduser(user);
+    return u ? u->email : "<user not found>";
+}
+
+string displayTime(m_time_t t)
 {
     char timebuf[32];
     struct tm tmptr;
-    m_localtime(b.timestamp, &tmptr);
+    m_localtime(t, &tmptr);
     strftime(timebuf, sizeof timebuf, "%c", &tmptr);
+    return timebuf;
+}
+
+void printAlert(UserAlert::Base& b)
+{
     string header, title;
     b.text(header, title, client);
-    cout << "**alert " << b.id << ": " << header << " - " << title << " [at " << timebuf << "]" << " seen: " << b.seen << endl;
+    cout << "**alert " << b.id << ": " << header << " - " << title << " [at " << displayTime(b.timestamp) << "]" << " seen: " << b.seen << endl;
 }
 
 void DemoApp::useralerts_updated(UserAlert::Base** b, int count)
@@ -1110,7 +1121,7 @@ void DemoApp::updatepcr_result(error e, ipcactions_t action)
     }
 }
 
-void DemoApp::fa_complete(handle h, fatype type, const char* data, uint32_t len)
+void DemoApp::fa_complete(handle h, fatype type, const char* /*data*/, uint32_t len)
 {
     cout << "Got attribute of type " << type << " (" << len << " byte(s))";
     Node *n = client->nodebyhandle(h);
@@ -1846,7 +1857,7 @@ public:
             t->source = NEW_NODE;
             t->type = n->type;
             t->nodehandle = n->nodehandle;
-            t->parenthandle = n->parent->nodehandle;
+            t->parenthandle = n->parent ? n->parent->nodehandle : UNDEF;
 
             // copy key (if file) or generate new key (if folder)
             if (n->type == FILENODE)
@@ -2037,7 +2048,7 @@ string showMediaInfo(const std::string& fileattributes, uint32_t fakey[4], Media
     return showMediaInfo(mp, mediaInfo, oneline);
 }
 
-string showMediaInfo(Node* n, MediaFileInfo& mediaInfo, bool oneline)
+string showMediaInfo(Node* n, MediaFileInfo& /*mediaInfo*/, bool oneline)
 {
     if (n->hasfileattribute(fa_media))
     {
@@ -2074,6 +2085,286 @@ static void store_line(char* l)
     line = l;
 }
 
+#if __cplusplus >= 201100L
+
+class FileFindCommand : public Command
+{
+public:
+    struct Stack : public std::deque<handle>
+    {
+        int filesLeft = 0;
+        set<string> servers;
+    };
+        
+    FileFindCommand(std::shared_ptr<Stack>& s, MegaClient* mc) : stack(s)
+    {
+        h = stack->front();
+        stack->pop_front();
+
+        client = mc;
+
+        cmd("g");
+        arg("n", (byte*)&h, MegaClient::NODEHANDLE);
+        arg("g", 1);
+        arg("v", 2);  // version 2: server can supply details for cloudraid files
+
+        if (mc->usehttps)
+        {
+            arg("ssl", 2);
+        }
+    }
+
+    static string server(const string& url)
+    {
+        size_t n = url.find("://");
+        if (n != string::npos)
+        {
+            n += 3;
+            size_t m = url.find("/", n);
+            if (m != string::npos)
+            {
+                return url.substr(n, m - n);
+            }
+        }
+        return "";
+    }
+
+    // process file credentials
+    void procresult() override
+    {
+        if (client->json.isnumeric())
+        {
+            client->json.getint();
+        }
+        else
+        {
+            std::vector<string> tempurls;
+            bool done = false;
+            while (!done)
+            {
+                switch (client->json.getnameid())
+                {
+                case EOO:
+                    done = true;
+                    break;
+
+                case 'g':
+                    if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                    {
+                        for (;;)
+                        {
+                            std::string tu;
+                            if (!client->json.storeobject(&tu))
+                            {
+                                break;
+                            }
+                            tempurls.push_back(tu);
+                        }
+                        client->json.leavearray();
+                        if (tempurls.size() == 6)
+                        {
+                            if (Node* n = client->nodebyhandle(h))
+                            {
+                                cout << n->displaypath() << endl;
+
+                                for (auto& url : tempurls)
+                                {
+                                    stack->servers.insert(server(url));
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    // otherwise fall through
+
+                default:
+                    client->json.storeobject();
+                }
+            }
+        }
+
+        // now query for the next one - we don't send them all at once as there may be a lot!
+        --stack->filesLeft;
+        if (!stack->empty())
+        {
+            client->reqs.add(new FileFindCommand(stack, client));
+        }
+        else if (!stack->filesLeft)
+        {
+            cout << "<find complete>" << endl;
+            for (auto s : stack->servers)
+            {
+                cout << s << endl;
+            }
+        }
+    }
+
+private:
+    handle h;
+    std::shared_ptr<Stack> stack;
+};
+
+
+void getDepthFirstFileHandles(Node* n, deque<handle>& q)
+{
+    for (auto c : n->children)
+    {
+        if (c->type == FILENODE)
+        {
+            q.push_back(c->nodehandle);
+        }
+    }
+    for (auto& c : n->children)
+    {
+        if (c->type > FILENODE)
+        {
+            getDepthFirstFileHandles(c, q);
+        }
+    }
+}
+
+void exec_find(autocomplete::ACState& s)
+{
+    if (s.words[1].s == "raided")
+    {
+        if (Node* n = client->nodebyhandle(cwd))
+        {
+            auto q = std::make_shared<FileFindCommand::Stack>();
+            getDepthFirstFileHandles(n, *q);
+            q->filesLeft = q->size();
+            cout << "<find checking " << q->size() << " files>" << endl;
+            if (q->empty())
+            {
+                cout << "<find complete>" << endl;
+            }
+            else
+            {
+                for (int i = 0; i < 25 && !q->empty(); ++i)
+                {
+                    client->reqs.add(new FileFindCommand(q, client));
+                }
+            }
+        }
+    }
+}
+
+bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
+{
+    switch (pathtype)
+    {
+    case FILENODE: 
+    case FOLDERNODE: return nodetype == pathtype;
+    default: return false;
+    }
+}
+
+bool recursiveCompare(Node* mn, fs::path p)
+{
+    nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
+    if (!typematchesnodetype(pathtype, mn->type))
+    {
+        cout << "Path type mismatch: " << mn->displaypath() << ":" << mn->type << " " << p.u8string() << ":" << pathtype << endl;
+        return false;
+    }
+
+    if (pathtype == FILENODE)
+    {
+        uint64_t size = (uint64_t) fs::file_size(p);
+        if (size != (uint64_t) mn->size)
+        {
+            cout << "File size mismatch: " << mn->displaypath() << ":" << mn->size << " " << p.u8string() << ":" << size << endl;
+        }
+    }
+
+    if (pathtype != FOLDERNODE)
+    {
+        return true;
+    }
+
+    multimap<string, Node*> ms;
+    multimap<string, fs::path> ps;
+    for (auto& m : mn->children) ms.emplace(m->displayname(), m);
+    for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) ps.emplace(pi->path().filename().u8string(), pi->path());
+
+    for (auto p_iter = ps.begin(); p_iter != ps.end(); )
+    {
+        auto er = ms.equal_range(p_iter->first);
+        auto next_p = p_iter;
+        ++next_p;
+        for (auto i = er.first; i != er.second; ++i)
+        {
+            if (recursiveCompare(i->second, p_iter->second))
+            {
+                ms.erase(i);
+                ps.erase(p_iter);
+                break;
+            }
+        }
+        p_iter = next_p;
+    }
+    if (ps.empty() && ms.empty())
+    {
+        return true;
+    }
+    else
+    {
+        cout << "Extra content detected between " << mn->displaypath() << " and " << p.u8string() << endl;
+        for (auto& m : ms) cout << "Extra remote: " << m.first << endl;
+        for (auto& p : ps) cout << "Extra local: " << p.second << endl;
+        return false;
+    };
+}
+
+Node* nodeFromRemotePath(const string& s)
+{
+    Node* n;
+    if (s.empty())
+    {
+        n = client->nodebyhandle(cwd);
+    }
+    else 
+    {
+        n = nodebypath(s.c_str());
+    }
+    if (!n)
+    {
+        cout << "remote path not found: '" << s << "'" << endl;
+    }
+    return n;
+}
+
+fs::path pathFromLocalPath(const string& s, bool mustexist)
+{
+    fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
+    if (mustexist && !fs::exists(p))
+    {
+        cout << "local path not found: '" << s << "'";
+        return fs::path();
+    }
+    return p;
+}
+
+void exec_treecompare(autocomplete::ACState& s)
+{
+    fs::path p = pathFromLocalPath(s.words[1].s, true);
+    Node* n = nodeFromRemotePath(s.words[2].s);
+    if (n && !p.empty())
+    {
+        recursiveCompare(n, p);
+    }
+}
+
+void exec_querytransferquota(autocomplete::ACState& ac)
+{
+    client->querytransferquota(atoll(ac.words[1].s.c_str()));
+}
+#endif // __cplusplus >= 201100L
+
+void DemoApp::querytransferquota_result(int n)
+{
+    cout << "querytransferquota_result: " << n << endl;
+}
+
 #ifdef HAVE_AUTOCOMPLETE
 autocomplete::ACN autocompleteTemplate;
 
@@ -2084,9 +2375,9 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
     // which is clearer in the help output - one line or 3?
-    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), param("exportedfolderurl#key"), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     //p->Add(sequence(text("login"), param("email"), opt(param("password"))));
-    //p->Add(sequence(text("login"), param("exportedfolderurl#key")));
+    //p->Add(sequence(text("login"), exportedLink(false, true)));
     //p->Add(sequence(text("login"), param("session")));
     p->Add(sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
@@ -2102,8 +2393,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("lpwd")));
     p->Add(sequence(text("lmkdir"), localFSFolder()));
 #endif
-    p->Add(sequence(text("import"), param("exportedfilelink#key")));
-    p->Add(sequence(text("open"), param("exportedfolderlink#key")));
+    p->Add(sequence(text("import"), exportedLink(true, false)));
+    p->Add(sequence(text("open"), exportedLink(false, true)));
     p->Add(sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(sequence(text("putq"), opt(param("cancelslot"))));
 #ifdef USE_FILESYSTEM
@@ -2111,7 +2402,7 @@ autocomplete::ACN autocompleteSyntax()
 #else
     p->Add(sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
 #endif
-    p->Add(sequence(text("get"), param("exportedfilelink#key"), opt(sequence(param("offset"), opt(param("length"))))));
+    p->Add(sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(sequence(text("getq"), opt(param("cancelslot"))));
     p->Add(sequence(text("pause"), opt(either(text("get"), text("put"))), opt(text("hard")), opt(text("status"))));
     p->Add(sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));
@@ -2136,9 +2427,12 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("delua"), param("attrname")));
 #endif
     p->Add(sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
+    p->Add(sequence(text("recentactions"), param("hours"), param("maxcount")));
+    p->Add(sequence(text("recentnodes"), param("hours"), param("maxcount")));
+
     p->Add(sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
-    p->Add(sequence(text("whoami")));
+    p->Add(sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
     p->Add(sequence(text("passwd")));
     p->Add(sequence(text("reset"), contactEmail(client), opt(text("mk"))));
     p->Add(sequence(text("recover"), param("recoverylink")));
@@ -2178,6 +2472,12 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("autocomplete"), opt(either(text("unix"), text("dos")))));
     p->Add(sequence(text("history")));
     p->Add(sequence(text("quit")));
+
+#if __cplusplus >= 201100L
+    p->Add(exec_find, sequence(text("find"), text("raided")));
+    p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
+    p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
+#endif
 
     return autocompleteTemplate = std::move(p);
 }
@@ -2278,6 +2578,9 @@ struct Login
     }
 };
 static Login login;
+
+ofstream* pread_file = NULL;
+m_off_t pread_file_end = 0;
 
 
 // execute command
@@ -2436,6 +2739,17 @@ static void process_line(char* l)
 
 #if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
             using namespace ::mega::autocomplete;
+
+            string consoleOutput;
+            if (autoExec(line, strlen(line), autocompleteTemplate, false, consoleOutput, false))
+            {
+                if (!consoleOutput.empty())
+                {
+                    cout << consoleOutput << endl;
+                }
+                return;
+            }
+
             ACState acs = prepACState(l, strlen(l), static_cast<WinConsole*>(console)->getAutocompleteStyle());
             for (unsigned i = 0; i < acs.words.size(); ++i)
             {
@@ -2589,7 +2903,7 @@ static void process_line(char* l)
                 cout << "      test" << endl;
 #ifdef ENABLE_CHAT
                 cout << "      chats [chatid]" << endl;
-                cout << "      chatc group [t title64] [email ro|sta|mod]*" << endl;    // group can be 1 or 0
+                cout << "      chatc group [email ro|sta|mod]*" << endl;    // group can be 1 or 0
                 cout << "      chati chatid email ro|sta|mod [t title] [unifiedkey]" << endl;
                 cout << "      chatcp mownkey [t title64] [email ro|sta|mod unifiedkey]* " << endl;
                 cout << "      chatr chatid [email]" << endl;
@@ -2609,6 +2923,8 @@ static void process_line(char* l)
                 cout << "      mfac" << endl;
                 cout << "      mfae" << endl;
                 cout << "      mfad pin" << endl;
+                cout << "      recentnodes hours maxcount" << endl;
+                cout << "      recentactions hours maxcount" << endl;
                 cout << "      quit" << endl;
 #endif
                 return;
@@ -3087,13 +3403,19 @@ static void process_line(char* l)
 
                             if (n)
                             {
-                                if (words.size() > 4)
+                                if (words.size() > 5)
                                 {
                                     reportsyntax = true;
                                 }
                                 if (words.size() > 2)
                                 {
                                     // read file slice
+                                    if (words.size() == 5)
+                                    {
+                                        pread_file = new ofstream(words[4].c_str(), std::ios_base::binary);
+                                        pread_file_end = atol(words[2].c_str()) + atol(words[3].c_str());
+                                    }
+
                                     client->pread(n, atol(words[2].c_str()), (words.size() > 3) ? atol(words[3].c_str()) : 0, NULL);
                                 }
                                 else
@@ -4244,7 +4566,7 @@ static void process_line(char* l)
                         if (wordscount < 2 || wordscount == 3)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            cout << "      chatc group [email ro|sta|mod]* " << endl;
                             return;
                         }
 
@@ -4252,36 +4574,11 @@ static void process_line(char* l)
                         if (group != 0 && group != 1)
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            cout << "      chatc group [email ro|sta|mod]* " << endl;
                             return;
                         }
 
                         unsigned parseoffset = 2;
-                        const char *title = NULL;
-
-                        if (wordscount >= 4)
-                        {
-                            if (words[2] == "t")
-                            {
-                                if (words[3].empty())
-                                {
-                                    cout << "Title cannot be set to empty string" << endl;
-                                    return;
-                                }
-
-                                if (group)
-                                {
-                                    title =  words[3].c_str();
-                                    parseoffset = 4;
-                                }
-                                else
-                                {
-                                    cout << "Only group chats have Title" << endl;
-                                    return;
-                                }
-                            }
-                        }
-
                         if (((wordscount - parseoffset) % 2) == 0)
                         {
                             if (!group && (wordscount - parseoffset) != 2)
@@ -4343,7 +4640,7 @@ static void process_line(char* l)
                         else
                         {
                             cout << "Invalid syntax to create chatroom" << endl;
-                            cout << "      chatc group [t title64] [email ro|sta|mod]* " << endl;
+                            cout << "      chatc group [email ro|sta|mod]* " << endl;
                             return;
                         }
                     }
@@ -4808,9 +5105,18 @@ static void process_line(char* l)
 #endif
                             }
 
+                            bool storage = extractparam("storage", words);
+                            bool transfer = extractparam("transfer", words);
+                            bool pro = extractparam("pro", words);
+                            bool transactions = extractparam("transactions", words);
+                            bool purchases = extractparam("purchases", words);
+                            bool sessions = extractparam("sessions", words);
+
+                            bool all = !storage && !transfer && !pro && !transactions && !purchases && !sessions;
+
                             cout << "Retrieving account status..." << endl;
 
-                            client->getaccountdetails(&account, true, true, true, true, true, true);
+                            client->getaccountdetails(&account, all || storage, all || transfer, all || pro, all || transactions, all || purchases, all || sessions);
                         }
 
                         return;
@@ -4833,7 +5139,7 @@ static void process_line(char* l)
                                     deltmp = (words[2] == "del");
                                     if (!deltmp)
                                     {
-                                        etstmp = atol(words[2].c_str());
+                                        etstmp = atoi(words[2].c_str());
                                     }
                                 }
 
@@ -5226,7 +5532,7 @@ static void process_line(char* l)
                     }
                     else if (words[0] == "alerts")
                     {
-                        bool shownew = false, showold = false, toggleNotify = false;
+                        bool shownew = false, showold = false;
                         size_t showN = 0; 
                         if (words.size() == 1)
                         {
@@ -5283,7 +5589,7 @@ static void process_line(char* l)
                             {
                                 if ((*i)->relevant)
                                 {
-                                    if (--n < showN || shownew && !(*i)->seen || showold && (*i)->seen)
+                                    if (--n < showN || (shownew && !(*i)->seen) || (showold && (*i)->seen))
                                     {
                                         printAlert(**i);
                                     }
@@ -5663,6 +5969,7 @@ static void process_line(char* l)
                                         }
                                     }
                                     break;
+                                case TYPE_UNKNOWN: break;
                                 }
                             }
                             else
@@ -5717,6 +6024,22 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else if (words[0] == "recentnodes")
+                    {
+                        if (words.size() == 3)
+                        {
+                            node_vector nv = client->getRecentNodes(atoi(words[2].c_str()), m_time() - 60 * 60 * atoi(words[1].c_str()), false);
+                            for (unsigned i = 0; i < nv.size(); ++i)
+                            {
+                                cout << nv[i]->displaypath() << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      recentnodes hours maxcount" << endl;
+                        }
+                        return;
+                    }
                     break;
 
                 case 12:
@@ -5745,6 +6068,33 @@ static void process_line(char* l)
                         return;
                     }
 #endif
+                    break;
+
+                case 13:
+                    if (words[0] == "recentactions")
+                    {
+                        if (words.size() == 3)
+                        {
+                            recentactions_vector nvv = client->getRecentActions(atoi(words[2].c_str()), m_time() - 60 * 60 * atoi(words[1].c_str()));
+                            for (unsigned i = 0; i < nvv.size(); ++i)
+                            {
+                                if (i != 0)
+                                {
+                                    cout << "---" << endl;
+                                }
+                                cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].user, client) << " " << (nvv[i].updated ? "updated" : "uploaded") << " " << (nvv[i].media ? "media" : "files") << endl;
+                                for (unsigned j = 0; j < nvv[i].nodes.size(); ++j)
+                                {
+                                    cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            cout << "      recentactions hours maxcount" << endl;
+                        }
+                        return;
+                    }
                     break;
 
                 case 17:
@@ -5903,7 +6253,7 @@ void DemoApp::multifactorauthsetup_result(string *code, error e)
 }
 
 
-void DemoApp::prelogin_result(int version, string* email, string *salt, error e)
+void DemoApp::prelogin_result(int version, string* /*email*/, string *salt, error e)
 {
     if (e)
     {
@@ -5970,7 +6320,7 @@ void DemoApp::sendsignuplink_result(error e)
 }
 
 // signup link query result
-void DemoApp::querysignuplink_result(handle uh, const char* email, const char* name, const byte* pwc, const byte* kc,
+void DemoApp::querysignuplink_result(handle /*uh*/, const char* email, const char* name, const byte* pwc, const byte* /*kc*/,
                                      const byte* c, size_t len)
 {
     cout << "Ready to confirm user account " << email << " (" << name << ") - enter confirm to execute." << endl;
@@ -6031,7 +6381,7 @@ void DemoApp::queryrecoverylink_result(error e)
         cout << "The link is invalid (" << errorstring(e) << ")." << endl;
 }
 
-void DemoApp::queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails)
+void DemoApp::queryrecoverylink_result(int type, const char *email, const char* /*ip*/, time_t /*ts*/, handle /*uh*/, const vector<string>* /*emails*/)
 {
     recoveryemail = email ? email : "";
     hasMasterKey = (type == RECOVER_WITH_MASTERKEY);
@@ -6299,7 +6649,7 @@ void DemoApp::openfilelink_result(error e)
 
 // the requested link was opened successfully - import to cwd
 void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
-                                  string* a, string* fa, int)
+                                  string* a, string* /*fa*/, int)
 {
     Node* n;
 
@@ -6407,12 +6757,12 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     delete [] buf;
 }
 
-void DemoApp::checkfile_result(handle h, error e)
+void DemoApp::checkfile_result(handle /*h*/, error e)
 {
     cout << "Link check failed: " << errorstring(e) << endl;
 }
 
-void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename,
+void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t /*ts*/, m_time_t tm, string* filename,
                                string* fingerprint, string* fileattrstring)
 {
     cout << "Name: " << *filename << ", size: " << size;
@@ -6443,16 +6793,29 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
     }
 }
 
-bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* appdata)
+bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* /*appdata*/)
 {
-    cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
-    fwrite(data, 1, size_t(len), stdout);
-    cout << endl;
-
+    if (pread_file)
+    {
+        pread_file->write((const char*)data, (size_t)len);
+        cout << "Received " << len << " partial read byte(s) at position " << pos << endl;
+        if (pread_file_end == pos + len)
+        {
+            delete pread_file;
+            pread_file = NULL;
+            cout << "Completed pread" << endl;
+        }
+    }
+    else
+    {
+        cout << "Received " << len << " partial read byte(s) at position " << pos << ": ";
+        fwrite(data, 1, size_t(len), stdout);
+        cout << endl;
+    }
     return true;
 }
 
-dstime DemoApp::pread_failure(error e, int retry, void* appdata)
+dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/)
 {
     if (retry < 5)
     {
@@ -6462,6 +6825,11 @@ dstime DemoApp::pread_failure(error e, int retry, void* appdata)
     else
     {
         cout << "Too many failures (" << errorstring(e) << "), giving up" << endl;
+        if (pread_file)
+        {
+            delete pread_file;
+            pread_file = NULL;
+        }
         return ~(dstime)0;
     }
 }
@@ -6567,7 +6935,7 @@ void DemoApp::checkout_result(const char*)
     // FIXME: implement
 }
 
-void DemoApp::getmegaachievements_result(AchievementsDetails *details, error e)
+void DemoApp::getmegaachievements_result(AchievementsDetails *details, error /*e*/)
 {
     // FIXME: implement display of values
     delete details;
@@ -6612,7 +6980,7 @@ void DemoApp::contactlinkcreate_result(error e, handle h)
     }
 }
 
-void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln, string *avatar)
+void DemoApp::contactlinkquery_result(error e, handle h, string *email, string *fn, string *ln, string* /*avatar*/)
 {
     if (e)
     {
@@ -6776,7 +7144,7 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 }
 
 // account details could not be retrieved
-void DemoApp::account_details(AccountDetails* ad, error e)
+void DemoApp::account_details(AccountDetails* /*ad*/, error e)
 {
     if (e)
     {
@@ -6817,7 +7185,7 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
     string s = acs.completions[0].s;
-    for (int i = acs.completions.size(); i--; )
+    for (size_t i = acs.completions.size(); i--; )
     {
         for (unsigned j = 0; j < s.size() && j < acs.completions[i].s.size(); ++j)
         {
@@ -6831,7 +7199,7 @@ char* longestCommonPrefix(ac::CompletionState& acs)
     return strdup(s.c_str());
 }
 
-char** my_rl_completion(const char *text, int start, int end)
+char** my_rl_completion(const char */*text*/, int /*start*/, int end)
 {
     rl_attempted_completion_over = 1;
 
@@ -6845,11 +7213,11 @@ char** my_rl_completion(const char *text, int start, int end)
 
     if (acs.completions.size() == 1 && !acs.completions[0].couldExtend)
     {
-        acs.completions[0].s += " "; 
+        acs.completions[0].s += " ";
     }
 
     char** result = (char**)malloc((sizeof(char*)*(2+acs.completions.size())));
-    for (int i = acs.completions.size(); i--; )
+    for (size_t i = acs.completions.size(); i--; )
     {
         result[i+1] = strdup(acs.completions[i].s.c_str());
     }
@@ -7039,17 +7407,17 @@ void megacli()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    virtual void log(const char *time, int loglevel, const char *source, const char *message)
+    void log(const char* time, int loglevel, const char* source, const char *message) override
     {
 #ifdef _WIN32
         OutputDebugStringA(message);
         OutputDebugStringA("\r\n");
-#endif
-
-        if (loglevel <= logWarning)
+#else
+        if (loglevel >= SimpleLogger::logCurrentLevel)
         {
-            std::cout << message << std::endl;
+            std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
         }
+#endif
     }
 };
 
@@ -7061,7 +7429,7 @@ int main()
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&logger);
 #else
-    SimpleLogger::setAllOutputs(&std::cout);
+    SimpleLogger::setOutputClass(&logger);
 #endif
 
     console = new CONSOLE_CLASS;

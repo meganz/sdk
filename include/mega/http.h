@@ -265,6 +265,27 @@ struct MEGA_API HttpReq
     char* data();
     size_t size();
 
+    // a buffer that the HttpReq filled in.   This struct owns the buffer (so HttpReq no longer has it).
+    struct http_buf_t 
+    { 
+        byte* datastart();
+        size_t datalen();
+
+        size_t start;
+        size_t end;
+
+        http_buf_t(byte* b, size_t s, size_t e);  // takes ownership of the byte*, which must have been allocated with new[]
+        ~http_buf_t();
+        void swap(http_buf_t& other);
+        bool isNull();
+
+    private: 
+        byte* buf;
+    };
+    
+    // give up ownership of the buffer for client to use.  The caller is the new owner of the http_buf_t, and the HttpReq no longer has the buffer or any info about it.
+    http_buf_t* release_buf();
+
     // set amount of purgeable data at 0
     void purge(size_t);
 
@@ -321,7 +342,6 @@ struct MEGA_API HttpReqXfer : public HttpReq
     unsigned size;
 
     virtual void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t) = 0;
-    virtual void finalize(Transfer*) { }
 
     HttpReqXfer() : HttpReq(true), size(0) { }
 };
@@ -343,11 +363,11 @@ struct MEGA_API HttpReqUL : public HttpReqXfer
 struct MEGA_API HttpReqDL : public HttpReqXfer
 {
     m_off_t dlpos;
-    chunkmac_map chunkmacs;
+    bool buffer_released;
 
     void prepare(const char*, SymmCipher*, chunkmac_map*, uint64_t, m_off_t, m_off_t);
-    void finalize(Transfer *transfer);
 
+    HttpReqDL();
     ~HttpReqDL() { }
 };
 

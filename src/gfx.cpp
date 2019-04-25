@@ -104,7 +104,7 @@ void GfxProc::loop()
     {
         waiter.init(NEVER);
         waiter.wait();
-        while (job = requests.pop())
+        while ((job = requests.pop()))
         {
             if (finished)
             {
@@ -155,12 +155,12 @@ void GfxProc::loop()
         }
     }
 
-    while (job = requests.pop())
+    while ((job = requests.pop()))
     {
         delete job;
     }
 
-    while (job = responses.pop())
+    while ((job = responses.pop()))
     {
         for (unsigned i = 0; i < job->imagetypes.size(); i++)
         {
@@ -180,7 +180,7 @@ int GfxProc::checkevents(Waiter *)
     GfxJob *job = NULL;
     bool needexec = false;
     SymmCipher key;
-    while (job = responses.pop())
+    while ((job = responses.pop()))
     {
         for (unsigned i = 0; i < job->images.size(); i++)
         {
@@ -284,7 +284,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 // FIXME: move to a worker thread to keep the engine nonblocking
-int GfxProc::gendimensionsputfa(FileAccess* fa, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
+int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
 {
     if (SimpleLogger::logCurrentLevel >= logDebug)
     {

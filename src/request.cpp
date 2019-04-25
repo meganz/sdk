@@ -32,7 +32,7 @@ void Request::add(Command* c)
 
 int Request::cmdspending() const
 {
-    return cmds.size();
+    return static_cast<int>(cmds.size());
 }
 
 void Request::get(string* req) const

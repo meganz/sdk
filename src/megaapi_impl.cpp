@@ -34,6 +34,7 @@
 #include <functional>
 #include <cctype>
 #include <locale>
+#include <thread>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
@@ -3459,6 +3460,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_PSA: return "GET_PSA";
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
         case TYPE_USERALERT_ACKNOWLEDGE: return "TYPE_USERALERT_ACKNOWLEDGE";
+        case TYPE_CATCHUP: return "CATCHUP";
     }
     return "UNKNOWN";
 }
@@ -3650,6 +3652,16 @@ MegaNodeListPrivate::MegaNodeListPrivate()
 	s = 0;
 }
 
+MegaNodeListPrivate::MegaNodeListPrivate(node_vector& v)
+{
+    list = NULL; s = v.size();
+    if (!s) return;
+
+    list = new MegaNode*[s];
+    for (int i = 0; i < s; i++)
+        list[i] = MegaNodePrivate::fromNode(v[i]);
+}
+
 MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 {
 	list = NULL; s = size;
@@ -3660,7 +3672,7 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 		list[i] = MegaNodePrivate::fromNode(newlist[i]);
 }
 
-MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren)
+MegaNodeListPrivate::MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren)
 {
     s = nodeList->size();
     if (!s)
@@ -3693,12 +3705,12 @@ MegaNodeListPrivate::~MegaNodeListPrivate()
 	delete [] list;
 }
 
-MegaNodeList *MegaNodeListPrivate::copy()
+MegaNodeList *MegaNodeListPrivate::copy() const
 {
     return new MegaNodeListPrivate(this);
 }
 
-MegaNode *MegaNodeListPrivate::get(int i)
+MegaNode *MegaNodeListPrivate::get(int i) const
 {
 	if(!list || (i < 0) || (i >= s))
 		return NULL;
@@ -3706,7 +3718,7 @@ MegaNode *MegaNodeListPrivate::get(int i)
 	return list[i];
 }
 
-int MegaNodeListPrivate::size()
+int MegaNodeListPrivate::size() const
 {
     return s;
 }
@@ -3848,7 +3860,126 @@ int MegaUserAlertListPrivate::size() const
     return s;
 }
 
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc)
+{
+    User* u = mc->finduser(ra.user);
 
+    timestamp = ra.time;
+    user = u ? u->email : "";
+    parent = ra.parent;
+    update = ra.updated;
+    media = ra.media;
+    nodes = new MegaNodeListPrivate(ra.nodes);
+}
+
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(int64_t ts, const string& u, handle p, bool up, bool m, MegaNodeList* l)
+{
+    timestamp = ts;
+    user = u;
+    parent = p;
+    update = up;
+    media = m;
+    nodes = l;
+}
+
+MegaRecentActionBucketPrivate::~MegaRecentActionBucketPrivate()
+{
+    delete nodes;
+}
+
+MegaRecentActionBucket *MegaRecentActionBucketPrivate::copy() const
+{
+    return new MegaRecentActionBucketPrivate(timestamp, user, parent, update, media, nodes->copy());
+}
+
+int64_t MegaRecentActionBucketPrivate::getTimestamp() const
+{
+    return timestamp;
+}
+
+const char* MegaRecentActionBucketPrivate::getUserEmail() const
+{
+    return user.c_str();
+}
+
+MegaHandle MegaRecentActionBucketPrivate::getParentHandle() const
+{
+    return parent;
+}
+
+bool MegaRecentActionBucketPrivate::isUpdate() const
+{
+    return update;
+}
+
+bool MegaRecentActionBucketPrivate::isMedia() const
+{
+    return media;
+}
+
+const MegaNodeList* MegaRecentActionBucketPrivate::getNodes() const
+{
+    return nodes;
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
+{
+    list = NULL;
+    s = 0;
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc)
+{
+    list = NULL;
+    s = v.size();
+
+    if (!s)
+        return;
+
+    list = new MegaRecentActionBucketPrivate*[s];
+    for (int i = 0; i < s; i++)
+    {
+        list[i] = new MegaRecentActionBucketPrivate(v[i], mc);
+    }
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &o)
+{
+    s = o.size();
+    list = s ? new MegaRecentActionBucketPrivate*[s] : NULL;
+    for (int i = 0; i < s; ++i)
+    {
+        list[i] = (MegaRecentActionBucketPrivate*)o.get(i)->copy();
+    }
+}
+
+MegaRecentActionBucketListPrivate::~MegaRecentActionBucketListPrivate()
+{
+    for (int i = 0; i < s; i++)
+    {
+        delete list[i];
+    }
+    delete[] list;
+}
+
+MegaRecentActionBucketList *MegaRecentActionBucketListPrivate::copy() const
+{
+    return new MegaRecentActionBucketListPrivate(*this);
+}
+
+MegaRecentActionBucket *MegaRecentActionBucketListPrivate::get(int i) const
+{
+    if (!list || (i < 0) || (i >= s))
+    {
+        return NULL;
+    }
+    return list[i];
+}
+
+int MegaRecentActionBucketListPrivate::size() const
+{
+    return s;
+}
 
 MegaShareListPrivate::MegaShareListPrivate()
 {
@@ -5484,6 +5615,7 @@ void MegaApiImpl::loop()
             updateBackups();
             sendPendingTransfers();
             sendPendingRequests();
+            sendPendingScRequest();
             if(threadExit)
                 break;
 
@@ -7203,6 +7335,12 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
     transfer->setMaxRetries(maxRetries);
     transferQueue.push(transfer);
     waiter->notify();
+}
+
+void MegaApiImpl::setStreamingMinimumRate(int bytesPerSecond)
+{
+    MutexGuard g(sdkMutex);
+    client->minstreamingrate = bytesPerSecond;
 }
 
 void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
@@ -9083,6 +9221,13 @@ void MegaApiImpl::getMegaAchievements(MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::catchup(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CATCHUP, listener);
+    scRequestQueue.push(request);
+    waiter->notify();
+}
+
 MegaUserList* MegaApiImpl::getContacts()
 {
     sdkMutex.lock();
@@ -9459,6 +9604,14 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
         case FULL: return MegaShare::ACCESS_FULL;
         default: return MegaShare::ACCESS_OWNER;
     }
+}
+
+MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigned maxnodes)
+{
+    MutexGuard g(sdkMutex);
+    m_time_t since = m_time() - days * 86400;
+    recentactions_vector v = client->getRecentActions(maxnodes, since);
+    return new MegaRecentActionBucketListPrivate(v, client);
 }
 
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
@@ -13615,6 +13768,22 @@ void MegaApiImpl::nodes_current()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::catchup_result()
+{
+    // sc requests are sent sequentially, it must be the one at front and already started (tag == 1)
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP) || !request->getTag()) return;
+    request = scRequestQueue.pop();
+
+    fireOnRequestFinish(request, API_OK);
+
+    // if there are more sc requests in the queue, send the next one
+    if (scRequestQueue.front())
+    {
+        waiter->notify();
+    }
+}
+
 void MegaApiImpl::ephemeral_result(error e)
 {
 	MegaError megaError(e);
@@ -16640,6 +16809,33 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
     return e;
 }
 
+void MegaApiImpl::yield()
+{
+#if __cplusplus >= 201100L
+    std::this_thread::yield();
+#elif !defined(_WIN32)
+    sched_yield();
+#endif
+}
+
+void MegaApiImpl::sendPendingScRequest()
+{
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request || request->getTag())
+    {
+        return;
+    }
+    assert(request->getType() == MegaRequest::TYPE_CATCHUP);
+
+    sdkMutex.lock();
+
+    request->setTag(1);
+    fireOnRequestStart(request);
+    client->catchup();
+
+    sdkMutex.unlock();
+}
+
 void MegaApiImpl::sendPendingRequests()
 {
     MegaRequestPrivate *request;
@@ -19612,7 +19808,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
             TextChat *chat = it->second;
-            if (!chat->group || !chat->publicchat || chat->priv != PRIV_MODERATOR)
+            if (!chat->group || !chat->publicchat || chat->priv == PRIV_RM
+                    || ((del || createifmissing) && chat->priv != PRIV_MODERATOR))
             {
                 e = API_EACCESS;
                 break;
@@ -19798,8 +19995,9 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(e));
         }
 
-		sdkMutex.unlock();
-	}
+        sdkMutex.unlock();
+        yield();
+    }
 }
 
 char* MegaApiImpl::stringToArray(string &buffer)
@@ -20042,6 +20240,19 @@ MegaRequestPrivate *RequestQueue::pop()
     }
     MegaRequestPrivate *request = requests.front();
     requests.pop_front();
+    mutex.unlock();
+    return request;
+}
+
+MegaRequestPrivate *RequestQueue::front()
+{
+    mutex.lock();
+    if(requests.empty())
+    {
+        mutex.unlock();
+        return NULL;
+    }
+    MegaRequestPrivate *request = requests.front();
     mutex.unlock();
     return request;
 }
@@ -28959,7 +29170,7 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
-const int MegaEventPrivate::getNumber() const
+int MegaEventPrivate::getNumber() const
 {
     return number;
 }
