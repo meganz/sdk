@@ -12656,9 +12656,10 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param node Node to generate the local HTTP link
+         * @param formatIPv6 true to use [::1] as host, false to use 127.0.0.1
          * @return URL to the node in the local HTTP proxy server, otherwise NULL
          */
-        char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalLink(MegaNode *node, bool formatIPv6 = false);
 
         /**
          * @brief Returns a WEBDAV valid URL to a node in the local HTTP proxy server

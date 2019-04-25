@@ -8063,7 +8063,7 @@ int MegaApiImpl::httpServerIsRunning()
     return result;
 }
 
-char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
+char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node, bool formatIPv6)
 {
     if (!node)
     {
@@ -8077,7 +8077,7 @@ char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
         return NULL;
     }
 
-    char *result = httpServer->getLink(node);
+    char *result = httpServer->getLink(node, "http", formatIPv6);
     sdkMutex.unlock();
     return result;
 }
@@ -23185,14 +23185,14 @@ void MegaTCPServer::run()
 
     uv_tcp_keepalive(&server, 0, 0);
 
-    struct sockaddr_in address;
+    struct sockaddr_in6 address;
     if (localOnly)
     {
-        uv_ip4_addr("127.0.0.1", port, &address);
+        uv_ip6_addr("::1", port, &address);
     }
     else
     {
-        uv_ip4_addr("0.0.0.0", port, &address);
+        uv_ip6_addr("::", port, &address);
     }
     uv_connection_cb onNewClientCB;
 #ifdef ENABLE_EVT_TLS
@@ -23271,14 +23271,14 @@ void MegaTCPServer::initializeAndStartListening()
 
     uv_tcp_keepalive(&server, 0, 0);
 
-    struct sockaddr_in address;
+    struct sockaddr_in6 address;
     if (localOnly)
     {
-        uv_ip4_addr("127.0.0.1", port, &address);
+        uv_ip6_addr("::1", port, &address);
     }
     else
     {
-        uv_ip4_addr("0.0.0.0", port, &address);
+        uv_ip6_addr("::", port, &address);
     }
     uv_connection_cb onNewClientCB;
 #ifdef ENABLE_EVT_TLS
@@ -23393,7 +23393,7 @@ void MegaTCPServer::clearAllowedHandles()
     lastHandle = INVALID_HANDLE;
 }
 
-char *MegaTCPServer::getLink(MegaNode *node, string protocol)
+char *MegaTCPServer::getLink(MegaNode *node, string protocol, bool formatIPv6)
 {
     if (!node)
     {
@@ -23402,9 +23402,11 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
 
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
+    
+    string localhostIP = formatIPv6 ? "[::1]" : "127.0.0.1";
 
     ostringstream oss;
-    oss << protocol << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
+    oss << protocol << (useTLS ? "s" : "") << "://" << localhostIP << ":" << port << "/";
     char *base64handle = node->getBase64Handle();
     oss << base64handle;
     delete [] base64handle;
