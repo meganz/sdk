@@ -254,7 +254,7 @@ User* User::unserialize(MegaClient* client, string* d)
                 }
                 else
                 {
-                    LOG_info << "Chat key succesfully loaded from local cache.";
+                    LOG_info << "Chat key successfully loaded from local cache.";
                 }
             }
 
