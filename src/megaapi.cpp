@@ -3634,9 +3634,9 @@ void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
     pImpl->httpServerRemoveListener(listener);
 }
 
-char *MegaApi::httpServerGetLocalLink(MegaNode *node)
+char *MegaApi::httpServerGetLocalLink(MegaNode *node, bool formatIPv6)
 {
-    return pImpl->httpServerGetLocalLink(node);
+    return pImpl->httpServerGetLocalLink(node, formatIPv6);
 }
 
 char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)

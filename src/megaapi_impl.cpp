@@ -7934,7 +7934,7 @@ int MegaApiImpl::httpServerIsRunning()
     return result;
 }
 
-char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
+char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node, bool formatIPv6)
 {
     if (!node)
     {
@@ -7948,7 +7948,7 @@ char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
         return NULL;
     }
 
-    char *result = httpServer->getLink(node);
+    char *result = httpServer->getLink(node, "http", formatIPv6);
     sdkMutex.unlock();
     return result;
 }
@@ -23256,7 +23256,7 @@ void MegaTCPServer::clearAllowedHandles()
     lastHandle = INVALID_HANDLE;
 }
 
-char *MegaTCPServer::getLink(MegaNode *node, string protocol)
+char *MegaTCPServer::getLink(MegaNode *node, string protocol, bool formatIPv6)
 {
     if (!node)
     {
@@ -23265,9 +23265,11 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
 
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
+    
+    string localhostIP = formatIPv6 ? "[::1]" : "127.0.0.1";
 
     ostringstream oss;
-    oss << protocol << (useTLS ? "s" : "") << "://[::1]:" << port << "/";
+    oss << protocol << (useTLS ? "s" : "") << "://" << localhostIP << ":" << port << "/";
     char *base64handle = node->getBase64Handle();
     oss << base64handle;
     delete [] base64handle;

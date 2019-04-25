@@ -1973,7 +1973,7 @@ using namespace mega;
 }
 
 - (NSURL *)httpServerGetLocalLink:(MEGANode *)node {
-    const char *val = self.megaApi->httpServerGetLocalLink([node getCPtr]);
+    const char *val = self.megaApi->httpServerGetLocalLink([node getCPtr], true);
     if (!val) return nil;
     
     NSURL *ret = [NSURL URLWithString:[NSString stringWithUTF8String:val]];

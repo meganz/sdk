@@ -2181,7 +2181,7 @@ class MegaApiImpl : public MegaApp
         int httpServerIsRunning();
 
         // management
-        char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalLink(MegaNode *node, bool formatIPv6 = false);
         char *httpServerGetLocalWebDavLink(MegaNode *node);
         MegaStringList *httpServerGetWebDavLinks();
         MegaNodeList *httpServerGetWebDavAllowedNodes();
@@ -2895,7 +2895,7 @@ public:
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
-    char* getLink(MegaNode *node, std::string protocol = "http");
+    char* getLink(MegaNode *node, std::string protocol = "http", bool formatIPv6 = false);
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);
