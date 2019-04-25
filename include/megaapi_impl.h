@@ -855,38 +855,38 @@ public:
 
     // getters
 
-    virtual bool isGlobalEnabled() const;
-    virtual bool isGlobalDndEnabled() const;
-    virtual int64_t getGlobalDnd() const;
-    virtual bool isGlobalScheduleEnabled() const;
-    virtual int getGlobalScheduleStart() const;
-    virtual int getGlobalScheduleEnd() const;
-    virtual const char *getGlobalScheduleTimezone() const;
+    bool isGlobalEnabled() const override;
+    bool isGlobalDndEnabled() const override;
+    int64_t getGlobalDnd() const override;
+    bool isGlobalScheduleEnabled() const override;
+    int getGlobalScheduleStart() const override;
+    int getGlobalScheduleEnd() const override;
+    const char *getGlobalScheduleTimezone() const override;
 
-    virtual bool isChatEnabled(MegaHandle chatid) const;
-    virtual bool isChatDndEnabled(MegaHandle chatid) const;
-    virtual int64_t getChatDnd(MegaHandle chatid) const;
-    virtual bool isChatAlwaysNotifyEnabled(MegaHandle chatid) const;
+    bool isChatEnabled(MegaHandle chatid) const override;
+    bool isChatDndEnabled(MegaHandle chatid) const override;
+    int64_t getChatDnd(MegaHandle chatid) const override;
+    bool isChatAlwaysNotifyEnabled(MegaHandle chatid) const override;
 
-    virtual bool isContactsEnabled() const;
-    virtual bool isSharesEnabled() const;
-    virtual bool isChatsEnabled() const;
+    bool isContactsEnabled() const override;
+    bool isSharesEnabled() const override;
+    bool isChatsEnabled() const override;
 
     // setters
 
-    virtual void enableGlobal(bool enable);
-    virtual void setGlobalDnd(int64_t timestamp);
-    virtual void disableGlobalDnd();
-    virtual void setGlobalSchedule(int start, int end, const char *timezone);
-    virtual void disableGlobalSchedule();
+    void enableGlobal(bool enable) override;
+    void setGlobalDnd(int64_t timestamp) override;
+    void disableGlobalDnd() override;
+    void setGlobalSchedule(int start, int end, const char *timezone) override;
+    void disableGlobalSchedule() override;
 
-    virtual void enableChat(MegaHandle chatid, bool enable);
-    virtual void setChatDnd(MegaHandle chatid, int64_t timestamp);
-    virtual void enableChatAlwaysNotify(MegaHandle chatid, bool enable);
+    void enableChat(MegaHandle chatid, bool enable) override;
+    void setChatDnd(MegaHandle chatid, int64_t timestamp) override;
+    void enableChatAlwaysNotify(MegaHandle chatid, bool enable) override;
 
-    virtual void enableContacts(bool enable);
-    virtual void enableShares(bool enable);
-    virtual void enableChats(bool enable);
+    void enableContacts(bool enable) override;
+    void enableShares(bool enable) override;
+    void enableChats(bool enable) override;
 };
 
 class MegaContactRequestPrivate : public MegaContactRequest
@@ -1114,7 +1114,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringMap(const MegaStringMap *);
         virtual MegaFolderInfo *getMegaFolderInfo() const;
         void setMegaFolderInfo(const MegaFolderInfo *);
-        virtual MegaPushNotificationSettings *getMegaPushNotificationSettings() const;
+        MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
         void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
 
 #ifdef ENABLE_SYNC
