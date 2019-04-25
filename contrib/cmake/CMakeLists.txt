@@ -32,6 +32,13 @@ set (ENABLE_CHAT 0 CACHE TYPE BOOL)
 set (HAVE_FFMPEG 1 CACHE TYPE BOOL)
 set (USE_WEBRTC 0 CACHE TYPE BOOL)
 set (USE_LIBUV 0 CACHE TYPE BOOL)
+set (USE_QT 0 CACHE TYPE BOOL)
+
+if (USE_QT)
+    set( USE_CPPTHREAD 0)
+else()
+    set( USE_CPPTHREAD 1)
+ENDIF()
 
 if (WIN32)
     set (NO_READLINE 1 CACHE TYPE BOOL)
@@ -126,8 +133,8 @@ endif()
 
 # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
 if(WIN32)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
-add_definitions( -DNOMINMAX -DUSE_CPPTHREAD )  # also don't allow min and max macros from windows.h, use the std functions like on linux/g++
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
+    add_definitions( -DNOMINMAX )
 endif()
 
 IF(WIN32)
@@ -299,8 +306,6 @@ IF(WIN32)
             ImportVcpkgLibrary(freeimage_lzma    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lzma.lib"  "${vcpkg_dir}/lib/lzma.lib")
             ImportVcpkgLibrary(freeimage_lcms2    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/lcms2d.lib"  "${vcpkg_dir}/lib/lcms2.lib")
             ImportVcpkgLibrary(freeimage_raw    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/rawd.lib"  "${vcpkg_dir}/lib/raw.lib")
-            ImportVcpkgLibrary(freeimage_swscale  "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swscale.lib"  "${vcpkg_dir}/lib/swscale.lib")
-            ImportVcpkgLibrary(freeimage_swresample "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swresample.lib"  "${vcpkg_dir}/lib/swresample.lib")
             ImportVcpkgLibrary(freeimage_tiff    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffd.lib"  "${vcpkg_dir}/lib/tiff.lib")
             ImportVcpkgLibrary(freeimage_tiffxx    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/tiffxxd.lib"  "${vcpkg_dir}/lib/tiffxx.lib")
             ImportVcpkgLibrary(freeimage_webp    "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/webpd.lib"  "${vcpkg_dir}/lib/webp.lib")
@@ -315,6 +320,8 @@ IF(WIN32)
             ImportVcpkgLibrary(ffmpeg_avcodec "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avcodec.lib" "${vcpkg_dir}/lib/avcodec.lib")
             ImportVcpkgLibrary(ffmpeg_avfilter "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avfilter.lib" "${vcpkg_dir}/lib/avfilter.lib")
             ImportVcpkgLibrary(ffmpeg_avdevice "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/avdevice.lib" "${vcpkg_dir}/lib/avdevice.lib")
+            ImportVcpkgLibrary(ffmpeg_swscale  "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swscale.lib"  "${vcpkg_dir}/lib/swscale.lib")
+            ImportVcpkgLibrary(ffmpeg_swresample "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/swresample.lib"  "${vcpkg_dir}/lib/swresample.lib")
         ENDIF(HAVE_FFMPEG)
 
         IF(USE_SQLITE)
@@ -328,7 +335,7 @@ IF(WIN32)
 
     endif(USE_PREBUILT_3RDPARTY)
     
-    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE)
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DUNICODE -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
     SET(Mega_PlatformSpecificLibs ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
 
@@ -337,7 +344,8 @@ IF(WIN32)
     ${MegaDir}/src/win32/fs.cpp 
     $<IF:${USE_CURL},${MegaDir}/src/posix/net.cpp,${MegaDir}/src/win32/net.cpp>
     ${MegaDir}/src/win32/waiter.cpp 
-    ${MegaDir}/src/thread/cppthread.cpp   
+    $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp>
+    $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
     )
 
 
@@ -413,7 +421,8 @@ add_library(Mega STATIC
             ${MegaDir}/src/waiterbase.cpp 
             ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}  
             $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>  
-            $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> )
+            $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
+            $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>)
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
@@ -435,7 +444,8 @@ target_link_libraries(Mega PUBLIC z
                                               $<${USE_FREEIMAGE}:freeimage_jasper>  $<${USE_FREEIMAGE}:freeimage_libpng>  $<${USE_FREEIMAGE}:freeimage_half>  
                                               $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux> 
                                               $<${USE_FREEIMAGE}:freeimage_swscale>  $<${USE_FREEIMAGE}:freeimage_swresample>  
-                $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice> 
+                $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice > 
+                $<${USE_QT}:ffmpeg_swscale>  $<${USE_QT}:ffmpeg_swresample>  
                 ${Mega_PlatformSpecificLibs})
 target_compile_definitions(Mega PUBLIC 
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO> 
@@ -449,7 +459,9 @@ target_compile_definitions(Mega PUBLIC
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE> 
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
-                $<${HAVE_LIBUV}:HAVE_LIBUV>)
+                $<${HAVE_LIBUV}:HAVE_LIBUV>
+                $<${USE_CPPTHREAD}:USE_CPPTHREAD>
+                $<${USE_QT}:USE_QT>)
 
 if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)

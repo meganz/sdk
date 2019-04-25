@@ -24,6 +24,9 @@
 #include <cctype>
 #include <algorithm>
 
+#undef min // avoid issues with std::min and std::max
+#undef max
+
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -3293,6 +3296,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 if (nexttransfer->tempurls.size())
                 {
+                    ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->tempurls, nexttransfer->pos, ts->maxRequestSize);
                     app->transfer_prepare(nexttransfer);
                 }
                 else

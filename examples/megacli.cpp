@@ -2116,14 +2116,15 @@ public:
 
     static string server(const string& url)
     {
-        size_t n = url.find("://");
-        if (n != string::npos)
+        const string pattern("://");
+        size_t start_index = url.find(pattern);
+        if (start_index != string::npos)
         {
-            n += 3;
-            size_t m = url.find("/", n);
-            if (m != string::npos)
+            start_index += pattern.size();
+            const size_t end_index = url.find("/", start_index);
+            if (end_index != string::npos)
             {
-                return url.substr(n, m - n);
+                return url.substr(start_index, end_index - start_index);
             }
         }
         return "";
@@ -2167,7 +2168,7 @@ public:
                             {
                                 cout << n->displaypath() << endl;
 
-                                for (auto& url : tempurls)
+                                for (const auto& url : tempurls)
                                 {
                                     stack->servers.insert(server(url));
                                 }
