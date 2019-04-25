@@ -238,7 +238,166 @@ void exec_adddefaultrelays(ac::ACState& ac)
 
 }
 
-void exec_getcode(ac::ACState& ac)
+
+void exec_addbulkrelays(ac::ACState& ac)
+{
+    addRelay("gfs262n300.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n110.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n111.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n113.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n114.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n115.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n116.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n117.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n118.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n119.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n120.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n121.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n122.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n123.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n124.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n125.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n126.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n127.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n128.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n129.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n130.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n131.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n132.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n100.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n101.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n103.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n104.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n105.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n106.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n107.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n108.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n109.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n110.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n111.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n112.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n113.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n114.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n115.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n116.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n117.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n118.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n119.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n120.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n121.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n122.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n100.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n101.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n103.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n104.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n105.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n106.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n107.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n108.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n109.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n110.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n111.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n112.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n113.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n114.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n115.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n116.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n117.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n118.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n119.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n120.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n121.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n122.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n143.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n145.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n146.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n147.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n151.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n153.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n165.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n167.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n168.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n169.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n173.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n174.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n176.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n182.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n184.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n186.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n187.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n189.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n300.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n301.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n302.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n303.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n304.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n305.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n306.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n307.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n308.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n309.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n310.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n311.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n312.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n313.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n316.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n111.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n112.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n113.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n114.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n115.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n116.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n117.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n119.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n120.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n121.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n122.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n124.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n125.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n126.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n127.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n128.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n165.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n166.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n167.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n170.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n171.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n172.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n173.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n174.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n175.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n176.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n221.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n404.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n405.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n406.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n407.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n408.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n100.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n101.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n103.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n104.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n105.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n106.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n107.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n108.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n109.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n110.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n111.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n112.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n113.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n114.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n115.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n116.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n117.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n118.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n119.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n120.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n121.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs302n123.userstorage.mega.co.nz", g_nextPort++);
+}
+
+void exec_getjavascript(ac::ACState& ac)
 {
     lock_guard g(g_relays.relaycollectionmutex);
     for (auto& ra : g_relays.relayacceptors)
@@ -246,6 +405,17 @@ void exec_getcode(ac::ACState& ac)
         cout << "pieceUrl = pieceUrl.replace(\"" << ra->reporting_name << "\", \"localhost:" << ra->listen_port << "\");" << endl;
     }
     cout << "if (pieceUrl.includes(\"localhost\")) pieceUrl = pieceUrl.replace(\"https:\", \"http:\");" << endl;
+}
+
+void exec_getcpp(ac::ACState& ac)
+{
+    lock_guard g(g_relays.relaycollectionmutex);
+    cout << "size_t pos;" << endl;
+    for (auto& ra : g_relays.relayacceptors)
+    {
+        cout << "if (string::npos != (pos = posturl.find(\"" << ra->reporting_name << "\"))) posturl.replace(pos, " << ra->reporting_name.size() << ", \"localhost:" << ra->listen_port << "\");" << endl;
+    }
+    cout << "if (string::npos != (pos = posturl.find(\"https://\"))) posturl.replace(pos, 8, \"http://\");" << endl; 
 }
 
 void exec_closeacceptor(ac::ACState& ac)
@@ -426,8 +596,11 @@ ac::ACN autocompleteSyntax()
     p->Add(exec_nextport, sequence(text("nextport"), opt(param("port"))));
     p->Add(exec_addrelay, sequence(text("addrelay"), param("server")));
     p->Add(exec_adddefaultrelays, sequence(text("adddefaultrelays")));
+    p->Add(exec_addbulkrelays, sequence(text("addbulkrelays")));
+    
     p->Add(exec_acceptorspeed, sequence(text("acceptorspeed"), either(text("all"), param("id")), param("bytespersec")));
-    p->Add(exec_getcode, sequence(text("getcode")));
+    p->Add(exec_getjavascript, sequence(text("getjavascript")));
+    p->Add(exec_getcpp, sequence(text("getc++")));
 
     p->Add(exec_relayspeed, sequence(text("relayspeed"), either(text("all"), param("id")), param("bytespersec")));
     p->Add(exec_pauserelay, sequence(text("pauserelay"), either(text("all"), param("id")), opt(either(text("1"), text("0")))));

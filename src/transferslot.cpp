@@ -433,6 +433,20 @@ void TransferSlot::doio(MegaClient* client)
                 continue;
             }
 
+            if (reqs[i]->status == REQ_FAILURE && reqs[i]->httpstatus == 200 && transfer->type == GET && transferbuf.isRaid())
+            {
+                // check if we got some data and the failure occured partway through the part chunk.  If so, best not to waste it, convert to success case with less data
+                HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+                LOG_debug << "Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data.";
+                if (downloadRequest->contentlength == downloadRequest->size && downloadRequest->bufpos >= RAIDSECTOR)
+                {
+                    downloadRequest->bufpos -= downloadRequest->bufpos % RAIDSECTOR;  // always on a raidline boundary
+                    downloadRequest->size = unsigned(downloadRequest->bufpos);
+                    transferbuf.transferPos(i) = downloadRequest->bufpos;
+                    downloadRequest->status = REQ_SUCCESS;
+                }
+            }
+
             switch (reqs[i]->status)
             {
                 case REQ_INFLIGHT:
@@ -1083,7 +1097,21 @@ void TransferSlot::doio(MegaClient* client)
         }
     }
 
-    p += transfer->progresscompleted;
+    if (transfer->type == GET && transferbuf.isRaid())
+    {
+        p = transferbuf.progress();
+        for (int i = connections; i--; )
+        {
+            if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
+            {
+                p += static_cast<HttpReqDL*>(reqs[i])->bufpos;
+            }
+        }
+    }
+    else
+    {
+        p += transfer->progresscompleted;
+    }
 
     if (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT)
     {
