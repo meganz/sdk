@@ -8568,7 +8568,7 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * "+" - Public and plain text, accessible by anyone knowing userhandle
  * "^" - Private and non-encrypted.
  *
- * @param at Attribute name.
+ * @param at Attribute type.
  * @param av Attribute value.
  * @param avl Attribute value length.
  * @param ctag Tag to identify the request at intermediate layer
@@ -8660,7 +8660,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
  * @brief Queue a user attribute retrieval.
  *
  * @param u User.
- * @param at Attribute name.
+ * @param at Attribute type.
  * @param ctag Tag to identify the request at intermediate layer
  */
 void MegaClient::getua(User* u, const attr_t at, int ctag)

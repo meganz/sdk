@@ -5801,12 +5801,12 @@ int MegaTimeZoneDetails::getNumTimeZones() const
     return 0;
 }
 
-const char *MegaTimeZoneDetails::getTimeZone(int index) const
+const char *MegaTimeZoneDetails::getTimeZone(int /*index*/) const
 {
     return NULL;
 }
 
-int MegaTimeZoneDetails::getTimeOffset(int index) const
+int MegaTimeZoneDetails::getTimeOffset(int /*index*/) const
 {
     return 0;
 }

@@ -841,8 +841,8 @@ private:
     int mGlobalScheduleEnd = -1;     // defaults to -1 if not defined
     std::string mGlobalScheduleTimezone;
 
-    std::map<uint64_t, m_time_t> mChatDND;
-    std::map<uint64_t, bool> mChatAlwaysNotify;
+    std::map<MegaHandle, m_time_t> mChatDND;
+    std::map<MegaHandle, bool> mChatAlwaysNotify;
 
     m_time_t mContactsDND = -1;      // defaults to -1 if not defined
     m_time_t mSharesDND = -1;        // defaults to -1 if not defined

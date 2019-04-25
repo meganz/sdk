@@ -525,7 +525,7 @@ string User::attr2longname(attr_t type)
         break;
 
     case ATTR_PUSH_SETTINGS:
-        longname = "PUSH_SETTING";
+        longname = "PUSH_SETTINGS";
         break;
 
     case ATTR_UNKNOWN:

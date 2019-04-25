@@ -80,7 +80,6 @@
 #include <windows.h>
 
 #ifndef WINDOWS_PHONE
-
 #ifdef __MINGW32__
 #include <wincrypt.h>
 #endif

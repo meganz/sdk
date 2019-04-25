@@ -29695,7 +29695,7 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const s
     JSON json;
     json.begin(settingsJSON.c_str() + 1);
     std::string name = json.getname();
-    while (name != "")
+    while (!name.empty())
     {
         std::string globalObject;
         json.storeobject(&globalObject);
