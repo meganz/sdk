@@ -6521,17 +6521,7 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
 
 bool MegaApiImpl::isGlobalNotifiable()
 {
-    if (mPushSettings)
-    {
-        if (!mPushSettings->isGlobalDndEnabled() && isScheduleNotifiable())
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    return true;
+    return !mPushSettings || (!mPushSettings->isGlobalDndEnabled() && isScheduleNotifiable());
 }
 
 bool MegaApiImpl::isScheduleNotifiable()
@@ -9177,32 +9167,12 @@ void MegaApiImpl::setPushNotificationSettings(MegaPushNotificationSettings *sett
 
 bool MegaApiImpl::isSharesNotifiable()
 {
-    if (mPushSettings)
-    {
-        if (!mPushSettings->isSharesEnabled())
-        {
-            return false;
-        }
-
-        return isScheduleNotifiable();
-    }
-
-    return true;
+    return !mPushSettings || (mPushSettings->isSharesEnabled() && isScheduleNotifiable());
 }
 
 bool MegaApiImpl::isContactsNotifiable()
 {
-    if (mPushSettings)
-    {
-        if (!mPushSettings->isContactsEnabled())
-        {
-            return false;
-        }
-
-        return isScheduleNotifiable();
-    }
-
-    return true;
+    return !mPushSettings || (mPushSettings->isContactsEnabled() && isScheduleNotifiable());
 }
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)

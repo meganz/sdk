@@ -2802,6 +2802,8 @@ protected:
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         static char *getAvatarColor(handle userhandle);
         bool isGlobalNotifiable();
+
+        // return false if there's a schedule and it currently does not apply. Otherwise, true
         bool isScheduleNotifiable();
 };
 
