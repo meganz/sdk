@@ -2853,8 +2853,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         *(this->achievementsDetails) = *(request->getAchievementsDetails());
     }
 
-    this->timeZoneDetails = NULL;
-    this->setTimeZoneDetails(request->getMegaTimeZoneDetails());
+    this->timeZoneDetails = request->getMegaTimeZoneDetails() ? request->timeZoneDetails->copy() : NULL;
 
 #ifdef ENABLE_CHAT   
     this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
@@ -2887,7 +2886,7 @@ AchievementsDetails *MegaRequestPrivate::getAchievementsDetails() const
 
 MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
 {
-    return timeZoneDetails ? timeZoneDetails->copy() : NULL;
+    return timeZoneDetails;
 }
 
 #ifdef ENABLE_CHAT
@@ -3320,7 +3319,7 @@ void MegaRequestPrivate::setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails
     {
         delete this->timeZoneDetails;
     }
-    this->timeZoneDetails = timeZoneDetails;
+    this->timeZoneDetails = timeZoneDetails ? timeZoneDetails->copy() : NULL;
 }
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
@@ -14054,6 +14053,7 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
     }
 
     request->setTimeZoneDetails(tzDetails);
+    delete tzDetails;
     fireOnRequestFinish(request, MegaError(e));
 }
 

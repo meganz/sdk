@@ -3119,7 +3119,8 @@ class MegaRequest
          *
          * In any other case, this function returns NULL.
          *
-         * You take the ownership of the returned value.
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
          *
          * @return Details about timezones and the current default
          */
