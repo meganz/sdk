@@ -13485,14 +13485,21 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
     error e = API_OK;
 
     // update cached notification settings for filtering
-    MegaPushNotificationSettings *pushSettings = NULL;
+    MegaPushNotificationSettingsPrivate *pushSettings = NULL;
     if (type == ATTR_PUSH_SETTINGS)
     {
         string settingsJson((const char*)data, len);
         pushSettings = new MegaPushNotificationSettingsPrivate(settingsJson);
-
-        delete mPushSettings;
-        mPushSettings = pushSettings->copy();
+        if (pushSettings->isValid())
+        {
+            delete mPushSettings;
+            mPushSettings = pushSettings->copy();
+        }
+        else
+        {
+            e = API_EINTERNAL;
+            client->sendevent(99448, "Invalid JSON for received notification settings");
+        }
     }
 
 	if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -29677,11 +29684,20 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const s
             JSON jsonGlobal;
             jsonGlobal.begin(globalObject.c_str() + 1);
             std::string globalSubsetting = jsonGlobal.getname();
-            while (globalSubsetting != "")
+            while (!globalSubsetting.empty())
             {
                 if (globalSubsetting == "dnd")
                 {
-                    mGlobalDND = jsonGlobal.getint();
+                    if (jsonGlobal.isnumeric())
+                    {
+                        mGlobalDND = jsonGlobal.getint();
+                    }
+
+                    if (mGlobalDND < 0)
+                    {
+                        LOG_err << "Invalid format in GLOBAL.dnd notification settings";
+                        mJsonInvalid = true;
+                    }
                 }
                 else if (globalSubsetting == "nsch")
                 {
@@ -29690,23 +29706,38 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const s
                     JSON scheduleJson;
                     scheduleJson.begin(schedule.c_str() + 1);
                     std::string scheduleSubTitle = scheduleJson.getname();
-                    while (scheduleSubTitle != "")
+                    while (!scheduleSubTitle.empty())
                     {
                         if (scheduleSubTitle == "tz")
                         {
                             scheduleJson.storeobject(&mGlobalScheduleTimezone);
                         }
-                        else if (scheduleSubTitle == "start")
+                        else if (scheduleSubTitle == "start" && scheduleJson.isnumeric())
                         {
                             mGlobalScheduleStart = scheduleJson.getint();
                         }
-                        else if (scheduleSubTitle == "end")
+                        else if (scheduleSubTitle == "end" && scheduleJson.isnumeric())
                         {
                             mGlobalScheduleEnd = scheduleJson.getint();
+                        }
+                        else
+                        {
+                            LOG_warn << "Unknown option in GLOBAL.nsch notification settings";
                         }
 
                         scheduleSubTitle = scheduleJson.getname();
                     }
+
+                    if (mGlobalScheduleTimezone.empty() || mGlobalScheduleStart < 0 || mGlobalScheduleEnd < 0)
+                    {
+                        LOG_err << "Invalid format in GLOBAL.nsch notification settings";
+                        mJsonInvalid = true;
+                    }
+                }
+                else
+                {
+                    LOG_warn << "Unknown option in Global notification settings";
+                    mJsonInvalid = true;
                 }
 
                 globalSubsetting = jsonGlobal.getname();
@@ -29717,53 +29748,102 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const s
             JSON jsonContact;
             jsonContact.begin(globalObject.c_str() + 1);
             std::string subname = jsonContact.getname();
-            assert(subname == "dnd");
-            mContactsDND = jsonContact.getint();
+            if (subname != "dnd")
+            {
+                LOG_warn << "Unknown option in PCR notification settings";
+                mJsonInvalid = true;
+            }
+            else if (jsonContact.isnumeric())
+            {
+                mContactsDND = jsonContact.getint();
+            }
+            else
+            {
+                LOG_err << "Invalid format in PCR.dnd notification settings";
+                mJsonInvalid = true;
+            }
         }
         else if (name == "INSHARE")
         {
-            JSON jsonShareds;
-            jsonShareds.begin(globalObject.c_str() + 1);
-            std::string subname = jsonShareds.getname();
-            assert(subname == "dnd");
-            mSharesDND = jsonShareds.getint();
+            JSON jsonShares;
+            jsonShares.begin(globalObject.c_str() + 1);
+            std::string subname = jsonShares.getname();
+            if (subname != "dnd")
+            {
+                LOG_warn << "Unknown option in SHARES notification settings";
+                mJsonInvalid = true;
+            }
+            else if (jsonShares.isnumeric())
+            {
+                mSharesDND = jsonShares.getint();
+            }
+            else
+            {
+                LOG_err << "Invalid format in SHARES.dnd notification settings";
+                mJsonInvalid = true;
+            }
         }
         else if (name == "CHAT")
         {
             JSON jsonChats;
             jsonChats.begin(globalObject.c_str() + 1);
             std::string subname = jsonChats.getname();
-            assert(subname == "dnd");
-            mGlobalChatsDND = jsonChats.getint();
-        }
-        else
-        {
-            unsigned int base64Size = MegaClient::CHATHANDLE * 4 / 3 + 4;
-            assert(name.length() != base64Size);
-            MegaHandle chatid;
-            Base64::atob(name.c_str(), (byte*)&chatid, base64Size);
-
-            JSON jsonChat;
-            jsonChat.begin(globalObject.c_str() + 1);
-            std::string subname = jsonChat.getname();
-            if (subname == "dnd")
+            if (subname != "dnd")
             {
-                m_time_t dnd = jsonChat.getint();
-                mChatDND[chatid] = dnd;
-
+                LOG_warn << "Unknown option in CHAT notification settings";
+                mJsonInvalid = true;
             }
-            else if (subname == "an")
+            else if (jsonChats.isnumeric())
             {
-                bool alwaysNotify = jsonChat.getint();
-                if (alwaysNotify)
+                mGlobalChatsDND = jsonChats.getint();
+            }
+            else
+            {
+                LOG_err << "Invalid format in CHAT.dnd notification settings";
+                mJsonInvalid = true;
+            }
+        }
+        else if (name.length() == 11)    // settings for specific 'chatid'
+        {
+            MegaHandle chatid;
+            if (Base64::atob(name.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE) == MegaClient::CHATHANDLE)
+            {
+                JSON jsonChat;
+                jsonChat.begin(globalObject.c_str() + 1);
+                std::string subname = jsonChat.getname();
+                if (subname == "dnd" && jsonChat.isnumeric())
                 {
-                    mChatAlwaysNotify[chatid] = true;
+                    mChatDND[chatid] = jsonChat.getint();
+                }
+                else if (subname == "an" && jsonChat.isnumeric())
+                {
+                    bool alwaysNotify = jsonChat.getint();
+                    if (alwaysNotify)
+                    {
+                        mChatAlwaysNotify[chatid] = true;
+                    }
+                }
+                else
+                {
+                    LOG_err << "Unknown option for chatid '" << name << "' in notification settings";
+                    mJsonInvalid = true;
                 }
             }
             else
             {
-                assert(false);
+                LOG_warn << "Invalid format for chatid '" << name << "' in notification settings";
+                mJsonInvalid = true;
             }
+        }
+        else
+        {
+            LOG_err << "Unknown option in notification settings";
+            mJsonInvalid = true;
+        }
+
+        if (mJsonInvalid)
+        {
+            return;
         }
 
         name = json.getname();
@@ -29851,6 +29931,11 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
 
     json.append("}");
     return json;
+}
+
+bool MegaPushNotificationSettingsPrivate::isValid() const
+{
+    return mJsonInvalid;
 }
 
 MegaPushNotificationSettingsPrivate::~MegaPushNotificationSettingsPrivate()

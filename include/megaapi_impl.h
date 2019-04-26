@@ -831,6 +831,7 @@ public:
     MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings);
 
     std::string generateJson() const;
+    bool isValid() const;
 
     virtual ~MegaPushNotificationSettingsPrivate();
     virtual MegaPushNotificationSettings *copy() const;
@@ -847,6 +848,8 @@ private:
     m_time_t mContactsDND = -1;      // defaults to -1 if not defined
     m_time_t mSharesDND = -1;        // defaults to -1 if not defined
     m_time_t mGlobalChatsDND = -1;        // defaults to -1 if not defined
+
+    bool mJsonInvalid = false;  // true if ctor from JSON find issues
 
     std::string getGlobalSetting() const;
     std::string getChatsSetting() const;
