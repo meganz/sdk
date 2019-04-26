@@ -195,7 +195,12 @@ case $host in
     CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
     WIN32=yes
     ;;
-  *-apple-darwin*)
+   *-*-msys*)
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32 -no-undefined"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
+    WIN32=yes
+    ;;
+ *-apple-darwin*)
     AC_DEFINE([_XOPEN_SOURCE], [500], [Define _XOPEN_SOURCE])
     AC_DEFINE([_DARWIN_C_SOURCE], [1], [Define _DARWIN_C_SOURCE])
     DARWIN=yes
