@@ -29772,12 +29772,6 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const s
 
 MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate()
 {
-    mGlobalDND = -1;
-    mGlobalScheduleStart = -1;
-    mGlobalScheduleEnd = -1;
-    mContactsDND = -1;
-    mSharesDND = -1;
-    mGlobalChatsDND = -1;
 }
 
 MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings)
