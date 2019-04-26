@@ -2947,7 +2947,7 @@ void MegaRequestPrivate::setMegaFolderInfo(const MegaFolderInfo *folderInfo)
     this->folderInfo = folderInfo ? folderInfo->copy() : NULL;
 }
 
-MegaPushNotificationSettings *MegaRequestPrivate::getMegaPushNotificationSettings() const
+const MegaPushNotificationSettings *MegaRequestPrivate::getMegaPushNotificationSettings() const
 {
     return settings;
 }

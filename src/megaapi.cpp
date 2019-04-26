@@ -919,7 +919,7 @@ MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
     return NULL;
 }
 
-MegaPushNotificationSettings *MegaRequest::getMegaPushNotificationSettings() const
+const MegaPushNotificationSettings *MegaRequest::getMegaPushNotificationSettings() const
 {
     return NULL;
 }

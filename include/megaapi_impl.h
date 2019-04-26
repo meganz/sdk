@@ -1114,7 +1114,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringMap(const MegaStringMap *);
         virtual MegaFolderInfo *getMegaFolderInfo() const;
         void setMegaFolderInfo(const MegaFolderInfo *);
-        MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
+        const MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
         void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
 
 #ifdef ENABLE_SYNC

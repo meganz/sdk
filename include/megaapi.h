@@ -3233,7 +3233,7 @@ class MegaRequest
          *
          * @return Object with settings for push notifications
          */
-        virtual MegaPushNotificationSettings *getMegaPushNotificationSettings() const;
+        virtual const MegaPushNotificationSettings *getMegaPushNotificationSettings() const;
 };
 
 /**
