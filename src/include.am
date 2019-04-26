@@ -16,7 +16,7 @@ src_libmega_la_LIBADD = $(CARES_LDFLAGS) $(CARES_LIBS) $(LIBCURL_LIBS) $(FFMPEG_
 endif
 
 # add library version
-src_libmega_la_LDFLAGS = -version-info $(VERSION_INFO)
+src_libmega_la_LDFLAGS = -version-info $(VERSION_INFO) $(LIBMEGA_EXTRALDFLAGS)
 
 if ENABLE_STATIC
 src_libmega_la_LDFLAGS += -Wl,-static -all-static
