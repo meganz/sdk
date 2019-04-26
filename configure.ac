@@ -196,8 +196,10 @@ case $host in
     WIN32=yes
     ;;
    *-*-msys*)
-    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32 -no-undefined"
-    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
+    LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC -Wl,-no-undefined"
+	LIBMEGA_EXTRALDFLAGS="-no-undefined"
+	AC_SUBST(LIBMEGA_EXTRALDFLAGS)
     WIN32=yes
     ;;
  *-apple-darwin*)
