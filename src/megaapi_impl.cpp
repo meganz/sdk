@@ -6537,46 +6537,48 @@ bool MegaApiImpl::isScheduleNotifiable()
         return true;
     }
 
-    int timezoneOffset = 0;
+    // find the configured timezone for notification's schedule and get the corresponding offset based on UTC
+    int offsetTz = 0;
+    bool tzFound = false;
     for (int i = 0; i < mTimezones->getNumTimeZones(); i++)
     {
         if (strcmp(mPushSettings->getGlobalScheduleTimezone(), mTimezones->getTimeZone(i)) == 0)
         {
-            timezoneOffset = mTimezones->getTimeOffset(i);
+            offsetTz = mTimezones->getTimeOffset(i);
+            tzFound = true;
             break;
         }
     }
 
-
-    int end = mPushSettings->getGlobalScheduleEnd();
-    int start = mPushSettings->getGlobalScheduleStart();
-    if (start > end) // If start > stop, stop is in the next day, we add 24 hours in minutes
+    if (!tzFound)
     {
-        end += 24 * 60;
+        LOG_err << "Timezone not found: " << mPushSettings->getGlobalScheduleTimezone();
+        assert(false);
+        return true;    // better to generate the notification, in this case
     }
 
-    m_time_t timestampNow = m_time(NULL);
-    struct tm structTime;
-    m_localtime(timestampNow, &structTime);
-    int myTimeZone = structTime.tm_gmtoff;
-    m_time_t timestampAtScheduleZone = timestampNow + (timezoneOffset - myTimeZone);
-    m_localtime(timestampAtScheduleZone, &structTime);
-    structTime.tm_hour = 0;
-    structTime.tm_min = 0;
-    structTime.tm_sec = 0;
+    // calculate the timestamp for time 00:00:00 of the current day in the configured timezone
+    m_time_t now = m_time(NULL) + offsetTz;
+    struct tm tmp;
+    m_gmtime(now, &tmp);
+    tmp.tm_hour = tmp.tm_min = tmp.tm_sec = 0;  // set the time to 00:00:00
+    m_time_t dayStart = mktime(&tmp);
 
-    m_time_t startDayLocalTime = mktime(&structTime);
-    m_time_t startDayTimeZone = startDayLocalTime + (timezoneOffset - myTimeZone);
+    // calculate the timestamps for the scheduled period
+    int offsetStart = mPushSettings->getGlobalScheduleStart() * 60; // convert minutes into seconds
+    int offsetEnd = mPushSettings->getGlobalScheduleEnd() * 60;
+    m_time_t scheduleStart = dayStart + offsetStart;
+    m_time_t scheduleEnd = dayStart + offsetEnd;
 
-    m_time_t startSchedulePeriod = startDayTimeZone + start * 60;
-    m_time_t stopSchedulePeriod = startDayTimeZone + end * 60;
-
-    if (startSchedulePeriod < timestampNow && stopSchedulePeriod > timestampNow)
+    if (offsetStart <= offsetEnd)
     {
-        return true;
+        return now >= scheduleStart && now <= scheduleEnd;
     }
-
-    return false;
+    else    // the scheduled period covers 2 days
+    {
+        assert(now >= dayStart && now <= dayStart + 24 * 60 * 60);
+        return now <= scheduleEnd || now >= scheduleStart;
+    }
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
