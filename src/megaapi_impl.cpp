@@ -6526,12 +6526,13 @@ bool MegaApiImpl::isGlobalNotifiable()
 
 bool MegaApiImpl::isScheduleNotifiable()
 {
-    if (!mTimezones || !mPushSettings)
+    if (!mTimezones)
     {
+        LOG_warn << "Timezones are not available yet";
         return true;
     }
 
-    if (!mPushSettings->isGlobalScheduleEnabled())
+    if (!mPushSettings || !mPushSettings->isGlobalScheduleEnabled())
     {
         return true;
     }
