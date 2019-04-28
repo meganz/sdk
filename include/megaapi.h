@@ -7051,6 +7051,9 @@ class MegaApi
          * - MegaRequest::getEmail - Return the email associated with the link
          * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
          *
+         * If the account is logged-in into a different account than the account for which the link
+         * was generated, onRequestFinish will be called with the error code MegaError::API_EACCESS.
+         *
          * @param link The recovery link sent to the user's email address.
          * @param newPwd The new password to be set.
          * @param masterKey Base64-encoded string containing the master key (optional).
@@ -7137,6 +7140,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Return the email associated with the link
          *
+         * If the account is logged-in into a different account than the account for which the link
+         * was generated, onRequestFinish will be called with the error code MegaError::API_EACCESS.
+         *
          * @param link Change-email link (#verify)
          * @param listener MegaRequestListener to track this request
          */
@@ -7155,6 +7161,9 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * If the account is logged-in into a different account than the account for which the link
+         * was generated, onRequestFinish will be called with the error code MegaError::API_EACCESS.
          *
          * @param link Change-email link sent to the user's email address.
          * @param pwd Password for the account.
