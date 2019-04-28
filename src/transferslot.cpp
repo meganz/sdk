@@ -181,7 +181,7 @@ TransferSlot::~TransferSlot()
 
         for (int i = 0; i < connections; i++)
         {
-            HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+            HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
             if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
                     && downloadRequest->contentlength == downloadRequest->size   
                     && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
@@ -437,6 +437,20 @@ void TransferSlot::doio(MegaClient* client)
                 continue;
             }
 
+            if (reqs[i]->status == REQ_FAILURE && reqs[i]->httpstatus == 200 && transfer->type == GET && transferbuf.isRaid())  // the request started out successfully, hence status==200 in the reply headers
+            {
+                // check if we got some data and the failure occured partway through the part chunk.  If so, best not to waste it, convert to success case with less data
+                HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
+                LOG_debug << "Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data.";
+                if (downloadRequest->contentlength == downloadRequest->size && downloadRequest->bufpos >= RAIDSECTOR)
+                {
+                    downloadRequest->bufpos -= downloadRequest->bufpos % RAIDSECTOR;  // always on a raidline boundary
+                    downloadRequest->size = unsigned(downloadRequest->bufpos);
+                    transferbuf.transferPos(i) = downloadRequest->bufpos;
+                    downloadRequest->status = REQ_SUCCESS;
+                }
+            }
+
             switch (reqs[i]->status)
             {
                 case REQ_INFLIGHT:
@@ -458,7 +472,7 @@ void TransferSlot::doio(MegaClient* client)
                     break;
 
                 case REQ_SUCCESS:
-                    if (client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != ((HttpReqDL *)reqs[i])->dlpos)
+                    if (client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i])->dlpos)
                     {
                         // postponing unsorted chunk
                         p += reqs[i]->size;
@@ -617,7 +631,7 @@ void TransferSlot::doio(MegaClient* client)
                     }
                     else   // GET
                     {
-                        HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+                        HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
                         if (reqs[i]->size == reqs[i]->bufpos || downloadRequest->buffer_released)   // downloadRequest->buffer_released being true indicates we're retrying this asyncIO
                         {
 
@@ -960,7 +974,7 @@ void TransferSlot::doio(MegaClient* client)
                 {
                     // set up to do the actual write on the next loop, as if it was a retry
                     reqs[i]->status = REQ_SUCCESS;
-                    ((HttpReqDL*)reqs[i])->buffer_released = true;
+                    static_cast<HttpReqDL*>(reqs[i])->buffer_released = true;
                     newOutputBufferSupplied = true;
                 }
 
@@ -1073,7 +1087,7 @@ void TransferSlot::doio(MegaClient* client)
                         {
                             // set up to do the actual write on the next loop, as if it was a retry
                             reqs[i]->status = REQ_SUCCESS;
-                            ((HttpReqDL*)reqs[i])->buffer_released = true;
+                            static_cast<HttpReqDL*>(reqs[i])->buffer_released = true;
                         }
                     }
                 }
@@ -1087,7 +1101,22 @@ void TransferSlot::doio(MegaClient* client)
         }
     }
 
-    p += transfer->progresscompleted;
+    if (transfer->type == GET && transferbuf.isRaid())
+    {
+        // for Raid, sum up all the data received so far
+        p = transferbuf.progress();
+        for (int i = connections; i--; )
+        {
+            if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
+            {
+                p += static_cast<HttpReqDL*>(reqs[i])->bufpos;
+            }
+        }
+    }
+    else
+    {
+        p += transfer->progresscompleted;
+    }
 
     if (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT)
     {

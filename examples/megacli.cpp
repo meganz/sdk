@@ -36,7 +36,7 @@
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
-#elif !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) )
+#elif !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
 #define USE_FILESYSTEM
 #ifdef WIN32
     #include <filesystem>
@@ -584,15 +584,26 @@ void DemoApp::users_updated(User** u, int count)
 
 bool notifyAlerts = true;
 
-void printAlert(UserAlert::Base& b)
+string displayUser(handle user, MegaClient* mc)
+{
+    User* u = mc->finduser(user);
+    return u ? u->email : "<user not found>";
+}
+
+string displayTime(m_time_t t)
 {
     char timebuf[32];
     struct tm tmptr;
-    m_localtime(b.timestamp, &tmptr);
+    m_localtime(t, &tmptr);
     strftime(timebuf, sizeof timebuf, "%c", &tmptr);
+    return timebuf;
+}
+
+void printAlert(UserAlert::Base& b)
+{
     string header, title;
     b.text(header, title, client);
-    cout << "**alert " << b.id << ": " << header << " - " << title << " [at " << timebuf << "]" << " seen: " << b.seen << endl;
+    cout << "**alert " << b.id << ": " << header << " - " << title << " [at " << displayTime(b.timestamp) << "]" << " seen: " << b.seen << endl;
 }
 
 void DemoApp::useralerts_updated(UserAlert::Base** b, int count)
@@ -2086,6 +2097,7 @@ public:
     struct Stack : public std::deque<handle>
     {
         int filesLeft = 0;
+        set<string> servers;
     };
         
     FileFindCommand(std::shared_ptr<Stack>& s, MegaClient* mc) : stack(s)
@@ -2104,6 +2116,22 @@ public:
         {
             arg("ssl", 2);
         }
+    }
+
+    static string server(const string& url)
+    {
+        const string pattern("://");
+        size_t start_index = url.find(pattern);
+        if (start_index != string::npos)
+        {
+            start_index += pattern.size();
+            const size_t end_index = url.find("/", start_index);
+            if (end_index != string::npos)
+            {
+                return url.substr(start_index, end_index - start_index);
+            }
+        }
+        return "";
     }
 
     // process file credentials
@@ -2143,6 +2171,11 @@ public:
                             if (Node* n = client->nodebyhandle(h))
                             {
                                 cout << n->displaypath() << endl;
+
+                                for (const auto& url : tempurls)
+                                {
+                                    stack->servers.insert(server(url));
+                                }
                             }
                         }
                         break;
@@ -2164,6 +2197,10 @@ public:
         else if (!stack->filesLeft)
         {
             cout << "<find complete>" << endl;
+            for (auto s : stack->servers)
+            {
+                cout << s << endl;
+            }
         }
     }
 
@@ -2398,6 +2435,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("delua"), param("attrname")));
 #endif
     p->Add(sequence(text("alerts"), opt(either(text("new"), text("old"), wholenumber(10), text("notify"), text("seen")))));
+    p->Add(sequence(text("recentactions"), param("hours"), param("maxcount")));
+    p->Add(sequence(text("recentnodes"), param("hours"), param("maxcount")));
+
     p->Add(sequence(text("putbps"), opt(either(wholenumber(100000), text("auto"), text("none")))));
     p->Add(sequence(text("killsession"), opt(either(text("all"), param("sessionid")))));
     p->Add(sequence(text("whoami"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro"), flag("-transactions"), flag("-purchases"), flag("-sessions")))));
@@ -2924,6 +2964,8 @@ static void process_line(char* l)
                 cout << "      mfac" << endl;
                 cout << "      mfae" << endl;
                 cout << "      mfad pin" << endl;
+                cout << "      recentnodes hours maxcount" << endl;
+                cout << "      recentactions hours maxcount" << endl;
                 cout << "      quit" << endl;
 #endif
                 return;
@@ -6056,6 +6098,22 @@ static void process_line(char* l)
 
                         return;
                     }
+                    else if (words[0] == "recentnodes")
+                    {
+                        if (words.size() == 3)
+                        {
+                            node_vector nv = client->getRecentNodes(atoi(words[2].c_str()), m_time() - 60 * 60 * atoi(words[1].c_str()), false);
+                            for (unsigned i = 0; i < nv.size(); ++i)
+                            {
+                                cout << nv[i]->displaypath() << endl;
+                            }
+                        }
+                        else
+                        {
+                            cout << "      recentnodes hours maxcount" << endl;
+                        }
+                        return;
+                    }
                     break;
 
                 case 12:
@@ -6084,6 +6142,33 @@ static void process_line(char* l)
                         return;
                     }
 #endif
+                    break;
+
+                case 13:
+                    if (words[0] == "recentactions")
+                    {
+                        if (words.size() == 3)
+                        {
+                            recentactions_vector nvv = client->getRecentActions(atoi(words[2].c_str()), m_time() - 60 * 60 * atoi(words[1].c_str()));
+                            for (unsigned i = 0; i < nvv.size(); ++i)
+                            {
+                                if (i != 0)
+                                {
+                                    cout << "---" << endl;
+                                }
+                                cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].user, client) << " " << (nvv[i].updated ? "updated" : "uploaded") << " " << (nvv[i].media ? "media" : "files") << endl;
+                                for (unsigned j = 0; j < nvv[i].nodes.size(); ++j)
+                                {
+                                    cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            cout << "      recentactions hours maxcount" << endl;
+                        }
+                        return;
+                    }
                     break;
 
                 case 17:
@@ -7396,16 +7481,17 @@ void megacli()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    virtual void log(const char* time, int loglevel, const char* source, const char *message)
+    void log(const char* time, int loglevel, const char* source, const char *message) override
     {
 #ifdef _WIN32
         OutputDebugStringA(message);
         OutputDebugStringA("\r\n");
-#endif
+#else
         if (loglevel >= SimpleLogger::logCurrentLevel)
         {
             std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
         }
+#endif
     }
 };
 

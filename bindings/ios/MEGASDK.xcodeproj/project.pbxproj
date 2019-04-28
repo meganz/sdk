@@ -20,6 +20,7 @@
 		41D143DA1B5FC053000CA86F /* pendingcontactrequest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41D143D91B5FC053000CA86F /* pendingcontactrequest.cpp */; };
 		41D98D011BD54B5200764370 /* MEGAContactRequest.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D001BD54B5200764370 /* MEGAContactRequest.mm */; };
 		41D98D071BD562AD00764370 /* MEGAContactRequestList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */; };
+		5B1D7CE221F1E07200B0215E /* MEGARecentActionBucket.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B1D7CE121F1E07200B0215E /* MEGARecentActionBucket.mm */; };
 		5B23B77C2164FC7C00600733 /* MEGAUserAlert.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B23B77A2164FC7C00600733 /* MEGAUserAlert.mm */; };
 		5B23B77D2164FC7C00600733 /* MEGAUserAlertList.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5B23B77B2164FC7C00600733 /* MEGAUserAlertList.mm */; };
 		5B72A14D20D3B3FB007FE4FD /* mega_ccronexpr.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5B72A14C20D3B3FB007FE4FD /* mega_ccronexpr.cpp */; };
@@ -138,6 +139,9 @@
 		41D98D061BD562AD00764370 /* MEGAContactRequestList.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAContactRequestList.mm; sourceTree = "<group>"; };
 		41D98D081BD5679C00764370 /* MEGAContactRequestList+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAContactRequestList+init.h"; sourceTree = "<group>"; };
 		41F01E301C087D4C001E18E6 /* GfxProcCG.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GfxProcCG.h; sourceTree = "<group>"; };
+		5B0670CD21F5BABD00AD9F99 /* MEGARecentActionBucket+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGARecentActionBucket+init.h"; sourceTree = "<group>"; };
+		5B1D7CDD21F1E01E00B0215E /* MEGARecentActionBucket.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGARecentActionBucket.h; sourceTree = "<group>"; };
+		5B1D7CE121F1E07200B0215E /* MEGARecentActionBucket.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGARecentActionBucket.mm; sourceTree = "<group>"; };
 		5B23B7782164FC7C00600733 /* MEGAUserAlert.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAUserAlert.h; sourceTree = "<group>"; };
 		5B23B7792164FC7C00600733 /* MEGAUserAlertList.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAUserAlertList.h; sourceTree = "<group>"; };
 		5B23B77A2164FC7C00600733 /* MEGAUserAlert.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAUserAlert.mm; sourceTree = "<group>"; };
@@ -487,6 +491,8 @@
 				A827F4DC204D3D14006A1962 /* MEGAFolderInfo.mm */,
 				A820A3082155111C00C8B6A5 /* MEGATimeZoneDetails.h */,
 				A820A3092155111C00C8B6A5 /* MEGATimeZoneDetails.mm */,
+				5B1D7CDD21F1E01E00B0215E /* MEGARecentActionBucket.h */,
+				5B1D7CE121F1E07200B0215E /* MEGARecentActionBucket.mm */,
 				B6A6CB642170125A009032C9 /* MEGABackgroundMediaUpload.h */,
 				B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */,
 			);
@@ -646,6 +652,7 @@
 				A87D97A61F4AD9C300A98C0E /* MEGAAchievementsDetails+init.h */,
 				A827F4DE204D450E006A1962 /* MEGAFolderInfo+init.h */,
 				A808E4862158DAC400BDCE82 /* MEGATimeZoneDetails+init.h */,
+				5B0670CD21F5BABD00AD9F99 /* MEGARecentActionBucket+init.h */,
 				B622FC762174261F00CF707C /* MEGABackgroundMediaUpload+init.h */,
 			);
 			path = Private;
@@ -826,6 +833,7 @@
 				940BEFCA19ED92C2007E7FA2 /* pubkeyaction.cpp in Sources */,
 				41AB68F21A094194003FE608 /* GfxProcCG.mm in Sources */,
 				940BEFEE19ED9351007E7FA2 /* external.cpp in Sources */,
+				5B1D7CE221F1E07200B0215E /* MEGARecentActionBucket.mm in Sources */,
 				940BEFD319ED92C2007E7FA2 /* user.cpp in Sources */,
 				940BEFEA19ED9351007E7FA2 /* cryptopp.cpp in Sources */,
 				940BF01919ED97B9007E7FA2 /* MEGAUserList.mm in Sources */,

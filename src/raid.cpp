@@ -25,8 +25,13 @@
 #include "mega/testhooks.h" 
 #include "mega.h" // for thread definitions
 
+#undef min //avoids issues with std::min
+
 namespace mega
 {
+
+constexpr unsigned RAID_ACTIVE_CHANNEL_FAIL_THRESHOLD = 5;
+
 struct FaultyServers
 {
     // Records URLs that had recent problems, so we can start the next raid download with URLs that can work first try.
@@ -141,6 +146,7 @@ RaidBufferManager::RaidBufferManager()
     , unusedRaidConnection(0)
     , raidpartspos(0)
     , outputfilepos(0)
+    , startfilepos(0)
     , resumewastedbytes(0)
 {
     for (int i = RAIDPARTS; i--; )
@@ -189,6 +195,7 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
     acquirelimitpos -= acquirelimitpos % RAIDLINE;
     acquirelimitpos = std::min<m_off_t>(acquirelimitpos, fullfilesize);
     outputfilepos = resumepos;
+    startfilepos = resumepos;
     if (is_raid)
     {
         raidpartspos = resumepos / (RAIDPARTS - 1);
@@ -235,7 +242,7 @@ void RaidBufferManager::updateUrlsAndResetPos(const std::vector<std::string>& te
     }
 }
 
-bool RaidBufferManager::isRaid()
+bool RaidBufferManager::isRaid() const
 {
     assert(raidKnown);
     return is_raid;
@@ -688,12 +695,15 @@ bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
     g_faultyServers.add(tempurls[errorConnectionNum]);
 
     unsigned errorSum = 0;
+    unsigned highestErrors = 0;
     for (unsigned i = RAIDPARTS; i--; )
     {
         errorSum += raidHttpGetErrorCount[i];
+        highestErrors = std::max<unsigned>(highestErrors, raidHttpGetErrorCount[i]);
     }
 
-    if (errorSum < 3)
+    // Allow for one nonfunctional channel and one glitchy channel.  We can still make progress swapping back and forth
+    if ((errorSum - highestErrors) < RAID_ACTIVE_CHANNEL_FAIL_THRESHOLD)
     {
         if (unusedRaidConnection < RAIDPARTS)
         {
@@ -764,6 +774,27 @@ bool RaidBufferManager::detectSlowestRaidConnection(unsigned thisConnection, uns
     }
     return false;
 }
+
+
+m_off_t RaidBufferManager::progress() const
+{
+    assert(isRaid());
+    m_off_t reportPos = 0;
+
+    for (unsigned j = RAIDPARTS; j--; )
+    {
+        for (FilePiece* p : raidinputparts[j])
+        {
+            if (!p->buf.isNull())
+            {
+                reportPos += p->buf.datalen();
+            }
+        }
+    }
+
+    return raidpartspos * (RAIDPARTS - 1) + reportPos - startfilepos;
+}
+
 
 TransferBufferManager::TransferBufferManager()
     : transfer(NULL)

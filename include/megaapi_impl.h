@@ -1445,12 +1445,13 @@ class MegaNodeListPrivate : public MegaNodeList
 {
 	public:
         MegaNodeListPrivate();
+        MegaNodeListPrivate(node_vector& v);
         MegaNodeListPrivate(Node** newlist, int size);
-        MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren = false);
+        MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
-		virtual MegaNodeList *copy();
-		virtual MegaNode* get(int i);
-		virtual int size();
+		virtual MegaNodeList *copy() const override;
+		virtual MegaNode* get(int i) const override;
+		virtual int size() const override;
 
         virtual void addNode(MegaNode* node);
 	
@@ -1549,6 +1550,44 @@ public:
 protected:
     MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);
     MegaUserAlert** list;
+    int s;
+};
+
+class MegaRecentActionBucketPrivate : public MegaRecentActionBucket
+{
+public:
+    MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc);
+    MegaRecentActionBucketPrivate(int64_t timestamp, const string& user, handle parent, bool update, bool media, MegaNodeList*);
+    virtual ~MegaRecentActionBucketPrivate();
+    virtual MegaRecentActionBucket *copy() const;
+    virtual int64_t getTimestamp() const;
+    virtual const char* getUserEmail() const;
+    virtual MegaHandle getParentHandle() const;
+    virtual bool isUpdate() const;
+    virtual bool isMedia() const;
+    virtual const MegaNodeList* getNodes() const;
+
+private:
+    int64_t timestamp;
+    string user;
+    handle parent;
+    bool update, media;
+    MegaNodeList* nodes;
+};
+
+class MegaRecentActionBucketListPrivate : public MegaRecentActionBucketList
+{
+public:
+    MegaRecentActionBucketListPrivate();
+    MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc);
+    MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &userList);
+    virtual ~MegaRecentActionBucketListPrivate();
+    virtual MegaRecentActionBucketList *copy() const;
+    virtual MegaRecentActionBucket* get(int i) const;
+    virtual int size() const;
+
+protected:
+    MegaRecentActionBucketPrivate** list;
     int s;
 };
 
@@ -2127,6 +2166,8 @@ class MegaApiImpl : public MegaApp
 
         long long getBandwidthOverquotaDelay();
 
+        MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
+
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
@@ -2218,7 +2259,7 @@ class MegaApiImpl : public MegaApp
         int httpServerIsRunning();
 
         // management
-        char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalLink(MegaNode *node, bool formatIPv6 = false);
         char *httpServerGetLocalWebDavLink(MegaNode *node);
         MegaStringList *httpServerGetWebDavLinks();
         MegaNodeList *httpServerGetWebDavAllowedNodes();
@@ -2936,7 +2977,7 @@ public:
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
-    char* getLink(MegaNode *node, std::string protocol = "http");
+    char* getLink(MegaNode *node, std::string protocol = "http", bool formatIPv6 = false);
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);

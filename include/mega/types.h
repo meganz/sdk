@@ -522,6 +522,17 @@ typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_C
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
+struct recentaction
+{
+    m_time_t time;
+    handle user;
+    handle parent;
+    bool updated;
+    bool media;
+    node_vector nodes;
+};
+typedef vector<recentaction> recentactions_vector;
+
 } // namespace
 
 #endif

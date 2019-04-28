@@ -20,6 +20,8 @@ win32 {
 CONFIG += USE_AUTOCOMPLETE
 CONFIG += USE_CONSOLE
 CONFIG += USE_MEDIAINFO
+CONFIG += USE_LIBRAW
+CONFIG += USE_FFMPEG
 
 SOURCES += ../../../examples/megacli.cpp
 HEADERS += ../../../examples/megacli.h

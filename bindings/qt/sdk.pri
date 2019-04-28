@@ -58,14 +58,18 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
+CONFIG += c++11
+!win32 {
+    QMAKE_CXXFLAGS += -std=c++11
+
+    unix:!macx {
+        LIBS += -lstdc++fs
+    }
+}
+
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
-    !win32 {
-        #to have autocomplete support, c++11 & libstdc++fs are required:
-        CONFIG+=c++11
-        LIBS+=-lstdc++fs
-    }
 }
 
 CONFIG(USE_CONSOLE) {
