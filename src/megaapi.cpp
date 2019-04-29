@@ -1199,7 +1199,13 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_ESID:
             return "Bad session ID";
         case API_EBLOCKED:
-            return "Blocked";
+            switch (context)
+            {
+                case API_EC_IMPORT:
+                    return "Not accessible due to ToS/AUP violation";
+                default:
+                    return "Blocked";
+            }
         case API_EOVERQUOTA:
             return "Over quota";
         case API_ETEMPUNAVAIL:
