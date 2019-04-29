@@ -468,7 +468,7 @@ void TransferSlot::doio(MegaClient* client)
                     break;
 
                 case REQ_SUCCESS:
-                    if (client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i])->dlpos)
+                    if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i])->dlpos)
                     {
                         // postponing unsorted chunk
                         p += reqs[i]->size;
@@ -650,7 +650,7 @@ void TransferSlot::doio(MegaClient* client)
                                         asyncIO[i] = NULL;
                                     }
 
-                                    p += reqs[i]->size;
+                                    p += outputPiece->buf.datalen();
 
                                     LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
                                     asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos);
@@ -830,7 +830,7 @@ void TransferSlot::doio(MegaClient* client)
                                 client->transfercacheadd(transfer);
                                 reqs[i]->status = REQ_READY;
 
-                                if (client->orderdownloadedchunks)
+                                if (client->orderdownloadedchunks && !transferbuf.isRaid())
                                 {
                                     // Check connections again looking for postponed chunks
                                     delete asyncIO[i];
@@ -1099,21 +1099,11 @@ void TransferSlot::doio(MegaClient* client)
 
     if (transfer->type == GET && transferbuf.isRaid())
     {
-        // for Raid, sum up all the data received so far
-        p = transferbuf.progress();
-        for (int i = connections; i--; )
-        {
-            if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
-            {
-                p += static_cast<HttpReqDL*>(reqs[i])->bufpos;
-            }
-        }
+        // for Raid, additionally we need the raid data that's waiting to be recombined
+        p += transferbuf.progress();
     }
-    else
-    {
-        p += transfer->progresscompleted;
-    }
-
+    p += transfer->progresscompleted;
+    
     if (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT)
     {
         if (p != progressreported)
