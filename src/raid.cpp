@@ -792,7 +792,7 @@ m_off_t RaidBufferManager::progress() const
         }
     }
 
-    return raidpartspos * (RAIDPARTS - 1) + reportPos - startfilepos;
+    return reportPos;
 }
 
 
