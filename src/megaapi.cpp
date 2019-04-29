@@ -1218,6 +1218,8 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "Not enough quota";
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
+        case API_EEXPIREDBUSINESS:
+            return "Business account has expired";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1640,6 +1642,21 @@ char *MegaApi::getMyXMPPJid()
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
+}
+
+bool MegaApi::isBusiness()
+{
+    return pImpl->isBusiness();
+}
+
+bool MegaApi::isMaster()
+{
+    return pImpl->isMaster();
+}
+
+int MegaApi::getBusinessStatus()
+{
+    return pImpl->getBusinessStatus();
 }
 
 bool MegaApi::checkPassword(const char *password)

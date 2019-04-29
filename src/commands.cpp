@@ -3295,6 +3295,10 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
+    bool b = false;
+    bool m = false;
+    int s = 0;
+    int p = 0;
 
     if (client->json.isnumeric())
     {
@@ -3343,6 +3347,10 @@ void CommandGetUserData::procresult()
             len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
             break;
 
+        case 'p':
+            p = (int)client->json.getint();
+            break;
+
         case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
             if (client->json.enterobject())
             {
@@ -3377,6 +3385,36 @@ void CommandGetUserData::procresult()
             }
             break;
 
+        case 'b':
+            assert (p == ACCOUNT_TYPE_BUSINESS);
+            b = true;
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                        case 's':
+                            s = client->json.getint();
+                            break;
+                        case 'm':
+                            m = bool(client->json.getint());
+                            break;
+                        case EOO:
+                            endobject = true;
+                            break;
+                        default:
+                            if (!client->json.storeobject())
+                            {
+                                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                            }
+                    }
+                }
+                client->json.leaveobject();
+            }
+            break;
+
         case EOO:            
             if (v)
             {
@@ -3394,6 +3432,15 @@ void CommandGetUserData::procresult()
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
             client->k = k;
+            client->proLevel = p;
+
+            if (b)
+            {
+                client->business = b;
+                client->businessStatus = s;
+                client->businessMaster = m;
+            }
+
             if (len_privk)
             {
                 client->key.ecb_decrypt(privkbuf, len_privk);

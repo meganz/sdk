@@ -1864,6 +1864,9 @@ class MegaApiImpl : public MegaApp
         MegaUser *getMyUser();
         char* getMyXMPPJid();
         bool isAchievementsEnabled();
+        bool isBusiness();
+        bool isMaster();
+        int getBusinessStatus();
         bool checkPassword(const char *password);
 #ifdef ENABLE_CHAT
         char* getMyFingerprint();

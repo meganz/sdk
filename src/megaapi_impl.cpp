@@ -4744,6 +4744,21 @@ bool MegaApiImpl::isAchievementsEnabled()
     return client->achievements_enabled;
 }
 
+bool MegaApiImpl::isBusiness()
+{
+    return client->business;
+}
+
+bool MegaApiImpl::isMaster()
+{
+    return client->businessMaster;
+}
+
+int MegaApiImpl::getBusinessStatus()
+{
+    return client->businessStatus;
+}
+
 bool MegaApiImpl::checkPassword(const char *password)
 {
     sdkMutex.lock();

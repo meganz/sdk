@@ -1438,6 +1438,14 @@ public:
     // the SDK is trying to log out
     int loggingout;
 
+    // Account type (pro level)
+    int proLevel;
+
+    //Business flags
+    bool business;
+    bool businessMaster;
+    int businessStatus;
+
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
 };

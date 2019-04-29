@@ -4638,32 +4638,33 @@ public:
      */
     enum
     {
-        API_OK = 0,             ///< Everything OK
-        API_EINTERNAL = -1,     ///< Internal error.
-        API_EARGS = -2,         ///< Bad arguments.
-        API_EAGAIN = -3,        ///< Request failed, retry with exponential back-off.
-        API_ERATELIMIT = -4,    ///< Too many requests, slow down.
-        API_EFAILED = -5,       ///< Request failed permanently.
-        API_ETOOMANY = -6,      ///< Too many requests for this resource.
-        API_ERANGE = -7,        ///< Resource access out of rage.
-        API_EEXPIRED = -8,      ///< Resource expired.
-        API_ENOENT = -9,        ///< Resource does not exist.
-        API_ECIRCULAR = -10,    ///< Circular linkage.
-        API_EACCESS = -11,      ///< Access denied.
-        API_EEXIST = -12,       ///< Resource already exists.
-        API_EINCOMPLETE = -13,  ///< Request incomplete.
-        API_EKEY = -14,         ///< Cryptographic error.
-        API_ESID = -15,         ///< Bad session ID.
-        API_EBLOCKED = -16,     ///< Resource administratively blocked.
-        API_EOVERQUOTA = -17,   ///< Quota exceeded.
-        API_ETEMPUNAVAIL = -18, ///< Resource temporarily not available.
-        API_ETOOMANYCONNECTIONS = -19, ///< Too many connections on this resource.
-        API_EWRITE = -20,       ///< File could not be written to (or failed post-write integrity check).
-        API_EREAD = -21,        ///< File could not be read from (or changed unexpectedly during reading).
-        API_EAPPKEY = -22,      ///< Invalid or missing application key.
-        API_ESSL = -23,         ///< SSL verification failed
-        API_EGOINGOVERQUOTA = -24,  ///< Not enough quota
-        API_EMFAREQUIRED = -26, ///< Multi-factor authentication required
+        API_OK = 0,                     ///< Everything OK
+        API_EINTERNAL = -1,             ///< Internal error.
+        API_EARGS = -2,                 ///< Bad arguments.
+        API_EAGAIN = -3,                ///< Request failed, retry with exponential back-off.
+        API_ERATELIMIT = -4,            ///< Too many requests, slow down.
+        API_EFAILED = -5,               ///< Request failed permanently.
+        API_ETOOMANY = -6,              ///< Too many requests for this resource.
+        API_ERANGE = -7,                ///< Resource access out of rage.
+        API_EEXPIRED = -8,              ///< Resource expired.
+        API_ENOENT = -9,                ///< Resource does not exist.
+        API_ECIRCULAR = -10,            ///< Circular linkage.
+        API_EACCESS = -11,              ///< Access denied.
+        API_EEXIST = -12,               ///< Resource already exists.
+        API_EINCOMPLETE = -13,          ///< Request incomplete.
+        API_EKEY = -14,                 ///< Cryptographic error.
+        API_ESID = -15,                 ///< Bad session ID.
+        API_EBLOCKED = -16,             ///< Resource administratively blocked.
+        API_EOVERQUOTA = -17,           ///< Quota exceeded.
+        API_ETEMPUNAVAIL = -18,         ///< Resource temporarily not available.
+        API_ETOOMANYCONNECTIONS = -19,  ///< Too many connections on this resource.
+        API_EWRITE = -20,               ///< File could not be written to (or failed post-write integrity check).
+        API_EREAD = -21,                ///< File could not be read from (or changed unexpectedly during reading).
+        API_EAPPKEY = -22,              ///< Invalid or missing application key.
+        API_ESSL = -23,                 ///< SSL verification failed
+        API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
+        API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
+        API_EEXPIREDBUSINESS = -28,     ///< Business account expired
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -7405,6 +7406,27 @@ class MegaApi
          * @return True if enabled, false otherwise.
          */
         bool isAchievementsEnabled();
+
+        /**
+         * @brief Check if the account is a business account.
+         * @return returns true if it's a business account, otherwise false
+         */
+        bool isBusiness();
+
+        /**
+         * @brief Check if the account is a master account.
+         * @return returns true if it's a master account, false if it's a sub-user account
+         */
+        bool isMaster();
+
+        /**
+         * @brief Get the status of a business account.
+         * @return Returns the status, possible values:
+         *      -1: the account has expired
+         *       1: the account is active
+         *       2: the account is in the grace period
+         */
+        int getBusinessStatus();
 
         /**
          * @brief Check if the password is correct for the current account
@@ -13966,7 +13988,8 @@ public:
         ACCOUNT_TYPE_PROI = 1,
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
-        ACCOUNT_TYPE_LITE = 4
+        ACCOUNT_TYPE_LITE = 4,
+        ACCOUNT_TYPE_BUSINESS = 100
     };
 
     enum
