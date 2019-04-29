@@ -542,6 +542,13 @@ typedef enum
     ACCOUNT_TYPE_BUSINESS = 100
 } account_t;
 
+typedef enum
+{
+    BUSINESS_STATUS_EXPIRED = -1,
+    BUSINESS_STATUS_ACTIVE = 1,
+    BUSINESS_STATUS_GRACE_PERIOD = 2,
+} business_account_status;
+
 } // namespace
 
 #endif

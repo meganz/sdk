@@ -7408,23 +7408,42 @@ class MegaApi
         bool isAchievementsEnabled();
 
         /**
+         * @brief Get the PRO level of the MEGA account
+         * @return PRO level of the MEGA account.
+         * Valid values are:
+         * - Mega::ACCOUNT_TYPE_FREE = 0
+         * - Mega::ACCOUNT_TYPE_PROI = 1
+         * - Mega::ACCOUNT_TYPE_PROII = 2
+         * - Mega::ACCOUNT_TYPE_PROIII = 3
+         * - Mega::ACCOUNT_TYPE_LITE = 4
+         * - Mega::ACCOUNT_TYPE_BUSINESS = 100
+         */
+        int getProLevel();
+
+        /**
          * @brief Check if the account is a business account.
          * @return returns true if it's a business account, otherwise false
          */
-        bool isBusiness();
+        bool isBusinessAccount();
 
         /**
          * @brief Check if the account is a master account.
          * @return returns true if it's a master account, false if it's a sub-user account
          */
-        bool isMaster();
+        bool isMasterBusinessAccount();
+
+        /**
+         * @brief Check if the business account is active or not.
+         * @return returns true if the account is active, otherwise false
+         */
+        bool isBusinessAccountActive();
 
         /**
          * @brief Get the status of a business account.
-         * @return Returns the status, possible values:
-         *      -1: the account has expired
-         *       1: the account is active
-         *       2: the account is in the grace period
+         * @return Returns the business account status, possible values:
+         *      mega::BUSINESS_STATUS_EXPIRED = -1
+         *      mega::BUSINESS_STATUS_ACTIVE = 1
+         *      mega::BUSINESS_STATUS_GRACE_PERIOD = 2
          */
         int getBusinessStatus();
 
@@ -14009,6 +14028,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      */
     virtual int getProLevel();
 
@@ -14317,6 +14337,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      */
     virtual int getProLevel(int productIndex);
 

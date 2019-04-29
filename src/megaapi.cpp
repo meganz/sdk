@@ -1644,19 +1644,29 @@ bool MegaApi::isAchievementsEnabled()
     return pImpl->isAchievementsEnabled();
 }
 
-bool MegaApi::isBusiness()
+int MegaApi::getProLevel()
 {
-    return pImpl->isBusiness();
+    return pImpl->getProLevel();
 }
 
-bool MegaApi::isMaster()
+bool MegaApi::isBusinessAccount()
 {
-    return pImpl->isMaster();
+    return pImpl->isBusinessAccount();
+}
+
+bool MegaApi::isMasterBusinessAccount()
+{
+    return pImpl->isMasterBusinessAccount();
 }
 
 int MegaApi::getBusinessStatus()
 {
     return pImpl->getBusinessStatus();
+}
+
+bool MegaApi::isBusinessAccountActive()
+{
+    return pImpl->isBusinessAccountActive();
 }
 
 bool MegaApi::checkPassword(const char *password)
