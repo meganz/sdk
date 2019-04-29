@@ -20,34 +20,32 @@
  */
 
 #import "MEGASdk.h"
-
-#import <set>
-#import <pthread.h>
-
 #import "megaapi.h"
-
+#import "MEGANode+init.h"
+#import "MEGAUser+init.h"
+#import "MEGATransfer+init.h"
+#import "MEGATransferList+init.h"
+#import "MEGANodeList+init.h"
+#import "MEGAUserList+init.h"
+#import "MEGAUserAlertList+init.h"
+#import "MEGAError+init.h"
+#import "MEGAShareList+init.h"
+#import "MEGAContactRequest+init.h"
+#import "MEGAContactRequestList+init.h"
+#import "MEGAChildrenLists+init.h"
+#import "MEGARecentActionBucket+init.h"
+#import "MEGABackgroundMediaUpload+init.h"
+#import "DelegateMEGARequestListener.h"
+#import "DelegateMEGATransferListener.h"
 #import "DelegateMEGAGlobalListener.h"
 #import "DelegateMEGAListener.h"
 #import "DelegateMEGALoggerListener.h"
-#import "DelegateMEGATransferListener.h"
 #import "DelegateMEGATreeProcessorListener.h"
-#import "DelegateMEGARequestListener.h"
-#import "MEGAChildrenLists+init.h"
-#import "MEGAContactRequest+init.h"
-#import "MEGAContactRequestList+init.h"
-#import "MEGAError+init.h"
-#import "MEGAInputStream.h"
+#import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
-#import "MEGABackgroundMediaUpload+init.h"
-#import "MEGANode+init.h"
-#import "MEGANodeList+init.h"
-#import "MEGARecentActionBucket+init.h"
-#import "MEGAShareList+init.h"
-#import "MEGATransfer+init.h"
-#import "MEGATransferList+init.h"
-#import "MEGAUser+init.h"
-#import "MEGAUserAlertList+init.h"
-#import "MEGAUserList+init.h"
+
+#import <set>
+#import <pthread.h>
 
 using namespace mega;
 
