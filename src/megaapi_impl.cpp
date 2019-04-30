@@ -29873,62 +29873,80 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
     if ((mGlobalScheduleStart > -1 && mGlobalScheduleEnd == -1)
             || (mGlobalScheduleStart == -1 && mGlobalScheduleEnd > -1))
     {
+        LOG_warn << "Invalid notification settings for GLOBAL.nsch";
         return json;
     }
 
     json = "{";
     if (mGlobalDND > -1 || isGlobalScheduleEnabled())
-    {
-        json.append(getGlobalSetting());
+    {        
+        json.append("\"GLOBAL\":{");
+        if (isGlobalDndEnabled())
+        {
+            json.append("\"dnd\":").append(std::to_string(mGlobalDND));
+            json.append(",");
+        }
+
+        if (isGlobalScheduleEnabled())
+        {
+            json.append("\"nsch\":{\"start\":").append(std::to_string(mGlobalScheduleStart));
+            json.append(",\"end\":").append(std::to_string(mGlobalScheduleEnd));
+            json.append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}");
+            json.append(",");
+        }
     }
 
     if (mContactsDND > -1)
     {
-        if (json != "{")
-        {
-            json.append(",");
-        }
-
-        std::stringstream contactStream;
-        contactStream << mContactsDND;
-        json.append("\"PCR\":{\"dnd\":").append(contactStream.str()).append("}");
+        json.append("\"PCR\":{\"dnd\":").append(std::to_string(mContactsDND)).append("}");
+        json.append(",");
     }
 
     if (mSharesDND > -1)
     {
-        if (json != "{")
-        {
-            json.append(",");
-        }
-
-        std::stringstream sharesStream;
-        sharesStream << mSharesDND;
-        json.append("\"INSHARE\":{\"dnd\":").append(sharesStream.str()).append("}");
+        json.append("\"INSHARE\":{\"dnd\":").append(std::to_string(mSharesDND)).append("}");
+        json.append(",");
     }
 
     if (mGlobalChatsDND > -1)
     {
-        if (json != "{")
-        {
-            json.append(",");
-        }
-
-        std::stringstream globalStream;
-        globalStream << mGlobalChatsDND;
-        json.append("\"CHAT\":{\"dnd\":").append(globalStream.str()).append("}");
+        json.append("\"CHAT\":{\"dnd\":").append(std::to_string(mGlobalChatsDND)).append("}");
+        json.append(",");
     }
-
 
     if (!mChatDND.empty() || !mChatAlwaysNotify.empty())
     {
-        if (json != "{")
+        char chatid[MegaClient::CHATHANDLE * 4 / 3 + 4];
+
+        std::map<uint64_t, time_t>::const_iterator itDND;
+        for (itDND = mChatDND.begin(); itDND != mChatDND.end(); itDND++)
         {
+            assert(isChatDndEnabled(itDND->first));
+            assert(!isChatAlwaysNotifyEnabled(itDND->first));
+
+            Base64::btoa((byte*)&(itDND->first), MegaClient::CHATHANDLE, chatid);
+            json.append("\"").append(chatid).append("\":{");
+            json.append("\"dnd\":").append(std::to_string(itDND->second)).append("}");
             json.append(",");
         }
 
-        json.append(getChatsSetting());
+        std::map<uint64_t, bool>::const_iterator itAn;
+        for (itAn = mChatAlwaysNotify.begin(); itAn != mChatAlwaysNotify.end(); itAn++)
+        {
+            assert(isChatAlwaysNotifyEnabled(itAn->second));
+            assert(!isChatDndEnabled(itAn->first));
+
+            Base64::btoa((byte*)&(itAn->first), MegaClient::CHATHANDLE, chatid);
+            json.append("\"").append(chatid).append("\":{");
+            json.append("\"an\":").append("1").append("}");
+            json.append(",");
+        }
     }
 
+    if (json.at(json.length() - 1) == ',')  // clear a tailing comma (not needed)
+    {
+        json.pop_back();
+    }
     json.append("}");
     return json;
 }
@@ -30026,91 +30044,6 @@ bool MegaPushNotificationSettingsPrivate::isChatsEnabled() const
 MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
 {
     return new MegaPushNotificationSettingsPrivate(this);
-}
-
-std::string MegaPushNotificationSettingsPrivate::getGlobalSetting() const
-{
-    std::string global = "\"GLOBAL\":{";
-    if (isGlobalDndEnabled())
-    {
-        std::stringstream globalStream;
-        globalStream << mGlobalDND;
-        global.append("\"dnd\":").append(globalStream.str());
-    }
-
-    if (isGlobalScheduleEnabled())
-    {
-        if (mGlobalDND > -1)
-        {
-            global.append(",");
-        }
-
-        std::stringstream startStream;
-        startStream << mGlobalScheduleStart;
-
-        std::stringstream stopStream;
-        stopStream << mGlobalScheduleEnd;
-
-        global.append("\"nsch\":{\"start\":").append(startStream.str()).append(",\"end\":").append(stopStream.str())
-                .append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}");
-    }
-
-    global.append("}");
-    return global;
-}
-
-std::string MegaPushNotificationSettingsPrivate::getChatsSetting() const
-{
-    std::string chats;
-    int base64Size = MegaClient::CHATHANDLE * 4 / 3 + 4;
-    char *chatid = new char[base64Size];
-    if (!mChatDND.empty())
-    {
-        std::map<uint64_t, time_t>::const_iterator it;
-        for (it = mChatDND.begin(); it != mChatDND.end(); it++)
-        {
-            if (isChatDndEnabled(it->first))
-            {
-                std::stringstream chatStream;
-                chatStream << it->second;
-                Base64::btoa((byte*)&(it->first), MegaClient::CHATHANDLE, chatid);
-                chats.append("\"").append(chatid).append("\":{");
-                chats.append("\"dnd\":").append(chatStream.str()).append("},");
-            }
-        }
-
-        if (!chats.empty() && chats.at(chats.length() - 1) == ',')
-        {
-            chats.pop_back();
-        }
-    }
-
-    if (!mChatAlwaysNotify.empty())
-    {
-        if (!chats.empty() &&  chats.at(chats.length() - 1) == '}')
-        {
-            chats.append(",");
-        }
-
-        std::map<uint64_t, bool>::const_iterator it;
-        for (it = mChatAlwaysNotify.begin(); it != mChatAlwaysNotify.end(); it++)
-        {
-            if (it->second)
-            {
-                Base64::btoa((byte*)&(it->first), MegaClient::CHATHANDLE, chatid);
-                chats.append("\"").append(chatid).append("\":{");
-                chats.append("\"an\":").append("1").append("},");
-            }
-        }
-
-        if (!chats.empty() && chats.at(chats.length() - 1) == ',')
-        {
-            chats.pop_back();
-        }
-    }
-
-    delete []chatid;
-    return chats;
 }
 
 void MegaPushNotificationSettingsPrivate::enableGlobal(bool enable)

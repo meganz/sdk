@@ -851,9 +851,6 @@ private:
 
     bool mJsonInvalid = false;  // true if ctor from JSON find issues
 
-    std::string getGlobalSetting() const;
-    std::string getChatsSetting() const;
-
 public:
 
     // getters
