@@ -13554,9 +13554,9 @@ void MegaApiImpl::getua_result(TLVstore *tlv)
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
 
-        // prepare request params to know if a warning should show or not
         switch (request->getParamType())
         {
+            // prepare request params to know if a warning should show or not
             case MegaApi::USER_ATTR_RICH_PREVIEWS:
             {
                 const char *num = stringMap->get("num");
