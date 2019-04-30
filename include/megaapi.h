@@ -8961,6 +8961,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
          *
+         * @param nodehandle MegaHandle of the node to be used as target folder
          * @param listener MegaRequestListener to track this request
          */
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -8975,7 +8976,6 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
-         * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -8988,6 +8988,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
          *
+         * @param nodehandle MegaHandle of the node to be used as target folder
          * @param listener MegaRequestListener to track this request
          */
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
@@ -9002,7 +9003,6 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodehandle - Returns the handle of the node where Camera Uploads files are stored
-         * - MegaRequest::getMegaStringMap - Returns the raw content of the atribute: [<key><value>]*
          *
          * @param listener MegaRequestListener to track this request
          */
