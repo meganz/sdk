@@ -70,7 +70,7 @@ class MEGA_API RequestDispatcher
 public:
     RequestDispatcher();
 
-    // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), in which case set solo=true
+    // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), determined by the Command's `batchSeparately` field.
     void add(Command*);
 
     bool cmdspending() const;

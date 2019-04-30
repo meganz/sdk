@@ -3297,8 +3297,6 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
-    int  smsve = -1;
-    string smsv;
 
     if (client->json.isnumeric())
     {
@@ -3367,9 +3365,6 @@ void CommandGetUserData::procresult()
                     case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
                         aplvp = bool(client->json.getint());
                         break;
-                    case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
-                        smsve = int(client->json.getint());
-                        break;
                     case EOO:
                         endobject = true;
                         break;
@@ -3381,13 +3376,6 @@ void CommandGetUserData::procresult()
                     }
                 }
                 client->json.leaveobject();
-            }
-            break;
-
-        case MAKENAMEID4('s', 'm', 's', 'v'):
-            if (!client->json.storeobject(&smsv))
-            {
-                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
             }
             break;
 
@@ -3434,7 +3422,7 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 {
     cmd("gmf");
 
-    // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
+    // this command can get these flags even when the account is blocked (if it's in a batch by itself)
     batchSeparately = true;  
     suppressSID = true;
 
