@@ -2290,7 +2290,7 @@ class MegaApiImpl : public MegaApp
         int httpServerIsRunning();
 
         // management
-        char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalLink(MegaNode *node, bool formatIPv6 = false);
         char *httpServerGetLocalWebDavLink(MegaNode *node);
         MegaStringList *httpServerGetWebDavLinks();
         MegaNodeList *httpServerGetWebDavAllowedNodes();
@@ -2383,6 +2383,10 @@ class MegaApiImpl : public MegaApp
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
         bool isChatNotifiable(MegaHandle chatid);
+        void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+        void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
+        void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+        void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
 
         void getPushNotificationSettings(MegaRequestListener *listener = NULL);
@@ -3018,7 +3022,7 @@ public:
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
-    char* getLink(MegaNode *node, std::string protocol = "http");
+    char* getLink(MegaNode *node, std::string protocol = "http", bool formatIPv6 = false);
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);

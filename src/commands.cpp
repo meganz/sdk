@@ -369,6 +369,7 @@ void CommandPutFile::procresult()
 
                 if (tempurls.size() == 1)
                 {
+                    tslot->transfer->tempurls = tempurls;
                     tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
                     return tslot->progress();
@@ -789,6 +790,7 @@ void CommandGetFile::procresult()
 
                                         if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                                         {
+                                            tslot->transfer->tempurls = tempurls;
                                             tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                                             return tslot->progress();
                                         }
@@ -1524,6 +1526,7 @@ CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
 {
     cmd("us0");
     arg("user", email);
+    batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
     this->email = email;
     tag = client->reqtag;
@@ -1581,6 +1584,7 @@ void CommandPrelogin::procresult()
 CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion, const char *pin)
 {
     cmd("us");
+    batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
     // are we just performing a session validation?
     checksession = !email;
@@ -2808,7 +2812,7 @@ void CommandGetUA::procresult()
         }
 
 #ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
+        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me && e != API_EBLOCKED)
         {
             client->initializekeys(); // we have now all the required data
         }
@@ -3413,6 +3417,60 @@ void CommandGetUserData::procresult()
         }
     }
 }
+
+CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
+{
+    cmd("gmf");
+
+    // this command can get these flags even when the account is blocked (if it's in a batch by itself)
+    batchSeparately = true;  
+    suppressSID = true;
+
+    tag = client->reqtag;
+}
+
+void CommandGetMiscFlags::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+        if (!e)
+        {
+            e = API_ENOENT;
+        }
+        LOG_err << "gmf failed: " << e;
+        return;
+    }
+
+    bool endobject = false;
+    while (!endobject)
+    {
+        switch (client->json.getnameid())
+        {
+        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
+            client->gmfa_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
+            client->ssrs_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
+            client->nsr_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
+            client->aplvp_enabled = bool(client->json.getint());
+            break;
+        case EOO:
+            endobject = true;
+            break;
+        default:
+            if (!client->json.storeobject())
+            {
+                return;
+            }
+        }
+    }
+}
+
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro)
 {
@@ -4100,6 +4158,7 @@ void CommandResumeEphemeralSession::procresult()
 CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
 {
     cmd("whyamiblocked");
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
     tag = client->reqtag;
 }
@@ -4839,6 +4898,11 @@ void CommandQueryRecoveryLink::procresult()
     if (!emails.size()) // there should be at least one email
     {
         return client->app->queryrecoverylink_result(API_EINTERNAL);
+    }
+
+    if (client->loggedin() == FULLACCOUNT && uh != client->me)
+    {
+        return client->app->queryrecoverylink_result(API_EACCESS);
     }
 
     return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), time_t(ts), uh, &emails);

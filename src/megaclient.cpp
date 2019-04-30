@@ -24,6 +24,9 @@
 #include <cctype>
 #include <algorithm>
 
+#undef min // avoid issues with std::min and std::max
+#undef max
+
 namespace mega {
 
 // FIXME: generate cr element for file imports
@@ -1626,8 +1629,7 @@ void MegaClient::exec()
                                 }
 
                                 // request succeeded, process result array
-                                json.begin(pendingcs->in.c_str());
-                                reqs.procresult(this);
+                                reqs.serverresponse(std::move(pendingcs->in), this);
 
                                 WAIT_CLASS::bumpds();
 
@@ -1671,6 +1673,8 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
                                 csretrying = false;
+
+                                reqs.servererror(e, this);
                                 break;
                             }
 
@@ -1735,6 +1739,8 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
                                 csretrying = false;
+
+                                reqs.servererror(API_ESSL, this);
                                 break;
                             }
                         }
@@ -1749,6 +1755,8 @@ void MegaClient::exec()
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
 
+                        reqs.requeuerequest();
+
                     default:
                         ;
                 }
@@ -1761,24 +1769,23 @@ void MegaClient::exec()
 
             if (btcs.armed())
             {
-                if (btcs.nextset())
-                {
-                    reqs.nextRequest();
-                }
-
                 if (reqs.cmdspending())
                 {
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
                     pendingcs->logname = clientname + "cs ";
 
-                    reqs.get(pendingcs->out);
+                    bool suppressSID = true;
+                    reqs.serverrequest(pendingcs->out, suppressSID);
 
                     pendingcs->posturl = APIURL;
 
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(reqid, sizeof reqid);
-                    pendingcs->posturl.append(auth);
+                    if (!suppressSID)
+                    {
+                        pendingcs->posturl.append(auth);
+                    }
                     pendingcs->posturl.append(appkey);
                     if (lang.size())
                     {
@@ -1787,8 +1794,6 @@ void MegaClient::exec()
                     pendingcs->type = REQ_JSON;
 
                     pendingcs->post(this);
-
-                    reqs.nextRequest();
                     continue;
                 }
                 else
@@ -3294,6 +3299,7 @@ bool MegaClient::dispatch(direction_t d)
                 // dispatch request for temporary source/target URL
                 if (nexttransfer->tempurls.size())
                 {
+                    ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->tempurls, nexttransfer->pos, ts->maxRequestSize);
                     app->transfer_prepare(nexttransfer);
                 }
                 else
@@ -9950,6 +9956,10 @@ sessiontype_t MegaClient::loggedin()
 
 void MegaClient::whyamiblocked()
 {
+    // make sure the smsve flag is up to date when we get the response
+    reqs.add(new CommandGetMiscFlags(this));
+
+    // queue the actual request
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
@@ -10728,7 +10738,7 @@ void MegaClient::initializekeys()
         // Check completeness of keypairs
         if (!pubk.isvalid() || puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
         {
-            LOG_warn << "Public keys and/or signatures found witout their respective private key.";
+            LOG_warn << "Public keys and/or signatures found without their respective private key.";
 
             sendevent(99415, "Incomplete keypair detected", 0);
 

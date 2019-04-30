@@ -56,7 +56,7 @@ namespace mega {
         void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize);
 
         // indicate if the file is raid or not.  Most variation due to raid/non-raid is captured in this class
-        bool isRaid();
+        bool isRaid() const;
 
         // in case URLs expire, use this to update them and keep downloading without wasting any data
         void updateUrlsAndResetPos(const std::vector<std::string>& tempUrls);
@@ -101,7 +101,7 @@ namespace mega {
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
 
         // returns how far we are through the file on average, including uncombined data
-        m_off_t progress();
+        m_off_t progress() const;
 
         RaidBufferManager();
         ~RaidBufferManager();

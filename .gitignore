@@ -88,6 +88,8 @@ Release
 /contrib/QtCreator/MEGAsymplesync/MEGAsymplesync.pro.user
 /contrib/QtCreator/megacli.creator.user
 /contrib/cmake/cmake-build-*
+/contrib/build-cmake-Desktop-*
+/contrib/cmake/CMakeLists.txt.user
 /contrib/cmake/.idea
 megaclient_statecache*
 

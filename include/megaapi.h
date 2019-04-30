@@ -1155,28 +1155,30 @@ class MegaUser
 
         enum
         {
-            CHANGE_TYPE_AUTHRING        = 0x01,
-            CHANGE_TYPE_LSTINT          = 0x02,
-            CHANGE_TYPE_AVATAR          = 0x04,
-            CHANGE_TYPE_FIRSTNAME       = 0x08,
-            CHANGE_TYPE_LASTNAME        = 0x10,
-            CHANGE_TYPE_EMAIL           = 0x20,
-            CHANGE_TYPE_KEYRING         = 0x40,
-            CHANGE_TYPE_COUNTRY         = 0x80,
-            CHANGE_TYPE_BIRTHDAY        = 0x100,
-            CHANGE_TYPE_PUBKEY_CU255    = 0x200,
-            CHANGE_TYPE_PUBKEY_ED255    = 0x400,
-            CHANGE_TYPE_SIG_PUBKEY_RSA  = 0x800,
-            CHANGE_TYPE_SIG_PUBKEY_CU255 = 0x1000,
-            CHANGE_TYPE_LANGUAGE        = 0x2000,
-            CHANGE_TYPE_PWD_REMINDER    = 0x4000,
-            CHANGE_TYPE_DISABLE_VERSIONS = 0x8000,
-            CHANGE_TYPE_CONTACT_LINK_VERIFICATION = 0x10000,
-            CHANGE_TYPE_RICH_PREVIEWS   = 0x20000,
-            CHANGE_TYPE_RUBBISH_TIME    = 0x40000,
-            CHANGE_TYPE_STORAGE_STATE   = 0x80000,
-            CHANGE_TYPE_GEOLOCATION     = 0x100000,
-            CHANGE_TYPE_PUSH_SETTINGS = 0x200000
+            CHANGE_TYPE_AUTHRING                    = 0x01,
+            CHANGE_TYPE_LSTINT                      = 0x02,
+            CHANGE_TYPE_AVATAR                      = 0x04,
+            CHANGE_TYPE_FIRSTNAME                   = 0x08,
+            CHANGE_TYPE_LASTNAME                    = 0x10,
+            CHANGE_TYPE_EMAIL                       = 0x20,
+            CHANGE_TYPE_KEYRING                     = 0x40,
+            CHANGE_TYPE_COUNTRY                     = 0x80,
+            CHANGE_TYPE_BIRTHDAY                    = 0x100,
+            CHANGE_TYPE_PUBKEY_CU255                = 0x200,
+            CHANGE_TYPE_PUBKEY_ED255                = 0x400,
+            CHANGE_TYPE_SIG_PUBKEY_RSA              = 0x800,
+            CHANGE_TYPE_SIG_PUBKEY_CU255            = 0x1000,
+            CHANGE_TYPE_LANGUAGE                    = 0x2000,
+            CHANGE_TYPE_PWD_REMINDER                = 0x4000,
+            CHANGE_TYPE_DISABLE_VERSIONS            = 0x8000,
+            CHANGE_TYPE_CONTACT_LINK_VERIFICATION   = 0x10000,
+            CHANGE_TYPE_RICH_PREVIEWS               = 0x20000,
+            CHANGE_TYPE_RUBBISH_TIME                = 0x40000,
+            CHANGE_TYPE_STORAGE_STATE               = 0x80000,
+            CHANGE_TYPE_GEOLOCATION                 = 0x100000,
+            CHANGE_TYPE_CAMERA_UPLOADS_FOLDER       = 0x200000,
+            CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000,
+            CHANGE_TYPE_PUSH_SETTINGS               = 0x800000
         };
 
         /**
@@ -4982,6 +4984,7 @@ public:
     {
         API_EC_DEFAULT = 0,         ///< Default error code context
         API_EC_DOWNLOAD = 1,        ///< Download transfer context.
+        API_EC_IMPORT = 2,          ///< Import context.
     };
 
     /**
@@ -6243,7 +6246,9 @@ class MegaApi
             USER_ATTR_LAST_PSA = 20,             // private - char array
             USER_ATTR_STORAGE_STATE = 21,        // private - char array
             USER_ATTR_GEOLOCATION = 22,          // private - byte array
-            USER_ATTR_PUSH_SETTINGS = 23         // private - char array
+            USER_ATTR_CAMERA_UPLOADS_FOLDER = 23,// private - byte array
+            USER_ATTR_MY_CHAT_FILES_FOLDER = 24, // private - byte array
+            USER_ATTR_PUSH_SETTINGS = 25         // private - char array
         };
 
         enum {
@@ -7353,6 +7358,9 @@ class MegaApi
          * - MegaRequest::getEmail - Return the email associated with the link
          * - MegaRequest::getFlag - Return whether the link requires masterkey to reset password.
          *
+         * If the account is logged-in into a different account than the account for which the link
+         * was generated, onRequestFinish will be called with the error code MegaError::API_EACCESS.
+         *
          * @param link The recovery link sent to the user's email address.
          * @param newPwd The new password to be set.
          * @param masterKey Base64-encoded string containing the master key (optional).
@@ -7439,6 +7447,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Return the email associated with the link
          *
+         * If the account is logged-in into a different account than the account for which the link
+         * was generated, onRequestFinish will be called with the error code MegaError::API_EACCESS.
+         *
          * @param link Change-email link (#verify)
          * @param listener MegaRequestListener to track this request
          */
@@ -7457,6 +7468,9 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getEmail - Return the email associated with the link
+         *
+         * If the account is logged-in into a different account than the account for which the link
+         * was generated, onRequestFinish will be called with the error code MegaError::API_EACCESS.
          *
          * @param link Change-email link sent to the user's email address.
          * @param pwd Password for the account.
@@ -8323,7 +8337,12 @@ class MegaApi
          * Get number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          * MegaApi::USER_ATTR_STORAGE_STATE = 21
          * Get the state of the storage (private non-encrypted)
-         *
+         * MegaApi::ATTR_GEOLOCATION = 22
+         * Get the user geolocation (private)
+         * MegaApi::ATTR_CAMERA_UPLOADS_FOLDER = 23
+         * Get the target folder for Camera Uploads (private)
+         * MegaApi::ATTR_MY_CHAT_FILES_FOLDER = 24
+         * Get the target folder for My chat files (private)
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -9248,6 +9267,60 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set My Chat Files target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+         *
+         * @param nodehandle MegaHandle of the node to be used as target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets My chat files target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the node where My Chat Files are stored
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set Camera Uploads target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         *
+         * @param nodehandle MegaHandle of the node to be used as target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets Camera Uploads target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the node where Camera Uploads files are stored
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
 
         /**
@@ -9486,11 +9559,12 @@ class MegaApi
          * is sent to MEGA servers.
          *
          * @note Event types are restricted to the following ranges:
-         *  - MEGAchat: [99000, 99150)
-         *  - Android:  [99200, 99300)
-         *  - iOS:      [99300, 99400)
-         *  - MEGA SDK: [99400, 99500)
-         *  - MEGAsync: [99500, 99600)
+         *  - MEGAchat:  [99000, 99150)
+         *  - Android:   [99200, 99300)
+         *  - iOS:       [99300, 99400)
+         *  - MEGA SDK:  [99400, 99500)
+         *  - MEGAsync:  [99500, 99600)
+         *  - Webclient: [99600, 99800]
          */
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
 
@@ -12992,9 +13066,10 @@ class MegaApi
          * You take the ownership of the returned value
          *
          * @param node Node to generate the local HTTP link
+         * @param formatIPv6 true to use [::1] as host, false to use 127.0.0.1
          * @return URL to the node in the local HTTP proxy server, otherwise NULL
          */
-        char *httpServerGetLocalLink(MegaNode *node);
+        char *httpServerGetLocalLink(MegaNode *node, bool formatIPv6 = false);
 
         /**
          * @brief Returns a WEBDAV valid URL to a node in the local HTTP proxy server

@@ -29,6 +29,9 @@
 
 namespace mega
 {
+
+constexpr unsigned RAID_ACTIVE_CHANNEL_FAIL_THRESHOLD = 5;
+
 struct FaultyServers
 {
     // Records URLs that had recent problems, so we can start the next raid download with URLs that can work first try.
@@ -143,6 +146,7 @@ RaidBufferManager::RaidBufferManager()
     , unusedRaidConnection(0)
     , raidpartspos(0)
     , outputfilepos(0)
+    , startfilepos(0)
     , resumewastedbytes(0)
 {
     for (int i = RAIDPARTS; i--; )
@@ -238,7 +242,7 @@ void RaidBufferManager::updateUrlsAndResetPos(const std::vector<std::string>& te
     }
 }
 
-bool RaidBufferManager::isRaid()
+bool RaidBufferManager::isRaid() const
 {
     assert(raidKnown);
     return is_raid;
@@ -699,7 +703,7 @@ bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
     }
 
     // Allow for one nonfunctional channel and one glitchy channel.  We can still make progress swapping back and forth
-    if ((errorSum - highestErrors) < 5)
+    if ((errorSum - highestErrors) < RAID_ACTIVE_CHANNEL_FAIL_THRESHOLD)
     {
         if (unusedRaidConnection < RAIDPARTS)
         {
@@ -772,14 +776,14 @@ bool RaidBufferManager::detectSlowestRaidConnection(unsigned thisConnection, uns
 }
 
 
-m_off_t RaidBufferManager::progress()
+m_off_t RaidBufferManager::progress() const
 {
     assert(isRaid());
     m_off_t reportPos = 0;
 
     for (unsigned j = RAIDPARTS; j--; )
     {
-        for (auto& p : raidinputparts[j])
+        for (FilePiece* p : raidinputparts[j])
         {
             if (!p->buf.isNull())
             {
@@ -788,7 +792,7 @@ m_off_t RaidBufferManager::progress()
         }
     }
 
-    return raidpartspos * (RAIDPARTS - 1) + reportPos - startfilepos;
+    return reportPos;
 }
 
 
@@ -848,7 +852,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
             transfer->pos = 0;
         }
 
-        if (transfer->type == GET && transfer->size)
+        if (transfer->type == GET && transfer->size && npos > transfer->pos)
         {
             m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
             if (maxReqSize > maxRequestSize)
@@ -883,6 +887,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 it = transfer->chunkmacs.find(npos);
             }
             LOG_debug << "Downloading chunk of size " << reqSize;
+            assert(reqSize > 0);
         }
         return std::make_pair(transfer->pos, npos);
     }

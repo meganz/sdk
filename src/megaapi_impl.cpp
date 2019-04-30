@@ -1453,6 +1453,14 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_GEOLOCATION;
     }
+    if(user->changed.cameraUploadsFolder)
+    {
+        changed |= MegaUser::CHANGE_TYPE_CAMERA_UPLOADS_FOLDER;
+    }
+    if(user->changed.myChatFilesFolder)
+    {
+        changed |= MegaUser::CHANGE_TYPE_MY_CHAT_FILES_FOLDER;
+    }
     if (user->changed.pushSettings)
     {
         changed |= MegaUser::CHANGE_TYPE_PUSH_SETTINGS;
@@ -5054,6 +5062,8 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_KEYRING:
         case MegaApi::USER_ATTR_RICH_PREVIEWS:
         case MegaApi::USER_ATTR_GEOLOCATION:
+        case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
+        case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
             scope = '*';
             break;
 
@@ -8150,7 +8160,7 @@ int MegaApiImpl::httpServerIsRunning()
     return result;
 }
 
-char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
+char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node, bool formatIPv6)
 {
     if (!node)
     {
@@ -8164,7 +8174,7 @@ char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
         return NULL;
     }
 
-    char *result = httpServer->getLink(node);
+    char *result = httpServer->getLink(node, "http", formatIPv6);
     sdkMutex.unlock();
     return result;
 }
@@ -9113,6 +9123,42 @@ void MegaApiImpl::setRichLinkWarningCounterValue(int value, MegaRequestListener 
     Base64::btoa(oss.str(), base64value);
     stringMap->set("c", base64value.c_str());
     setUserAttribute(MegaApi::USER_ATTR_RICH_PREVIEWS, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::getCameraUploadsFolder(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    char buffer[12];
+    Base64::btoa((byte*)&nodehandle, MegaClient::NODEHANDLE, buffer);
+    stringMap->set("h", buffer);
+    setUserAttribute(MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::getMyChatFilesFolder(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = new MegaStringMapPrivate();
+    char buffer[12];
+    Base64::btoa((byte*)&nodehandle, MegaClient::NODEHANDLE, buffer);
+    stringMap->set("h", buffer);
+    setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, stringMap, listener);
     delete stringMap;
 }
 
@@ -13667,41 +13713,58 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
         MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
         request->setMegaStringMap(stringMap);
 
-        // prepare request params to know if a warning should show or not
-        if (request->getParamType() == MegaApi::USER_ATTR_RICH_PREVIEWS)
+        switch (request->getParamType())
         {
-            const char *num = stringMap->get("num");
-
-            if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+            // prepare request params to know if a warning should show or not
+            case MegaApi::USER_ATTR_RICH_PREVIEWS:
             {
-                if (num)
+                const char *num = stringMap->get("num");
+
+                if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
                 {
-                    string sValue = num;
-                    string bValue;
-                    Base64::atob(sValue, bValue);
-                    request->setFlag(bValue == "1");
+                    if (num)
+                    {
+                        string sValue = num;
+                        string bValue;
+                        Base64::atob(sValue, bValue);
+                        request->setFlag(bValue == "1");
+                    }
+                    else
+                    {
+                        request->setFlag(false);
+                    }
                 }
-                else
+                else if (request->getNumDetails() == 1) // used to check if should show warning
                 {
-                    request->setFlag(false);
+                    request->setFlag(!num);
+                    // it doesn't matter the value, just if it exists
+
+                    const char *value = stringMap->get("c");
+                    if (value)
+                    {
+                        string sValue = value;
+                        string bValue;
+                        Base64::atob(sValue, bValue);
+                        request->setNumber(atoi(bValue.c_str()));
+                    }
                 }
+                break;
             }
-            else if (request->getNumDetails() == 1) // used to check if should show warning
+            case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
+            case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
             {
-                request->setFlag(!num);
-                // it doesn't matter the value, just if it exists
-
-                const char *value = stringMap->get("c");
+                const char *value = stringMap->get("h");
                 if (value)
                 {
-                    string sValue = value;
-                    string bValue;
-                    Base64::atob(sValue, bValue);
-                    request->setNumber(atoi(bValue.c_str()));
+                    handle nodehandle;
+                    Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
+                    request->setNodeHandle(nodehandle);
                 }
+                break;
             }
+            default:
+                break;
         }
-
         delete stringMap;
     }
 
@@ -23369,14 +23432,14 @@ void MegaTCPServer::run()
 
     uv_tcp_keepalive(&server, 0, 0);
 
-    struct sockaddr_in address;
+    struct sockaddr_in6 address;
     if (localOnly)
     {
-        uv_ip4_addr("127.0.0.1", port, &address);
+        uv_ip6_addr("::1", port, &address);
     }
     else
     {
-        uv_ip4_addr("0.0.0.0", port, &address);
+        uv_ip6_addr("::", port, &address);
     }
     uv_connection_cb onNewClientCB;
 #ifdef ENABLE_EVT_TLS
@@ -23455,14 +23518,14 @@ void MegaTCPServer::initializeAndStartListening()
 
     uv_tcp_keepalive(&server, 0, 0);
 
-    struct sockaddr_in address;
+    struct sockaddr_in6 address;
     if (localOnly)
     {
-        uv_ip4_addr("127.0.0.1", port, &address);
+        uv_ip6_addr("::1", port, &address);
     }
     else
     {
-        uv_ip4_addr("0.0.0.0", port, &address);
+        uv_ip6_addr("::", port, &address);
     }
     uv_connection_cb onNewClientCB;
 #ifdef ENABLE_EVT_TLS
@@ -23577,7 +23640,7 @@ void MegaTCPServer::clearAllowedHandles()
     lastHandle = INVALID_HANDLE;
 }
 
-char *MegaTCPServer::getLink(MegaNode *node, string protocol)
+char *MegaTCPServer::getLink(MegaNode *node, string protocol, bool formatIPv6)
 {
     if (!node)
     {
@@ -23586,9 +23649,11 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
 
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
+    
+    string localhostIP = formatIPv6 ? "[::1]" : "127.0.0.1";
 
     ostringstream oss;
-    oss << protocol << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
+    oss << protocol << (useTLS ? "s" : "") << "://" << localhostIP << ":" << port << "/";
     char *base64handle = node->getBase64Handle();
     oss << base64handle;
     delete [] base64handle;

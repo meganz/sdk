@@ -181,7 +181,7 @@ TransferSlot::~TransferSlot()
 
         for (int i = 0; i < connections; i++)
         {
-            HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+            HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
             if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
                     && downloadRequest->contentlength == downloadRequest->size   
                     && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
@@ -433,10 +433,10 @@ void TransferSlot::doio(MegaClient* client)
                 continue;
             }
 
-            if (reqs[i]->status == REQ_FAILURE && reqs[i]->httpstatus == 200 && transfer->type == GET && transferbuf.isRaid())
+            if (reqs[i]->status == REQ_FAILURE && reqs[i]->httpstatus == 200 && transfer->type == GET && transferbuf.isRaid())  // the request started out successfully, hence status==200 in the reply headers
             {
                 // check if we got some data and the failure occured partway through the part chunk.  If so, best not to waste it, convert to success case with less data
-                HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+                HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
                 LOG_debug << "Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data.";
                 if (downloadRequest->contentlength == downloadRequest->size && downloadRequest->bufpos >= RAIDSECTOR)
                 {
@@ -468,7 +468,7 @@ void TransferSlot::doio(MegaClient* client)
                     break;
 
                 case REQ_SUCCESS:
-                    if (client->orderdownloadedchunks && transfer->type == GET && transfer->progresscompleted != ((HttpReqDL *)reqs[i])->dlpos)
+                    if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i])->dlpos)
                     {
                         // postponing unsorted chunk
                         p += reqs[i]->size;
@@ -627,7 +627,7 @@ void TransferSlot::doio(MegaClient* client)
                     }
                     else   // GET
                     {
-                        HttpReqDL *downloadRequest = (HttpReqDL *)reqs[i];
+                        HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
                         if (reqs[i]->size == reqs[i]->bufpos || downloadRequest->buffer_released)   // downloadRequest->buffer_released being true indicates we're retrying this asyncIO
                         {
 
@@ -650,7 +650,7 @@ void TransferSlot::doio(MegaClient* client)
                                         asyncIO[i] = NULL;
                                     }
 
-                                    p += reqs[i]->size;
+                                    p += outputPiece->buf.datalen();
 
                                     LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
                                     asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos);
@@ -830,7 +830,7 @@ void TransferSlot::doio(MegaClient* client)
                                 client->transfercacheadd(transfer);
                                 reqs[i]->status = REQ_READY;
 
-                                if (client->orderdownloadedchunks)
+                                if (client->orderdownloadedchunks && !transferbuf.isRaid())
                                 {
                                     // Check connections again looking for postponed chunks
                                     delete asyncIO[i];
@@ -970,7 +970,7 @@ void TransferSlot::doio(MegaClient* client)
                 {
                     // set up to do the actual write on the next loop, as if it was a retry
                     reqs[i]->status = REQ_SUCCESS;
-                    ((HttpReqDL*)reqs[i])->buffer_released = true;
+                    static_cast<HttpReqDL*>(reqs[i])->buffer_released = true;
                     newOutputBufferSupplied = true;
                 }
 
@@ -1083,7 +1083,7 @@ void TransferSlot::doio(MegaClient* client)
                         {
                             // set up to do the actual write on the next loop, as if it was a retry
                             reqs[i]->status = REQ_SUCCESS;
-                            ((HttpReqDL*)reqs[i])->buffer_released = true;
+                            static_cast<HttpReqDL*>(reqs[i])->buffer_released = true;
                         }
                     }
                 }
@@ -1099,20 +1099,11 @@ void TransferSlot::doio(MegaClient* client)
 
     if (transfer->type == GET && transferbuf.isRaid())
     {
-        p = transferbuf.progress();
-        for (int i = connections; i--; )
-        {
-            if (reqs[i] && reqs[i]->status == REQ_INFLIGHT)
-            {
-                p += static_cast<HttpReqDL*>(reqs[i])->bufpos;
-            }
-        }
+        // for Raid, additionally we need the raid data that's waiting to be recombined
+        p += transferbuf.progress();
     }
-    else
-    {
-        p += transfer->progresscompleted;
-    }
-
+    p += transfer->progresscompleted;
+    
     if (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT)
     {
         if (p != progressreported)
