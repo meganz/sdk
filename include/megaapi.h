@@ -8501,6 +8501,25 @@ class MegaApi
         /**
          * @brief Get details about the MEGA account
          *
+         * Only basic data will be available. If you need more data (sessions, transactions, purchases),
+         * use MegaApi::getExtendedAccountDetails.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+         *
+         * Use this version of the function to get just the details you need, to minimise server load
+         * and keep the system highly available for all.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get details about the MEGA account
+         *
          * This function allows to optionally get data about sessions, transactions and purchases related to the account.
          *
          * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS

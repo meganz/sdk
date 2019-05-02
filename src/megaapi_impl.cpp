@@ -17364,6 +17364,7 @@ void MegaApiImpl::sendPendingRequests()
 			bool transactions = (numDetails & 0x08) != 0;
 			bool purchases = (numDetails & 0x10) != 0;
 			bool sessions = (numDetails & 0x20) != 0;
+            request->setNumber(numDetails); // allow client to know which flags were used
 
 			numDetails = 1;
 			if(transactions) numDetails++;

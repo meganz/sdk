@@ -3884,6 +3884,12 @@ bool MegaClient::procsc()
                         app->nodes_current();
                         LOG_debug << "Local filesystem up to date";
 
+                        if (notifyStorageChangeOnStateCurrent)
+                        {
+                            app->notify_storage(STORAGE_CHANGE);
+                            notifyStorageChangeOnStateCurrent = false;
+                        }
+
                         if (tctable && cachedfiles.size())
                         {
                             tctable->begin();
@@ -5261,8 +5267,15 @@ void MegaClient::sc_userattr()
                             }
                             else if (type == ATTR_STORAGE_STATE)
                             {
-                                LOG_debug << "Possible storage status change";
-                                app->notify_storage(STORAGE_CHANGE);
+                                if (!statecurrent)
+                                {
+                                    notifyStorageChangeOnStateCurrent = true;
+                                }
+                                else
+                                {
+                                    LOG_debug << "Possible storage status change";
+                                    app->notify_storage(STORAGE_CHANGE);
+                                }
                             }
                         }
                     }
