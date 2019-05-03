@@ -1944,7 +1944,7 @@ using namespace mega;
 #pragma mark - HTTP Proxy Server
 
 - (BOOL)httpServerStart:(BOOL)localOnly port:(NSInteger)port {
-    return self.megaApi->httpServerStart(localOnly, (int)port);
+    return self.megaApi->httpServerStart(localOnly, (int)port, false, NULL, NULL, true);
 }
 
 - (void)httpServerStop {
@@ -2000,7 +2000,7 @@ using namespace mega;
 }
 
 - (NSURL *)httpServerGetLocalLink:(MEGANode *)node {
-    const char *val = self.megaApi->httpServerGetLocalLink([node getCPtr], true);
+    const char *val = self.megaApi->httpServerGetLocalLink([node getCPtr]);
     if (!val) return nil;
     
     NSURL *ret = [NSURL URLWithString:[NSString stringWithUTF8String:val]];

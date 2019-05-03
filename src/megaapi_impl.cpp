@@ -8010,7 +8010,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     }
 
     httpServerStop();
-    httpServer = new MegaHTTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
+    httpServer = new MegaHTTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string(), useIPv6);
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
@@ -23952,8 +23952,8 @@ void MegaTCPServer::processAsyncEvent(MegaTCPContext *tcpctx)
 //  MegaHTTPServer specifics //
 ///////////////////////////////
 
-MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
-    : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath)
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath, bool useIPv6)
+    : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath, useIPv6)
 {
     // parser callbacks
     parsercfg.on_url = onUrlReceived;
