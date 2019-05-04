@@ -132,6 +132,7 @@ void Request::clear()
     jsonresponse.clear();
     json.pos = NULL;
     processindex = 0;
+    stopProcessing = false;
 }
 
 bool Request::empty() const
