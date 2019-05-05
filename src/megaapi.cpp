@@ -3663,9 +3663,9 @@ void MegaApi::catchup(MegaRequestListener *listener)
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
+bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath, bool useIPv6)
 {
-    return pImpl->httpServerStart(localOnly, port, useTLS, certificatepath, keypath);
+    return pImpl->httpServerStart(localOnly, port, useTLS, certificatepath, keypath, useIPv6);
 }
 
 void MegaApi::httpServerStop()
@@ -3743,9 +3743,9 @@ void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
     pImpl->httpServerRemoveListener(listener);
 }
 
-char *MegaApi::httpServerGetLocalLink(MegaNode *node, bool formatIPv6)
+char *MegaApi::httpServerGetLocalLink(MegaNode *node)
 {
-    return pImpl->httpServerGetLocalLink(node, formatIPv6);
+    return pImpl->httpServerGetLocalLink(node);
 }
 
 char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)
