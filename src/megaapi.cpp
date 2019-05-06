@@ -2218,7 +2218,7 @@ void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, M
 
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
+    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, listener);
 }
 
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)

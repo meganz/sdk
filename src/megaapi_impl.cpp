@@ -13233,7 +13233,8 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
 	request->setNumDetails(numDetails);
 	if(!numDetails)
     {
-        if(!request->getAccountDetails()->storage_max)
+        bool storage_requested = request->getNumDetails() & 0x01;
+        if (storage_requested && !request->getAccountDetails()->storage_max)
             fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
         else
             fireOnRequestFinish(request, MegaError(MegaError::API_OK));
@@ -17364,14 +17365,9 @@ void MegaApiImpl::sendPendingRequests()
 			bool transactions = (numDetails & 0x08) != 0;
 			bool purchases = (numDetails & 0x10) != 0;
 			bool sessions = (numDetails & 0x20) != 0;
-            request->setNumber(numDetails); // allow client to know which flags were used
 
-			numDetails = 1;
-			if(transactions) numDetails++;
-			if(purchases) numDetails++;
-			if(sessions) numDetails++;
-
-			request->setNumDetails(numDetails);
+            int numReqs = int(storage || transfer || pro) + int(transactions) + int(purchases) + int(sessions);
+            request->setNumber(numReqs);
 
 			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
 			break;
