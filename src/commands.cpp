@@ -3298,7 +3298,6 @@ void CommandGetUserData::procresult()
     bool b = false;
     bool m = false;
     int s = 0;
-    int p = 0;
 
     if (client->json.isnumeric())
     {
@@ -3347,10 +3346,6 @@ void CommandGetUserData::procresult()
             len_privk = client->json.storebinary(privkbuf, sizeof privkbuf);
             break;
 
-        case 'p':
-            p = (int)client->json.getint();
-            break;
-
         case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
             if (client->json.enterobject())
             {
@@ -3386,7 +3381,6 @@ void CommandGetUserData::procresult()
             break;
 
         case 'b':
-            assert (p == ACCOUNT_TYPE_BUSINESS);
             b = true;
             if (client->json.enterobject())
             {
@@ -3432,7 +3426,6 @@ void CommandGetUserData::procresult()
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
             client->k = k;
-            client->proLevel = p;
 
             if (b)
             {

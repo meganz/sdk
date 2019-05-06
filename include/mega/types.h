@@ -206,7 +206,8 @@ typedef enum ErrorCodes
     API_ESSL = -23,                 ///< SSL verification failed
     API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
     API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
-    API_EEXPIREDBUSINESS = -28      ///< Business account expired
+    API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
+    API_EBUSINESSPASTDUE = -28      ///< Business account expired
 } error;
 
 // returned by loggedin()
@@ -531,24 +532,6 @@ struct recentaction
     node_vector nodes;
 };
 typedef vector<recentaction> recentactions_vector;
-
-typedef enum
-{
-    ACCOUNT_TYPE_FREE = 0,
-    ACCOUNT_TYPE_PROI = 1,
-    ACCOUNT_TYPE_PROII = 2,
-    ACCOUNT_TYPE_PROIII = 3,
-    ACCOUNT_TYPE_LITE = 4,
-    ACCOUNT_TYPE_BUSINESS = 100
-} account_t;
-
-typedef enum
-{
-    BUSINESS_STATUS_EXPIRED = -1,
-    BUSINESS_STATUS_ACTIVE = 1,
-    BUSINESS_STATUS_GRACE_PERIOD = 2,
-} business_account_status;
-
 } // namespace
 
 #endif

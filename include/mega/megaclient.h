@@ -1438,12 +1438,17 @@ public:
     // the SDK is trying to log out
     int loggingout;
 
-    // Account type (pro level)
-    int proLevel;
-
-    //Business flags
+    // true if the account is a business account
     bool business;
+
+    // true if the account is a master business account, false if it's a sub-user account
     bool businessMaster;
+
+    /** business account status, the possible values are:
+     *      - MegaApi::BUSINESS_STATUS_EXPIRED = -1
+     *      - MegaApi::BUSINESS_STATUS_ACTIVE = 1
+     *      - MegaApi::BUSINESS_STATUS_GRACE_PERIOD = 2
+     */
     int businessStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);

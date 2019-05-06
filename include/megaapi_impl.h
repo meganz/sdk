@@ -1864,7 +1864,6 @@ class MegaApiImpl : public MegaApp
         MegaUser *getMyUser();
         char* getMyXMPPJid();
         bool isAchievementsEnabled();
-        int getProLevel();
         bool isBusinessAccount();
         bool isMasterBusinessAccount();
         bool isBusinessAccountActive();

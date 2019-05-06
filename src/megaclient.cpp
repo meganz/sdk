@@ -1185,7 +1185,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
 
-    proLevel = -1;
     business = false;
     businessMaster = false;
     businessStatus = 0;

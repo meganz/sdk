@@ -4744,11 +4744,6 @@ bool MegaApiImpl::isAchievementsEnabled()
     return client->achievements_enabled;
 }
 
-int MegaApiImpl::getProLevel()
-{
-    return client->proLevel;
-}
-
 bool MegaApiImpl::isBusinessAccount()
 {
     return client->business;
