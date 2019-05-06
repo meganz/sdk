@@ -71,6 +71,8 @@ struct MEGA_API User : public Cachable
         bool rubbishTime : 1;   // days to keep nodes in rubbish bin before auto clean
         bool storageState : 1;   // state of the storage (0 = green, 1 = orange, 2 = red)
         bool geolocation : 1;   // enable send geolocations
+        bool cameraUploadsFolder : 1;   // target folder for Camera Uploads
+        bool myChatFilesFolder : 1;   // target folder for my chat files
     } changed;
 
     // user's public key

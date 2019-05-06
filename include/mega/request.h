@@ -23,50 +23,65 @@
 #define MEGA_REQUEST_H 1
 
 #include "types.h"
+#include "json.h"
 
 namespace mega {
+
+
 // API request
 class MEGA_API Request
 {
+private:
     vector<Command*> cmds;
+    string jsonresponse;
+    JSON json;
+    unsigned processindex;
 
 public:
     void add(Command*);
 
-    int cmdspending() const;
+    size_t size() const;
 
-    void get(string*) const;
+    void get(string*, bool& suppressSID) const;
 
-    void procresult(MegaClient*);
+    void serverresponse(string&& movestring, MegaClient*);
+    void servererror(error e, MegaClient* client);
+
+    void process(MegaClient* client);
 
     void clear();
+    bool empty() const; 
+    void swap(Request&);
+
+    Request();
 };
+
 
 class MEGA_API RequestDispatcher
 {
-    // active request buffer
-    int r;
+    // these ones have been sent to the server, but we haven't received the response yet
+    Request inflightreq;
 
-    // client-server request double-buffering
-    Request reqs[2];
-
-    // secondary request buffer
-    queue<Command *> reqbuf;
+    // client-server request double-buffering, in batches of up to MAX_COMMANDS
+    deque<Request> nextreqs;
 
     static const int MAX_COMMANDS = 10000;
 
 public:
     RequestDispatcher();
 
-    void nextRequest();
-
+    // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), determined by the Command's `batchSeparately` field.
     void add(Command*);
 
-    int cmdspending() const;
+    bool cmdspending() const;
 
-    void get(string*) const;
+    // get the set of commands to be sent to the server (could be a retry)
+    void serverrequest(string*, bool& suppressSID);
 
-    void procresult(MegaClient*);
+    // once the server response is determined, call one of these to specify the results
+    void requeuerequest();
+    void serverresponse(string&& movestring, MegaClient*);
+    void servererror(error, MegaClient*);
 
     void clear();
 };

@@ -2314,6 +2314,10 @@ class MegaApiImpl : public MegaApp
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+        void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+        void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
+        void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+        void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);

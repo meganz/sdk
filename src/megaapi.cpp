@@ -1199,7 +1199,13 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_ESID:
             return "Bad session ID";
         case API_EBLOCKED:
-            return "Blocked";
+            switch (context)
+            {
+                case API_EC_IMPORT:
+                    return "Not accessible due to ToS/AUP violation";
+                default:
+                    return "Blocked";
+            }
         case API_EOVERQUOTA:
             return "Over quota";
         case API_ETEMPUNAVAIL:
@@ -2345,6 +2351,26 @@ void MegaApi::enableGeolocation(MegaRequestListener *listener)
 void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
 {
     pImpl->isGeolocationEnabled(listener);
+}
+
+void MegaApi::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolder(nodehandle, listener);
+}
+
+void MegaApi::getCameraUploadsFolder(MegaRequestListener *listener)
+{
+    pImpl->getCameraUploadsFolder(listener);
+}
+
+void MegaApi::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setMyChatFilesFolder(nodehandle, listener);
+}
+
+void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
+{
+    pImpl->getMyChatFilesFolder(listener);
 }
 #endif
 
