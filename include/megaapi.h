@@ -3144,6 +3144,12 @@ class MegaRequest
 
         /**
          * @brief Returns the number of details related to this request
+         *
+         * This value is valid for these requests:
+         *  - MegaApi::getAccountDetails
+         *  - MegaApi::getSpecificAccountDetails
+         *  - MegaApi::getExtendedAccountDetails
+         *
          * @return Number of details related to this request
          */
         virtual int getNumDetails() const;
@@ -8555,6 +8561,12 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         * - MegaRequest::getNumDetails - Requested flags
+         *
+         * The available flags are:
+         *  - storage quota: (numDetails & 0x01)
+         *  - transfer quota: (numDetails & 0x02)
+         *  - pro level: (numDetails & 0x04)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -8574,6 +8586,12 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         * - MegaRequest::getNumDetails - Requested flags
+         *
+         * The available flags are:
+         *  - storage quota: (numDetails & 0x01)
+         *  - transfer quota: (numDetails & 0x02)
+         *  - pro level: (numDetails & 0x04)
          *
          * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
          *
@@ -8594,6 +8612,12 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         * - MegaRequest::getNumDetails - Requested flags
+         *
+         * The available flags are:
+         *  - transactions: (numDetails & 0x08)
+         *  - purchases: (numDetails & 0x10)
+         *  - sessions: (numDetails & 0x020)
          *
          * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
          *
