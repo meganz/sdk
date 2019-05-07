@@ -6021,7 +6021,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * ready to accept connections. The initialization is synchronous.
  *
  * The server will serve files using this URL format:
- * http://127.0.0.1/<NodeHandle>/<NodeName>
+ * http://[::1]/<NodeHandle>/<NodeName>
  *
  * The node name must be URL encoded and must match with the node handle.
  * You can generate a correct link for a MEGANode using [MEGASdk httpServerGetLocalLink]
@@ -6042,7 +6042,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * The HTTP server will only stream a node if it's allowed by all configuration options.
  *
- * @param localOnly YES to listen on 127.0.0.1 only, NO to listen on all network interfaces
+ * @param localOnly YES to listen on ::1 only, NO to listen on all network interfaces
  * @param port Port in which the server must accept connections
  * @return YES is the server is ready, NO if the initialization failed
  */
