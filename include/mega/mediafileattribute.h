@@ -23,6 +23,7 @@
 #define MEGA_MEDIAFILEATTRIBUTE_H 1
 
 #include "types.h"
+#include "json.h"
 #include <string>
 
 namespace mega {
@@ -77,8 +78,6 @@ struct MEGA_API MediaProperties
     std::string serialize();
     MediaProperties(const std::string& deserialize);
 };
-
-struct MEGA_API JSON;
 
 #ifdef USE_MEDIAINFO
 
