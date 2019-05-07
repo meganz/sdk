@@ -3296,8 +3296,8 @@ void CommandGetUserData::procresult()
     bool nsre = false;
     bool aplvp = false;
     bool b = false;
-    bool m = false;
-    int s = 0;
+    int m = -1;
+    int s = -2;
 
     if (client->json.isnumeric())
     {
@@ -3381,6 +3381,7 @@ void CommandGetUserData::procresult()
             break;
 
         case 'b':
+            assert(!b);
             b = true;
             if (client->json.enterobject())
             {
@@ -3394,7 +3395,7 @@ void CommandGetUserData::procresult()
                             s = client->json.getint();
                             break;
                         case 'm':
-                            m = bool(client->json.getint());
+                            m = client->json.getint();
                             break;
                         case EOO:
                             endobject = true;
@@ -3407,6 +3408,14 @@ void CommandGetUserData::procresult()
                     }
                 }
                 client->json.leaveobject();
+
+                // integrity checks
+                if ( (s == -2 || (s != -1 && s != 1 && s != 2))     // status not received or invalid
+                     || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
+                {
+                    LOG_err << "Invalid business status / account mode";
+                    return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                }
             }
             break;
 
@@ -3428,12 +3437,9 @@ void CommandGetUserData::procresult()
             client->aplvp_enabled = aplvp;
             client->k = k;
 
-            if (b)
-            {
-                client->business = b;
-                client->businessStatus = s;
-                client->businessMaster = m;
-            }
+            client->business = b;
+            client->businessStatus = b ? s : 0;
+            client->businessMaster = b ? bool(m) : false;
 
             if (len_privk)
             {

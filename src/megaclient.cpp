@@ -1042,6 +1042,10 @@ void MegaClient::init()
     insca = false;
     scnotifyurl.clear();
     *scsn = 0;
+
+    business = false;
+    businessMaster = false;
+    businessStatus = 0;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -1184,10 +1188,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
-
-    business = false;
-    businessMaster = false;
-    businessStatus = 0;
 }
 
 MegaClient::~MegaClient()

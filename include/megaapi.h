@@ -6009,6 +6009,7 @@ class MegaApi
 
         enum {
             BUSINESS_STATUS_EXPIRED = -1,
+            BUSINESS_STATUS_INACTIVE = 0,   // no business subscription
             BUSINESS_STATUS_ACTIVE = 1,
             BUSINESS_STATUS_GRACE_PERIOD = 2
         };
@@ -7437,6 +7438,7 @@ class MegaApi
          * @brief Get the status of a business account.
          * @return Returns the business account status, possible values:
          *      MegaApi::BUSINESS_STATUS_EXPIRED = -1
+         *      MegaApi::BUSINESS_STATUS_INACTIVE = 0
          *      MegaApi::BUSINESS_STATUS_ACTIVE = 1
          *      MegaApi::BUSINESS_STATUS_GRACE_PERIOD = 2
          */

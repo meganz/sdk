@@ -1444,7 +1444,7 @@ public:
     // true if the account is a master business account, false if it's a sub-user account
     bool businessMaster;
 
-    // -1: expired, 1: active, 2: grace-period
+    // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     int businessStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
