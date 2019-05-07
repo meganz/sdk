@@ -8532,6 +8532,8 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
          *
+         * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+         *
          * @param storage If true, account storage details are requested
          * @param transfer If true, account transfer details are requested
          * @param pro If true, pro level of account is requested
@@ -8550,6 +8552,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
          *
+         * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+         *
+         * @param sessions If true, sessions are requested
+         * @param purchases If true, purchases are requested
+         * @param transactions If true, transactions are requested
          * @param listener MegaRequestListener to track this request
          */
         void getExtendedAccountDetails(bool sessions = false, bool purchases = false, bool transactions = false, MegaRequestListener *listener = NULL);

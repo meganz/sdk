@@ -17430,6 +17430,11 @@ void MegaApiImpl::sendPendingRequests()
 			bool sessions = (numDetails & 0x20) != 0;
 
             int numReqs = int(storage || transfer || pro) + int(transactions) + int(purchases) + int(sessions);
+            if (numReqs == 0)
+            {
+                e = API_EARGS;
+                break;
+            }
             request->setNumber(numReqs);
 
 			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
