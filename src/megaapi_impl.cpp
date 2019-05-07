@@ -13294,12 +13294,13 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
 
-	int numDetails = request->getNumDetails();
-	numDetails--;
-	request->setNumDetails(numDetails);
-	if(!numDetails)
+	int numPending = request->getNumber();
+    numPending--;
+	request->setNumber(numPending);
+	if(!numPending)
     {
-        if(!request->getAccountDetails()->storage_max)
+        bool storage_requested = request->getNumDetails() & 0x01;
+        if (storage_requested && !request->getAccountDetails()->storage_max)
             fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
         else
             fireOnRequestFinish(request, MegaError(MegaError::API_OK));
@@ -17448,12 +17449,13 @@ void MegaApiImpl::sendPendingRequests()
 			bool purchases = (numDetails & 0x10) != 0;
 			bool sessions = (numDetails & 0x20) != 0;
 
-			numDetails = 1;
-			if(transactions) numDetails++;
-			if(purchases) numDetails++;
-			if(sessions) numDetails++;
-
-			request->setNumDetails(numDetails);
+            int numReqs = int(storage || transfer || pro) + int(transactions) + int(purchases) + int(sessions);
+            if (numReqs == 0)
+            {
+                e = API_EARGS;
+                break;
+            }
+            request->setNumber(numReqs);
 
 			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
 			break;

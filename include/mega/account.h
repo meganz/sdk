@@ -75,39 +75,39 @@ typedef map<handle, NodeStorage> handlestorage_map;
 struct MEGA_API AccountDetails
 {
     // subscription information (summarized)
-    int pro_level;
-    char subscription_type;
+    int pro_level = 0;
+    char subscription_type = 'O';
     char subscription_cycle[4];
-    m_time_t subscription_renew;
+    m_time_t subscription_renew = 0;
     string subscription_method;
 
-    m_time_t pro_until;
+    m_time_t pro_until = 0;
 
     // quota related to the session account
-    m_off_t storage_used, storage_max;
-    m_off_t transfer_own_used, transfer_srv_used, transfer_max;
-    m_off_t transfer_own_reserved, transfer_srv_reserved;
-    double srv_ratio;
+    m_off_t storage_used = 0, storage_max = 0;
+    m_off_t transfer_own_used = 0, transfer_srv_used = 0, transfer_max = 0;
+    m_off_t transfer_own_reserved = 0, transfer_srv_reserved = 0;
+    double srv_ratio = 0;
 
     // storage used for all relevant nodes (root nodes, incoming shares)
     handlestorage_map storage;
 
     // transfer history pertaining to requesting IP address
-    m_time_t transfer_hist_starttime;     // transfer history start timestamp
-    m_time_t transfer_hist_interval;      // timespan that a single transfer
+    m_time_t transfer_hist_starttime = 0;       // transfer history start timestamp
+    m_time_t transfer_hist_interval = 3600;     // timespan that a single transfer
                                         // window record covers
     vector<m_off_t> transfer_hist;      // transfer window - oldest to newest,
                                         // bytes consumed per twrtime interval
 
-    m_off_t transfer_reserved;          // byte quota reserved for the
+    m_off_t transfer_reserved = 0;      // byte quota reserved for the
                                         // completion of active transfers
 
-    m_off_t transfer_limit;             // current byte quota for the
+    m_off_t transfer_limit = 0;         // current byte quota for the
                                         // requesting IP address (dynamic,
                                         // overage will be drawn from account
                                         // quota)
 
-    bool transfer_hist_valid;           // transfer hist valid for overquota
+    bool transfer_hist_valid = true;    // transfer hist valid for overquota
                                         // accounts
 
     vector<AccountBalance> balances;

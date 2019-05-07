@@ -28,6 +28,7 @@ set (HAVE_FFMPEG 1 CACHE TYPE BOOL)
 set (USE_WEBRTC 0 CACHE TYPE BOOL)
 set (USE_LIBUV 0 CACHE TYPE BOOL)
 set (USE_QT 0 CACHE TYPE BOOL)
+set (USE_PDFIUM 0  CACHE TYPE BOOL)
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -440,7 +441,6 @@ target_link_libraries(Mega PUBLIC z
                                               $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>                                               
                 $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice > 
                 $<${HAVE_FFMPEG}:ffmpeg_swscale>  $<${HAVE_FFMPEG}:ffmpeg_swresample>  
-                $<${USE_QT}:ffmpeg_swscale>  $<${USE_QT}:ffmpeg_swresample>  
                 ${Mega_PlatformSpecificLibs})
 target_compile_definitions(Mega PUBLIC 
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO> 
@@ -456,7 +456,8 @@ target_compile_definitions(Mega PUBLIC
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
                 $<${HAVE_LIBUV}:HAVE_LIBUV>
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
-                $<${USE_QT}:USE_QT>)
+                $<${USE_QT}:USE_QT>
+                $<${USE_PDFIUM}:HAVE_PDFIUM>)
 
 if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)

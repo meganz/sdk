@@ -3144,6 +3144,12 @@ class MegaRequest
 
         /**
          * @brief Returns the number of details related to this request
+         *
+         * This value is valid for these requests:
+         *  - MegaApi::getAccountDetails
+         *  - MegaApi::getSpecificAccountDetails
+         *  - MegaApi::getExtendedAccountDetails
+         *
          * @return Number of details related to this request
          */
         virtual int getNumDetails() const;
@@ -8555,10 +8561,46 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         * - MegaRequest::getNumDetails - Requested flags
+         *
+         * The available flags are:
+         *  - storage quota: (numDetails & 0x01)
+         *  - transfer quota: (numDetails & 0x02)
+         *  - pro level: (numDetails & 0x04)
          *
          * @param listener MegaRequestListener to track this request
          */
         void getAccountDetails(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get details about the MEGA account
+         *
+         * Only basic data will be available. If you need more data (sessions, transactions, purchases),
+         * use MegaApi::getExtendedAccountDetails.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
+         *
+         * Use this version of the function to get just the details you need, to minimise server load
+         * and keep the system highly available for all.  At least one flag must be set.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         * - MegaRequest::getNumDetails - Requested flags
+         *
+         * The available flags are:
+         *  - storage quota: (numDetails & 0x01)
+         *  - transfer quota: (numDetails & 0x02)
+         *  - pro level: (numDetails & 0x04)
+         *
+         * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+         *
+         * @param storage If true, account storage details are requested
+         * @param transfer If true, account transfer details are requested
+         * @param pro If true, pro level of account is requested
+         * @param listener MegaRequestListener to track this request
+         */
+        void getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get details about the MEGA account
@@ -8570,7 +8612,18 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
+         * - MegaRequest::getNumDetails - Requested flags
          *
+         * The available flags are:
+         *  - transactions: (numDetails & 0x08)
+         *  - purchases: (numDetails & 0x10)
+         *  - sessions: (numDetails & 0x020)
+         *
+         * In case none of the flags are set, the associated request will fail with error MegaError::API_EARGS.
+         *
+         * @param sessions If true, sessions are requested
+         * @param purchases If true, purchases are requested
+         * @param transactions If true, transactions are requested
          * @param listener MegaRequestListener to track this request
          */
         void getExtendedAccountDetails(bool sessions = false, bool purchases = false, bool transactions = false, MegaRequestListener *listener = NULL);
