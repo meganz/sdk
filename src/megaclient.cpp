@@ -1043,7 +1043,10 @@ void MegaClient::init()
     scnotifyurl.clear();
     *scsn = 0;
 
-    notifyStorageChangeOnStateCurrent = false;
+    notifyStorageChangeOnStateCurrent = false;  
+    business = false;
+    businessMaster = false;
+    businessStatus = 0;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)

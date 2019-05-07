@@ -3297,6 +3297,9 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
+    bool b = false;
+    int m = -1;
+    int s = -2;
 
     if (client->json.isnumeric())
     {
@@ -3379,6 +3382,45 @@ void CommandGetUserData::procresult()
             }
             break;
 
+        case 'b':
+            assert(!b);
+            b = true;
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                        case 's':
+                            // -1: expired, 1: active, 2: grace-period
+                            s = client->json.getint();
+                            break;
+                        case 'm':
+                            m = client->json.getint();
+                            break;
+                        case EOO:
+                            endobject = true;
+                            break;
+                        default:
+                            if (!client->json.storeobject())
+                            {
+                                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                            }
+                    }
+                }
+                client->json.leaveobject();
+
+                // integrity checks
+                if ( (s == -2 || (s != -1 && s != 1 && s != 2))     // status not received or invalid
+                     || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
+                {
+                    LOG_err << "Invalid business status / account mode";
+                    return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                }
+            }
+            break;
+
         case EOO:            
             if (v)
             {
@@ -3396,6 +3438,11 @@ void CommandGetUserData::procresult()
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
             client->k = k;
+
+            client->business = b;
+            client->businessStatus = b ? s : 0;
+            client->businessMaster = b ? bool(m) : false;
+
             if (len_privk)
             {
                 client->key.ecb_decrypt(privkbuf, len_privk);

@@ -905,7 +905,7 @@ class MegaNode
         /**
          * @brief Returns true if this MegaNode is a private node from a foreign account
          *
-         * Only MegaNodes created with MegaApi::createPublicFileNode and MegaApi::createPublicFolderNode
+         * Only MegaNodes created with MegaApi::createForeignFileNode and MegaApi::createForeignFolderNode
          * returns true in this function.
          *
          * @return true if this node is a private node from a foreign account
@@ -4640,32 +4640,34 @@ public:
      */
     enum
     {
-        API_OK = 0,             ///< Everything OK
-        API_EINTERNAL = -1,     ///< Internal error.
-        API_EARGS = -2,         ///< Bad arguments.
-        API_EAGAIN = -3,        ///< Request failed, retry with exponential back-off.
-        API_ERATELIMIT = -4,    ///< Too many requests, slow down.
-        API_EFAILED = -5,       ///< Request failed permanently.
-        API_ETOOMANY = -6,      ///< Too many requests for this resource.
-        API_ERANGE = -7,        ///< Resource access out of rage.
-        API_EEXPIRED = -8,      ///< Resource expired.
-        API_ENOENT = -9,        ///< Resource does not exist.
-        API_ECIRCULAR = -10,    ///< Circular linkage.
-        API_EACCESS = -11,      ///< Access denied.
-        API_EEXIST = -12,       ///< Resource already exists.
-        API_EINCOMPLETE = -13,  ///< Request incomplete.
-        API_EKEY = -14,         ///< Cryptographic error.
-        API_ESID = -15,         ///< Bad session ID.
-        API_EBLOCKED = -16,     ///< Resource administratively blocked.
-        API_EOVERQUOTA = -17,   ///< Quota exceeded.
-        API_ETEMPUNAVAIL = -18, ///< Resource temporarily not available.
-        API_ETOOMANYCONNECTIONS = -19, ///< Too many connections on this resource.
-        API_EWRITE = -20,       ///< File could not be written to (or failed post-write integrity check).
-        API_EREAD = -21,        ///< File could not be read from (or changed unexpectedly during reading).
-        API_EAPPKEY = -22,      ///< Invalid or missing application key.
-        API_ESSL = -23,         ///< SSL verification failed
-        API_EGOINGOVERQUOTA = -24,  ///< Not enough quota
-        API_EMFAREQUIRED = -26, ///< Multi-factor authentication required
+        API_OK = 0,                     ///< Everything OK
+        API_EINTERNAL = -1,             ///< Internal error.
+        API_EARGS = -2,                 ///< Bad arguments.
+        API_EAGAIN = -3,                ///< Request failed, retry with exponential back-off.
+        API_ERATELIMIT = -4,            ///< Too many requests, slow down.
+        API_EFAILED = -5,               ///< Request failed permanently.
+        API_ETOOMANY = -6,              ///< Too many requests for this resource.
+        API_ERANGE = -7,                ///< Resource access out of rage.
+        API_EEXPIRED = -8,              ///< Resource expired.
+        API_ENOENT = -9,                ///< Resource does not exist.
+        API_ECIRCULAR = -10,            ///< Circular linkage.
+        API_EACCESS = -11,              ///< Access denied.
+        API_EEXIST = -12,               ///< Resource already exists.
+        API_EINCOMPLETE = -13,          ///< Request incomplete.
+        API_EKEY = -14,                 ///< Cryptographic error.
+        API_ESID = -15,                 ///< Bad session ID.
+        API_EBLOCKED = -16,             ///< Resource administratively blocked.
+        API_EOVERQUOTA = -17,           ///< Quota exceeded.
+        API_ETEMPUNAVAIL = -18,         ///< Resource temporarily not available.
+        API_ETOOMANYCONNECTIONS = -19,  ///< Too many connections on this resource.
+        API_EWRITE = -20,               ///< File could not be written to (or failed post-write integrity check).
+        API_EREAD = -21,                ///< File could not be read from (or changed unexpectedly during reading).
+        API_EAPPKEY = -22,              ///< Invalid or missing application key.
+        API_ESSL = -23,                 ///< SSL verification failed
+        API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
+        API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
+        API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
+        API_EBUSINESSPASTDUE = -28,     ///< Business account expired
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -6010,6 +6012,13 @@ class MegaApi
             STORAGE_STATE_CHANGE = 3
         };
 
+        enum {
+            BUSINESS_STATUS_EXPIRED = -1,
+            BUSINESS_STATUS_INACTIVE = 0,   // no business subscription
+            BUSINESS_STATUS_ACTIVE = 1,
+            BUSINESS_STATUS_GRACE_PERIOD = 2
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -7128,6 +7137,7 @@ class MegaApi
          *
          * If this request succeeds, a change-email link will be sent to the specified email address.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
+         * If the account is business and the user is a sub-user, you will get the error code MegaError::API_EMASTERONLY in onRequestFinish().
          *
          * @param email The new email to be associated to the account.
          * @param listener MegaRequestListener to track this request
@@ -7322,7 +7332,7 @@ class MegaApi
          * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
          *
          * If there isn't any new PSA to show, onRequestFinish will be called with the error
-         * code MegaError::API_ENOENT
+         * code MegaError::API_ENOENT.
          *
          * @param listener MegaRequestListener to track this request
          * @see MegaApi::setPSA
@@ -7419,6 +7429,34 @@ class MegaApi
          * @return True if enabled, false otherwise.
          */
         bool isAchievementsEnabled();
+
+        /**
+         * @brief Check if the account is a business account.
+         * @return returns true if it's a business account, otherwise false
+         */
+        bool isBusinessAccount();
+
+        /**
+         * @brief Check if the account is a master account.
+         * @return returns true if it's a master account, false if it's a sub-user account
+         */
+        bool isMasterBusinessAccount();
+
+        /**
+         * @brief Check if the business account is active or not.
+         * @return returns true if the account is active, otherwise false
+         */
+        bool isBusinessAccountActive();
+
+        /**
+         * @brief Get the status of a business account.
+         * @return Returns the business account status, possible values:
+         *      MegaApi::BUSINESS_STATUS_EXPIRED = -1
+         *      MegaApi::BUSINESS_STATUS_INACTIVE = 0
+         *      MegaApi::BUSINESS_STATUS_ACTIVE = 1
+         *      MegaApi::BUSINESS_STATUS_GRACE_PERIOD = 2
+         */
+        int getBusinessStatus();
 
         /**
          * @brief Check if the password is correct for the current account
@@ -7575,6 +7613,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node
          *
+         * If the status of the business account is expired, onRequestFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node Node to copy
          * @param newParent Parent for the new node
          * @param listener MegaRequestListener to track this request
@@ -7595,10 +7636,12 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node
          *
+         * If the status of the business account is expired, onRequestFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node Node to copy
          * @param newParent Parent for the new node
          * @param newName Name for the new node
-         *
          * @param listener MegaRequestListener to track this request
          */
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
@@ -9315,6 +9358,10 @@ class MegaApi
 
         /**
          * @brief Upload a file or a folder
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param listener MegaTransferListener to track this transfer
@@ -9323,6 +9370,10 @@ class MegaApi
 
         /**
          * @brief Upload a file or a folder, saving custom app data during the transfer
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param appData Custom app data to save in the MegaTransfer object
@@ -9338,6 +9389,10 @@ class MegaApi
 
         /**
          * @brief Upload a file or a folder, saving custom app data during the transfer
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param appData Custom app data to save in the MegaTransfer object
@@ -9356,6 +9411,10 @@ class MegaApi
 
         /**
          * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param appData Custom app data to save in the MegaTransfer object
@@ -9374,18 +9433,26 @@ class MegaApi
 
         /**
          * @brief Upload a file or a folder with a custom modification time
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
          * @param listener MegaTransferListener to track this transfer
          *
-         * The custom modification time will be only applied for file transfers. If a folder
+         * @note The custom modification time will be only applied for file transfers. If a folder
          * is transferred using this function, the custom modification time won't have any effect,
          */
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder with a custom modification time
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
@@ -9397,6 +9464,10 @@ class MegaApi
 
         /**
          * @brief Upload a file or folder with a custom name
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param fileName Custom file name for the file or folder in MEGA
@@ -9406,6 +9477,10 @@ class MegaApi
 
         /**
          * @brief Upload a file or a folder with a custom name and a custom modification time
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
          * @param fileName Custom file name for the file in MEGA
@@ -9413,12 +9488,16 @@ class MegaApi
          * @param listener MegaTransferListener to track this transfer
          *
          * The custom modification time will be only applied for file transfers. If a folder
-         * is transferred using this function, the custom modification time won't have any effect,
+         * is transferred using this function, the custom modification time won't have any effect
          */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Download a file or a folder from MEGA
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -9431,6 +9510,10 @@ class MegaApi
 
         /**
          * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -9445,6 +9528,10 @@ class MegaApi
 
         /**
          * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -9468,6 +9555,9 @@ class MegaApi
          * compatibility with other programming languages. Only the MegaTransferListener passed to this function
          * will receive MegaTransferListener::onTransferData callbacks. MegaTransferListener objects registered
          * with MegaApi::addTransferListener won't receive them for performance reasons
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node MegaNode that identifies the file
          * @param startPos First byte to download from the file
@@ -14069,7 +14159,8 @@ public:
         ACCOUNT_TYPE_PROI = 1,
         ACCOUNT_TYPE_PROII = 2,
         ACCOUNT_TYPE_PROIII = 3,
-        ACCOUNT_TYPE_LITE = 4
+        ACCOUNT_TYPE_LITE = 4,
+        ACCOUNT_TYPE_BUSINESS = 100
     };
 
     enum
@@ -14089,6 +14180,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      */
     virtual int getProLevel();
 
@@ -14397,6 +14489,7 @@ public:
      * - MegaAccountDetails::ACCOUNT_TYPE_PROII = 2
      * - MegaAccountDetails::ACCOUNT_TYPE_PROIII = 3
      * - MegaAccountDetails::ACCOUNT_TYPE_LITE = 4
+     * - MegaAccountDetails::ACCOUNT_TYPE_BUSINESS = 100
      */
     virtual int getProLevel(int productIndex);
 
