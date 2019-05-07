@@ -21,7 +21,7 @@
 
 #include "mega.h"
 #include "gtest/gtest.h"
-
+#include "sdk_test.h"
 #include <stdio.h>
 
 using namespace mega;
@@ -34,6 +34,16 @@ using ::testing::UnitTest;
 
 int main (int argc, char *argv[])
 {
+    
+    if (argc > 1 && string(argv[1]) == "--CI")
+    {
+        g_running_in_CI = true;
+        argv[1] = argv[0];
+        ++argv;
+        argc -= 1;
+    }
+    
+
     remove("SDK.log");
 
 #if defined(WIN32) && defined(NO_READLINE)

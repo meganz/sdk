@@ -28,6 +28,8 @@
 #include <iostream>
 #include <fstream>
 
+extern bool g_running_in_CI;
+
 using namespace mega;
 using ::testing::Test;
 

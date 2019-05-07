@@ -30,6 +30,8 @@
 
 using namespace std;
 
+bool g_running_in_CI = false;
+
 MegaFileSystemAccess fileSystemAccess;
 
 
@@ -3749,10 +3751,8 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     ::mega::byte* compareDecryptedData = new ::mega::byte[filesize];
     compareDecryptedFile.read((char*)compareDecryptedData, filesize);
 
-    bool underJenkins = getenv("JENKINS_URL") != NULL;
-
     m_time_t starttime = m_time();
-    int seconds_to_test_for = underJenkins ? 60 : 60 * 10;
+    int seconds_to_test_for = g_running_in_CI ? 60 : 60 * 10;
 
     // ok loop for 10 minutes
     srand(unsigned(starttime));
@@ -3833,7 +3833,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     }
 
-    ASSERT_TRUE(randomRunsDone > (underJenkins ? 10 : 100));
+    ASSERT_TRUE(randomRunsDone > (g_running_in_CI ? 10 : 100));
 
     cout << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
 
