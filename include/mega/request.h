@@ -35,7 +35,7 @@ private:
     vector<Command*> cmds;
     string jsonresponse;
     JSON json;
-    unsigned processindex;
+    size_t processindex = 0;
 
 public:
     void add(Command*);
@@ -53,7 +53,7 @@ public:
     bool empty() const; 
     void swap(Request&);
 
-    Request();
+    bool stopProcessing = false;
 };
 
 
@@ -64,6 +64,10 @@ class MEGA_API RequestDispatcher
 
     // client-server request double-buffering, in batches of up to MAX_COMMANDS
     deque<Request> nextreqs;
+
+    // flags for dealing with resetting everything from a command in progress
+    bool processing = false;
+    bool clearWhenSafe = false;
 
     static const int MAX_COMMANDS = 10000;
 

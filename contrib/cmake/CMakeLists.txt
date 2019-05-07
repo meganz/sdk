@@ -14,14 +14,9 @@
 
 cmake_minimum_required(VERSION 3.7.2)
 
-#set this to 1 if building 64 bit with eg. cmake . -G "Visual Studio 15 2017 Win64"
-#set this to 0 if building 32 bit with eg. cmake . -G "Visual Studio 15 2017"
-set (build_64_bit 1 CACHE TYPE BOOL)
-
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE TYPE BOOL)
 set (USE_OPENSSL 1 CACHE TYPE BOOL)
-set (OPENSSL_IS_BORINGSSL 0 CACHE TYPE BOOL)
 set (USE_CURL 1 CACHE TYPE BOOL)
 set (USE_SQLITE 1 CACHE TYPE BOOL)
 set (USE_MEDIAINFO 1 CACHE TYPE BOOL)
@@ -85,7 +80,7 @@ endif(build_64_bit)
 IF(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
     if ("${Mega3rdPartyDir}" STREQUAL "")
-        set(Mega3rdPartyDir "${MegaDir}/../3rdParty")
+        set(Mega3rdPartyDir "${MegaDir}/../3rdParty" CACHE TYPE STRING)
     endif()
 ELSE(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
