@@ -30142,26 +30142,16 @@ void MegaPushNotificationSettingsPrivate::disableGlobalDnd()
 
 void MegaPushNotificationSettingsPrivate::setGlobalSchedule(int start, int end, const char *timezone)
 {
-    if (start <= -1 || end <= -1 || !timezone || !timezone[0])
+    if (start <= -1 || end <= -1 || !timezone || !timezone[0] || start == end)
     {
         LOG_warn << "setGlobalSchedule(): wrong arguments";
         assert(false);
         return;
     }
 
-    if (start == end)
-    {
-        mGlobalScheduleStart = -1;
-        mGlobalScheduleEnd = -1;
-        mGlobalScheduleTimezone.assign("");
-    }
-    else
-    {
-        mGlobalScheduleStart = start;
-        mGlobalScheduleEnd = end;
-        mGlobalScheduleTimezone.assign(timezone);
-    }
-
+    mGlobalScheduleStart = start;
+    mGlobalScheduleEnd = end;
+    mGlobalScheduleTimezone.assign(timezone);
 }
 
 void MegaPushNotificationSettingsPrivate::disableGlobalSchedule()
@@ -30186,6 +30176,11 @@ void MegaPushNotificationSettingsPrivate::enableChat(MegaHandle chatid, bool ena
     else    // disable
     {
         mChatDND[chatid] = 0;
+        if (isChatAlwaysNotifyEnabled(chatid))
+        {
+            LOG_warn << "enableChat(): always notify was enabled. Now is disabled";
+            enableChatAlwaysNotify(chatid, false);
+        }
     }
 }
 
@@ -30207,7 +30202,7 @@ void MegaPushNotificationSettingsPrivate::enableChatAlwaysNotify(MegaHandle chat
     assert(!ISUNDEF(chatid));
     if (enable)
     {
-        if (!isChatEnabled(chatid ) || isChatDndEnabled(chatid))
+        if (!isChatEnabled(chatid) || isChatDndEnabled(chatid))
         {
             LOG_warn << "enableChatAlwaysNotify(): notifications are now enabled, DND mode is disabled";
             enableChat(chatid, true);

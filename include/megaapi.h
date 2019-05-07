@@ -3914,6 +3914,9 @@ public:
      * This method returns a valid value only if MegaPushNotificationSettings::isGlobalEnabled
      * returns false and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
      *
+     * If there's no DND mode established, this function returns -1.
+     * @note a DND value of 0 means the DND does not expire.
+     *
      * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
      */
     virtual int64_t getGlobalDnd() const;
@@ -3974,6 +3977,12 @@ public:
 
     /**
      * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isChatEnabled
+     * returns false and MegaPushNotificationSettings::isChatDndEnabled returns true.
+     *
+     * If there's no DND mode established for the specified chat, this function returns -1.
+     * @note a DND value of 0 means the DND does not expire.
      *
      * @param chatid MegaHandle that identifies the chat room
      * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
