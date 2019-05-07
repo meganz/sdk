@@ -905,7 +905,7 @@ class MegaNode
         /**
          * @brief Returns true if this MegaNode is a private node from a foreign account
          *
-         * Only MegaNodes created with MegaApi::createPublicFileNode and MegaApi::createPublicFolderNode
+         * Only MegaNodes created with MegaApi::createForeignFileNode and MegaApi::createForeignFolderNode
          * returns true in this function.
          *
          * @return true if this node is a private node from a foreign account
