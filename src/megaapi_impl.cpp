@@ -13228,10 +13228,10 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
 
-	int numDetails = request->getNumDetails();
-	numDetails--;
-	request->setNumDetails(numDetails);
-	if(!numDetails)
+	int numPending = request->getNumber();
+    numPending--;
+	request->setNumber(numPending);
+	if(!numPending)
     {
         bool storage_requested = request->getNumDetails() & 0x01;
         if (storage_requested && !request->getAccountDetails()->storage_max)

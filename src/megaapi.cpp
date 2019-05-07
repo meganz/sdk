@@ -2213,7 +2213,11 @@ void MegaApi::getAccountDetails(MegaRequestListener *listener)
 
 void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, listener);
+    assert(storage || transfer || pro);
+    if (storage || transfer || pro)
+    {
+        pImpl->getAccountDetails(storage, transfer, pro, false, false, false, listener);
+    }
 }
 
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)

@@ -8507,12 +8507,15 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
          *
          * Use this version of the function to get just the details you need, to minimise server load
-         * and keep the system highly available for all.
+         * and keep the system highly available for all.  At least one flag must be set.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getMegaAccountDetails - Details of the MEGA account
          *
+         * @param storage If true, account storage details are requested
+         * @param transfer If true, account transfer details are requested
+         * @param pro If true, pro level of account is requested
          * @param listener MegaRequestListener to track this request
          */
         void getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener = NULL);
