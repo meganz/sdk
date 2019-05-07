@@ -3390,6 +3390,7 @@ void CommandGetUserData::procresult()
                     switch (client->json.getnameid())
                     {
                         case 's':
+                            // -1: expired, 1: active, 2: grace-period
                             s = client->json.getint();
                             break;
                         case 'm':

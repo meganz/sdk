@@ -1444,11 +1444,7 @@ public:
     // true if the account is a master business account, false if it's a sub-user account
     bool businessMaster;
 
-    /** business account status, the possible values are:
-     *      - MegaApi::BUSINESS_STATUS_EXPIRED = -1
-     *      - MegaApi::BUSINESS_STATUS_ACTIVE = 1
-     *      - MegaApi::BUSINESS_STATUS_GRACE_PERIOD = 2
-     */
+    // -1: expired, 1: active, 2: grace-period
     int businessStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);

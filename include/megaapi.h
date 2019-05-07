@@ -7317,7 +7317,7 @@ class MegaApi
          * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
          *
          * If there isn't any new PSA to show, onRequestFinish will be called with the error
-         * code MegaError::API_ENOENT
+         * code MegaError::API_ENOENT.
          *
          * @param listener MegaRequestListener to track this request
          * @see MegaApi::setPSA
@@ -7436,9 +7436,9 @@ class MegaApi
         /**
          * @brief Get the status of a business account.
          * @return Returns the business account status, possible values:
-         *      mega::BUSINESS_STATUS_EXPIRED = -1
-         *      mega::BUSINESS_STATUS_ACTIVE = 1
-         *      mega::BUSINESS_STATUS_GRACE_PERIOD = 2
+         *      MegaApi::BUSINESS_STATUS_EXPIRED = -1
+         *      MegaApi::BUSINESS_STATUS_ACTIVE = 1
+         *      MegaApi::BUSINESS_STATUS_GRACE_PERIOD = 2
          */
         int getBusinessStatus();
 
@@ -7597,12 +7597,12 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node
          *
+         * If the status of the business account is expired, onRequestFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node Node to copy
          * @param newParent Parent for the new node
          * @param listener MegaRequestListener to track this request
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
 
@@ -7620,14 +7620,13 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node
          *
+         * If the status of the business account is expired, onRequestFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node Node to copy
          * @param newParent Parent for the new node
          * @param newName Name for the new node
-         *
          * @param listener MegaRequestListener to track this request
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void copyNode(MegaNode* node, MegaNode *newParent, const char* newName, MegaRequestListener *listener = NULL);
 
@@ -9255,17 +9254,22 @@ class MegaApi
 
         /**
          * @brief Upload a file or a folder
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startUpload(const char* localPath, MegaNode *parent, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder, saving custom app data during the transfer
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param appData Custom app data to save in the MegaTransfer object
@@ -9276,14 +9280,15 @@ class MegaApi
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder, saving custom app data during the transfer
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param appData Custom app data to save in the MegaTransfer object
@@ -9297,14 +9302,15 @@ class MegaApi
          * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
          * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startUploadWithData(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param appData Custom app data to save in the MegaTransfer object
@@ -9318,55 +9324,59 @@ class MegaApi
          * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
          * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder with a custom modification time
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
          * @param listener MegaTransferListener to track this transfer
          *
-         * The custom modification time will be only applied for file transfers. If a folder
+         * @note The custom modification time will be only applied for file transfers. If a folder
          * is transferred using this function, the custom modification time won't have any effect,
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder with a custom modification time
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
          * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
          * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
          * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startUpload(const char* localPath, MegaNode *parent, int64_t mtime, bool isSourceTemporary, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or folder with a custom name
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
          * @param fileName Custom file name for the file or folder in MEGA
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Upload a file or a folder with a custom name and a custom modification time
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
          * @param fileName Custom file name for the file in MEGA
@@ -9375,14 +9385,15 @@ class MegaApi
          *
          * The custom modification time will be only applied for file transfers. If a folder
          * is transferred using this function, the custom modification time won't have any effect
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Download a file or a folder from MEGA
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -9390,14 +9401,15 @@ class MegaApi
          * one of these characters, the file will be downloaded to a file in that path.
          *
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -9407,14 +9419,15 @@ class MegaApi
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
          * related to the transfer.
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startDownloadWithData(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
          * If this path is a local folder, it must end with a '\' or '/' character and the file name
@@ -9424,9 +9437,6 @@ class MegaApi
          * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
          * related to the transfer.
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startDownloadWithTopPriority(MegaNode* node, const char* localPath, const char *appData, MegaTransferListener *listener = NULL);
 
@@ -9442,13 +9452,13 @@ class MegaApi
          * will receive MegaTransferListener::onTransferData callbacks. MegaTransferListener objects registered
          * with MegaApi::addTransferListener won't receive them for performance reasons
          *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode that identifies the file
          * @param startPos First byte to download from the file
          * @param size Size of the data to download
          * @param listener MegaTransferListener to track this transfer
-         *
-         * In case the account is a business account and it's status is expired, this request will fail
-         * with the error code MegaError::API_EBUSINESSPASTDUE
          */
         void startStreaming(MegaNode* node, int64_t startPos, int64_t size, MegaTransferListener *listener);
 
