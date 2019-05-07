@@ -32,17 +32,23 @@ using ::testing::TestInfo;
 using ::testing::TestPartResult;
 using ::testing::UnitTest;
 
+
+
 int main (int argc, char *argv[])
 {
     
-    if (argc > 1 && string(argv[1]) == "--CI")
+    std::vector<char*> myargv(argv, argv + argc);
+
+    for (auto it = myargv.begin(); it != myargv.end(); ++it)
     {
-        g_running_in_CI = true;
-        argv[1] = argv[0];
-        ++argv;
-        argc -= 1;
+        if (string(*it) == "--CI")
+        {
+            g_runningInCI = true;
+            myargv.erase(it);
+            argc -= 1;
+            break;
+        }
     }
-    
 
     remove("SDK.log");
 
@@ -51,6 +57,6 @@ int main (int argc, char *argv[])
     wc->setShellConsole();
 #endif
 
-    InitGoogleTest(&argc, argv);
+    InitGoogleTest(&argc, myargv.data());
     return RUN_ALL_TESTS();
 }
