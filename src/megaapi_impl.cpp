@@ -34,6 +34,7 @@
 #include <functional>
 #include <cctype>
 #include <locale>
+#include <thread>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
@@ -3629,6 +3630,16 @@ MegaNodeListPrivate::MegaNodeListPrivate()
 	s = 0;
 }
 
+MegaNodeListPrivate::MegaNodeListPrivate(node_vector& v)
+{
+    list = NULL; s = v.size();
+    if (!s) return;
+
+    list = new MegaNode*[s];
+    for (int i = 0; i < s; i++)
+        list[i] = MegaNodePrivate::fromNode(v[i]);
+}
+
 MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 {
 	list = NULL; s = size;
@@ -3639,7 +3650,7 @@ MegaNodeListPrivate::MegaNodeListPrivate(Node** newlist, int size)
 		list[i] = MegaNodePrivate::fromNode(newlist[i]);
 }
 
-MegaNodeListPrivate::MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren)
+MegaNodeListPrivate::MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren)
 {
     s = nodeList->size();
     if (!s)
@@ -3672,12 +3683,12 @@ MegaNodeListPrivate::~MegaNodeListPrivate()
 	delete [] list;
 }
 
-MegaNodeList *MegaNodeListPrivate::copy()
+MegaNodeList *MegaNodeListPrivate::copy() const
 {
     return new MegaNodeListPrivate(this);
 }
 
-MegaNode *MegaNodeListPrivate::get(int i)
+MegaNode *MegaNodeListPrivate::get(int i) const
 {
 	if(!list || (i < 0) || (i >= s))
 		return NULL;
@@ -3685,7 +3696,7 @@ MegaNode *MegaNodeListPrivate::get(int i)
 	return list[i];
 }
 
-int MegaNodeListPrivate::size()
+int MegaNodeListPrivate::size() const
 {
     return s;
 }
@@ -3827,7 +3838,126 @@ int MegaUserAlertListPrivate::size() const
     return s;
 }
 
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc)
+{
+    User* u = mc->finduser(ra.user);
 
+    timestamp = ra.time;
+    user = u ? u->email : "";
+    parent = ra.parent;
+    update = ra.updated;
+    media = ra.media;
+    nodes = new MegaNodeListPrivate(ra.nodes);
+}
+
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(int64_t ts, const string& u, handle p, bool up, bool m, MegaNodeList* l)
+{
+    timestamp = ts;
+    user = u;
+    parent = p;
+    update = up;
+    media = m;
+    nodes = l;
+}
+
+MegaRecentActionBucketPrivate::~MegaRecentActionBucketPrivate()
+{
+    delete nodes;
+}
+
+MegaRecentActionBucket *MegaRecentActionBucketPrivate::copy() const
+{
+    return new MegaRecentActionBucketPrivate(timestamp, user, parent, update, media, nodes->copy());
+}
+
+int64_t MegaRecentActionBucketPrivate::getTimestamp() const
+{
+    return timestamp;
+}
+
+const char* MegaRecentActionBucketPrivate::getUserEmail() const
+{
+    return user.c_str();
+}
+
+MegaHandle MegaRecentActionBucketPrivate::getParentHandle() const
+{
+    return parent;
+}
+
+bool MegaRecentActionBucketPrivate::isUpdate() const
+{
+    return update;
+}
+
+bool MegaRecentActionBucketPrivate::isMedia() const
+{
+    return media;
+}
+
+const MegaNodeList* MegaRecentActionBucketPrivate::getNodes() const
+{
+    return nodes;
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
+{
+    list = NULL;
+    s = 0;
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc)
+{
+    list = NULL;
+    s = v.size();
+
+    if (!s)
+        return;
+
+    list = new MegaRecentActionBucketPrivate*[s];
+    for (int i = 0; i < s; i++)
+    {
+        list[i] = new MegaRecentActionBucketPrivate(v[i], mc);
+    }
+}
+
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &o)
+{
+    s = o.size();
+    list = s ? new MegaRecentActionBucketPrivate*[s] : NULL;
+    for (int i = 0; i < s; ++i)
+    {
+        list[i] = (MegaRecentActionBucketPrivate*)o.get(i)->copy();
+    }
+}
+
+MegaRecentActionBucketListPrivate::~MegaRecentActionBucketListPrivate()
+{
+    for (int i = 0; i < s; i++)
+    {
+        delete list[i];
+    }
+    delete[] list;
+}
+
+MegaRecentActionBucketList *MegaRecentActionBucketListPrivate::copy() const
+{
+    return new MegaRecentActionBucketListPrivate(*this);
+}
+
+MegaRecentActionBucket *MegaRecentActionBucketListPrivate::get(int i) const
+{
+    if (!list || (i < 0) || (i >= s))
+    {
+        return NULL;
+    }
+    return list[i];
+}
+
+int MegaRecentActionBucketListPrivate::size() const
+{
+    return s;
+}
 
 MegaShareListPrivate::MegaShareListPrivate()
 {
@@ -7112,6 +7242,12 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
     waiter->notify();
 }
 
+void MegaApiImpl::setStreamingMinimumRate(int bytesPerSecond)
+{
+    MutexGuard g(sdkMutex);
+    client->minstreamingrate = bytesPerSecond;
+}
+
 void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
 {
     MegaTransferPrivate *t = dynamic_cast<MegaTransferPrivate*>(transfer);
@@ -7849,7 +7985,7 @@ bool MegaApiImpl::isOnline()
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
+bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath, bool useIPv6)
 {
     #ifndef ENABLE_EVT_TLS
     if (useTLS)
@@ -7874,7 +8010,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     }
 
     httpServerStop();
-    httpServer = new MegaHTTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
+    httpServer = new MegaHTTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string(), useIPv6);
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
@@ -7941,7 +8077,7 @@ char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
         return NULL;
     }
 
-    char *result = httpServer->getLink(node);
+    char *result = httpServer->getLink(node, "http");
     sdkMutex.unlock();
     return result;
 }
@@ -9311,6 +9447,14 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
         case FULL: return MegaShare::ACCESS_FULL;
         default: return MegaShare::ACCESS_OWNER;
     }
+}
+
+MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigned maxnodes)
+{
+    MutexGuard g(sdkMutex);
+    m_time_t since = m_time() - days * 86400;
+    recentactions_vector v = client->getRecentActions(maxnodes, since);
+    return new MegaRecentActionBucketListPrivate(v, client);
 }
 
 bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
@@ -16479,6 +16623,15 @@ error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error 
     return e;
 }
 
+void MegaApiImpl::yield()
+{
+#if __cplusplus >= 201100L
+    std::this_thread::yield();
+#elif !defined(_WIN32)
+    sched_yield();
+#endif
+}
+
 void MegaApiImpl::sendPendingScRequest()
 {
     MegaRequestPrivate *request = scRequestQueue.front();
@@ -19638,8 +19791,9 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, MegaError(e));
         }
 
-		sdkMutex.unlock();
-	}
+        sdkMutex.unlock();
+        yield();
+    }
 }
 
 char* MegaApiImpl::stringToArray(string &buffer)
@@ -22886,7 +23040,13 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 // http_parser settings
 http_parser_settings MegaTCPServer::parsercfg;
 
-MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
+MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, string certificatepath, string keypath, bool ipv6)
+    : useIPv6(ipv6)
+#ifdef ENABLE_EVT_TLS
+    , useTLS(tls)
+#else
+    , useTLS(false)
+#endif
 {
     this->megaApi = megaApi;
     this->localOnly = true;
@@ -22900,14 +23060,11 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
     this->closing = false;
     this->thread = new MegaThread();
 #ifdef ENABLE_EVT_TLS
-    this->useTLS = useTLS;
     this->certificatepath = certificatepath;
     this->keypath = keypath;
     this->closing = false;
     this->remainingcloseevents = 0;
     this->evtrequirescleaning = false;
-#else
-    this->useTLS = false;
 #endif
     fsAccess = new MegaFileSystemAccess();
 
@@ -23002,6 +23159,7 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 }
 #endif
 
+// todo: a lot of this function is the same as initializeAndStartListening, we should factor them (maybe call that one from this one?)
 void MegaTCPServer::run()
 {
     LOG_debug << " Running tcp server: " << port << " TLS=" << useTLS;
@@ -23031,15 +23189,34 @@ void MegaTCPServer::run()
 
     uv_tcp_keepalive(&server, 0, 0);
 
-    struct sockaddr_in address;
-    if (localOnly)
+    union {
+        struct sockaddr_in6 ipv6;
+        struct sockaddr_in ipv4;
+    } address;
+
+    if (useIPv6)
     {
-        uv_ip4_addr("127.0.0.1", port, &address);
+        if (localOnly)
+        {
+            uv_ip6_addr("::1", port, &address.ipv6);
+        }
+        else
+        {
+            uv_ip6_addr("::", port, &address.ipv6);
+        }
     }
     else
     {
-        uv_ip4_addr("0.0.0.0", port, &address);
+        if (localOnly)
+        {
+            uv_ip4_addr("127.0.0.1", port, &address.ipv4);
+        }
+        else
+        {
+            uv_ip4_addr("0.0.0.0", port, &address.ipv4);
+        }
     }
+
     uv_connection_cb onNewClientCB;
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -23117,15 +23294,34 @@ void MegaTCPServer::initializeAndStartListening()
 
     uv_tcp_keepalive(&server, 0, 0);
 
-    struct sockaddr_in address;
-    if (localOnly)
+    union {
+        struct sockaddr_in6 ipv6;
+        struct sockaddr_in ipv4;
+    } address;
+
+    if (useIPv6)
     {
-        uv_ip4_addr("127.0.0.1", port, &address);
+        if (localOnly)
+        {
+            uv_ip6_addr("::1", port, &address.ipv6);
+        }
+        else
+        {
+            uv_ip6_addr("::", port, &address.ipv6);
+        }
     }
     else
     {
-        uv_ip4_addr("0.0.0.0", port, &address);
+        if (localOnly)
+        {
+            uv_ip4_addr("127.0.0.1", port, &address.ipv4);
+        }
+        else
+        {
+            uv_ip4_addr("0.0.0.0", port, &address.ipv4);
+        }
     }
+
     uv_connection_cb onNewClientCB;
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -23248,9 +23444,11 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol)
 
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
+    
+    string localhostIP = useIPv6 ? "[::1]" : "127.0.0.1";
 
     ostringstream oss;
-    oss << protocol << (useTLS ? "s" : "") << "://127.0.0.1:" << port << "/";
+    oss << protocol << (useTLS ? "s" : "") << "://" << localhostIP << ":" << port << "/";
     char *base64handle = node->getBase64Handle();
     oss << base64handle;
     delete [] base64handle;
@@ -23754,8 +23952,8 @@ void MegaTCPServer::processAsyncEvent(MegaTCPContext *tcpctx)
 //  MegaHTTPServer specifics //
 ///////////////////////////////
 
-MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
-    : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath)
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath, bool useIPv6)
+    : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath, useIPv6)
 {
     // parser callbacks
     parsercfg.on_url = onUrlReceived;
@@ -28812,7 +29010,7 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
-const int MegaEventPrivate::getNumber() const
+int MegaEventPrivate::getNumber() const
 {
     return number;
 }

@@ -1115,7 +1115,7 @@ public:
 
     virtual int getType() const;
     virtual const char *getText() const;
-    virtual const int getNumber() const;
+    virtual int getNumber() const;
 
     void setText(const char* text);
     void setNumber(int number);
@@ -1440,12 +1440,13 @@ class MegaNodeListPrivate : public MegaNodeList
 {
 	public:
         MegaNodeListPrivate();
+        MegaNodeListPrivate(node_vector& v);
         MegaNodeListPrivate(Node** newlist, int size);
-        MegaNodeListPrivate(MegaNodeListPrivate *nodeList, bool copyChildren = false);
+        MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
-		virtual MegaNodeList *copy();
-		virtual MegaNode* get(int i);
-		virtual int size();
+		virtual MegaNodeList *copy() const override;
+		virtual MegaNode* get(int i) const override;
+		virtual int size() const override;
 
         virtual void addNode(MegaNode* node);
 	
@@ -1544,6 +1545,44 @@ public:
 protected:
     MegaUserAlertListPrivate(MegaUserAlertListPrivate *userList);
     MegaUserAlert** list;
+    int s;
+};
+
+class MegaRecentActionBucketPrivate : public MegaRecentActionBucket
+{
+public:
+    MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc);
+    MegaRecentActionBucketPrivate(int64_t timestamp, const string& user, handle parent, bool update, bool media, MegaNodeList*);
+    virtual ~MegaRecentActionBucketPrivate();
+    virtual MegaRecentActionBucket *copy() const;
+    virtual int64_t getTimestamp() const;
+    virtual const char* getUserEmail() const;
+    virtual MegaHandle getParentHandle() const;
+    virtual bool isUpdate() const;
+    virtual bool isMedia() const;
+    virtual const MegaNodeList* getNodes() const;
+
+private:
+    int64_t timestamp;
+    string user;
+    handle parent;
+    bool update, media;
+    MegaNodeList* nodes;
+};
+
+class MegaRecentActionBucketListPrivate : public MegaRecentActionBucketList
+{
+public:
+    MegaRecentActionBucketListPrivate();
+    MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc);
+    MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &userList);
+    virtual ~MegaRecentActionBucketListPrivate();
+    virtual MegaRecentActionBucketList *copy() const;
+    virtual MegaRecentActionBucket* get(int i) const;
+    virtual int size() const;
+
+protected:
+    MegaRecentActionBucketPrivate** list;
     int s;
 };
 
@@ -1934,6 +1973,7 @@ class MegaApiImpl : public MegaApp
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
+        void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
@@ -2098,6 +2138,8 @@ class MegaApiImpl : public MegaApp
 
         long long getBandwidthOverquotaDelay();
 
+        MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
+
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(const char* searchString, int order = MegaApi::ORDER_NONE);
@@ -2175,7 +2217,7 @@ class MegaApiImpl : public MegaApp
 
 #ifdef HAVE_LIBUV
         // start/stop
-        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
+        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL, bool useIPv6 = false);
         void httpServerStop();
         int httpServerIsRunning();
 
@@ -2299,6 +2341,8 @@ class MegaApiImpl : public MegaApp
         void fireOnBackupFinish(MegaBackupController *backup, MegaError e);
         void fireOnBackupUpdate(MegaBackupController *backup);
         void fireOnBackupTemporaryError(MegaBackupController *backup, MegaError e);
+
+        void yield();
 
 protected:
         static const unsigned int MAX_SESSION_LENGTH;
@@ -2873,12 +2917,13 @@ protected:
     virtual void processOnExitHandleClose(MegaTCPServer* tcpServer);
 
 public:
-    bool useTLS;
+    const bool useIPv6;
+    const bool useTLS;
     MegaFileSystemAccess *fsAccess;
 
     std::string basePath;
 
-    MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string(), bool useIPv6 = false);
     virtual ~MegaTCPServer();
     bool start(int port, bool localOnly = true);
     void stop(bool doNotWait = false);
@@ -3011,7 +3056,7 @@ public:
     static void returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
     static void returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
 
-    MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string(), bool useIPv6 = false);
     virtual ~MegaHTTPServer();
     char *getWebDavLink(MegaNode *node);
 

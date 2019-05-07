@@ -22,6 +22,10 @@
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 #include <cctype>
+#include <algorithm>
+
+#undef min // avoid issues with std::min and std::max
+#undef max
 
 namespace mega {
 
@@ -1071,6 +1075,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     aplvp_enabled = false;
     loggingout = 0;
     cachedug = false;
+    minstreamingrate = -1;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -3197,7 +3202,7 @@ bool MegaClient::dispatch(direction_t d)
                 nexttransfer->pos = 0;
                 nexttransfer->progresscompleted = 0;
 
-                if (d == GET || nexttransfer->tempurl.size())
+                if (d == GET || nexttransfer->tempurls.size())
                 {
                     m_off_t p = 0;
 
@@ -3289,8 +3294,9 @@ bool MegaClient::dispatch(direction_t d)
                 }
 
                 // dispatch request for temporary source/target URL
-                if (nexttransfer->tempurl.size())
+                if (nexttransfer->tempurls.size())
                 {
+                    ts->transferbuf.setIsRaid(nexttransfer, nexttransfer->tempurls, nexttransfer->pos, ts->maxRequestSize);
                     app->transfer_prepare(nexttransfer);
                 }
                 else
@@ -3563,6 +3569,7 @@ void MegaClient::locallogout()
     aplvp_enabled = false;
     loggingout = 0;
     cachedug = false;
+    minstreamingrate = -1;
 
     freeq(GET);
     freeq(PUT);
@@ -3971,7 +3978,9 @@ bool MegaClient::procsc()
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"')
                     {
+#ifdef ENABLE_CHAT
                         bool readingPublicChat = false;
+#endif
                         switch (name)
                         {
                             case 'u':
@@ -11036,7 +11045,7 @@ bool MegaClient::execdirectreads()
 
     while (!dsdrns.empty() && dsdrns.begin()->first <= Waiter::ds)
     {
-        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurl.size() || dsdrns.begin()->second->pendingcmd))
+        if (dsdrns.begin()->second->reads.size() && (dsdrns.begin()->second->tempurls.size() || dsdrns.begin()->second->pendingcmd))
         {
             LOG_warn << "DirectRead scheduled retry";
             dsdrns.begin()->second->retry(API_EAGAIN);
@@ -12731,10 +12740,11 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
             {
                 LOG_debug << "Resumable transfer detected";
                 t = it->second;
+                bool hadAnyData = t->pos > 0;
                 if ((d == GET && !t->pos) || ((m_time() - t->lastaccesstime) >= 172500))
                 {
                     LOG_warn << "Discarding temporary URL (" << t->pos << ", " << t->lastaccesstime << ")";
-                    t->tempurl.clear();
+                    t->tempurls.clear();
 
                     if (d == PUT)
                     {
@@ -12757,7 +12767,10 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                     }
                     else
                     {
-                        LOG_warn << "Temporary file not found";
+                        if (hadAnyData)
+                        {
+                            LOG_warn << "Temporary file not found";
+                        }
                         t->localfilename.clear();
                         t->chunkmacs.clear();
                         t->progresscompleted = 0;
@@ -12771,7 +12784,7 @@ bool MegaClient::startxfer(direction_t d, File* f, bool skipdupes, bool startfir
                         if (f->genfingerprint(fa))
                         {
                             LOG_warn << "The local file has been modified";
-                            t->tempurl.clear();
+                            t->tempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             delete [] t->ultoken;
@@ -12963,6 +12976,185 @@ node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
     return nodes;
 }
 
+static bool nodes_ctime_less(const Node* a, const Node* b)
+{
+    // heaps return the largest element
+    return a->ctime < b->ctime;
+}
+
+static bool nodes_ctime_greater(const Node* a, const Node* b)
+{
+    return a->ctime > b->ctime;
+}
+
+node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin)
+{
+    // 1. Get nodes added/modified not older than `since`
+    node_vector v;
+    v.reserve(nodes.size());
+    for (node_map::iterator i = nodes.begin(); i != nodes.end(); ++i)
+    {
+        if (i->second->type == FILENODE && i->second->ctime >= since)
+        {
+            v.push_back(i->second);
+        }
+    }
+
+    // heaps use a 'less' function, and pop_heap returns the largest item stored.
+    std::make_heap(v.begin(), v.end(), nodes_ctime_less);
+
+    // 2. Order them chronologically and restrict them to a maximum of `maxcount`
+    node_vector v2;
+    unsigned maxItems = std::max(maxcount, unsigned(v.size()));
+    v2.reserve(maxItems);
+    while (v2.size() < maxItems && !v.empty())
+    {
+        std::pop_heap(v.begin(), v.end(), nodes_ctime_less);
+        Node* n = v.back();
+        v.pop_back();
+        if (includerubbishbin || n->firstancestor()->type != RUBBISHNODE)
+        {
+            v2.push_back(n);
+        }
+    }
+    return v2;
+}
+
+
+namespace action_bucket_compare
+{
+    MUTEX_CLASS media_check(false);   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
+    MegaClient* mc;
+
+    const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
+    const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
+    const static string webclient_is_image_thumb = "psd.svg.tif.tiff.webp";  // leaving out .pdf
+    const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
+    const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
+
+    static bool isvideo(const Node* n, char ext[10])
+    {
+        if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
+        {
+#ifdef USE_MEDIAINFO
+            if (mc->mediaFileInfo.mediaCodecsReceived)
+            {
+                MediaProperties mp = MediaProperties::decodeMediaPropertiesAttributes(n->fileattrstring, (uint32_t*)(n->nodekey.data() + FILENODEKEYLENGTH / 2));
+                unsigned videocodec = mp.videocodecid;
+                if (!videocodec && mp.shortformat)
+                {
+                    auto& v = mc->mediaFileInfo.mediaCodecs.shortformats;
+                    if (mp.shortformat < v.size())
+                    {
+                        videocodec = v[mp.shortformat].videocodecid;
+                    }
+                }
+                // approximation: the webclient has a lot of logic to determine if a particular codec is playable in that browser.  We'll just base our decision on the presence of a video codec.
+                if (!videocodec)
+                {
+                    return false; // otherwise double-check by extension
+                }
+            }
+#endif  
+        }
+        return webclient_mime_video_extensions.find(ext) != string::npos;
+    }
+
+    static bool ismedia(const Node* n)
+    {
+        // evaluate according to the webclient rules, so that we get exactly the same bucketing.
+        string localname, name = n->displayname();
+        mc->fsaccess->path2local(&name, &localname);
+        char ext[10];
+        if (mc->fsaccess->getextension(&localname, ext, sizeof(ext)))
+        {
+            strcat(ext, ".");
+
+            if (webclient_is_image_def.find(ext) != string::npos ||
+                webclient_is_image_raw.find(ext) != string::npos ||
+                (webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW)) ||
+                isvideo(n, ext))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool compare(const Node* a, const Node* b)
+    {
+        if (a->owner != b->owner) return a->owner > b->owner;
+        if (a->parent != b->parent) return a->parent > b->parent;
+
+        // added/updated - distinguish by versioning
+        if (a->children.size() != b->children.size()) return a->children.size() > b->children.size();
+
+        // media/nonmedia
+        bool a_media = ismedia(a), b_media = ismedia(b);
+        if (a_media != b_media) return a_media && !b_media;
+
+        return false;
+    }
+
+    static bool comparetime(const recentaction& a, const recentaction& b)
+    {
+        return a.time > b.time;
+    }
+
+}   // end namespace action_bucket_compare
+
+recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t since)
+{
+    recentactions_vector rav;
+    node_vector v = getRecentNodes(maxcount, since, false);
+
+    using namespace action_bucket_compare;
+    MutexGuard g(media_check); // when we can use c++11, switch to a lambda.  In the meantime, force just one MegaClient at a time instead.
+    mc = this;
+
+    for (node_vector::iterator i = v.begin(); i != v.end(); )
+    {
+        // find the oldest node, maximum 6h
+        node_vector::iterator bucketend = i + 1;
+        while (bucketend != v.end() && (*bucketend)->ctime > (*i)->ctime - 6 * 3600)
+        {
+            ++bucketend;
+        }
+
+        // sort the defined bucket by owner, parent folder, added/updated and ismedia
+        std::sort(i, bucketend, action_bucket_compare::compare);
+
+        // split the 6h-bucket in different buckets according to their content
+        for (node_vector::iterator j = i; j != bucketend; ++j)
+        {
+            if (i == j || action_bucket_compare::compare(*i, *j))
+            {
+                // add a new bucket
+                recentaction ra;
+                ra.time = (*j)->ctime;
+                ra.user = (*j)->owner;
+                ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
+                ra.updated = !(*j)->children.empty();   // children of files represent previous versions
+                ra.media = ismedia(*j);
+                rav.push_back(ra);
+            }
+            // add the node to the bucket
+            rav.back().nodes.push_back(*j);
+            i = j;
+        }
+        i = bucketend;
+    }
+    // sort nodes inside each bucket
+    for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
+    {
+        // for the bucket vector, most recent (larger ctime) first
+        std::sort(i->nodes.begin(), i->nodes.end(), nodes_ctime_greater);
+        i->time = i->nodes.front()->ctime;
+    }
+    // sort buckets in the vector
+    std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
+    return rav;
+}
 
 // a chunk transfer request failed: record failed protocol & host
 void MegaClient::setchunkfailed(string* url)
