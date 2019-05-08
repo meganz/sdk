@@ -3898,6 +3898,10 @@ public:
 
     /**
      * @brief Returns whether notifications are globaly enabled or not
+     *
+     * The purpose of this method is to control the UI in order to enable
+     * the modification of the global parameters (dnd & schedule) or not.
+     *
      * @return True if notifications are enabled, false if disabled
      */
     virtual bool isGlobalEnabled() const;
