@@ -55,7 +55,7 @@ void Request::get(string* req, bool& suppressSID) const
 void Request::process(MegaClient* client)
 {
     client->json = json;
-    for (; processindex < (int)cmds.size(); processindex++)
+    for (; processindex < cmds.size() && !stopProcessing; processindex++)
     {
         Command* cmd = cmds[processindex];
 
@@ -132,6 +132,7 @@ void Request::clear()
     jsonresponse.clear();
     json.pos = NULL;
     processindex = 0;
+    stopProcessing = false;
 }
 
 bool Request::empty() const
@@ -146,12 +147,6 @@ void Request::swap(Request& r)
     assert(jsonresponse.empty() && r.jsonresponse.empty());
     assert(json.pos == NULL && r.json.pos == NULL);
     assert(processindex == 0 && r.processindex == 0);
-}
-
-Request::Request()
-{
-    json.pos = NULL;
-    processindex = 0;
 }
 
 RequestDispatcher::RequestDispatcher()
@@ -207,26 +202,51 @@ void RequestDispatcher::requeuerequest()
 
 void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *client)
 {
+    processing = true;
     inflightreq.serverresponse(std::move(movestring), client);
     inflightreq.process(client);
     assert(inflightreq.empty());
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
 }
 
 void RequestDispatcher::servererror(error e, MegaClient *client)
 {
     // notify all the commands in the batch of the failure
     // so that they can deallocate memory, take corrective action etc.
+    processing = true;
     inflightreq.servererror(e, client);
     inflightreq.process(client);
     assert(inflightreq.empty());
+    processing = false;
+    if (clearWhenSafe)
+    {
+        clear();
+    }
 }
 
 void RequestDispatcher::clear()
 {
-    inflightreq.clear();
-    for (deque<Request>::iterator i = nextreqs.begin(); i != nextreqs.end(); ++i)
+    if (processing)
     {
-        i->clear();
+        // we are being called from a command that is in progress (eg. logout) - delay wiping the data structure until that call ends.
+        clearWhenSafe = true;
+        inflightreq.stopProcessing = true;
+    }
+    else
+    {
+        inflightreq.clear();
+        for (auto& r : nextreqs)
+        {
+            r.clear();
+        }
+        nextreqs.clear();
+        nextreqs.push_back(Request());
+        processing = false;
+        clearWhenSafe = false;
     }
 }
 

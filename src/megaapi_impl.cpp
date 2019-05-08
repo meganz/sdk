@@ -4776,6 +4776,26 @@ bool MegaApiImpl::isAchievementsEnabled()
     return client->achievements_enabled;
 }
 
+bool MegaApiImpl::isBusinessAccount()
+{
+    return client->business;
+}
+
+bool MegaApiImpl::isMasterBusinessAccount()
+{
+    return client->businessMaster;
+}
+
+bool MegaApiImpl::isBusinessAccountActive()
+{
+    return (client->businessStatus > 0);
+}
+
+int MegaApiImpl::getBusinessStatus()
+{
+    return client->businessStatus;
+}
+
 bool MegaApiImpl::checkPassword(const char *password)
 {
     sdkMutex.lock();
@@ -8082,7 +8102,7 @@ bool MegaApiImpl::isOnline()
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath)
+bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const char *certificatepath, const char *keypath, bool useIPv6)
 {
     #ifndef ENABLE_EVT_TLS
     if (useTLS)
@@ -8107,7 +8127,7 @@ bool MegaApiImpl::httpServerStart(bool localOnly, int port, bool useTLS, const c
     }
 
     httpServerStop();
-    httpServer = new MegaHTTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string());
+    httpServer = new MegaHTTPServer(this, basePath, useTLS, certificatepath ? certificatepath : string(), keypath ? keypath : string(), useIPv6);
     httpServer->setMaxBufferSize(httpServerMaxBufferSize);
     httpServer->setMaxOutputSize(httpServerMaxOutputSize);
     httpServer->enableFileServer(httpServerEnableFiles);
@@ -8160,7 +8180,7 @@ int MegaApiImpl::httpServerIsRunning()
     return result;
 }
 
-char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node, bool formatIPv6)
+char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
 {
     if (!node)
     {
@@ -8174,7 +8194,7 @@ char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node, bool formatIPv6)
         return NULL;
     }
 
-    char *result = httpServer->getLink(node, "http", formatIPv6);
+    char *result = httpServer->getLink(node, "http");
     sdkMutex.unlock();
     return result;
 }
@@ -13408,12 +13428,13 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
 
-	int numDetails = request->getNumDetails();
-	numDetails--;
-	request->setNumDetails(numDetails);
-	if(!numDetails)
+	int numPending = request->getNumber();
+    numPending--;
+	request->setNumber(numPending);
+	if(!numPending)
     {
-        if(!request->getAccountDetails()->storage_max)
+        bool storage_requested = request->getNumDetails() & 0x01;
+        if (storage_requested && !request->getAccountDetails()->storage_max)
             fireOnRequestFinish(request, MegaError(MegaError::API_EACCESS));
         else
             fireOnRequestFinish(request, MegaError(MegaError::API_OK));
@@ -17594,12 +17615,13 @@ void MegaApiImpl::sendPendingRequests()
 			bool purchases = (numDetails & 0x10) != 0;
 			bool sessions = (numDetails & 0x20) != 0;
 
-			numDetails = 1;
-			if(transactions) numDetails++;
-			if(purchases) numDetails++;
-			if(sessions) numDetails++;
-
-			request->setNumDetails(numDetails);
+            int numReqs = int(storage || transfer || pro) + int(transactions) + int(purchases) + int(sessions);
+            if (numReqs == 0)
+            {
+                e = API_EARGS;
+                break;
+            }
+            request->setNumber(numReqs);
 
 			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
 			break;
@@ -23287,7 +23309,13 @@ void StreamingBuffer::setMaxOutputSize(unsigned int outputSize)
 // http_parser settings
 http_parser_settings MegaTCPServer::parsercfg;
 
-MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
+MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, string certificatepath, string keypath, bool ipv6)
+    : useIPv6(ipv6)
+#ifdef ENABLE_EVT_TLS
+    , useTLS(tls)
+#else
+    , useTLS(false)
+#endif
 {
     this->megaApi = megaApi;
     this->localOnly = true;
@@ -23301,14 +23329,11 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool useTLS,
     this->closing = false;
     this->thread = new MegaThread();
 #ifdef ENABLE_EVT_TLS
-    this->useTLS = useTLS;
     this->certificatepath = certificatepath;
     this->keypath = keypath;
     this->closing = false;
     this->remainingcloseevents = 0;
     this->evtrequirescleaning = false;
-#else
-    this->useTLS = false;
 #endif
     fsAccess = new MegaFileSystemAccess();
 
@@ -23403,6 +23428,7 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 }
 #endif
 
+// todo: a lot of this function is the same as initializeAndStartListening, we should factor them (maybe call that one from this one?)
 void MegaTCPServer::run()
 {
     LOG_debug << " Running tcp server: " << port << " TLS=" << useTLS;
@@ -23432,15 +23458,34 @@ void MegaTCPServer::run()
 
     uv_tcp_keepalive(&server, 0, 0);
 
-    struct sockaddr_in6 address;
-    if (localOnly)
+    union {
+        struct sockaddr_in6 ipv6;
+        struct sockaddr_in ipv4;
+    } address;
+
+    if (useIPv6)
     {
-        uv_ip6_addr("::1", port, &address);
+        if (localOnly)
+        {
+            uv_ip6_addr("::1", port, &address.ipv6);
+        }
+        else
+        {
+            uv_ip6_addr("::", port, &address.ipv6);
+        }
     }
     else
     {
-        uv_ip6_addr("::", port, &address);
+        if (localOnly)
+        {
+            uv_ip4_addr("127.0.0.1", port, &address.ipv4);
+        }
+        else
+        {
+            uv_ip4_addr("0.0.0.0", port, &address.ipv4);
+        }
     }
+
     uv_connection_cb onNewClientCB;
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -23518,15 +23563,34 @@ void MegaTCPServer::initializeAndStartListening()
 
     uv_tcp_keepalive(&server, 0, 0);
 
-    struct sockaddr_in6 address;
-    if (localOnly)
+    union {
+        struct sockaddr_in6 ipv6;
+        struct sockaddr_in ipv4;
+    } address;
+
+    if (useIPv6)
     {
-        uv_ip6_addr("::1", port, &address);
+        if (localOnly)
+        {
+            uv_ip6_addr("::1", port, &address.ipv6);
+        }
+        else
+        {
+            uv_ip6_addr("::", port, &address.ipv6);
+        }
     }
     else
     {
-        uv_ip6_addr("::", port, &address);
+        if (localOnly)
+        {
+            uv_ip4_addr("127.0.0.1", port, &address.ipv4);
+        }
+        else
+        {
+            uv_ip4_addr("0.0.0.0", port, &address.ipv4);
+        }
     }
+
     uv_connection_cb onNewClientCB;
 #ifdef ENABLE_EVT_TLS
     if (useTLS)
@@ -23640,7 +23704,7 @@ void MegaTCPServer::clearAllowedHandles()
     lastHandle = INVALID_HANDLE;
 }
 
-char *MegaTCPServer::getLink(MegaNode *node, string protocol, bool formatIPv6)
+char *MegaTCPServer::getLink(MegaNode *node, string protocol)
 {
     if (!node)
     {
@@ -23650,7 +23714,7 @@ char *MegaTCPServer::getLink(MegaNode *node, string protocol, bool formatIPv6)
     lastHandle = node->getHandle();
     allowedHandles.insert(lastHandle);
     
-    string localhostIP = formatIPv6 ? "[::1]" : "127.0.0.1";
+    string localhostIP = useIPv6 ? "[::1]" : "127.0.0.1";
 
     ostringstream oss;
     oss << protocol << (useTLS ? "s" : "") << "://" << localhostIP << ":" << port << "/";
@@ -24157,8 +24221,8 @@ void MegaTCPServer::processAsyncEvent(MegaTCPContext *tcpctx)
 //  MegaHTTPServer specifics //
 ///////////////////////////////
 
-MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath)
-    : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath)
+MegaHTTPServer::MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS, string certificatepath, string keypath, bool useIPv6)
+    : MegaTCPServer(megaApi, basePath, useTLS, certificatepath, keypath, useIPv6)
 {
     // parser callbacks
     parsercfg.on_url = onUrlReceived;

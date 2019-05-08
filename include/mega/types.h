@@ -205,7 +205,9 @@ typedef enum ErrorCodes
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
     API_ESSL = -23,                 ///< SSL verification failed
     API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
-    API_EMFAREQUIRED = -26          ///< Multi-factor authentication required
+    API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
+    API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
+    API_EBUSINESSPASTDUE = -28      ///< Business account expired
 } error;
 
 // returned by loggedin()
@@ -533,7 +535,6 @@ struct recentaction
     node_vector nodes;
 };
 typedef vector<recentaction> recentactions_vector;
-
 } // namespace
 
 #endif

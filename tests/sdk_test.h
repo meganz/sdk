@@ -28,6 +28,8 @@
 #include <iostream>
 #include <fstream>
 
+extern bool g_runningInCI;
+
 using namespace mega;
 using ::testing::Test;
 
@@ -125,7 +127,7 @@ protected:
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
     void onReloadNeeded(MegaApi *api) {}
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState) {}
+    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *filePath, int newState) override {}
     void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) {}
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) {}
     void onGlobalSyncStateChanged(MegaApi* api) {}

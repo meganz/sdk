@@ -29,7 +29,7 @@ namespace mega {
 // linear non-strict JSON scanner
 struct MEGA_API JSON
 {
-    const char* pos;
+    const char* pos = nullptr;
 
     bool isnumeric();
 

@@ -1229,6 +1229,10 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "Not enough quota";
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
+        case API_EMASTERONLY:
+            return "Access denied for sub-users";
+        case API_EBUSINESSPASTDUE:
+            return "Business account has expired";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1651,6 +1655,26 @@ char *MegaApi::getMyXMPPJid()
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
+}
+
+bool MegaApi::isBusinessAccount()
+{
+    return pImpl->isBusinessAccount();
+}
+
+bool MegaApi::isMasterBusinessAccount()
+{
+    return pImpl->isMasterBusinessAccount();
+}
+
+int MegaApi::getBusinessStatus()
+{
+    return pImpl->getBusinessStatus();
+}
+
+bool MegaApi::isBusinessAccountActive()
+{
+    return pImpl->isBusinessAccountActive();
 }
 
 bool MegaApi::checkPassword(const char *password)
@@ -2222,9 +2246,14 @@ void MegaApi::getAccountDetails(MegaRequestListener *listener)
     pImpl->getAccountDetails(true, true, true, false, false, false, listener);
 }
 
+void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener)
+{
+    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, listener);
+}
+
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
+    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, listener);
 }
 
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
@@ -3678,9 +3707,9 @@ void MegaApi::catchup(MegaRequestListener *listener)
 }
 
 #ifdef HAVE_LIBUV
-bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath)
+bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath, bool useIPv6)
 {
-    return pImpl->httpServerStart(localOnly, port, useTLS, certificatepath, keypath);
+    return pImpl->httpServerStart(localOnly, port, useTLS, certificatepath, keypath, useIPv6);
 }
 
 void MegaApi::httpServerStop()
@@ -3758,9 +3787,9 @@ void MegaApi::httpServerRemoveListener(MegaTransferListener *listener)
     pImpl->httpServerRemoveListener(listener);
 }
 
-char *MegaApi::httpServerGetLocalLink(MegaNode *node, bool formatIPv6)
+char *MegaApi::httpServerGetLocalLink(MegaNode *node)
 {
-    return pImpl->httpServerGetLocalLink(node, formatIPv6);
+    return pImpl->httpServerGetLocalLink(node);
 }
 
 char *MegaApi::httpServerGetLocalWebDavLink(MegaNode *node)

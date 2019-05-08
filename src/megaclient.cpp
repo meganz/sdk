@@ -1042,6 +1042,11 @@ void MegaClient::init()
     insca = false;
     scnotifyurl.clear();
     *scsn = 0;
+
+    notifyStorageChangeOnStateCurrent = false;  
+    business = false;
+    businessMaster = false;
+    businessStatus = 0;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -3887,6 +3892,12 @@ bool MegaClient::procsc()
                         app->nodes_current();
                         LOG_debug << "Local filesystem up to date";
 
+                        if (notifyStorageChangeOnStateCurrent)
+                        {
+                            app->notify_storage(STORAGE_CHANGE);
+                            notifyStorageChangeOnStateCurrent = false;
+                        }
+
                         if (tctable && cachedfiles.size())
                         {
                             tctable->begin();
@@ -5264,8 +5275,15 @@ void MegaClient::sc_userattr()
                             }
                             else if (type == ATTR_STORAGE_STATE)
                             {
-                                LOG_debug << "Possible storage status change";
-                                app->notify_storage(STORAGE_CHANGE);
+                                if (!statecurrent)
+                                {
+                                    notifyStorageChangeOnStateCurrent = true;
+                                }
+                                else
+                                {
+                                    LOG_debug << "Possible storage status change";
+                                    app->notify_storage(STORAGE_CHANGE);
+                                }
                             }
                         }
                     }
