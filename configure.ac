@@ -26,7 +26,6 @@ m4_include([m4/ax_prog_doxygen.m4])
 m4_include([m4/curlchk.m4])
 m4_include([m4/ax_check_compile_flag.m4])
 m4_include([m4/ax_check_link_flag.m4])
-m4_include([m4/ax_cxx_compile_stdcxx.m4])
 
 AC_PREREQ([2.61])
 
@@ -105,9 +104,6 @@ AM_CONDITIONAL(CPPCHECK, test -n "$CPPCHECK")
 
 # set C++
 AC_LANG_CPLUSPLUS
-
-# Check for C++11 standard
-AX_CXX_COMPILE_STDCXX([11], [noext], [mandatory])
 
 # Check headers
 AC_STDC_HEADERS
