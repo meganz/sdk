@@ -166,7 +166,7 @@ typedef NS_ENUM(NSInteger, SMSState) {
     SMSStateOptInAndUnblock = 2,
 };
 
-typedef NS_ENUM(NSUInteger, AccountSuspensionType) {
+typedef NS_ENUM(NSInteger, AccountSuspensionType) {
     AccountSuspensionTypeNone = 0, // The account is not blocked
     AccountSuspensionTypeNonCopyright = 200, // suspension for any type of suspension, but copyright suspension
     AccountSuspensionTypeCopyright = 300, // suspension only for multiple copyright violations
