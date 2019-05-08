@@ -3972,6 +3972,9 @@ public:
     /**
      * @brief Returns whether notifications for a chat are enabled or not
      *
+     * The purpose of this method is to control the UI in order to enable
+     * the modification of the chat parameters (dnd & always notify) or not.
+     *
      * @param chatid MegaHandle that identifies the chat room
      * @return True if enabled, false otherwise
      */
