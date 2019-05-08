@@ -1254,7 +1254,7 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
          * Check if option for geolocation messages has changed
          *
-         * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x200000
+         * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
          *
          * @return true if this user has an specific change
@@ -1332,7 +1332,7 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
          * Check if option for geolocation messages has changed
          *
-         * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x200000
+         * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
          *
          */

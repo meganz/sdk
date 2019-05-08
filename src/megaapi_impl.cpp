@@ -30082,7 +30082,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
 
 bool MegaPushNotificationSettingsPrivate::isValid() const
 {
-    return mJsonInvalid;
+    return !mJsonInvalid;
 }
 
 MegaPushNotificationSettingsPrivate::~MegaPushNotificationSettingsPrivate()
