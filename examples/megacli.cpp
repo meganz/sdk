@@ -2085,8 +2085,6 @@ static void store_line(char* l)
     line = l;
 }
 
-#if __cplusplus >= 201100L
-
 class FileFindCommand : public Command
 {
 public:
@@ -2366,7 +2364,6 @@ void exec_querytransferquota(autocomplete::ACState& ac)
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
 }
 #endif
-#endif // __cplusplus >= 201100L
 
 void DemoApp::querytransferquota_result(int n)
 {
@@ -2481,11 +2478,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("history")));
     p->Add(sequence(text("quit")));
 
-#if __cplusplus >= 201100L
     p->Add(exec_find, sequence(text("find"), text("raided")));
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
-#endif
 
     return autocompleteTemplate = std::move(p);
 }
