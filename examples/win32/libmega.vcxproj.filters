@@ -171,6 +171,10 @@
     <ClCompile Include="..\..\src\mega_zxcvbn.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    </ClCompile>
+    <ClCompile Include="..\..\src\raid.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\mediafileattribute.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

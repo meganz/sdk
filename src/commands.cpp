@@ -354,19 +354,23 @@ void CommandPutFile::procresult()
         return;
     }
 
+    std::vector<std::string> tempurls;
     for (;;)
     {
         switch (client->json.getnameid())
         {
             case 'p':
-                client->json.storeobject(canceled ? NULL : &tslot->transfer->tempurl);
+                tempurls.push_back("");
+                client->json.storeobject(canceled ? NULL : &tempurls.back());
                 break;
 
             case EOO:
                 if (canceled) return;
 
-                if (tslot->transfer->tempurl.size())
+                if (tempurls.size() == 1)
                 {
+                    tslot->transfer->tempurls = tempurls;
+                    tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                     tslot->starttime = tslot->lastdata = client->waiter->ds;
                     return tslot->progress();
                 }
@@ -397,7 +401,8 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     cmd("g");
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1);
-
+    arg("v", 2);  // version 2: server can supply details for cloudraid files
+	
     if (drn->privateauth.size())
     {
         arg("esid", drn->privateauth.c_str());
@@ -443,14 +448,43 @@ void CommandDirectRead::procresult()
     {
         error e = API_EINTERNAL;
         dstime tl = 0;
+        std::vector<std::string> tempurls;
 
         for (;;)
         {
             switch (client->json.getnameid())
             {
                 case 'g':
-                    client->json.storeobject(drn ? &drn->tempurl : NULL);
-                    e = API_OK;
+                    if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                    {
+                        for (;;)
+                        {
+                            std::string tu;
+                            if (!client->json.storeobject(&tu))
+                            {
+                                break;
+                            }
+                            tempurls.push_back(tu);
+                        }
+                        client->json.leavearray();
+                    }
+                    else
+                    {
+                        std::string tu;
+                        if (client->json.storeobject(&tu))
+                        {
+                            tempurls.push_back(tu);
+                        }
+                    }
+                    if (tempurls.size() == 1 || tempurls.size() == RAIDPARTS)
+                    {
+                        drn->tempurls.swap(tempurls);
+                        e = API_OK;
+                    }
+                    else
+                    {
+                        e = API_EINCOMPLETE;
+                    }
                     break;
 
                 case 's':
@@ -483,7 +517,7 @@ void CommandDirectRead::procresult()
 
                         drn->cmdresult(e, e == API_EOVERQUOTA ? tl * 10 : 0);
                     }
-                    
+
                     return;
 
                 default:
@@ -507,6 +541,7 @@ CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, byte* k
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
     arg("g", 1);
+    arg("v", 2);  // version 2: server can supply details for cloudraid files
 
     if (client->usehttps)
     {
@@ -581,13 +616,34 @@ void CommandGetFile::procresult()
     string fileattrstring;
     string filenamestring;
     string filefingerprint;
+    std::vector<string> tempurls;
 
     for (;;)
     {
         switch (client->json.getnameid())
         {
             case 'g':
-                client->json.storeobject(tslot ? &tslot->transfer->tempurl : NULL);
+                if (client->json.enterarray())   // now that we are requesting v2, the reply will be an array of 6 URLs for a raid download, or a single URL for the original direct download
+                {
+                    for (;;)
+                    {
+                        std::string tu;
+                        if (!client->json.storeobject(&tu))
+                        {
+                            break;
+                        }
+                        tempurls.push_back(tu);
+                    }
+                    client->json.leavearray();
+                }
+                else
+                {
+                    std::string tu;
+                    if (client->json.storeobject(&tu))
+                    {
+                        tempurls.push_back(tu);
+                    }
+                }
                 e = API_OK;
                 break;
 
@@ -732,8 +788,10 @@ void CommandGetFile::procresult()
 
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
 
-                                        if (tslot->transfer->tempurl.size() && s >= 0)
+                                        if ((tempurls.size() == 1 || tempurls.size() == RAIDPARTS) && s >= 0)
                                         {
+                                            tslot->transfer->tempurls = tempurls;
+                                            tslot->transferbuf.setIsRaid(tslot->transfer, tempurls, tslot->transfer->pos, tslot->maxRequestSize);
                                             return tslot->progress();
                                         }
 
@@ -2717,7 +2775,7 @@ void CommandPutUA::procresult()
     client->app->putua_result(e);
 }
 
-CommandGetUA::CommandGetUA(MegaClient* client, const char* uid, attr_t at, const char* ph, int ctag)
+CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag)
 {
     this->uid = uid;
     this->at = at;
@@ -2786,7 +2844,7 @@ void CommandGetUA::procresult()
                 buf.assign(ptr, (end-ptr));
                 value.resize(buf.size() / 4 * 3 + 3);
                 value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                client->app->getua_result((byte*) value.data(), value.size());
+                client->app->getua_result((byte*) value.data(), unsigned(value.size()));
             }
             return;
         }
@@ -2852,7 +2910,14 @@ void CommandGetUA::procresult()
 
                     if (!u) // retrieval of attributes without contact-relationship
                     {
-                        client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                        if (at == ATTR_AVATAR && buf == "none")
+                        {
+                            client->app->getua_result(API_ENOENT);
+                        }
+                        else
+                        {
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                        }
                         return;
                     }
 
@@ -3232,6 +3297,9 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
+    bool b = false;
+    int m = -1;
+    int s = -2;
     int  smsve = -1;
     string smsv;
 
@@ -3319,6 +3387,45 @@ void CommandGetUserData::procresult()
             }
             break;
 
+        case 'b':
+            assert(!b);
+            b = true;
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                        case 's':
+                            // -1: expired, 1: active, 2: grace-period
+                            s = client->json.getint();
+                            break;
+                        case 'm':
+                            m = client->json.getint();
+                            break;
+                        case EOO:
+                            endobject = true;
+                            break;
+                        default:
+                            if (!client->json.storeobject())
+                            {
+                                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                            }
+                    }
+                }
+                client->json.leaveobject();
+
+                // integrity checks
+                if ( (s == -2 || (s != -1 && s != 1 && s != 2))     // status not received or invalid
+                     || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
+                {
+                    LOG_err << "Invalid business status / account mode";
+                    return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                }
+            }
+            break;
+
         case MAKENAMEID4('s', 'm', 's', 'v'):
             if (!client->json.storeobject(&smsv))
             {
@@ -3345,6 +3452,11 @@ void CommandGetUserData::procresult()
             client->smsve_state = smsve;
             client->sms_verifiedphone = smsv;
             client->k = k;
+
+            client->business = b;
+            client->businessStatus = b ? s : 0;
+            client->businessMaster = b ? bool(m) : false;
+
             if (len_privk)
             {
                 client->key.ecb_decrypt(privkbuf, len_privk);
@@ -4852,6 +4964,11 @@ void CommandQueryRecoveryLink::procresult()
         return client->app->queryrecoverylink_result(API_EINTERNAL);
     }
 
+    if (client->loggedin() == FULLACCOUNT && uh != client->me)
+    {
+        return client->app->queryrecoverylink_result(API_EACCESS);
+    }
+
     return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), time_t(ts), uh, &emails);
 }
 
@@ -6039,7 +6156,7 @@ void CommandChatLinkURL::procresult()
                     break;
 
                 case MAKENAMEID2('c','s'):
-                    shard = (int)client->json.getint();
+                    shard = int(client->json.getint());
                     break;
 
                 case MAKENAMEID2('c','t'):  // chat-title
@@ -6051,7 +6168,7 @@ void CommandChatLinkURL::procresult()
                     break;
 
                 case MAKENAMEID3('n','c','m'):
-                    numPeers = (int)client->json.getint();
+                    numPeers = int(client->json.getint());
                     break;
 
                 case MAKENAMEID2('t', 's'):
@@ -6669,7 +6786,7 @@ void CommandGetPSA::procresult()
         switch (client->json.getnameid())
         {
             case MAKENAMEID2('i', 'd'):
-                id = (int)client->json.getint();
+                id = int(client->json.getint());
                 break;
             case 't':
                 client->json.storeobject(&temp);

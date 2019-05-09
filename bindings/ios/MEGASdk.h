@@ -22,28 +22,29 @@
 #import <Foundation/Foundation.h>
 #import <AssetsLibrary/AssetsLibrary.h>
 
-#import "MEGANode.h"
-#import "MEGAUser.h"
-#import "MEGATransfer.h"
-#import "MEGARequest.h"
-#import "MEGAError.h"
-#import "MEGAPricing.h"
 #import "MEGAAccountDetails.h"
-#import "MEGAContactRequest.h"
-#import "MEGAEvent.h"
-#import "MEGATransferList.h"
-#import "MEGANodeList.h"
-#import "MEGAUserList.h"
-#import "MEGAShareList.h"
-#import "MEGAContactRequestList.h"
-#import "MEGAChildrenLists.h"
 #import "MEGAAchievementsDetails.h"
-#import "MEGARequestDelegate.h"
+#import "MEGAChildrenLists.h"
+#import "MEGAContactRequest.h"
+#import "MEGAContactRequestList.h"
 #import "MEGADelegate.h"
-#import "MEGATransferDelegate.h"
+#import "MEGAError.h"
+#import "MEGAEvent.h"
 #import "MEGAGlobalDelegate.h"
+#import "MEGANodeList.h"
+#import "MEGANode.h"
 #import "MEGALoggerDelegate.h"
+#import "MEGAPricing.h"
+#import "MEGARecentActionBucket.h"
+#import "MEGARequest.h"
+#import "MEGARequestDelegate.h"
+#import "MEGAShareList.h"
+#import "MEGATransfer.h"
+#import "MEGATransferDelegate.h"
+#import "MEGATransferList.h"
 #import "MEGATreeProcessorDelegate.h"
+#import "MEGAUser.h"
+#import "MEGAUserList.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -5647,6 +5648,29 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
 
 /**
+ * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
+ *
+ * Each bucket contains files that were added/modified in a set, by a single user.
+ * This function, that takes no parameters, uses the defaults for the MEGA apps
+ * which are (currently) within the last 30 days, and max 10000 nodes.
+ *
+ * @return Array of buckets containing nodes that were added/modifed as a set
+ */
+- (NSMutableArray *)recentActions;
+
+/**
+ * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
+ *
+ * Each bucket contains files that were added/modified in a set, by a single user.
+ *
+ * @param date       Only return nodes that are more recent than this time.
+ * @param maxNodes   Only return nodes up to this many.
+ *
+ * @return Array of buckets containing nodes that were added/modifed as a set
+ */
+- (NSMutableArray *)recentActionsSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes;
+
+/**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
  * @param node The parent node of the tree to explore
  * @param recursive YES if you want to recursively process the whole node tree.
@@ -6010,7 +6034,7 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
  * ready to accept connections. The initialization is synchronous.
  *
  * The server will serve files using this URL format:
- * http://127.0.0.1/<NodeHandle>/<NodeName>
+ * http://[::1]/<NodeHandle>/<NodeName>
  *
  * The node name must be URL encoded and must match with the node handle.
  * You can generate a correct link for a MEGANode using [MEGASdk httpServerGetLocalLink]
@@ -6031,7 +6055,7 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
  *
  * The HTTP server will only stream a node if it's allowed by all configuration options.
  *
- * @param localOnly YES to listen on 127.0.0.1 only, NO to listen on all network interfaces
+ * @param localOnly YES to listen on ::1 only, NO to listen on all network interfaces
  * @param port Port in which the server must accept connections
  * @return YES is the server is ready, NO if the initialization failed
  */

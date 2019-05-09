@@ -606,6 +606,8 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
             close(fd);
         }
     }
+#else
+    (void)fseventsfd;  // suppress warning
 #endif
 }
 
@@ -618,7 +620,7 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
 }
 
 // wake up from filesystem updates
-void PosixFileSystemAccess::addevents(Waiter* w, int flags)
+void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
 {
     if (notifyfd >= 0)
     {
@@ -976,7 +978,7 @@ bool PosixFileSystemAccess::renamelocal(string* oldname, string* newname, bool o
     bool existingandcare = !override && (0 == access(newname->c_str(), F_OK));
     if (!existingandcare && !rename(oldname->c_str(), newname->c_str()))
     {
-        LOG_verbose << "Succesfully moved file: " << oldname->c_str() << " to " << newname->c_str();
+        LOG_verbose << "Successfully moved file: " << oldname->c_str() << " to " << newname->c_str();
         return true;
     }
 
@@ -1073,7 +1075,7 @@ bool PosixFileSystemAccess::copylocal(string* oldname, string* newname, m_time_t
 }
 
 // FIXME: add platform support for recycle bins
-bool PosixFileSystemAccess::rubbishlocal(string* name)
+bool PosixFileSystemAccess::rubbishlocal(string* /*name*/)
 {
     return false;
 }

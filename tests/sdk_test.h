@@ -28,6 +28,8 @@
 #include <iostream>
 #include <fstream>
 
+extern bool g_runningInCI;
+
 using namespace mega;
 using ::testing::Test;
 
@@ -100,6 +102,10 @@ public:
 
     MegaLoggerSDK *logger;
 
+    m_off_t onTransferUpdate_progress;
+    m_off_t onTransferUpdate_filesize;
+
+
 protected:
     virtual void SetUp();
     virtual void TearDown();
@@ -113,7 +119,7 @@ protected:
     void onRequestTemporaryError(MegaApi *api, MegaRequest *request, MegaError* error) {}
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) { }
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* e);
-    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) {}
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
     void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) {}
     void onUsersUpdate(MegaApi* api, MegaUserList *users);
     void onNodesUpdate(MegaApi* api, MegaNodeList *nodes);
@@ -121,7 +127,7 @@ protected:
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests);
     void onReloadNeeded(MegaApi *api) {}
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState) {}
+    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *filePath, int newState) override {}
     void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) {}
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) {}
     void onGlobalSyncStateChanged(MegaApi* api) {}
@@ -132,6 +138,7 @@ protected:
 
 public:
     void login(unsigned int apiIndex, int timeout = maxTimeout);
+    void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
     void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
     void logout(unsigned int apiIndex, int timeout = maxTimeout);
     char* dumpSession();

@@ -755,7 +755,7 @@ int Node::hasfileattribute(const string *fileattrstring, fatype t)
     char buf[24];
 
     sprintf(buf, ":%u*", t);
-    return fileattrstring->find(buf) + 1;
+    return static_cast<int>(fileattrstring->find(buf) + 1);
 }
 
 // attempt to apply node key - sets nodekey to a raw key if successful
@@ -903,6 +903,16 @@ bool Node::setparent(Node* p)
 #endif
 
     return true;
+}
+
+Node* Node::firstancestor()
+{
+    Node* n = this;
+    while (n->parent != NULL)
+    {
+        n = n->parent;
+    }
+    return n;
 }
 
 // returns 1 if n is under p, 0 otherwise

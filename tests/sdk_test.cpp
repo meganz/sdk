@@ -20,6 +20,7 @@
  */
 
 #include "sdk_test.h"
+#include "mega/testhooks.h"
 #include "megaapi_impl.h"
 #include <algorithm>
 
@@ -28,6 +29,8 @@
 #endif
 
 using namespace std;
+
+bool g_runningInCI = false;
 
 MegaFileSystemAccess fileSystemAccess;
 
@@ -408,6 +411,11 @@ void SdkTest::onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* 
         h = transfer->getNodeHandle();
 }
 
+void SdkTest::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
+{
+    onTransferUpdate_progress = transfer->getTransferredBytes();
+    onTransferUpdate_filesize = transfer->getTotalBytes();
+}
 
 void SdkTest::onAccountUpdate(MegaApi* api)
 {
@@ -579,6 +587,16 @@ void SdkTest::login(unsigned int apiIndex, int timeout)
     ASSERT_TRUE(megaApi[apiIndex]->isLoggedIn()) << "Not logged it";
 }
 
+void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout)
+{
+    requestFlags[apiIndex][MegaRequest::TYPE_LOGIN] = false;
+    megaApi[apiIndex]->login(email[apiIndex].data(), pwd[apiIndex].data());
+
+    ASSERT_TRUE(waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_LOGIN], timeout))
+        << "Logging failed after " << timeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Logging failed (error: " << lastError[apiIndex] << ")";
+    ASSERT_TRUE(megaApi[apiIndex]->isLoggedIn()) << "Not logged it";
+}
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
@@ -2310,6 +2328,9 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     p->Add(sequence(text("lls"), opt(flag("-R")), opt(ACN(new LocalFS(true, true, "")))));
     ACN syntax(std::move(p));
 
+    error_code e;
+    std::experimental::filesystem::remove_all("test_autocomplete_files", e);
+
     std::experimental::filesystem::create_directory("test_autocomplete_files");
     std::experimental::filesystem::current_path("test_autocomplete_files");
 
@@ -3056,4 +3077,772 @@ TEST_F(SdkTest, SdkTestFingerprint)
     }
 }
 
+
+
+static void incrementFilename(string& s)
+{
+    if (s.size() > 2)
+    {
+        if (isdigit(s[s.size() - 2]) | !isdigit(s[s.size() - 1]))
+        {
+            s += "00";
+        }
+        else
+        {
+            s[s.size() - 1] += 1;
+            if (s[s.size() - 1] > '9')
+            {
+                s[s.size() - 1] -= 1;
+                s[s.size() - 2] += 1;
+            }
+        }
+    }
+}
+
+struct second_timer 
+{
+    m_time_t t;
+    second_timer() { t = m_time(); }
+    size_t elapsed() { return size_t(m_time() - t); }
+};
+
+namespace mega
+{
+    class DebugTestHook
+    {
+    public:
+        static int countdownToOverquota;
+        static int countdownTo404;
+        static int countdownTo403;
+        static int countdownToTimeout;
+        static bool isRaid;
+        static bool isRaidKnown;
+
+        static void onSetIsRaid_morechunks(::mega::RaidBufferManager* tbm)
+        {
+
+            unsigned oldvalue = tbm->raidLinesPerChunk;
+            tbm->raidLinesPerChunk /= 4;
+            LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk;
+        };
+
+        static bool  onHttpReqPost509(HttpReq* req)
+        {
+            if (req->type == REQ_BINARY)
+            {
+                if (countdownToOverquota-- == 0) {
+                    req->httpstatus = 509;
+                    req->timeleft = 30;  // in seconds
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 509 OVERQUOTA";
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        static bool  onHttpReqPost404Or403(HttpReq* req)
+        {
+            if (req->type == REQ_BINARY)
+            {
+                if (countdownTo404-- == 0) {
+                    req->httpstatus = 404;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 404";
+                    return true;
+                }
+                if (countdownTo403-- == 0) {
+                    req->httpstatus = 403;
+                    req->status = REQ_FAILURE;
+
+                    LOG_info << "SIMULATING HTTP GET 403";
+                    return true;
+                }
+            }
+            return false;
+        };
+
+
+        static bool  onHttpReqPostTimeout(HttpReq* req)
+        {
+            if (req->type == REQ_BINARY)
+            {
+                if (countdownToTimeout-- == 0) {
+                    req->lastdata = Waiter::ds;
+                    req->status = REQ_INFLIGHT;
+
+                    LOG_info << "SIMULATING HTTP TIMEOUT (timeout period begins now)";
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        static void onSetIsRaid(::mega::RaidBufferManager* tbm)
+        {
+            isRaid = tbm->isRaid();
+            isRaidKnown = true;
+        };
+
+        static bool resetForTests()
+        {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+            globalMegaTestHooks = MegaTestHooks(); // remove any callbacks set in other tests
+            countdownToOverquota = 3;
+            countdownTo404 = 5;
+            countdownTo403 = 10;
+            countdownToTimeout = 15;
+            isRaid = false;
+            isRaidKnown = false;
+            return true;
+#else
+            return false;
+#endif
+        }
+
+        static void onSetIsRaid_smallchunks10(::mega::RaidBufferManager* tbm)
+        {
+            unsigned oldvalue = tbm->raidLinesPerChunk;
+            tbm->raidLinesPerChunk = 10;
+        };
+
+    };
+
+    int DebugTestHook::countdownToOverquota = 3;
+    bool DebugTestHook::isRaid = false;
+    bool DebugTestHook::isRaidKnown = false;
+    int DebugTestHook::countdownTo404 = 5;
+    int DebugTestHook::countdownTo403 = 10;
+    int DebugTestHook::countdownToTimeout = 15;
+
+};
+
+
+/**
+* @brief TEST_F SdkTestCloudraidTransfers
+*
+* - Download our well-known cloudraid file with standard settings
+* - Download our well-known cloudraid file, but this time with small chunk sizes and periodically pausing and unpausing
+* - Download our well-known cloudraid file, but this time with small chunk sizes and periodically destrying the megaApi object, then recreating and Resuming (with session token)
+*
+*/
+
+
+TEST_F(SdkTest, SdkTestCloudraidTransfers)
+{
+#ifndef DEBUG
+    cout << "SdkTestCloudraidTransfers can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    MegaHandle imported_file_handle = h;
+
+    MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
+
+
+    string filename = "./cloudraid_downloaded_file.sdktest";
+    deleteFile(filename.c_str());
+
+    // plain cloudraid download
+    transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApi[0]->startDownload(nimported, filename.c_str());
+    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 600))
+        << "Download cloudraid transfer failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the cloudraid file (error: " << lastError[0] << ")";
+
+
+    // cloudraid download with periodic pause and resume
+
+    incrementFilename(filename);
+    deleteFile(filename.c_str());
+
+    // smaller chunk sizes so we can get plenty of pauses
+    #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onSetIsRaid = ::mega::DebugTestHook::onSetIsRaid_morechunks;
+    #endif
+
+    // plain cloudraid download
+    {
+        onTransferUpdate_progress = 0;
+        onTransferUpdate_filesize = 0;
+        transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+        megaApi[0]->startDownload(nimported, filename.c_str());
+
+        m_off_t lastprogress = 0, pausecount = 0;
+        second_timer t;
+        while (t.elapsed() < 60 && (onTransferUpdate_filesize == 0 || onTransferUpdate_progress < onTransferUpdate_filesize))
+        {
+            if (onTransferUpdate_progress > lastprogress)
+            {
+                megaApi[0]->pauseTransfers(true);
+                pausecount += 1;
+                WaitMillisec(100);
+                megaApi[0]->pauseTransfers(false);
+                lastprogress = onTransferUpdate_progress;
+            }
+            WaitMillisec(100);
+        }
+        ASSERT_LT(t.elapsed(), 60u) << "timed out downloading cloudraid file";
+        ASSERT_GE(onTransferUpdate_filesize, 0u);
+        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_GE(pausecount, 3);
+        ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 1))<< "Download cloudraid transfer with pauses failed";
+        ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the cloudraid file (error: " << lastError[0] << ")";
+    }
+
+
+    incrementFilename(filename);
+    deleteFile(filename.c_str());
+
+    // cloudraid download with periodic full exit and resume from session ID
+    // plain cloudraid download
+    {
+        transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+        megaApi[0]->startDownload(nimported, filename.c_str());
+
+        std::string sessionId = megaApi[0]->dumpSession();
+
+        onTransferUpdate_progress = 0;// updated in callbacks
+        onTransferUpdate_filesize = 0;
+        m_off_t lastprogress = 0;
+        unsigned exitresumecount = 0;
+        second_timer t;
+        while (t.elapsed() < 120 && (onTransferUpdate_filesize == 0 || onTransferUpdate_progress < onTransferUpdate_filesize))
+        {
+            if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/6)
+            {
+                delete megaApi[0];
+                megaApi[0] = NULL;
+                exitresumecount += 1;
+                WaitMillisec(100);
+                
+                megaApi[0] = new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str());
+                megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
+                megaApi[0]->addListener(this);
+
+                ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
+                ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+                lastprogress = onTransferUpdate_progress;
+            }
+            WaitMillisec(100);
+        }
+        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_GE(exitresumecount, 3u);
+        ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 1)) << "Download cloudraid transfer with pauses failed";
+        ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the cloudraid file (error: " << lastError[0] << ")";
+    }
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
+}
+
+
+/**
+* @brief TEST_F SdkTestCloudraidTransferWithConnectionFailures
+*
+* Download a cloudraid file but with a connection failing with http errors 404 and 403.   The download should recover from the problems in 5 channel mode
+*
+*/
+
+
+TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
+{
+#ifndef DEBUG
+    cout << "SdkTestCloudraidTransferWithConnectionFailures can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    MegaHandle imported_file_handle = h;
+    MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
+
+
+    string filename = "./cloudraid_downloaded_file.sdktest";
+    deleteFile(filename.c_str());
+
+    // set up for 404 and 403 errors
+    // smaller chunk sizes so we can get plenty of pauses
+    DebugTestHook::countdownTo404 = 5;
+    DebugTestHook::countdownTo403 = 12;
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost404Or403;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+#endif
+
+    // plain cloudraid download
+    {
+        onTransferUpdate_progress = 0;
+        onTransferUpdate_filesize = 0;
+        transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+        megaApi[0]->startDownload(nimported, filename.c_str());
+
+        ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with 404 and 403 errors time out (180 seconds)";
+        ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the cloudraid file (error: " << lastError[0] << ")";
+        ASSERT_GE(onTransferUpdate_filesize, 0u);
+        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_LT(DebugTestHook::countdownTo404, 0);
+        ASSERT_LT(DebugTestHook::countdownTo403, 0);
+    }
+
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
+}
+
+
+/**
+* @brief TEST_F SdkTestCloudraidTransferWithConnectionFailures
+*
+* Download a cloudraid file but with a connection failing with http errors 404 and 403.   The download should recover from the problems in 5 channel mode
+*
+*/
+
+TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
+{
+#ifndef DEBUG
+    cout << "SdkTestCloudraidTransferWithSingleChannelTimeouts can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST Cloudraid transfers___");
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", rootnode));
+    MegaHandle imported_file_handle = h;
+    MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
+
+
+    string filename = "./cloudraid_downloaded_file.sdktest";
+    deleteFile(filename.c_str());
+
+    // set up for 404 and 403 errors
+    // smaller chunk sizes so we can get plenty of pauses
+    DebugTestHook::countdownToTimeout = 15;
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPostTimeout;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+#endif
+
+    // plain cloudraid download
+    {
+        onTransferUpdate_progress = 0;
+        onTransferUpdate_filesize = 0;
+        transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+        megaApi[0]->startDownload(nimported, filename.c_str());
+
+        ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 180)) << "Cloudraid download with timeout errors timed out (180 seconds)";
+        ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the cloudraid file (error: " << lastError[0] << ")";
+        ASSERT_GE(onTransferUpdate_filesize, 0u);
+        ASSERT_TRUE(onTransferUpdate_progress == onTransferUpdate_filesize);
+        ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
+    }
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
+}
+
+
+
+/**
+* @brief TEST_F SdkTestOverquotaNonCloudraid
+*
+* Induces a simulated overquota error during a conventional download.  Confirms the download stops, pauses, and resumes.
+* 
+*/
+
+TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
+{
+#ifndef DEBUG
+    cout << "SdkTestOverquotaNonCloudraid can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    // make a file to download, and upload so we can pull it down
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+    deleteFile(UPFILE);
+    createFile(UPFILE, true);
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(UPFILE.c_str(), rootnode);
+    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD], 600))
+        << "Upload transfer failed after " << 600 << " seconds";
+    MegaNode *n1 = megaApi[0]->getNodeByHandle(h);
+    ASSERT_NE(n1, ((::mega::MegaNode *)NULL));
+
+    // set up to simulate 509 error
+    DebugTestHook::isRaid = false;
+    DebugTestHook::isRaidKnown = false;
+    DebugTestHook::countdownToOverquota = 3;
+    #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost509;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid;
+    #endif
+
+    // download - we should see a 30 second pause for 509 processing in the middle
+    string filename2 = "./" + DOWNFILE;
+    deleteFile(filename2);
+    transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApi[0]->startDownload(n1, filename2.c_str());
+
+    // get to 30 sec pause point
+    second_timer t;
+    while (t.elapsed() < 30 && DebugTestHook::countdownToOverquota >= 0)
+    {
+        WaitMillisec(1000);
+    }
+    ASSERT_TRUE(DebugTestHook::isRaidKnown);
+    ASSERT_FALSE(DebugTestHook::isRaid);
+
+    // ok so now we should see no more http requests sent for 30 seconds. Test 20 for reliable testing
+    int originalcount = DebugTestHook::countdownToOverquota;
+    second_timer t2;
+    while (t2.elapsed() < 20)
+    {
+        WaitMillisec(1000);
+    }
+    ASSERT_TRUE(DebugTestHook::countdownToOverquota == originalcount);
+
+    // Now wait for the file to finish
+
+    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 600))
+        << "Download transfer failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the file (error: " << lastError[0] << ")";
+
+    ASSERT_LT(DebugTestHook::countdownToOverquota, 0);
+    ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
+}
+
+
+/**
+* @brief TEST_F SdkTestOverquotaNonCloudraid
+*
+* use the hooks to simulate an overquota condition while running a raid download transfer, and check the handling
+*
+*/
+
+TEST_F(SdkTest, SdkTestOverquotaCloudraid)
+{
+#ifndef DEBUG
+    cout << "SdkTestOverquotaCloudraid can't be run in a release build as it requires the debug hooks to adjust raid parameters" << endl;
+#else
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
+    MegaHandle imported_file_handle = h;
+    MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
+
+    // set up to simulate 509 error
+    DebugTestHook::isRaid = false;
+    DebugTestHook::isRaidKnown = false;
+    DebugTestHook::countdownToOverquota = 8;
+    #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost509;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid;
+    #endif
+
+    // download - we should see a 30 second pause for 509 processing in the middle
+    string filename2 = "./" + DOWNFILE;
+    deleteFile(filename2);
+    transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApi[0]->startDownload(nimported, filename2.c_str());
+
+    // get to 30 sec pause point
+    second_timer t;
+    while (t.elapsed() < 30 && DebugTestHook::countdownToOverquota >= 0)
+    {
+        WaitMillisec(1000);
+    }
+    ASSERT_TRUE(DebugTestHook::isRaidKnown);
+    ASSERT_TRUE(DebugTestHook::isRaid);
+
+    // ok so now we should see no more http requests sent for 30 seconds.  Test 20 for reliablilty
+    int originalcount = DebugTestHook::countdownToOverquota;
+    second_timer t2;
+    while (t2.elapsed() < 20)
+    {
+        WaitMillisec(1000);
+    }
+    ASSERT_EQ(DebugTestHook::countdownToOverquota, originalcount);
+
+    // Now wait for the file to finish
+
+    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 600))
+        << "Download transfer failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the file (error: " << lastError[0] << ")";
+
+    ASSERT_LT(DebugTestHook::countdownToOverquota, 0);
+    ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
+}
+
+
+struct CheckStreamedFile_MegaTransferListener : public MegaTransferListener
+{
+    typedef ::mega::byte byte;
+
+    size_t reserved;
+    size_t receiveBufPos;
+    size_t file_start_offset;
+    byte* receiveBuf;
+    bool completedSuccessfully;
+    bool completedUnsuccessfully;
+    MegaError* completedUnsuccessfullyError;
+    byte* compareDecryptedData;
+    bool comparedEqual;
+
+
+    CheckStreamedFile_MegaTransferListener(size_t receiveStartPoint, size_t receiveSizeExpected, byte* fileCompareData)
+        : reserved(0)
+        , receiveBufPos(0)
+        , file_start_offset(0)
+        , receiveBuf(NULL)
+        , completedSuccessfully(false)
+        , completedUnsuccessfully(false)
+        , completedUnsuccessfullyError(NULL)
+        , compareDecryptedData(fileCompareData)
+        , comparedEqual(true)
+    {
+        file_start_offset = receiveStartPoint;
+        reserved = receiveSizeExpected;
+        receiveBuf = new byte[reserved];
+        compareDecryptedData = fileCompareData;
+    }
+
+    ~CheckStreamedFile_MegaTransferListener()
+    {
+        delete[] receiveBuf;
+    }
+
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) /*override*/
+    {
+    }
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError* error) /*override*/
+    {
+        if (error && error->getErrorCode() != API_OK)
+        {
+            ((error->getErrorCode() == API_EARGS && reserved == 0) ? completedSuccessfully : completedUnsuccessfully) = true;
+            completedUnsuccessfullyError = error->copy();
+        }
+        else
+        {
+            if (0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
+                comparedEqual = false;
+            completedSuccessfully = true;
+        }
+    }
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) /*override*/
+    {
+    }
+    void onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError* error) /*override*/
+    {
+        cout << "onTransferTemporaryError: " << (error?error->getErrorString():"NULL") << endl;
+    }
+    bool onTransferData(MegaApi *api, MegaTransfer *transfer, char *buffer, size_t size) /*override*/
+    {
+        assert(receiveBufPos + size <= reserved);
+        memcpy(receiveBuf + receiveBufPos, buffer, size);
+        receiveBufPos += size;
+
+        if (0 != memcmp(receiveBuf, compareDecryptedData + file_start_offset, receiveBufPos))
+            comparedEqual = false;
+
+        return true;
+    }
+};
+
+
+CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_off_t start, m_off_t end, bool raid, bool smallpieces, MegaNode* raidFileNode, MegaNode*nonRaidFileNode, ::mega::byte* filecomparedata)
+{
+    assert(raidFileNode && nonRaidFileNode);
+    LOG_info << "stream test ---------------------------------------------------" << start << " to " << end << "(len " << end - start << ") " << (raid ? " RAID " : " non-raid ") << (raid ? (smallpieces ? " smallpieces " : "normalpieces") : "");
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onSetIsRaid = smallpieces ? &DebugTestHook::onSetIsRaid_smallchunks10 : NULL;
+#endif
+
+    CheckStreamedFile_MegaTransferListener* p = new CheckStreamedFile_MegaTransferListener(size_t(start), size_t(end - start), filecomparedata);
+    megaApi->setStreamingMinimumRate(0);
+    megaApi->startStreaming(raid ? raidFileNode : nonRaidFileNode, start, end - start, p);
+    return p;
+}
+
+
+
+/**
+* @brief TEST_F SdkCloudraidStreamingSoakTest
+*
+* Stream random portions of the well-known file for 10 minutes, while randomly varying
+*       raid / non-raid
+*       front/end/middle  (especial attention to first and last raidlines, and varying start/end within a raidline)
+*       large piece / small piece
+*       small raid chunk sizes (so small pieces of file don't just load in one request per connection) / normal sizes
+*
+*/
+
+
+TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
+{
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
+
+    // ensure we have our standard raid test file
+    ASSERT_NO_FATAL_FAILURE(importPublicLink("https://mega.nz/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns", megaApi[0]->getRootNode()));
+    MegaHandle imported_file_handle = h;
+    MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    // get the file, and upload as non-raid
+    string filename2 = "./" + DOWNFILE;
+    deleteFile(filename2);
+
+    transferFlags[0][MegaTransfer::TYPE_DOWNLOAD] = false;
+    megaApi[0]->startDownload(nimported, filename2.c_str());
+    ASSERT_TRUE(waitForResponse(&transferFlags[0][MegaTransfer::TYPE_DOWNLOAD], 60)) << "Download transfer failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot download the initial file (error: " << lastError[0] << ")";
+
+    char raidchar = 0;
+    char nonraidchar = 'M';
+
+    string filename3 = filename2;
+    incrementFilename(filename3);
+    filename3 += ".neverseenbefore";
+    deleteFile(filename3);
+    copyFile(filename2, filename3);
+    {
+        fstream fs(filename3.c_str(), ios::in | ios::out | ios::binary);
+        raidchar = (char)fs.get();
+        fs.seekg(0);
+        fs.put('M');  // we have to edit the file before upload, as Mega is too clever and will skip actual upload otherwise
+        fs.flush();
+    }
+
+    // actual upload
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename3.data(), rootnode);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
+
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload a test file (error: " << lastError[0] << ")";
+
+    MegaNode *nonRaidNode = megaApi[0]->getNodeByHandle(h);
+
+    size_t filesize = getFilesize(filename2);
+    std::ifstream compareDecryptedFile(filename2.c_str(), ios::binary);
+    ::mega::byte* compareDecryptedData = new ::mega::byte[filesize];
+    compareDecryptedFile.read((char*)compareDecryptedData, filesize);
+
+    m_time_t starttime = m_time();
+    int seconds_to_test_for = g_runningInCI ? 60 : 60 * 10;
+
+    // ok loop for 10 minutes
+    srand(unsigned(starttime));
+    int randomRunsDone = 0;
+    m_off_t randomRunsBytes = 0;
+    for (; m_time() - starttime < seconds_to_test_for; ++randomRunsDone)
+    {
+
+        int testtype = rand() % 10;
+        int smallpieces = rand() % 2;
+        int nonraid = rand() % 4 == 1;
+
+        *compareDecryptedData = ::mega::byte(nonraid ? nonraidchar : raidchar);
+
+        m_off_t start = 0, end = 0;
+
+        if (testtype < 3)  // front of file
+        {
+            start = std::max<int>(0, rand() % 5 * 10240 - 1024);
+            end = start + rand() % 5 * 10240;
+        }
+        else if (testtype == 3)  // within 1, 2, or 3 raidlines
+        {
+            start = std::max<int>(0, rand() % 5 * 10240 - 1024);
+            end = start + rand() % (3 * RAIDLINE);
+        }
+        else if (testtype < 8) // end of file
+        {
+            end = std::min<m_off_t>(32620740, 32620740 + RAIDLINE - rand() % (2 * RAIDLINE));
+            start = end - rand() % 5 * 10240;
+        }
+        else if (testtype == 8) // 0 size [seems this is not allowed at intermediate layer now - EARGS]
+        {
+            start = rand() % 32620740;
+            end = start;
+        }
+        else // decent piece of the file
+        {
+            start = rand() % 5000000;
+            int n = 5000000 / (smallpieces ? 100 : 1);
+            end = start + n + rand() % n;
+        }
+
+        // seems 0 size not allowed now - make sure we get at least 1 byte
+        if (start == end)
+        {
+            if (start > 0) start -= 1;
+            else end += 1;
+        }
+        randomRunsBytes += end - start;
+
+        CheckStreamedFile_MegaTransferListener* p = StreamRaidFilePart(megaApi[0], start, end, !nonraid, smallpieces, nimported, nonRaidNode, compareDecryptedData);
+
+        for (unsigned i = 0; p->comparedEqual; ++i)
+        {
+            WaitMillisec(1000);
+            if (p->completedUnsuccessfully)
+            {
+                ASSERT_FALSE(p->completedUnsuccessfully) << " on random run " << randomRunsDone << ", download failed: " << start << " to " << end << ", " 
+                    << (nonraid?"nonraid":"raid") <<  ", " << (smallpieces?"small pieces":"normal size pieces")
+                    << ", reported error: " << (p->completedUnsuccessfullyError ? p->completedUnsuccessfullyError->getErrorCode() : 0) 
+                    << " " << (p->completedUnsuccessfullyError ? p->completedUnsuccessfullyError->getErrorString() : "NULL");
+                break;
+            }
+            else if (p->completedSuccessfully)
+            {
+                break;
+            }
+            else if (i > 60)
+            {
+                ASSERT_TRUE(i <= 60) << "download took too long";
+                break;
+            }
+        }
+        ASSERT_TRUE(p->comparedEqual);
+
+        delete p;
+
+    }
+
+    ASSERT_TRUE(randomRunsDone > (g_runningInCI ? 10 : 100));
+
+    cout << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
+
+    delete nimported;
+    delete nonRaidNode;
+    delete rootnode;
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+#endif
+}
 

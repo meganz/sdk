@@ -205,7 +205,9 @@ typedef enum ErrorCodes
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
     API_ESSL = -23,                 ///< SSL verification failed
     API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
-    API_EMFAREQUIRED = -26          ///< Multi-factor authentication required
+    API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
+    API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
+    API_EBUSINESSPASTDUE = -28      ///< Business account expired
 } error;
 
 // returned by loggedin()
@@ -288,8 +290,6 @@ typedef vector<LocalNode*> localnode_vector;
 
 typedef map<handle, LocalNode*> handlelocalnode_map;
 
-typedef list<LocalNode*> localnode_list;
-
 typedef set<LocalNode*> localnode_set;
 
 typedef multimap<int32_t, LocalNode*> idlocalnode_map;
@@ -343,7 +343,6 @@ typedef vector<handle> handle_vector;
 typedef set<pair<handle, handle> > handlepair_set;
 
 // node and user vectors
-typedef vector<struct NodeCore*> nodecore_vector;
 typedef vector<struct User*> user_vector;
 typedef vector<UserAlert::Base*> useralert_vector;
 typedef vector<struct PendingContactRequest*> pcr_vector;
@@ -357,18 +356,6 @@ typedef map<handle, int> uh_map;
 // maps lowercase user e-mail addresses to userids
 typedef map<string, int> um_map;
 
-// file attribute data
-typedef map<unsigned, string> fadata_map;
-
-// syncid to node handle mapping
-typedef map<handle, handle> syncidhandle_map;
-
-// NewNodes index to syncid mapping
-typedef map<int, handle> newnodesyncid_map;
-
-// for dynamic node addition requests, used by the sync subsystem
-typedef vector<struct NewNode*> newnode_vector;
-
 // file attribute fetch map
 typedef map<handle, FileAttributeFetch*> faf_map;
 
@@ -377,8 +364,6 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
-
-typedef set<pair<int, handle> > fareq_set;
 
 struct StringCmp
 {
@@ -395,14 +380,6 @@ typedef list<DirectReadSlot*> drs_list;
 
 typedef map<const string*, LocalNode*, StringCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
-
-// FIXME: use forward_list instead
-typedef list<NewNode*> newnode_list;
-typedef list<handle> handle_list;
-
-typedef map<handle, NewNode*> handlenewnode_map;
-
-typedef map<handle, char> handlecount_map;
 
 // maps FileFingerprints to node
 typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
@@ -436,29 +413,31 @@ typedef string_map TLV_map;
 // user attribute types
 typedef enum {
     ATTR_UNKNOWN = -1,
-    ATTR_AVATAR = 0,            // public - char array - non-versioned
-    ATTR_FIRSTNAME = 1,         // public - char array - non-versioned
-    ATTR_LASTNAME = 2,          // public - char array - non-versioned
-    ATTR_AUTHRING = 3,          // private - byte array
-    ATTR_LAST_INT = 4,          // private - byte array
-    ATTR_ED25519_PUBK = 5,      // public - byte array - versioned
-    ATTR_CU25519_PUBK = 6,      // public - byte array - versioned
-    ATTR_KEYRING = 7,           // private - byte array - versioned
-    ATTR_SIG_RSA_PUBK = 8,      // public - byte array - versioned
-    ATTR_SIG_CU255_PUBK = 9,    // public - byte array - versioned
-    ATTR_COUNTRY = 10,          // public - char array - non-versioned
-    ATTR_BIRTHDAY = 11,         // public - char array - non-versioned
-    ATTR_BIRTHMONTH = 12,       // public - char array - non-versioned
-    ATTR_BIRTHYEAR = 13,        // public - char array - non-versioned
-    ATTR_LANGUAGE = 14,         // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_PWD_REMINDER = 15,     // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_DISABLE_VERSIONS = 16, // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,  // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_RICH_PREVIEWS = 18,     // private - byte array
-    ATTR_RUBBISH_TIME = 19,      // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_LAST_PSA = 20,          // private - char array
-    ATTR_STORAGE_STATE = 21,     // private - non-encrypted - char array in B64 - non-versioned
-    ATTR_GEOLOCATION = 22        // private - byte array
+    ATTR_AVATAR = 0,                        // public - char array - non-versioned
+    ATTR_FIRSTNAME = 1,                     // public - char array - non-versioned
+    ATTR_LASTNAME = 2,                      // public - char array - non-versioned
+    ATTR_AUTHRING = 3,                      // private - byte array
+    ATTR_LAST_INT = 4,                      // private - byte array
+    ATTR_ED25519_PUBK = 5,                  // public - byte array - versioned
+    ATTR_CU25519_PUBK = 6,                  // public - byte array - versioned
+    ATTR_KEYRING = 7,                       // private - byte array - versioned
+    ATTR_SIG_RSA_PUBK = 8,                  // public - byte array - versioned
+    ATTR_SIG_CU255_PUBK = 9,                // public - byte array - versioned
+    ATTR_COUNTRY = 10,                      // public - char array - non-versioned
+    ATTR_BIRTHDAY = 11,                     // public - char array - non-versioned
+    ATTR_BIRTHMONTH = 12,                   // public - char array - non-versioned
+    ATTR_BIRTHYEAR = 13,                    // public - char array - non-versioned
+    ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_RICH_PREVIEWS = 18,                // private - byte array
+    ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_LAST_PSA = 20,                     // private - char array
+    ATTR_STORAGE_STATE = 21,                // private - non-encrypted - char array in B64 - non-versioned
+    ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
+    ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
+    ATTR_MY_CHAT_FILES_FOLDER = 24          // private - byte array - non-versioned
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 
@@ -545,6 +524,16 @@ typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_C
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
+struct recentaction
+{
+    m_time_t time;
+    handle user;
+    handle parent;
+    bool updated;
+    bool media;
+    node_vector nodes;
+};
+typedef vector<recentaction> recentactions_vector;
 } // namespace
 
 #endif

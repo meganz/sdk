@@ -33,9 +33,9 @@ class MEGA_API Request
 {
 private:
     vector<Command*> cmds;
-    std::string jsonresponse;
+    string jsonresponse;
     JSON json;
-    unsigned processindex;
+    size_t processindex = 0;
 
 public:
     void add(Command*);
@@ -44,7 +44,7 @@ public:
 
     void get(string*, bool& suppressSID) const;
 
-    void serverresponse(string& movestring, MegaClient*);
+    void serverresponse(string&& movestring, MegaClient*);
     void servererror(error e, MegaClient* client);
 
     void process(MegaClient* client);
@@ -53,7 +53,7 @@ public:
     bool empty() const; 
     void swap(Request&);
 
-    Request();
+    bool stopProcessing = false;
 };
 
 
@@ -65,12 +65,16 @@ class MEGA_API RequestDispatcher
     // client-server request double-buffering, in batches of up to MAX_COMMANDS
     deque<Request> nextreqs;
 
+    // flags for dealing with resetting everything from a command in progress
+    bool processing = false;
+    bool clearWhenSafe = false;
+
     static const int MAX_COMMANDS = 10000;
 
 public:
     RequestDispatcher();
 
-    // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), in which case set solo=true
+    // Queue a command to be send to MEGA. Some commands must go in their own batch (in case other commands fail the whole batch), determined by the Command's `batchSeparately` field.
     void add(Command*);
 
     bool cmdspending() const;
@@ -80,7 +84,7 @@ public:
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();
-    void serverresponse(string& movestring, MegaClient*);
+    void serverresponse(string&& movestring, MegaClient*);
     void servererror(error, MegaClient*);
 
     void clear();

@@ -26,6 +26,10 @@
 
 #include <iomanip>
 
+#if defined(_WIN32) && defined(_MSC_VER)
+#include <sys/timeb.h>
+#endif
+
 namespace mega {
 
 string toNodeHandle(handle nodeHandle)
@@ -1459,6 +1463,29 @@ m_time_t m_mktime(struct tm* stm)
     return mktime(stm);
 }
 
+int m_clock_getmonotonictime(timespec *t)
+{
+#ifdef __APPLE__
+    struct timeval now;
+    int rv = gettimeofday(&now, NULL);
+    if (rv)
+    {
+        return rv;
+    }
+    t->tv_sec = now.tv_sec;
+    t->tv_nsec = now.tv_usec * 1000;
+    return 0;
+#elif defined(_WIN32) && defined(_MSC_VER)
+    struct __timeb64 tb;
+    _ftime64(&tb);
+    t->tv_sec = tb.time;
+    t->tv_nsec = tb.millitm = tb.millitm * 1000000;
+    return 0;
+#else
+    return clock_gettime(CLOCK_MONOTONIC, t);
+#endif
+
+}
 
 std::string rfc1123_datetime( time_t time )
 {

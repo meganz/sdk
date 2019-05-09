@@ -8,7 +8,7 @@ set WINSDKVER=10.0.17763.0
 : Input
 set WindowsSDK_DIR=C:\Program Files (x86)\Windows Kits\10\bin\%WINSDKVER%\%PLATFORM%
 set DepotTools_URL=https://storage.googleapis.com/chrome-infra/depot_tools.zip
-set DepotTools_DIR=%CD%/depot_tools
+set DepotTools_DIR=%CD%\depot_tools
 set PDFium_URL=https://pdfium.googlesource.com/pdfium.git
 set PDFium_SOURCE_DIR=%CD%\pdfium
 set PDFium_BUILD_DIR=%PDFium_SOURCE_DIR%\out
@@ -41,19 +41,19 @@ set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 where rc.exe || exit /b
 
 :: Clone
-:call gclient config --unmanaged %PDFium_URL% || exit /b
-:call gclient sync || exit /b
+call gclient config --unmanaged %PDFium_URL% || exit /b
+call gclient sync || exit /b
 
 :: Checkout branch (or ignore if it doesn't exist)
 echo on
 cd %PDFium_SOURCE_DIR%
-:git.exe checkout %PDFium_BRANCH% && call gclient sync
+git.exe checkout %PDFium_BRANCH% && call gclient sync
 
 :: Patch
 cd %PDFium_SOURCE_DIR%
 copy "%PDFium_PATCH_DIR%\resources.rc" . || exit /b
 git.exe apply -v "%PDFium_PATCH_DIR%\shared_library.patch" || exit /b
-git.exe -C build apply -v "%PDFium_PATCH_DIR%\rc_compiler.patch" || exit /b
+git.exe -C build apply -v --ignore-space-change "%PDFium_PATCH_DIR%\rc_compiler.patch" || exit /b
 
 : Configure
 cd %PDFium_SOURCE_DIR%

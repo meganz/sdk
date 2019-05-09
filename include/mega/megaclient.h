@@ -685,6 +685,9 @@ public:
     // storage status
     storagestatus_t ststatus;
 
+    // minimum bytes per second for streaming (0 == no limit, -1 == use default)
+    int minstreamingrate;
+
     // root URL for API requests
     static string APIURL;
 
@@ -762,6 +765,9 @@ private:
 
     // next internal upload handle
     handle nextuh;
+
+    // just one notification after fetchnodes and catch-up actionpackets
+    bool notifyStorageChangeOnStateCurrent = false;
 
     // maximum number of concurrent transfers (uploads + downloads)
     static const unsigned MAXTOTALTRANSFERS;
@@ -888,7 +894,12 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
-    // have we just completed fetching new nodes?
+    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.  
+    // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
+    bool fetchingnodes;
+    int fetchnodestag;
+
+    // have we just completed fetching new nodes?  (ie, caught up on all the historic actionpackets since the fetchnodes)
     bool statecurrent;
 
     // pending file attribute writes
@@ -961,10 +972,10 @@ public:
     void pendingattrstring(handle, string*);
 
     // active/pending direct reads
-    handledrn_map hdrns;
-    dsdrn_map dsdrns;
-    dr_list drq;
-    drs_list drss;
+    handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
+    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried 
+    dr_list drq;           // DirectReads that are in DirectReadNodes which have fectched URLs
+    drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
     // merge newly received share into nodes
     void mergenewshares(bool);
@@ -1014,10 +1025,6 @@ public:
 
     // number of seconds to invalidate the cached user data
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
-
-    // initial state load in progress?
-    bool fetchingnodes;
-    int fetchnodestag;
 
     // total number of Node objects
     long long totalNodes;
@@ -1071,6 +1078,12 @@ public:
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
+
+    // get up to "maxcount" nodes, not older than "since", ordered by creation time
+    node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);
+
+    // get a vector of recent actions in the account
+    recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
 
     // generate & return upload handle
     handle getuploadhandle();
@@ -1434,6 +1447,15 @@ public:
 
     // the SDK is trying to log out
     int loggingout;
+
+    // true if the account is a business account
+    bool business;
+
+    // true if the account is a master business account, false if it's a sub-user account
+    bool businessMaster;
+
+    // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
+    int businessStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
