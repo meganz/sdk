@@ -1023,16 +1023,18 @@ public:
 void MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepath)
 {
 #ifdef USE_MEDIAINFO
-    FileAccess *fain = api->fsAccess->newfileaccess();
     string inputFilepathtmp(inputFilepath), localfilename;
     api->fsAccess->path2local(&inputFilepathtmp, &localfilename);
-    mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
 
-    // cause the codec IDs to be looked up before serialization. Codec names are not serialized, just the codec IDs
-    uint32_t dummykey[4];
-    mediaproperties.convertMediaPropertyFileAttributes(dummykey, api->client->mediaFileInfo);
+    char ext[8];
+    if (api->fsAccess->getextension(&localfilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+    {
+        mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
 
-    delete fain;
+        // cause the codec IDs to be looked up before serialization. Codec names are not serialized, just the codec IDs
+        uint32_t dummykey[4];
+        mediaproperties.convertMediaPropertyFileAttributes(dummykey, api->client->mediaFileInfo);
+    }
 #endif
 }
 
