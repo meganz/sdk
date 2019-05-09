@@ -2261,6 +2261,7 @@ bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
     }
 }
 
+#ifdef USE_FILESYSTEM
 bool recursiveCompare(Node* mn, fs::path p)
 {
     nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
@@ -2317,7 +2318,7 @@ bool recursiveCompare(Node* mn, fs::path p)
         return false;
     };
 }
-
+#endif
 Node* nodeFromRemotePath(const string& s)
 {
     Node* n;
@@ -2336,6 +2337,7 @@ Node* nodeFromRemotePath(const string& s)
     return n;
 }
 
+#ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
     fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
@@ -2346,6 +2348,7 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
     }
     return p;
 }
+#endif
 
 #ifdef HAVE_AUTOCOMPLETE
 void exec_treecompare(autocomplete::ACState& s)
