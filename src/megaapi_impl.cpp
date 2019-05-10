@@ -20215,7 +20215,6 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL:
         {
-            MegaBackgroundMediaUploadPrivate* bg = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
             client->reqs.add(new CommandPutFileBackgroundURL(request->getNumber(), client->putmbpscap, request->getTag()));
             break;
         }
