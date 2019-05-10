@@ -29802,7 +29802,7 @@ int MegaTimeZoneDetailsPrivate::getDefault() const
 MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const string &settingsJSON)
 {
     JSON json;
-    json.begin(settingsJSON.c_str() + 1);
+    json.begin(settingsJSON.c_str() + 2);
     std::string name = json.getname();
     while (!name.empty())
     {
@@ -30006,7 +30006,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         return json;
     }
 
-    json = "{";
+    json = "[{";
     if (mGlobalDND > -1 || isGlobalScheduleEnabled())
     {        
         json.append("\"GLOBAL\":{");
@@ -30020,7 +30020,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         {
             json.append("\"nsch\":{\"start\":").append(std::to_string(mGlobalScheduleStart));
             json.append(",\"end\":").append(std::to_string(mGlobalScheduleEnd));
-            json.append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}");
+            json.append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}}");
             json.append(",");
         }
     }
@@ -30077,6 +30077,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         json.pop_back();
     }
     json.append("}");
+    json.append("]");
     return json;
 }
 
