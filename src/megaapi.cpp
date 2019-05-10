@@ -3711,6 +3711,16 @@ void MegaApi::checkSMSVerificationCode(const char* verificationCode, MegaRequest
     pImpl->checkSMSVerificationCode(verificationCode, listener);
 }
 
+void MegaApi::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener)
+{
+    pImpl->getRegisteredContacts(contacts, listener);
+}
+
+void MegaApi::getCountryCallingCodes(MegaRequestListener *listener)
+{
+    pImpl->getCountryCallingCodes(listener);
+}
+
 
 #ifdef HAVE_LIBUV
 bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath, bool useIPv6)

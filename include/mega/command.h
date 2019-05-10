@@ -86,7 +86,9 @@ public:
     const char* getstring() const;
 
     Command();
-    virtual ~Command() { }
+    virtual ~Command() = default;
+
+    MEGA_DISABLE_COPY_MOVE(Command)
 };
 
 // list of new file attributes to write
@@ -1118,6 +1120,24 @@ public:
     static bool isverificationcode(const string& s);
 
     CommandSMSVerificationCheck(MegaClient*, const string& code);
+};
+
+class MEGA_API CommandGetRegisteredContacts : public Command
+{
+public:
+    void procresult();
+
+    explicit
+    CommandGetRegisteredContacts(MegaClient* client);
+};
+
+class MEGA_API CommandGetCountryCallingCodes : public Command
+{
+public:
+    void procresult();
+
+    explicit
+    CommandGetCountryCallingCodes(MegaClient* client);
 };
 
 

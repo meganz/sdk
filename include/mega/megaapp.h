@@ -355,6 +355,10 @@ struct MEGA_API MegaApp
     virtual void smsverificationsend_result(error) { }
     virtual void smsverificationcheck_result(error) { }
 
+    virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) { }
+
+    virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

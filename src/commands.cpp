@@ -6979,13 +6979,13 @@ CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, con
     }
 
     tag = client->reqtag;
-};
+}
 
 bool CommandSMSVerificationCheck::isverificationcode(const string& s)
 {
-    for (int i = s.size(); i--; )
+    for (const char c : s)
     {
-        if (!(isdigit(s[i])))
+        if (!isdigit(c))
         {
             return false;
         }
@@ -6997,7 +6997,7 @@ void CommandSMSVerificationCheck::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->smsverificationcheck_result((error)client->json.getint());
+        client->app->smsverificationcheck_result(static_cast<error>(client->json.getint()));
     }
     else
     {
@@ -7005,6 +7005,150 @@ void CommandSMSVerificationCheck::procresult()
         client->app->smsverificationcheck_result(API_EINTERNAL);
     }
 };
+
+CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client)
+{
+    cmd("usabd");
+
+    tag = client->reqtag;
+}
+
+void CommandGetRegisteredContacts::procresult()
+{
+    if (!client->json.enterarray())
+    {
+        client->app->getregisteredcontacts_result(API_EINTERNAL, nullptr);
+        return;
+    }
+
+    vector<tuple<string, string, string>> registered_contacts;
+
+    string entry_user_detail;
+    string id;
+    string user_detail;
+
+    for (;;)
+    {
+        if (client->json.enterobject())
+        {
+            bool end_of_object = false;
+            while (!end_of_object)
+            {
+                switch (client->json.getnameid())
+                {
+                    case MAKENAMEID3('e', 'u', 'd'):
+                    {
+                        client->json.storeobject(&entry_user_detail);
+                        break;
+                    }
+                    case MAKENAMEID2('i', 'd'):
+                    {
+                        client->json.storeobject(&id);
+                        break;
+                    }
+                    case MAKENAMEID2('u', 'd'):
+                    {
+                        client->json.storeobject(&user_detail);
+                        break;
+                    }
+                    case EOO:
+                    {
+                        end_of_object = true;
+                        break;
+                    }
+                    default:
+                    {
+                        // todo: report error
+                        break;
+                    }
+                }
+            }
+            client->json.leaveobject();
+            registered_contacts.emplace_back(move(entry_user_detail), move(id), move(user_detail));
+        }
+        else
+        {
+            break;
+        }
+    }
+    client->json.leavearray();
+    client->app->getregisteredcontacts_result(API_OK, &registered_contacts);
+}
+
+CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
+{
+    cmd("smslc");
+
+    tag = client->reqtag;
+}
+
+void CommandGetCountryCallingCodes::procresult()
+{
+    if (!client->json.enterarray())
+    {
+        client->app->getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+        return;
+    }
+
+    map<string, vector<string>> country_calling_codes;
+
+    string country_code;
+    vector<string> calling_codes;
+
+    for (;;)
+    {
+        if (client->json.enterobject())
+        {
+            bool end_of_object = false;
+            while (!end_of_object)
+            {
+                switch (client->json.getnameid())
+                {
+                    case MAKENAMEID2('c', 'c'):
+                    {
+                        client->json.storeobject(&country_code);
+                        break;
+                    }
+                    case MAKENAMEID1('l'):
+                    {
+                        if (client->json.enterarray())
+                        {
+                            for (;;)
+                            {
+                                std::string code;
+                                if (!client->json.storeobject(&code))
+                                {
+                                    break;
+                                }
+                                calling_codes.emplace_back(std::move(code));
+                            }
+                            client->json.leavearray();
+                        }
+                        break;
+                    }
+                    case EOO:
+                    {
+                        end_of_object = true;
+                        break;
+                    }
+                    default:
+                    {
+                        // todo: report error
+                        break;
+                    }
+                }
+            }
+            client->json.leaveobject();
+            country_calling_codes.emplace(move(country_code), move(calling_codes));
+        }
+        else
+        {
+            break;
+        }
+    }
+    client->json.leavearray();
+    client->app->getcountrycallingcodes_result(API_OK, &country_calling_codes);
+}
 
 
 } // namespace

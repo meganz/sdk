@@ -57,7 +57,6 @@ struct MEGA_API JSON
     bool enterobject();
     bool leaveobject();
 
-    bool storestring(string*);
     bool storeobject(string* = NULL);
 
     static void unescape(string*);

@@ -9166,6 +9166,21 @@ void MegaApiImpl::checkSMSVerificationCode(const char* verificationCode, MegaReq
     waiter->notify();
 }
 
+void MegaApiImpl::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_REGISTERED_CONTACTS, listener);
+    request->setMegaStringMap(contacts);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getCountryCallingCodes(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaUserList* MegaApiImpl::getContacts()
 {
     sdkMutex.lock();
@@ -19953,6 +19968,28 @@ void MegaApiImpl::sendPendingRequests()
             {
                 e = API_EARGS;
             }
+            break;
+        }
+        case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
+        {
+            const auto contacts = request->getMegaStringMap();
+            const auto contacts_keys = contacts->getKeys();
+
+            const auto command = new CommandGetRegisteredContacts{client};
+            command->beginobject();
+            for (int i = 0; i < contacts_keys->size(); ++i)
+            {
+                const auto key = contacts_keys->get(i);
+                command->arg(key, contacts->get(key));
+            }
+            command->endobject();
+
+            client->reqs.add(command);
+            break;
+        }
+        case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
+        {
+            client->reqs.add(new CommandGetCountryCallingCodes{client});
             break;
         }
         default:

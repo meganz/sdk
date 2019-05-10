@@ -2533,7 +2533,7 @@ public:
 /**
  * @brief Provides information about an asynchronous request
  *
- * Most functions in this API are asynchonous, except the ones that never require to
+ * Most functions in this API are asynchronous, except the ones that never require to
  * contact MEGA servers. Developers can use listeners (MegaListener, MegaRequestListener)
  * to track the progress of each request. MegaRequest objects are provided in callbacks sent
  * to these listeners and allow developers to know the state of the request, their parameters
@@ -2589,6 +2589,8 @@ class MegaRequest
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
             TYPE_CATCHUP,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
+            TYPE_GET_REGISTERED_CONTACTS,
+            TYPE_GET_COUNTRY_CALLING_CODES,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -13965,7 +13967,7 @@ class MegaApi
          */
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
         
-		void catchup(MegaRequestListener *listener = NULL);
+        void catchup(MegaRequestListener *listener = NULL);
         /**
          * @brief Check a verification code that the user should have received via txt
          *
@@ -13976,7 +13978,9 @@ class MegaApi
          */
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
 
+        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
 
+        void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;
