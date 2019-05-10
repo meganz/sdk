@@ -524,6 +524,10 @@ string User::attr2longname(attr_t type)
     case ATTR_GEOLOCATION:
         longname = "GEOLOCATION";
         break;
+            
+    case ATTR_UNSHAREABLE_ATTR:
+        longname = "UNSHAREABLE_ATTR";
+        break;
 
     case ATTR_UNKNOWN:
         longname = "";  // empty string
