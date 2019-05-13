@@ -9548,7 +9548,10 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
                                    bool transfer, bool pro, bool transactions,
                                    bool purchases, bool sessions)
 {
-    reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro));
+    if (storage || transfer || pro)
+    {
+        reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro));
+    }
 
     if (transactions)
     {
