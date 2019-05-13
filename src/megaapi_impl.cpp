@@ -20236,10 +20236,14 @@ void MegaApiImpl::sendPendingRequests()
             newnode->parenthandle = UNDEF;
             newnode->uploadhandle = client->getuploadhandle();
             newnode->attrstring = new string();
-#ifdef USE_MEDIAINFO
-            newnode->fileattributes = new string(MediaProperties::encodeMediaPropertiesAttributes(bg->mediaproperties, (uint32_t*)(bg->filekey + FILENODEKEYLENGTH / 2)));
-#endif
             string name = sm->get("n");
+#ifdef USE_MEDIAINFO
+            char ext[8];
+            if (this->fsAccess->getextension(&name, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+            {
+                newnode->fileattributes = new string(MediaProperties::encodeMediaPropertiesAttributes(bg->mediaproperties, (uint32_t*)(bg->filekey + FILENODEKEYLENGTH / 2)));
+            }
+#endif
             AttrMap attrs;
             attrs.map['n'] = name;
             attrs.map['c'] = sm->get("c");
