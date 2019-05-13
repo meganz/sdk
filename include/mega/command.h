@@ -28,6 +28,10 @@
 #include "http.h"
 
 namespace mega {
+
+struct JSON;
+struct MegaApp;
+
 // request command component
 class MEGA_API Command
 {
@@ -1125,7 +1129,9 @@ public:
 class MEGA_API CommandGetRegisteredContacts : public Command
 {
 public:
-    void procresult();
+    static void processResult(MegaApp& app, JSON& json);
+
+    void procresult() override;
 
     explicit
     CommandGetRegisteredContacts(MegaClient* client);
@@ -1134,7 +1140,9 @@ public:
 class MEGA_API CommandGetCountryCallingCodes : public Command
 {
 public:
-    void procresult();
+    static void processResult(MegaApp& app, JSON& json);
+
+    void procresult() override;
 
     explicit
     CommandGetCountryCallingCodes(MegaClient* client);

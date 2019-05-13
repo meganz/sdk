@@ -12,7 +12,8 @@ $(TESTS): $(top_builddir)/src/libmega.la
 tests_misc_test_SOURCES = \
     tests/tests.cpp \
     tests/paycrypt_test.cpp \
-    tests/crypto_test.cpp
+    tests/crypto_test.cpp \
+    tests/commands_test.cpp
 
 tests_sdk_test_SOURCES = \
     tests/sdktests.cpp \

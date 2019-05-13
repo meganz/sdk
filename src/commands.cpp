@@ -7006,18 +7006,17 @@ void CommandSMSVerificationCheck::procresult()
     }
 };
 
-CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client)
+void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
 {
-    cmd("usabd");
-
-    tag = client->reqtag;
-}
-
-void CommandGetRegisteredContacts::procresult()
-{
-    if (!client->json.enterarray())
+    if (json.isnumeric())
     {
-        client->app->getregisteredcontacts_result(API_EINTERNAL, nullptr);
+        app.getregisteredcontacts_result(static_cast<error>(json.getint()), nullptr);
+        return;
+    }
+
+    if (!json.enterarray())
+    {
+        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
         return;
     }
 
@@ -7029,26 +7028,26 @@ void CommandGetRegisteredContacts::procresult()
 
     for (;;)
     {
-        if (client->json.enterobject())
+        if (json.enterobject())
         {
             bool end_of_object = false;
             while (!end_of_object)
             {
-                switch (client->json.getnameid())
+                switch (json.getnameid())
                 {
                     case MAKENAMEID3('e', 'u', 'd'):
                     {
-                        client->json.storeobject(&entry_user_detail);
+                        json.storeobject(&entry_user_detail);
                         break;
                     }
                     case MAKENAMEID2('i', 'd'):
                     {
-                        client->json.storeobject(&id);
+                        json.storeobject(&id);
                         break;
                     }
                     case MAKENAMEID2('u', 'd'):
                     {
-                        client->json.storeobject(&user_detail);
+                        json.storeobject(&user_detail);
                         break;
                     }
                     case EOO:
@@ -7058,12 +7057,17 @@ void CommandGetRegisteredContacts::procresult()
                     }
                     default:
                     {
-                        // todo: report error
+                        if (!json.storeobject())
+                        {
+                            LOG_err << "Failed to parse 'get registered contacts' response";
+                            app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                            return;
+                        }
                         break;
                     }
                 }
             }
-            client->json.leaveobject();
+            json.leaveobject();
             registered_contacts.emplace_back(move(entry_user_detail), move(id), move(user_detail));
         }
         else
@@ -7071,22 +7075,33 @@ void CommandGetRegisteredContacts::procresult()
             break;
         }
     }
-    client->json.leavearray();
-    client->app->getregisteredcontacts_result(API_OK, &registered_contacts);
+    json.leavearray();
+    app.getregisteredcontacts_result(API_OK, &registered_contacts);
 }
 
-CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
+void CommandGetRegisteredContacts::procresult()
 {
-    cmd("smslc");
+    processResult(*client->app, client->json);
+}
+
+CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client)
+{
+    cmd("usabd");
 
     tag = client->reqtag;
 }
 
-void CommandGetCountryCallingCodes::procresult()
+void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
 {
-    if (!client->json.enterarray())
+    if (json.isnumeric())
     {
-        client->app->getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+        app.getcountrycallingcodes_result(static_cast<error>(json.getint()), nullptr);
+        return;
+    }
+
+    if (!json.enterarray())
+    {
+        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
         return;
     }
 
@@ -7097,32 +7112,32 @@ void CommandGetCountryCallingCodes::procresult()
 
     for (;;)
     {
-        if (client->json.enterobject())
+        if (json.enterobject())
         {
             bool end_of_object = false;
             while (!end_of_object)
             {
-                switch (client->json.getnameid())
+                switch (json.getnameid())
                 {
                     case MAKENAMEID2('c', 'c'):
                     {
-                        client->json.storeobject(&country_code);
+                        json.storeobject(&country_code);
                         break;
                     }
                     case MAKENAMEID1('l'):
                     {
-                        if (client->json.enterarray())
+                        if (json.enterarray())
                         {
                             for (;;)
                             {
                                 std::string code;
-                                if (!client->json.storeobject(&code))
+                                if (!json.storeobject(&code))
                                 {
                                     break;
                                 }
-                                calling_codes.emplace_back(std::move(code));
+                                calling_codes.emplace_back(move(code));
                             }
-                            client->json.leavearray();
+                            json.leavearray();
                         }
                         break;
                     }
@@ -7133,12 +7148,17 @@ void CommandGetCountryCallingCodes::procresult()
                     }
                     default:
                     {
-                        // todo: report error
+                        if (!json.storeobject())
+                        {
+                            LOG_err << "Failed to parse 'get country calling codes' response";
+                            app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                            return;
+                        }
                         break;
                     }
                 }
             }
-            client->json.leaveobject();
+            json.leaveobject();
             country_calling_codes.emplace(move(country_code), move(calling_codes));
         }
         else
@@ -7146,8 +7166,20 @@ void CommandGetCountryCallingCodes::procresult()
             break;
         }
     }
-    client->json.leavearray();
-    client->app->getcountrycallingcodes_result(API_OK, &country_calling_codes);
+    json.leavearray();
+    app.getcountrycallingcodes_result(API_OK, &country_calling_codes);
+}
+
+void CommandGetCountryCallingCodes::procresult()
+{
+    processResult(*client->app, client->json);
+}
+
+CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
+{
+    cmd("smslc");
+
+    tag = client->reqtag;
 }
 
 
