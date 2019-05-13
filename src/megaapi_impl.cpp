@@ -29802,7 +29802,7 @@ int MegaTimeZoneDetailsPrivate::getDefault() const
 MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const string &settingsJSON)
 {
     JSON json;
-    json.begin(settingsJSON.c_str() + 2);
+    json.begin(settingsJSON.c_str() + 1);
     std::string name = json.getname();
     while (!name.empty())
     {
@@ -30006,7 +30006,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         return json;
     }
 
-    json = "[{";
+    json = "{";
     if (mGlobalDND > -1 || isGlobalScheduleEnabled())
     {        
         json.append("\"GLOBAL\":{");
@@ -30020,9 +30020,15 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         {
             json.append("\"nsch\":{\"start\":").append(std::to_string(mGlobalScheduleStart));
             json.append(",\"end\":").append(std::to_string(mGlobalScheduleEnd));
-            json.append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}}");
-            json.append(",");
+            json.append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}");
         }
+
+        if (json.at(json.length() - 1) == ',')  // clear a tailing comma (not needed)
+        {
+            json.pop_back();
+        }
+
+        json.append("},");
     }
 
     if (mContactsDND > -1)
@@ -30077,7 +30083,6 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         json.pop_back();
     }
     json.append("}");
-    json.append("]");
     return json;
 }
 
