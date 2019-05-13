@@ -3668,6 +3668,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_USERALERT_ACKNOWLEDGE: return "TYPE_USERALERT_ACKNOWLEDGE";
         case TYPE_CATCHUP: return "CATCHUP";
         case TYPE_GET_BACKGROUND_UPLOAD_URL: return "TYPE_GET_BACKGROUND_UPLOAD_URL";
+        case TYPE_COMPLETE_BACKGROUND_UPLOAD: return "TYPE_COMPLETE_BACKGROUND_UPLOAD";
     }
     return "UNKNOWN";
 }
