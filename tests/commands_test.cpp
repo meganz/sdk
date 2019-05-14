@@ -67,7 +67,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
     MockApp_CommandGetRegisteredContacts app;
 
     JSON json;
-    json.pos = R"([{"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"},{"eud":"+64271234567","id":"42","ud":"+64 27 123 4567"}])";
+    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"},{"eud":"+64271234567","id":"42","ud":"+64 27 123 4567"})";
 
     CommandGetRegisteredContacts::processResult(app, json);
 
@@ -87,7 +87,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
     MockApp_CommandGetRegisteredContacts app;
 
     JSON json;
-    json.pos = R"([{"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"}])";
+    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"})";
 
     CommandGetRegisteredContacts::processResult(app, json);
 
@@ -101,26 +101,12 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
     ASSERT_EQ(expected, *app.registeredContacts);
 }
 
-TEST(Commands, CommandGetRegisteredContacts_processResult_emptyResponse)
+TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
 {
     MockApp_CommandGetRegisteredContacts app;
 
     JSON json;
-    json.pos = "";
-
-    CommandGetRegisteredContacts::processResult(app, json);
-
-    ASSERT_EQ(1, app.callCount);
-    ASSERT_EQ(API_EINTERNAL, app.lastError);
-    ASSERT_EQ(nullptr, app.registeredContacts);
-}
-
-TEST(Commands, CommandGetRegisteredContacts_processResult_jsonNotAnArray)
-{
-    MockApp_CommandGetRegisteredContacts app;
-
-    JSON json;
-    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"}])";
+    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","blah":"foo@mega.co.nz"})";
 
     CommandGetRegisteredContacts::processResult(app, json);
 
@@ -176,7 +162,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_happyPath)
     MockApp_CommandGetCountryCallingCodes app;
 
     JSON json;
-    json.pos = R"([{"cc":"AD","l":[376]},{"cc":"AE","l":[971,13]},{"cc":"AF","l":[93,13,42]}])";
+    json.pos = R"({"cc":"AD","l":[376]},{"cc":"AE","l":[971,13]},{"cc":"AF","l":[93,13,42]})";
 
     CommandGetCountryCallingCodes::processResult(app, json);
 
@@ -197,7 +183,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_onlyOneCountry)
     MockApp_CommandGetCountryCallingCodes app;
 
     JSON json;
-    json.pos = R"([{"cc":"AD","l":[12,376]}])";
+    json.pos = R"({"cc":"AD","l":[12,376]})";
 
     CommandGetCountryCallingCodes::processResult(app, json);
 
@@ -211,26 +197,12 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_onlyOneCountry)
     ASSERT_EQ(expected, *app.countryCallingCodes);
 }
 
-TEST(Commands, CommandGetCountryCallingCodes_processResult_emptyResponse)
+TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
 {
     MockApp_CommandGetCountryCallingCodes app;
 
     JSON json;
-    json.pos = "";
-
-    CommandGetCountryCallingCodes::processResult(app, json);
-
-    ASSERT_EQ(1, app.callCount);
-    ASSERT_EQ(API_EINTERNAL, app.lastError);
-    ASSERT_EQ(nullptr, app.countryCallingCodes);
-}
-
-TEST(Commands, CommandGetCountryCallingCodes_processResult_jsonNotAnArray)
-{
-    MockApp_CommandGetCountryCallingCodes app;
-
-    JSON json;
-    json.pos = R"({"cc":"AD","l":[12,376]}])";
+    json.pos = R"({"cc":"AD","blah":[12,376]})";
 
     CommandGetCountryCallingCodes::processResult(app, json);
 

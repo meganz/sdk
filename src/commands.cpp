@@ -7015,12 +7015,6 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
         return;
     }
 
-    if (!json.enterarray())
-    {
-        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
-        return;
-    }
-
     vector<tuple<string, string, string>> registered_contacts;
 
     string entry_user_detail;
@@ -7058,13 +7052,9 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
                     }
                     default:
                     {
-                        if (!json.storeobject())
-                        {
-                            LOG_err << "Failed to parse 'get registered contacts' response";
-                            app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
-                            return;
-                        }
-                        break;
+                        LOG_err << "Failed to parse 'get registered contacts' response";
+                        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                        return;
                     }
                 }
             }
@@ -7076,7 +7066,6 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
             break;
         }
     }
-    json.leavearray();
     app.getregisteredcontacts_result(API_OK, &registered_contacts);
 }
 
@@ -7106,12 +7095,6 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
     if (json.isnumeric())
     {
         app.getcountrycallingcodes_result(static_cast<error>(json.getint()), nullptr);
-        return;
-    }
-
-    if (!json.enterarray())
-    {
-        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
         return;
     }
 
@@ -7158,13 +7141,9 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
                     }
                     default:
                     {
-                        if (!json.storeobject())
-                        {
-                            LOG_err << "Failed to parse 'get country calling codes' response";
-                            app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
-                            return;
-                        }
-                        break;
+                        LOG_err << "Failed to parse 'get country calling codes' response";
+                        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                        return;
                     }
                 }
             }
@@ -7176,7 +7155,6 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
             break;
         }
     }
-    json.leavearray();
     app.getcountrycallingcodes_result(API_OK, &country_calling_codes);
 }
 
