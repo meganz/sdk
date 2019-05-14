@@ -3886,7 +3886,8 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 }
 
-TEST_F(SdkTest, SdkGetCountryCallingCodes)
+// TODO: Enable these tests when API command becomes available in production
+TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
 {
     getCountryCallingCodes();
     ASSERT_NE(nullptr, stringListMap);
@@ -3902,7 +3903,8 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
 
-TEST_F(SdkTest, SdkGetRegisteredContacts)
+// TODO: Enable these tests when API command becomes available in production
+TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
 {
     const std::string js1 = "+0000000010";
     const std::string js2 = "+0000000011";
