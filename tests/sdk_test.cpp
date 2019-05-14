@@ -3915,13 +3915,13 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
     ASSERT_NE(nullptr, stringTable);
     ASSERT_EQ(2, stringTable->size());
     // Check johnsmith1
-    const auto stringList1 = stringTable->get(0);
+    const MegaStringList* const stringList1 = stringTable->get(0);
     ASSERT_EQ(3, stringList1->size());
     ASSERT_EQ(js1, std::string{stringList1->get(0)}); // eud
     ASSERT_GT(std::string{stringList1->get(1)}.size(), 0); // id
     ASSERT_EQ(js1, std::string{stringList1->get(2)}); // ud
     // Check johnsmith2
-    const auto stringList2 = stringTable->get(1);
+    const MegaStringList* const stringList2 = stringTable->get(1);
     ASSERT_EQ(3, stringList2->size());
     ASSERT_EQ(js2, std::string{stringList2->get(0)}); // eud
     ASSERT_GT(std::string{stringList2->get(1)}.size(), 0); // id

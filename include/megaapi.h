@@ -2114,6 +2114,11 @@ public:
 
     virtual MegaStringList *copy() const;
 
+    /**
+     * Appends a string to the end of the string list while creating a copy of the value passed.
+     *
+     * @param value The string to append. Must be null-terminated.
+     */
     virtual void append(const char* value);
 
     /**
@@ -2145,10 +2150,37 @@ public:
 
     virtual MegaStringListMap* copy() const;
 
+    /**
+     * @brief Returns the string list at the given key in the map
+     *
+     * The MegaStringMap retains the ownership of the returned string list. It will be only valid until
+     * the MegaStringMap is deleted.
+     *
+     * If the key is not found in the map, this function returns NULL.
+     *
+     * @param key Key to lookup in the map. Must be null-terminated
+     * @return String list at the given key in the map
+     */
     virtual const MegaStringList* get(const char* key) const;
 
+    /**
+     * @brief Sets a value in the map for the given key.
+     *
+     * If the key already exists, the value will be overwritten by the
+     * new value.
+     *
+     * The map does not take ownership of the parameters passed, it makes
+     * a local copy.
+     *
+     * @param key The key in the map. It must be a null-terminated string.
+     * @param value The new value for the key in the map.
+     */
     virtual void set(const char* key, const MegaStringList* value);
 
+    /**
+     * @brief Returns the number of (string, string list) pairs in the map
+     * @return Number of pairs in the map
+     */
     virtual int size() const;
 };
 
@@ -2161,10 +2193,31 @@ public:
 
     virtual MegaStringTable* copy() const;
 
+    /**
+     * @brief Appends a new string list to the end of the table
+     *
+     * The parameter passed is copied.
+     *
+     * @param value The string list to append
+     */
     virtual void append(const MegaStringList* value);
 
+    /**
+     * @brief Returns the string list at position i
+     *
+     * The table retains the ownership of the returned string list. It will be only valid until
+     * the table is deleted.
+     *
+     * The returned pointer is null if i is out of range.
+     *
+     * @return Number of string lists in the table
+     */
     virtual const MegaStringList* get(int i) const;
 
+    /**
+     * @brief Returns the number of string lists in the table
+     * @return Number of string lists in the table
+     */
     virtual int size() const;
 };
 
@@ -14016,8 +14069,24 @@ class MegaApi
          */
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Requests the contacts that are registered at MEGA (currently verified through SMS)
+         *
+         * The request will return any of the provided contacts that are registered at MEGA, i.e.,
+         * are verified through SMS (currently). Check the unit tests for an example response.
+         *
+         * @param contacts The map of contacts to get registered contacts from
+         * @param listener MegaRequestListener to track this request
+         */
         void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Requests the currently available country calling codes
+         *
+         * Check the unit tests for an example response.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
 private:

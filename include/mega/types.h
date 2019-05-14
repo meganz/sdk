@@ -19,7 +19,8 @@
  * program.
  */
 
-#pragma once
+#ifndef MEGA_TYPES_H
+#define MEGA_TYPES_H 1
 
 #ifdef _MSC_VER
 #if MEGA_LINKED_AS_SHARED_LIBRARY
@@ -559,3 +560,5 @@ typedef vector<recentaction> recentactions_vector;
 #define MEGA_DEFAULT_COPY_MOVE(class_name) \
     MEGA_DEFAULT_COPY(class_name) \
     MEGA_DEFAULT_MOVE(class_name)
+
+#endif

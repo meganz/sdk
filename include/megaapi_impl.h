@@ -2562,8 +2562,10 @@ protected:
         virtual void smsverificationsend_result(error);
         virtual void smsverificationcheck_result(error);
 
+        // get registered contacts
         virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*);
 
+        // get country calling codes
         virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*);
 
         // get the current PSA
