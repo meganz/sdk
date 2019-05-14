@@ -3604,66 +3604,39 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
     delete keys;
 }
 
-MegaStringListPrivate::MegaStringListPrivate()
-{
-    list = NULL;
-    s = 0;
-}
-
-MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
-{
-    s = stringList->size();
-    if (!s)
-    {
-        list = NULL;
-        return;
-    }
-
-    list = new const char*[s];
-    for (int i = 0; i < s; i++)
-        list[i] = MegaApi::strdup(stringList->get(i));
-}
 
 MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
 {
-    list = NULL;
-    s = size;
-    if (!size)
-    {
-        return;
-    }
-
-    list = new const char*[size];
     for (int i = 0; i < size; i++)
-        list[i] = MegaApi::strdup(newlist[i]);
-}
-
-MegaStringListPrivate::~MegaStringListPrivate()
-{
-    if(!list)
-        return;
-
-    for(int i=0; i<s; i++)
-        delete [] list[i];
-    delete [] list;
+    {
+        append(newlist[i]);
+    }
 }
 
 MegaStringList *MegaStringListPrivate::copy() const
 {
-    return new MegaStringListPrivate(this);
+    auto list = new MegaStringListPrivate;
+    list->m_list = m_list;
+    return list;
+}
+
+void MegaStringListPrivate::append(const char* value)
+{
+    m_list.emplace_back(value);
 }
 
 const char *MegaStringListPrivate::get(int i) const
 {
-    if(!list || (i < 0) || (i >= s))
-        return NULL;
-
-    return list[i];
+    if (i >= 0 && i < size())
+    {
+        return m_list[i].c_str();
+    }
+    return nullptr;
 }
 
 int MegaStringListPrivate::size() const
 {
-    return s;
+    return static_cast<int>(m_list.size());
 }
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
@@ -3739,7 +3712,7 @@ void MegaStringTablePrivate::append(const MegaStringList* value)
 
 const MegaStringList* MegaStringTablePrivate::get(int i) const
 {
-    if (i < size())
+    if (i >= 0 && i < size())
     {
         return m_table[i].get();
     }
@@ -14163,6 +14136,59 @@ void MegaApiImpl::smsverificationcheck_result(error e)
     }
 }
 
+void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, string, string>>* data)
+{
+    auto it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_GET_REGISTERED_CONTACTS)))
+        {
+            if (data)
+            {
+                auto stringTable = std::unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
+                for (const auto& row : *data)
+                {
+                    auto stringList = std::unique_ptr<MegaStringList>{MegaStringList::createInstance()};
+                    stringList->append(std::get<0>(row).c_str());
+                    stringList->append(std::get<1>(row).c_str());
+                    stringList->append(std::get<2>(row).c_str());
+                    stringTable->append(stringList.get());
+                }
+                request->setMegaStringTable(stringTable.get());
+            }
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
+void MegaApiImpl::getcountrycallingcodes_result(error e, map<string, vector<string>>* data)
+{
+    auto it = requestMap.find(client->restag);
+    if (it != requestMap.end())
+    {
+        MegaRequestPrivate* request = it->second;
+        if (request && ((request->getType() == MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES)))
+        {
+            if (data)
+            {
+                auto stringListMap = std::unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
+                for (const auto& pair : *data)
+                {
+                    auto stringList = std::unique_ptr<MegaStringList>{MegaStringList::createInstance()};
+                    for (const auto& value : pair.second)
+                    {
+                        stringList->append(value.c_str());
+                    }
+                    stringListMap->set(pair.first.c_str(), stringList.get());
+                }
+                request->setMegaStringListMap(stringListMap.get());
+            }
+            fireOnRequestFinish(request, e);
+        }
+    }
+}
+
 void MegaApiImpl::sendsignuplink_result(error e)
 {
 	MegaError megaError(e);
@@ -20094,18 +20120,14 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
         {
             const auto contacts = request->getMegaStringMap();
-            const auto contacts_keys = contacts->getKeys();
-
-            const auto command = new CommandGetRegisteredContacts{client};
-            command->beginobject();
-            for (int i = 0; i < contacts_keys->size(); ++i)
+            if (contacts)
             {
-                const auto key = contacts_keys->get(i);
-                command->arg(key, contacts->get(key));
+                client->reqs.add(new CommandGetRegisteredContacts{client, *contacts});
             }
-            command->endobject();
-
-            client->reqs.add(command);
+            else
+            {
+                assert(false && "contacts must be valid");
+            }
             break;
         }
         case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:

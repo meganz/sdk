@@ -95,9 +95,18 @@ MegaStringList::~MegaStringList()
 
 }
 
+MegaStringList* MegaStringList::createInstance()
+{
+    return new MegaStringListPrivate;
+}
+
 MegaStringList *MegaStringList::copy() const
 {
     return NULL;
+}
+
+void MegaStringList::append(const char*)
+{
 }
 
 const char *MegaStringList::get(int) const

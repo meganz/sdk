@@ -1430,18 +1430,15 @@ protected:
 class MegaStringListPrivate : public MegaStringList
 {
 public:
-    MegaStringListPrivate();
-    MegaStringListPrivate(char **newlist, int size);
-    ~MegaStringListPrivate();
+    MegaStringListPrivate() = default;
+    MegaStringListPrivate(char** newlist, int size);
     MEGA_DISABLE_COPY_MOVE(MegaStringListPrivate)
-    MegaStringList *copy() const override;
+    MegaStringList* copy() const override;
+    void append(const char* value) override;
     const char* get(int i) const override;
     int size() const override;
-
 protected:
-    MegaStringListPrivate(const MegaStringListPrivate *stringList);
-    const char** list;
-    int s;
+    vector<string> m_list;
 };
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
@@ -2564,6 +2561,10 @@ protected:
         // account validation by txted verification code
         virtual void smsverificationsend_result(error);
         virtual void smsverificationcheck_result(error);
+
+        virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*);
+
+        virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*);
 
         // get the current PSA
         virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);

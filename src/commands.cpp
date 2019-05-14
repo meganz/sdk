@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "megaapi.h"
 #include "mega/types.h"
 #include "mega/command.h"
 #include "mega/megaapp.h"
@@ -7084,11 +7085,20 @@ void CommandGetRegisteredContacts::procresult()
     processResult(*client->app, client->json);
 }
 
-CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client)
+CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const MegaStringMap& contacts)
 {
     cmd("usabd");
 
     tag = client->reqtag;
+
+    const auto contacts_keys = contacts.getKeys();
+    beginobject("e");
+    for (int i = 0; i < contacts_keys->size(); ++i)
+    {
+        const auto key = contacts_keys->get(i);
+        arg(key, contacts.get(key));
+    }
+    endobject();
 }
 
 void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
