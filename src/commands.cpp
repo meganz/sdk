@@ -7052,13 +7052,22 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
                     }
                     default:
                     {
-                        LOG_err << "Failed to parse 'get registered contacts' response";
-                        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
-                        return;
+                        if (!json.storeobject())
+                        {
+                            LOG_err << "Failed to parse 'get registered contacts' response";
+                            app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                            return;
+                        }
                     }
                 }
             }
             json.leaveobject();
+            if (entry_user_detail.empty() || id.empty() || user_detail.empty())
+            {
+                LOG_err << "Missing or empty field when parsing 'get registered contacts' response";
+                app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                return;
+            }
             registered_contacts.emplace_back(move(entry_user_detail), move(id), move(user_detail));
         }
         else
@@ -7141,13 +7150,22 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
                     }
                     default:
                     {
-                        LOG_err << "Failed to parse 'get country calling codes' response";
-                        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
-                        return;
+                        if (!json.storeobject())
+                        {
+                            LOG_err << "Failed to parse 'get country calling codes' response";
+                            app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                            return;
+                        }
                     }
                 }
             }
             json.leaveobject();
+            if (country_code.empty() || calling_codes.empty())
+            {
+                LOG_err << "Missing or empty fields when parsing 'get country calling codes' response";
+                app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                return;
+            }
             country_calling_codes.emplace(move(country_code), move(calling_codes));
         }
         else

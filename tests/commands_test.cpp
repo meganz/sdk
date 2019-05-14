@@ -101,6 +101,25 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
     ASSERT_EQ(expected, *app.registeredContacts);
 }
 
+TEST(Commands, CommandGetRegisteredContacts_processResult_extraFieldShouldBeIgnored)
+{
+    MockApp_CommandGetRegisteredContacts app;
+
+    JSON json;
+    json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz","blah":"42"})";
+
+    CommandGetRegisteredContacts::processResult(app, json);
+
+    const vector<tuple<string, string, string>> expected{
+        {"foo@mega.co.nz", "13", "foo@mega.co.nz"},
+    };
+
+    ASSERT_EQ(1, app.callCount);
+    ASSERT_EQ(API_OK, app.lastError);
+    ASSERT_NE(nullptr, app.registeredContacts);
+    ASSERT_EQ(expected, *app.registeredContacts);
+}
+
 TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
 {
     MockApp_CommandGetRegisteredContacts app;
@@ -184,6 +203,25 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_onlyOneCountry)
 
     JSON json;
     json.pos = R"({"cc":"AD","l":[12,376]})";
+
+    CommandGetCountryCallingCodes::processResult(app, json);
+
+    const map<string, vector<string>> expected{
+        {"AD", {"12", "376"}},
+    };
+
+    ASSERT_EQ(1, app.callCount);
+    ASSERT_EQ(API_OK, app.lastError);
+    ASSERT_NE(nullptr, app.countryCallingCodes);
+    ASSERT_EQ(expected, *app.countryCallingCodes);
+}
+
+TEST(Commands, CommandGetCountryCallingCodes_processResult_extraFieldShouldBeIgnored)
+{
+    MockApp_CommandGetCountryCallingCodes app;
+
+    JSON json;
+    json.pos = R"({"cc":"AD","l":[12,376],"blah":"42"})";
 
     CommandGetCountryCallingCodes::processResult(app, json);
 

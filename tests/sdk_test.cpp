@@ -3904,12 +3904,12 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
 
 TEST_F(SdkTest, SdkGetRegisteredContacts)
 {
-    const std::string js1 = "+6401";
-    const std::string js2 = "+6402";
+    const std::string js1 = "+0000000010";
+    const std::string js2 = "+0000000011";
     const std::map<std::string, std::string> contacts{
         {js1, "John Smith"}, // sms verified
         {js2, "John Smith"}, // sms verified
-        {"+6403", "John Smith"}, // not sms verified
+        {"+640", "John Smith"}, // not sms verified
     };
     getRegisteredContacts(contacts);
     ASSERT_NE(nullptr, stringTable);
