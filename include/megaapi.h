@@ -2112,7 +2112,7 @@ class MegaStringList
 public:
     virtual ~MegaStringList();
 
-    virtual MegaStringList *copy();
+    virtual MegaStringList *copy() const;
 
     /**
      * @brief Returns the string at the position i in the MegaStringList
@@ -2125,13 +2125,45 @@ public:
      * @param i Position of the string that we want to get for the list
      * @return string at the position i in the list
      */
-    virtual const char* get(int i);
+    virtual const char* get(int i) const;
 
     /**
      * @brief Returns the number of strings in the list
      * @return Number of strings in the list
      */
-    virtual int size();
+    virtual int size() const;
+};
+
+class MegaStringListMap
+{
+public:
+    virtual ~MegaStringListMap();
+
+    static MegaStringListMap* createInstance();
+
+    virtual MegaStringListMap* copy() const;
+
+    virtual const MegaStringList* get(const char* key) const;
+
+    virtual void set(const char* key, const MegaStringList* value);
+
+    virtual int size() const;
+};
+
+class MegaStringTable
+{
+public:
+    virtual ~MegaStringTable();
+
+    static MegaStringTable *createInstance();
+
+    virtual MegaStringTable* copy() const;
+
+    virtual void append(const MegaStringList* value);
+
+    virtual const MegaStringList* get(int i) const;
+
+    virtual int size() const;
 };
 
 /**
@@ -3208,6 +3240,10 @@ class MegaRequest
          * @return String map including the key-value pairs of the attribute
          */
         virtual MegaStringMap* getMegaStringMap() const;
+
+        virtual MegaStringListMap* getMegaStringListMap() const;
+
+        virtual MegaStringTable* getMegaStringTable() const;
 
         /**
          * @brief Returns information about the contents of a folder

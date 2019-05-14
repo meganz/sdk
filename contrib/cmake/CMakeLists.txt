@@ -466,10 +466,11 @@ endif(WIN32)
 #test apps
 add_executable(test_sdk             ${MegaDir}/tests/sdk_test.cpp 
                                     ${MegaDir}/tests/sdktests.cpp)
-add_executable(test_misc            ${MegaDir}/tests/tests.cpp 
-                                    ${MegaDir}/tests/paycrypt_test.cpp 
+add_executable(test_misc            ${MegaDir}/tests/commands_test.cpp
                                     ${MegaDir}/tests/crypto_test.cpp
-                                    ${MegaDir}/tests/commands_test.cpp)
+                                    ${MegaDir}/tests/megaapi_test.cpp
+                                    ${MegaDir}/tests/paycrypt_test.cpp
+                                    ${MegaDir}/tests/tests.cpp)
 add_executable(test_purge_account   ${MegaDir}/tests/purge_account.cpp)
 add_executable(test_sync            ${MegaDir}/tests/synctests.cpp)
 

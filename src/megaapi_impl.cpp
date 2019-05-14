@@ -2793,6 +2793,8 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 #endif
 
     stringMap = NULL;
+    stringListMap = NULL;
+    stringTable = NULL;
     folderInfo = NULL;
 }
 
@@ -2865,6 +2867,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
+    this->stringListMap = request->getMegaStringListMap() ? request->stringListMap->copy() : NULL;
+    this->stringTable = request->getMegaStringTable() ? request->stringTable->copy() : NULL;
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
 }
 
@@ -2933,6 +2937,34 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
     }
 
     this->stringMap = stringMap ? stringMap->copy() : NULL;
+}
+
+MegaStringListMap *MegaRequestPrivate::getMegaStringListMap() const
+{
+    return stringListMap;
+}
+
+void MegaRequestPrivate::setMegaStringListMap(const MegaStringListMap* string_list_map)
+{
+    if (stringListMap)
+    {
+        delete stringListMap;
+    }
+    stringListMap = string_list_map ? string_list_map->copy() : nullptr;
+}
+
+MegaStringTable *MegaRequestPrivate::getMegaStringTable() const
+{
+    return stringTable;
+}
+
+void MegaRequestPrivate::setMegaStringTable(const MegaStringTable* string_table)
+{
+    if (stringTable)
+    {
+        delete stringTable;
+    }
+    stringTable = string_table ? string_table->copy() : nullptr;
 }
 
 MegaFolderInfo *MegaRequestPrivate::getMegaFolderInfo() const
@@ -3578,7 +3610,7 @@ MegaStringListPrivate::MegaStringListPrivate()
     s = 0;
 }
 
-MegaStringListPrivate::MegaStringListPrivate(MegaStringListPrivate *stringList)
+MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
 {
     s = stringList->size();
     if (!s)
@@ -3603,7 +3635,7 @@ MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
 
     list = new const char*[size];
     for (int i = 0; i < size; i++)
-        list[i] = newlist[i];
+        list[i] = MegaApi::strdup(newlist[i]);
 }
 
 MegaStringListPrivate::~MegaStringListPrivate()
@@ -3616,12 +3648,12 @@ MegaStringListPrivate::~MegaStringListPrivate()
     delete [] list;
 }
 
-MegaStringList *MegaStringListPrivate::copy()
+MegaStringList *MegaStringListPrivate::copy() const
 {
     return new MegaStringListPrivate(this);
 }
 
-const char *MegaStringListPrivate::get(int i)
+const char *MegaStringListPrivate::get(int i) const
 {
     if(!list || (i < 0) || (i >= s))
         return NULL;
@@ -3629,10 +3661,99 @@ const char *MegaStringListPrivate::get(int i)
     return list[i];
 }
 
-int MegaStringListPrivate::size()
+int MegaStringListPrivate::size() const
 {
     return s;
 }
+
+bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
+{
+    if (lhs.size() != rhs.size())
+    {
+        return false;
+    }
+    for (int i = 0; i < lhs.size(); ++i)
+    {
+        if (strcmp(lhs.get(i), rhs.get(i)) != 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+MegaStringListMap* MegaStringListMapPrivate::copy() const
+{
+    auto map = new MegaStringListMapPrivate;
+    for (const auto& pair : m_map)
+    {
+        map->set(pair.first.get(), pair.second.get());
+    }
+    return map;
+}
+
+const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
+{
+    auto key_ptr = std::unique_ptr<const char>{key};
+    auto iter = m_map.find(key_ptr);
+    key_ptr.release();
+    if (iter != m_map.end())
+    {
+        return iter->second.get();
+    }
+    return nullptr;
+}
+
+void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
+{
+    m_map.emplace(MegaApi::strdup(key), value->copy());
+}
+
+int MegaStringListMapPrivate::size() const
+{
+    return static_cast<int>(m_map.size());
+}
+
+bool MegaStringListMapPrivate::Compare::operator()(const std::unique_ptr<const char>& rhs,
+                                                   const std::unique_ptr<const char>& lhs) const
+{
+    return strcmp(rhs.get(), lhs.get()) < 0;
+}
+
+
+MegaStringTable* MegaStringTablePrivate::copy() const
+{
+    auto table = new MegaStringTablePrivate;
+    for (const auto& value : m_table)
+    {
+        table->append(value->copy());
+    }
+    return table;
+}
+
+void MegaStringTablePrivate::append(const MegaStringList* value)
+{
+    m_table.emplace_back(value->copy());
+}
+
+const MegaStringList* MegaStringTablePrivate::get(int i) const
+{
+    if (i < size())
+    {
+        return m_table[i].get();
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
+int MegaStringTablePrivate::size() const
+{
+    return static_cast<int>(m_table.size());
+}
+
 
 MegaNodeListPrivate::MegaNodeListPrivate()
 {

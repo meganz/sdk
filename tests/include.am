@@ -10,10 +10,11 @@ $(TESTS): $(top_builddir)/src/libmega.la
 
 # rules
 tests_misc_test_SOURCES = \
-    tests/tests.cpp \
-    tests/paycrypt_test.cpp \
+    tests/commands_test.cpp \
     tests/crypto_test.cpp \
-    tests/commands_test.cpp
+    tests/megaapi_test.cpp \
+    tests/paycrypt_test.cpp \
+    tests/tests.cpp
 
 tests_sdk_test_SOURCES = \
     tests/sdktests.cpp \
