@@ -3792,15 +3792,16 @@ void CommandGetUserQuota::procresult()
                 uslw = int(client->json.getint());
                 break;
 
-            case EOO:                
-                if (uslw <= 0)
-                {
-                    uslw = 9000;
-                    LOG_warn << "Using default almost overstorage threshold";
-                }
+            case EOO:
 
                 if (got_storage)
                 {
+                    if (uslw <= 0)
+                    {
+                        uslw = 9000;
+                        LOG_warn << "Using default almost overstorage threshold";
+                    }
+
                     if (details->storage_used >= details->storage_max)
                     {
                         LOG_debug << "Account full";
