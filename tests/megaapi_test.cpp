@@ -25,6 +25,7 @@
 
 #include <gtest/gtest.h>
 
+#include <mega/types.h>
 #include <megaapi.h>
 #include <megaapi_impl.h>
 
