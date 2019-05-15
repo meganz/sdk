@@ -20163,6 +20163,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
+                e = API_EARGS;
                 assert(false && "contacts must be valid");
             }
             break;
