@@ -31,7 +31,6 @@ namespace mega {
 
 struct JSON;
 struct MegaApp;
-class MegaStringMap;
 
 // request command component
 class MEGA_API Command
@@ -1134,7 +1133,7 @@ public:
 
     void procresult() override;
 
-    CommandGetRegisteredContacts(MegaClient* client, const MegaStringMap& contacts);
+    CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts);
 };
 
 class MEGA_API CommandGetCountryCallingCodes : public Command

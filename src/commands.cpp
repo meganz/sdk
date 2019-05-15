@@ -19,7 +19,6 @@
  * program.
  */
 
-#include "megaapi.h"
 #include "mega/types.h"
 #include "mega/command.h"
 #include "mega/megaapp.h"
@@ -7008,6 +7007,25 @@ void CommandSMSVerificationCheck::procresult()
     }
 };
 
+CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
+{
+    cmd("usabd");
+
+    tag = client->reqtag;
+
+    beginobject("e");
+    for (const auto& pair : contacts)
+    {
+        arg(pair.first, pair.second);
+    }
+    endobject();
+}
+
+void CommandGetRegisteredContacts::procresult()
+{
+    processResult(*client->app, client->json);
+}
+
 void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
 {
     if (json.isnumeric())
@@ -7079,25 +7097,16 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
     app.getregisteredcontacts_result(API_OK, &registered_contacts);
 }
 
-void CommandGetRegisteredContacts::procresult()
+CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 {
-    processResult(*client->app, client->json);
-}
-
-CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const MegaStringMap& contacts)
-{
-    cmd("usabd");
+    cmd("smslc");
 
     tag = client->reqtag;
+}
 
-    const auto contacts_keys = contacts.getKeys();
-    beginobject("e");
-    for (int i = 0; i < contacts_keys->size(); ++i)
-    {
-        const auto key = contacts_keys->get(i);
-        arg(key, contacts.get(key));
-    }
-    endobject();
+void CommandGetCountryCallingCodes::procresult()
+{
+    processResult(*client->app, client->json);
 }
 
 void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
@@ -7175,18 +7184,6 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
         }
     }
     app.getcountrycallingcodes_result(API_OK, &country_calling_codes);
-}
-
-void CommandGetCountryCallingCodes::procresult()
-{
-    processResult(*client->app, client->json);
-}
-
-CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
-{
-    cmd("smslc");
-
-    tag = client->reqtag;
 }
 
 
