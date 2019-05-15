@@ -3295,10 +3295,6 @@ class MegaRequest
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
          *
-         * This value is valid for these requests in onRequestFinish when the
-         * error code is MegaError::API_OK:
-         * - MegaApi::getUserAttribute - Returns the attribute value
-         *
          * @return String list map
          */
         virtual MegaStringListMap* getMegaStringListMap() const;
@@ -3308,10 +3304,6 @@ class MegaRequest
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
-         *
-         * This value is valid for these requests in onRequestFinish when the
-         * error code is MegaError::API_OK:
-         * - MegaApi::getUserAttribute - Returns the attribute value
          *
          * @return String table
          */
