@@ -2104,22 +2104,15 @@ public:
  * A MegaStringList has the ownership of the strings that it contains, so they will be
  * only valid until the MegaStringList is deleted. If you want to retain a string returned by
  * a MegaStringList, copy it.
+ *
+ * Objects of this class are immutable.
  */
 class MegaStringList
 {
 public:
     virtual ~MegaStringList();
 
-    static MegaStringList* createInstance();
-
     virtual MegaStringList *copy() const;
-
-    /**
-     * Appends a string to the end of the string list while creating a copy of the value passed.
-     *
-     * @param value The string to append. Must be null-terminated.
-     */
-    virtual void append(const char* value);
 
     /**
      * @brief Returns the string at the position i in the MegaStringList

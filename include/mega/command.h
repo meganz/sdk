@@ -48,7 +48,7 @@ protected:
     string json;
 
 public:
-    MegaClient* client;
+    MegaClient* client; // non-owning
 
     int tag;
 
@@ -93,7 +93,7 @@ public:
     Command();
     virtual ~Command() = default;
 
-    MEGA_DISABLE_COPY_MOVE(Command)
+    MEGA_DEFAULT_COPY_MOVE(Command)
 };
 
 // list of new file attributes to write

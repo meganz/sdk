@@ -3050,6 +3050,8 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete achievementsDetails;
     delete [] text;
     delete stringMap;
+    delete stringListMap;
+    delete stringTable;
     delete folderInfo;
     delete timeZoneDetails;
 
@@ -3481,6 +3483,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CATCHUP: return "CATCHUP";
         case TYPE_SEND_SMS_VERIFICATIONCODE: return "TYPE_SEND_SMS_VERIFICATIONCODE";
         case TYPE_CHECK_SMS_VERIFICATIONCODE: return "TYPE_CHECK_SMS_VERIFICATIONCODE";
+        case TYPE_GET_REGISTERED_CONTACTS: return "TYPE_GET_REGISTERED_CONTACTS";
+        case TYPE_GET_COUNTRY_CALLING_CODES: return "TYPE_GET_COUNTRY_CALLING_CODES";
     }
     return "UNKNOWN";
 }
@@ -3604,39 +3608,66 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
     delete keys;
 }
 
+MegaStringListPrivate::MegaStringListPrivate()
+{
+    list = NULL;
+    s = 0;
+}
+
+MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
+{
+    s = stringList->size();
+    if (!s)
+    {
+        list = NULL;
+        return;
+    }
+
+    list = new const char*[s];
+    for (int i = 0; i < s; i++)
+        list[i] = MegaApi::strdup(stringList->get(i));
+}
 
 MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
 {
-    for (int i = 0; i < size; i++)
+    list = NULL;
+    s = size;
+    if (!size)
     {
-        append(newlist[i]);
+        return;
     }
+
+    list = new const char*[size];
+    for (int i = 0; i < size; i++)
+        list[i] = newlist[i];
+}
+
+MegaStringListPrivate::~MegaStringListPrivate()
+{
+    if(!list)
+        return;
+
+    for(int i=0; i<s; i++)
+        delete [] list[i];
+    delete [] list;
 }
 
 MegaStringList *MegaStringListPrivate::copy() const
 {
-    auto list = new MegaStringListPrivate;
-    list->m_list = m_list;
-    return list;
-}
-
-void MegaStringListPrivate::append(const char* value)
-{
-    m_list.emplace_back(value);
+    return new MegaStringListPrivate(this);
 }
 
 const char *MegaStringListPrivate::get(int i) const
 {
-    if (i >= 0 && i < size())
-    {
-        return m_list[i].c_str();
-    }
-    return nullptr;
+    if(!list || (i < 0) || (i >= s))
+        return NULL;
+
+    return list[i];
 }
 
 int MegaStringListPrivate::size() const
 {
-    return static_cast<int>(m_list.size());
+    return s;
 }
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
@@ -14149,11 +14180,12 @@ void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, str
                 auto stringTable = std::unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
                 for (const auto& row : *data)
                 {
-                    auto stringList = std::unique_ptr<MegaStringList>{MegaStringList::createInstance()};
-                    stringList->append(std::get<0>(row).c_str());
-                    stringList->append(std::get<1>(row).c_str());
-                    stringList->append(std::get<2>(row).c_str());
-                    stringTable->append(stringList.get());
+                    vector<char*> list;
+                    list.emplace_back(MegaApi::strdup(std::get<0>(row).c_str()));
+                    list.emplace_back(MegaApi::strdup(std::get<1>(row).c_str()));
+                    list.emplace_back(MegaApi::strdup(std::get<2>(row).c_str()));
+                    auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+                    stringTable->append(stringList);
                 }
                 request->setMegaStringTable(stringTable.get());
             }
@@ -14175,12 +14207,13 @@ void MegaApiImpl::getcountrycallingcodes_result(error e, map<string, vector<stri
                 auto stringListMap = std::unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
                 for (const auto& pair : *data)
                 {
-                    auto stringList = std::unique_ptr<MegaStringList>{MegaStringList::createInstance()};
+                    vector<char*> list;
                     for (const auto& value : pair.second)
                     {
-                        stringList->append(value.c_str());
+                        list.emplace_back(MegaApi::strdup(value.c_str()));
                     }
-                    stringListMap->set(pair.first.c_str(), stringList.get());
+                    auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+                    stringListMap->set(pair.first.c_str(), stringList);
                 }
                 request->setMegaStringListMap(stringListMap.get());
             }

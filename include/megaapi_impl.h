@@ -1430,15 +1430,17 @@ protected:
 class MegaStringListPrivate : public MegaStringList
 {
 public:
-    MegaStringListPrivate() = default;
-    MegaStringListPrivate(char** newlist, int size);
+    MegaStringListPrivate();
+    MegaStringListPrivate(char **newlist, int size); // takes ownership
+    virtual ~MegaStringListPrivate();
     MEGA_DISABLE_COPY_MOVE(MegaStringListPrivate)
-    MegaStringList* copy() const override;
-    void append(const char* value) override;
+    MegaStringList *copy() const override;
     const char* get(int i) const override;
     int size() const override;
 protected:
-    vector<string> m_list;
+    MegaStringListPrivate(const MegaStringListPrivate *stringList);
+    const char** list;
+    int s;
 };
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);

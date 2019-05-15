@@ -36,22 +36,16 @@ namespace {
 
 unique_ptr<MegaStringList> createMegaStringList(const vector<const char*>& data)
 {
+    vector<char*> list;
+    for (const auto& value : data)
+    {
+        list.emplace_back(MegaApi::strdup(value));
+    }
     return unique_ptr<MegaStringList>{
-        new MegaStringListPrivate{const_cast<char**>(data.data()), static_cast<int>(data.size())}};
+        new MegaStringListPrivate{list.data(), static_cast<int>(list.size())}};
 }
 
 } // anonymous
-
-TEST(megaapi, MegaStringList_append_and_get_happyPath)
-{
-    auto stringList = MegaStringList::createInstance();
-    stringList->append("foo");
-    stringList->append("bar");
-    ASSERT_EQ(2, stringList->size());
-    ASSERT_EQ(string{"foo"}, string{stringList->get(0)});
-    ASSERT_EQ(string{"bar"}, string{stringList->get(1)});
-    ASSERT_EQ(nullptr, stringList->get(2));
-}
 
 TEST(megaapi, MegaStringList_get_and_size_happyPath)
 {
