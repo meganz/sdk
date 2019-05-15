@@ -85,8 +85,8 @@ public:
     MegaNode *publicNode;
     string attributeValue;
     string sid;
-    MegaStringListMap* stringListMap = nullptr;
-    MegaStringTable* stringTable = nullptr;
+    std::unique_ptr<MegaStringListMap> stringListMap;
+    std::unique_ptr<MegaStringTable> stringTable;
 
     MegaContactRequest* cr[2];
 

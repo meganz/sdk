@@ -387,14 +387,14 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
         if (lastError[apiIndex] == API_OK)
         {
-            stringTable = request->getMegaStringTable();
+            stringTable.reset(request->getMegaStringTable()->copy());
         }
         break;
 
     case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
         if (lastError[apiIndex] == API_OK)
         {
-            stringListMap = request->getMegaStringListMap();
+            stringListMap.reset(request->getMegaStringListMap()->copy());
         }
         break;
 
@@ -3886,7 +3886,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 }
 
-// TODO: Enable these tests when API command becomes available in production
+// TODO: Enable this test when API command becomes available in production
 TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
 {
     getCountryCallingCodes();
@@ -3903,7 +3903,7 @@ TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
 
-// TODO: Enable these tests when API command becomes available in production
+// TODO: Enable this test when API command becomes available in production
 TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
 {
     const std::string js1 = "+0000000010";
