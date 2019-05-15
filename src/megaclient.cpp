@@ -1042,6 +1042,11 @@ void MegaClient::init()
     insca = false;
     scnotifyurl.clear();
     *scsn = 0;
+
+    notifyStorageChangeOnStateCurrent = false;  
+    business = false;
+    businessMaster = false;
+    businessStatus = 0;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -1628,8 +1633,7 @@ void MegaClient::exec()
                                 }
 
                                 // request succeeded, process result array
-                                json.begin(pendingcs->in.c_str());
-                                reqs.procresult(this);
+                                reqs.serverresponse(std::move(pendingcs->in), this);
 
                                 WAIT_CLASS::bumpds();
 
@@ -1673,6 +1677,8 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
                                 csretrying = false;
+
+                                reqs.servererror(e, this);
                                 break;
                             }
 
@@ -1737,6 +1743,8 @@ void MegaClient::exec()
                                 delete pendingcs;
                                 pendingcs = NULL;
                                 csretrying = false;
+
+                                reqs.servererror(API_ESSL, this);
                                 break;
                             }
                         }
@@ -1751,6 +1759,8 @@ void MegaClient::exec()
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
 
+                        reqs.requeuerequest();
+
                     default:
                         ;
                 }
@@ -1763,24 +1773,23 @@ void MegaClient::exec()
 
             if (btcs.armed())
             {
-                if (btcs.nextset())
-                {
-                    reqs.nextRequest();
-                }
-
                 if (reqs.cmdspending())
                 {
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
                     pendingcs->logname = clientname + "cs ";
 
-                    reqs.get(pendingcs->out);
+                    bool suppressSID = true;
+                    reqs.serverrequest(pendingcs->out, suppressSID);
 
                     pendingcs->posturl = APIURL;
 
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(reqid, sizeof reqid);
-                    pendingcs->posturl.append(auth);
+                    if (!suppressSID)
+                    {
+                        pendingcs->posturl.append(auth);
+                    }
                     pendingcs->posturl.append(appkey);
                     if (lang.size())
                     {
@@ -1789,8 +1798,6 @@ void MegaClient::exec()
                     pendingcs->type = REQ_JSON;
 
                     pendingcs->post(this);
-
-                    reqs.nextRequest();
                     continue;
                 }
                 else
@@ -3885,6 +3892,12 @@ bool MegaClient::procsc()
                         app->nodes_current();
                         LOG_debug << "Local filesystem up to date";
 
+                        if (notifyStorageChangeOnStateCurrent)
+                        {
+                            app->notify_storage(STORAGE_CHANGE);
+                            notifyStorageChangeOnStateCurrent = false;
+                        }
+
                         if (tctable && cachedfiles.size())
                         {
                             tctable->begin();
@@ -5262,8 +5275,15 @@ void MegaClient::sc_userattr()
                             }
                             else if (type == ATTR_STORAGE_STATE)
                             {
-                                LOG_debug << "Possible storage status change";
-                                app->notify_storage(STORAGE_CHANGE);
+                                if (!statecurrent)
+                                {
+                                    notifyStorageChangeOnStateCurrent = true;
+                                }
+                                else
+                                {
+                                    LOG_debug << "Possible storage status change";
+                                    app->notify_storage(STORAGE_CHANGE);
+                                }
                             }
                         }
                     }
@@ -9529,7 +9549,10 @@ void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
                                    bool transfer, bool pro, bool transactions,
                                    bool purchases, bool sessions)
 {
-    reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro));
+    if (storage || transfer || pro)
+    {
+        reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro));
+    }
 
     if (transactions)
     {
@@ -9953,6 +9976,10 @@ sessiontype_t MegaClient::loggedin()
 
 void MegaClient::whyamiblocked()
 {
+    // make sure the smsve flag is up to date when we get the response
+    reqs.add(new CommandGetMiscFlags(this));
+
+    // queue the actual request
     reqs.add(new CommandWhyAmIblocked(this));
 }
 
@@ -10722,7 +10749,7 @@ void MegaClient::initializekeys()
         // Check completeness of keypairs
         if (!pubk.isvalid() || puEd255.size() || puCu255.size() || sigCu255.size() || sigPubk.size())
         {
-            LOG_warn << "Public keys and/or signatures found witout their respective private key.";
+            LOG_warn << "Public keys and/or signatures found without their respective private key.";
 
             sendevent(99415, "Incomplete keypair detected", 0);
 

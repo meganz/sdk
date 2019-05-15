@@ -53,12 +53,14 @@ git.exe checkout %PDFium_BRANCH% && call gclient sync
 cd %PDFium_SOURCE_DIR%
 copy "%PDFium_PATCH_DIR%\resources.rc" . || exit /b
 git.exe apply -v "%PDFium_PATCH_DIR%\shared_library.patch" || exit /b
-git.exe -C build apply -v "%PDFium_PATCH_DIR%\rc_compiler.patch" || exit /b
+git.exe -C build apply -v --ignore-space-change "%PDFium_PATCH_DIR%\rc_compiler.patch" || exit /b
 
 : Configure
 cd %PDFium_SOURCE_DIR%
 copy %PDFium_ARGS% %PDFium_BUILD_DIR%\args.gn
 if "%CONFIGURATION%"=="Release" echo is_debug=false >> %PDFium_BUILD_DIR%\args.gn
+if "%CONFIGURATION%"=="Debug" echo is_debug=true >> %PDFium_BUILD_DIR%\args.gn
+if "%CONFIGURATION%"=="Debug" echo is_official_build=false >> %PDFium_BUILD_DIR%\args.gn
 if "%PLATFORM%"=="x86" echo target_cpu="x86" >> %PDFium_BUILD_DIR%\args.gn
 
 : Generate Ninja files

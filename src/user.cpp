@@ -416,6 +416,14 @@ string User::attr2string(attr_t type)
             attrname = "*!geo";
             break;
 
+        case ATTR_CAMERA_UPLOADS_FOLDER:
+            attrname = "*!cam";
+            break;
+
+        case ATTR_MY_CHAT_FILES_FOLDER:
+            attrname = "*!cf";
+            break;
+
         case ATTR_UNSHAREABLE_ATTR:
             attrname = "*usk";  // unshareable key (for encrypting attributes that should not be shared)
             break;
@@ -529,6 +537,14 @@ string User::attr2longname(attr_t type)
         longname = "UNSHAREABLE_ATTR";
         break;
 
+    case ATTR_CAMERA_UPLOADS_FOLDER:
+        longname = "CAMERA_UPLOADS_FOLDER";
+        break;
+
+    case ATTR_MY_CHAT_FILES_FOLDER:
+        longname = "MY_CHAT_FILES_FOLDER";
+        break;
+
     case ATTR_UNKNOWN:
         longname = "";  // empty string
         break;
@@ -632,6 +648,14 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_GEOLOCATION;
     }
+    else if(!strcmp(name, "*!cam"))
+    {
+        return ATTR_CAMERA_UPLOADS_FOLDER;
+    }
+    else if(!strcmp(name, "*!cf"))
+    {
+        return ATTR_MY_CHAT_FILES_FOLDER;
+    }
     else if (!strcmp(name, "*usk"))
     {
         return ATTR_UNSHAREABLE_ATTR;
@@ -660,7 +684,7 @@ bool User::needversioning(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_GEOLOCATION:
-        case ATTR_UNSHAREABLE_ATTR:
+        case ATTR_MY_CHAT_FILES_FOLDER:
             return 0;
 
         case ATTR_AUTHRING:
@@ -688,6 +712,8 @@ char User::scope(attr_t at)
         case ATTR_LAST_INT:
         case ATTR_RICH_PREVIEWS:
         case ATTR_GEOLOCATION:
+        case ATTR_CAMERA_UPLOADS_FOLDER:
+        case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_UNSHAREABLE_ATTR:
             return '*';
 
@@ -1079,6 +1105,14 @@ bool User::setChanged(attr_t at)
 
         case ATTR_GEOLOCATION:
             changed.geolocation = true;
+            break;
+
+        case ATTR_CAMERA_UPLOADS_FOLDER:
+            changed.cameraUploadsFolder = true;
+            break;
+
+        case ATTR_MY_CHAT_FILES_FOLDER:
+            changed.myChatFilesFolder = true;
             break;
 
         default:

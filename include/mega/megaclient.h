@@ -761,6 +761,9 @@ private:
     // next internal upload handle
     handle nextuh;
 
+    // just one notification after fetchnodes and catch-up actionpackets
+    bool notifyStorageChangeOnStateCurrent = false;
+
     // maximum number of concurrent transfers (uploads + downloads)
     static const unsigned MAXTOTALTRANSFERS;
 
@@ -886,7 +889,12 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
-    // have we just completed fetching new nodes?
+    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.  
+    // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
+    bool fetchingnodes;
+    int fetchnodestag;
+
+    // have we just completed fetching new nodes?  (ie, caught up on all the historic actionpackets since the fetchnodes)
     bool statecurrent;
 
     // pending file attribute writes
@@ -1015,10 +1023,6 @@ public:
 
     // number of seconds to invalidate the cached user data
     static dstime USER_DATA_EXPIRATION_BACKOFF_SECS;
-
-    // initial state load in progress?
-    bool fetchingnodes;
-    int fetchnodestag;
 
     // total number of Node objects
     long long totalNodes;
@@ -1442,6 +1446,15 @@ public:
 
     // the SDK is trying to log out
     int loggingout;
+
+    // true if the account is a business account
+    bool business;
+
+    // true if the account is a master business account, false if it's a sub-user account
+    bool businessMaster;
+
+    // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
+    int businessStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

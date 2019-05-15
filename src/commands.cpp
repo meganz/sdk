@@ -1590,6 +1590,7 @@ CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
 {
     cmd("us0");
     arg("user", email);
+    batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
     this->email = email;
     tag = client->reqtag;
@@ -1647,6 +1648,7 @@ void CommandPrelogin::procresult()
 CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion, const char *pin)
 {
     cmd("us");
+    batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
 
     // are we just performing a session validation?
     checksession = !email;
@@ -2875,7 +2877,7 @@ void CommandGetUA::procresult()
         }
 
 #ifdef  ENABLE_CHAT
-        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
+        if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me && e != API_EBLOCKED)
         {
             client->initializekeys(); // we have now all the required data
         }
@@ -3450,6 +3452,9 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
+    bool b = false;
+    int m = -1;
+    int s = -2;
 
     if (client->json.isnumeric())
     {
@@ -3532,6 +3537,45 @@ void CommandGetUserData::procresult()
             }
             break;
 
+        case 'b':
+            assert(!b);
+            b = true;
+            if (client->json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (client->json.getnameid())
+                    {
+                        case 's':
+                            // -1: expired, 1: active, 2: grace-period
+                            s = client->json.getint();
+                            break;
+                        case 'm':
+                            m = client->json.getint();
+                            break;
+                        case EOO:
+                            endobject = true;
+                            break;
+                        default:
+                            if (!client->json.storeobject())
+                            {
+                                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                            }
+                    }
+                }
+                client->json.leaveobject();
+
+                // integrity checks
+                if ( (s == -2 || (s != -1 && s != 1 && s != 2))     // status not received or invalid
+                     || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
+                {
+                    LOG_err << "Invalid business status / account mode";
+                    return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                }
+            }
+            break;
+
         case EOO:            
             if (v)
             {
@@ -3549,6 +3593,11 @@ void CommandGetUserData::procresult()
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
             client->k = k;
+
+            client->business = b;
+            client->businessStatus = b ? s : 0;
+            client->businessMaster = b ? bool(m) : false;
+
             if (len_privk)
             {
                 client->key.ecb_decrypt(privkbuf, len_privk);
@@ -3570,6 +3619,60 @@ void CommandGetUserData::procresult()
         }
     }
 }
+
+CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
+{
+    cmd("gmf");
+
+    // this command can get these flags even when the account is blocked (if it's in a batch by itself)
+    batchSeparately = true;  
+    suppressSID = true;
+
+    tag = client->reqtag;
+}
+
+void CommandGetMiscFlags::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+        if (!e)
+        {
+            e = API_ENOENT;
+        }
+        LOG_err << "gmf failed: " << e;
+        return;
+    }
+
+    bool endobject = false;
+    while (!endobject)
+    {
+        switch (client->json.getnameid())
+        {
+        case MAKENAMEID4('m', 'f', 'a', 'e'):   // multi-factor authentication enabled
+            client->gmfa_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID4('s', 's', 'r', 's'):   // server-side rubish-bin scheduler
+            client->ssrs_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID4('n', 's', 'r', 'e'):   // new secure registration enabled
+            client->nsr_enabled = bool(client->json.getint());
+            break;
+        case MAKENAMEID5('a', 'p', 'l', 'v', 'p'):   // apple VOIP push enabled
+            client->aplvp_enabled = bool(client->json.getint());
+            break;
+        case EOO:
+            endobject = true;
+            break;
+        default:
+            if (!client->json.storeobject())
+            {
+                return;
+            }
+        }
+    }
+}
+
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro)
 {
@@ -3827,15 +3930,16 @@ void CommandGetUserQuota::procresult()
                 uslw = int(client->json.getint());
                 break;
 
-            case EOO:                
-                if (uslw <= 0)
-                {
-                    uslw = 9000;
-                    LOG_warn << "Using default almost overstorage threshold";
-                }
+            case EOO:
 
                 if (got_storage)
                 {
+                    if (uslw <= 0)
+                    {
+                        uslw = 9000;
+                        LOG_warn << "Using default almost overstorage threshold";
+                    }
+
                     if (details->storage_used >= details->storage_max)
                     {
                         LOG_debug << "Account full";
@@ -4259,6 +4363,7 @@ void CommandResumeEphemeralSession::procresult()
 CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
 {
     cmd("whyamiblocked");
+    batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
     tag = client->reqtag;
 }
@@ -4998,6 +5103,11 @@ void CommandQueryRecoveryLink::procresult()
     if (!emails.size()) // there should be at least one email
     {
         return client->app->queryrecoverylink_result(API_EINTERNAL);
+    }
+
+    if (client->loggedin() == FULLACCOUNT && uh != client->me)
+    {
+        return client->app->queryrecoverylink_result(API_EACCESS);
     }
 
     return client->app->queryrecoverylink_result(type, email.c_str(), ip.c_str(), time_t(ts), uh, &emails);

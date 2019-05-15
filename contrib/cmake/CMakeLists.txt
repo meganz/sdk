@@ -14,9 +14,6 @@
 
 cmake_minimum_required(VERSION 3.7.2)
 
-set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
-set(Mega3rdPartyDir "${MegaDir}/../3rdParty/" CACHE TYPE STRING)
-
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE TYPE BOOL)
 set (USE_OPENSSL 1 CACHE TYPE BOOL)
@@ -31,6 +28,7 @@ set (HAVE_FFMPEG 1 CACHE TYPE BOOL)
 set (USE_WEBRTC 0 CACHE TYPE BOOL)
 set (USE_LIBUV 0 CACHE TYPE BOOL)
 set (USE_QT 0 CACHE TYPE BOOL)
+set (USE_PDFIUM 0  CACHE TYPE BOOL)
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -79,6 +77,18 @@ if(build_64_bit)
 else(build_64_bit)
     project (MegaSDK32 LANGUAGES CXX C)
 endif(build_64_bit)
+
+IF(WIN32)
+    set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
+    if ("${Mega3rdPartyDir}" STREQUAL "")
+        set(Mega3rdPartyDir "${MegaDir}/../3rdParty" CACHE TYPE STRING)
+    endif()
+ELSE(WIN32)
+    set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
+    if ("${Mega3rdPartyDir}" STREQUAL "")
+        set (Mega3rdPartyDir "${MegaDir}/../3rdParty/")
+    endif()
+ENDIF(WIN32)
 
 IF(WIN32)
     if (UNCHECKED_ITERATORS)
@@ -209,17 +219,23 @@ IF(WIN32)
         ENDIF(USE_MEDIAINFO)
         
         IF(HAVE_FFMPEG)
-            ImportVcpkgLibrary(ffmpeg_avformat "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
-            ImportVcpkgLibrary(ffmpeg_avutil "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
-            ImportVcpkgLibrary(ffmpeg_avcodec "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
-            ImportVcpkgLibrary(ffmpeg_avfilter "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
-            ImportVcpkgLibrary(ffmpeg_avdevice "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
+            ImportVcpkgLibrary(ffmpeg_avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
+            ImportVcpkgLibrary(ffmpeg_avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
+            ImportVcpkgLibrary(ffmpeg_avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
+            ImportVcpkgLibrary(ffmpeg_avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
+            ImportVcpkgLibrary(ffmpeg_avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
+            ImportVcpkgLibrary(ffmpeg_swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
+            ImportVcpkgLibrary(ffmpeg_swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
         ENDIF(HAVE_FFMPEG)
         
         IF(USE_LIBUV)
             ImportVcpkgLibrary(uv       "${prebuilt_dir}/include/libuv" "${prebuilt_dir}/libs/x32d/libuv.lib" "${prebuilt_dir}/libs/x32/libuv.lib")
             SET(HAVE_LIBUV 1)
         ENDIF(USE_LIBUV)
+
+        IF(USE_PDFIUM)
+            ImportVcpkgLibrary(pdfium       "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/pdfium.lib" "${prebuilt_dir}/libs/x32/pdfium.lib")
+        ENDIF(USE_PDFIUM)
         
     else(USE_PREBUILT_3RDPARTY)
 
@@ -428,10 +444,10 @@ target_link_libraries(Mega PUBLIC z
                                               $<${USE_FREEIMAGE}:freeimage_lzma>  $<${USE_FREEIMAGE}:freeimage_lcms2>  $<${USE_FREEIMAGE}:freeimage_raw>  
                                               $<${USE_FREEIMAGE}:freeimage_tiff>  $<${USE_FREEIMAGE}:freeimage_tiffxx>  
                                               $<${USE_FREEIMAGE}:freeimage_jasper>  $<${USE_FREEIMAGE}:freeimage_libpng>  $<${USE_FREEIMAGE}:freeimage_half>  
-                                              $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux> 
-                $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice> 
+                                              $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>                                               
+                $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice > 
                 $<${HAVE_FFMPEG}:ffmpeg_swscale>  $<${HAVE_FFMPEG}:ffmpeg_swresample>  
-                $<${USE_QT}:ffmpeg_swscale>  $<${USE_QT}:ffmpeg_swresample>  
+                $<${USE_PDFIUM}:pdfium>
                 ${Mega_PlatformSpecificLibs})
 target_compile_definitions(Mega PUBLIC 
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO> 
@@ -447,7 +463,8 @@ target_compile_definitions(Mega PUBLIC
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
                 $<${HAVE_LIBUV}:HAVE_LIBUV>
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
-                $<${USE_QT}:USE_QT>)
+                $<${USE_QT}:USE_QT>
+                $<${USE_PDFIUM}:HAVE_PDFIUM>)
 
 if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)

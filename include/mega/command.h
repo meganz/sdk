@@ -50,6 +50,12 @@ public:
     char level;
     bool persistent;
 
+    // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
+    bool batchSeparately;
+
+    // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
+    bool suppressSID;
+
     void cmd(const char*);
     void notself(MegaClient*);
     virtual void cancel(void);
@@ -526,6 +532,14 @@ public:
     void procresult();
 
     CommandGetUserData(MegaClient*);
+};
+
+class MEGA_API CommandGetMiscFlags : public Command
+{
+public:
+    void procresult();
+
+    CommandGetMiscFlags(MegaClient*);
 };
 
 class MEGA_API CommandSetPendingContact : public Command

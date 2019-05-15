@@ -30,6 +30,8 @@
 
 using namespace std;
 
+bool g_runningInCI = false;
+
 MegaFileSystemAccess fileSystemAccess;
 
 #ifdef _WIN32
@@ -3843,7 +3845,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     compareDecryptedFile.read((char*)compareDecryptedData, filesize);
 
     m_time_t starttime = m_time();
-    int seconds_to_test_for = 60 * 10;
+    int seconds_to_test_for = g_runningInCI ? 60 : 60 * 10;
 
     // ok loop for 10 minutes
     srand(unsigned(starttime));
@@ -3924,7 +3926,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     }
 
-    ASSERT_TRUE(randomRunsDone > 100);
+    ASSERT_TRUE(randomRunsDone > (g_runningInCI ? 10 : 100));
 
     cout << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
 

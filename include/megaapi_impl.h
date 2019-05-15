@@ -1890,6 +1890,10 @@ class MegaApiImpl : public MegaApp
         MegaUser *getMyUser();
         char* getMyXMPPJid();
         bool isAchievementsEnabled();
+        bool isBusinessAccount();
+        bool isMasterBusinessAccount();
+        bool isBusinessAccountActive();
+        int getBusinessStatus();
         bool checkPassword(const char *password);
 #ifdef ENABLE_CHAT
         char* getMyFingerprint();
@@ -2254,12 +2258,12 @@ class MegaApiImpl : public MegaApp
 
 #ifdef HAVE_LIBUV
         // start/stop
-        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL);
+        bool httpServerStart(bool localOnly = true, int port = 4443, bool useTLS = false, const char *certificatepath = NULL, const char *keypath = NULL, bool useIPv6 = false);
         void httpServerStop();
         int httpServerIsRunning();
 
         // management
-        char *httpServerGetLocalLink(MegaNode *node, bool formatIPv6 = false);
+        char *httpServerGetLocalLink(MegaNode *node);
         char *httpServerGetLocalWebDavLink(MegaNode *node);
         MegaStringList *httpServerGetWebDavLinks();
         MegaNodeList *httpServerGetWebDavAllowedNodes();
@@ -2351,6 +2355,10 @@ class MegaApiImpl : public MegaApp
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+        void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+        void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
+        void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+        void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
@@ -2958,12 +2966,13 @@ protected:
     virtual void processOnExitHandleClose(MegaTCPServer* tcpServer);
 
 public:
-    bool useTLS;
+    const bool useIPv6;
+    const bool useTLS;
     MegaFileSystemAccess *fsAccess;
 
     std::string basePath;
 
-    MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaTCPServer(MegaApiImpl *megaApi, std::string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string(), bool useIPv6 = false);
     virtual ~MegaTCPServer();
     bool start(int port, bool localOnly = true);
     void stop(bool doNotWait = false);
@@ -2977,7 +2986,7 @@ public:
     int getRestrictedMode();
     bool isHandleAllowed(handle h);
     void clearAllowedHandles();
-    char* getLink(MegaNode *node, std::string protocol = "http", bool formatIPv6 = false);
+    char* getLink(MegaNode *node, std::string protocol = "http");
 
     set<handle> getAllowedHandles();
     void removeAllowedHandle(MegaHandle handle);
@@ -3096,7 +3105,7 @@ public:
     static void returnHttpCodeAsyncBasedOnRequestError(MegaHTTPContext* httpctx, MegaError *e);
     static void returnHttpCodeAsync(MegaHTTPContext* httpctx, int errorCode, std::string errorMessage = string());
 
-    MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string());
+    MegaHTTPServer(MegaApiImpl *megaApi, string basePath, bool useTLS = false, std::string certificatepath = std::string(), std::string keypath = std::string(), bool useIPv6 = false);
     virtual ~MegaHTTPServer();
     char *getWebDavLink(MegaNode *node);
 
