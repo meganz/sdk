@@ -2203,7 +2203,7 @@ public:
      *
      * The returned pointer is null if i is out of range.
      *
-     * @return Number of string lists in the table
+     * @return The string list at position i
      */
     virtual const MegaStringList* get(int i) const;
 
@@ -14090,7 +14090,23 @@ class MegaApi
          * @brief Requests the contacts that are registered at MEGA (currently verified through SMS)
          *
          * The request will return any of the provided contacts that are registered at MEGA, i.e.,
-         * are verified through SMS (currently). Check the unit tests for an example response.
+         * are verified through SMS (currently).
+         *
+         * contacts is a MegaStringMap from 'user detail' to the user's name. For instance:
+         * {
+         *   "+0000000010": "John Smith",
+         *   "+0000000011": "Peter Smith",
+         * }
+         *
+         * The response value is stored as a MegaStringTable with three columns:
+         * 1. entry user detail (the user detail as it was provided in the request)
+         * 2. identifier (the user's identifier)
+         * 3. user detail (the normalized user detail, e.g., +00 0000 0010)
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringTable
          *
          * @param contacts The map of contacts to get registered contacts from
          * @param listener MegaRequestListener to track this request
@@ -14100,7 +14116,17 @@ class MegaApi
         /**
          * @brief Requests the currently available country calling codes
          *
-         * Check the unit tests for an example response.
+         * The response value is stored as a MegaStringListMap mapping from two-letter country code
+         * to a list of calling codes. For instance:
+         * {
+         *   "AD": ["376"],
+         *   "AE": ["971", "13"],
+         * }
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringListMap
          *
          * @param listener MegaRequestListener to track this request
          */

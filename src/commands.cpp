@@ -7005,7 +7005,7 @@ void CommandSMSVerificationCheck::procresult()
         client->json.storeobject();
         client->app->smsverificationcheck_result(API_EINTERNAL);
     }
-};
+}
 
 CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
 {
