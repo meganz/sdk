@@ -2146,8 +2146,8 @@ public:
     /**
      * @brief Returns the string list at the given key in the map
      *
-     * The MegaStringMap retains the ownership of the returned string list. It will be only valid until
-     * the MegaStringMap is deleted.
+     * The MegaStringMap retains the ownership of the returned string list. It will be only
+     * valid until the MegaStringMap is deleted.
      *
      * If the key is not found in the map, this function returns NULL.
      *
@@ -2162,8 +2162,8 @@ public:
      * If the key already exists, the value will be overwritten by the
      * new value.
      *
-     * The map does not take ownership of the parameters passed, it makes
-     * a local copy.
+     * The map does not take ownership of the passed key, it makes
+     * a local copy. However, it does take ownership of the passed value.
      *
      * @param key The key in the map. It must be a null-terminated string.
      * @param value The new value for the key in the map.
@@ -2189,7 +2189,7 @@ public:
     /**
      * @brief Appends a new string list to the end of the table
      *
-     * The parameter passed is copied.
+     * The table takes ownership of the passed value.
      *
      * @param value The string list to append
      */

@@ -1452,7 +1452,7 @@ public:
     MEGA_DISABLE_COPY_MOVE(MegaStringListMapPrivate)
     MegaStringListMap* copy() const override;
     const MegaStringList* get(const char* key) const override;
-    void set(const char* key, const MegaStringList* value) override;
+    void set(const char* key, const MegaStringList* value) override; // takes ownership of value
     int size() const override;
 protected:
     struct Compare
@@ -1470,7 +1470,7 @@ public:
     MegaStringTablePrivate() = default;
     MEGA_DISABLE_COPY_MOVE(MegaStringTablePrivate)
     MegaStringTable* copy() const override;
-    void append(const MegaStringList* value) override;
+    void append(const MegaStringList* value) override; // takes ownership of value
     const MegaStringList* get(int i) const override;
     int size() const override;
 protected:

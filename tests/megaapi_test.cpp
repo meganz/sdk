@@ -111,6 +111,8 @@ TEST(megaapi, MegaStringListMap_set_and_get_happyPath)
     ASSERT_EQ(*stringList1, *stringListMap->get("foo"));
     ASSERT_EQ(*stringList2, *stringListMap->get("bar"));
     ASSERT_EQ(nullptr, stringListMap->get("blah"));
+    stringList1.release();
+    stringList2.release();
 }
 
 TEST(megaapi, MegaStringListMap_get_emptyStringListMap)
@@ -132,6 +134,8 @@ TEST(megaapi, MegaStringListMap_copy_happyPath)
     ASSERT_EQ(*stringList1, *copiedStringListMap->get("foo"));
     ASSERT_EQ(*stringList2, *copiedStringListMap->get("bar"));
     ASSERT_EQ(nullptr, copiedStringListMap->get("blah"));
+    stringList1.release();
+    stringList2.release();
 }
 
 TEST(megaapi, MegaStringListMap_copy_emptyStringListMap)
@@ -153,6 +157,8 @@ TEST(megaapi, MegaStringTable_append_and_get_happyPath)
     ASSERT_EQ(*stringList1, *stringListTable->get(0));
     ASSERT_EQ(*stringList2, *stringListTable->get(1));
     ASSERT_EQ(nullptr, stringListTable->get(2));
+    stringList1.release();
+    stringList2.release();
 }
 
 TEST(megaapi, MegaStringTable_get_emptyStringTable)
@@ -174,6 +180,8 @@ TEST(megaapi, MegaStringTable_copy_happyPath)
     ASSERT_EQ(*stringList1, *copiedStringTable->get(0));
     ASSERT_EQ(*stringList2, *copiedStringTable->get(1));
     ASSERT_EQ(nullptr, copiedStringTable->get(2));
+    stringList1.release();
+    stringList2.release();
 }
 
 TEST(megaapi, MegaStringTable_copy_emptyStringTable)

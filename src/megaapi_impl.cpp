@@ -3692,7 +3692,7 @@ MegaStringListMap* MegaStringListMapPrivate::copy() const
     auto map = new MegaStringListMapPrivate;
     for (const auto& pair : m_map)
     {
-        map->set(pair.first.get(), pair.second.get());
+        map->set(pair.first.get(), pair.second->copy());
     }
     return map;
 }
@@ -3711,7 +3711,7 @@ const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
 
 void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
 {
-    m_map.emplace(MegaApi::strdup(key), value->copy());
+    m_map.emplace(MegaApi::strdup(key), value);
 }
 
 int MegaStringListMapPrivate::size() const
@@ -3738,7 +3738,7 @@ MegaStringTable* MegaStringTablePrivate::copy() const
 
 void MegaStringTablePrivate::append(const MegaStringList* value)
 {
-    m_table.emplace_back(value->copy());
+    m_table.emplace_back(value);
 }
 
 const MegaStringList* MegaStringTablePrivate::get(int i) const
@@ -3747,10 +3747,7 @@ const MegaStringList* MegaStringTablePrivate::get(int i) const
     {
         return m_table[i].get();
     }
-    else
-    {
-        return nullptr;
-    }
+    return nullptr;
 }
 
 int MegaStringTablePrivate::size() const
