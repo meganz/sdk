@@ -966,7 +966,7 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
             }
             {
                 FPDF_CloseDocument(pdf_doc);
-                LOG_err << "Error loading PDF page to create thumb for " << imagePath.toStdString();
+                LOG_err << "Error loading PDF page to create thumb for " << imagePath.toUtf8().constData();
             }
         }
         {
