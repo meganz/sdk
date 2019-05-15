@@ -395,7 +395,7 @@ GfxProcQT::GfxProcQT()
     dir.setFilter(QDir::Files);
     foreach(QString dirFile, dir.entryList())
     {
-        LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toStdString();
+        LOG_warn << "Removing unexpected temporary file found from previous executions: " << dirFile.toUtf8().constData();
         dir.remove(dirFile);
     }
 #endif
@@ -971,11 +971,11 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
         }
         {
             FPDF_CloseDocument(pdf_doc);
-            LOG_err << "Error getting number of pages for " << imagePath.toStdString();
+            LOG_err << "Error getting number of pages for " << imagePath.toUtf8().constData();
         }
     }
     {
-        LOG_err << "Error loading PDF to create thumbnail for " << imagePath.toStdString() << " " << FPDF_GetLastError();
+        LOG_err << "Error loading PDF to create thumbnail for " << imagePath.toUtf8().constData() << " " << FPDF_GetLastError();
     }
 
 #ifdef _WIN32
@@ -1012,14 +1012,14 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
     AVFormatContext* formatContext = avformat_alloc_context();
     if (avformat_open_input(&formatContext, imagePath.toUtf8().constData(), NULL, NULL))
     {
-        LOG_warn << "Error opening video: " << imagePath.toStdString();
+        LOG_warn << "Error opening video: " << imagePath.toUtf8().constData();
         return NULL;
     }
 
     // Get stream information
     if (avformat_find_stream_info(formatContext, NULL))
     {
-        LOG_warn << "Stream info not found: " << imagePath.toStdString();
+        LOG_warn << "Stream info not found: " << imagePath.toUtf8().constData();
         avformat_close_input(&formatContext);
         return NULL;
     }
@@ -1039,7 +1039,7 @@ QImageReader *GfxProcQT::readbitmapFfmpeg(int &w, int &h, int &orientation, QStr
 
     if (!videoStream)
     {
-        LOG_warn << "Video stream not found: " << imagePath.toStdString();
+        LOG_warn << "Video stream not found: " << imagePath.toUtf8().constData();
         avformat_close_input(&formatContext);
         return NULL;
     }
