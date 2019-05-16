@@ -3916,16 +3916,29 @@ TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
     getRegisteredContacts(contacts);
     ASSERT_NE(nullptr, stringTable);
     ASSERT_EQ(2, stringTable->size());
+
+    // repacking and sorting result
+    using row_t = std::tuple<std::string, std::string, std::string>;
+    std::vector<row_t> table;
+    for (int i = 0; i < stringTable->size(); ++i)
+    {
+        const MegaStringList* const stringList = stringTable->get(i);
+        ASSERT_EQ(3, stringList->size());
+        table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
+    }
+
+    std::sort(table.begin(), table.end(), [](const row_t& lhs, const row_t& rhs)
+                                          {
+                                              return std::get<0>(lhs) < std::get<0>(rhs);
+                                          });
+
     // Check johnsmith1
-    const MegaStringList* const stringList1 = stringTable->get(0);
-    ASSERT_EQ(3, stringList1->size());
-    ASSERT_EQ(js1, std::string{stringList1->get(0)}); // eud
-    ASSERT_GT(std::string{stringList1->get(1)}.size(), 0); // id
-    ASSERT_EQ(js1, std::string{stringList1->get(2)}); // ud
+    ASSERT_EQ(js1, std::get<0>(table[0])); // eud
+    ASSERT_GT(std::get<1>(table[0]).size(), 0); // id
+    ASSERT_EQ(js1, std::get<2>(table[0])); // ud
+
     // Check johnsmith2
-    const MegaStringList* const stringList2 = stringTable->get(1);
-    ASSERT_EQ(3, stringList2->size());
-    ASSERT_EQ(js2, std::string{stringList2->get(0)}); // eud
-    ASSERT_GT(std::string{stringList2->get(1)}.size(), 0); // id
-    ASSERT_EQ(js2, std::string{stringList2->get(2)}); // ud
+    ASSERT_EQ(js2, std::get<0>(table[1])); // eud
+    ASSERT_GT(std::get<1>(table[1]).size(), 0); // id
+    ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
