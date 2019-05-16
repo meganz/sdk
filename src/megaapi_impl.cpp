@@ -30049,28 +30049,28 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
         json.append(",");
     }
 
-    if (!mChatDND.empty() || !mChatAlwaysNotify.empty())
+    char chatid[MegaClient::CHATHANDLE * 4 / 3 + 4];
+
+    std::map<uint64_t, time_t>::const_iterator itDND;
+    for (itDND = mChatDND.begin(); itDND != mChatDND.end(); itDND++)
     {
-        char chatid[MegaClient::CHATHANDLE * 4 / 3 + 4];
-
-        std::map<uint64_t, time_t>::const_iterator itDND;
-        for (itDND = mChatDND.begin(); itDND != mChatDND.end(); itDND++)
+        if (!isChatAlwaysNotifyEnabled(itDND->first) && isChatDndEnabled(itDND->first))
         {
-            assert(isChatDndEnabled(itDND->first));
-            assert(!isChatAlwaysNotifyEnabled(itDND->first));
-
             Base64::btoa((byte*)&(itDND->first), MegaClient::CHATHANDLE, chatid);
             json.append("\"").append(chatid).append("\":{");
             json.append("\"dnd\":").append(std::to_string(itDND->second)).append("}");
             json.append(",");
         }
+    }
 
-        std::map<uint64_t, bool>::const_iterator itAn;
-        for (itAn = mChatAlwaysNotify.begin(); itAn != mChatAlwaysNotify.end(); itAn++)
+    std::map<uint64_t, bool>::const_iterator itAn;
+    for (itAn = mChatAlwaysNotify.begin(); itAn != mChatAlwaysNotify.end(); itAn++)
+    {
+        assert(isChatAlwaysNotifyEnabled(itAn->first));
+        assert(!isChatDndEnabled(itAn->first));
+
+        if (isChatAlwaysNotifyEnabled(itAn->first))
         {
-            assert(isChatAlwaysNotifyEnabled(itAn->second));
-            assert(!isChatDndEnabled(itAn->first));
-
             Base64::btoa((byte*)&(itAn->first), MegaClient::CHATHANDLE, chatid);
             json.append("\"").append(chatid).append("\":{");
             json.append("\"an\":").append("1").append("}");
