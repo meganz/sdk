@@ -3886,7 +3886,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 }
 
-// TODO: Enable this test when API command (usabd) becomes available in production
+// TODO: Enable this test when API command (smslc) becomes available in production
 TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
 {
     getCountryCallingCodes();
@@ -3903,7 +3903,7 @@ TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
     ASSERT_EQ(0, strcmp("49", de->get(0)));
 }
 
-// TODO: Enable this test when API command (smslc) becomes available in production
+// TODO: Enable this test when API command (usabd) becomes available in production
 TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
 {
     const std::string js1 = "+0000000010";
