@@ -127,7 +127,7 @@ protected:
     void onContactRequestsUpdate(MegaApi* api, MegaContactRequestList* requests) override;
     void onReloadNeeded(MegaApi *api) override {}
 #ifdef ENABLE_SYNC
-    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, const char *filePath, int newState) override {}
+    void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, string* filePath, int newState) override {}
     void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event) override {}
     void onSyncStateChanged(MegaApi *api,  MegaSync *sync) override {}
     void onGlobalSyncStateChanged(MegaApi* api) override {}
