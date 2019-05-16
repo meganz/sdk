@@ -6980,13 +6980,13 @@ CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, con
     }
 
     tag = client->reqtag;
-};
+}
 
 bool CommandSMSVerificationCheck::isverificationcode(const string& s)
 {
-    for (int i = s.size(); i--; )
+    for (const char c : s)
     {
-        if (!(isdigit(s[i])))
+        if (!isdigit(c))
         {
             return false;
         }
@@ -6998,14 +6998,193 @@ void CommandSMSVerificationCheck::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->smsverificationcheck_result((error)client->json.getint());
+        client->app->smsverificationcheck_result(static_cast<error>(client->json.getint()));
     }
     else
     {
         client->json.storeobject();
         client->app->smsverificationcheck_result(API_EINTERNAL);
     }
-};
+}
+
+CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
+{
+    cmd("usabd");
+
+    tag = client->reqtag;
+
+    beginobject("e");
+    for (const auto& pair : contacts)
+    {
+        arg(pair.first, pair.second);
+    }
+    endobject();
+}
+
+void CommandGetRegisteredContacts::procresult()
+{
+    processResult(*client->app, client->json);
+}
+
+void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
+{
+    if (json.isnumeric())
+    {
+        app.getregisteredcontacts_result(static_cast<error>(json.getint()), nullptr);
+        return;
+    }
+
+    vector<tuple<string, string, string>> registered_contacts;
+
+    string entry_user_detail;
+    string id;
+    string user_detail;
+
+    for (;;)
+    {
+        if (json.enterobject())
+        {
+            bool end_of_object = false;
+            while (!end_of_object)
+            {
+                switch (json.getnameid())
+                {
+                    case MAKENAMEID3('e', 'u', 'd'):
+                    {
+                        json.storeobject(&entry_user_detail);
+                        break;
+                    }
+                    case MAKENAMEID2('i', 'd'):
+                    {
+                        json.storeobject(&id);
+                        break;
+                    }
+                    case MAKENAMEID2('u', 'd'):
+                    {
+                        json.storeobject(&user_detail);
+                        break;
+                    }
+                    case EOO:
+                    {
+                        end_of_object = true;
+                        break;
+                    }
+                    default:
+                    {
+                        if (!json.storeobject())
+                        {
+                            LOG_err << "Failed to parse 'get registered contacts' response";
+                            app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                            return;
+                        }
+                    }
+                }
+            }
+            json.leaveobject();
+            if (entry_user_detail.empty() || id.empty() || user_detail.empty())
+            {
+                LOG_err << "Missing or empty field when parsing 'get registered contacts' response";
+                app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                return;
+            }
+            registered_contacts.emplace_back(move(entry_user_detail), move(id), move(user_detail));
+        }
+        else
+        {
+            break;
+        }
+    }
+    app.getregisteredcontacts_result(API_OK, &registered_contacts);
+}
+
+CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
+{
+    cmd("smslc");
+
+    tag = client->reqtag;
+}
+
+void CommandGetCountryCallingCodes::procresult()
+{
+    processResult(*client->app, client->json);
+}
+
+void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
+{
+    if (json.isnumeric())
+    {
+        app.getcountrycallingcodes_result(static_cast<error>(json.getint()), nullptr);
+        return;
+    }
+
+    map<string, vector<string>> country_calling_codes;
+
+    string country_code;
+    vector<string> calling_codes;
+
+    for (;;)
+    {
+        if (json.enterobject())
+        {
+            bool end_of_object = false;
+            while (!end_of_object)
+            {
+                switch (json.getnameid())
+                {
+                    case MAKENAMEID2('c', 'c'):
+                    {
+                        json.storeobject(&country_code);
+                        break;
+                    }
+                    case MAKENAMEID1('l'):
+                    {
+                        if (json.enterarray())
+                        {
+                            for (;;)
+                            {
+                                std::string code;
+                                if (!json.storeobject(&code))
+                                {
+                                    break;
+                                }
+                                calling_codes.emplace_back(move(code));
+                            }
+                            json.leavearray();
+                        }
+                        break;
+                    }
+                    case EOO:
+                    {
+                        end_of_object = true;
+                        break;
+                    }
+                    default:
+                    {
+                        if (!json.storeobject())
+                        {
+                            LOG_err << "Failed to parse 'get country calling codes' response";
+                            app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                            return;
+                        }
+                    }
+                }
+            }
+            json.leaveobject();
+            if (country_code.empty() || calling_codes.empty())
+            {
+                LOG_err << "Missing or empty fields when parsing 'get country calling codes' response";
+                app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                return;
+            }
+            country_calling_codes.emplace(move(country_code), move(calling_codes));
+        }
+        else
+        {
+            break;
+        }
+    }
+    app.getcountrycallingcodes_result(API_OK, &country_calling_codes);
+}
 
 
 } // namespace

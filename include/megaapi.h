@@ -2112,7 +2112,7 @@ class MegaStringList
 public:
     virtual ~MegaStringList();
 
-    virtual MegaStringList *copy();
+    virtual MegaStringList *copy() const;
 
     /**
      * @brief Returns the string at the position i in the MegaStringList
@@ -2125,13 +2125,93 @@ public:
      * @param i Position of the string that we want to get for the list
      * @return string at the position i in the list
      */
-    virtual const char* get(int i);
+    virtual const char* get(int i) const;
 
     /**
      * @brief Returns the number of strings in the list
      * @return Number of strings in the list
      */
-    virtual int size();
+    virtual int size() const;
+};
+
+class MegaStringListMap
+{
+public:
+    virtual ~MegaStringListMap();
+
+    static MegaStringListMap* createInstance();
+
+    virtual MegaStringListMap* copy() const;
+
+    /**
+     * @brief Returns the string list at the given key in the map
+     *
+     * The MegaStringMap retains the ownership of the returned string list. It will be only
+     * valid until the MegaStringMap is deleted.
+     *
+     * If the key is not found in the map, this function returns NULL.
+     *
+     * @param key Key to lookup in the map. Must be null-terminated
+     * @return String list at the given key in the map
+     */
+    virtual const MegaStringList* get(const char* key) const;
+
+    /**
+     * @brief Sets a value in the map for the given key.
+     *
+     * If the key already exists, the value will be overwritten by the
+     * new value.
+     *
+     * The map does not take ownership of the passed key, it makes
+     * a local copy. However, it does take ownership of the passed value.
+     *
+     * @param key The key in the map. It must be a null-terminated string.
+     * @param value The new value for the key in the map.
+     */
+    virtual void set(const char* key, const MegaStringList* value);
+
+    /**
+     * @brief Returns the number of (string, string list) pairs in the map
+     * @return Number of pairs in the map
+     */
+    virtual int size() const;
+};
+
+class MegaStringTable
+{
+public:
+    virtual ~MegaStringTable();
+
+    static MegaStringTable *createInstance();
+
+    virtual MegaStringTable* copy() const;
+
+    /**
+     * @brief Appends a new string list to the end of the table
+     *
+     * The table takes ownership of the passed value.
+     *
+     * @param value The string list to append
+     */
+    virtual void append(const MegaStringList* value);
+
+    /**
+     * @brief Returns the string list at position i
+     *
+     * The table retains the ownership of the returned string list. It will be only valid until
+     * the table is deleted.
+     *
+     * The returned pointer is null if i is out of range.
+     *
+     * @return The string list at position i
+     */
+    virtual const MegaStringList* get(int i) const;
+
+    /**
+     * @brief Returns the number of string lists in the table
+     * @return Number of string lists in the table
+     */
+    virtual int size() const;
 };
 
 /**
@@ -2533,7 +2613,7 @@ public:
 /**
  * @brief Provides information about an asynchronous request
  *
- * Most functions in this API are asynchonous, except the ones that never require to
+ * Most functions in this API are asynchronous, except the ones that never require to
  * contact MEGA servers. Developers can use listeners (MegaListener, MegaRequestListener)
  * to track the progress of each request. MegaRequest objects are provided in callbacks sent
  * to these listeners and allow developers to know the state of the request, their parameters
@@ -2589,6 +2669,8 @@ class MegaRequest
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
             TYPE_CATCHUP,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
+            TYPE_GET_REGISTERED_CONTACTS,
+            TYPE_GET_COUNTRY_CALLING_CODES,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3206,6 +3288,26 @@ class MegaRequest
          * @return String map including the key-value pairs of the attribute
          */
         virtual MegaStringMap* getMegaStringMap() const;
+
+        /**
+         * @brief Returns the string list map
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return String list map
+         */
+        virtual MegaStringListMap* getMegaStringListMap() const;
+
+        /**
+         * @brief Returns the string table
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return String table
+         */
+        virtual MegaStringTable* getMegaStringTable() const;
 
         /**
          * @brief Returns information about the contents of a folder
@@ -13965,7 +14067,7 @@ class MegaApi
          */
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
         
-		void catchup(MegaRequestListener *listener = NULL);
+        void catchup(MegaRequestListener *listener = NULL);
         /**
          * @brief Check a verification code that the user should have received via txt
          *
@@ -13976,7 +14078,51 @@ class MegaApi
          */
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Requests the contacts that are registered at MEGA (currently verified through SMS)
+         *
+         * The request will return any of the provided contacts that are registered at MEGA, i.e.,
+         * are verified through SMS (currently).
+         *
+         * contacts is a MegaStringMap from 'user detail' to the user's name. For instance:
+         * {
+         *   "+0000000010": "John Smith",
+         *   "+0000000011": "Peter Smith",
+         * }
+         *
+         * The response value is stored as a MegaStringTable with three columns:
+         * 1. entry user detail (the user detail as it was provided in the request)
+         * 2. identifier (the user's identifier)
+         * 3. user detail (the normalized user detail, e.g., +00 0000 0010)
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringTable
+         *
+         * @param contacts The map of contacts to get registered contacts from
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Requests the currently available country calling codes
+         *
+         * The response value is stored as a MegaStringListMap mapping from two-letter country code
+         * to a list of calling codes. For instance:
+         * {
+         *   "AD": ["376"],
+         *   "AE": ["971", "13"],
+         * }
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringListMap
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;

@@ -88,6 +88,7 @@ using std::deque;
 using std::multiset;
 using std::queue;
 using std::streambuf;
+using std::tuple;
 using std::ostringstream;
 
 
@@ -535,5 +536,29 @@ struct recentaction
 };
 typedef vector<recentaction> recentactions_vector;
 } // namespace
+
+#define MEGA_DISABLE_COPY(class_name) \
+    class_name(const class_name&) = delete; \
+    class_name& operator=(const class_name&) = delete;
+
+#define MEGA_DISABLE_MOVE(class_name) \
+    class_name(class_name&&) = delete; \
+    class_name& operator=(class_name&&) = delete;
+
+#define MEGA_DISABLE_COPY_MOVE(class_name) \
+    MEGA_DISABLE_COPY(class_name) \
+    MEGA_DISABLE_MOVE(class_name)
+
+#define MEGA_DEFAULT_COPY(class_name) \
+    class_name(const class_name&) = default; \
+    class_name& operator=(const class_name&) = default;
+
+#define MEGA_DEFAULT_MOVE(class_name) \
+    class_name(class_name&&) = default; \
+    class_name& operator=(class_name&&) = default;
+
+#define MEGA_DEFAULT_COPY_MOVE(class_name) \
+    MEGA_DEFAULT_COPY(class_name) \
+    MEGA_DEFAULT_MOVE(class_name)
 
 #endif

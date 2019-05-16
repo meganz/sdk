@@ -27,6 +27,7 @@
 
 namespace mega {
 // convert 2...8 character ID to int64 integer (endian agnostic)
+#define MAKENAMEID1(a) (nameid)(a)
 #define MAKENAMEID2(a, b) (nameid)(((a) << 8) + (b))
 #define MAKENAMEID3(a, b, c) (nameid)(((a) << 16) + ((b) << 8) + (c))
 #define MAKENAMEID4(a, b, c, d) (nameid)(((a) << 24) + ((b) << 16) + ((c) << 8) + (d))

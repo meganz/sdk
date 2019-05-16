@@ -22,6 +22,8 @@
 #ifndef MEGAAPI_IMPL_H
 #define MEGAAPI_IMPL_H
 
+#include <memory>
+
 #include "mega.h"
 #include "mega/gfx/external.h"
 #include "megaapi.h"
@@ -1045,9 +1047,13 @@ class MegaRequestPrivate : public MegaRequest
         virtual MegaTextChatList *getMegaTextChatList() const;
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
-        virtual MegaStringMap *getMegaStringMap() const;
+        MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
-        virtual MegaFolderInfo *getMegaFolderInfo() const;
+        MegaStringListMap *getMegaStringListMap() const override;
+        void setMegaStringListMap(const MegaStringListMap *);
+        MegaStringTable *getMegaStringTable() const override;
+        void setMegaStringTable(const MegaStringTable *);
+        MegaFolderInfo *getMegaFolderInfo() const override;
         void setMegaFolderInfo(const MegaFolderInfo *);
 
 #ifdef ENABLE_SYNC
@@ -1102,6 +1108,8 @@ protected:
         MegaTextChatList *chatList;
 #endif
         MegaStringMap *stringMap;
+        MegaStringListMap *stringListMap;
+        MegaStringTable *stringTable;
         MegaFolderInfo *folderInfo;
 };
 
@@ -1423,17 +1431,50 @@ class MegaStringListPrivate : public MegaStringList
 {
 public:
     MegaStringListPrivate();
-    MegaStringListPrivate(char **newlist, int size);
+    MegaStringListPrivate(char **newlist, int size); // takes ownership
     virtual ~MegaStringListPrivate();
-    virtual MegaStringList *copy();
-    virtual const char* get(int i);
-    virtual int size();
-
-
+    MEGA_DISABLE_COPY_MOVE(MegaStringListPrivate)
+    MegaStringList *copy() const override;
+    const char* get(int i) const override;
+    int size() const override;
 protected:
-    MegaStringListPrivate(MegaStringListPrivate *stringList);
+    MegaStringListPrivate(const MegaStringListPrivate *stringList);
     const char** list;
     int s;
+};
+
+bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
+
+class MegaStringListMapPrivate : public MegaStringListMap
+{
+public:
+    MegaStringListMapPrivate() = default;
+    MEGA_DISABLE_COPY_MOVE(MegaStringListMapPrivate)
+    MegaStringListMap* copy() const override;
+    const MegaStringList* get(const char* key) const override;
+    void set(const char* key, const MegaStringList* value) override; // takes ownership of value
+    int size() const override;
+protected:
+    struct Compare
+    {
+        bool operator()(const std::unique_ptr<const char>& rhs,
+                        const std::unique_ptr<const char>& lhs) const;
+    };
+
+    map<std::unique_ptr<const char>, std::unique_ptr<const MegaStringList>, Compare> m_map;
+};
+
+class MegaStringTablePrivate : public MegaStringTable
+{
+public:
+    MegaStringTablePrivate() = default;
+    MEGA_DISABLE_COPY_MOVE(MegaStringTablePrivate)
+    MegaStringTable* copy() const override;
+    void append(const MegaStringList* value) override; // takes ownership of value
+    const MegaStringList* get(int i) const override;
+    int size() const override;
+protected:
+    vector<std::unique_ptr<const MegaStringList>> m_table;
 };
 
 class MegaNodeListPrivate : public MegaNodeList
@@ -2334,6 +2375,10 @@ class MegaApiImpl : public MegaApp
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);
 
+        void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
+
+        void getCountryCallingCodes(MegaRequestListener *listener = NULL);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -2518,6 +2563,12 @@ protected:
         // account validation by txted verification code
         virtual void smsverificationsend_result(error);
         virtual void smsverificationcheck_result(error);
+
+        // get registered contacts
+        virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*);
+
+        // get country calling codes
+        virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*);
 
         // get the current PSA
         virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);

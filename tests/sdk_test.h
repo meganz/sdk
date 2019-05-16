@@ -85,6 +85,8 @@ public:
     MegaNode *publicNode;
     string attributeValue;
     string sid;
+    std::unique_ptr<MegaStringListMap> stringListMap;
+    std::unique_ptr<MegaStringTable> stringTable;
 
     MegaContactRequest* cr[2];
 
@@ -171,6 +173,10 @@ public:
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
     void createFolder(unsigned int apiIndex, char * name, MegaNode *n, int timeout = maxTimeout);
+
+    void getRegisteredContacts(const std::map<std::string, std::string>& contacts, int timeout = maxTimeout);
+
+    void getCountryCallingCodes(int timeout = maxTimeout);
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);
