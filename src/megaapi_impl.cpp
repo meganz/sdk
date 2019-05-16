@@ -6592,7 +6592,7 @@ bool MegaApiImpl::isScheduleNotifiable()
     struct tm tmp;
     m_gmtime(now, &tmp);
     tmp.tm_hour = tmp.tm_min = tmp.tm_sec = 0;  // set the time to 00:00:00
-    m_time_t dayStart = m_mktime_UTC(&tmp) + offsetTz;
+    m_time_t dayStart = m_mktime_UTC(&tmp);
 
     // calculate the timestamps for the scheduled period
     int offsetStart = mPushSettings->getGlobalScheduleStart() * 60; // convert minutes into seconds
