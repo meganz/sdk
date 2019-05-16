@@ -30133,8 +30133,9 @@ const char *mega::MegaPushNotificationSettingsPrivate::getGlobalScheduleTimezone
 
 bool MegaPushNotificationSettingsPrivate::isChatEnabled(MegaHandle chatid) const
 {
-    std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
-    return (it == mChatDND.end() || it->second != 0);
+    std::map<uint64_t, m_time_t>::const_iterator it = mChatDND.find(chatid);
+    m_time_t chatDND = (it != mChatDND.end()) ? it->second : -1;
+    return (chatDND == -1 || (chatDND > 0 && chatDND < m_time(NULL)));
 }
 
 bool MegaPushNotificationSettingsPrivate::isChatDndEnabled(MegaHandle chatid) const
