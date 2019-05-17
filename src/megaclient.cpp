@@ -4177,6 +4177,15 @@ bool MegaClient::procsc()
                                 // last acknowledged
                                 sc_la();
                                 break;
+
+                            case MAKENAMEID2('u', 'b'):
+                                // business account update
+                                // `ub` AP has no payload, so we need to set pos
+                                // one character back to avoid to consume `}` character
+                                // and close object properly
+                                sc_ub();
+                                jsonsc.pos--;
+                                break;
                         }
                     }
                 }
@@ -6150,6 +6159,12 @@ void MegaClient::sc_la()
             }
         }
     }
+}
+
+void MegaClient::sc_ub()
+{
+    LOG_info << "Business account update";
+    getuserdata();
 }
 
 // scan notified nodes for
