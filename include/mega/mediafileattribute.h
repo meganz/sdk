@@ -58,6 +58,8 @@ struct MEGA_API MediaProperties
     MediaProperties();
     bool operator==(const MediaProperties& o) const;
 
+    bool isPopulated();
+
     // turn the structure into a string suitable for pfa command
     static std::string encodeMediaPropertiesAttributes(MediaProperties vp, uint32_t filekey[4]);
 

@@ -456,6 +456,11 @@ std::string MediaProperties::serialize()
     return s;
 }
 
+bool MediaProperties::isPopulated()
+{
+    return shortformat != 254;
+}
+
 bool MediaProperties::operator==(const MediaProperties& o) const
 { 
     return shortformat == o.shortformat && width == o.width && height == o.height && fps == o.fps && playtime == o.playtime &&

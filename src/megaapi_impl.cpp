@@ -20323,8 +20323,7 @@ void MegaApiImpl::sendPendingRequests()
             newnode->attrstring = new string();
             string name = sm->get("n");
 #ifdef USE_MEDIAINFO
-            char ext[8];
-            if (this->fsAccess->getextension(&name, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+            if (bg->mediaproperties.isPopulated())
             {
                 newnode->fileattributes = new string(MediaProperties::encodeMediaPropertiesAttributes(bg->mediaproperties, (uint32_t*)(bg->filekey + FILENODEKEYLENGTH / 2)));
             }
