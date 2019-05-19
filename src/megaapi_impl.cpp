@@ -3699,7 +3699,7 @@ MegaStringListMap* MegaStringListMapPrivate::copy() const
 
 const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
 {
-    auto key_ptr = std::unique_ptr<const char>{key};
+    auto key_ptr = std::unique_ptr<const char[]>{key};
     auto iter = m_map.find(key_ptr);
     key_ptr.release();
     if (iter != m_map.end())
@@ -3711,7 +3711,8 @@ const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
 
 void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
 {
-    m_map.emplace(MegaApi::strdup(key), value);
+    std::unique_ptr<const char[]> key_ptr{MegaApi::strdup(key)};
+    m_map[std::move(key_ptr)] = std::unique_ptr<const MegaStringList>{value};
 }
 
 int MegaStringListMapPrivate::size() const
@@ -3719,8 +3720,8 @@ int MegaStringListMapPrivate::size() const
     return static_cast<int>(m_map.size());
 }
 
-bool MegaStringListMapPrivate::Compare::operator()(const std::unique_ptr<const char>& rhs,
-                                                   const std::unique_ptr<const char>& lhs) const
+bool MegaStringListMapPrivate::Compare::operator()(const std::unique_ptr<const char[]>& rhs,
+                                                   const std::unique_ptr<const char[]>& lhs) const
 {
     return strcmp(rhs.get(), lhs.get()) < 0;
 }

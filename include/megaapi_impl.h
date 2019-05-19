@@ -1457,11 +1457,11 @@ public:
 protected:
     struct Compare
     {
-        bool operator()(const std::unique_ptr<const char>& rhs,
-                        const std::unique_ptr<const char>& lhs) const;
+        bool operator()(const std::unique_ptr<const char[]>& rhs,
+                        const std::unique_ptr<const char[]>& lhs) const;
     };
 
-    map<std::unique_ptr<const char>, std::unique_ptr<const MegaStringList>, Compare> m_map;
+    map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> m_map;
 };
 
 class MegaStringTablePrivate : public MegaStringTable
