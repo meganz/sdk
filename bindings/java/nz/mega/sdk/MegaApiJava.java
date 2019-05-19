@@ -7988,4 +7988,23 @@ public class MegaApiJava {
     public String smsVerifiedPhoneNumber() {
         return megaApi.smsVerifiedPhoneNumber();
     }
+    
+    /**
+     * Requests the contacts that are registered at MEGA (currently verified through SMS)
+     *
+     * @param contacts The map of contacts to get registered contacts from
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getRegisteredContacts(MegaStringMap contacts, MegaRequestListenerInterface listener){
+        megaApi.getRegisteredContacts(contacts,listener);
+    }
+    
+    /**
+     * Requests the currently available country calling codes
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getCountryCallingCodes(MegaRequestListenerInterface listener){
+        megaApi.getCountryCallingCodes(listener);
+    }
 }
