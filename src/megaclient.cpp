@@ -4177,6 +4177,11 @@ bool MegaClient::procsc()
                                 // last acknowledged
                                 sc_la();
                                 break;
+
+                            case MAKENAMEID2('u', 'b'):
+                                // business account update
+                                sc_ub();
+                                break;
                         }
                     }
                 }
@@ -6150,6 +6155,37 @@ void MegaClient::sc_la()
             }
         }
     }
+}
+
+void MegaClient::sc_ub()
+{
+    int status = 0;
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 's':
+                status = (int)jsonsc.getint();
+                break;
+
+            case EOO:
+                if (status == 0)
+                {
+                    LOG_warn << "Missing status in `ub` action packet";
+                }
+
+                app->notify_business_status(status);
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `ub` action packet";
+                    return;
+                }
+        }
+    }
+
 }
 
 // scan notified nodes for

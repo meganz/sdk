@@ -2711,6 +2711,9 @@ protected:
         // notify about a finished HTTP request
         virtual void http_result(error, int, byte *, int);
 
+        // notify about a business account status change
+        virtual void notify_business_status(int status);
+
         // notify about a finished timer
         virtual void timer_result(error);
 

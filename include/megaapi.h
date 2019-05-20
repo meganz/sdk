@@ -3238,7 +3238,8 @@ public:
         EVENT_DISCONNECT                = 3,
         EVENT_ACCOUNT_BLOCKED           = 4,
         EVENT_STORAGE                   = 5,
-        EVENT_NODES_CURRENT             = 6
+        EVENT_NODES_CURRENT             = 6,
+        EVENT_BUSINESS_STATUS           = 7
     };
 
     virtual ~MegaEvent();
@@ -5384,6 +5385,12 @@ class MegaGlobalListener
          * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
          * logout.
          *
+         *  - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
+         * the posible values are:
+         *   - BUSINESS_STATUS_EXPIRED = -1,
+         *   - BUSINESS_STATUS_ACTIVE = 1,
+         *   - BUSINESS_STATUS_GRACE_PERIOD = 2
+         *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
@@ -5837,6 +5844,12 @@ class MegaListener
          *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
          * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
          * logout.
+         *
+         *  - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
+         * the posible values are:
+         *   - BUSINESS_STATUS_EXPIRED = -1,
+         *   - BUSINESS_STATUS_ACTIVE = 1,
+         *   - BUSINESS_STATUS_GRACE_PERIOD = 2
          *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.

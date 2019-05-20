@@ -12599,6 +12599,13 @@ void MegaApiImpl::notify_disconnect()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_business_status(int status)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_BUSINESS_STATUS);
+    event->setNumber(status);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 {
     if (requestMap.find(client->restag) == requestMap.end())
