@@ -5387,8 +5387,9 @@ class MegaGlobalListener
          *
          *  - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
          * the posible values are:
-         *   - BUSINESS_STATUS_EXPIRED = -1,
-         *   - BUSINESS_STATUS_ACTIVE = 1,
+         *   - BUSINESS_STATUS_EXPIRED = -1
+         *   - BUSINESS_STATUS_INACTIVE = 0
+         *   - BUSINESS_STATUS_ACTIVE = 1
          *   - BUSINESS_STATUS_GRACE_PERIOD = 2
          *
          *  Valid data in the MegaEvent object received in the callback:
@@ -5847,8 +5848,9 @@ class MegaListener
          *
          *  - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
          * the posible values are:
-         *   - BUSINESS_STATUS_EXPIRED = -1,
-         *   - BUSINESS_STATUS_ACTIVE = 1,
+         *   - BUSINESS_STATUS_EXPIRED = -1
+         *   - BUSINESS_STATUS_INACTIVE = 0
+         *   - BUSINESS_STATUS_ACTIVE = 1
          *   - BUSINESS_STATUS_GRACE_PERIOD = 2
          *
          *  Valid data in the MegaEvent object received in the callback:

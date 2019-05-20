@@ -6159,22 +6159,28 @@ void MegaClient::sc_la()
 
 void MegaClient::sc_ub()
 {
-    int status = 0;
+    bool statusRecv = false;
+    int status = -2;
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
             case 's':
+                statusRecv = true;
                 status = (int)jsonsc.getint();
                 break;
 
             case EOO:
-                if (status == 0)
+                if (!statusRecv)
                 {
-                    LOG_warn << "Missing status in `ub` action packet";
+                    std::string err = "Missing status in `ub` action packet";
+                    LOG_warn << err;
+                    sendevent(99449, err.c_str(), 0);
+                    return;
                 }
 
-                app->notify_business_status(status);
+                businessStatus = status;
+                app->notify_business_status(businessStatus);
                 return;
 
             default:
