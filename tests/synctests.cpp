@@ -2377,12 +2377,12 @@ public:
 #ifdef _WIN32
         OutputDebugStringA(message);
         OutputDebugStringA("\r\n");
-#endif
-
-        if (loglevel <= logWarning)
+#else
+        if (loglevel >= SimpleLogger::logCurrentLevel)
         {
-            std::cout << message << std::endl;
+            std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
         }
+#endif
     }
 };
 
@@ -2410,8 +2410,7 @@ int main (int argc, char *argv[])
     SimpleLogger::setLogLevel(logDebug);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&logger);
 #else
-    SimpleLogger::setAllOutputs(&std::cout);
-    SimpleLogger::setLogLevel(logDebug);
+    SimpleLogger::setOutputClass(&logger);
 #endif
 
 #if defined(WIN32) && defined(NO_READLINE)
