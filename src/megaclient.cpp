@@ -6171,10 +6171,10 @@ void MegaClient::sc_ub()
                 break;
 
             case EOO:
-                if (!statusRecv)
+                if (!statusRecv || (status < -1 || status > 2))
                 {
-                    std::string err = "Missing status in `ub` action packet";
-                    LOG_warn << err;
+                    std::string err = "Missing or invalid status in `ub` action packet";
+                    LOG_err << err;
                     sendevent(99449, err.c_str(), 0);
                     return;
                 }
