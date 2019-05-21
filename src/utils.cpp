@@ -1491,6 +1491,24 @@ int m_clock_getmonotonictime(timespec *t)
 
 }
 
+m_time_t m_mktime_UTC(const struct tm *src)
+{
+    struct tm dst = *src;
+    m_time_t t = 0;
+#if _MSC_VER >= 1400 || defined(__MINGW32__) // MSVCRT (2005+)
+    t = mktime(&dst);
+    TIME_ZONE_INFORMATION TimeZoneInfo;
+    GetTimeZoneInformation(&TimeZoneInfo);
+    t += timezone.Bias * 60 - dst.tm_isdst * 3600;
+#elif _WIN32
+#error "localtime is not thread safe in this compiler; please use a later one"
+#else //POSIX
+    t = mktime(&dst);
+    t += dst.tm_gmtoff - dst.tm_isdst * 3600;
+#endif
+    return t;
+}
+
 std::string rfc1123_datetime( time_t time )
 {
     struct tm * timeinfo;

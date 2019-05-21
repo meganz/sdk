@@ -1461,6 +1461,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_MY_CHAT_FILES_FOLDER;
     }
+    if (user->changed.pushSettings)
+    {
+        changed |= MegaUser::CHANGE_TYPE_PUSH_SETTINGS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -2794,6 +2798,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 
     stringMap = NULL;
     folderInfo = NULL;
+    settings = NULL;
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
@@ -2856,8 +2861,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
         *(this->achievementsDetails) = *(request->getAchievementsDetails());
     }
 
-    this->timeZoneDetails = NULL;
-    this->setTimeZoneDetails(request->getMegaTimeZoneDetails());
+    this->timeZoneDetails = request->getMegaTimeZoneDetails() ? request->timeZoneDetails->copy() : NULL;
 
 #ifdef ENABLE_CHAT   
     this->chatPeerList = request->getMegaTextChatPeerList() ? request->chatPeerList->copy() : NULL;
@@ -2866,6 +2870,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
+    this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -2889,7 +2894,7 @@ AchievementsDetails *MegaRequestPrivate::getAchievementsDetails() const
 
 MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
 {
-    return timeZoneDetails ? timeZoneDetails->copy() : NULL;
+    return timeZoneDetails;
 }
 
 #ifdef ENABLE_CHAT
@@ -2948,6 +2953,21 @@ void MegaRequestPrivate::setMegaFolderInfo(const MegaFolderInfo *folderInfo)
     }
 
     this->folderInfo = folderInfo ? folderInfo->copy() : NULL;
+}
+
+const MegaPushNotificationSettings *MegaRequestPrivate::getMegaPushNotificationSettings() const
+{
+    return settings;
+}
+
+void MegaRequestPrivate::setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings)
+{
+    if (this->settings)
+    {
+        delete this->settings;
+    }
+
+    this->settings = settings ? settings->copy() : NULL;
 }
 
 #ifdef ENABLE_SYNC
@@ -3020,6 +3040,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete stringMap;
     delete folderInfo;
     delete timeZoneDetails;
+    delete settings;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -3306,7 +3327,7 @@ void MegaRequestPrivate::setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails
     {
         delete this->timeZoneDetails;
     }
-    this->timeZoneDetails = timeZoneDetails;
+    this->timeZoneDetails = timeZoneDetails ? timeZoneDetails->copy() : NULL;
 }
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
@@ -4572,6 +4593,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     ftpServerRestrictedMode = MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
 #endif
 
+    mPushSettings = NULL;
+    mTimezones = NULL;
+
     httpio = new MegaHttpIO();
     waiter = new MegaWaiter();
 
@@ -5070,6 +5094,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_LAST_PSA:
         case MegaApi::USER_ATTR_RUBBISH_TIME:
         case MegaApi::USER_ATTR_STORAGE_STATE:
+        case MegaApi::USER_ATTR_PUSH_SETTINGS:
             scope = '^';
             break;
 
@@ -6522,6 +6547,68 @@ char *MegaApiImpl::getAvatarColor(handle userhandle)
     int index = userhandle % (handle)(sizeof(colors)/sizeof(colors[0]));
 
     return MegaApi::strdup(colors[index].c_str());
+}
+
+bool MegaApiImpl::isGlobalNotifiable()
+{
+    return !mPushSettings || (!mPushSettings->isGlobalDndEnabled() && isScheduleNotifiable());
+}
+
+bool MegaApiImpl::isScheduleNotifiable()
+{
+    if (!mTimezones)
+    {
+        LOG_warn << "Timezones are not available yet";
+        return true;
+    }
+
+    if (!mPushSettings || !mPushSettings->isGlobalScheduleEnabled())
+    {
+        return true;
+    }
+
+    // find the configured timezone for notification's schedule and get the corresponding offset based on UTC
+    int offsetTz = 0;
+    bool tzFound = false;
+    for (int i = 0; i < mTimezones->getNumTimeZones(); i++)
+    {
+        if (strcmp(mPushSettings->getGlobalScheduleTimezone(), mTimezones->getTimeZone(i)) == 0)
+        {
+            offsetTz = mTimezones->getTimeOffset(i);
+            tzFound = true;
+            break;
+        }
+    }
+
+    if (!tzFound)
+    {
+        LOG_err << "Timezone not found: " << mPushSettings->getGlobalScheduleTimezone();
+        assert(false);
+        return true;    // better to generate the notification, in this case
+    }
+
+    // calculate the timestamp for time 00:00:00 of the current day in the configured timezone
+    m_time_t now = m_time(NULL) + offsetTz;
+    struct tm tmp;
+    m_gmtime(now, &tmp);
+    tmp.tm_hour = tmp.tm_min = tmp.tm_sec = 0;  // set the time to 00:00:00
+    m_time_t dayStart = m_mktime_UTC(&tmp);
+
+    // calculate the timestamps for the scheduled period
+    int offsetStart = mPushSettings->getGlobalScheduleStart() * 60; // convert minutes into seconds
+    int offsetEnd = mPushSettings->getGlobalScheduleEnd() * 60;
+    m_time_t scheduleStart = dayStart + offsetStart;
+    m_time_t scheduleEnd = dayStart + offsetEnd;
+
+    if (offsetStart <= offsetEnd)
+    {
+        return now >= scheduleStart && now <= scheduleEnd;
+    }
+    else    // the scheduled period covers 2 days
+    {
+        assert(now >= dayStart && now <= dayStart + 24 * 60 * 60);
+        return now <= scheduleEnd || now >= scheduleStart;
+    }
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
@@ -9113,7 +9200,49 @@ void MegaApiImpl::isGeolocationEnabled(MegaRequestListener *listener)
     waiter->notify();
 }
 
+bool MegaApiImpl::isChatNotifiable(MegaHandle chatid)
+{
+    if (mPushSettings)
+    {
+        if (mPushSettings->isChatAlwaysNotifyEnabled(chatid))
+        {
+            return true;
+        }
+
+        return (!mPushSettings->isChatDndEnabled(chatid) && isGlobalNotifiable() && mPushSettings->isChatsEnabled());
+    }
+
+    return true;
+}
+
 #endif
+
+void MegaApiImpl::getPushNotificationSettings(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_PUSH_SETTINGS);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_PUSH_SETTINGS);
+    request->setMegaPushNotificationSettings(settings);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+bool MegaApiImpl::isSharesNotifiable()
+{
+    return !mPushSettings || (mPushSettings->isSharesEnabled() && isScheduleNotifiable());
+}
+
+bool MegaApiImpl::isContactsNotifiable()
+{
+    return !mPushSettings || (mPushSettings->isContactsEnabled() && isScheduleNotifiable());
+}
 
 void MegaApiImpl::getAccountAchievements(MegaRequestListener *listener)
 {
@@ -12927,6 +13056,11 @@ void MegaApiImpl::logout_result(error e)
         syncLowerSizeLimit = 0;
         syncUpperSizeLimit = 0;
 
+        delete mPushSettings;
+        mPushSettings = NULL;
+        delete mTimezones;
+        mTimezones = NULL;
+
         fireOnRequestFinish(request, MegaError(preverror));
         return;
     }
@@ -13413,9 +13547,27 @@ void MegaApiImpl::getua_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::getua_result(byte* data, unsigned len)
+void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 {
     error e = API_OK;
+
+    // update cached notification settings for filtering
+    MegaPushNotificationSettingsPrivate *pushSettings = NULL;
+    if (type == ATTR_PUSH_SETTINGS)
+    {
+        string settingsJson((const char*)data, len);
+        pushSettings = new MegaPushNotificationSettingsPrivate(settingsJson);
+        if (pushSettings->isValid())
+        {
+            delete mPushSettings;
+            mPushSettings = pushSettings->copy();
+        }
+        else
+        {
+            e = API_EINTERNAL;
+            client->sendevent(99448, "Invalid JSON for received notification settings");
+        }
+    }
 
 	if(requestMap.find(client->restag) == requestMap.end()) return;
 	MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13544,6 +13696,12 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             }
             break;
 
+        case MegaApi::USER_ATTR_PUSH_SETTINGS:
+        {
+            request->setMegaPushNotificationSettings(pushSettings);
+        }
+        break;
+
         // byte arrays with possible nulls in the middle --> to Base64
         case MegaApi::USER_ATTR_ED25519_PUBLIC_KEY:
         case MegaApi::USER_ATTR_CU25519_PUBLIC_KEY:
@@ -13559,10 +13717,11 @@ void MegaApiImpl::getua_result(byte* data, unsigned len)
             break;
     }
 
+    delete pushSettings;
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::getua_result(TLVstore *tlv)
+void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13937,6 +14096,16 @@ void MegaApiImpl::multifactorauthdisable_result(error e)
 
 void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, vector<int> *timezoneoffsets, int defaulttz)
 {
+    MegaTimeZoneDetails *tzDetails = NULL;
+    if (!e)
+    {
+        tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
+
+        // update the cached timezones for notifications filtering
+        delete mTimezones;
+        mTimezones = tzDetails->copy();
+    }
+
     if (requestMap.find(client->restag) == requestMap.end())
     {
         return;
@@ -13947,11 +14116,8 @@ void MegaApiImpl::fetchtimezone_result(error e, vector<std::string> *timezones, 
         return;
     }
 
-    if (!e)
-    {
-        MegaTimeZoneDetails *tzDetails = new MegaTimeZoneDetailsPrivate(timezones, timezoneoffsets, defaulttz);
-        request->setTimeZoneDetails(tzDetails);
-    }
+    request->setTimeZoneDetails(tzDetails);
+    delete tzDetails;
     fireOnRequestFinish(request, MegaError(e));
 }
 
@@ -17792,6 +17958,24 @@ void MegaApiImpl::sendPendingRequests()
 
                     string tmp(value);
                     client->putua(type, (byte *)tmp.data(), unsigned(tmp.size()));
+                }
+                else if (type == ATTR_PUSH_SETTINGS)
+                {
+                    const MegaPushNotificationSettingsPrivate *settings = (MegaPushNotificationSettingsPrivate*)(request->getMegaPushNotificationSettings());
+                    if (!settings)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    string settingsJson = settings->generateJson();
+                    if (settingsJson.empty())
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    client->putua(type, (byte *)settingsJson.data(), unsigned(settingsJson.size()));
                 }
                 else
                 {
@@ -29615,5 +29799,507 @@ int MegaTimeZoneDetailsPrivate::getDefault() const
     return defaultTimeZone;
 }
 
+MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const string &settingsJSON)
+{
+    JSON json;
+    json.begin(settingsJSON.c_str() + 1);
+    std::string name = json.getname();
+    while (!name.empty())
+    {
+        std::string globalObject;
+        json.storeobject(&globalObject);
+        if (name == "GLOBAL")
+        {
+            JSON jsonGlobal;
+            jsonGlobal.begin(globalObject.c_str() + 1);
+            std::string globalSubsetting = jsonGlobal.getname();
+            while (!globalSubsetting.empty())
+            {
+                if (globalSubsetting == "dnd")
+                {
+                    if (jsonGlobal.isnumeric())
+                    {
+                        mGlobalDND = jsonGlobal.getint();
+                    }
+
+                    if (mGlobalDND < 0)
+                    {
+                        LOG_err << "Invalid format in GLOBAL.dnd notification settings";
+                        mJsonInvalid = true;
+                    }
+                }
+                else if (globalSubsetting == "nsch")
+                {
+                    std::string schedule;
+                    jsonGlobal.storeobject(&schedule);
+                    JSON scheduleJson;
+                    scheduleJson.begin(schedule.c_str() + 1);
+                    std::string scheduleSubTitle = scheduleJson.getname();
+                    while (!scheduleSubTitle.empty())
+                    {
+                        if (scheduleSubTitle == "tz")
+                        {
+                            scheduleJson.storeobject(&mGlobalScheduleTimezone);
+                        }
+                        else if (scheduleSubTitle == "start" && scheduleJson.isnumeric())
+                        {
+                            mGlobalScheduleStart = scheduleJson.getint();
+                        }
+                        else if (scheduleSubTitle == "end" && scheduleJson.isnumeric())
+                        {
+                            mGlobalScheduleEnd = scheduleJson.getint();
+                        }
+                        else
+                        {
+                            LOG_warn << "Unknown option in GLOBAL.nsch notification settings";
+                        }
+
+                        scheduleSubTitle = scheduleJson.getname();
+                    }
+
+                    if (mGlobalScheduleTimezone.empty() || mGlobalScheduleStart < 0 || mGlobalScheduleEnd < 0)
+                    {
+                        LOG_err << "Invalid format in GLOBAL.nsch notification settings";
+                        mJsonInvalid = true;
+                    }
+                }
+                else
+                {
+                    LOG_warn << "Unknown option in Global notification settings";
+                    mJsonInvalid = true;
+                }
+
+                globalSubsetting = jsonGlobal.getname();
+            }
+        }
+        else if (name == "PCR")
+        {
+            JSON jsonContact;
+            jsonContact.begin(globalObject.c_str() + 1);
+            std::string subname = jsonContact.getname();
+            if (subname != "dnd")
+            {
+                LOG_warn << "Unknown option in PCR notification settings";
+                mJsonInvalid = true;
+            }
+            else if (jsonContact.isnumeric())
+            {
+                mContactsDND = jsonContact.getint();
+            }
+            else
+            {
+                LOG_err << "Invalid format in PCR.dnd notification settings";
+                mJsonInvalid = true;
+            }
+        }
+        else if (name == "INSHARE")
+        {
+            JSON jsonShares;
+            jsonShares.begin(globalObject.c_str() + 1);
+            std::string subname = jsonShares.getname();
+            if (subname != "dnd")
+            {
+                LOG_warn << "Unknown option in SHARES notification settings";
+                mJsonInvalid = true;
+            }
+            else if (jsonShares.isnumeric())
+            {
+                mSharesDND = jsonShares.getint();
+            }
+            else
+            {
+                LOG_err << "Invalid format in SHARES.dnd notification settings";
+                mJsonInvalid = true;
+            }
+        }
+        else if (name == "CHAT")
+        {
+            JSON jsonChats;
+            jsonChats.begin(globalObject.c_str() + 1);
+            std::string subname = jsonChats.getname();
+            if (subname != "dnd")
+            {
+                LOG_warn << "Unknown option in CHAT notification settings";
+                mJsonInvalid = true;
+            }
+            else if (jsonChats.isnumeric())
+            {
+                mGlobalChatsDND = jsonChats.getint();
+            }
+            else
+            {
+                LOG_err << "Invalid format in CHAT.dnd notification settings";
+                mJsonInvalid = true;
+            }
+        }
+        else if (name.length() == 11)    // settings for specific 'chatid'
+        {
+            MegaHandle chatid;
+            if (Base64::atob(name.c_str(), (byte*)&chatid, MegaClient::CHATHANDLE) == MegaClient::CHATHANDLE)
+            {
+                JSON jsonChat;
+                jsonChat.begin(globalObject.c_str() + 1);
+                std::string subname = jsonChat.getname();
+                if (subname == "dnd" && jsonChat.isnumeric())
+                {
+                    mChatDND[chatid] = jsonChat.getint();
+                }
+                else if (subname == "an" && jsonChat.isnumeric())
+                {
+                    bool alwaysNotify = jsonChat.getint();
+                    if (alwaysNotify)
+                    {
+                        mChatAlwaysNotify[chatid] = true;
+                    }
+                }
+                else
+                {
+                    LOG_err << "Unknown option for chatid '" << name << "' in notification settings";
+                    mJsonInvalid = true;
+                }
+            }
+            else
+            {
+                LOG_warn << "Invalid format for chatid '" << name << "' in notification settings";
+                mJsonInvalid = true;
+            }
+        }
+        else
+        {
+            LOG_err << "Unknown option in notification settings";
+            mJsonInvalid = true;
+        }
+
+        if (mJsonInvalid)
+        {
+            return;
+        }
+
+        name = json.getname();
+    }
 }
 
+MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate()
+{
+}
+
+MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings)
+{
+    mGlobalDND = settings->mGlobalDND;
+    mGlobalScheduleStart = settings->mGlobalScheduleStart;
+    mGlobalScheduleEnd = settings->mGlobalScheduleEnd;
+    mGlobalScheduleTimezone = settings->mGlobalScheduleTimezone;
+    mChatDND = settings->mChatDND;
+    mChatAlwaysNotify = settings->mChatAlwaysNotify;
+    mContactsDND = settings->mContactsDND;
+    mSharesDND = settings->mSharesDND;
+    mGlobalChatsDND = settings->mGlobalChatsDND;
+}
+
+string MegaPushNotificationSettingsPrivate::generateJson() const
+{
+    std::string json;
+    if ((mGlobalScheduleStart > -1 && mGlobalScheduleEnd == -1)
+            || (mGlobalScheduleStart == -1 && mGlobalScheduleEnd > -1))
+    {
+        LOG_warn << "Invalid notification settings for GLOBAL.nsch";
+        return json;
+    }
+
+    json = "{";
+    if (mGlobalDND > -1 || isGlobalScheduleEnabled())
+    {        
+        json.append("\"GLOBAL\":{");
+        if (isGlobalDndEnabled())
+        {
+            json.append("\"dnd\":").append(std::to_string(mGlobalDND));
+            json.append(",");
+        }
+
+        if (isGlobalScheduleEnabled())
+        {
+            json.append("\"nsch\":{\"start\":").append(std::to_string(mGlobalScheduleStart));
+            json.append(",\"end\":").append(std::to_string(mGlobalScheduleEnd));
+            json.append(",\"tz\":\"").append(mGlobalScheduleTimezone).append("\"}");
+        }
+
+        if (json.at(json.length() - 1) == ',')  // clear a tailing comma (not needed)
+        {
+            json.pop_back();
+        }
+
+        json.append("},");
+    }
+
+    if (mContactsDND > -1)
+    {
+        json.append("\"PCR\":{\"dnd\":").append(std::to_string(mContactsDND)).append("}");
+        json.append(",");
+    }
+
+    if (mSharesDND > -1)
+    {
+        json.append("\"INSHARE\":{\"dnd\":").append(std::to_string(mSharesDND)).append("}");
+        json.append(",");
+    }
+
+    if (mGlobalChatsDND > -1)
+    {
+        json.append("\"CHAT\":{\"dnd\":").append(std::to_string(mGlobalChatsDND)).append("}");
+        json.append(",");
+    }
+
+    char chatid[MegaClient::CHATHANDLE * 4 / 3 + 4];
+
+    std::map<uint64_t, time_t>::const_iterator itDND;
+    for (itDND = mChatDND.begin(); itDND != mChatDND.end(); itDND++)
+    {
+        if (!isChatAlwaysNotifyEnabled(itDND->first) && isChatDndEnabled(itDND->first))
+        {
+            Base64::btoa((byte*)&(itDND->first), MegaClient::CHATHANDLE, chatid);
+            json.append("\"").append(chatid).append("\":{");
+            json.append("\"dnd\":").append(std::to_string(itDND->second)).append("}");
+            json.append(",");
+        }
+    }
+
+    std::map<uint64_t, bool>::const_iterator itAn;
+    for (itAn = mChatAlwaysNotify.begin(); itAn != mChatAlwaysNotify.end(); itAn++)
+    {
+        assert(isChatAlwaysNotifyEnabled(itAn->first));
+        assert(!isChatDndEnabled(itAn->first));
+
+        if (isChatAlwaysNotifyEnabled(itAn->first))
+        {
+            Base64::btoa((byte*)&(itAn->first), MegaClient::CHATHANDLE, chatid);
+            json.append("\"").append(chatid).append("\":{");
+            json.append("\"an\":").append("1").append("}");
+            json.append(",");
+        }
+    }
+
+    if (json.at(json.length() - 1) == ',')  // clear a tailing comma (not needed)
+    {
+        json.pop_back();
+    }
+    json.append("}");
+    return json;
+}
+
+bool MegaPushNotificationSettingsPrivate::isValid() const
+{
+    return !mJsonInvalid;
+}
+
+MegaPushNotificationSettingsPrivate::~MegaPushNotificationSettingsPrivate()
+{
+
+}
+
+bool MegaPushNotificationSettingsPrivate::isGlobalEnabled() const
+{
+    return (mGlobalDND == -1 || (mGlobalDND > 0 && mGlobalDND < m_time(NULL)));
+}
+
+bool MegaPushNotificationSettingsPrivate::isGlobalDndEnabled() const
+{
+    return (mGlobalDND == 0 || mGlobalDND > m_time(NULL));
+}
+
+int64_t MegaPushNotificationSettingsPrivate::getGlobalDnd() const
+{
+    return mGlobalDND;
+}
+
+bool MegaPushNotificationSettingsPrivate::isGlobalScheduleEnabled() const
+{
+    return (mGlobalScheduleStart != -1 && mGlobalScheduleEnd != -1 && !mGlobalScheduleTimezone.empty());
+}
+
+int MegaPushNotificationSettingsPrivate::getGlobalScheduleStart() const
+{
+    return mGlobalScheduleStart;
+}
+
+int MegaPushNotificationSettingsPrivate::getGlobalScheduleEnd() const
+{
+    return mGlobalScheduleEnd;
+}
+
+const char *mega::MegaPushNotificationSettingsPrivate::getGlobalScheduleTimezone() const
+{
+    return MegaApi::strdup(mGlobalScheduleTimezone.c_str());
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatEnabled(MegaHandle chatid) const
+{
+    std::map<uint64_t, m_time_t>::const_iterator it = mChatDND.find(chatid);
+    m_time_t chatDND = (it != mChatDND.end()) ? it->second : -1;
+    return (chatDND == -1 || (chatDND > 0 && chatDND < m_time(NULL)));
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatDndEnabled(MegaHandle chatid) const
+{
+    std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
+    return (it != mChatDND.end() && (it->second == 0 || it->second > m_time(NULL)));
+}
+
+int64_t MegaPushNotificationSettingsPrivate::getChatDnd(MegaHandle chatid) const
+{
+    std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
+    if (it != mChatDND.end())
+    {
+        assert(it->second != -1);
+        return it->second;
+    }
+
+    return -1;
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatAlwaysNotifyEnabled(MegaHandle chatid) const
+{
+    std::map<uint64_t, bool>::const_iterator it = mChatAlwaysNotify.find(chatid);
+    return (it != mChatAlwaysNotify.end() && it->second);
+}
+
+bool MegaPushNotificationSettingsPrivate::isContactsEnabled() const
+{
+    return (mContactsDND == -1 || (mContactsDND > 0 && mContactsDND < m_time(NULL)));
+}
+
+bool MegaPushNotificationSettingsPrivate::isSharesEnabled() const
+{
+    return (mSharesDND == -1 || (mSharesDND > 0 && mSharesDND < m_time(NULL)));
+}
+
+bool MegaPushNotificationSettingsPrivate::isChatsEnabled() const
+{
+    return (mGlobalChatsDND == -1 || (mGlobalChatsDND > 0 && mGlobalChatsDND < m_time(NULL)));
+}
+
+MegaPushNotificationSettings *MegaPushNotificationSettingsPrivate::copy() const
+{
+    return new MegaPushNotificationSettingsPrivate(this);
+}
+
+void MegaPushNotificationSettingsPrivate::enableGlobal(bool enable)
+{
+    if (isGlobalEnabled() == enable)
+    {
+        return;
+    }
+
+    mGlobalDND = enable ? -1 : 0;
+}
+
+void MegaPushNotificationSettingsPrivate::setGlobalDnd(int64_t timestamp)
+{
+    assert(timestamp > 0);
+    if (!isGlobalEnabled())
+    {
+        LOG_warn << "setGlobalDnd(): global notifications were disabled. Now are enabled";
+    }
+    mGlobalDND = timestamp;
+}
+
+void MegaPushNotificationSettingsPrivate::disableGlobalDnd()
+{
+    if (!isGlobalEnabled())
+    {
+        LOG_warn << "disableGlobalDnd(): global notifications were disabled. Now are enabled";
+    }
+    mGlobalDND = -1;
+}
+
+void MegaPushNotificationSettingsPrivate::setGlobalSchedule(int start, int end, const char *timezone)
+{
+    if (start <= -1 || end <= -1 || !timezone || !timezone[0] || start == end)
+    {
+        LOG_warn << "setGlobalSchedule(): wrong arguments";
+        assert(false);
+        return;
+    }
+
+    mGlobalScheduleStart = start;
+    mGlobalScheduleEnd = end;
+    mGlobalScheduleTimezone.assign(timezone);
+}
+
+void MegaPushNotificationSettingsPrivate::disableGlobalSchedule()
+{
+    mGlobalScheduleStart = -1;
+    mGlobalScheduleEnd = -1;
+    mGlobalScheduleTimezone.clear();
+}
+
+void MegaPushNotificationSettingsPrivate::enableChat(MegaHandle chatid, bool enable)
+{
+    assert(!ISUNDEF(chatid));
+    if (isChatEnabled(chatid) == enable)
+    {
+        return;
+    }
+
+    if (enable)
+    {
+        mChatDND.erase(chatid);
+    }
+    else    // disable
+    {
+        mChatDND[chatid] = 0;
+        if (isChatAlwaysNotifyEnabled(chatid))
+        {
+            LOG_warn << "enableChat(): always notify was enabled. Now is disabled";
+            enableChatAlwaysNotify(chatid, false);
+        }
+    }
+}
+
+void MegaPushNotificationSettingsPrivate::setChatDnd(MegaHandle chatid, int64_t timestamp)
+{
+    assert(timestamp > 0);
+    assert(!ISUNDEF(chatid));
+    if (isChatAlwaysNotifyEnabled(chatid))
+    {
+        LOG_warn << "setChatDnd(): always notify was enabled. Now is disabled";
+        enableChatAlwaysNotify(chatid, false);
+    }
+
+    mChatDND[chatid] = timestamp;
+}
+
+void MegaPushNotificationSettingsPrivate::enableChatAlwaysNotify(MegaHandle chatid, bool enable)
+{
+    assert(!ISUNDEF(chatid));
+    if (enable)
+    {
+        if (!isChatEnabled(chatid) || isChatDndEnabled(chatid))
+        {
+            LOG_warn << "enableChatAlwaysNotify(): notifications are now enabled, DND mode is disabled";
+            enableChat(chatid, true);
+        }
+
+        mChatAlwaysNotify[chatid] = 1;
+    }
+    else
+    {
+        mChatAlwaysNotify.erase(chatid);
+    }
+}
+
+void MegaPushNotificationSettingsPrivate::enableContacts(bool enable)
+{
+    mContactsDND = enable ? -1 : 0;
+}
+
+void MegaPushNotificationSettingsPrivate::enableShares(bool enable)
+{
+    mSharesDND = enable ? -1 : 0;
+}
+
+void MegaPushNotificationSettingsPrivate::enableChats(bool enable)
+{
+    mGlobalChatsDND = enable ? -1 : 0;
+}
+
+}

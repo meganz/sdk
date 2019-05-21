@@ -919,6 +919,11 @@ MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
     return NULL;
 }
 
+const MegaPushNotificationSettings *MegaRequest::getMegaPushNotificationSettings() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -2349,6 +2354,16 @@ void MegaApi::shouldShowPasswordReminderDialog(bool atLogout, MegaRequestListene
 void MegaApi::isMasterKeyExported(MegaRequestListener *listener)
 {
     pImpl->getUserAttr((const char*)NULL, MegaApi::USER_ATTR_PWD_REMINDER, NULL, 0, listener);
+}
+
+void MegaApi::getPushNotificationSettings(MegaRequestListener *listener)
+{
+    pImpl->getPushNotificationSettings(listener);
+}
+
+void MegaApi::setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener)
+{
+    pImpl->setPushNotificationSettings(settings, listener);
 }
 
 #ifdef ENABLE_CHAT
@@ -4635,7 +4650,22 @@ void MegaApi::chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, Mega
     pImpl->chatLinkJoin(publichandle, unifiedKey, listener);
 }
 
+bool MegaApi::isChatNotifiable(MegaHandle chatid)
+{
+    return pImpl->isChatNotifiable(chatid);
+}
+
 #endif
+
+bool MegaApi::isSharesNotifiable()
+{
+    return pImpl->isSharesNotifiable();
+}
+
+bool MegaApi::isContactsNotifiable()
+{
+    return pImpl->isContactsNotifiable();
+}
 
 char* MegaApi::strdup(const char* buffer)
 {
@@ -5826,12 +5856,12 @@ int MegaTimeZoneDetails::getNumTimeZones() const
     return 0;
 }
 
-const char *MegaTimeZoneDetails::getTimeZone(int index) const
+const char *MegaTimeZoneDetails::getTimeZone(int /*index*/) const
 {
     return NULL;
 }
 
-int MegaTimeZoneDetails::getTimeOffset(int index) const
+int MegaTimeZoneDetails::getTimeOffset(int /*index*/) const
 {
     return 0;
 }
@@ -5839,6 +5869,151 @@ int MegaTimeZoneDetails::getTimeOffset(int index) const
 int MegaTimeZoneDetails::getDefault() const
 {
     return -1;
+}
+
+MegaPushNotificationSettings *MegaPushNotificationSettings::createInstance()
+{
+    return new MegaPushNotificationSettingsPrivate();
+}
+
+MegaPushNotificationSettings::~MegaPushNotificationSettings()
+{
+
+}
+
+MegaPushNotificationSettings *MegaPushNotificationSettings::copy() const
+{
+    return NULL;
+}
+
+bool MegaPushNotificationSettings::isGlobalEnabled() const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isGlobalDndEnabled() const
+{
+    return false;
+}
+
+int64_t MegaPushNotificationSettings::getGlobalDnd() const
+{
+    return 0;
+}
+
+bool MegaPushNotificationSettings::isGlobalScheduleEnabled() const
+{
+    return false;
+}
+
+int MegaPushNotificationSettings::getGlobalScheduleStart() const
+{
+    return 0;
+}
+
+int MegaPushNotificationSettings::getGlobalScheduleEnd() const
+{
+    return 0;
+}
+
+const char *MegaPushNotificationSettings::getGlobalScheduleTimezone() const
+{
+    return NULL;
+}
+
+bool MegaPushNotificationSettings::isChatEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isChatDndEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+int64_t MegaPushNotificationSettings::getChatDnd(MegaHandle /*chatid*/) const
+{
+    return 0;
+}
+
+bool MegaPushNotificationSettings::isChatAlwaysNotifyEnabled(MegaHandle /*chatid*/) const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isContactsEnabled() const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isSharesEnabled() const
+{
+    return false;
+}
+
+bool MegaPushNotificationSettings::isChatsEnabled() const
+{
+    return false;
+}
+
+void MegaPushNotificationSettings::enableGlobal(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::setGlobalDnd(int64_t /*timestamp*/)
+{
+
+}
+
+void MegaPushNotificationSettings::disableGlobalDnd()
+{
+
+}
+
+void MegaPushNotificationSettings::setGlobalSchedule(int /*start*/, int /*end*/, const char * /*timezone*/)
+{
+
+}
+
+void MegaPushNotificationSettings::disableGlobalSchedule()
+{
+
+}
+
+void MegaPushNotificationSettings::enableChat(MegaHandle /*chatid*/, bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::setChatDnd(MegaHandle /*chatid*/, int64_t /*timestamp*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableChatAlwaysNotify(MegaHandle /*chatid*/, bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableContacts(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableShares(bool /*enable*/)
+{
+
+}
+
+void MegaPushNotificationSettings::enableChats(bool /*enable*/)
+{
+
+}
+
+MegaPushNotificationSettings::MegaPushNotificationSettings()
+{
+
 }
 
 }
