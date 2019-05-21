@@ -30051,7 +30051,7 @@ string MegaPushNotificationSettingsPrivate::generateJson() const
 
     char chatid[MegaClient::CHATHANDLE * 4 / 3 + 4];
 
-    std::map<uint64_t, time_t>::const_iterator itDND;
+    std::map<uint64_t, m_time_t>::const_iterator itDND;
     for (itDND = mChatDND.begin(); itDND != mChatDND.end(); itDND++)
     {
         if (!isChatAlwaysNotifyEnabled(itDND->first) && isChatDndEnabled(itDND->first))
@@ -30140,13 +30140,13 @@ bool MegaPushNotificationSettingsPrivate::isChatEnabled(MegaHandle chatid) const
 
 bool MegaPushNotificationSettingsPrivate::isChatDndEnabled(MegaHandle chatid) const
 {
-    std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
+    std::map<uint64_t, m_time_t>::const_iterator it = mChatDND.find(chatid);
     return (it != mChatDND.end() && (it->second == 0 || it->second > m_time(NULL)));
 }
 
 int64_t MegaPushNotificationSettingsPrivate::getChatDnd(MegaHandle chatid) const
 {
-    std::map<uint64_t, time_t>::const_iterator it = mChatDND.find(chatid);
+    std::map<uint64_t, m_time_t>::const_iterator it = mChatDND.find(chatid);
     if (it != mChatDND.end())
     {
         assert(it->second != -1);
