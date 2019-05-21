@@ -5414,7 +5414,7 @@ bool MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t s
     return false;
 }
 
-void MegaBackgroundMediaUpload::getUploadURL(std::string* url)
+void MegaBackgroundMediaUpload::getUploadURL(std::string* mediaUrl)
 {
 }
 

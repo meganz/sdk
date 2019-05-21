@@ -482,9 +482,10 @@ class MegaNode
          * @brief Returns the original fingerprint (Base64-encoded) of the node
          *
          * In the case where a file was modified before uploaded (eg. resized photo or gps coords removed),
-         * it may have an original fingerprint set (by setOriginalFingerprint() or backgroundMediaUploadComplete()),
-         * which is the fingerprint of the file before it was  modified.  This can be useful on mobile devices
-         * to avoid uploading a file multiple times when only the original file is kept on the device.
+         * it may have an original fingerprint set (by MegaApi::setOriginalFingerprint or
+         * MegaApi::backgroundMediaUploadComplete), which is the fingerprint of the file before it was modified.
+         * This can be useful on mobile devices to avoid uploading a file multiple times when only
+         * the original file is kept on the device.
          *
          * The MegaNode object retains the ownership of the returned string. It will
          * be valid until the MegaNode object is deleted.
@@ -2603,8 +2604,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
-            TYPE_CATCHUP,
-            TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
+            TYPE_CATCHUP, TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3245,11 +3245,10 @@ class MegaRequest
          *
          * This value is valid for requests relating to background uploads. The returned
          * pointer is to the relevant background upload object.
-         *          *
+         *
          * @return Object with information about the contents of a folder
          */
         virtual MegaBackgroundMediaUpload* getMegaBackgroundMediaUploadPtr() const;
-
 };
 
 /**
@@ -5921,7 +5920,6 @@ class MegaListener
  * completed afterward.
  *
  */
-
 class MegaBackgroundMediaUpload
 {
 public:
@@ -5929,9 +5927,9 @@ public:
     /**
      * @brief Extract mediainfo information about the photo or video.
      *
-     * Call this function once with the file to be uploaded.  It uses mediainfo to extract information that will
-     * help the webclient show or play the file in various browsers.  The information is stored in this object
-     * until the whole operation completes.
+     * Call this function once with the file to be uploaded. It uses mediainfo to extract information that will
+     * help other clients to show or to play the files. The information is stored in this object until the whole
+     * operation completes.
      *
      * @param inputFilepath The file to analyse with MediaInfo.
      */
@@ -5940,14 +5938,14 @@ public:
     /**
      * @brief Encrypt the file or a portion of it
      *
-     * Call this function once with the file to be uploaded.  It uses mediainfo to extract information that will
-     * help the webclient show or play the file in various browsers.  The information is stored in this object
-     * until the whole operation completes.   The encrypted data is stored in a new file.
+     * Call this function once with the file to be uploaded. It uses mediainfo to extract information that will
+     * help the webclient show or play the file in various browsers. The information is stored in this object
+     * until the whole operation completes. The encrypted data is stored in a new file.
      *
      * In order to save space on mobile devices, this function can be called in such a way that the last portion
      * of the file is encrypted (to a new file), and then that last portion of the file is removed by file truncation.
      * That operation can be repeated until the file is completely encrypted, and only the encrypted version remains,
-     * and takes up the same amount of space on the device.   The size of the portions must first be calculated by using
+     * and takes up the same amount of space on the device. The size of the portions must first be calculated by using
      * the 'adjustsizeonly' parameter, and iterating from the start of the file, specifying the approximate sizes of the portions.
      *
      * Encryption is done by reading small pieces of the file, encrypting them, and outputting to the new file,
@@ -5955,10 +5953,10 @@ public:
      *
      * @param inputFilepath The file to encrypt a portion of (and the one that is ultimately being uploaded).
      * @param startPos The index of the first byte of the file to encrypt
-     * @param length The number of bytes of the file to encrypt.  The function will round this value up by up to 1MB to fit the
-     *        MEGA internal chunking algorithm.  The number of bytes acutally encrypted and stored in the new file is the updated number.
+     * @param length The number of bytes of the file to encrypt. The function will round this value up by up to 1MB to fit the
+     *        MEGA internal chunking algorithm. The number of bytes actually encrypted and stored in the new file is the updated number.
      * @param outputFilepath The name of the new file to create, and store the encrypted data in.
-     * @param urlSuffix The function will update the string passed in.  The content of the string must be appended to the URL
+     * @param urlSuffix The function will update the string passed in. The content of the string must be appended to the URL
      *        when this portion is uploaded.
      * @param adjustsizeonly If this is set true, then encryption is not performed, and only the length parameter is adjusted.
      *        This feature is to enable precalculating the exact sizes of the file portions for upload.
@@ -5968,9 +5966,9 @@ public:
     /**
      * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
      *
-     * @param photoURL The string to store the URL in.  If it is not available, the string will be empty.
+     * @param url The string to store the URL in. If it is not available, the string will be empty.
      */
-    virtual void getUploadURL(std::string* photoUrl);
+    virtual void getUploadURL(std::string* mediaUrl);
 
     /**
      * @brief Turns the data stored in this object into a binary string.
@@ -8473,18 +8471,18 @@ class MegaApi
         void setAvatar(const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief confirm available memory to avoid OOM situations
+         * @brief Confirm available memory to avoid OOM situations
          *
          * Before queueing a thumbnail or preview upload (or other memory intensive task),
          * it may be useful on some devices to check if there is plenty of memory available
          * in the memory pool used by MegaApi (especially since some platforms may not have
          * the facility to check for themselves, and/or deallocation may need to wait on a GC)
          * and if not, delay until any current resource constraints (eg. other current operations,
-         * or other RAM-hungry apps in the device), have finished.  This function just
-         * makes several memory allocations and then immediately releases them.  If all allocations
+         * or other RAM-hungry apps in the device), have finished. This function just
+         * makes several memory allocations and then immediately releases them. If all allocations
          * succeeded, it returns true, indicating that memory is (probably) available.
-         * Of course, another app or operation may grab that memory immediately so it not a
-         * guarantee.   However it may help to reduce the frequency of OOM situations on phones for example.
+         * Of course, another app or operation may grab that memory immediately so it's not a
+         * guarantee. However it may help to reduce the frequency of OOM situations on phones for example.
          *
          * @param allocCount The number of allocations to make
          * @param allocSize The size of those memory allocations.
@@ -8600,7 +8598,28 @@ class MegaApi
          * To remove the existing coordinates, set both the latitude and longitude to
          * the value MegaNode::INVALID_COORDINATE.
          *
-         * The 'unshareable' variant of this function stores the coordinates with an extra
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_COORDINATES
+         * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of [0, 2^24]
+         * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of [0, 2^24)
+         *
+         * @param node Node that will receive the information.
+         * @param latitude Latitude in signed decimal degrees notation
+         * @param longitude Longitude in signed decimal degrees notation
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the GPS coordinates of media files as a node attribute that is private
+         *
+         * To remove the existing coordinates, set both the latitude and longitude to
+         * the value MegaNode::INVALID_COORDINATE.
+         *
+         * Compared to MegaApi::setNodeCoordinates, this function stores the coordinates with an extra
          * layer of encryption which only this user can decrypt, so that even if this node is shared
          * with others, they cannot read the coordinates.
          *
@@ -8617,7 +8636,6 @@ class MegaApi
          * @param longitude Longitude in signed decimal degrees notation
          * @param listener MegaRequestListener to track this request
          */
-        void setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener = NULL);
 
         /**
@@ -12687,7 +12705,7 @@ class MegaApi
         /**
          * @brief Initial step to upload a photo/video via iOS low-power background upload feature
          *
-         * Call ensureMediaInfo() first in order prepare the library to attach file attributes
+         * Call MegaApi::ensureMediaInfo first in order prepare the library to attach file attributes
          * that enable videos to be identified and played in the web browser.
          *
          * @return A pointer to an object that keeps some needed state through the process of
@@ -12713,7 +12731,7 @@ class MegaApi
         /**
          * @brief Request the URL suitable for uploading a media file.
          *
-         * This function requests the URL needed for uploading the file.  The URL will need the urlSuffix
+         * This function requests the URL needed for uploading the file. The URL will need the urlSuffix
          * from the MegaBackgroundMediaUpload::encryptFile to be appended before actually sending.
          * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_GET_BACKGROUND_UPLOAD_URL.
          * Provided the error code is API_OK, the URL is available in the MegaBackgroundMediaUpload via its getUploadURL().
@@ -12751,11 +12769,10 @@ class MegaApi
         /**
          * @brief Call this to enable the library to attach media info attributes
          *
-         * Those attributes enable the web browser to know a file is a video, and
-         * play it with the correct codec.
+         * Those attributes allows to know if a file is a video, and play it with the correct codec.
          *
          * @return True if the library is ready, otherwise the request for media translation
-         *         data is sent to MEGA.  In that case, call again later or use a listener
+         *         data is sent to MEGA. In that case, call again later or use a listener
          *         to find out when the translation data is available.
          */
         bool ensureMediaInfo();
