@@ -8287,37 +8287,22 @@ void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, Me
 bool MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
     std::string* binaryUploadToken, MegaRequestListener *listener)
 {
-    if (!binaryUploadToken || binaryUploadToken->size() != 36)
-    {
-        LOG_err << "bad upload token";
-        return false;
-    }
-
-    const char* megafingerprint = getMegaFingerprintFromSdkFingerprint(fingerprint);
-
-    if (!megafingerprint)
-    {
-        LOG_err << "bad fingerprint";
-        delete[] megafingerprint;
-        return false;
-    }
-
-    MegaStringMapPrivate sm;
-    sm.set("c", megafingerprint);
-    if (fingerprintoriginal)
-    {
-        // this original fingerprint is longer than the standard fingerprint stored in the node, as it includes the (original) size
-        sm.set("c0", fingerprintoriginal);
-    }
-    sm.set("n", utf8Name);
-    sm.set("t", Base64Str<36>((byte*)binaryUploadToken->data()));
-
-    delete[] megafingerprint;
 
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD, listener);
     req->setMegaBackgroundMediaUploadPtr(static_cast<MegaBackgroundMediaUploadPrivate*>(state));
-    req->setParentHandle(parent->getHandle());
-    req->setMegaStringMap(&sm);
+    req->setPassword(fingerprintoriginal);
+    req->setNewPassword(fingerprint);
+    req->setName(utf8Name);
+    if (parent)
+    {
+        req->setParentHandle(parent->getHandle());
+    }
+    if (binaryUploadToken)
+    {
+        std::string tokenB64;
+        Base64::btoa(*binaryUploadToken, tokenB64);
+        req->setSessionKey(tokenB64.c_str());
+    }
     requestQueue.push(req);
     waiter->notify();
     return true;
@@ -20306,56 +20291,95 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD:
         {
-            #ifdef USE_MEDIAINFO
-                // the client app should already have requested these but just in case: 
+            if (!client->mediaFileInfo.mediaCodecsReceived)
+            {
+#ifdef USE_MEDIAINFO
+                // the client app should already have requested these but just in case:
                 client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
-            #endif
+#endif
+                LOG_err << "MediInfo is not ready";
+                e = API_EACCESS;
+                break;
+            }
 
-            MegaBackgroundMediaUploadPrivate* bg = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
-            MegaStringMap* sm = request->getMegaStringMap();
+            MegaBackgroundMediaUploadPrivate* uploadState = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
+            const char* utf8Name = request->getName();
+            MegaHandle parentHandle = request->getParentHandle();
+            const char *uploadToken = request->getSessionKey();
+            const char* fingerprintOriginal = request->getPassword();
+            const char* fingerprint = request->getNewPassword();
+
+            if (!fingerprint || !uploadState || !utf8Name || !uploadToken || ISUNDEF(parentHandle))
+            {
+                e = API_EINCOMPLETE;
+                break;
+            }
+            std::string uploadTokenStr(uploadToken);
+            std::string binaryUploadToken;
+            Base64::atob(binaryUploadToken, uploadTokenStr);
+            if (binaryUploadToken.size() != 36)
+            {
+                LOG_err << "Invalid upload token";
+                e = API_EARGS;
+                break;
+            }
+
+            Node *parentNode = client->nodebyhandle(parentHandle);
+            if (parentNode)
+            {
+                LOG_err << "Node already exists";
+                e = API_EEXIST;
+                break;
+            }
+
+            const char* megafingerprint = getMegaFingerprintFromSdkFingerprint(fingerprint);
+            if (!megafingerprint)
+            {
+                LOG_err << "Bad fingerprint";
+                delete[] megafingerprint;
+
+                e = API_EARGS;
+                break;
+            }
 
             NewNode* newnode = new NewNode[1];
             newnode->source = NEW_UPLOAD;
             newnode->type = FILENODE;
-            Base64::atob(sm->get("t"), newnode->uploadtoken, sizeof newnode->uploadtoken);
+            memcpy(newnode->uploadtoken, binaryUploadToken.data(), binaryUploadToken.size());
             newnode->parenthandle = UNDEF;
             newnode->uploadhandle = client->getuploadhandle();
             newnode->attrstring = new string();
-            string name = sm->get("n");
 #ifdef USE_MEDIAINFO
-            if (bg->mediaproperties.isPopulated())
+            if (uploadState->mediaproperties.isPopulated())
             {
-                newnode->fileattributes = new string(MediaProperties::encodeMediaPropertiesAttributes(bg->mediaproperties, (uint32_t*)(bg->filekey + FILENODEKEYLENGTH / 2)));
+                newnode->fileattributes = new string(MediaProperties::encodeMediaPropertiesAttributes(uploadState->mediaproperties,
+                                                        (uint32_t*)(uploadState->filekey + FILENODEKEYLENGTH / 2)));
             }
 #endif
             AttrMap attrs;
-            attrs.map['n'] = name;
-            attrs.map['c'] = sm->get("c");
-            if (sm->get("c0"))
+            attrs.map['n'] = utf8Name;
+            attrs.map['c'] = megafingerprint;
+            if (fingerprintOriginal)
             {
-                attrs.map[MAKENAMEID2('c', '0')] = sm->get("c0");
+                attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
             }
             string tattrstring;
             attrs.getjson(&tattrstring);
             SymmCipher cipher;
-            cipher.setkey(bg->filekey);
+            cipher.setkey(uploadState->filekey);
             client->makeattr(&cipher, newnode->attrstring, tattrstring.c_str());
-            newnode->nodekey.assign((char*)bg->filekey, FILENODEKEYLENGTH);
+            newnode->nodekey.assign((char*)uploadState->filekey, FILENODEKEYLENGTH);
             SymmCipher::xorblock((const byte*)newnode->nodekey.data() + SymmCipher::KEYLENGTH, (byte*)newnode->nodekey.data());
 
-            if (Node* parentnode = client->nodebyhandle(request->getParentHandle()))
+            if (!client->versions_disabled)
             {
-                if (!client->versions_disabled)
-                {
-                    newnode->ovhandle = client->getovhandle(parentnode, &name);
-                }
+                string name(utf8Name);
+                newnode->ovhandle = client->getovhandle(parentNode, &name);
+            }
 
-                client->reqs.add(new CommandPutNodes(client, request->getParentHandle(), NULL, newnode, 1, request->getTag(), PUTNODES_APP));
-            }
-            else
-            {
-                fireOnRequestFinish(request, MegaError(API_EEXIST));
-            }
+            client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, newnode, 1, request->getTag(), PUTNODES_APP));
+
+            delete[] megafingerprint;
             break;
         }
         default:

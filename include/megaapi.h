@@ -12752,7 +12752,19 @@ class MegaApi
          * Call this function after completing the background upload of all the file data
          * The node representing the file will be created in the cloud, with all the suitable
          * attributes and file attributes attached.
-         * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_COMPLETE_BACKGROUND_UPLOAD.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getMegaBackgroundMediaUploadPtr() - Returns the provided state
+         * - MegaRequest::getPassword - Returns the original fingerprint
+         * - MegaRequest::getNewPassword - Returns the fingerprint
+         * - MegaRequest::getName - Returns the name
+         * - MegaRequest::getParentHandle - Returns the parent nodehandle
+         * - MegaRequest::getSessionKey - Returns the upload token converted to B64url encoding
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the handle of the uploaded node
          *
          * @param state The MegaBackgroundMediaUpload object tracking this upload
          * @param utf8Name The leaf name of the file, utf-8 encoded
