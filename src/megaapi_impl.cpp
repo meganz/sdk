@@ -3709,6 +3709,16 @@ const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
     return nullptr;
 }
 
+MegaStringList *MegaStringListMapPrivate::getKeys() const
+{
+    vector<char*> list;
+    for (const auto& pair : m_map)
+    {
+        list.emplace_back(MegaApi::strdup(pair.first.get()));
+    }
+    return new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+}
+
 void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
 {
     std::unique_ptr<const char[]> key_ptr{MegaApi::strdup(key)};

@@ -1452,6 +1452,7 @@ public:
     MEGA_DISABLE_COPY_MOVE(MegaStringListMapPrivate)
     MegaStringListMap* copy() const override;
     const MegaStringList* get(const char* key) const override;
+    MegaStringList *getKeys() const override;
     void set(const char* key, const MegaStringList* value) override; // takes ownership of value
     int size() const override;
 protected:

@@ -2157,6 +2157,15 @@ public:
     virtual const MegaStringList* get(const char* key) const;
 
     /**
+     * @brief Returns the list of keys in the MegaStringListMap
+     *
+     * You take the ownership of the returned value
+     *
+     * @return A MegaStringList containing the keys present in the MegaStringListMap
+     */
+    virtual MegaStringList *getKeys() const;
+
+    /**
      * @brief Sets a value in the map for the given key.
      *
      * If the key already exists, the value will be overwritten by the

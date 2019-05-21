@@ -130,6 +130,11 @@ const MegaStringList* MegaStringListMap::get(const char*) const
     return nullptr;
 }
 
+MegaStringList *MegaStringListMap::getKeys() const
+{
+    return nullptr;
+}
+
 void MegaStringListMap::set(const char*, const MegaStringList*)
 {
 }
