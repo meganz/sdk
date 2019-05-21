@@ -6180,6 +6180,11 @@ void MegaClient::sc_ub()
                 }
 
                 businessStatus = status;
+                business = bool(status);
+                if (!status)
+                {
+                    businessMaster = false;
+                }
                 app->notify_business_status(businessStatus);
                 return;
 
