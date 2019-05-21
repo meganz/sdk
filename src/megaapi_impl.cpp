@@ -11530,7 +11530,7 @@ void MegaApiImpl::backgrounduploadurl_result(error e, string* url)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL)) return;
 
-    if (url)
+    if (e  == API_OK && url)
     {
         MegaBackgroundMediaUploadPrivate* mu = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
         mu->url = *url;

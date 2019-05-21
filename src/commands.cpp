@@ -429,15 +429,18 @@ void CommandPutFileBackgroundURL::procresult()
                 break;
 
             case EOO:
-                if (!canceled)
-                {
-                    client->app->backgrounduploadurl_result(API_OK, &url);
-                }
+                if (canceled) return;
+
+                client->app->backgrounduploadurl_result(API_OK, &url);
                 return;
 
             default:
                 if (!client->json.storeobject())
                 {
+                    if (!canceled)
+                    {
+                        client->app->backgrounduploadurl_result(API_EINTERNAL, NULL);
+                    }
                     return;
                 }
         }
