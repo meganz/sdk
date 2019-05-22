@@ -20526,7 +20526,7 @@ void MegaApiImpl::sendPendingRequests()
             if (!parentNode)
             {
                 LOG_err << "Parent node doesn't exist anymore";
-                e = API_EEXIST;
+                e = API_ENOENT;
                 break;
             }
 

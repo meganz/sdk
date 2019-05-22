@@ -13076,8 +13076,8 @@ class MegaApi
          * @brief Get back the needed MegaBackgroundMediaUpload after the iOS app exited and restarted
          *
          * In case the iOS app exits while a background upload is going on, and the app is started again
-         * to complete the operation.  Call this version to recreate the MegaBackgroundMediaUpload object
-         * needed for a call to backgroundMediaUploadComplete.   The object must have been serialised
+         * to complete the operation. Call this version to recreate the MegaBackgroundMediaUpload object
+         * needed for a call to backgroundMediaUploadComplete. The object must have been serialised
          * before the app was unloaded.
          *
          * @return A pointer to an object that keeps some needed state through the process of
@@ -13098,7 +13098,7 @@ class MegaApi
          * - MegaRequest::getMegaBackgroundMediaUpload - The updated state of the upload with the URL in the MegaBackgroundMediaUpload::getUploadUrl
          *
          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
-         * URL.   If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+         * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
          * A new URL could specify a different upload server for example.
          *
          * @param fullFileSize The size of the file
