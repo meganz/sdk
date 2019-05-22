@@ -825,6 +825,71 @@ protected:
     vector<int> timeZoneOffsets;
 };
 
+class MegaPushNotificationSettingsPrivate : public MegaPushNotificationSettings
+{
+public:
+    MegaPushNotificationSettingsPrivate(const std::string &settingsJSON);
+    MegaPushNotificationSettingsPrivate();
+    MegaPushNotificationSettingsPrivate(const MegaPushNotificationSettingsPrivate *settings);
+
+    std::string generateJson() const;
+    bool isValid() const;
+
+    virtual ~MegaPushNotificationSettingsPrivate();
+    virtual MegaPushNotificationSettings *copy() const;
+
+private:
+    m_time_t mGlobalDND = -1;        // defaults to -1 if not defined
+    int mGlobalScheduleStart = -1;   // defaults to -1 if not defined
+    int mGlobalScheduleEnd = -1;     // defaults to -1 if not defined
+    std::string mGlobalScheduleTimezone;
+
+    std::map<MegaHandle, m_time_t> mChatDND;
+    std::map<MegaHandle, bool> mChatAlwaysNotify;
+
+    m_time_t mContactsDND = -1;      // defaults to -1 if not defined
+    m_time_t mSharesDND = -1;        // defaults to -1 if not defined
+    m_time_t mGlobalChatsDND = -1;        // defaults to -1 if not defined
+
+    bool mJsonInvalid = false;  // true if ctor from JSON find issues
+
+public:
+
+    // getters
+
+    bool isGlobalEnabled() const override;
+    bool isGlobalDndEnabled() const override;
+    int64_t getGlobalDnd() const override;
+    bool isGlobalScheduleEnabled() const override;
+    int getGlobalScheduleStart() const override;
+    int getGlobalScheduleEnd() const override;
+    const char *getGlobalScheduleTimezone() const override;
+
+    bool isChatEnabled(MegaHandle chatid) const override;
+    bool isChatDndEnabled(MegaHandle chatid) const override;
+    int64_t getChatDnd(MegaHandle chatid) const override;
+    bool isChatAlwaysNotifyEnabled(MegaHandle chatid) const override;
+
+    bool isContactsEnabled() const override;
+    bool isSharesEnabled() const override;
+    bool isChatsEnabled() const override;
+
+    // setters
+
+    void enableGlobal(bool enable) override;
+    void setGlobalDnd(int64_t timestamp) override;
+    void disableGlobalDnd() override;
+    void setGlobalSchedule(int start, int end, const char *timezone) override;
+    void disableGlobalSchedule() override;
+
+    void enableChat(MegaHandle chatid, bool enable) override;
+    void setChatDnd(MegaHandle chatid, int64_t timestamp) override;
+    void enableChatAlwaysNotify(MegaHandle chatid, bool enable) override;
+
+    void enableContacts(bool enable) override;
+    void enableShares(bool enable) override;
+    void enableChats(bool enable) override;
+};
 
 class MegaContactRequestPrivate : public MegaContactRequest
 {
@@ -1051,6 +1116,8 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringMap(const MegaStringMap *);
         virtual MegaFolderInfo *getMegaFolderInfo() const;
         void setMegaFolderInfo(const MegaFolderInfo *);
+        const MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
+        void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
         virtual MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
 
@@ -1107,6 +1174,7 @@ protected:
 #endif
         MegaStringMap *stringMap;
         MegaFolderInfo *folderInfo;
+        MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
 };
 
@@ -2355,11 +2423,18 @@ class MegaApiImpl : public MegaApp
         void setRichLinkWarningCounterValue(int value, MegaRequestListener *listener = NULL);
         void enableGeolocation(MegaRequestListener *listener = NULL);
         void isGeolocationEnabled(MegaRequestListener *listener = NULL);
+        bool isChatNotifiable(MegaHandle chatid);
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
+
+        void getPushNotificationSettings(MegaRequestListener *listener = NULL);
+        void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
+
+        bool isSharesNotifiable();
+        bool isContactsNotifiable();
 
         void getAccountAchievements(MegaRequestListener *listener = NULL);
         void getMegaAchievements(MegaRequestListener *listener = NULL);
@@ -2508,6 +2583,9 @@ protected:
         MegaContactRequestList *activeContactRequests;
         string appKey;
 
+        MegaPushNotificationSettings *mPushSettings; // stores lastest-seen settings (to be able to filter notifications)
+        MegaTimeZoneDetails *mTimezones;
+
         int threadExit;
         void loop();
 
@@ -2625,8 +2703,8 @@ protected:
         virtual void removecontact_result(error);
         virtual void putua_result(error);
         virtual void getua_result(error);
-        virtual void getua_result(byte*, unsigned);
-        virtual void getua_result(TLVstore *);
+        virtual void getua_result(byte*, unsigned, attr_t);
+        virtual void getua_result(TLVstore *, attr_t);
 #ifdef DEBUG
         virtual void delua_result(error);
 #endif
@@ -2771,6 +2849,10 @@ protected:
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         static char *getAvatarColor(handle userhandle);
+        bool isGlobalNotifiable();
+
+        // return false if there's a schedule and it currently does not apply. Otherwise, true
+        bool isScheduleNotifiable();
         friend class MegaBackgroundMediaUploadPrivate;
 };
 

@@ -41,6 +41,7 @@ struct MEGA_API JSON
 
     nameid getnameid();
     nameid getnameid(const char*) const;
+    string getname();
 
     bool is(const char*);
 
@@ -57,7 +58,6 @@ struct MEGA_API JSON
     bool enterobject();
     bool leaveobject();
 
-    bool storestring(string*);
     bool storeobject(string* = NULL);
 
     static void unescape(string*);

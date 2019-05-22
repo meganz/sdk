@@ -148,6 +148,30 @@ nameid JSON::getnameid(const char* ptr) const
     return id;
 }
 
+std::string JSON::getname()
+{
+    const char* ptr = pos;
+    string name;
+
+    if (*ptr == ',' || *ptr == ':')
+    {
+        ptr++;
+    }
+
+    if (*ptr++ == '"')
+    {
+        while (*ptr && *ptr != '"')
+        {
+            name += *ptr;
+            ptr++;
+        }
+
+        pos = ptr + 2;
+    }
+
+    return name;
+}
+
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported

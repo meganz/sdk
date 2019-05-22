@@ -424,6 +424,10 @@ string User::attr2string(attr_t type)
             attrname = "*!cf";
             break;
 
+        case ATTR_PUSH_SETTINGS:
+            attrname = "^!ps";
+            break;
+
         case ATTR_UNSHAREABLE_ATTR:
             attrname = "*usk";  // unshareable key (for encrypting attributes that should not be shared)
             break;
@@ -548,6 +552,10 @@ string User::attr2longname(attr_t type)
     case ATTR_UNKNOWN:
         longname = "";  // empty string
         break;
+
+    case ATTR_PUSH_SETTINGS:
+        longname = "PUSH_SETTINGS";
+        break;
     }
 
     return longname;
@@ -656,6 +664,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_MY_CHAT_FILES_FOLDER;
     }
+    else if(!strcmp(name, "^!ps"))
+    {
+        return ATTR_PUSH_SETTINGS;
+    }
     else if (!strcmp(name, "*usk"))
     {
         return ATTR_UNSHAREABLE_ATTR;
@@ -685,6 +697,7 @@ bool User::needversioning(attr_t at)
         case ATTR_RUBBISH_TIME:
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
+        case ATTR_PUSH_SETTINGS:
             return 0;
 
         case ATTR_AUTHRING:
@@ -731,6 +744,7 @@ char User::scope(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_STORAGE_STATE:
+        case ATTR_PUSH_SETTINGS:
             return '^';
 
         default:
@@ -1113,6 +1127,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_MY_CHAT_FILES_FOLDER:
             changed.myChatFilesFolder = true;
+            break;
+
+        case ATTR_PUSH_SETTINGS:
+            changed.pushSettings = true;
             break;
 
         default:

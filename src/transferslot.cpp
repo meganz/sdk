@@ -201,7 +201,7 @@ TransferSlot::~TransferSlot()
             TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
             if (outputPiece)
             {
-                if (fa->fwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos))
+                if (fa && fa->fwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos))
                 {
 
                     LOG_verbose << "Sync write succeeded";
