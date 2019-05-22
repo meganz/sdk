@@ -8008,6 +8008,11 @@ public class MegaApiJava {
         megaApi.getCountryCallingCodes(createDelegateRequestListener(listener));
     }
 
+    /**
+     * Get the state to see whether blocked account could do SMS verification
+     * 
+     * @return the state 
+     */
     public int smsAllowedState(){
         return megaApi.smsAllowedState();
     }
