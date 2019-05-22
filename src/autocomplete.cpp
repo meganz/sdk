@@ -311,7 +311,7 @@ bool Text::addCompletions(ACState& s)
     }
     else
     {
-        bool matches = param ? (!s.word().s.empty() && s.word().s[0] != '-') : (s.word().s == exactText);
+        bool matches = param ? (!s.word().s.empty() && (s.word().s[0] != '-' || s.word().q.quoted)) : (s.word().s == exactText);
         s.i += matches ? 1 : 0;
         return !matches;
     }
@@ -319,7 +319,7 @@ bool Text::addCompletions(ACState& s)
 
 bool Text::match(ACState& s) const
 {
-    if (s.i < s.words.size() && (param ? !s.word().s.empty() && s.word().s[0] != '-' : s.word().s == exactText))
+    if (s.i < s.words.size() && (param ? !s.word().s.empty() && (s.word().s[0] != '-' || s.word().q.quoted) : s.word().s == exactText))
     {
         s.i += 1;
         return true;

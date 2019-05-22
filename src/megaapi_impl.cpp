@@ -1020,9 +1020,16 @@ public:
 };
 
 
-void MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepath)
+bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepath)
 {
 #ifdef USE_MEDIAINFO
+    if (!api->client->mediaFileInfo.mediaCodecsReceived)
+    {
+        // the client app should already have requested these but just in case:
+        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, NULL);
+        return false;
+    }
+
     string inputFilepathtmp(inputFilepath), localfilename;
     api->fsAccess->path2local(&inputFilepathtmp, &localfilename);
 
@@ -1036,9 +1043,10 @@ void MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
         mediaproperties.convertMediaPropertyFileAttributes(dummykey, api->client->mediaFileInfo);
     }
 #endif
+    return true;
 }
 
-bool MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, int64_t startPos, unsigned int* length, const char* outputFilepath, string* urlSuffix, bool adjustsizeonly)
+bool MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, string* urlSuffix, bool adjustsizeonly)
 {
     if (startPos != ChunkedHash::chunkfloor(startPos))
     {
@@ -1053,32 +1061,49 @@ bool MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, in
 
     if (fain->fopen(&localfilename, true, false) || fain->type != FILENODE)
     {
-        // make sure we load to a chunk boundary
-        m_off_t endPos = ChunkedHash::chunkceil(startPos + *length, fain->size);
-        *length = unsigned(endPos - startPos);
-        if (adjustsizeonly)
+        if (*length == -1)
         {
-            retval = true;
+            *length = fain->size - startPos;
+        }
+        if (startPos < 0 || startPos > fain->size)
+        {
+            LOG_err << "invalid startPos supplied";
+            retval = false;
+        } 
+        else if (*length < 0 || startPos + *length > fain->size)
+        {
+            LOG_err << "invalid enryption length supplied";
+            retval = false;
         }
         else
         {
-            string localencryptedfilename, outputFilepathtmp(outputFilepath);
-            api->fsAccess->path2local(&outputFilepathtmp, &localencryptedfilename);
-
-            FileAccess *faout = api->fsAccess->newfileaccess();
-            if (faout->fopen(&localencryptedfilename, false, true))
+            // make sure we load to a chunk boundary
+            m_off_t endPos = ChunkedHash::chunkceil(startPos + *length, fain->size);
+            *length = endPos - startPos;
+            if (adjustsizeonly)
             {
-                SymmCipher cipher;
-                cipher.setkey(filekey);
-                uint64_t ctriv = MemAccess::get<uint64_t>((const char*)filekey + SymmCipher::KEYLENGTH);
+                retval = true;
+            }
+            else
+            {
+                string localencryptedfilename, outputFilepathtmp(outputFilepath);
+                api->fsAccess->path2local(&outputFilepathtmp, &localencryptedfilename);
 
-                EncryptFilePieceByChunks ef(fain, startPos, faout, 0, &cipher, &chunkmacs, ctriv);
-                if (ef.encrypt(startPos, endPos, *urlSuffix))
+                FileAccess *faout = api->fsAccess->newfileaccess();
+                if (faout->fopen(&localencryptedfilename, false, true))
                 {
-                    ((int64_t*)filekey)[3] = chunkmacs.macsmac(&cipher);
-                    retval = true;
+                    SymmCipher cipher;
+                    cipher.setkey(filekey);
+                    uint64_t ctriv = MemAccess::get<uint64_t>((const char*)filekey + SymmCipher::KEYLENGTH);
+
+                    EncryptFilePieceByChunks ef(fain, startPos, faout, 0, &cipher, &chunkmacs, ctriv);
+                    if (ef.encrypt(startPos, endPos, *urlSuffix))
+                    {
+                        ((int64_t*)filekey)[3] = chunkmacs.macsmac(&cipher);
+                        retval = true;
+                    }
+                    delete faout;
                 }
-                delete faout;
             }
         }
     }
@@ -20291,17 +20316,6 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD:
         {
-            if (!client->mediaFileInfo.mediaCodecsReceived)
-            {
-#ifdef USE_MEDIAINFO
-                // the client app should already have requested these but just in case:
-                client->mediaFileInfo.requestCodecMappingsOneTime(client, NULL);
-#endif
-                LOG_err << "MediInfo is not ready";
-                e = API_EACCESS;
-                break;
-            }
-
             MegaBackgroundMediaUploadPrivate* uploadState = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
             const char* utf8Name = request->getName();
             MegaHandle parentHandle = request->getParentHandle();
@@ -20316,7 +20330,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             std::string uploadTokenStr(uploadToken);
             std::string binaryUploadToken;
-            Base64::atob(binaryUploadToken, uploadTokenStr);
+            Base64::atob(uploadTokenStr, binaryUploadToken);
             if (binaryUploadToken.size() != 36)
             {
                 LOG_err << "Invalid upload token";
@@ -20325,19 +20339,17 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             Node *parentNode = client->nodebyhandle(parentHandle);
-            if (parentNode)
+            if (!parentNode)
             {
-                LOG_err << "Node already exists";
+                LOG_err << "Parent node doesn't exist anymore";
                 e = API_EEXIST;
                 break;
             }
 
-            const char* megafingerprint = getMegaFingerprintFromSdkFingerprint(fingerprint);
+            std::unique_ptr<char[]> megafingerprint(getMegaFingerprintFromSdkFingerprint(fingerprint));
             if (!megafingerprint)
             {
                 LOG_err << "Bad fingerprint";
-                delete[] megafingerprint;
-
                 e = API_EARGS;
                 break;
             }
@@ -20358,7 +20370,7 @@ void MegaApiImpl::sendPendingRequests()
 #endif
             AttrMap attrs;
             attrs.map['n'] = utf8Name;
-            attrs.map['c'] = megafingerprint;
+            attrs.map['c'] = megafingerprint.get();
             if (fingerprintOriginal)
             {
                 attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
@@ -20378,8 +20390,6 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             client->reqs.add(new CommandPutNodes(client, parentHandle, NULL, newnode, 1, request->getTag(), PUTNODES_APP));
-
-            delete[] megafingerprint;
             break;
         }
         default:

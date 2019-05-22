@@ -5932,8 +5932,9 @@ public:
      * operation completes.
      *
      * @param inputFilepath The file to analyse with MediaInfo.
+     * @return true if analysis was performed (and any relevant attributes stored ready for upload), false if mediainfo was not ready yet.
      */
-    virtual void analyseMediaInfo(const char* inputFilepath);
+    virtual bool analyseMediaInfo(const char* inputFilepath);
 
     /**
      * @brief Encrypt the file or a portion of it
@@ -5955,13 +5956,15 @@ public:
      * @param startPos The index of the first byte of the file to encrypt
      * @param length The number of bytes of the file to encrypt. The function will round this value up by up to 1MB to fit the
      *        MEGA internal chunking algorithm. The number of bytes actually encrypted and stored in the new file is the updated number.
+     *        You can supply -1 as input to request the remainder file (from startPos) be encrypted.
      * @param outputFilepath The name of the new file to create, and store the encrypted data in.
      * @param urlSuffix The function will update the string passed in. The content of the string must be appended to the URL
      *        when this portion is uploaded.
      * @param adjustsizeonly If this is set true, then encryption is not performed, and only the length parameter is adjusted.
      *        This feature is to enable precalculating the exact sizes of the file portions for upload.
+     * @return true if the operation was successful, false if there was a problem (with the error logged).
      */
-    virtual bool encryptFile(const char* inputFilepath, int64_t startPos, unsigned int* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly);
+    virtual bool encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly);
 
     /**
      * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
@@ -5974,6 +5977,8 @@ public:
      * @brief Turns the data stored in this object into a binary string.
      *
      * The object can then be recreated via MegaApi::backgroundMediaUploadResume and supplying the same string.
+     *
+     * @return serialized version of this object (including URL, mediainfo attributes, and internal data suitable to resume uploading with in future)
      */
     virtual std::string serialize();
 
@@ -12733,8 +12738,11 @@ class MegaApi
          *
          * This function requests the URL needed for uploading the file. The URL will need the urlSuffix
          * from the MegaBackgroundMediaUpload::encryptFile to be appended before actually sending.
-         * The result of the request is signalled by the listener onRequestFinsish callback with TYPE_GET_BACKGROUND_UPLOAD_URL.
-         * Provided the error code is API_OK, the URL is available in the MegaBackgroundMediaUpload via its getUploadURL().
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaBackgroundMediaUpload - The updated state of the upload with the URL in the MegaBackgroundMediaUpload::getUploadUrl
          *
          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
          * URL.   If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.

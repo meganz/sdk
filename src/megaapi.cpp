@@ -5405,11 +5405,12 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
-void MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
+bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
 {
+    return false;
 }
 
-bool MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, unsigned int* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly)
+bool MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly)
 {
     return false;
 }

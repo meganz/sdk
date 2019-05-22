@@ -1598,12 +1598,12 @@ public:
     MegaBackgroundMediaUploadPrivate(const string& serialised, MegaApiImpl* api);
     ~MegaBackgroundMediaUploadPrivate();
 
-    void analyseMediaInfo(const char* inputFilepath);
-    bool encryptFile(const char* inputFilepath, int64_t startPos, unsigned int* length, const char *outputFilepath, std::string* urlSuffix, bool adjustsizeonly);
+    bool analyseMediaInfo(const char* inputFilepath) override;
+    bool encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath, std::string* urlSuffix, bool adjustsizeonly) override;
 
-    void getUploadURL(std::string* mediaUrl);
+    void getUploadURL(std::string* mediaUrl) override;
 
-    std::string serialize();
+    std::string serialize() override;
 
     MegaApiImpl* api;
     string url;
