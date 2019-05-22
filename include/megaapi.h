@@ -7593,6 +7593,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new folder
          *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param name Name of the new folder
          * @param parent Parent folder
          * @param listener MegaRequestListener to track this request
@@ -7614,6 +7617,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node to move
          * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node Node to move
          * @param newParent New parent for the node
@@ -7674,6 +7680,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node to rename
          * - MegaRequest::getName - Returns the new name for the node
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node Node to modify
          * @param newName New name for the node
@@ -7741,6 +7750,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node to restore
          *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param version Node with the version to restore
          * @param listener MegaRequestListener to track this request
          */
@@ -7755,6 +7767,9 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_CLEAN_RUBBISH_BIN. This
          * request returns MegaError::API_ENOENT if the Rubbish bin is already empty.
          *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param listener MegaRequestListener to track this request
          */
         void cleanRubbishBin(MegaRequestListener *listener = NULL);
@@ -7766,6 +7781,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node to send
          * - MegaRequest::getEmail - Returns the email of the user that receives the node
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node Node to send
          * @param user User that receives the node
@@ -7780,6 +7798,9 @@ class MegaApi
         * Valid data in the MegaRequest object received on callbacks:
         * - MegaRequest::getNodeHandle - Returns the handle of the node to send
         * - MegaRequest::getEmail - Returns the email of the user that receives the node
+        *
+        * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+        * be called with the error code MegaError::API_EBUSINESSPASTDUE.
         *
         * @param node Node to send
         * @param email Email of the user that receives the node        
@@ -7798,6 +7819,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
          * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
          * - MegaRequest::getAccess - Returns the access that is granted to the user
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node The folder to share. It must be a non-root folder
          * @param user User that receives the shared folder
@@ -7826,6 +7850,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the handle of the folder to share
          * - MegaRequest::getEmail - Returns the email of the user that receives the shared folder
          * - MegaRequest::getAccess - Returns the access that is granted to the user
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node The folder to share. It must be a non-root folder
          * @param email Email of the user that receives the shared folder. If it doesn't have a MEGA account, the folder will be shared anyway
@@ -7856,6 +7883,9 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node in the account
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param megaFileLink Public link to a file in MEGA
          * @param parent Parent folder for the imported file
@@ -7913,6 +7943,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getPublicMegaNode - Public MegaNode corresponding to the public link
          * - MegaRequest::getFlag - Return true if the provided key along the link is invalid.
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param megaFileLink Public link to a file in MEGA
          * @param listener MegaRequestListener to track this request
@@ -8447,6 +8480,9 @@ class MegaApi
          * If the attribute already has a value, it will be replaced
          * If value is NULL, the attribute will be removed from the node
          *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node Node that will receive the attribute
          * @param attrName Name of the custom attribute.
          * The length of this parameter must be between 1 and 7 UTF8 bytes
@@ -8466,6 +8502,9 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the number of seconds for the node
          * - MegaRequest::getFlag - Returns true (official attribute)
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_DURATION
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node Node that will receive the information.
          * @param duration Length of the audio/video in seconds.
@@ -8491,6 +8530,9 @@ class MegaApi
          * - MegaRequest::getNumDetails - Returns the longitude, scaled to integer in the range of [0, 2^24]
          * - MegaRequest::getTransferTag() - Returns the latitude, scaled to integer in the range of [0, 2^24)
          *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node Node that will receive the information.
          * @param latitude Latitude in signed decimal degrees notation
          * @param longitude Longitude in signed decimal degrees notation
@@ -8510,6 +8552,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
          *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode to get the public link
          * @param listener MegaRequestListener to track this request
          */
@@ -8527,6 +8572,9 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getLink - Public link
          *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
          * @param listener MegaRequestListener to track this request
@@ -8542,6 +8590,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node
          * - MegaRequest::getAccess - Returns false
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node MegaNode to stop sharing
          * @param listener MegaRequestListener to track this request
@@ -13494,6 +13545,9 @@ class MegaApi
          * - MegaError::API_EACCESS- If the target user is the same as caller, or if the target
          * user is anonymous but the chatroom is in private mode, or if caller is not an operator
          * or the target user is not a chat member.
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param chatid MegaHandle that identifies the chat room
          * @param n MegaNode that wants to be shared
