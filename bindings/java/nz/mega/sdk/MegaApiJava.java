@@ -7996,7 +7996,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      */
     public void getRegisteredContacts(MegaStringMap contacts, nz.mega.sdk.MegaRequestListenerInterface listener){
-        megaApi.getRegisteredContacts(contacts,createDelegateRequestListener(listener));
+        megaApi.getRegisteredContacts(contacts, createDelegateRequestListener(listener));
     }
     
     /**
