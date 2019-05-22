@@ -3209,7 +3209,6 @@ void MegaRequestPrivate::setMegaPushNotificationSettings(const MegaPushNotificat
 
     this->settings = settings ? settings->copy() : NULL;
 }
-}
 
 MegaBackgroundMediaUpload *MegaRequestPrivate::getMegaBackgroundMediaUploadPtr() const
 {
