@@ -7995,8 +7995,8 @@ public class MegaApiJava {
      * @param contacts The map of contacts to get registered contacts from
      * @param listener MegaRequestListener to track this request
      */
-    public void getRegisteredContacts(MegaStringMap contacts, MegaRequestListenerInterface listener){
-        megaApi.getRegisteredContacts(contacts,listener);
+    public void getRegisteredContacts(MegaStringMap contacts, nz.mega.sdk.MegaRequestListenerInterface listener){
+        megaApi.getRegisteredContacts(contacts,createDelegateRequestListener(listener));
     }
     
     /**
@@ -8004,7 +8004,11 @@ public class MegaApiJava {
      *
      * @param listener MegaRequestListener to track this request
      */
-    public void getCountryCallingCodes(MegaRequestListenerInterface listener){
-        megaApi.getCountryCallingCodes(listener);
+    public void getCountryCallingCodes(nz.mega.sdk.MegaRequestListenerInterface listener){
+        megaApi.getCountryCallingCodes(createDelegateRequestListener(listener));
+    }
+
+    public int smsAllowedState(){
+        return megaApi.smsAllowedState();
     }
 }
