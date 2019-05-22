@@ -54,7 +54,7 @@ export ANDROID_STL_INC2="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/4.9/lib
 export GNUSTL_LIB=libgnustl_static.a
 export ANDROID_STL_LIB="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/libs/armeabi/$ANDROID_GNUSTL_LIB"
 
-#cryptopp565
+#cryptopp
 export AOSP_SYSROOT="$ANDROID_SYSROOT" #used by cryptopp
 export AOSP_STL_LIB="$ANDROID_STL_LIB"
 export AOSP_BITS_INC="$ANDROID_STL_INC"
