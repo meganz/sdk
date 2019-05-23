@@ -12128,14 +12128,14 @@ class MegaApi
          * Search the node tree and return a list of nodes that have an originalFingerprint, which
          * matches the supplied originalfingerprint.
          *
-         * If the parent node supplied is not NULL, it only searches nodes below that parent,
+         * If the parent node supplied is not NULL, it only searches nodes below that parent folder,
          * otherwise all nodes are searched. If no nodes are found with that original fingerprint,
          * this function returns an empty MegaNodeList.
          *
          * You take the ownership of the returned value.
          *
          * @param originalfingerprint Original Fingerprint to check
-         * @param parent  Only return nodes below this specified parent.  Pass NULL to consider all nodes.
+         * @param parent Only return nodes below this specified parent folder. Pass NULL to consider all nodes.
          * @return List of nodes with the same original fingerprint
          */
         MegaNodeList *getNodesByOriginalFingerprint(const char* originalFingerprint, MegaNode* parent);

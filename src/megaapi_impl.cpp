@@ -10832,7 +10832,7 @@ MegaNodeList *MegaApiImpl::getNodesByOriginalFingerprint(const char *originalfin
     MutexGuard g(sdkMutex);
     Node* parent = megaparent ? client->nodebyhandle(megaparent->getHandle()) : NULL;
 
-    if (!originalfingerprint || (megaparent && !parent))
+    if (!originalfingerprint || (megaparent && (!parent || parent->type == FILENODE)))
     {
         return new MegaNodeListPrivate();
     }
