@@ -3139,7 +3139,7 @@ CommandUnshareableUA::CommandUnshareableUA(MegaClient* client, bool fetch, int t
     {
         cmd("uga");
         arg("u", client->finduser(client->me, 1)->uid.c_str());
-        arg("ua", User::attr2string(ATTR_UNSHAREABLE_ATTR).c_str());
+        arg("ua", User::attr2string(ATTR_UNSHAREABLE_KEY).c_str());
         arg("v", 1);
     }
     else
@@ -3148,7 +3148,7 @@ CommandUnshareableUA::CommandUnshareableUA(MegaClient* client, bool fetch, int t
         client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
 
         cmd("up");
-        arg(User::attr2string(ATTR_UNSHAREABLE_ATTR).c_str(), newunshareablekey, sizeof(newunshareablekey));
+        arg(User::attr2string(ATTR_UNSHAREABLE_KEY).c_str(), newunshareablekey, sizeof(newunshareablekey));
         notself(client);
     }
     tag = 0;

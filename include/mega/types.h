@@ -440,7 +440,7 @@ typedef enum {
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
     ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
-    ATTR_UNSHAREABLE_ATTR = 26              // private - char array
+    ATTR_UNSHAREABLE_KEY = 26               // private - char array
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;

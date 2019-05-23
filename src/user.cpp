@@ -428,7 +428,7 @@ string User::attr2string(attr_t type)
             attrname = "^!ps";
             break;
 
-        case ATTR_UNSHAREABLE_ATTR:
+        case ATTR_UNSHAREABLE_KEY:
             attrname = "*usk";  // unshareable key (for encrypting attributes that should not be shared)
             break;
 
@@ -537,8 +537,8 @@ string User::attr2longname(attr_t type)
         longname = "GEOLOCATION";
         break;
             
-    case ATTR_UNSHAREABLE_ATTR:
-        longname = "UNSHAREABLE_ATTR";
+    case ATTR_UNSHAREABLE_KEY:
+        longname = "UNSHAREABLE_KEY";
         break;
 
     case ATTR_CAMERA_UPLOADS_FOLDER:
@@ -670,7 +670,7 @@ attr_t User::string2attr(const char* name)
     }
     else if (!strcmp(name, "*usk"))
     {
-        return ATTR_UNSHAREABLE_ATTR;
+        return ATTR_UNSHAREABLE_KEY;
     }
     else
     {
@@ -727,7 +727,7 @@ char User::scope(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_MY_CHAT_FILES_FOLDER:
-        case ATTR_UNSHAREABLE_ATTR:
+        case ATTR_UNSHAREABLE_KEY:
             return '*';
 
         case ATTR_AVATAR:
