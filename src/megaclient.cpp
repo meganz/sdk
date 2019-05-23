@@ -3565,6 +3565,7 @@ void MegaClient::locallogout()
 
     me = UNDEF;
     uid.clear();
+    unshareablekey.clear();
     publichandle = UNDEF;
     cachedscsn = UNDEF;
     achievements_enabled = false;

@@ -1016,7 +1016,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
         beginobject();
 
         NewNode* nni = &nn[i];
-
         switch (nni->source)
         {
             case NEW_NODE:
@@ -1044,16 +1043,15 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 {
                     client->pendingattrstring(nn[i].uploadhandle, &s);
 
-                    #ifdef USE_MEDIAINFO
+#ifdef USE_MEDIAINFO
                     client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
-                    #endif
+#endif
                 }
 
                 if (s.size())
                 {
                     arg("fa", s.c_str(), 1);
-                }
-                
+                }                
         }
 
         if (!ISUNDEF(nn[i].parenthandle))
