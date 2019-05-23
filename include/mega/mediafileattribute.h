@@ -38,6 +38,8 @@ struct MEGA_API FileSystemAccess;
 
 struct MEGA_API MediaProperties
 {
+    enum { UNKNOWN_FORMAT = 254, NOT_IDENTIFIED_FORMAT = 255 };
+
     byte shortformat;
     uint32_t width;
     uint32_t height;
@@ -59,6 +61,7 @@ struct MEGA_API MediaProperties
     bool operator==(const MediaProperties& o) const;
 
     bool isPopulated();
+    bool isIdentified();
 
     // turn the structure into a string suitable for pfa command
     static std::string encodeMediaPropertiesAttributes(MediaProperties vp, uint32_t filekey[4]);
