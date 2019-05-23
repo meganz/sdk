@@ -652,7 +652,7 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
 
 
 
-EncryptByChunks::EncryptByChunks(SymmCipher* k, chunkmac_map* m, uint64_t c) : key(k), macs(m), ctriv(c)
+EncryptByChunks::EncryptByChunks(SymmCipher* k, chunkmac_map* m, uint64_t iv) : key(k), macs(m), ctriv(iv)
 {
     memset(crc, 0, CRCSIZE);
 }
@@ -730,8 +730,8 @@ bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
 }
 
 
-EncryptBufferByChunks::EncryptBufferByChunks(byte* b, SymmCipher* k, chunkmac_map* m, uint64_t c)
-    : EncryptByChunks(k, m, c)
+EncryptBufferByChunks::EncryptBufferByChunks(byte* b, SymmCipher* k, chunkmac_map* m, uint64_t iv)
+    : EncryptByChunks(k, m, iv)
     , chunkstart(b)
 {
 }

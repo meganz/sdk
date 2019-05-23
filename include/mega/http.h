@@ -346,9 +346,9 @@ public:
     // size (in bytes) of the CRC of uploaded chunks
     enum { CRCSIZE = 12 };
 
-    EncryptByChunks(SymmCipher* k, chunkmac_map* m, uint64_t c);
+    EncryptByChunks(SymmCipher* k, chunkmac_map* m, uint64_t iv);
 
-    // encryption: data must be NUL-padded to SymmCipher::BLOCKSIZE 
+    // encryption: data must be NULL-padded to SymmCipher::BLOCKSIZE
     // (so buffer allocation size must be rounded up too)
     // len must be < 2^31
     virtual byte* nextbuffer(unsigned datasize) = 0;
@@ -358,7 +358,7 @@ public:
 private:
     SymmCipher* key;
     chunkmac_map* macs;
-    uint64_t ctriv;
+    uint64_t ctriv;     // initialization vector for CTR mode
     byte crc[CRCSIZE];
     void updateCRC(byte* data, unsigned size, unsigned offset);
 };
@@ -368,9 +368,10 @@ class MEGA_API EncryptBufferByChunks : public EncryptByChunks
     // specialisation for encrypting a whole contiguous buffer by chunks
     byte *chunkstart;
 
-    virtual byte* nextbuffer(unsigned bufsize);
+    virtual byte* nextbuffer(unsigned bufsize) override;
+
 public:
-    EncryptBufferByChunks(byte* b, SymmCipher* k, chunkmac_map* m, uint64_t c);
+    EncryptBufferByChunks(byte* b, SymmCipher* k, chunkmac_map* m, uint64_t iv);
 };
 
 // file chunk I/O
