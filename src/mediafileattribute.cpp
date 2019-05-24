@@ -463,7 +463,7 @@ bool MediaProperties::isPopulated()
 
 bool MediaProperties::isIdentified()
 {
-    return shortformat != NOT_IDENTIFIED_FORMAT;
+    return isPopulated() && shortformat != NOT_IDENTIFIED_FORMAT;
 }
 
 bool MediaProperties::operator==(const MediaProperties& o) const
