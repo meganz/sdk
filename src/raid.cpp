@@ -852,7 +852,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
             transfer->pos = 0;
         }
 
-        if (transfer->type == GET && transfer->size)
+        if (transfer->type == GET && transfer->size && npos > transfer->pos)
         {
             m_off_t maxReqSize = (transfer->size - transfer->progresscompleted) / connectionCount / 2;
             if (maxReqSize > maxRequestSize)
@@ -887,6 +887,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
                 it = transfer->chunkmacs.find(npos);
             }
             LOG_debug << "Downloading chunk of size " << reqSize;
+            assert(reqSize > 0);
         }
         return std::make_pair(transfer->pos, npos);
     }

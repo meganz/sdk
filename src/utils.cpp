@@ -1482,7 +1482,11 @@ int m_clock_getmonotonictime(timespec *t)
     t->tv_nsec = tb.millitm = tb.millitm * 1000000;
     return 0;
 #else
+#ifdef CLOCK_BOOTTIME
+    return clock_gettime(CLOCK_BOOTTIME, t);
+#else
     return clock_gettime(CLOCK_MONOTONIC, t);
+#endif
 #endif
 
 }

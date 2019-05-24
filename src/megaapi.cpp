@@ -1199,7 +1199,13 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_ESID:
             return "Bad session ID";
         case API_EBLOCKED:
-            return "Blocked";
+            switch (context)
+            {
+                case API_EC_IMPORT:
+                    return "Not accessible due to ToS/AUP violation";
+                default:
+                    return "Blocked";
+            }
         case API_EOVERQUOTA:
             return "Over quota";
         case API_ETEMPUNAVAIL:
@@ -1218,6 +1224,10 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             return "Not enough quota";
         case API_EMFAREQUIRED:
             return "Multi-factor authentication required";
+        case API_EMASTERONLY:
+            return "Access denied for sub-users";
+        case API_EBUSINESSPASTDUE:
+            return "Business account has expired";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -1640,6 +1650,26 @@ char *MegaApi::getMyXMPPJid()
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
+}
+
+bool MegaApi::isBusinessAccount()
+{
+    return pImpl->isBusinessAccount();
+}
+
+bool MegaApi::isMasterBusinessAccount()
+{
+    return pImpl->isMasterBusinessAccount();
+}
+
+int MegaApi::getBusinessStatus()
+{
+    return pImpl->getBusinessStatus();
+}
+
+bool MegaApi::isBusinessAccountActive()
+{
+    return pImpl->isBusinessAccountActive();
 }
 
 bool MegaApi::checkPassword(const char *password)
@@ -2211,9 +2241,14 @@ void MegaApi::getAccountDetails(MegaRequestListener *listener)
     pImpl->getAccountDetails(true, true, true, false, false, false, listener);
 }
 
+void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener)
+{
+    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, listener);
+}
+
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(true, true, true, sessions, purchases, transactions, listener);
+    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, listener);
 }
 
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
@@ -2345,6 +2380,26 @@ void MegaApi::enableGeolocation(MegaRequestListener *listener)
 void MegaApi::isGeolocationEnabled(MegaRequestListener *listener)
 {
     pImpl->isGeolocationEnabled(listener);
+}
+
+void MegaApi::setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setCameraUploadsFolder(nodehandle, listener);
+}
+
+void MegaApi::getCameraUploadsFolder(MegaRequestListener *listener)
+{
+    pImpl->getCameraUploadsFolder(listener);
+}
+
+void MegaApi::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setMyChatFilesFolder(nodehandle, listener);
+}
+
+void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
+{
+    pImpl->getMyChatFilesFolder(listener);
 }
 #endif
 

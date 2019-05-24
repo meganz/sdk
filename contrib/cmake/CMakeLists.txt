@@ -14,14 +14,9 @@
 
 cmake_minimum_required(VERSION 3.7.2)
 
-#set this to 1 if building 64 bit with eg. cmake . -G "Visual Studio 15 2017 Win64"
-#set this to 0 if building 32 bit with eg. cmake . -G "Visual Studio 15 2017"
-set (build_64_bit 1 CACHE TYPE BOOL)
-
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE TYPE BOOL)
 set (USE_OPENSSL 1 CACHE TYPE BOOL)
-set (OPENSSL_IS_BORINGSSL 0 CACHE TYPE BOOL)
 set (USE_CURL 1 CACHE TYPE BOOL)
 set (USE_SQLITE 1 CACHE TYPE BOOL)
 set (USE_MEDIAINFO 1 CACHE TYPE BOOL)
@@ -33,6 +28,7 @@ set (HAVE_FFMPEG 1 CACHE TYPE BOOL)
 set (USE_WEBRTC 0 CACHE TYPE BOOL)
 set (USE_LIBUV 0 CACHE TYPE BOOL)
 set (USE_QT 0 CACHE TYPE BOOL)
+set (USE_PDFIUM 0  CACHE TYPE BOOL)
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -85,7 +81,7 @@ endif(build_64_bit)
 IF(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
     if ("${Mega3rdPartyDir}" STREQUAL "")
-        set(Mega3rdPartyDir "${MegaDir}/../3rdParty")
+        set(Mega3rdPartyDir "${MegaDir}/../3rdParty" CACHE TYPE STRING)
     endif()
 ELSE(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
@@ -272,7 +268,7 @@ IF(WIN32)
     
         ImportVcpkgLibrary(z               "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/zlibd.lib" "${vcpkg_dir}/lib/zlib.lib") 
 
-        ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/manual-link/gtestd.lib" "${vcpkg_dir}/lib/manual-link/gtest.lib") 
+        ImportVcpkgLibrary(gtest           "${vcpkg_dir}/include" "${vcpkg_dir}/debug/lib/gtestd.lib" "${vcpkg_dir}/lib/gtest.lib") 
 
         IF(USE_MEDIAINFO)
             ImportStaticLibrary(mediainfo   "${Mega3rdPartyDir}/MediaInfoLib-mw/Source"
@@ -445,7 +441,6 @@ target_link_libraries(Mega PUBLIC z
                                               $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>                                               
                 $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice > 
                 $<${HAVE_FFMPEG}:ffmpeg_swscale>  $<${HAVE_FFMPEG}:ffmpeg_swresample>  
-                $<${USE_QT}:ffmpeg_swscale>  $<${USE_QT}:ffmpeg_swresample>  
                 ${Mega_PlatformSpecificLibs})
 target_compile_definitions(Mega PUBLIC 
                 $<${USE_MEDIAINFO}:USE_MEDIAINFO> 
@@ -461,7 +456,8 @@ target_compile_definitions(Mega PUBLIC
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
                 $<${HAVE_LIBUV}:HAVE_LIBUV>
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
-                $<${USE_QT}:USE_QT>)
+                $<${USE_QT}:USE_QT>
+                $<${USE_PDFIUM}:HAVE_PDFIUM>)
 
 if(WIN32)
 target_link_libraries(Mega PUBLIC crypt32.lib)

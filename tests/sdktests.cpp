@@ -21,7 +21,7 @@
 
 #include "mega.h"
 #include "gtest/gtest.h"
-
+#include "sdk_test.h"
 #include <stdio.h>
 
 using namespace mega;
@@ -32,8 +32,24 @@ using ::testing::TestInfo;
 using ::testing::TestPartResult;
 using ::testing::UnitTest;
 
+
+
 int main (int argc, char *argv[])
 {
+    
+    std::vector<char*> myargv(argv, argv + argc);
+
+    for (auto it = myargv.begin(); it != myargv.end(); ++it)
+    {
+        if (string(*it) == "--CI")
+        {
+            g_runningInCI = true;
+            myargv.erase(it);
+            argc -= 1;
+            break;
+        }
+    }
+
     remove("SDK.log");
 
 #if defined(WIN32) && defined(NO_READLINE)
@@ -41,6 +57,6 @@ int main (int argc, char *argv[])
     wc->setShellConsole();
 #endif
 
-    InitGoogleTest(&argc, argv);
+    InitGoogleTest(&argc, myargv.data());
     return RUN_ALL_TESTS();
 }
