@@ -1662,8 +1662,8 @@ protected:
 class MegaBackgroundMediaUploadPrivate : public MegaBackgroundMediaUpload
 {
 public:
-    MegaBackgroundMediaUploadPrivate(MegaApiImpl* api);
-    MegaBackgroundMediaUploadPrivate(const string& serialised, MegaApiImpl* api);
+    MegaBackgroundMediaUploadPrivate(MegaApi* api);
+    MegaBackgroundMediaUploadPrivate(const string& serialised, MegaApi* api);
     ~MegaBackgroundMediaUploadPrivate();
 
     bool analyseMediaInfo(const char* inputFilepath) override;
@@ -1671,7 +1671,8 @@ public:
 
     void getUploadURL(std::string* mediaUrl) override;
 
-    std::string serialize() override;
+    bool serialize(string* s);
+    char *serialize() override;
 
     MegaApiImpl* api;
     string url;
@@ -1860,6 +1861,8 @@ class MegaApiImpl : public MegaApp
         MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
         MegaApiImpl(MegaApi *api, const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
         virtual ~MegaApiImpl();
+
+        static MegaApiImpl* ImplOf(MegaApi*);
 
         //Multiple listener management.
         void addListener(MegaListener* listener);
@@ -2313,11 +2316,9 @@ class MegaApiImpl : public MegaApp
         bool createPreview(const char* imagePath, const char *dstPath);
         bool createAvatar(const char* imagePath, const char *dstPath);
 
-        MegaBackgroundMediaUpload* backgroundMediaUploadNew();
-        MegaBackgroundMediaUpload* backgroundMediaUploadResume(const std::string* serialised);
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
         bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-            std::string* binaryUploadToken, MegaRequestListener *listener);
+            const char *string64UploadToken, MegaRequestListener *listener);
 
         bool ensureMediaInfo();
         void setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener);

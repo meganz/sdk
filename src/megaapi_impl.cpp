@@ -931,15 +931,15 @@ MegaHandle MegaNodePrivate::getOwner() const
 const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
 
 
-MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApiImpl* capi)
-    : api(capi)
+MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApi* capi)
+    : api(MegaApiImpl::ImplOf(capi))
 {
     // generate fresh random encryption key/CTR IV for this file
     api->client->rng.genblock(filekey, sizeof filekey);
 }
 
-MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(const string& serialised, MegaApiImpl* capi)
-    : api(capi)
+MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(const string& serialised, MegaApi* capi)
+    : api(MegaApiImpl::ImplOf(capi))
 {
     CacheableReader r(serialised);
     string mediapropertiesstr;
@@ -959,10 +959,9 @@ MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(const string&
     }
 }
 
-std::string MegaBackgroundMediaUploadPrivate::serialize()
+bool MegaBackgroundMediaUploadPrivate::serialize(string* s)
 {
-    std::string s;
-    CacheableWriter w(s);
+    CacheableWriter w(*s);
     w.serializebinary(filekey, sizeof(filekey));
     w.serializechunkmacs(chunkmacs);
     w.serializestring(mediaproperties.serialize());
@@ -971,6 +970,11 @@ std::string MegaBackgroundMediaUploadPrivate::serialize()
     return s;
 }
 
+char *MegaBackgroundMediaUploadPrivate::serialize()
+{
+    string d;
+    return serialize(&d) ? MegaApi::binaryToString64(d.data(), d.size()) : NULL;
+}
 
 MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
 {
@@ -4945,6 +4949,12 @@ MegaApiImpl::~MegaApiImpl()
     fireOnRequestFinish(request, MegaError(API_OK));
 }
 
+MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
+{
+    // Sometimes we need to be able to reference the MegaApiImpl from objects other than MegaApi (without giving clients access to the pImpl pointer)
+    return api->pImpl;
+}
+
 int MegaApiImpl::isLoggedIn()
 {
     sdkMutex.lock();
@@ -8377,16 +8387,6 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     return result;
 }
 
-MegaBackgroundMediaUpload* MegaApiImpl::backgroundMediaUploadNew()
-{
-    return new MegaBackgroundMediaUploadPrivate(this);
-}
-
-MegaBackgroundMediaUpload* MegaApiImpl::backgroundMediaUploadResume(const std::string* serialised)
-{
-    return new MegaBackgroundMediaUploadPrivate(*serialised, this);
-}
-
 void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
@@ -8397,9 +8397,8 @@ void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, Me
 }
 
 bool MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-    std::string* binaryUploadToken, MegaRequestListener *listener)
+    const char *string64UploadToken, MegaRequestListener *listener)
 {
-
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD, listener);
     req->setMegaBackgroundMediaUploadPtr(static_cast<MegaBackgroundMediaUploadPrivate*>(state));
     req->setPassword(fingerprintoriginal);
@@ -8409,11 +8408,9 @@ bool MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state
     {
         req->setParentHandle(parent->getHandle());
     }
-    if (binaryUploadToken)
+    if (string64UploadToken)
     {
-        std::string tokenB64;
-        Base64::btoa(*binaryUploadToken, tokenB64);
-        req->setSessionKey(tokenB64.c_str());
+        req->setSessionKey(MegaApi::strdup(string64UploadToken));
     }
     requestQueue.push(req);
     waiter->notify();
@@ -20512,9 +20509,7 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EINCOMPLETE;
                 break;
             }
-            std::string uploadTokenStr(uploadToken);
-            std::string binaryUploadToken;
-            Base64::atob(uploadTokenStr, binaryUploadToken);
+            std::string binaryUploadToken = MegaApi::string64ToBinary(uploadToken);
             if (binaryUploadToken.size() != 36)
             {
                 LOG_err << "Invalid upload token";

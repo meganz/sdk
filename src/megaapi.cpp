@@ -4753,6 +4753,21 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
 
 #endif
 
+string MegaApi::string64ToBinary(const char * d)
+{
+    string data;
+    data.resize(strlen(d) * 3 / 4 + 3);
+    data.resize(Base64::atob(d, (byte*)data.data(), int(data.size())));
+    return data;
+}
+
+char *MegaApi::binaryToString64(const char* binaryData, size_t length)
+{
+    char *ret = new char[length * 4 / 3 + 3];
+    Base64::btoa((byte*)binaryData, int(length), ret);
+    return ret;
+}
+
 char *MegaApi::escapeFsIncompatible(const char *filename)
 {
     return pImpl->escapeFsIncompatible(filename);
@@ -4778,25 +4793,15 @@ bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
     return pImpl->createAvatar(imagePath, dstPath);
 }
 
-MegaBackgroundMediaUpload* MegaApi::backgroundMediaUploadNew()
-{
-    return pImpl->backgroundMediaUploadNew();
-}
-
-MegaBackgroundMediaUpload* MegaApi::backgroundMediaUploadResume(const std::string* serialised)
-{
-    return pImpl->backgroundMediaUploadResume(serialised);
-}
-
 void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
 {
     return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener); 
 }
 
 bool MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-    std::string* binaryUploadToken, MegaRequestListener *listener)
+    const char *string64UploadToken, MegaRequestListener *listener)
 {
-    return pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, binaryUploadToken, listener);
+    return pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, listener);
 }
 
 bool MegaApi::ensureMediaInfo()
@@ -5435,6 +5440,16 @@ double MegaAccountTransaction::getAmount() const
     return 0;
 }
 
+MegaBackgroundMediaUpload *MegaBackgroundMediaUpload::createInstance(MegaApi *api)
+{
+    return new MegaBackgroundMediaUploadPrivate(api);
+}
+
+MegaBackgroundMediaUpload* MegaBackgroundMediaUpload::unserialize(const char* d, MegaApi* api)
+{
+    return d ? new MegaBackgroundMediaUploadPrivate(MegaApi::string64ToBinary(d), api) : NULL;
+}
+
 bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
 {
     return false;
@@ -5449,9 +5464,9 @@ void MegaBackgroundMediaUpload::getUploadURL(std::string* mediaUrl)
 {
 }
 
-std::string MegaBackgroundMediaUpload::serialize()
+char *MegaBackgroundMediaUpload::serialize()
 {
-    return string();
+    return NULL;
 }
 
 MegaBackgroundMediaUpload::~MegaBackgroundMediaUpload()

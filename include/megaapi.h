@@ -6242,11 +6242,28 @@ class MegaBackgroundMediaUpload
 public:
 
     /**
+     * @brief Initial step to upload a photo/video via iOS low-power background upload feature
+     *
+     * Creates an object which can be used to encrypt a media file, and upload it outside of the SDK,
+     * eg. in order to take advantage of a particular platform's low power background upload functionality.
+     *
+     * You take ownership of the returned value.
+     *
+     * @param api The MegaApi the new object will be used with.  It must live longer than the new object.
+     * @return A pointer to an object that keeps some needed state through the process of
+     *         uploading a media file via iOS low power background uploads (or similar).
+     */
+    static MegaBackgroundMediaUpload* createInstance(MegaApi *api);
+
+    /**
      * @brief Extract mediainfo information about the photo or video.
      *
      * Call this function once with the file to be uploaded. It uses mediainfo to extract information that will
      * help other clients to show or to play the files. The information is stored in this object until the whole
      * operation completes.
+     *
+     * Call MegaApi::ensureMediaInfo first in order prepare the library to attach file attributes
+     * that enable videos to be identified and played in the web browser.
      *
      * @param inputFilepath The file to analyse with MediaInfo.
      * @return true if analysis was performed (and any relevant attributes stored ready for upload), false if mediainfo was not ready yet.
@@ -6291,13 +6308,31 @@ public:
     virtual void getUploadURL(std::string* mediaUrl);
 
     /**
-     * @brief Turns the data stored in this object into a binary string.
+     * @brief Turns the data stored in this object into a base 64 encoded string.
      *
-     * The object can then be recreated via MegaApi::backgroundMediaUploadResume and supplying the same string.
+     * The object can then be recreated via MegaBackgroundMediaUpload::unserialize and supplying the returned string.
      *
+     * You take ownership of the returned value.
+     * 
      * @return serialized version of this object (including URL, mediainfo attributes, and internal data suitable to resume uploading with in future)
      */
-    virtual std::string serialize();
+    virtual char *serialize();
+
+    /**
+     * @brief Get back the needed MegaBackgroundMediaUpload after the iOS app exited and restarted
+     *
+     * In case the iOS app exits while a background upload is going on, and the app is started again
+     * to complete the operation. Call this function to recreate the MegaBackgroundMediaUpload object
+     * needed for a call to MegaApi::backgroundMediaUploadComplete. The object must have been serialised
+     * before the app was unloaded.
+     *
+     * @param data The string the object was serialized to previously.
+     * @param api The MegaApi this object will be used with.  It must live longer than this object.
+     * @return A pointer to a new MegaBackgroundMediaUpload with all fields set to the data that was
+     *         stored in the serialized string.
+     *         Caller takes ownership of the object.
+     */
+    static MegaBackgroundMediaUpload* unserialize(const char* data, MegaApi* api);
 
     /**
      * @brief Destructor
@@ -13007,6 +13042,29 @@ class MegaApi
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
 
+        /**
+         * @brief Convert binary data to a base 64 encoded string
+         *
+         * For some operations such as background uploads, binary data must be converted to a format
+         * suitable to be passed to the MegaApi interface.  Use this function to do so.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param binaryData A pointer to the start of the binary data
+         * @param length The number of bytes in the binary data
+         * @return A newly allocated NULL-terminated string consisting of base64 characters.
+         */
+        static char *binaryToString64(const char* binaryData, size_t length);
+
+        /**
+         * @brief Convert data encoded in a base 64 string back to binary.
+         *
+         * This operation is the inverse of binaryToString64.
+         * 
+         * @param base64string The base 64 encoded string to decode.
+         * @return A std::string containing the decoded binary data.
+         */
+        static std::string string64ToBinary(const char *base64string);
 
         /**
          * @brief Make a name suitable for a file name in the local filesystem
@@ -13061,32 +13119,6 @@ class MegaApi
         bool createAvatar(const char *imagePath, const char *dstPath);
 
         /**
-         * @brief Initial step to upload a photo/video via iOS low-power background upload feature
-         *
-         * Call MegaApi::ensureMediaInfo first in order prepare the library to attach file attributes
-         * that enable videos to be identified and played in the web browser.
-         *
-         * @return A pointer to an object that keeps some needed state through the process of
-         *         uploading a media file via iOS low power background uploads (or similar).
-         *         Caller takes ownership of the object.
-         */
-        MegaBackgroundMediaUpload* backgroundMediaUploadNew();
-
-        /**
-         * @brief Get back the needed MegaBackgroundMediaUpload after the iOS app exited and restarted
-         *
-         * In case the iOS app exits while a background upload is going on, and the app is started again
-         * to complete the operation. Call this version to recreate the MegaBackgroundMediaUpload object
-         * needed for a call to backgroundMediaUploadComplete. The object must have been serialised
-         * before the app was unloaded.
-         *
-         * @return A pointer to an object that keeps some needed state through the process of
-         *         uploading a media file via iOS low power background uploads (or similar).
-         *         Caller takes ownership of the object.
-         */
-        MegaBackgroundMediaUpload* backgroundMediaUploadResume(const std::string* serialised);
-
-        /**
          * @brief Request the URL suitable for uploading a media file.
          *
          * This function requests the URL needed for uploading the file. The URL will need the urlSuffix
@@ -13133,11 +13165,12 @@ class MegaApi
          * @param fingerprint  The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
          * @param fingerprintoriginal If the file uploaded is modified from the original,
          *        pass the fingerprint of the original file here, otherwise NULL.
-         * @param binaryUploadToken The N binary bytes of the token returned from the file upload (of the last portion). N=36 currently.
+         * @param string64UploadToken The token returned from the upload of the last portion of the file, 
+         *        which is exactly 36 binary bytes, converted  to a base 64 string with MegaApi::binaryToString64.
          * @param listener The MegaRequestListener to be called back with the result
          */
-        bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent,
-            const char* fingerprint, const char* fingerprintoriginal, std::string* binaryUploadToken, MegaRequestListener *listener);
+        bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char *utf8Name, MegaNode *parent,
+            const char *fingerprint, const char *fingerprintoriginal, const char *string64UploadToken, MegaRequestListener *listener);
 
         /**
          * @brief Call this to enable the library to attach media info attributes
@@ -13145,8 +13178,8 @@ class MegaApi
          * Those attributes allows to know if a file is a video, and play it with the correct codec.
          *
          * @return True if the library is ready, otherwise the request for media translation
-         *         data is sent to MEGA. In that case, call again later or use a listener
-         *         to find out when the translation data is available.
+         *         data is sent to MEGA. In that case, call again later or use a global listener
+         *         and override MegaGlobalListener::onMediaDetectionAvailable.
          */
         bool ensureMediaInfo();
 
@@ -14597,6 +14630,7 @@ class MegaApi
 
 private:
         MegaApiImpl *pImpl;
+        friend class MegaApiImpl;
 };
 
 
