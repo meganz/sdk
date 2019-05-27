@@ -980,50 +980,6 @@ MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
 {
 }
 
-class MEGA_API EncryptFilePieceByChunks : public EncryptByChunks
-{
-    // specialisation for encrypting a piece of a file without using too much RAM
-    FileAccess* fain;
-    FileAccess* faout;
-    m_off_t inpos, outpos;
-    string buffer;
-    unsigned lastsize;
-
-public:
-
-    EncryptFilePieceByChunks(FileAccess* f1, m_off_t f1pos, FileAccess* f2, m_off_t f2pos, SymmCipher* k, chunkmac_map* m, uint64_t c)
-        : EncryptByChunks(k, m, c)
-        , fain(f1), faout(f2)
-        , inpos(f1pos), outpos(f2pos)
-        , lastsize(0)
-    {
-    }
-
-    byte* nextbuffer(unsigned bufsize)
-    {
-        if (lastsize)
-        {
-            // write the last encrypted chunk
-            if (!faout->fwrite((byte*)buffer.data(), lastsize, outpos))
-            {
-                return NULL;
-            }
-            outpos += lastsize;
-        }
-
-        buffer.resize(bufsize + SymmCipher::BLOCKSIZE);
-        memset((void*)(buffer.data() + bufsize), 0, SymmCipher::BLOCKSIZE);
-        if (!fain->frawread((byte*)buffer.data(), bufsize, inpos))
-        {
-            return NULL;
-        }
-        lastsize = bufsize;
-        inpos += bufsize;
-        return (byte*)buffer.data();
-    }
-};
-
-
 bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepath)
 {
 #ifdef USE_MEDIAINFO
@@ -1121,6 +1077,37 @@ void MegaBackgroundMediaUploadPrivate::getUploadURL(std::string* uploadurl)
     *uploadurl = url;
 }
 
+EncryptFilePieceByChunks::EncryptFilePieceByChunks(FileAccess *cFain, m_off_t cInPos, FileAccess *cFaout, m_off_t cOutPos,
+                                                   SymmCipher *cipher, chunkmac_map *chunkmacs, uint64_t ctriv)
+    : EncryptByChunks(cipher, chunkmacs, ctriv)
+    , fain(cFain), faout(cFaout)
+    , inpos(cInPos), outpos(cOutPos)
+    , lastsize(0)
+{
+}
+
+byte *EncryptFilePieceByChunks::nextbuffer(unsigned bufsize)
+{
+    if (lastsize)
+    {
+        // write the last encrypted chunk
+        if (!faout->fwrite((byte*)buffer.data(), lastsize, outpos))
+        {
+            return NULL;
+        }
+        outpos += lastsize;
+    }
+
+    buffer.resize(bufsize + SymmCipher::BLOCKSIZE);
+    memset((void*)(buffer.data() + bufsize), 0, SymmCipher::BLOCKSIZE);
+    if (!fain->frawread((byte*)buffer.data(), bufsize, inpos))
+    {
+        return NULL;
+    }
+    lastsize = bufsize;
+    inpos += bufsize;
+    return (byte*)buffer.data();
+}
 
 #ifdef ENABLE_SYNC
 bool MegaNodePrivate::isSyncDeleted()

@@ -1659,6 +1659,23 @@ protected:
     int s;
 };
 
+class EncryptFilePieceByChunks : public EncryptByChunks
+{
+    // specialisation for encrypting a piece of a file without using too much RAM
+    FileAccess* fain;
+    FileAccess* faout;
+    m_off_t inpos, outpos;
+    string buffer;
+    unsigned lastsize;
+
+public:
+
+    EncryptFilePieceByChunks(FileAccess* cFain, m_off_t cInPos, FileAccess* cFaout, m_off_t cOutPos,
+                             SymmCipher* cipher, chunkmac_map* chunkmacs, uint64_t ctriv);
+
+    byte* nextbuffer(unsigned bufsize) override;
+};
+
 class MegaBackgroundMediaUploadPrivate : public MegaBackgroundMediaUpload
 {
 public:
@@ -1667,7 +1684,8 @@ public:
     ~MegaBackgroundMediaUploadPrivate();
 
     bool analyseMediaInfo(const char* inputFilepath) override;
-    bool encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath, std::string* urlSuffix, bool adjustsizeonly) override;
+    bool encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
+                     std::string* urlSuffix, bool adjustsizeonly) override;
 
     void getUploadURL(std::string* mediaUrl) override;
 
