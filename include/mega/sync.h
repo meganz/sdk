@@ -29,6 +29,16 @@ namespace mega {
 class MEGA_API Sync
 {
 public:
+
+    enum Type
+    {
+        UP = 1, // sync up from local to remote
+        DOWN = 2, // sync down from remote to local
+    };
+
+    // type of the sync, defaults to bidirectional
+    int type = UP | DOWN;
+
     void *appData;
 
     MegaClient* client;

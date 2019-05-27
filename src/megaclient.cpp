@@ -2435,13 +2435,17 @@ void MegaClient::exec()
                             bool syncupdone = false;
                             for (it = syncs.begin(); it != syncs.end(); it++)
                             {
-                                if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+                                Sync* sync = *it;
+                                if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                                  && !syncadding && syncuprequired && !syncnagleretry)
                                 {
-                                    LOG_debug << "Running syncup on demand";
-                                    repeatsyncup |= !syncup(&(*it)->localroot, &nds);
+                                    if (sync->type & Sync::UP)
+                                    {
+                                        LOG_debug << "Running syncup on demand";
+                                        repeatsyncup |= !syncup(&sync->localroot, &nds);
+                                    }
                                     syncupdone = true;
-                                    (*it)->cachenodes();
+                                    sync->cachenodes();
                                 }
                             }
                             syncuprequired = !syncupdone || repeatsyncup;
@@ -2565,29 +2569,32 @@ void MegaClient::exec()
                     bool success = true;
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
+                        Sync* sync = *it;
                         // make sure that the remote synced folder still exists
-                        if (!(*it)->localroot.node)
+                        if (!sync->localroot.node)
                         {
                             LOG_err << "The remote root node doesn't exist";
-                            (*it)->errorcode = API_ENOENT;
-                            (*it)->changestate(SYNC_FAILED);
+                            sync->errorcode = API_ENOENT;
+                            sync->changestate(SYNC_FAILED);
                         }
                         else
                         {
-                            string localpath = (*it)->localroot.localname;
-                            if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+                            string localpath = sync->localroot.localname;
+                            if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
-                                LOG_debug << "Running syncdown on demand";
-                                if (!syncdown(&(*it)->localroot, &localpath, true))
+                                if (sync->type & Sync::DOWN)
                                 {
-                                    // a local filesystem item was locked - schedule periodic retry
-                                    // and force a full rescan afterwards as the local item may
-                                    // be subject to changes that are notified with obsolete paths
-                                    success = false;
-                                    (*it)->dirnotify->error = true;
+                                    LOG_debug << "Running syncdown on demand";
+                                    if (!syncdown(&sync->localroot, &localpath, true))
+                                    {
+                                        // a local filesystem item was locked - schedule periodic retry
+                                        // and force a full rescan afterwards as the local item may
+                                        // be subject to changes that are notified with obsolete paths
+                                        success = false;
+                                        sync->dirnotify->error = true;
+                                    }
                                 }
-
-                                (*it)->cachenodes();
+                                sync->cachenodes();
                             }
                         }
                     }
