@@ -973,7 +973,7 @@ bool MegaBackgroundMediaUploadPrivate::serialize(string* s)
 char *MegaBackgroundMediaUploadPrivate::serialize()
 {
     string d;
-    return serialize(&d) ? MegaApi::binaryToString64(d.data(), d.size()) : NULL;
+    return serialize(&d) ? MegaApi::binaryToBase64(d.data(), d.size()) : NULL;
 }
 
 MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
@@ -5269,6 +5269,21 @@ char *MegaApiImpl::userHandleToBase64(MegaHandle handle)
     char *base64Handle = new char[14];
     Base64::btoa((byte*)&(handle),MegaClient::USERHANDLE,base64Handle);
     return base64Handle;
+}
+
+char *MegaApiImpl::binaryToBase64(const char *binaryData, size_t length)
+{
+    char *ret = new char[length * 4 / 3 + 3];
+    Base64::btoa((byte*)binaryData, int(length), ret);
+    return ret;
+}
+
+std::string MegaApiImpl::base64ToBinary(const char *base64string)
+{
+    string data;
+    data.resize(strlen(base64string) * 3 / 4 + 3);
+    data.resize(Base64::atob(base64string, (byte*)data.data(), int(data.size())));
+    return data;
 }
 
 void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener *listener)
@@ -20501,7 +20516,7 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EINCOMPLETE;
                 break;
             }
-            std::string binaryUploadToken = MegaApi::string64ToBinary(uploadToken);
+            std::string binaryUploadToken = MegaApi::base64ToBinary(uploadToken);
             if (binaryUploadToken.size() != 36)
             {
                 LOG_err << "Invalid upload token";

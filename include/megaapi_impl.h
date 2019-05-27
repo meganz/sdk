@@ -1895,6 +1895,8 @@ class MegaApiImpl : public MegaApp
         static handle base64ToUserHandle(const char* base64Handle);
         static char *handleToBase64(MegaHandle handle);
         static char *userHandleToBase64(MegaHandle handle);
+        static char *binaryToBase64(const char* binaryData, size_t length);
+        static std::string base64ToBinary(const char *base64string);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         void setDnsServers(const char *dnsServers, MegaRequestListener* listener = NULL);

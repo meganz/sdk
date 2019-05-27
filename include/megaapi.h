@@ -6835,6 +6835,30 @@ class MegaApi
         static char* userHandleToBase64(MegaHandle handle);
 
         /**
+         * @brief Convert binary data to a base 64 encoded string
+         *
+         * For some operations such as background uploads, binary data must be converted to a format
+         * suitable to be passed to the MegaApi interface.  Use this function to do so.
+         *
+         * You take the ownership of the returned value
+         *
+         * @param binaryData A pointer to the start of the binary data
+         * @param length The number of bytes in the binary data
+         * @return A newly allocated NULL-terminated string consisting of base64 characters.
+         */
+        static char *binaryToBase64(const char* binaryData, size_t length);
+
+        /**
+         * @brief Convert data encoded in a base 64 string back to binary.
+         *
+         * This operation is the inverse of binaryToString64.
+         *
+         * @param base64string The base 64 encoded string to decode.
+         * @return A std::string containing the decoded binary data.
+         */
+        static std::string base64ToBinary(const char *base64string);
+
+        /**
          * @brief Add entropy to internal random number generators
          *
          * It's recommended to call this function with random data specially to
@@ -13038,30 +13062,6 @@ class MegaApi
          */
         static void utf8ToUtf16(const char* utf8data, std::string* utf16string);
     #endif
-
-        /**
-         * @brief Convert binary data to a base 64 encoded string
-         *
-         * For some operations such as background uploads, binary data must be converted to a format
-         * suitable to be passed to the MegaApi interface.  Use this function to do so.
-         *
-         * You take the ownership of the returned value
-         *
-         * @param binaryData A pointer to the start of the binary data
-         * @param length The number of bytes in the binary data
-         * @return A newly allocated NULL-terminated string consisting of base64 characters.
-         */
-        static char *binaryToString64(const char* binaryData, size_t length);
-
-        /**
-         * @brief Convert data encoded in a base 64 string back to binary.
-         *
-         * This operation is the inverse of binaryToString64.
-         * 
-         * @param base64string The base 64 encoded string to decode.
-         * @return A std::string containing the decoded binary data.
-         */
-        static std::string string64ToBinary(const char *base64string);
 
         /**
          * @brief Make a name suitable for a file name in the local filesystem

@@ -1769,6 +1769,16 @@ char *MegaApi::userHandleToBase64(MegaHandle handle)
     return MegaApiImpl::userHandleToBase64(handle);
 }
 
+string MegaApi::base64ToBinary(const char * d)
+{
+    return MegaApiImpl::base64ToBinary(d);
+}
+
+char *MegaApi::binaryToBase64(const char* binaryData, size_t length)
+{
+    return MegaApiImpl::binaryToBase64(binaryData, length);
+}
+
 void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener* listener)
 {
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
@@ -4751,21 +4761,6 @@ void MegaApi::utf8ToUtf16(const char* utf8data, string* utf16string)
 
 #endif
 
-string MegaApi::string64ToBinary(const char * d)
-{
-    string data;
-    data.resize(strlen(d) * 3 / 4 + 3);
-    data.resize(Base64::atob(d, (byte*)data.data(), int(data.size())));
-    return data;
-}
-
-char *MegaApi::binaryToString64(const char* binaryData, size_t length)
-{
-    char *ret = new char[length * 4 / 3 + 3];
-    Base64::btoa((byte*)binaryData, int(length), ret);
-    return ret;
-}
-
 char *MegaApi::escapeFsIncompatible(const char *filename)
 {
     return pImpl->escapeFsIncompatible(filename);
@@ -5445,7 +5440,7 @@ MegaBackgroundMediaUpload *MegaBackgroundMediaUpload::createInstance(MegaApi *ap
 
 MegaBackgroundMediaUpload* MegaBackgroundMediaUpload::unserialize(const char* d, MegaApi* api)
 {
-    return d ? new MegaBackgroundMediaUploadPrivate(MegaApi::string64ToBinary(d), api) : NULL;
+    return d ? new MegaBackgroundMediaUploadPrivate(MegaApi::base64ToBinary(d), api) : NULL;
 }
 
 bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
