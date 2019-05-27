@@ -1251,7 +1251,14 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        LOG_debug << httpctx->req->logname << "Sending: " << *req->out;
+        if (req->out->size() < 10240)
+        {
+            LOG_debug << httpctx->req->logname << "Sending: " << *req->out;
+        }
+        else
+        {
+            LOG_debug << httpctx->req->logname << "Sending: " << req->out->substr(0, 5116) << " [...] " << req->out->substr(req->out->size() - 5116, string::npos);
+        }
     }
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
