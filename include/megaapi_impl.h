@@ -2317,7 +2317,7 @@ class MegaApiImpl : public MegaApp
         bool createAvatar(const char* imagePath, const char *dstPath);
 
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
-        bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+        void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
             const char *string64UploadToken, MegaRequestListener *listener);
 
         bool ensureMediaInfo();
@@ -2487,7 +2487,6 @@ protected:
         void fireOnContactRequestsUpdate(MegaContactRequestList *requests);
         void fireOnReloadNeeded();
         void fireOnEvent(MegaEventPrivate *event);
-        void fireOnMediaDetectionAvailable();
 
 #ifdef ENABLE_SYNC
         void fireOnGlobalSyncStateChanged();

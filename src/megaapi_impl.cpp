@@ -8396,7 +8396,7 @@ void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, Me
     waiter->notify();
 }
 
-bool MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+void MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
     const char *string64UploadToken, MegaRequestListener *listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD, listener);
@@ -8414,7 +8414,6 @@ bool MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state
     }
     requestQueue.push(req);
     waiter->notify();
-    return true;
 }
 
 bool MegaApiImpl::ensureMediaInfo()
@@ -11676,7 +11675,8 @@ void MegaApiImpl::backgrounduploadurl_result(error e, string* url)
 
 void MegaApiImpl::mediadetection_ready()
 {
-    fireOnMediaDetectionAvailable();
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_MEDIA_INFO_READY);
+    fireOnEvent(event);
 }
 
 #ifdef ENABLE_CHAT
@@ -15232,14 +15232,6 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
     }
 
     delete event;
-}
-
-void MegaApiImpl::fireOnMediaDetectionAvailable()
-{
-    for (set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end();)
-    {
-        (*it++)->onMediaDetectionAvailable();
-    }
 }
 
 #ifdef ENABLE_SYNC

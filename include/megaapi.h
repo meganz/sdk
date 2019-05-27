@@ -3291,7 +3291,8 @@ public:
         EVENT_DISCONNECT                = 3,
         EVENT_ACCOUNT_BLOCKED           = 4,
         EVENT_STORAGE                   = 5,
-        EVENT_NODES_CURRENT             = 6
+        EVENT_NODES_CURRENT             = 6,
+        EVENT_MEDIA_INFO_READY          = 7
     };
 
     virtual ~MegaEvent();
@@ -5759,19 +5760,12 @@ class MegaGlobalListener
          *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
+         * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
         virtual void onEvent(MegaApi* api, MegaEvent *event);
-
-        /**
-         * @brief This function is called when lookups from media type names to MEGA encodings is available
-         *
-         * Clients should call MegaApi::ensureMediaInfo before attempting to analyse media, and wait for this callback.
-         *
-         * @param api MegaApi object related to the event
-         */
-        virtual void onMediaDetectionAvailable();
 
         virtual ~MegaGlobalListener();
 };
@@ -6222,6 +6216,8 @@ class MegaListener
          *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
+         * - MegaEvent::EVENT_MEDIA_INFO_READY: when lookups from media type names to MEGA encodings is available
+         *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
          */
@@ -6249,7 +6245,7 @@ public:
      *
      * You take ownership of the returned value.
      *
-     * @param api The MegaApi the new object will be used with.  It must live longer than the new object.
+     * @param api The MegaApi the new object will be used with. It must live longer than the new object.
      * @return A pointer to an object that keeps some needed state through the process of
      *         uploading a media file via iOS low power background uploads (or similar).
      */
@@ -6322,15 +6318,16 @@ public:
      * @brief Get back the needed MegaBackgroundMediaUpload after the iOS app exited and restarted
      *
      * In case the iOS app exits while a background upload is going on, and the app is started again
-     * to complete the operation. Call this function to recreate the MegaBackgroundMediaUpload object
+     * to complete the operation, call this function to recreate the MegaBackgroundMediaUpload object
      * needed for a call to MegaApi::backgroundMediaUploadComplete. The object must have been serialised
-     * before the app was unloaded.
+     * before the app was unloaded by using MegaBackgroundMediaUpload::serialize.
+     *
+     * You take ownership of the returned value.
      *
      * @param data The string the object was serialized to previously.
-     * @param api The MegaApi this object will be used with.  It must live longer than this object.
+     * @param api The MegaApi this object will be used with. It must live longer than this object.
      * @return A pointer to a new MegaBackgroundMediaUpload with all fields set to the data that was
      *         stored in the serialized string.
-     *         Caller takes ownership of the object.
      */
     static MegaBackgroundMediaUpload* unserialize(const char* data, MegaApi* api);
 
@@ -13169,7 +13166,7 @@ class MegaApi
          *        which is exactly 36 binary bytes, converted  to a base 64 string with MegaApi::binaryToString64.
          * @param listener The MegaRequestListener to be called back with the result
          */
-        bool backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char *utf8Name, MegaNode *parent,
+        void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char *utf8Name, MegaNode *parent,
             const char *fingerprint, const char *fingerprintoriginal, const char *string64UploadToken, MegaRequestListener *listener);
 
         /**
@@ -13177,9 +13174,11 @@ class MegaApi
          *
          * Those attributes allows to know if a file is a video, and play it with the correct codec.
          *
-         * @return True if the library is ready, otherwise the request for media translation
-         *         data is sent to MEGA. In that case, call again later or use a global listener
-         *         and override MegaGlobalListener::onMediaDetectionAvailable.
+         * If media info is not ready, this function returns false and automatically retrieves the mappings for type names
+         * and MEGA encodings, required to analyse media files. When media info is received, the callbacks
+         * MegaListener::onEvent and MegaGlobalListener::onEvent are called with the MegaEvent::EVENT_MEDIA_INFO_READY.
+         *
+         * @return True if the library is ready, otherwise false (the request for media translation data is sent to MEGA)
          */
         bool ensureMediaInfo();
 

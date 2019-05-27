@@ -252,6 +252,7 @@ struct MEGA_API MegaApp
     // get welcome pdf
     virtual void getwelcomepdf_result(handle, string*, error) {}
 
+    // codec-mappings received
     virtual void mediadetection_ready() {}
 
     // global transfer queue updates
