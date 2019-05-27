@@ -1062,8 +1062,8 @@ bool MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, in
                         ((int64_t*)filekey)[3] = chunkmacs.macsmac(&cipher);
                         retval = true;
                     }
-                    delete faout;
                 }
+                delete faout;
             }
         }
     }
@@ -11672,7 +11672,8 @@ void MegaApiImpl::backgrounduploadurl_result(error e, string* url)
         MegaBackgroundMediaUploadPrivate* mu = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
         mu->url = *url;
     }
-    return fireOnRequestFinish(request, MegaError(e));
+
+    fireOnRequestFinish(request, MegaError(e));
 }
 
 void MegaApiImpl::mediadetection_ready()

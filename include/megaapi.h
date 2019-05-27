@@ -13132,7 +13132,7 @@ class MegaApi
          *
          * @param fullFileSize The size of the file
          * @param state A pointer to the MegaBackgroundMediaUpload object tracking this upload
-         * @param listener The MegaRequestListener to be called back with the result
+         * @param listener MegaRequestListener to track this request
          */
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
 
@@ -13164,7 +13164,7 @@ class MegaApi
          *        pass the fingerprint of the original file here, otherwise NULL.
          * @param string64UploadToken The token returned from the upload of the last portion of the file, 
          *        which is exactly 36 binary bytes, converted  to a base 64 string with MegaApi::binaryToString64.
-         * @param listener The MegaRequestListener to be called back with the result
+         * @param listener MegaRequestListener to track this request
          */
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char *utf8Name, MegaNode *parent,
             const char *fingerprint, const char *fingerprintoriginal, const char *string64UploadToken, MegaRequestListener *listener);
@@ -13185,10 +13185,8 @@ class MegaApi
         /**
          * @brief Set the OriginalFingerprint of a node.
          *
-         * Use this call to attach an originalFingerprint to a node.  The fingerprint must
+         * Use this call to attach an originalFingerprint to a node. The fingerprint must
          * be generated from the file prior to modification, where this node is the modified file.
-         *
-         * To remove the existing duration, set it to MegaNode::INVALID_DURATION.
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
          * Valid data in the MegaRequest object received on callbacks:
@@ -13197,9 +13195,9 @@ class MegaApi
          * - MegaRequest::getFlag - Returns true (official attribute)
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_ORIGINALFINGERPRINT
          *
-         * @param node   The node to attach the originalFingerprint to.
-         * @param originalFingerprint  The fingerprint of the file before modification
-         * @param listener The MegaRequestListener to be called back with the result.
+         * @param node The node to attach the originalFingerprint to.
+         * @param originalFingerprint The fingerprint of the file before modification
+         * @param listener MegaRequestListener to track this request
          */
         void setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener);
 
