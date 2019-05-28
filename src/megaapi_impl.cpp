@@ -966,7 +966,7 @@ bool MegaBackgroundMediaUploadPrivate::serialize(string* s)
     w.serializechunkmacs(chunkmacs);
     w.serializestring(mediaproperties.serialize());
     w.serializestring(url);
-    w.serializeexpansionflags(false, false);
+    w.serializeexpansionflags();  // if/when we add more in future, set the first one true to signal the new set are present.
     return s;
 }
 

@@ -3580,6 +3580,7 @@ void MegaClient::locallogout()
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
+    mediaFileInfo = MediaFileInfo();
 
     freeq(GET);
     freeq(PUT);

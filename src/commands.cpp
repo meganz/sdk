@@ -3138,7 +3138,7 @@ CommandUnshareableUA::CommandUnshareableUA(MegaClient* client, bool fetch, int t
     if (fetching)
     {
         cmd("uga");
-        arg("u", client->finduser(client->me, 1)->uid.c_str());
+        arg("u", client->uid.c_str());
         arg("ua", User::attr2string(ATTR_UNSHAREABLE_KEY).c_str());
         arg("v", 1);
     }
@@ -3163,12 +3163,18 @@ void CommandUnshareableUA::procresult()
         if (e == API_ENOENT && fetching && maxtries > 0)
         {
             // we can't get it because it doesn't exist yet, so make it now
+            LOG_info << "Creating unshareable key";
             client->reqs.add(new CommandUnshareableUA(client, false, maxtries - 1));
+        }
+        else
+        {
+            LOG_err << "Could not get or create unshareable key";
         }
         return;
     }
     else if (!fetching)
     {
+        LOG_info << "Successful creation of unshareable key";
         // success uploading the key.  It just replies with [<uh>]
         client->json.storeobject();
         // fetch the value stored (protects somewhat against a creation race from multiple clients)
@@ -3193,17 +3199,19 @@ void CommandUnshareableUA::procresult()
                     return;
                 }
                 buf.assign(ptr, (end - ptr));
+                LOG_err << "Unshareable key received, size: " << buf.size();
                 break;
             }
             case EOO:
             {
-                if (fetching)
+                assert(fetching);
+                if (buf.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
                 {
-
-                    if (buf.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
-                    {
-                        client->unshareablekey.swap(buf);
-                    }
+                    client->unshareablekey.swap(buf);
+                }
+                else
+                {
+                    LOG_err << "Unshareable key not included in reply, or wrong length";
                 }
                 return;
             }
@@ -3211,6 +3219,7 @@ void CommandUnshareableUA::procresult()
             default:
                 if (!client->json.storeobject())
                 {
+                    LOG_err << "Bad field in unshareable reply";
                     return;
                 }
             }
@@ -6684,9 +6693,6 @@ CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 {
     cmd("mc");
 
-    // This command is for internal usage only
-    tag = 0;
-
     client = c;
     callback = cb;
 }
@@ -6702,8 +6708,14 @@ void CommandMediaCodecs::procresult()
             LOG_err << "mc result: " << result;
         }
         version = int(result);
+        callback(client, version);
     }
-    callback(client, version);
+    else
+    {
+        // It's wrongly formatted, consume this one so the next command can be processed.
+        LOG_err << "mc response badly formatted";
+        client->json.storeobject();  
+    }
 }
 
 CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
