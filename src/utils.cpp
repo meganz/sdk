@@ -1499,7 +1499,7 @@ m_time_t m_mktime_UTC(const struct tm *src)
     t = mktime(&dst);
     TIME_ZONE_INFORMATION TimeZoneInfo;
     GetTimeZoneInformation(&TimeZoneInfo);
-    t += timezone.Bias * 60 - dst.tm_isdst * 3600;
+    t += TimeZoneInfo.Bias * 60 - dst.tm_isdst * 3600;
 #elif _WIN32
 #error "localtime is not thread safe in this compiler; please use a later one"
 #else //POSIX
