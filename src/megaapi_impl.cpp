@@ -7545,9 +7545,18 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
 
 void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
+    syncFolder(MegaApi::SYNC_TYPE_UP | MegaApi::SYNC_TYPE_DOWN, localFolder, megaFolder, regExp, listener);
+}
+
+void MegaApiImpl::syncFolder(int syncType, const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+{
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
-    if(megaFolder) request->setNodeHandle(megaFolder->getHandle());
-    if(localFolder)
+    request->setParamType(syncType);
+    if (megaFolder)
+    {
+        request->setNodeHandle(megaFolder->getHandle());
+    }
+    if (localFolder)
     {
         string path(localFolder);
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
@@ -7565,6 +7574,11 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, Mega
 
 void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
+    resumeSync(MegaApi::SYNC_TYPE_UP | MegaApi::SYNC_TYPE_DOWN, localFolder, localfp, megaFolder, regExp, listener);
+}
+
+void MegaApiImpl::resumeSync(int syncType, const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+{
     sdkMutex.lock();
 
 #ifdef __APPLE__
@@ -7574,6 +7588,7 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
     LOG_debug << "Resume sync";
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+    request->setParamType(syncType);
     request->setListener(listener);
     request->setRegExp(regExp);
 
@@ -7612,11 +7627,12 @@ void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNod
         client->fsaccess->path2local(&utf8name, &localname);
 
         MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
+        sync->setType(request->getParamType());
         sync->setListener(request->getSyncListener());
         sync->setLocalFingerprint(localfp);
         sync->setRegExp(regExp);
 
-        e = client->addsync(&localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
+        e = client->addsync(request->getParamType(), &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
         if (!e)
         {
             Sync *s = client->syncs.back();
@@ -19150,10 +19166,11 @@ void MegaApiImpl::sendPendingRequests()
             client->fsaccess->path2local(&utf8name, &localname);
 
             MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
+            sync->setType(request->getParamType());
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            e = client->addsync(&localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
+            e = client->addsync(request->getParamType(), &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
             if (!e)
             {
                 Sync *s = client->syncs.back();
@@ -20937,6 +20954,7 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;
+    this->type = MegaApi::SYNC_TYPE_UP | MegaApi::SYNC_TYPE_DOWN;
     this->localFolder = NULL;
     setLocalFolder(path);
     this->state = SYNC_INITIALSCAN;
@@ -20977,6 +20995,16 @@ MegaHandle MegaSyncPrivate::getMegaHandle() const
 void MegaSyncPrivate::setMegaHandle(MegaHandle handle)
 {
     this->megaHandle = handle;
+}
+
+int MegaSyncPrivate::getType() const
+{
+    return type;
+}
+
+void MegaSyncPrivate::setType(int type)
+{
+    this->type = type;
 }
 
 const char *MegaSyncPrivate::getLocalFolder() const

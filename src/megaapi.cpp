@@ -2833,7 +2833,17 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
     pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
 }
 
+void MegaApi::syncFolder(int syncType, const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
+}
+
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
+{
+    pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
+}
+
+void MegaApi::resumeSync(int syncType, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
     pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
 }
@@ -5029,6 +5039,11 @@ MegaSync *MegaSync::copy()
 MegaHandle MegaSync::getMegaHandle() const
 {
     return INVALID_HANDLE;
+}
+
+int MegaSync::getType() const
+{
+    return MegaApi::SYNC_TYPE_UP | MegaApi::SYNC_TYPE_DOWN;
 }
 
 const char *MegaSync::getLocalFolder() const

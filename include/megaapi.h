@@ -4582,6 +4582,8 @@ public:
      */
     virtual MegaHandle getMegaHandle() const;
 
+    virtual int getType() const;
+
     /**
      * @brief Get the path of the local folder that is being synced
      *
@@ -6234,6 +6236,12 @@ class MegaApi
 			STATE_SYNCING,
 			STATE_IGNORED
 		};
+
+        enum
+        {
+            SYNC_TYPE_UP = 0x01, // Sync up from local to remote
+            SYNC_TYPE_DOWN = 0x02, // Sync down from remote to local
+        };
 
         enum {
             LOG_LEVEL_FATAL = 0,   // Very severe error event that will presumably lead the application to abort.
@@ -10799,6 +10807,8 @@ class MegaApi
          */
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
+        void syncFolder(int syncType, const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+
         /**
          * @brief Resume a previously synced folder
          *
@@ -10824,6 +10834,8 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
+
+        void resumeSync(int syncType, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
 
 #ifdef USE_PCRE
         /**
