@@ -3937,7 +3937,7 @@ char *MegaApi::getMimeType(const char *extension)
         extension++;
     }
 
-    static map<string, string> mimeMap{
+    static const map<string, string> mimeMap{
         // from c++11, this sort of static local initialization is one-time and thread safe
         {"323", "text/h323"},
         {"3g2", "video/3gpp2"},
@@ -4503,13 +4503,8 @@ char *MegaApi::getMimeType(const char *extension)
 
     string key = extension;
     std::transform(key.begin(), key.end(), key.begin(), [](char c) { return static_cast<char>(::tolower(c)); });
-    map<string, string>::iterator it = mimeMap.find(key);
-    if (it == mimeMap.end())
-    {
-        return NULL;
-    }
-
-    return MegaApi::strdup(it->second.c_str());
+    map<string, string>::const_iterator it = mimeMap.find(key);
+    return it == mimeMap.cend() ? nullptr : MegaApi::strdup(it->second.c_str());
 }
 
 #ifdef ENABLE_CHAT

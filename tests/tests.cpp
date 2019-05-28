@@ -64,22 +64,26 @@ size_t checksize(size_t& n, size_t added)
 TEST(MegaApi, getMimeType)
 {
 
-    vector<unique_ptr<thread>> threads;
+    vector<thread> threads;
 
-    atomic<int> successCount = 0;
+    atomic<int> successCount{ 0 };
 
-    for (int i = 0; i < 20; ++i)
+    // 100 threads was enough to reliably crash the old non-thread-safe version
+    for (int i = 0; i < 100; ++i)
     {
-        threads.emplace_back(unique_ptr<thread>(new thread([&successCount]() {
+        threads.emplace_back(thread([&successCount]() {
             if (::mega::MegaApi::getMimeType("nosuch") == nullptr) ++successCount;
+            if (::mega::MegaApi::getMimeType(nullptr) == nullptr) ++successCount;
             if (::mega::MegaApi::getMimeType("323") == string("text/h323")) ++successCount;
+            if (::mega::MegaApi::getMimeType(".323") == string("text/h323")) ++successCount;
             if (::mega::MegaApi::getMimeType("zip") == string("application/x-zip-compressed")) ++successCount;
-        })));
+            if (::mega::MegaApi::getMimeType(".zip") == string("application/x-zip-compressed")) ++successCount;
+        }));
     }
 
-    for (auto& a : threads) a->join();
+    for (auto& t : threads) t.join();
 
-    ASSERT_EQ(successCount, 60);
+    ASSERT_EQ(successCount, 600);
 }
 
 TEST(Cacheable, CacheableReaderWriter)
