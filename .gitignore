@@ -65,6 +65,7 @@ config.log
 config.status
 config.sub
 py-compile
+/sdk_build
 
 # Documentation generator
 doc/_build
