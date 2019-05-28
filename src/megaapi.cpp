@@ -5448,13 +5448,14 @@ bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
     return false;
 }
 
-bool MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly)
+std::string MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
 {
-    return false;
+    return string();
 }
 
-void MegaBackgroundMediaUpload::getUploadURL(std::string* mediaUrl)
+std::string MegaBackgroundMediaUpload::getUploadURL()
 {
+    return string();
 }
 
 char *MegaBackgroundMediaUpload::serialize()

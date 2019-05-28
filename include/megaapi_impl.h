@@ -1684,10 +1684,10 @@ public:
     ~MegaBackgroundMediaUploadPrivate();
 
     bool analyseMediaInfo(const char* inputFilepath) override;
-    bool encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
-                     std::string* urlSuffix, bool adjustsizeonly) override;
+    std::string encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
+                     bool adjustsizeonly) override;
 
-    void getUploadURL(std::string* mediaUrl) override;
+    std::string getUploadURL() override;
 
     bool serialize(string* s);
     char *serialize() override;

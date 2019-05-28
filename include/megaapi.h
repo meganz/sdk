@@ -6288,20 +6288,20 @@ public:
      *        MEGA internal chunking algorithm. The number of bytes actually encrypted and stored in the new file is the updated number.
      *        You can supply -1 as input to request the remainder file (from startPos) be encrypted.
      * @param outputFilepath The name of the new file to create, and store the encrypted data in.
-     * @param urlSuffix The function will update the string passed in. The content of the string must be appended to the URL
-     *        when this portion is uploaded.
      * @param adjustsizeonly If this is set true, then encryption is not performed, and only the length parameter is adjusted.
      *        This feature is to enable precalculating the exact sizes of the file portions for upload.
-     * @return true if the operation was successful, false if there was a problem (with the error logged).
+     * @return If the function tries to encrypt and succeeds, the return value is the suffix to append to the URL when uploading this enrypted chunk.
+     *         If adjustsizeonly was set, and the function succeeds, the return value will be a nonempty string.
+     *         If the function fails, the return value is an empty string, and an error will have been logged.
      */
-    virtual bool encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, std::string* urlSuffix, bool adjustsizeonly);
+    virtual std::string encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly);
 
     /**
      * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
      *
-     * @param url The string to store the URL in. If it is not available, the string will be empty.
+     * @return The URL to upload to (after appending the suffix), if one has been received.  Otherwise the string will be empty.
      */
-    virtual void getUploadURL(std::string* mediaUrl);
+    virtual std::string getUploadURL();
 
     /**
      * @brief Turns the data stored in this object into a base 64 encoded string.

@@ -1006,16 +1006,15 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     return true;
 }
 
-bool MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, string* urlSuffix, bool adjustsizeonly)
+std::string MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
 {
     if (startPos != ChunkedHash::chunkfloor(startPos))
     {
         LOG_err << "non-chunk start postion supplied";
-        return false;
+        return string();
     }
 
-    bool retval = false;
-    FileAccess *fain = api->fsAccess->newfileaccess();
+    std::unique_ptr<FileAccess> fain(api->fsAccess->newfileaccess());
     string inputFilepathtmp(inputFilepath), localfilename;
     api->fsAccess->path2local(&inputFilepathtmp, &localfilename);
 
@@ -1028,12 +1027,12 @@ bool MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, in
         if (startPos < 0 || startPos > fain->size)
         {
             LOG_err << "invalid startPos supplied";
-            retval = false;
+            return string();
         } 
         else if (*length < 0 || startPos + *length > fain->size)
         {
             LOG_err << "invalid enryption length supplied";
-            retval = false;
+            return string();
         }
         else
         {
@@ -1042,39 +1041,37 @@ bool MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, in
             *length = endPos - startPos;
             if (adjustsizeonly)
             {
-                retval = true;
+                return "1";  // nonempty to indicate success
             }
             else
             {
                 string localencryptedfilename, outputFilepathtmp(outputFilepath);
                 api->fsAccess->path2local(&outputFilepathtmp, &localencryptedfilename);
 
-                FileAccess *faout = api->fsAccess->newfileaccess();
+                std::unique_ptr<FileAccess> faout(api->fsAccess->newfileaccess());
                 if (faout->fopen(&localencryptedfilename, false, true))
                 {
                     SymmCipher cipher;
                     cipher.setkey(filekey);
                     uint64_t ctriv = MemAccess::get<uint64_t>((const char*)filekey + SymmCipher::KEYLENGTH);
 
-                    EncryptFilePieceByChunks ef(fain, startPos, faout, 0, &cipher, &chunkmacs, ctriv);
-                    if (ef.encrypt(startPos, endPos, *urlSuffix))
+                    EncryptFilePieceByChunks ef(fain.get(), startPos, faout.get(), 0, &cipher, &chunkmacs, ctriv);
+                    string urlSuffix;
+                    if (ef.encrypt(startPos, endPos, urlSuffix))
                     {
                         ((int64_t*)filekey)[3] = chunkmacs.macsmac(&cipher);
-                        retval = true;
+                        return urlSuffix;
                     }
                 }
-                delete faout;
             }
         }
     }
-    delete fain;
-
-    return retval;
+    return string();  // empty string indicates failure
 }
 
-void MegaBackgroundMediaUploadPrivate::getUploadURL(std::string* uploadurl)
+std::string MegaBackgroundMediaUploadPrivate::getUploadURL()
 {
-    *uploadurl = url;
+    return url;
 }
 
 EncryptFilePieceByChunks::EncryptFilePieceByChunks(FileAccess *cFain, m_off_t cInPos, FileAccess *cFaout, m_off_t cOutPos,
