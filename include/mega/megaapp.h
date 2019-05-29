@@ -159,8 +159,8 @@ struct MEGA_API MegaApp
     virtual void removecontact_result(error) { }
     virtual void putua_result(error) { }
     virtual void getua_result(error) { }
-    virtual void getua_result(byte*, unsigned) { }
-    virtual void getua_result(TLVstore *) { }
+    virtual void getua_result(byte*, unsigned, attr_t) { }
+    virtual void getua_result(TLVstore *, attr_t) { }
 #ifdef DEBUG
     virtual void delua_result(error) { }
 #endif

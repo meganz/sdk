@@ -2893,7 +2893,7 @@ void CommandGetUA::procresult()
                 buf.assign(ptr, (end-ptr));
                 value.resize(buf.size() / 4 * 3 + 3);
                 value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
             }
             return;
         }
@@ -2965,7 +2965,7 @@ void CommandGetUA::procresult()
                         }
                         else
                         {
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                         }
                         return;
                     }
@@ -2987,7 +2987,7 @@ void CommandGetUA::procresult()
                             string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
-                            client->app->getua_result(tlvRecords);
+                            client->app->getua_result(tlvRecords, at);
                             delete tlvRecords;
                         }
                             break;
@@ -2995,7 +2995,7 @@ void CommandGetUA::procresult()
                         case '+':   // public
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
 #ifdef  ENABLE_CHAT
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
@@ -3007,14 +3007,14 @@ void CommandGetUA::procresult()
                         case '#':   // protected
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
 
                         case '^': // private, non-encrypted
 
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
 
                             if (at == ATTR_DISABLE_VERSIONS)
                             {
@@ -3044,7 +3044,7 @@ void CommandGetUA::procresult()
                             }
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
                     }
 

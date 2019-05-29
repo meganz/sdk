@@ -171,8 +171,8 @@ struct DemoApp : public MegaApp
     void removecontact_result(error);
     void putua_result(error);
     void getua_result(error);
-    void getua_result(byte*, unsigned);
-    void getua_result(TLVstore *);
+    void getua_result(byte*, unsigned, attr_t);
+    void getua_result(TLVstore *, attr_t);
 #ifdef DEBUG
     void delua_result(error);
 #endif
