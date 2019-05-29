@@ -2439,11 +2439,8 @@ void MegaClient::exec()
                                 if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                                  && !syncadding && syncuprequired && !syncnagleretry)
                                 {
-                                    if (sync->type & Sync::UP)
-                                    {
-                                        LOG_debug << "Running syncup on demand";
-                                        repeatsyncup |= !syncup(&sync->localroot, &nds);
-                                    }
+                                    LOG_debug << "Running syncup on demand";
+                                    repeatsyncup |= !syncup(&sync->localroot, &nds);
                                     syncupdone = true;
                                     sync->cachenodes();
                                 }
@@ -2582,17 +2579,14 @@ void MegaClient::exec()
                             string localpath = sync->localroot.localname;
                             if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
-                                if (sync->type & Sync::DOWN)
+                                LOG_debug << "Running syncdown on demand";
+                                if (!syncdown(&sync->localroot, &localpath, true))
                                 {
-                                    LOG_debug << "Running syncdown on demand";
-                                    if (!syncdown(&sync->localroot, &localpath, true))
-                                    {
-                                        // a local filesystem item was locked - schedule periodic retry
-                                        // and force a full rescan afterwards as the local item may
-                                        // be subject to changes that are notified with obsolete paths
-                                        success = false;
-                                        sync->dirnotify->error = true;
-                                    }
+                                    // a local filesystem item was locked - schedule periodic retry
+                                    // and force a full rescan afterwards as the local item may
+                                    // be subject to changes that are notified with obsolete paths
+                                    success = false;
+                                    sync->dirnotify->error = true;
                                 }
                                 sync->cachenodes();
                             }
@@ -11362,6 +11356,11 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
+    if (!(l->sync->type & Sync::DOWN))
+    {
+        return true;
+    }
+
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
     {
@@ -11715,6 +11714,10 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
+    if (!(l->sync->type & Sync::UP))
+    {
+        return true;
+    }
     bool insync = true;
 
     list<string> strings;
