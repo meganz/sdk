@@ -6912,6 +6912,9 @@ class MegaApi
          * If this request succeeds, a change-email link will be sent to the specified email address.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          *
+         * If the MEGA account is a sub-user business account, onRequestFinish will
+         * be called with the error code MegaError::API_EMASTERONLY.
+         *
          * @param email The new email to be associated to the account.
          * @param pin Pin code for multi-factor authentication
          * @param listener MegaRequestListener to track this request
@@ -6929,6 +6932,9 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getText - Returns the pin code for multi-factor authentication
+         *
+         * If the MEGA account is a sub-user business account, onRequestFinish will
+         * be called with the error code MegaError::API_EMASTERONLY.
          *
          * @see MegaApi::confirmCancelAccount
          *
@@ -7422,6 +7428,9 @@ class MegaApi
          * If this request succeeds, a cancellation link will be sent to the email address of the user.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          *
+         * If the MEGA account is a sub-user business account, onRequestFinish will
+         * be called with the error code MegaError::API_EMASTERONLY.
+         *
          * @see MegaApi::confirmCancelAccount
          *
          * @param listener MegaRequestListener to track this request
@@ -7477,6 +7486,9 @@ class MegaApi
          * If this request succeeds, a change-email link will be sent to the specified email address.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
          * If the account is business and the user is a sub-user, you will get the error code MegaError::API_EMASTERONLY in onRequestFinish().
+         *
+         * If the MEGA account is a sub-user business account, onRequestFinish will
+         * be called with the error code MegaError::API_EMASTERONLY.
          *
          * @param email The new email to be associated to the account.
          * @param listener MegaRequestListener to track this request
@@ -7777,12 +7789,31 @@ class MegaApi
 
         /**
          * @brief Check if the account is a master account.
+         *
+         * When a business account is a sub-user, not the master, some user actions will be blocked.
+         * In result, the API will return the error code MegaError::API_EMASTERONLY. Some examples of
+         * requests that may fail with this error are:
+         *  - MegaApi::cancelAccount
+         *  - MegaApi::changeEmail
+         *  - MegaApi::remove
+         *  - MegaApi::removeVersion
+         *
          * @return returns true if it's a master account, false if it's a sub-user account
          */
         bool isMasterBusinessAccount();
 
         /**
          * @brief Check if the business account is active or not.
+         *
+         * When a business account is not active, some user actions will be blocked. In result, the API
+         * will return the error code MegaError::API_EBUSINESSPASTDUE. Some examples of requests
+         * that may fail with this error are:
+         *  - MegaApi::startDownload
+         *  - MegaApi::startUpload
+         *  - MegaApi::copyNode
+         *  - MegaApi::share
+         *  - MegaApi::cleanRubbishBin
+         *
          * @return returns true if the account is active, otherwise false
          */
         bool isBusinessAccountActive();
@@ -8021,6 +8052,9 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
          * - MegaRequest::getFlag - Returns false because previous versions won't be preserved
          *
+         * If the MEGA account is a sub-user business account, onRequestFinish will
+         * be called with the error code MegaError::API_EMASTERONLY.
+         *
          * @param node Node to remove
          * @param listener MegaRequestListener to track this request
          */
@@ -8050,6 +8084,9 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node to remove
          * - MegaRequest::getFlag - Returns true because previous versions will be preserved
+         *
+         * If the MEGA account is a sub-user business account, onRequestFinish will
+         * be called with the error code MegaError::API_EMASTERONLY.
          *
          * @param node Node to remove
          * @param listener MegaRequestListener to track this request
