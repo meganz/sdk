@@ -4662,6 +4662,9 @@ MegaApiImpl::~MegaApiImpl()
     waiter->notify();
     thread.join();
 
+    delete mPushSettings;
+    delete mTimezones;
+
     requestMap.erase(request->getTag());
 
     for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
