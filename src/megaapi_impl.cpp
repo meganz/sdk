@@ -13928,6 +13928,14 @@ void MegaApiImpl::whyamiblocked_result(int code)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
         }
+        else if (code == 400)
+        {
+            reason = "Your user account has been disabled. Please contact your master user";
+        }
+        else if (code == 401)
+        {
+            reason = "Your user account has been removed. Please contact your master user";
+        }
         //else if (code == 300) --> default reason
 
         request->setNumber(code);
