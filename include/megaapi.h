@@ -5702,13 +5702,6 @@ class MegaGlobalListener
          * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
          * logout.
          *
-         *  - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
-         * the posible values are:
-         *   - BUSINESS_STATUS_EXPIRED = -1
-         *   - BUSINESS_STATUS_INACTIVE = 0
-         *   - BUSINESS_STATUS_ACTIVE = 1
-         *   - BUSINESS_STATUS_GRACE_PERIOD = 2
-         *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
@@ -5738,6 +5731,16 @@ class MegaGlobalListener
          *     state if there is really a change.
          *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
+         *
+         * - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
+         * The posible values are:
+         *   - BUSINESS_STATUS_EXPIRED = -1
+         *   - BUSINESS_STATUS_INACTIVE = 0
+         *   - BUSINESS_STATUS_ACTIVE = 1
+         *   - BUSINESS_STATUS_GRACE_PERIOD = 2
+         *
+         *  Valid data in the MegaEvent object received in the callback:
+         *    - MegaEvent::getNumber: returns the new business status.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
@@ -6165,13 +6168,6 @@ class MegaListener
          * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
          * logout.
          *
-         *  - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
-         * the posible values are:
-         *   - BUSINESS_STATUS_EXPIRED = -1
-         *   - BUSINESS_STATUS_INACTIVE = 0
-         *   - BUSINESS_STATUS_ACTIVE = 1
-         *   - BUSINESS_STATUS_GRACE_PERIOD = 2
-         *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
@@ -6201,6 +6197,16 @@ class MegaListener
          *     state if there is really a change.
          *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
+         *
+         * - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
+         * The posible values are:
+         *   - BUSINESS_STATUS_EXPIRED = -1
+         *   - BUSINESS_STATUS_INACTIVE = 0
+         *   - BUSINESS_STATUS_ACTIVE = 1
+         *   - BUSINESS_STATUS_GRACE_PERIOD = 2
+         *
+         *  Valid data in the MegaEvent object received in the callback:
+         *    - MegaEvent::getNumber: returns the new business status.
          *
          * @param api MegaApi object connected to the account
          * @param event Details about the event
