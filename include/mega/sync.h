@@ -30,14 +30,15 @@ class MEGA_API Sync
 {
 public:
 
-    enum Type
+    enum
     {
-        UP = 0x01, // sync up from local to remote
-        DOWN = 0x02, // sync down from remote to local
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN,
     };
 
     // type of the sync, defaults to bidirectional
-    int type = UP | DOWN;
+    int type = TYPE_DEFAULT;
 
     void *appData;
 

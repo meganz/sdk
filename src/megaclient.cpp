@@ -11206,7 +11206,7 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 // (FIXME: perform the same check for local paths!)
 error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
 {
-    addsync(Sync::UP | Sync::DOWN, rootpath, debris, localdebris, remotenode, fsfp, tag, appData);
+    addsync(Sync::TYPE_DEFAULT, rootpath, debris, localdebris, remotenode, fsfp, tag, appData);
 }
 
 // check sync path, add sync if folder
@@ -11356,7 +11356,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
-    if (!(l->sync->type & Sync::DOWN))
+    if (!(l->sync->type & Sync::TYPE_DOWN))
     {
         return true;
     }
@@ -11714,7 +11714,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
-    if (!(l->sync->type & Sync::UP))
+    if (!(l->sync->type & Sync::TYPE_UP))
     {
         return true;
     }

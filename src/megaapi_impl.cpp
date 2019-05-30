@@ -7545,7 +7545,7 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
 
 void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    syncFolder(MegaApi::SYNC_TYPE_UP | MegaApi::SYNC_TYPE_DOWN, localFolder, megaFolder, regExp, listener);
+    syncFolder(MegaApi::SYNC_TYPE_DEFAULT, localFolder, megaFolder, regExp, listener);
 }
 
 void MegaApiImpl::syncFolder(int syncType, const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
@@ -7574,7 +7574,7 @@ void MegaApiImpl::syncFolder(int syncType, const char *localFolder, MegaNode *me
 
 void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    resumeSync(MegaApi::SYNC_TYPE_UP | MegaApi::SYNC_TYPE_DOWN, localFolder, localfp, megaFolder, regExp, listener);
+    resumeSync(MegaApi::SYNC_TYPE_DEFAULT, localFolder, localfp, megaFolder, regExp, listener);
 }
 
 void MegaApiImpl::resumeSync(int syncType, const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
@@ -20954,7 +20954,7 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;
-    this->type = MegaApi::SYNC_TYPE_UP | MegaApi::SYNC_TYPE_DOWN;
+    this->type = MegaApi::SYNC_TYPE_DEFAULT;
     this->localFolder = NULL;
     setLocalFolder(path);
     this->state = SYNC_INITIALSCAN;

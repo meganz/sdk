@@ -6241,6 +6241,7 @@ class MegaApi
         {
             SYNC_TYPE_UP = 0x01, // Sync up from local to remote
             SYNC_TYPE_DOWN = 0x02, // Sync down from remote to local
+            SYNC_TYPE_DEFAULT = SYNC_TYPE_UP | SYNC_TYPE_DOWN,
         };
 
         enum {

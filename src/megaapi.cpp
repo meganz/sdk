@@ -5043,7 +5043,7 @@ MegaHandle MegaSync::getMegaHandle() const
 
 int MegaSync::getType() const
 {
-    return MegaApi::SYNC_TYPE_UP | MegaApi::SYNC_TYPE_DOWN;
+    return MegaApi::SYNC_TYPE_DEFAULT;
 }
 
 const char *MegaSync::getLocalFolder() const
