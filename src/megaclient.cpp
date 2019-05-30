@@ -13066,7 +13066,7 @@ namespace action_bucket_compare
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
 
-    static bool isvideo(const Node* n, char ext[10])
+    static bool isvideo(const Node* n, const char *ext)
     {
         if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
         {
@@ -13099,11 +13099,9 @@ namespace action_bucket_compare
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
         string localname, name = n->displayname();
         mc->fsaccess->path2local(&name, &localname);
-        char ext[10];
+        char ext[8];
         if (mc->fsaccess->getextension(&localname, ext, sizeof(ext)))
         {
-            strcat(ext, ".");
-
             if (webclient_is_image_def.find(ext) != string::npos ||
                 webclient_is_image_raw.find(ext) != string::npos ||
                 (webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW)) ||
