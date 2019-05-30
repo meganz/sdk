@@ -5046,30 +5046,6 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
 
 /**
- * @brief Initial step to upload a photo/video via iOS low-power background upload feature
- *
- * Call ensureMediaInfo first in order prepare the library to attach file attributes
- * that enable videos to be identified and played in the web browser.
- *
- * @return A pointer to an object that keeps some needed state through the process of
- *         uploading a media file via iOS low power background uploads (or similar).
- */
-- (MEGABackgroundMediaUpload *)backgroundMediaUpload;
-
-/**
- * @brief Get back the needed MEGABackgroundMediaUpload after the iOS app exited and restarted
- *
- * In case the iOS app exits while a background upload is going on, and the app is started again
- * to complete the operation. Call this version to recreate the MEGABackgroundMediaUpload object
- * needed for a call to completeBackgroundMediaUpload:fileName:parentNode:fingerprint:originalFingerprint:binaryUploadToken:delegate:
- * in MEGASdk. The object must have been serialised before the app was unloaded.
- *
- * @return A pointer to an object that keeps some needed state through the process of
- *         uploading a media file via iOS low power background uploads (or similar).
- */
-- (MEGABackgroundMediaUpload *)resumeBackgroundMediaUploadBySerializedData:(NSData *)data;
-
-/**
  * @brief Request the URL suitable for uploading a media file.
  *
  * This function requests the URL needed for uploading the file. The URL will need the urlSuffix
@@ -5094,7 +5070,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Call this function after completing the background upload of all the file data
  * The node representing the file will be created in the cloud, with all the suitable
  * attributes and file attributes attached.
- * The result of the request is signalled by the delegate onRequestFinsish callback with MEGARequestTypeCompleteBackgroundUpload.
+ * The associated request type with this request is MEGARequestTypeCompleteBackgroundUpload.
  *
  * @param mediaUpload The MEGABackgroundMediaUpload object tracking this upload
  * @param fileName The leaf name of the file, utf-8 encoded
@@ -5109,17 +5085,18 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param token The N binary bytes of the token returned from the file upload (of the last portion). N=36 currently.
  * @param delegate The MEGARequestDelegate to be called back with the result
  */
-- (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
+- (void)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Call this to enable the library to attach media info attributes
  *
- * Those attributes enable the web browser to know a file is a video, and
- * play it with the correct codec.
+ * Those attributes allows to know if a file is a video, and play it with the correct codec.
  *
- * @return YES if the library is ready, otherwise the request for media translation
- *         data is sent to MEGA. In that case, call again later or use a listener
- *         to find out when the translation data is available.
+ * If media info is not ready, this function returns NO and automatically retrieves the mappings for type names
+ * and MEGA encodings, required to analyse media files. When media info is received, the callbacks
+ * onEvent is called with the EventMediaInfoReady event type.
+ *
+ * @return YES if the library is ready, otherwise NO (the request for media translation data is sent to MEGA)
  */
 - (BOOL)ensureMediaInfo;
 
@@ -5128,12 +5105,12 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * Before queueing a thumbnail or preview upload (or other memory intensive task),
  * it may be useful on some devices to check if there is plenty of memory available
- * in the memory pool used by MegaApi (especially since some platforms may not have
+ * in the memory pool used by MEGASdk (especially since some platforms may not have
  * the facility to check for themselves, and/or deallocation may need to wait on a GC)
  * and if not, delay until any current resource constraints (eg. other current operations,
  * or other RAM-hungry apps in the device), have finished. This function just
  * makes several memory allocations and then immediately releases them. If all allocations
- * succeeded, it returns true, indicating that memory is (probably) available.
+ * succeeded, it returns YES, indicating that memory is (probably) available.
  * Of course, another app or operation may grab that memory immediately so it not a
  * guarantee. However it may help to reduce the frequency of OOM situations on phones for example.
  *

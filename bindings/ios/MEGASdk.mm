@@ -1485,22 +1485,12 @@ using namespace mega;
     self.megaApi->setUploadLimit((int)bpsLimit);
 }
 
-- (MEGABackgroundMediaUpload *)backgroundMediaUpload {
-    return [[MEGABackgroundMediaUpload alloc] initWithBackgroundMediaUpload:self.megaApi->backgroundMediaUploadNew()];
-}
-
-- (MEGABackgroundMediaUpload *)resumeBackgroundMediaUploadBySerializedData:(NSData *)data {
-    std::string serializedBytes = std::string((const char *)data.bytes, data.length);
-    return [[MEGABackgroundMediaUpload alloc] initWithBackgroundMediaUpload:self.megaApi->backgroundMediaUploadResume(&serializedBytes)];
-}
-
 - (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)mediaUpload delegate:(id<MEGARequestDelegate>)delegate {
-    return self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (BOOL)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate {
-    std::string binaryToken = std::string((const char *)token.bytes, token.length);
-    return self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, &binaryToken, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, (const char *)token.bytes, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (BOOL)ensureMediaInfo {

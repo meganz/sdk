@@ -22,6 +22,7 @@
 #import "MEGABackgroundMediaUpload.h"
 #import "megaapi.h"
 #import "MEGABackgroundMediaUpload+init.h"
+#import "MEGASdk+init.h"
 
 @interface MEGABackgroundMediaUpload ()
 
@@ -36,7 +37,12 @@
     if (self) {
         _mediaUpload = mediaUpload;
     }
+    
     return self;
+}
+
+- (instancetype)initWithMEGASdk:(MEGASdk *)sdk {
+    return [self initWithBackgroundMediaUpload:mega::MegaBackgroundMediaUpload::createInstance(sdk.getCPtr)];
 }
 
 - (void)dealloc {
@@ -47,29 +53,36 @@
     return self.mediaUpload;
 }
 
-- (void)analyseMediaInfoForFileAtPath:(NSString *)inputFilepath {
-    self.mediaUpload->analyseMediaInfo(inputFilepath.UTF8String);
+- (BOOL)analyseMediaInfoForFileAtPath:(NSString *)inputFilepath {
+    return self.mediaUpload->analyseMediaInfo(inputFilepath.UTF8String);
 }
 
-- (BOOL)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(unsigned *)length outputFilePath:(NSString *)outputFilePath urlSuffix:(NSString **)urlSuffix adjustsSizeOnly:(BOOL)adjustsSizeOnly {
-    std::string suffix;
-    BOOL succeed = self.mediaUpload->encryptFile(inputFilePath.UTF8String, start, length, outputFilePath.UTF8String, &suffix, adjustsSizeOnly);
-    if (urlSuffix != NULL) {
-        *urlSuffix = @(suffix.c_str());
+- (NSString *)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(int64_t *)length outputFilePath:(NSString *)outputFilePath adjustsSizeOnly:(BOOL)adjustsSizeOnly {
+    std::string suffix = self.mediaUpload->encryptFile(inputFilePath.UTF8String, start, length, outputFilePath.UTF8String, adjustsSizeOnly);
+    if (suffix.c_str() == NULL) {
+        return nil;
+    } else {
+        return @(suffix.c_str());
     }
-    
-    return succeed;
 }
 
 - (NSString *)uploadURLString {
-    std::string urlString;
-    self.mediaUpload->getUploadURL(&urlString);
-    return @(urlString.c_str());
+    std::string urlString = self.mediaUpload->getUploadURL();
+    if (urlString.c_str() == NULL) {
+        return nil;
+    } else {
+        return @(urlString.c_str());
+    }
 }
 
 - (NSData *)serialize {
     std::string binary = self.mediaUpload->serialize();
     return [NSData dataWithBytes:binary.data() length:binary.size()];
+}
+
++ (instancetype)unserializByData:(NSData *)data MEGASdk:(MEGASdk *)sdk {
+    mega::MegaBackgroundMediaUpload *mediaUpload = mega::MegaBackgroundMediaUpload::unserialize((const char *)data.bytes, sdk.getCPtr);
+    return [[self alloc] initWithBackgroundMediaUpload:mediaUpload];
 }
 
 @end

@@ -23,21 +23,39 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class MEGASdk;
+
 @interface MEGABackgroundMediaUpload : NSObject
+
+/**
+ * @brief Initial step to upload a photo/video via iOS low-power background upload feature
+ *
+ * Creates an object which can be used to encrypt a media file, and upload it outside of the SDK,
+ * eg. in order to take advantage of a particular platform's low power background upload functionality.
+ *
+ * @param sdk The MEGASdk instance the new object will be used with. It must live longer than the new object.
+ * @return A pointer to an object that keeps some needed state through the process of
+ *         uploading a media file via iOS low power background uploads (or similar).
+ */
+- (instancetype)initWithMEGASdk:(MEGASdk *)sdk;
 
 /**
  * @brief Extract mediainfo information about the photo or video.
  *
  * Call this function once with the file to be uploaded. It uses mediainfo to extract information that will
- * help the webclient show or play the file in various browsers. The information is stored in this object
- * until the whole operation completes.
+ * help other clients to show or to play the files. The information is stored in this object until the whole
+ * operation completes.
+ *
+ * Call ensureMediaInfo in MEGASdk first in order prepare the library to attach file attributes
+ * that enable videos to be identified and played in the web browser.
  *
  * @param inputFilepath The file to analyse with MediaInfo.
+ * @return YES if analysis was performed (and any relevant attributes stored ready for upload), NO if mediainfo was not ready yet.
  */
-- (void)analyseMediaInfoForFileAtPath:(NSString *)inputFilepath;
+- (BOOL)analyseMediaInfoForFileAtPath:(NSString *)inputFilepath;
 
 /**
- * @brief Encrypt the file or a portion of it.
+ * @brief Encrypt the file or a portion of it
  *
  * Call this function once with the file to be uploaded. It uses mediainfo to extract information that will
  * help the webclient show or play the file in various browsers. The information is stored in this object
@@ -55,26 +73,51 @@ NS_ASSUME_NONNULL_BEGIN
  * @param inputFilePath The file to encrypt a portion of (and the one that is ultimately being uploaded).
  * @param start The index of the first byte of the file to encrypt
  * @param length The number of bytes of the file to encrypt. The function will round this value up by up to 1MB to fit the
- *        MEGA internal chunking algorithm. The number of bytes acutally encrypted and stored in the new file is the updated number.
+ *        MEGA internal chunking algorithm. The number of bytes actually encrypted and stored in the new file is the updated number.
+ *        You can supply -1 as input to request the remainder file (from start) be encrypted.
  * @param outputFilePath The name of the new file to create, and store the encrypted data in.
- * @param urlSuffix The function will update the string passed in. The content of the string must be appended to the URL
- *        when this portion is uploaded.
  * @param adjustsSizeOnly If this is set YES, then encryption is not performed, and only the length parameter is adjusted.
  *        This feature is to enable precalculating the exact sizes of the file portions for upload.
+ * @return If the function tries to encrypt and succeeds, the return value is the suffix to append to the URL when uploading this enrypted chunk.
+ *         If adjustsizeonly was set, and the function succeeds, the return value will be a nonempty string.
+ *         If the function fails, the return value is an empty string, and an error will have been logged.
  */
-- (BOOL)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(unsigned *)length outputFilePath:(NSString * _Nullable)outputFilePath urlSuffix:(NSString * _Nullable * _Nullable)urlSuffix adjustsSizeOnly:(BOOL)adjustsSizeOnly;
+- (NSString *)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(int64_t *)length outputFilePath:(nullable NSString *)outputFilePath adjustsSizeOnly:(BOOL)adjustsSizeOnly;
 
 /**
- * @brief Retrieves the value of the uploadURL once it has been successfully requested via requestBackgroundUploadURLWithFileSize:mediaUpload:delegate: in MEGASdk.
+ * @brief Retrieves the value of the uploadURL once it has been successfully requested via requestBackgroundUploadURLWithFileSize:mediaUpload:delegate: in MEGASdk
+ *
+ * @return The URL to upload to (after appending the suffix), if one has been received. Otherwise the string will be empty.
  */
 - (NSString *)uploadURLString;
 
 /**
- * @brief Turns the data stored in this object into a binary data.
+ * @brief Turns the data stored in this object into a base 64 encoded binary data.
  *
- * The object can then be recreated via resumeBackgroundMediaUploadBySerializedData in MEGASdk and supplying the same binary.
+ * The object can then be recreated via unserialize method in MEGABackgroundMediaUpload and supplying the returned binary data.
+ *
+ * You take ownership of the returned value.
+ *
+ * @return serialized version of this object (including URL, mediainfo attributes, and internal data suitable to resume uploading with in future)
  */
 - (NSData *)serialize;
+
+/**
+ * @brief Get back the needed MEGABackgroundMediaUpload after the iOS app exited and restarted
+ *
+ * In case the iOS app exits while a background upload is going on, and the app is started again
+ * to complete the operation, call this function to recreate the MEGABackgroundMediaUpload object
+ * needed for a call to completeBackgroundMediaUpload:fileName:parentNode:fingerprint:originalFingerprint:binaryUploadToken:delegate: in MEGASdk.
+ * The object must have been serialised before the app was unloaded by using serialize method in MEGABackgroundMediaUpload.
+ *
+ * You take ownership of the returned value.
+ *
+ * @param data The binary the object was serialized to previously.
+ * @param sdk The MEGASdk this object will be used with. It must live longer than this object.
+ * @return A new MEGABackgroundMediaUpload instance with all fields set to the data that was
+ *         stored in the serialized binary data.
+ */
++ (instancetype)unserializByData:(NSData *)data MEGASdk:(MEGASdk *)sdk;
 
 @end
 
