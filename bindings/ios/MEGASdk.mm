@@ -1491,7 +1491,7 @@ using namespace mega;
 
 - (void)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate {
     const char *base64Token = MegaApi::binaryToBase64((const char *)token.bytes, token.length);
-    self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, base64Token, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, INVALID_HANDLE, INVALID_HANDLE, base64Token, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (BOOL)ensureMediaInfo {
