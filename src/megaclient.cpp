@@ -1371,33 +1371,41 @@ void MegaClient::exec()
                             // remove from list
                             handle fah = MemAccess::get<handle>(fa->in.data());
 
-                            Node* n;
-                            handle h;
-                            handlepair_set::iterator it;
-
-                            // do we have a valid upload handle?
-                            h = fa->th;
-
-                            it = uhnh.lower_bound(pair<handle, handle>(h, 0));
-
-                            if (it != uhnh.end() && it->first == h)
+                            if (fa->th == UNDEF)
                             {
-                                h = it->second;
-                            }
-
-                            // are we updating a live node? issue command directly.
-                            // otherwise, queue for processing upon upload
-                            // completion.
-                            if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
-                            {
-                                LOG_debug << "Attaching file attribute";
-                                reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
+                                // client app requested the upload without a node yet, and it will use the fa handle
+                                app->putfa_result(fah, fa->type, nullptr);
                             }
                             else
                             {
-                                pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
-                                LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
-                                checkfacompletion(fa->th);
+                                Node* n;
+                                handle h;
+                                handlepair_set::iterator it;
+
+                                // do we have a valid upload handle?
+                                h = fa->th;
+
+                                it = uhnh.lower_bound(pair<handle, handle>(h, 0));
+
+                                if (it != uhnh.end() && it->first == h)
+                                {
+                                    h = it->second;
+                                }
+
+                                // are we updating a live node? issue command directly.
+                                // otherwise, queue for processing upon upload
+                                // completion.
+                                if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
+                                {
+                                    LOG_debug << "Attaching file attribute";
+                                    reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
+                                }
+                                else
+                                {
+                                    pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
+                                    LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
+                                    checkfacompletion(fa->th);
+                                }
                             }
                         }
                         else

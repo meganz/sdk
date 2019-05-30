@@ -93,7 +93,7 @@ public:
 // file attribute put
 struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
-    handle th;
+    handle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
     string* data;
     m_off_t progressreported;

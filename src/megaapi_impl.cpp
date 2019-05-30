@@ -976,6 +976,12 @@ char *MegaBackgroundMediaUploadPrivate::serialize()
     return serialize(&d) ? MegaApi::binaryToBase64(d.data(), d.size()) : NULL;
 }
 
+SymmCipher* MegaBackgroundMediaUploadPrivate::nodecipher(MegaClient* client)
+{
+    client->tmpnodecipher.setkey(filekey);
+    return &client->tmpnodecipher;
+}
+
 MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
 {
 }
@@ -6131,6 +6137,11 @@ void MegaApiImpl::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequ
     setNodeAttribute(node, GfxProc::THUMBNAIL, srcFilePath, listener);
 }
 
+void MegaApiImpl::putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
+{
+    putNodeAttribute(bu, GfxProc::THUMBNAIL, srcFilePath, listener);
+}
+
 void MegaApiImpl::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     getNodeAttribute(node, GfxProc::PREVIEW, dstFilePath, listener);
@@ -6144,6 +6155,11 @@ void MegaApiImpl::cancelGetPreview(MegaNode* node, MegaRequestListener *listener
 void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
     setNodeAttribute(node, GfxProc::PREVIEW, srcFilePath, listener);
+}
+
+void MegaApiImpl::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
+{
+    putNodeAttribute(bu, GfxProc::PREVIEW, srcFilePath, listener);
 }
 
 void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
@@ -6720,11 +6736,23 @@ void MegaApiImpl::cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestLi
 
 void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFilePath, MegaRequestListener *listener)
 {
-	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_FILE, listener);
-	request->setFile(srcFilePath);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_FILE, listener);
+    request->setFile(srcFilePath);
     request->setParamType(type);
-    if(node) request->setNodeHandle(node->getHandle());
-	requestQueue.push(request);
+    request->setNodeHandle(node ? node->getHandle() : INVALID_HANDLE);
+    request->setMegaBackgroundMediaUploadPtr(nullptr);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_FILE, listener);
+    request->setFile(srcFilePath);
+    request->setParamType(type);
+    request->setMegaBackgroundMediaUploadPtr(bu);
+    request->setNodeHandle(INVALID_HANDLE);
+    requestQueue.push(request);
     waiter->notify();
 }
 
@@ -8396,13 +8424,15 @@ void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, Me
 }
 
 void MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-    const char *string64UploadToken, MegaRequestListener *listener)
+    MegaHandle thumbnailFAHandle, MegaHandle previewFAHandle, const char *string64UploadToken, MegaRequestListener *listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD, listener);
     req->setMegaBackgroundMediaUploadPtr(static_cast<MegaBackgroundMediaUploadPrivate*>(state));
     req->setPassword(fingerprintoriginal);
     req->setNewPassword(fingerprint);
     req->setName(utf8Name);
+    req->setNodeHandle(thumbnailFAHandle);
+    req->setNumber((long long)previewFAHandle);
     if (parent)
     {
         req->setParentHandle(parent->getHandle());
@@ -12837,7 +12867,7 @@ void MegaApiImpl::putfa_result(handle, fatype, error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::putfa_result(handle, fatype, const char *)
+void MegaApiImpl::putfa_result(handle h, fatype, const char *)
 {
     MegaError megaError(API_OK);
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -12845,6 +12875,10 @@ void MegaApiImpl::putfa_result(handle, fatype, const char *)
     if(!request || request->getType() != MegaRequest::TYPE_SET_ATTR_FILE)
         return;
 
+    if (request->getMegaBackgroundMediaUploadPtr())
+    {
+        request->setNodeHandle(h);
+    }
     fireOnRequestFinish(request, megaError);
 }
 
@@ -17286,6 +17320,22 @@ void MegaApiImpl::yield()
 #endif
 }
 
+static void appendFileAttribute(string& s, int n, MegaHandle h)
+{
+    if (h != INVALID_HANDLE)
+    {
+        if (!s.empty())
+        {
+            s += "/";
+        }
+
+        char buf[64];
+        sprintf(buf, "%u*", n);
+        Base64::btoa((byte*)&h, sizeof(h), strchr(buf + 2, 0));
+        s += buf;
+    }
+}
+
 void MegaApiImpl::sendPendingScRequest()
 {
     MegaRequestPrivate *request = scRequestQueue.front();
@@ -18421,37 +18471,32 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char* srcFilePath = request->getFile();
             int type = request->getParamType();
-            Node *node = client->nodebyhandle(request->getNodeHandle());
+            Node *node = request->getNodeHandle() == INVALID_HANDLE ? nullptr : client->nodebyhandle(request->getNodeHandle());
+            auto bu = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
 
-            if(!srcFilePath || !node) { e = API_EARGS; break; }
+            if(!srcFilePath || (!node == !bu)) { e = API_EARGS; break; }
 
             string path = srcFilePath;
             string localpath;
             fsAccess->path2local(&path, &localpath);
 
-            string *attributedata = new string;
-            FileAccess *f = fsAccess->newfileaccess();
+            std::unique_ptr<string> attributedata(new string);
+            std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
             if (!f->fopen(&localpath, 1, 0))
             {
-                delete f;
-                delete attributedata;
                 e = API_EREAD;
                 break;
             }
 
             // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap activity growing it for the encryption
             attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
-            if(!f->fread(attributedata, unsigned(f->size), 0, 0))
+            if(!f->fread(attributedata.get(), unsigned(f->size), 0, 0))
             {
-                delete f;
-                delete attributedata;
                 e = API_EREAD;
                 break;
             }
-            delete f;
 
-            client->putfa(node->nodehandle, (fatype)type, node->nodecipher(), attributedata);
-            //attributedata is not deleted because putfa takes its ownership
+            client->putfa(node ? node->nodehandle : INVALID_HANDLE, (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), attributedata.release());
             break;
         }
         case MegaRequest::TYPE_SET_ATTR_NODE:
@@ -20495,6 +20540,8 @@ void MegaApiImpl::sendPendingRequests()
             const char *uploadToken = request->getSessionKey();
             const char* fingerprintOriginal = request->getPassword();
             const char* fingerprint = request->getNewPassword();
+            MegaHandle thumbnailHandle = request->getNodeHandle();
+            MegaHandle previewHandle = (uint64_t)request->getNumber();
 
             if (!fingerprint || !uploadState || !utf8Name || !uploadToken || ISUNDEF(parentHandle))
             {
@@ -20532,13 +20579,23 @@ void MegaApiImpl::sendPendingRequests()
             newnode->parenthandle = UNDEF;
             newnode->uploadhandle = client->getuploadhandle();
             newnode->attrstring = new string();
+            newnode->fileattributes = new string();
+
+            appendFileAttribute(*newnode->fileattributes, GfxProc::THUMBNAIL, thumbnailHandle);
+            appendFileAttribute(*newnode->fileattributes, GfxProc::PREVIEW, previewHandle);
+
 #ifdef USE_MEDIAINFO
             if (uploadState->mediaproperties.isPopulated())
             {
-                newnode->fileattributes = new string(MediaProperties::encodeMediaPropertiesAttributes(uploadState->mediaproperties,
+                if (!newnode->fileattributes->empty())
+                {
+                    newnode->fileattributes->append("/");
+                }
+                newnode->fileattributes->append(MediaProperties::encodeMediaPropertiesAttributes(uploadState->mediaproperties,
                                                         (uint32_t*)(uploadState->filekey + FILENODEKEYLENGTH / 2)));
             }
 #endif
+            
             AttrMap attrs;
             attrs.map['n'] = utf8Name;
             attrs.map['c'] = megafingerprint.get();

@@ -2131,6 +2131,11 @@ void MegaApi::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestL
     pImpl->setThumbnail(node, srcFilePath, listener);
 }
 
+void MegaApi::putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
+{
+    pImpl->putThumbnail(bu, srcFilePath, listener);
+}
+
 void MegaApi::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->getPreview(node, dstFilePath, listener);
@@ -2144,6 +2149,11 @@ void MegaApi::cancelGetPreview(MegaNode* node, MegaRequestListener *listener)
 void MegaApi::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
     pImpl->setPreview(node, srcFilePath, listener);
+}
+
+void MegaApi::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
+{
+    pImpl->putPreview(bu, srcFilePath, listener);
 }
 
 void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
@@ -4792,9 +4802,9 @@ void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBa
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-    const char *string64UploadToken, MegaRequestListener *listener)
+    MegaHandle thumbnailFAHandle, MegaHandle previewFAHandle, const char *string64UploadToken, MegaRequestListener *listener)
 {
-    pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, listener);
+    pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, thumbnailFAHandle, previewFAHandle, string64UploadToken, listener);
 }
 
 bool MegaApi::ensureMediaInfo()
