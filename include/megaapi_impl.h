@@ -1692,6 +1692,8 @@ public:
     bool serialize(string* s);
     char *serialize() override;
 
+    SymmCipher* nodecipher(MegaClient*);
+
     MegaApiImpl* api;
     string url;
     chunkmac_map chunkmacs;
@@ -2019,9 +2021,11 @@ class MegaApiImpl : public MegaApp
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void putThumbnail(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void putPreview(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
@@ -2338,7 +2342,7 @@ class MegaApiImpl : public MegaApp
 
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-            const char *string64UploadToken, MegaRequestListener *listener);
+            MegaHandle thumbnailFAHandle, MegaHandle previewFAHandle, const char *string64UploadToken, MegaRequestListener *listener);
 
         bool ensureMediaInfo();
         void setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener);
@@ -2867,6 +2871,7 @@ protected:
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         static char *getAvatarColor(handle userhandle);
         bool isGlobalNotifiable();

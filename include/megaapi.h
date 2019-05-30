@@ -8823,6 +8823,24 @@ class MegaApi
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Uploads a thumbnail as part of a background media file upload
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getMegaBackgroundMediaUploadPtr - Returns the background upload object
+         * - MegaRequest::getFile - Returns the source path
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         * - MegaRequest::getNodeHandle - If the request is successful, this is the handle of the uploaded file attribute.
+         *
+         * Use the result in the MegaRequest::getNodeHandle as the thumbnail handle in the call to backgroundMediaUploadComplete.
+         *
+         * @param bu the MegaBackgroundMediaUpload that the fingernail will be assoicated with
+         * @param srcFilePath Source path of the file that will be set as thumbnail
+         * @param listener MegaRequestListener to track this request
+         */
+        void putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Set the preview of a MegaNode
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
@@ -8836,6 +8854,24 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Uploads a preview as part of a background media file upload
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getMegaBackgroundMediaUploadPtr - Returns the background upload object
+         * - MegaRequest::getFile - Returns the source path
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         * - MegaRequest::getNodeHandle - If the request is successful, this is the handle of the uploaded file attribute.
+         *
+         * Use the result in the MegaRequest::getNodeHandle as the preview handle in the call to backgroundMediaUploadComplete.
+         *
+         * @param bu the MegaBackgroundMediaUpload that the fingernail will be assoicated with
+         * @param srcFilePath Source path of the file that will be set as thumbnail
+         * @param listener MegaRequestListener to track this request
+         */
+        void putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set/Remove the avatar of the MEGA account
@@ -13162,12 +13198,17 @@ class MegaApi
          * @param fingerprint  The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
          * @param fingerprintoriginal If the file uploaded is modified from the original,
          *        pass the fingerprint of the original file here, otherwise NULL.
-         * @param string64UploadToken The token returned from the upload of the last portion of the file, 
+         * @param thumbnailFAHandle To attach a thumbnail with this operation, specify the handle from putThumbnail.
+         *        otherwise, pass INVALID_HANDLE.
+         * @param previewFAHandle To attach a preview with this operation, specify the handle from putPreview.
+         *        otherwise, pass INVALID_HANDLE.
+         * @param string64UploadToken The token returned from the upload of the last portion of the file,
          *        which is exactly 36 binary bytes, converted  to a base 64 string with MegaApi::binaryToString64.
          * @param listener MegaRequestListener to track this request
          */
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char *utf8Name, MegaNode *parent,
-            const char *fingerprint, const char *fingerprintoriginal, const char *string64UploadToken, MegaRequestListener *listener);
+            const char *fingerprint, const char *fingerprintoriginal, MegaHandle thumbnailFAHandle, MegaHandle previewFAHandle,
+            const char *string64UploadToken, MegaRequestListener *listener);
 
         /**
          * @brief Call this to enable the library to attach media info attributes
