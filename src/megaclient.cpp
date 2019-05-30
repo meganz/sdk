@@ -6641,7 +6641,20 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        bool send_move_node = true;
+#ifdef ENABLE_SYNC
+        if (prevParent->localnode &&
+            prevParent->localnode->sync &&
+            !(prevParent->localnode->sync->type & Sync::TYPE_UP))
+        {
+            send_move_node = false;
+        }
+#endif
+
+        if (send_move_node)
+        {
+            reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        }
         if (setrr)
         {
             setattr(n);
@@ -6660,7 +6673,19 @@ error MegaClient::unlink(Node* n, bool keepversions)
     }
 
     bool kv = (keepversions && n->type == FILENODE);
-    reqs.add(new CommandDelNode(this, n->nodehandle, kv));
+
+    bool send_del_node = true;
+#ifdef ENABLE_SYNC
+    if (n->localnode && n->localnode->sync && !(n->localnode->sync->type & Sync::TYPE_UP))
+    {
+        send_del_node = false;
+    }
+#endif
+
+    if (send_del_node)
+    {
+        reqs.add(new CommandDelNode(this, n->nodehandle, kv));
+    }
 
     mergenewshares(1);
 
@@ -12350,11 +12375,22 @@ void MegaClient::syncupdate()
             {
                 syncadding++;
 
-                reqs.add(new CommandPutNodes(this,
-                                                synccreate[start]->parent->node->nodehandle,
-                                                NULL, nn, int(nnp - nn),
-                                                synccreate[start]->sync->tag,
-                                                PUTNODES_SYNC));
+                bool send_put_nodes = true;
+#ifdef ENABLE_SYNC
+                if (nn->localnode && nn->localnode->sync && !(nn->localnode->sync->type & Sync::TYPE_UP))
+                {
+                    send_put_nodes = false;
+                }
+#endif
+
+                if (send_put_nodes)
+                {
+                    reqs.add(new CommandPutNodes(this,
+                                                 synccreate[start]->parent->node->nodehandle,
+                                                 NULL, nn, int(nnp - nn),
+                                                 synccreate[start]->sync->tag,
+                                                 PUTNODES_SYNC));
+                }
 
                 syncactivity = true;
             }
@@ -12668,9 +12704,20 @@ void MegaClient::execmovetosyncdebris()
             makeattr(&tkey, nn->attrstring, tattrstring.c_str());
         }
 
-        reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
-                                        (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
-                                        PUTNODES_SYNCDEBRIS));
+        bool send_put_nodes = true;
+#ifdef ENABLE_SYNC
+        if (nn->localnode && nn->localnode->sync && !(nn->localnode->sync->type & Sync::TYPE_UP))
+        {
+            send_put_nodes = false;
+        }
+#endif
+
+        if (send_put_nodes)
+        {
+            reqs.add(new CommandPutNodes(this, tn->nodehandle, NULL, nn,
+                                         (target == SYNCDEL_DEBRIS) ? 1 : 2, -reqtag,
+                                         PUTNODES_SYNCDEBRIS));
+        }
     }
 }
 
