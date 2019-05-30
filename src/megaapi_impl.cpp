@@ -13930,11 +13930,11 @@ void MegaApiImpl::whyamiblocked_result(int code)
         }
         else if (code == 400)
         {
-            reason = "Your user account has been disabled. Please contact your master user";
+            reason = "Your account has been disabled by your administrator. You may contact your business account administrators for further details.";
         }
         else if (code == 401)
         {
-            reason = "Your user account has been removed. Please contact your master user";
+            reason = "Your account has been removed by your administrator. You may contact your business account administrators for further details.";
         }
         //else if (code == 300) --> default reason
 
