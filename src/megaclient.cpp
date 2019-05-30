@@ -13099,9 +13099,10 @@ namespace action_bucket_compare
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
         string localname, name = n->displayname();
         mc->fsaccess->path2local(&name, &localname);
-        char ext[8];
-        if (mc->fsaccess->getextension(&localname, ext, sizeof(ext)))
+        char ext[12];
+        if (mc->fsaccess->getextension(&localname, ext, sizeof(ext) - 4))  // plenty of buffer space left to append a '.'
         {
+            strcat(ext, ".");
             if (webclient_is_image_def.find(ext) != string::npos ||
                 webclient_is_image_raw.find(ext) != string::npos ||
                 (webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW)) ||
