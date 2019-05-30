@@ -408,6 +408,8 @@ cryptopp_pkg() {
     sed "s#CXXFLAGS += -march=native#CXXFLAGS += #g" -i $cryptopp_dir/GNUmakefile
     
     if [ $android_build -eq 1 ]; then
+        cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.h $cryptopp_dir/
+        cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.c $cryptopp_dir/
         package_build $name $cryptopp_dir "static -f GNUmakefile-cross"
         package_install $name $cryptopp_dir $install_dir "-f GNUmakefile-cross"
     else
