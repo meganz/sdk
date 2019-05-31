@@ -28,7 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface MEGABackgroundMediaUpload : NSObject
 
 /**
- * @brief Initial step to upload a photo/video via iOS low-power background upload feature
+ * @brief Initial step to upload a photo/video via iOS low-power background upload feature.
  *
  * Creates an object which can be used to encrypt a media file, and upload it outside of the SDK,
  * eg. in order to take advantage of a particular platform's low power background upload functionality.
@@ -55,7 +55,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)analyseMediaInfoForFileAtPath:(NSString *)inputFilepath;
 
 /**
- * @brief Encrypt the file or a portion of it
+ * @brief Encrypt the file or a portion of it.
  *
  * Call this function once with the file to be uploaded. It uses mediainfo to extract information that will
  * help the webclient show or play the file in various browsers. The information is stored in this object
@@ -71,7 +71,7 @@ NS_ASSUME_NONNULL_BEGIN
  * so that RAM usage is not excessive.
  *
  * @param inputFilePath The file to encrypt a portion of (and the one that is ultimately being uploaded).
- * @param start The index of the first byte of the file to encrypt
+ * @param start The index of the first byte of the file to encrypt.
  * @param length The number of bytes of the file to encrypt. The function will round this value up by up to 1MB to fit the
  *        MEGA internal chunking algorithm. The number of bytes actually encrypted and stored in the new file is the updated number.
  *        You can supply -1 as input to request the remainder file (from start) be encrypted.
@@ -85,7 +85,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(int64_t *)length outputFilePath:(nullable NSString *)outputFilePath adjustsSizeOnly:(BOOL)adjustsSizeOnly;
 
 /**
- * @brief Retrieves the value of the uploadURL once it has been successfully requested via requestBackgroundUploadURLWithFileSize:mediaUpload:delegate: in MEGASdk
+ * @brief Retrieves the value of the uploadURL once it has been successfully requested via requestBackgroundUploadURLWithFileSize:mediaUpload:delegate: in MEGASdk.
  *
  * @return The URL to upload to (after appending the suffix), if one has been received. Otherwise the string will be empty.
  */
@@ -98,12 +98,12 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * You take ownership of the returned value.
  *
- * @return serialized version of this object (including URL, mediainfo attributes, and internal data suitable to resume uploading with in future)
+ * @return serialized version of this object (including URL, mediainfo attributes, and internal data suitable to resume uploading with in future).
  */
 - (NSData *)serialize;
 
 /**
- * @brief Get back the needed MEGABackgroundMediaUpload after the iOS app exited and restarted
+ * @brief Get back the needed MEGABackgroundMediaUpload after the iOS app exited and restarted.
  *
  * In case the iOS app exits while a background upload is going on, and the app is started again
  * to complete the operation, call this function to recreate the MEGABackgroundMediaUpload object

@@ -5072,9 +5072,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * attributes and file attributes attached.
  * The associated request type with this request is MEGARequestTypeCompleteBackgroundUpload.
  *
- * @param mediaUpload The MEGABackgroundMediaUpload object tracking this upload
- * @param fileName The leaf name of the file, utf-8 encoded
- * @param parentNode The folder node under which this new file should appear
+ * @param mediaUpload The MEGABackgroundMediaUpload object tracking this upload.
+ * @param fileName The leaf name of the file, utf-8 encoded.
+ * @param parentNode The folder node under which this new file should appear.
  * @param fingerprint The fingerprint for the uploaded file.
  * To generate this, you can use the following APIs in MEGASdk:
  * - fingerprintForFilePath:
@@ -5083,12 +5083,12 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param originalFingerprint If the file uploaded is modified from the original,
  *        pass the fingerprint of the original file here, otherwise nil.
  * @param token The N binary bytes of the token returned from the file upload (of the last portion). N=36 currently.
- * @param delegate The MEGARequestDelegate to be called back with the result
+ * @param delegate The MEGARequestDelegate to be called back with the result.
  */
 - (void)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Call this to enable the library to attach media info attributes
+ * @brief Call this to enable the library to attach media info attributes.
  *
  * Those attributes allows to know if a file is a video, and play it with the correct codec.
  *
@@ -5096,7 +5096,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * and MEGA encodings, required to analyse media files. When media info is received, the callbacks
  * onEvent is called with the EventMediaInfoReady event type.
  *
- * @return YES if the library is ready, otherwise NO (the request for media translation data is sent to MEGA)
+ * @return YES if the library is ready, otherwise NO (the request for media translation data is sent to MEGA).
  */
 - (BOOL)ensureMediaInfo;
 
