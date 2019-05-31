@@ -924,6 +924,11 @@ const MegaPushNotificationSettings *MegaRequest::getMegaPushNotificationSettings
     return NULL;
 }
 
+const MegaSyncDescriptor *MegaRequest::getMegaSyncDescriptor() const
+{
+    return NULL;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -2833,9 +2838,9 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
     pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
 }
 
-void MegaApi::syncFolder(int syncType, const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+void MegaApi::syncFolder(const MegaSyncDescriptor *syncDescriptor, const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(syncType, localFolder, megaFolder, NULL, listener);
+    pImpl->syncFolder(syncDescriptor, localFolder, megaFolder, NULL, listener);
 }
 
 void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
@@ -2843,9 +2848,9 @@ void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long lon
     pImpl->resumeSync(localFolder, localfp, megaFolder, NULL, listener);
 }
 
-void MegaApi::resumeSync(int syncType, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
+void MegaApi::resumeSync(const MegaSyncDescriptor *syncDescriptor, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
 {
-    pImpl->resumeSync(syncType, localFolder, localfp, megaFolder, NULL, listener);
+    pImpl->resumeSync(syncDescriptor, localFolder, localfp, megaFolder, NULL, listener);
 }
 
 #ifdef USE_PCRE
@@ -5029,6 +5034,37 @@ MegaPricing *MegaPricing::copy()
 }
 
 #ifdef ENABLE_SYNC
+
+MegaSyncDescriptor::~MegaSyncDescriptor()
+{}
+
+MegaSyncDescriptor *MegaSyncDescriptor::createInstance(const int syncType,
+                                                       const bool syncDeletions,
+                                                       const bool overwriteChanges)
+{
+    return new MegaSyncDescriptorPrivate{syncType, syncDeletions, overwriteChanges};
+}
+
+MegaSyncDescriptor *MegaSyncDescriptor::copy() const
+{
+    return nullptr;
+}
+
+int MegaSyncDescriptor::syncType() const
+{
+    return TYPE_DEFAULT;
+}
+
+bool MegaSyncDescriptor::syncDeletions() const
+{
+    return false;
+}
+
+bool MegaSyncDescriptor::overwriteChanges() const
+{
+    return false;
+}
+
 MegaSync::~MegaSync() { }
 
 MegaSync *MegaSync::copy()
@@ -5041,9 +5077,9 @@ MegaHandle MegaSync::getMegaHandle() const
     return INVALID_HANDLE;
 }
 
-int MegaSync::getType() const
+const MegaSyncDescriptor *MegaSync::getDescriptor() const
 {
-    return MegaApi::SYNC_TYPE_DEFAULT;
+    return nullptr;
 }
 
 const char *MegaSync::getLocalFolder() const

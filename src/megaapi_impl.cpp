@@ -2725,6 +2725,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 #ifdef ENABLE_SYNC
     this->syncListener = NULL;
     this->regExp = NULL;
+    this->syncDescriptor = NULL;
 #endif
     this->backupListener = NULL;
 	this->nodeHandle = UNDEF;
@@ -2840,6 +2841,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->listener = request->getListener();
 
 #ifdef ENABLE_SYNC
+    this->syncDescriptor = NULL;
     this->regExp = NULL;
     this->setRegExp(request->getRegExp());
     this->syncListener = request->getSyncListener();
@@ -2980,6 +2982,17 @@ MegaSyncListener *MegaRequestPrivate::getSyncListener() const
 {
     return syncListener;
 }
+
+void MegaRequestPrivate::setMegaSyncDescriptor(const MegaSyncDescriptor *syncDescriptor)
+{
+    this->syncDescriptor = syncDescriptor;
+}
+
+const MegaSyncDescriptor *MegaRequestPrivate::getMegaSyncDescriptor() const
+{
+    return syncDescriptor;
+}
+
 MegaRegExp *MegaRequestPrivate::getRegExp() const
 {
     return regExp;
@@ -3044,6 +3057,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
 
 #ifdef ENABLE_SYNC
     delete regExp;
+    delete syncDescriptor;
 #endif
 #ifdef ENABLE_CHAT
     delete chatPeerList;
@@ -7545,13 +7559,13 @@ MegaNode *MegaApiImpl::getSyncedNode(string *path)
 
 void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    syncFolder(MegaApi::SYNC_TYPE_DEFAULT, localFolder, megaFolder, regExp, listener);
+    syncFolder(MegaSyncDescriptor::createInstance(), localFolder, megaFolder, regExp, listener);
 }
 
-void MegaApiImpl::syncFolder(int syncType, const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const MegaSyncDescriptor *syncDescriptor, const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
-    request->setParamType(syncType);
+    request->setMegaSyncDescriptor(syncDescriptor);
     if (megaFolder)
     {
         request->setNodeHandle(megaFolder->getHandle());
@@ -7574,10 +7588,10 @@ void MegaApiImpl::syncFolder(int syncType, const char *localFolder, MegaNode *me
 
 void MegaApiImpl::resumeSync(const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    resumeSync(MegaApi::SYNC_TYPE_DEFAULT, localFolder, localfp, megaFolder, regExp, listener);
+    resumeSync(MegaSyncDescriptor::createInstance(), localFolder, localfp, megaFolder, regExp, listener);
 }
 
-void MegaApiImpl::resumeSync(int syncType, const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::resumeSync(const MegaSyncDescriptor *syncDescriptor, const char *localFolder, long long localfp, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
     sdkMutex.lock();
 
@@ -7588,7 +7602,7 @@ void MegaApiImpl::resumeSync(int syncType, const char *localFolder, long long lo
     LOG_debug << "Resume sync";
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
-    request->setParamType(syncType);
+    request->setMegaSyncDescriptor(syncDescriptor);
     request->setListener(listener);
     request->setRegExp(regExp);
 
@@ -7627,12 +7641,16 @@ void MegaApiImpl::resumeSync(int syncType, const char *localFolder, long long lo
         client->fsaccess->path2local(&utf8name, &localname);
 
         MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
-        sync->setType(request->getParamType());
+        sync->setMegaSyncDescriptor(request->getMegaSyncDescriptor()->copy());
         sync->setListener(request->getSyncListener());
         sync->setLocalFingerprint(localfp);
         sync->setRegExp(regExp);
 
-        e = client->addsync(request->getParamType(), &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
+        SyncDescriptor descriptor;
+        descriptor.syncType = request->getMegaSyncDescriptor()->syncType();
+        descriptor.syncDeletions = request->getMegaSyncDescriptor()->syncDeletions();
+        descriptor.overwriteChanges = request->getMegaSyncDescriptor()->overwriteChanges();
+        e = client->addsync(descriptor, &localname, DEBRISFOLDER, NULL, node, localfp, -nextTag, sync);
         if (!e)
         {
             Sync *s = client->syncs.back();
@@ -19166,11 +19184,15 @@ void MegaApiImpl::sendPendingRequests()
             client->fsaccess->path2local(&utf8name, &localname);
 
             MegaSyncPrivate *sync = new MegaSyncPrivate(utf8name.c_str(), node->nodehandle, -nextTag);
-            sync->setType(request->getParamType());
+            sync->setMegaSyncDescriptor(request->getMegaSyncDescriptor()->copy());
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
-            e = client->addsync(request->getParamType(), &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
+            SyncDescriptor descriptor;
+            descriptor.syncType = request->getMegaSyncDescriptor()->syncType();
+            descriptor.syncDeletions = request->getMegaSyncDescriptor()->syncDeletions();
+            descriptor.overwriteChanges = request->getMegaSyncDescriptor()->overwriteChanges();
+            e = client->addsync(descriptor, &localname, DEBRISFOLDER, NULL, node, 0, -nextTag, sync);
             if (!e)
             {
                 Sync *s = client->syncs.back();
@@ -20950,23 +20972,53 @@ void MegaPricingPrivate::addProduct(handle product, int proLevel, unsigned int g
 }
 
 #ifdef ENABLE_SYNC
+
+MegaSyncDescriptorPrivate::MegaSyncDescriptorPrivate(const int syncType,
+                                                     const bool syncDeletions,
+                                                     const bool overwriteChanges)
+: m_syncType{syncType}
+, m_syncDeletions{syncDeletions}
+, m_overwriteChanges{overwriteChanges}
+{}
+
+MegaSyncDescriptor *MegaSyncDescriptorPrivate::copy() const
+{
+    return new MegaSyncDescriptorPrivate{m_syncType, m_syncDeletions, m_overwriteChanges};
+}
+
+int MegaSyncDescriptorPrivate::syncType() const
+{
+    return m_syncType;
+}
+
+bool MegaSyncDescriptorPrivate::syncDeletions() const
+{
+    return m_syncDeletions;
+}
+
+bool MegaSyncDescriptorPrivate::overwriteChanges() const
+{
+    return m_overwriteChanges;
+}
+
 MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;
-    this->type = MegaApi::SYNC_TYPE_DEFAULT;
-    this->localFolder = NULL;
+    this->megaSyncDescriptor = nullptr;
+    this->localFolder = nullptr;
     setLocalFolder(path);
     this->state = SYNC_INITIALSCAN;
     this->fingerprint = 0;
-    this->regExp = NULL;
-    this->listener = NULL;
+    this->regExp = nullptr;
+    this->listener = nullptr;
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 {
-    this->regExp = NULL;
-    this->localFolder = NULL;
+    this->setMegaSyncDescriptor(sync->getMegaSyncDescriptor()->copy());
+    this->regExp = nullptr;
+    this->localFolder = nullptr;
     this->setTag(sync->getTag());
     this->setLocalFolder(sync->getLocalFolder());
     this->setMegaHandle(sync->getMegaHandle());
@@ -20980,6 +21032,7 @@ MegaSyncPrivate::~MegaSyncPrivate()
 {
     delete [] localFolder;
     delete regExp;
+    delete megaSyncDescriptor;
 }
 
 MegaSync *MegaSyncPrivate::copy()
@@ -20997,14 +21050,14 @@ void MegaSyncPrivate::setMegaHandle(MegaHandle handle)
     this->megaHandle = handle;
 }
 
-int MegaSyncPrivate::getType() const
+const MegaSyncDescriptor *MegaSyncPrivate::getMegaSyncDescriptor() const
 {
-    return type;
+    return megaSyncDescriptor;
 }
 
-void MegaSyncPrivate::setType(int type)
+void MegaSyncPrivate::setMegaSyncDescriptor(const MegaSyncDescriptor *syncDescriptor)
 {
-    this->type = type;
+    this->megaSyncDescriptor = syncDescriptor;
 }
 
 const char *MegaSyncPrivate::getLocalFolder() const

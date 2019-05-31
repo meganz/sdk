@@ -219,6 +219,16 @@ bool Sync::readstatecache()
     return false;
 }
 
+bool Sync::isUp() const
+{
+    return syncDescriptor.syncType & SyncDescriptor::TYPE_UP;
+}
+
+bool Sync::isDown() const
+{
+    return syncDescriptor.syncType & SyncDescriptor::TYPE_DOWN;
+}
+
 // remove LocalNode from DB cache
 void Sync::statecachedel(LocalNode* l)
 {

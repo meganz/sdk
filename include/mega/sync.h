@@ -26,10 +26,9 @@
 #include "megaclient.h"
 
 namespace mega {
-class MEGA_API Sync
-{
-public:
 
+struct SyncDescriptor
+{
     enum
     {
         TYPE_UP = 0x01, // sync up from local to remote
@@ -38,8 +37,18 @@ public:
     };
 
     // type of the sync, defaults to bidirectional
-    int type = TYPE_DEFAULT;
+    int syncType = TYPE_DEFAULT;
 
+    // whether deletions are synced (only relevant for one-way-sync)
+    bool syncDeletions = false;
+
+    // whether changes are overwritten (only relevant for one-way-sync)
+    bool overwriteChanges = false;
+};
+
+class MEGA_API Sync
+{
+public:
     void *appData;
 
     MegaClient* client;
@@ -50,6 +59,11 @@ public:
 #else
     std::auto_ptr<DirNotify> dirnotify;
 #endif
+
+    SyncDescriptor syncDescriptor;
+
+    bool isUp() const;
+    bool isDown() const;
 
     // root of local filesystem tree, holding the sync's root folder
     LocalNode localroot;

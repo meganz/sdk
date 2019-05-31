@@ -6645,7 +6645,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 #ifdef ENABLE_SYNC
         if (prevParent->localnode &&
             prevParent->localnode->sync &&
-            !(prevParent->localnode->sync->type & Sync::TYPE_UP))
+            !prevParent->localnode->sync->isUp())
         {
             send_move_node = false;
         }
@@ -6676,7 +6676,7 @@ error MegaClient::unlink(Node* n, bool keepversions)
 
     bool send_del_node = true;
 #ifdef ENABLE_SYNC
-    if (n->localnode && n->localnode->sync && !(n->localnode->sync->type & Sync::TYPE_UP))
+    if (n->localnode && n->localnode->sync && !n->localnode->sync->isUp())
     {
         send_del_node = false;
     }
@@ -11231,13 +11231,13 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 // (FIXME: perform the same check for local paths!)
 error MegaClient::addsync(string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
 {
-    addsync(Sync::TYPE_DEFAULT, rootpath, debris, localdebris, remotenode, fsfp, tag, appData);
+    return addsync(SyncDescriptor{}, rootpath, debris, localdebris, remotenode, fsfp, tag, appData);
 }
 
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(int syncType, string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
+error MegaClient::addsync(const SyncDescriptor& syncDescriptor, string* rootpath, const char* debris, string* localdebris, Node* remotenode, fsfp_t fsfp, int tag, void *appData)
 {
 #ifdef ENABLE_SYNC
     bool inshare = false;
@@ -11272,7 +11272,7 @@ error MegaClient::addsync(int syncType, string* rootpath, const char* debris, st
             LOG_debug << "Adding sync: " << utf8path;
 
             Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
-            sync->type = syncType;
+            sync->syncDescriptor = syncDescriptor;
             sync->isnetwork = isnetwork;
 
             if (sync->scan(rootpath, fa))
@@ -11381,7 +11381,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 {
-    if (!(l->sync->type & Sync::TYPE_DOWN))
+    if (!l->sync->isDown())
     {
         return true;
     }
@@ -11739,7 +11739,7 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
-    if (!(l->sync->type & Sync::TYPE_UP))
+    if (!l->sync->isUp())
     {
         return true;
     }
@@ -12377,7 +12377,7 @@ void MegaClient::syncupdate()
 
                 bool send_put_nodes = true;
 #ifdef ENABLE_SYNC
-                if (nn->localnode && nn->localnode->sync && !(nn->localnode->sync->type & Sync::TYPE_UP))
+                if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUp())
                 {
                     send_put_nodes = false;
                 }
@@ -12706,7 +12706,7 @@ void MegaClient::execmovetosyncdebris()
 
         bool send_put_nodes = true;
 #ifdef ENABLE_SYNC
-        if (nn->localnode && nn->localnode->sync && !(nn->localnode->sync->type & Sync::TYPE_UP))
+        if (nn->localnode && nn->localnode->sync && !nn->localnode->sync->isUp())
         {
             send_put_nodes = false;
         }

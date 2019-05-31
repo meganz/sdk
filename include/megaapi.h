@@ -2538,6 +2538,8 @@ public:
     virtual int size() const;
 };
 
+class MegaSyncDescriptor;
+
 /**
  * @brief Provides information about an asynchronous request
  *
@@ -3242,6 +3244,12 @@ class MegaRequest
          * @return Object with settings for push notifications
          */
         virtual const MegaPushNotificationSettings *getMegaPushNotificationSettings() const;
+
+#ifdef ENABLE_SYNC
+
+        virtual const MegaSyncDescriptor *getMegaSyncDescriptor() const;
+
+#endif
 };
 
 /**
@@ -4547,6 +4555,32 @@ public:
     virtual void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event);
 };
 
+class MegaSyncDescriptor
+{
+public:
+
+    enum
+    {
+        TYPE_UP = 0x01, // Sync up from local to remote
+        TYPE_DOWN = 0x02, // Sync down from remote to local
+        TYPE_DEFAULT = TYPE_UP | TYPE_DOWN,
+    };
+
+    virtual ~MegaSyncDescriptor();
+
+    static MegaSyncDescriptor *createInstance(int syncType = TYPE_DEFAULT,
+                                              bool syncDeletions = false,
+                                              bool overwriteChanges = false);
+
+    virtual MegaSyncDescriptor *copy() const;
+
+    virtual int syncType() const;
+
+    virtual bool syncDeletions() const;
+
+    virtual bool overwriteChanges() const;
+};
+
 /**
  * @brief Provides information about a synchronization
  */
@@ -4582,7 +4616,7 @@ public:
      */
     virtual MegaHandle getMegaHandle() const;
 
-    virtual int getType() const;
+    virtual const MegaSyncDescriptor *getDescriptor() const;
 
     /**
      * @brief Get the path of the local folder that is being synced
@@ -6236,13 +6270,6 @@ class MegaApi
 			STATE_SYNCING,
 			STATE_IGNORED
 		};
-
-        enum
-        {
-            SYNC_TYPE_UP = 0x01, // Sync up from local to remote
-            SYNC_TYPE_DOWN = 0x02, // Sync down from remote to local
-            SYNC_TYPE_DEFAULT = SYNC_TYPE_UP | SYNC_TYPE_DOWN,
-        };
 
         enum {
             LOG_LEVEL_FATAL = 0,   // Very severe error event that will presumably lead the application to abort.
@@ -10808,7 +10835,7 @@ class MegaApi
          */
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
-        void syncFolder(int syncType, const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+        void syncFolder(const MegaSyncDescriptor* syncDescriptor, const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a previously synced folder
@@ -10836,7 +10863,7 @@ class MegaApi
          */
         void resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
 
-        void resumeSync(int syncType, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
+        void resumeSync(const MegaSyncDescriptor* syncDescriptor, const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener = NULL);
 
 #ifdef USE_PCRE
         /**

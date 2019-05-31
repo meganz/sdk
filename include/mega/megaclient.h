@@ -40,6 +40,8 @@
 
 namespace mega {
 
+class SyncDescriptor;
+
 class MEGA_API FetchNodesStats
 {
 public:
@@ -459,7 +461,7 @@ public:
 
     error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
 
-    error addsync(int syncType, string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+    error addsync(const SyncDescriptor&, string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
 
     void delsync(Sync*, bool = true);
 
