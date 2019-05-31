@@ -3443,10 +3443,10 @@ void CommandGetUserData::procresult()
                     {
                         case 's':
                             // -1: expired, 1: active, 2: grace-period
-                            s = client->json.getint();
+                            s = int(client->json.getint());
                             break;
                         case 'm':
-                            m = client->json.getint();
+                            m = int(client->json.getint());
                             break;
                         case EOO:
                             endobject = true;
