@@ -50,15 +50,16 @@ export HOSTCC=gcc
 
 #GNU STL
 export ANDROID_STL_INC="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/include"
-export ANDROID_STL_INC2="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/4.9/libs/armeabi/include"
+export ANDROID_STL_INC2="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/libs/armeabi/include"
 export GNUSTL_LIB=libgnustl_static.a
-export ANDROID_STL_LIB="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/libs/armeabi/$ANDROID_GNUSTL_LIB"
+export ANDROID_STL_LIB="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/libs/armeabi/$ANDROID_GNUSTL_LIB"
 
 #cryptopp
 export AOSP_SYSROOT="$ANDROID_SYSROOT" #used by cryptopp
 export AOSP_STL_LIB="$ANDROID_STL_LIB"
 export AOSP_BITS_INC="$ANDROID_STL_INC"
 export AOSP_FLAGS="$ANDROID_FLAGS"
+export CXXFLAGS="${CXXFLAGS} -DCRYPTOPP_DISABLE_ASM"
 
 export MACHINE=armv7
 export RELEASE=2.6.37
@@ -85,7 +86,7 @@ export INCLUDE="-I${SYSROOT}/usr/include -I${TOOLCHAIN_INC} -I${ANDROID_STL_INC}
 
 export CFLAGS="${CFLAGS} --sysroot=${SYSROOT}"
 export CXXFLAGS="${CXXFLAGS} --sysroot=${SYSROOT} -I${SYSROOT}/usr/include -I${TOOLCHAIN_INC} -I${ANDROID_STL_INC} -I${ANDROID_STL_INC2}"
-export CPPFLAGS="--sysroot=${SYSROOT} -I${SYSROOT}/usr/include -I${TOOLCHAIN_INC} -I${ANDROID_STL_INC}"
+export CPPFLAGS="--sysroot=${SYSROOT} -I${SYSROOT}/usr/include -I${TOOLCHAIN_INC} -I${ANDROID_STL_INC}  -I${ANDROID_STL_INC2}"
 export LDFLAGS="${LDFLAGS} -L${SYSROOT}/usr/lib -L${TOOLCHAIN_LIB}"
 
 opts="--host=arm-linux-androideabi --with-sysroot=$SYSROOT "

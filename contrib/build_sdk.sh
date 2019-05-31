@@ -296,7 +296,13 @@ package_install() {
     local cwd=$(pwd)
     cd $dir
 
-    make install $target &> ../$name.install.log
+    if [ $android_build -eq 1 ] && [[ $name == "Crypto++"* ]]; then
+        echo make install-lib $target
+        make install-lib $target &> ../$name.install.log || make install $target &> ../$name.install.log
+    else
+        echo make install $target
+        make install $target &> ../$name.install.log
+    fi
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         echo "Failed to install $name, exit status: $exit_code"
