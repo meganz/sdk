@@ -346,15 +346,9 @@ void CommandPutFile::procresult()
 
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
         if (!canceled)
         {
-            tslot->transfer->failed(e);
+            tslot->transfer->failed(error(client->json.getint()));
         }
        
         return;
@@ -445,15 +439,9 @@ void CommandDirectRead::procresult()
 
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
         if (!canceled && drn)
         {
-            return drn->cmdresult(e);
+            return drn->cmdresult(error(client->json.getint()));
         }
     }
     else
@@ -602,10 +590,6 @@ void CommandGetFile::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
 
         if (canceled)
         {
@@ -904,12 +888,6 @@ void CommandSetAttr::procresult()
     if (client->json.isnumeric())
     {
         error e = (error)client->json.getint();
-
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
 #ifdef ENABLE_SYNC
         if(!e && syncop)
         {
@@ -1112,12 +1090,6 @@ void CommandPutNodes::procresult()
         {
             client->activateoverquota(0);
         }
-
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
@@ -1267,11 +1239,6 @@ void CommandMoveNode::procresult()
         if (e == API_EOVERQUOTA)
         {
             client->activateoverquota(0);
-        }
-
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
         }
 
 #ifdef ENABLE_SYNC
@@ -2032,12 +1999,7 @@ void CommandSetShare::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-        return client->app->share_result(e);
+        return client->app->share_result(error(client->json.getint()));
     }
 
     for (;;)
@@ -2411,13 +2373,7 @@ void CommandPurchaseAddItem::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
-        return client->app->additem_result(e);
+        return client->app->additem_result(error(client->json.getint()));
     }
 
     handle item = client->json.gethandle(8);
@@ -2457,13 +2413,7 @@ void CommandPurchaseCheckout::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
-        return client->app->checkout_result(NULL, e);
+        return client->app->checkout_result(NULL, error(client->json.getint()));
     }
 
     //Expected response: "EUR":{"res":X,"code":Y}}
@@ -4026,14 +3976,7 @@ void CommandSetPH::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
-        return client->app->exportnode_result(e);
+        return client->app->exportnode_result(error(client->json.getint()));
     }
 
     handle ph = client->json.gethandle();
@@ -4073,13 +4016,7 @@ void CommandGetPH::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
-        return client->app->openfilelink_result(e);
+        return client->app->openfilelink_result(error(client->json.getint()));
     }
 
     m_off_t s = -1;
@@ -4919,13 +4856,7 @@ void CommandCleanRubbishBin::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error)client->json.getint();
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-
-        client->app->cleanrubbishbin_result(e);
+        client->app->cleanrubbishbin_result(error(client->json.getint()));
     }
     else
     {
@@ -5706,13 +5637,8 @@ void CommandChatGrantAccess::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error) client->json.getint();
-
-        if (e == API_EBUSINESSPASTDUE)
-        {
-            client->getuserdata();
-        }
-        else if (e == API_OK)
+        error e = error(client->json.getint());
+        if (e == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
             {
