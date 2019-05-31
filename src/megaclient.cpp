@@ -6180,9 +6180,13 @@ void MegaClient::sc_ub()
                 }
 
                 businessStatus = status;
-                if (!status)
+                if (status == 0)    // the account is not anymore a business account
                 {
                     businessMaster = false;
+                }
+                else if (status == 1)   // the account just upgraded to business --> only master user can do it
+                {
+                    businessMaster = true;
                 }
                 app->notify_business_status(businessStatus);
                 return;
