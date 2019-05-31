@@ -59,20 +59,11 @@
 
 - (NSString *)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(int64_t *)length outputFilePath:(NSString *)outputFilePath adjustsSizeOnly:(BOOL)adjustsSizeOnly {
     std::string suffix = self.mediaUpload->encryptFile(inputFilePath.UTF8String, start, length, outputFilePath.UTF8String, adjustsSizeOnly);
-    if (suffix.c_str() == NULL) {
-        return nil;
-    } else {
-        return @(suffix.c_str());
-    }
+    return @(suffix.c_str());
 }
 
 - (NSString *)uploadURLString {
-    std::string urlString = self.mediaUpload->getUploadURL();
-    if (urlString.c_str() == NULL) {
-        return nil;
-    } else {
-        return @(urlString.c_str());
-    }
+    return @(self.mediaUpload->getUploadURL().c_str());
 }
 
 - (NSData *)serialize {
