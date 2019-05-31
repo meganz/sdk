@@ -3488,7 +3488,6 @@ void CommandGetUserData::procresult()
             client->aplvp_enabled = aplvp;
             client->k = k;
 
-            client->business = b;
             client->businessStatus = b ? s : 0;
             client->businessMaster = b ? bool(m) : false;
 

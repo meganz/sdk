@@ -1443,9 +1443,6 @@ public:
     // the SDK is trying to log out
     int loggingout;
 
-    // true if the account is a business account
-    bool business;
-
     // true if the account is a master business account, false if it's a sub-user account
     bool businessMaster;
 

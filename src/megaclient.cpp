@@ -1044,7 +1044,6 @@ void MegaClient::init()
     *scsn = 0;
 
     notifyStorageChangeOnStateCurrent = false;  
-    business = false;
     businessMaster = false;
     businessStatus = 0;
 }
@@ -6181,7 +6180,6 @@ void MegaClient::sc_ub()
                 }
 
                 businessStatus = status;
-                business = bool(status);
                 if (!status)
                 {
                     businessMaster = false;
