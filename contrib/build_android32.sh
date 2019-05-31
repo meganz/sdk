@@ -49,10 +49,15 @@ export HOSTCC=gcc
 #export ANDROID_STL_LIB="$ANDROID_NDK_ROOT/sources/cxx-stl/stlport/libs/armeabi/$STLPORT_LIB"
 
 #GNU STL
-export ANDROID_STL_INC="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/include"
-export ANDROID_STL_INC2="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/libs/armeabi/include"
-export GNUSTL_LIB=libgnustl_static.a
-export ANDROID_STL_LIB="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/libs/armeabi/$ANDROID_GNUSTL_LIB"
+#export ANDROID_STL_INC="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/include"
+#export ANDROID_STL_INC2="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/libs/armeabi/include"
+#export GNUSTL_LIB=libgnustl_static.a
+#export ANDROID_STL_LIB="$ANDROID_NDK_ROOT/sources/cxx-stl/gnu-libstdc++/${ANDROID_GCC_VER}/libs/armeabi/$ANDROID_GNUSTL_LIB"
+
+#libc++ STL
+export ANDROID_STL_INC="$ANDROID_NDK_ROOT/sources/cxx-stl/llvm-libc++/include"
+export ANDROID_STL_INC2="$ANDROID_NDK_ROOT/sources/cxx-stl/llvm-libc++/libs/armeabi/include"
+export ANDROID_STL_LIB="$ANDROID_NDK_ROOT/sources/cxx-stl/llvm-libc++/libs/armeabi/$ANDROID_GNUSTL_LIB"
 
 #cryptopp
 export AOSP_SYSROOT="$ANDROID_SYSROOT" #used by cryptopp
