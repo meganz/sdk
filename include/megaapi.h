@@ -9852,7 +9852,8 @@ class MegaApi
          * @brief Upload a file or a folder
          *
          * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -9864,7 +9865,8 @@ class MegaApi
          * @brief Upload a file or a folder, saving custom app data during the transfer
          *
          * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -9883,7 +9885,8 @@ class MegaApi
          * @brief Upload a file or a folder, saving custom app data during the transfer
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -9905,7 +9908,8 @@ class MegaApi
          * @brief Upload a file or a folder, putting the transfer on top of the upload queue
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -9927,7 +9931,8 @@ class MegaApi
          * @brief Upload a file or a folder with a custom modification time
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
@@ -9943,7 +9948,8 @@ class MegaApi
          * @brief Upload a file or a folder with a custom modification time
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
@@ -9958,7 +9964,8 @@ class MegaApi
          * @brief Upload a file or folder with a custom name
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -9971,7 +9978,8 @@ class MegaApi
          * @brief Upload a file or a folder with a custom name and a custom modification time
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file
          * @param parent Parent node for the file in the MEGA account
@@ -9988,7 +9996,8 @@ class MegaApi
          * @brief Download a file or a folder from MEGA
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
@@ -10004,7 +10013,8 @@ class MegaApi
          * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
          *
          * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
@@ -10022,7 +10032,8 @@ class MegaApi
          * @brief Download a file or a folder from MEGA, putting the transfer on top of the download queue.
          *
          * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param node MegaNode that identifies the file or folder
          * @param localPath Destination path for the file or folder
@@ -10049,7 +10060,8 @@ class MegaApi
          * with MegaApi::addTransferListener won't receive them for performance reasons
          *
          * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE.
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
          *
          * @param node MegaNode that identifies the file
          * @param startPos First byte to download from the file
