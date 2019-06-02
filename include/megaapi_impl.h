@@ -1692,6 +1692,10 @@ public:
     bool serialize(string* s);
     char *serialize() override;
 
+    void setThumbnail(MegaHandle h) override;
+    void setPreview(MegaHandle h) override;
+    void setCoordinates(double lat, double lon, bool unshareable) override;
+
     SymmCipher* nodecipher(MegaClient*);
 
     MegaApiImpl* api;
@@ -1699,8 +1703,13 @@ public:
     chunkmac_map chunkmacs;
     byte filekey[FILENODEKEYLENGTH];
     MediaProperties mediaproperties;
-};
 
+    double latitude = MegaNode::INVALID_COORDINATE;
+    double longitude = MegaNode::INVALID_COORDINATE;
+    bool unshareableGPS = false;
+    handle thumbnailFA = INVALID_HANDLE;
+    handle previewFA = INVALID_HANDLE;
+};
 
 struct MegaFile : public File
 {
@@ -2022,10 +2031,12 @@ class MegaApiImpl : public MegaApp
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void putThumbnail(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setThumbnailByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void putPreview(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setPreviewByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);
@@ -2342,7 +2353,7 @@ class MegaApiImpl : public MegaApp
 
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-            MegaHandle thumbnailFAHandle, MegaHandle previewFAHandle, const char *string64UploadToken, MegaRequestListener *listener);
+            const char *string64UploadToken, MegaRequestListener *listener);
 
         bool ensureMediaInfo();
         void setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener);
@@ -2870,7 +2881,7 @@ protected:
         MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
-        void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
+        void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
         static char *getAvatarColor(handle userhandle);

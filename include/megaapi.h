@@ -6304,6 +6304,43 @@ public:
     virtual std::string getUploadURL();
 
     /**
+     * @brief Attach a thumbnail by its file attribute handle.
+     *
+     * The thumbnail will implictly be attached to the node created as part of MegaApi::backgroundMediaUploadComplete.
+     * The thumbnail file attibrute must have been obtained by MegaApi::putThumbnail.
+     * If the result of MegaApi::putThumbnail is not available by the time MegaApi::backgroundMediaUploadComplete
+     * is called, it can be attached to the node later using MegaApi::setThumbnailByHandle.
+     *
+     * @param h The handle obtained via MegaApi::putThumbnail
+     */
+    virtual void setThumbnail(MegaHandle h);
+
+    /**
+     * @brief Attach a preview by its file attribute handle.
+     *
+     * The preview will implictly be attached to the node created as part of MegaApi::backgroundMediaUploadComplete.
+     * The preview file attibrute must have been obtained by MegaApi::putPreview.
+     * If the result of MegaApi::putPreview is not available by the time MegaApi::backgroundMediaUploadComplete
+     * is called, it can be attached to the node later using MegaApi::setPreviewByHandle.
+     *
+     * @param h The handle obtained via MegaApi::putPreview
+     */
+    virtual void setPreview(MegaHandle h);
+
+    /**
+     * @brief Sets the GPS coordinates for the node
+     *
+     * The node created via MegaApi::backgroundMediaUploadComplete will gain these coordinates as part of the
+     * node creation. If the unshareable flag is set, the coodinates are encrypted in a way that even if the
+     * node is later shared, the GPS coordinates cannot be decrypted by a different account.
+     *
+     * @param latitude The GPS latitude
+     * @param latitude The GPS longitude
+     * @param unshareable Set this true to prevent the coordinates being readable by other accounts.
+     */
+    virtual void setCoordinates(double latitude, double longitude, bool unshareable);
+
+    /**
      * @brief Turns the data stored in this object into a base 64 encoded string.
      *
      * The object can then be recreated via MegaBackgroundMediaUpload::unserialize and supplying the returned string.
@@ -8841,6 +8878,21 @@ class MegaApi
         void putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set the thumbnail of a MegaNode, via the result of MegaApi::putThumbnail
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getNumber - Returns the attribute handle
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
+         *
+         * @param node MegaNode to set the thumbnail
+         * @param fileattribute The result handle from a previous call to MegaApi::putThumbnail
+         * @param listener MegaRequestListener to track this request
+         */
+        void setThumbnailByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Set the preview of a MegaNode
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
@@ -8872,6 +8924,21 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set the preview of a MegaNode, via the result of MegaApi::putPreview
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_FILE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getNumber - Returns the attribute handle
+         * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_PREVIEW
+         *
+         * @param node MegaNode to set the preview of
+         * @param fileattribute The result handle from a previous call to MegaApi::putPreview
+         * @param listener MegaRequestListener to track this request
+         */
+        void setPreviewByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set/Remove the avatar of the MEGA account
@@ -13207,8 +13274,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char *utf8Name, MegaNode *parent,
-            const char *fingerprint, const char *fingerprintoriginal, MegaHandle thumbnailFAHandle, MegaHandle previewFAHandle,
-            const char *string64UploadToken, MegaRequestListener *listener);
+            const char *fingerprint, const char *fingerprintoriginal, const char *string64UploadToken, MegaRequestListener *listener);
 
         /**
          * @brief Call this to enable the library to attach media info attributes
