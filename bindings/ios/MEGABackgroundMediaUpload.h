@@ -92,6 +92,20 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSString *)uploadURLString;
 
 /**
+ * @brief Sets the GPS coordinates for the node
+ *
+ * The node created via completeBackgroundMediaUpload:fileName:parentNode:fingerprint:originalFingerprint:binaryUploadToken:delegate: in MEGASdk
+ * will gain these coordinates as part of the
+ * node creation. If the unshareable flag is set, the coodinates are encrypted in a way that even if the
+ * node is later shared, the GPS coordinates cannot be decrypted by a different account.
+ *
+ * @param latitude The GPS latitude
+ * @param latitude The GPS longitude
+ * @param unshareable Set this true to prevent the coordinates being readable by other accounts.
+ */
+- (void)setCoordinatesWithLatitude:(NSNumber *)latitude longitude:(NSNumber *)longitude isUnshareable:(BOOL)unshareable;
+
+/**
  * @brief Turns the data stored in this object into a base 64 encoded binary data.
  *
  * The object can then be recreated via unserialize method in MEGABackgroundMediaUpload and supplying the returned binary data.

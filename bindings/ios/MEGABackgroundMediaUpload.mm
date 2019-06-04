@@ -66,6 +66,12 @@
     return @(self.mediaUpload->getUploadURL().c_str());
 }
 
+- (void)setCoordinatesWithLatitude:(NSNumber *)latitude longitude:(NSNumber *)longitude isUnshareable:(BOOL)unshareable {
+    self.mediaUpload->setCoordinates(latitude ? latitude.doubleValue : mega::MegaNode::INVALID_COORDINATE,
+                                     longitude ? longitude.doubleValue : mega::MegaNode::INVALID_COORDINATE,
+                                     unshareable);
+}
+
 - (NSData *)serialize {
     std::string binary = self.mediaUpload->serialize();
     return [NSData dataWithBytes:binary.data() length:binary.size()];
