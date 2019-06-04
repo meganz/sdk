@@ -8800,6 +8800,10 @@ class MegaApi
          * MegaApi::USER_ATTR_RUBBISH_TIME = 19
          * Set number of days for rubbish-bin cleaning scheduler (private non-encrypted)
          *
+         * If the MEGA account is a sub-user business account, and the value of the parameter
+         * type is equal to MegaApi::USER_ATTR_FIRSTNAME or MegaApi::USER_ATTR_LASTNAME
+         * onRequestFinish will be called with the error code MegaError::API_EMASTERONLY.
+         *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
          */
