@@ -8867,7 +8867,10 @@ class MegaApi
          * - MegaRequest::getMegaBackgroundMediaUploadPtr - Returns the background upload object
          * - MegaRequest::getFile - Returns the source path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
-         * - MegaRequest::getNodeHandle - If the request is successful, this is the handle of the uploaded file attribute.
+         * 
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - The handle of the uploaded file attribute.
          *
          * Use the result in the MegaRequest::getNodeHandle as the thumbnail handle in the call to backgroundMediaUploadComplete.
          *
@@ -8915,7 +8918,10 @@ class MegaApi
          * - MegaRequest::getMegaBackgroundMediaUploadPtr - Returns the background upload object
          * - MegaRequest::getFile - Returns the source path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
-         * - MegaRequest::getNodeHandle - If the request is successful, this is the handle of the uploaded file attribute.
+         * 
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - The handle of the uploaded file attribute.
          *
          * Use the result in the MegaRequest::getNodeHandle as the preview handle in the call to backgroundMediaUploadComplete.
          *
