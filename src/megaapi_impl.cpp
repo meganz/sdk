@@ -949,6 +949,11 @@ MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(const string&
         !r.unserializechunkmacs(chunkmacs) ||
         !r.unserializestring(mediapropertiesstr) ||
         !r.unserializestring(url) ||
+        !r.unserializedouble(latitude) ||
+        !r.unserializedouble(longitude) ||
+        !r.unserializebool(unshareableGPS) ||
+        !r.unserializehandle(thumbnailFA) ||
+        !r.unserializehandle(previewFA) ||
         !r.unserializeexpansionflags(expansions, 0))
     {
         LOG_err << "MegaBackgroundMediaUploadPrivate unserialization failed at field " << r.fieldnum;
@@ -966,6 +971,11 @@ bool MegaBackgroundMediaUploadPrivate::serialize(string* s)
     w.serializechunkmacs(chunkmacs);
     w.serializestring(mediaproperties.serialize());
     w.serializestring(url);
+    w.serializedouble(latitude);
+    w.serializedouble(longitude);
+    w.serializebool(unshareableGPS);
+    w.serializehandle(thumbnailFA);
+    w.serializehandle(previewFA);
     w.serializeexpansionflags();  // if/when we add more in future, set the first one true to signal the new set are present.
     return s;
 }
@@ -974,6 +984,23 @@ char *MegaBackgroundMediaUploadPrivate::serialize()
 {
     string d;
     return serialize(&d) ? MegaApi::binaryToBase64(d.data(), d.size()) : NULL;
+}
+
+void MegaBackgroundMediaUploadPrivate::setThumbnail(MegaHandle h)
+{
+    thumbnailFA = h;
+}
+
+void MegaBackgroundMediaUploadPrivate::setPreview(MegaHandle h)
+{
+    previewFA = h;
+}
+
+void MegaBackgroundMediaUploadPrivate::setCoordinates(double lat, double lon, bool unsh)
+{
+    latitude = lat;
+    longitude = lon;
+    unshareableGPS = unsh;
 }
 
 SymmCipher* MegaBackgroundMediaUploadPrivate::nodecipher(MegaClient* client)
@@ -6134,12 +6161,17 @@ void MegaApiImpl::cancelGetThumbnail(MegaNode* node, MegaRequestListener *listen
 
 void MegaApiImpl::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
-    setNodeAttribute(node, GfxProc::THUMBNAIL, srcFilePath, listener);
+    setNodeAttribute(node, GfxProc::THUMBNAIL, srcFilePath, INVALID_HANDLE, listener);
 }
 
 void MegaApiImpl::putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
 {
     putNodeAttribute(bu, GfxProc::THUMBNAIL, srcFilePath, listener);
+}
+
+void MegaApiImpl::setThumbnailByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener)
+{
+    setNodeAttribute(node, GfxProc::THUMBNAIL, nullptr, attributehandle, listener);
 }
 
 void MegaApiImpl::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
@@ -6154,12 +6186,17 @@ void MegaApiImpl::cancelGetPreview(MegaNode* node, MegaRequestListener *listener
 
 void MegaApiImpl::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
-    setNodeAttribute(node, GfxProc::PREVIEW, srcFilePath, listener);
+    setNodeAttribute(node, GfxProc::PREVIEW, srcFilePath, INVALID_HANDLE, listener);
 }
 
 void MegaApiImpl::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
 {
     putNodeAttribute(bu, GfxProc::PREVIEW, srcFilePath, listener);
+}
+
+void MegaApiImpl::setPreviewByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener)
+{
+    setNodeAttribute(node, GfxProc::PREVIEW, nullptr, attributehandle, listener);
 }
 
 void MegaApiImpl::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
@@ -6301,6 +6338,21 @@ void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener 
     waiter->notify();
 }
 
+static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
+{
+    lat = int(latitude);
+    if (latitude != MegaNode::INVALID_COORDINATE)
+    {
+        lat = int(((latitude + 90) / 180) * 0xFFFFFF);
+    }
+
+    lon = int(longitude);
+    if (longitude != MegaNode::INVALID_COORDINATE)
+    {
+        lon = int((longitude == 180) ? 0 : ((longitude + 180) / 360) * 0x01000000);
+    }
+}
+
 void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
@@ -6310,23 +6362,14 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
         request->setNodeHandle(node->getHandle());
     }
 
-    int lat = int(latitude);
-    if (latitude != MegaNode::INVALID_COORDINATE)
-    {
-        lat = int(((latitude + 90) / 180) * 0xFFFFFF);
-    }
-
-    int lon = int(longitude);
-    if (longitude != MegaNode::INVALID_COORDINATE)
-    {
-        lon = int((longitude == 180) ? 0 : ((longitude + 180) / 360) * 0x01000000);
-    }
+    int lat, lon;
+    encodeCoordinates(latitude, longitude, lat, lon);
 
     request->setParamType(MegaApi::NODE_ATTR_COORDINATES);
     request->setTransferTag(lat);
     request->setNumDetails(lon);
     request->setAccess(unshareable);
-    request->setFlag(true);     // is official attribute?
+    request->setFlag(true);     // official attribute (otherwise it would go in the custom section)
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6734,10 +6777,11 @@ void MegaApiImpl::cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestLi
 	waiter->notify();
 }
 
-void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFilePath, MegaRequestListener *listener)
+void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_FILE, listener);
-    request->setFile(srcFilePath);
+    if (srcFilePath) request->setFile(srcFilePath);
+    request->setNumber(srcFilePath ? INVALID_HANDLE : attributehandle);
     request->setParamType(type);
     request->setNodeHandle(node ? node->getHandle() : INVALID_HANDLE);
     request->setMegaBackgroundMediaUploadPtr(nullptr);
@@ -6751,7 +6795,8 @@ void MegaApiImpl::putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, cons
     request->setFile(srcFilePath);
     request->setParamType(type);
     request->setMegaBackgroundMediaUploadPtr(bu);
-    request->setNodeHandle(INVALID_HANDLE);
+    request->setNumber(INVALID_HANDLE);
+    request->setParentHandle(INVALID_HANDLE);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8424,15 +8469,13 @@ void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, Me
 }
 
 void MegaApiImpl::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-    MegaHandle thumbnailFAHandle, MegaHandle previewFAHandle, const char *string64UploadToken, MegaRequestListener *listener)
+    const char *string64UploadToken, MegaRequestListener *listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD, listener);
     req->setMegaBackgroundMediaUploadPtr(static_cast<MegaBackgroundMediaUploadPrivate*>(state));
     req->setPassword(fingerprintoriginal);
     req->setNewPassword(fingerprint);
     req->setName(utf8Name);
-    req->setNodeHandle(thumbnailFAHandle);
-    req->setNumber((long long)previewFAHandle);
     if (parent)
     {
         req->setParentHandle(parent->getHandle());
@@ -17336,6 +17379,53 @@ static void appendFileAttribute(string& s, int n, MegaHandle h)
     }
 }
 
+static error updateAttributesMapWithCoordinates(AttrMap& attrs, int latitude, int longitude, bool unshareable, MegaClient* client)
+{
+    static const nameid coordsNameShareable = AttrMap::string2nameid("l");
+    static const nameid coordsNameUnshareable = AttrMap::string2nameid("gp");
+
+    if (longitude == MegaNode::INVALID_COORDINATE && latitude == MegaNode::INVALID_COORDINATE)
+    {
+        attrs.map.erase(coordsNameShareable);
+        attrs.map.erase(coordsNameUnshareable);
+    }
+    else
+    {
+        if (longitude < 0 || longitude >= 0x01000000
+            || latitude < 0 || latitude >= 0x01000000)
+        {
+            return API_EARGS;
+        }
+
+        Base64Str<3> latEncoded((const byte*)&latitude);
+        Base64Str<3> lonEncoded((const byte*)&longitude);
+        string coordsValue = string(latEncoded) + lonEncoded.chars;
+        if (unshareable)
+        {
+            if (client->unshareablekey.empty())
+            {
+                return API_EINTERNAL;
+            }
+            else
+            {
+                SymmCipher c;
+                byte data[SymmCipher::BLOCKSIZE] = { 0 };
+                memcpy(data, (void*)coordsValue.data(), coordsValue.size());
+                client->setkey(&c, client->unshareablekey.data());
+                c.ctr_crypt(data, unsigned(coordsValue.size()), 0, 0, NULL, true);
+
+                attrs.map[AttrMap::string2nameid("uu")] = client->uid;  // uu = unshareable user (the user that set unshareable attributes on this node)
+                attrs.map[coordsNameUnshareable] = Base64Str<8>(data);
+            }
+        }
+        else
+        {
+            attrs.map[coordsNameShareable] = coordsValue;
+        }
+    }
+    return API_OK;
+}
+
 void MegaApiImpl::sendPendingScRequest()
 {
     MegaRequestPrivate *request = scRequestQueue.front();
@@ -18472,31 +18562,44 @@ void MegaApiImpl::sendPendingRequests()
             const char* srcFilePath = request->getFile();
             int type = request->getParamType();
             Node *node = request->getNodeHandle() == INVALID_HANDLE ? nullptr : client->nodebyhandle(request->getNodeHandle());
+            MegaHandle fileattrhandle = (uint64_t)request->getNumber();
             auto bu = static_cast<MegaBackgroundMediaUploadPrivate*>(request->getMegaBackgroundMediaUploadPtr());
 
-            if(!srcFilePath || (!node == !bu)) { e = API_EARGS; break; }
-
-            string path = srcFilePath;
-            string localpath;
-            fsAccess->path2local(&path, &localpath);
-
-            std::unique_ptr<string> attributedata(new string);
-            std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
-            if (!f->fopen(&localpath, 1, 0))
+            if (!srcFilePath)
             {
-                e = API_EREAD;
-                break;
-            }
+                if (!node || fileattrhandle == INVALID_HANDLE) { e = API_EARGS; break; }
 
-            // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap activity growing it for the encryption
-            attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
-            if(!f->fread(attributedata.get(), unsigned(f->size), 0, 0))
+                string fileattr;
+                appendFileAttribute(fileattr, type, fileattrhandle);
+
+                client->reqs.add(new CommandAttachFA(client, node->nodehandle, type, fileattr, nextTag));
+            }
+            else
             {
-                e = API_EREAD;
-                break;
-            }
+                if (!node == !bu) { e = API_EARGS; break; }
 
-            client->putfa(node ? node->nodehandle : INVALID_HANDLE, (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), attributedata.release());
+                string path = srcFilePath;
+                string localpath;
+                fsAccess->path2local(&path, &localpath);
+
+                std::unique_ptr<string> attributedata(new string);
+                std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
+                if (!f->fopen(&localpath, 1, 0))
+                {
+                    e = API_EREAD;
+                    break;
+                }
+
+                // make the string a little bit larger initially with SymmCipher::BLOCKSIZE to avoid heap activity growing it for the encryption
+                attributedata->reserve(size_t(f->size + SymmCipher::BLOCKSIZE));
+                if (!f->fread(attributedata.get(), unsigned(f->size), 0, 0))
+                {
+                    e = API_EREAD;
+                    break;
+                }
+
+                client->putfa(node ? node->nodehandle : INVALID_HANDLE, (fatype)type, bu ? bu->nodecipher(client) : node->nodecipher(), attributedata.release());
+            }
             break;
         }
         case MegaRequest::TYPE_SET_ATTR_NODE:
@@ -18553,44 +18656,11 @@ void MegaApiImpl::sendPendingRequests()
                     int longitude = request->getNumDetails();
                     int latitude = request->getTransferTag();
                     int unshareable = request->getAccess();
-                    nameid coordsNameShareable = AttrMap::string2nameid("l");
-                    nameid coordsNameUnshareable = AttrMap::string2nameid("gp");
 
-                    if (longitude == MegaNode::INVALID_COORDINATE && latitude == MegaNode::INVALID_COORDINATE)
+                    e = updateAttributesMapWithCoordinates(node->attrs, latitude, longitude, !!unshareable, client);
+                    if (e != API_OK)
                     {
-                        node->attrs.map.erase(coordsNameShareable);
-                        node->attrs.map.erase(coordsNameUnshareable);
-                    }
-                    else
-                    {
-                        if (longitude < 0 || longitude >= 0x01000000
-                                || latitude < 0 || latitude >= 0x01000000)
-                        {
-                            e = API_EARGS;
-                            break;
-                        }
-
-                        Base64Str<3> latEncoded((const byte*)&latitude);
-                        Base64Str<3> lonEncoded((const byte*)&longitude);
-                        string coordsValue = string(latEncoded) + lonEncoded.chars;
-                        if (unshareable)
-                        {
-                            if (!client->unshareablekey.empty())
-                            {
-                                SymmCipher c;
-                                byte data[SymmCipher::BLOCKSIZE] = { 0 };
-                                memcpy(data, (void*)coordsValue.data(), coordsValue.size());
-                                client->setkey(&c, client->unshareablekey.data());
-                                c.ctr_crypt(data, unsigned(coordsValue.size()), 0, 0, NULL, true);
-
-                                node->attrs.map[AttrMap::string2nameid("uu")] = client->uid;  // uu = unshareable user (the user that set unshareable attributes on this node)
-                                node->attrs.map[coordsNameUnshareable] = Base64Str<8>(data);
-                            }
-                        }
-                        else
-                        {
-                            node->attrs.map[coordsNameShareable] = coordsValue;
-                        }
+                        break;
                     }
                 }
                 else if (type == MegaApi::NODE_ATTR_ORIGINALFINGERPRINT)
@@ -20540,8 +20610,6 @@ void MegaApiImpl::sendPendingRequests()
             const char *uploadToken = request->getSessionKey();
             const char* fingerprintOriginal = request->getPassword();
             const char* fingerprint = request->getNewPassword();
-            MegaHandle thumbnailHandle = request->getNodeHandle();
-            MegaHandle previewHandle = (uint64_t)request->getNumber();
 
             if (!fingerprint || !uploadState || !utf8Name || !uploadToken || ISUNDEF(parentHandle))
             {
@@ -20581,8 +20649,8 @@ void MegaApiImpl::sendPendingRequests()
             newnode->attrstring = new string();
             newnode->fileattributes = new string();
 
-            appendFileAttribute(*newnode->fileattributes, GfxProc::THUMBNAIL, thumbnailHandle);
-            appendFileAttribute(*newnode->fileattributes, GfxProc::PREVIEW, previewHandle);
+            appendFileAttribute(*newnode->fileattributes, GfxProc::THUMBNAIL, uploadState->thumbnailFA);
+            appendFileAttribute(*newnode->fileattributes, GfxProc::PREVIEW, uploadState->previewFA);
 
 #ifdef USE_MEDIAINFO
             if (uploadState->mediaproperties.isPopulated())
@@ -20595,13 +20663,19 @@ void MegaApiImpl::sendPendingRequests()
                                                         (uint32_t*)(uploadState->filekey + FILENODEKEYLENGTH / 2)));
             }
 #endif
-            
+
             AttrMap attrs;
             attrs.map['n'] = utf8Name;
             attrs.map['c'] = megafingerprint.get();
             if (fingerprintOriginal)
             {
                 attrs.map[MAKENAMEID2('c', '0')] = fingerprintOriginal;
+            }
+            int lat, lon;
+            encodeCoordinates(uploadState->latitude, uploadState->longitude, lat, lon);
+            if (API_OK != (e = updateAttributesMapWithCoordinates(attrs, lat, lon, uploadState->unshareableGPS, client)))
+            {
+                break;
             }
             string tattrstring;
             attrs.getjson(&tattrstring);

@@ -2136,6 +2136,11 @@ void MegaApi::putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePat
     pImpl->putThumbnail(bu, srcFilePath, listener);
 }
 
+void MegaApi::setThumbnailByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener)
+{
+    pImpl->setThumbnailByHandle(node, fileattribute, listener);
+}
+
 void MegaApi::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->getPreview(node, dstFilePath, listener);
@@ -2154,6 +2159,11 @@ void MegaApi::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestLis
 void MegaApi::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
 {
     pImpl->putPreview(bu, srcFilePath, listener);
+}
+
+void MegaApi::setPreviewByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener)
+{
+    pImpl->setPreviewByHandle(node, fileattribute, listener);
 }
 
 void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
@@ -4802,9 +4812,9 @@ void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBa
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
-    MegaHandle thumbnailFAHandle, MegaHandle previewFAHandle, const char *string64UploadToken, MegaRequestListener *listener)
+    const char *string64UploadToken, MegaRequestListener *listener)
 {
-    pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, thumbnailFAHandle, previewFAHandle, string64UploadToken, listener);
+    pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, listener);
 }
 
 bool MegaApi::ensureMediaInfo()
@@ -5471,6 +5481,18 @@ std::string MegaBackgroundMediaUpload::getUploadURL()
 char *MegaBackgroundMediaUpload::serialize()
 {
     return NULL;
+}
+
+void MegaBackgroundMediaUpload::setThumbnail(MegaHandle h)
+{
+}
+
+void MegaBackgroundMediaUpload::setPreview(MegaHandle h)
+{
+}
+
+void MegaBackgroundMediaUpload::setCoordinates(double lat, double lon, bool unshareable)
+{
 }
 
 MegaBackgroundMediaUpload::~MegaBackgroundMediaUpload()

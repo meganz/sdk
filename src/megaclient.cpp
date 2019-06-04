@@ -10586,7 +10586,6 @@ void MegaClient::fetchnodes(bool nocache)
 #ifdef ENABLE_CHAT
             fetchkeys();
 #endif
-            reqs.add(new CommandUnshareableUA(this, true, 5));
         }
         if (!k.size())
         {
@@ -10601,6 +10600,11 @@ void MegaClient::fetchnodes(bool nocache)
         reqs.add(new CommandFetchNodes(this, nocache));
 
         reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, NULL, 0));
+    }
+
+    if (unshareablekey.empty() && loggedin() == FULLACCOUNT)
+    {
+        reqs.add(new CommandUnshareableUA(this, true, 5));
     }
 }
 
