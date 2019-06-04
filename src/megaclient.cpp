@@ -6159,7 +6159,6 @@ void MegaClient::sc_la()
 
 void MegaClient::sc_ub()
 {
-    bool statusRecv = false;
     int status = -2;
     int master = 1;
     for (;;)
@@ -6167,7 +6166,6 @@ void MegaClient::sc_ub()
         switch (jsonsc.getnameid())
         {
             case 's':
-                statusRecv = true;
                 status = int(jsonsc.getint());
                 break;
 
@@ -6176,7 +6174,7 @@ void MegaClient::sc_ub()
                 break;
 
             case EOO:
-                if (!statusRecv || (status < -1 || status > 2))
+                if ((status < -1 || status > 2))
                 {
                     std::string err = "Missing or invalid status in `ub` action packet";
                     LOG_err << err;

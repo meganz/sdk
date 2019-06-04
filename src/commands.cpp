@@ -3409,18 +3409,10 @@ void CommandGetUserData::procresult()
                     }
                 }
                 client->json.leaveobject();
-
-                // integrity checks
-                if ( (s == -2 || (s != -1 && s != 1 && s != 2))     // status not received or invalid
-                     || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
-                {
-                    LOG_err << "Invalid business status / account mode";
-                    return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
-                }
             }
             break;
 
-        case EOO:            
+        case EOO:
             if (v)
             {
                 client->accountversion = v;
@@ -3436,10 +3428,7 @@ void CommandGetUserData::procresult()
             client->ssrs_enabled = ssrs;
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
-            client->k = k;
-
-            client->businessStatus = b ? s : 0;
-            client->businessMaster = b ? bool(m) : false;
+            client->k = k;            
 
             if (len_privk)
             {
@@ -3450,6 +3439,31 @@ void CommandGetUserData::procresult()
 
             client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
             client->cachedug = true;
+
+            if (b)  // business account
+            {
+                // integrity checks
+                if ((s < -1 || s > 2)           // status not received or invalid
+                        || (m != 0 && m != 1))  // master flag not received or invalid
+                {
+                    LOG_err << "GetUserData: invalid business status / account mode";
+                }
+                else
+                {
+                    if (client->businessStatus != s)
+                    {
+                        client->businessStatus = s;
+                        client->app->notify_business_status(s);
+                    }
+                    client->businessMaster = bool(m);
+                    // TODO: check if type of account has changed and notify with new event
+                }
+            }
+            else
+            {
+                client->businessStatus = 0;
+                client->businessMaster = false;
+            }
 
             client->app->userdata_result(&name, &pubk, &privk, jid, API_OK);
             return;
