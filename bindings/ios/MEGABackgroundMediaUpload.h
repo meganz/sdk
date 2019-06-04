@@ -103,7 +103,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param latitude The GPS longitude
  * @param unshareable Set this true to prevent the coordinates being readable by other accounts.
  */
-- (void)setCoordinatesWithLatitude:(NSNumber *)latitude longitude:(NSNumber *)longitude isUnshareable:(BOOL)unshareable;
+- (void)setCoordinatesWithLatitude:(nullable NSNumber *)latitude longitude:(nullable NSNumber *)longitude isUnshareable:(BOOL)unshareable;
 
 /**
  * @brief Turns the data stored in this object into a base 64 encoded binary data.
