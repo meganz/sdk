@@ -29,7 +29,7 @@ if [ -z "$ANDROID_NDK_ROOT" ]; then
 fi
 
 _ANDROID_ARCH=arch-arm
-_ANDROID_API="android-9"
+_ANDROID_API="android-21"
 export ANDROID_GCC_VER=4.9
 
 export ANDROID_SYSROOT="$ANDROID_NDK_ROOT/platforms/$_ANDROID_API/$_ANDROID_ARCH"
