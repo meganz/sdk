@@ -261,9 +261,6 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->customAttrs = NULL;
     this->restorehandle = UNDEF;
 
-    attr_map::iterator uoi = node->attrs.map.find(AttrMap::string2nameid("uu"));
-    bool unshareableOwner = uoi != node->attrs.map.end() && node->client && uoi->second == node->client->uid;
-
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
     {
@@ -294,7 +291,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 {
                     string coords = it->second;
                     if ((it->first == AttrMap::string2nameid("l") && coords.size() != 8) ||
-                        (it->first == AttrMap::string2nameid("gp") && coords.size() != Base64Str<8>::STRLEN))
+                        (it->first == AttrMap::string2nameid("gp") && coords.size() != Base64Str<16>::STRLEN))
                     {
                        LOG_warn << "Malformed GPS coordinates attribute";
                     }
@@ -303,15 +300,19 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                         bool ok = true;
                         if (it->first == AttrMap::string2nameid("gp"))
                         {
-                            if (unshareableOwner && node->client && !node->client->unshareablekey.empty() && coords.size() <= SymmCipher::BLOCKSIZE && coords.size() == Base64Str<8>::STRLEN)
+                            if (node->client && node->client->unshareablekey.size() == Base64Str<SymmCipher::KEYLENGTH>::STRLEN && coords.size() == Base64Str<16>::STRLEN)
                             {
                                 SymmCipher c;
                                 byte data[SymmCipher::BLOCKSIZE] = { 0 };
-                                Base64::atob(coords.data(), data, Base64Str<3>::STRLEN * 2);
+                                Base64::atob(coords.data(), data, Base64Str<SymmCipher::BLOCKSIZE>::STRLEN);
 
                                 node->client->setkey(&c, node->client->unshareablekey.data());
-                                c.ctr_crypt(data, 8, 0, 0, NULL, false);
-                                coords = string((char*)data, 8);
+                                c.ctr_crypt(data, SymmCipher::BLOCKSIZE, 0, 0, NULL, false);
+                                ok = !memcmp(data, "unshare/", 8);
+                                if (ok)
+                                {
+                                    coords = string((char*)data + 8, 8);
+                                }
                             }
                             else
                             {
@@ -17402,7 +17403,7 @@ static error updateAttributesMapWithCoordinates(AttrMap& attrs, int latitude, in
         string coordsValue = string(latEncoded) + lonEncoded.chars;
         if (unshareable)
         {
-            if (client->unshareablekey.empty())
+            if (client->unshareablekey.size() != Base64Str<SymmCipher::KEYLENGTH>::STRLEN || coordsValue.size() != 8)
             {
                 return API_EINTERNAL;
             }
@@ -17410,17 +17411,18 @@ static error updateAttributesMapWithCoordinates(AttrMap& attrs, int latitude, in
             {
                 SymmCipher c;
                 byte data[SymmCipher::BLOCKSIZE] = { 0 };
-                memcpy(data, (void*)coordsValue.data(), coordsValue.size());
+                memcpy(data, "unshare/", 8);
+                memcpy(data + 8, (void*)coordsValue.data(), coordsValue.size());
                 client->setkey(&c, client->unshareablekey.data());
-                c.ctr_crypt(data, unsigned(coordsValue.size()), 0, 0, NULL, true);
-
-                attrs.map[AttrMap::string2nameid("uu")] = client->uid;  // uu = unshareable user (the user that set unshareable attributes on this node)
-                attrs.map[coordsNameUnshareable] = Base64Str<8>(data);
+                c.ctr_crypt(data, unsigned(8 + coordsValue.size()), 0, 0, NULL, true);
+                attrs.map[coordsNameUnshareable] = Base64Str<SymmCipher::BLOCKSIZE>(data);
+                attrs.map.erase(coordsNameShareable);
             }
         }
         else
         {
             attrs.map[coordsNameShareable] = coordsValue;
+            attrs.map.erase(coordsNameUnshareable);
         }
     }
     return API_OK;

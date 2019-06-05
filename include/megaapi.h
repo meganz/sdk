@@ -1428,7 +1428,7 @@ public:
     * @brief Returns the id of the alert
     *
     * The ids are assigned to alerts sequentially from program start,
-    * however there may be gaps.   The id can be used to create an
+    * however there may be gaps. The id can be used to create an
     * association with a UI element in order to process updates in callbacks.
     *
     * @return Type of alert associated with the object
@@ -1490,7 +1490,7 @@ public:
     * @brief Returns an email related to the alert
     *
     * This value is valid for alerts that relate to another user, provided the
-    * user could be looked up at the time the alert arrived.  If it was not available,
+    * user could be looked up at the time the alert arrived. If it was not available,
     * this function will return false and the client can request it via the userHandle.
     *
     * The SDK retains the ownership of the returned value. It will be valid until
@@ -1558,7 +1558,7 @@ public:
     * @brief Returns a number related to this alert
     *
     * This value is valid for these alerts:
-    * TYPE_NEWSHAREDNODES (0: folder count  1: file count )
+    * TYPE_NEWSHAREDNODES (0: folder count 1: file count )
     * TYPE_REMOVEDSHAREDNODES (0: item count )
     * TYPE_DELETEDSHARE (0: value 1 if access for this user was removed by the share owner, otherwise
     *                       value 0 if someone left the folder)
@@ -2043,7 +2043,7 @@ public:
      * @param i Position of the MegaTextChat that we want to get for the list
      * @return MegaTextChat at the position i in the list
      */
-    virtual const MegaTextChat *get(unsigned int i)  const;
+    virtual const MegaTextChat *get(unsigned int i) const;
 
     /**
      * @brief Returns the number of MegaTextChats in the list
@@ -4560,7 +4560,7 @@ public:
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object that has changed the state
      */
-    virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
+    virtual void onSyncStateChanged(MegaApi *api, MegaSync *sync);
 
     /**
      * @brief This function is called when there is a synchronization event
@@ -4575,7 +4575,7 @@ public:
      * This parameter will be deleted just after the callback. If you want to save it use
      * MegaSyncEvent::copy
      */
-    virtual void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event);
+    virtual void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event);
 };
 
 /**
@@ -4690,7 +4690,7 @@ public:
      * @param api MegaApi object that is backing up files
      * @param backup MegaBackup object that has changed the state
      */
-    virtual void onBackupStateChanged(MegaApi *api,  MegaBackup *backup);
+    virtual void onBackupStateChanged(MegaApi *api, MegaBackup *backup);
 
     /**
      * @brief This function is called when a backup is about to start being processed
@@ -6029,7 +6029,7 @@ class MegaListener
      * This parameter will be deleted just after the callback. If you want to save it use
      * MegaSyncEvent::copy
      */
-    virtual void onSyncEvent(MegaApi *api, MegaSync *sync,  MegaSyncEvent *event);
+    virtual void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event);
 
     /**
      * @brief This function is called when the state of the synchronization changes
@@ -6040,7 +6040,7 @@ class MegaListener
      * @param api MegaApi object that is synchronizing files
      * @param sync MegaSync object that has changed its state
      */
-    virtual void onSyncStateChanged(MegaApi *api,  MegaSync *sync);
+    virtual void onSyncStateChanged(MegaApi *api, MegaSync *sync);
 
     /**
      * @brief This function is called with the state of the synchronization engine has changed
@@ -6064,7 +6064,7 @@ class MegaListener
      * @param api MegaApi object that is backing up files
      * @param backup MegaBackup object that has changed the state
      */
-    virtual void onBackupStateChanged(MegaApi *api,  MegaBackup *backup);
+    virtual void onBackupStateChanged(MegaApi *api, MegaBackup *backup);
 
     /**
      * @brief This function is called when a backup is about to start being processed
@@ -6299,7 +6299,7 @@ public:
     /**
      * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
      *
-     * @return The URL to upload to (after appending the suffix), if one has been received.  Otherwise the string will be empty.
+     * @return The URL to upload to (after appending the suffix), if one has been received. Otherwise the string will be empty.
      */
     virtual std::string getUploadURL();
 
@@ -6875,7 +6875,7 @@ class MegaApi
          * @brief Convert binary data to a base 64 encoded string
          *
          * For some operations such as background uploads, binary data must be converted to a format
-         * suitable to be passed to the MegaApi interface.  Use this function to do so.
+         * suitable to be passed to the MegaApi interface. Use this function to do so.
          *
          * You take the ownership of the returned value
          *
@@ -8069,7 +8069,7 @@ class MegaApi
          * This log will be received by the active logger object (MegaApi::setLoggerObject) if
          * the log level is the same or lower than the active log level (MegaApi::setLogLevel)
          *
-         * The third and the fouth parameter are optional. You may want to use  __FILE__ and __LINE__
+         * The third and the fouth parameter are optional. You may want to use __FILE__ and __LINE__
          * to complete them.
          *
          * @param logLevel Log level for this message
@@ -8083,7 +8083,7 @@ class MegaApi
          * @brief Differentiate MegaApi log output from different instances.
          *
          * If multiple MegaApi instances are used in a single application, it can be useful to
-         * distinguish their activity in the log.  Setting a name here for this instance will
+         * distinguish their activity in the log. Setting a name here for this instance will
          * cause some particularly relevant log lines to contain it.
          * A very short name is best to avoid increasing the log size too much.
          *
@@ -9058,7 +9058,7 @@ class MegaApi
          * @param value Value for the attribute
          * @param listener MegaRequestListener to track this request
          */
-        void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value,  MegaRequestListener *listener = NULL);
+        void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char* value, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set the duration of audio/video files as a node attribute.
@@ -9080,7 +9080,7 @@ class MegaApi
          * it is no longer needed nor recommended to use this function, so it will
          * be removed in a short time.
          */
-        void setNodeDuration(MegaNode *node, int duration,  MegaRequestListener *listener = NULL);
+        void setNodeDuration(MegaNode *node, int duration, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set the GPS coordinates of image files as a node attribute.
@@ -9226,7 +9226,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_ACCOUNT_DETAILS
          *
          * Use this version of the function to get just the details you need, to minimise server load
-         * and keep the system highly available for all.  At least one flag must be set.
+         * and keep the system highly available for all. At least one flag must be set.
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -10547,7 +10547,7 @@ class MegaApi
         void pauseTransfers(bool pause, MegaRequestListener* listener = NULL);
 
         /**
-         * @brief  Pause/resume all transfers in one direction (uploads or downloads)
+         * @brief Pause/resume all transfers in one direction (uploads or downloads)
          *
          * The associated request type with this request is MegaRequest::TYPE_PAUSE_TRANSFERS
          * Valid data in the MegaRequest object received on callbacks:
@@ -11925,7 +11925,7 @@ class MegaApi
          *
          * If the node doesn't exist, this function returns NULL.
          * You can recoved the node later using MegaApi::getNodeByPath
-         * except if the path contains names with  '/', '\' or ':' characters.
+         * except if the path contains names with '/', '\' or ':' characters.
          *
          * You take the ownership of the returned value
          *
@@ -12382,7 +12382,7 @@ class MegaApi
          *
          * @param crc CRC to check
          * @param parent Parent node to scan. It must be a folder.
-         * @return  Node with the selected CRC in the selected folder, or NULL
+         * @return Node with the selected CRC in the selected folder, or NULL
          * if it's not found.
          */
         MegaNode* getNodeByCRC(const char *crc, MegaNode* parent);
@@ -13268,15 +13268,11 @@ class MegaApi
          * @param state The MegaBackgroundMediaUpload object tracking this upload
          * @param utf8Name The leaf name of the file, utf-8 encoded
          * @param parent The folder node under which this new file should appear
-         * @param fingerprint  The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
+         * @param fingerprint The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
          * @param fingerprintoriginal If the file uploaded is modified from the original,
          *        pass the fingerprint of the original file here, otherwise NULL.
-         * @param thumbnailFAHandle To attach a thumbnail with this operation, specify the handle from putThumbnail.
-         *        otherwise, pass INVALID_HANDLE.
-         * @param previewFAHandle To attach a preview with this operation, specify the handle from putPreview.
-         *        otherwise, pass INVALID_HANDLE.
          * @param string64UploadToken The token returned from the upload of the last portion of the file,
-         *        which is exactly 36 binary bytes, converted  to a base 64 string with MegaApi::binaryToString64.
+         *        which is exactly 36 binary bytes, converted to a base 64 string with MegaApi::binaryToString64.
          * @param listener MegaRequestListener to track this request
          */
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char *utf8Name, MegaNode *parent,
@@ -14271,7 +14267,7 @@ class MegaApi
          * @param uh MegaHandle that identifies the user
          * @param listener MegaRequestListener to track this request
          */
-        void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+        void grantAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Removes access to a node from a user you previously granted access to.
@@ -14290,7 +14286,7 @@ class MegaApi
          * @param uh MegaHandle that identifies the user
          * @param listener MegaRequestListener to track this request
          */
-        void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh,  MegaRequestListener *listener = NULL);
+        void removeAccessInChat(MegaHandle chatid, MegaNode *n, MegaHandle uh, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Allows a logged in operator/moderator to adjust the permissions on any other user
