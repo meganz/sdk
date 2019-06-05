@@ -10602,7 +10602,7 @@ void MegaClient::fetchnodes(bool nocache)
         reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, NULL, 0));
     }
 
-    if (unshareablekey.empty() && loggedin() == FULLACCOUNT)
+    if (unshareablekey.empty())
     {
         reqs.add(new CommandUnshareableUA(this, true, 5));
     }

@@ -3199,7 +3199,7 @@ void CommandUnshareableUA::procresult()
                     return;
                 }
                 buf.assign(ptr, (end - ptr));
-                LOG_err << "Unshareable key received, size: " << buf.size();
+                LOG_info << "Unshareable key received, size: " << buf.size();
                 break;
             }
             case EOO:
