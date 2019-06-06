@@ -2403,6 +2403,7 @@ class MegaApiImpl : public MegaApp
         void getMegaAchievements(MegaRequestListener *listener = NULL);
 
         void catchup(MegaRequestListener *listener = NULL);
+        void getPublicLinkInformation(MegaHandle ph, MegaRequestListener *listener = NULL);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
@@ -2734,6 +2735,7 @@ protected:
         virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error);
         virtual void chatlinkclose_result(error);
         virtual void chatlinkjoin_result(error);
+        virtual void folderlinkinfo_result(error, handle , handle, string*, string* , m_off_t, uint32_t , uint32_t , m_off_t , uint32_t);
 #endif
 
 #ifdef ENABLE_SYNC

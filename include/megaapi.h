@@ -2595,7 +2595,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
-            TYPE_CATCHUP,
+            TYPE_CATCHUP, TYPE_PUBLIC_LINK_INFORMATION,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -14304,6 +14304,32 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void catchup(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Retrieve basic information about a folder link
+         *
+         * This function retrieves basic information from a folder link, like the number of files / folders
+         * and the name of the folder. For folder links containing a lot of files/folders,
+         * this function is more efficient than a fetchnodes.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getNodeHandle - Returns the public handle of the folder link
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle() - Returns the public handle of the folder
+         * - MegaRequest::getMegaFolderInfo() - Returns information about the contents of the folder
+         * - MegaRequest::getParentHandle() - Returns the handle of the owner of the folder
+         * - MegaRequest::getText() - Returns the name of the folder
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS  - If the public handle not corresponds to a valid folder link
+         * - MegaError::API_ENOENT - If the public handle is not valid.
+         *
+         * @param ph MegaHandle that represents the public handle of the folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPublicLinkInformation(MegaHandle ph, MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;

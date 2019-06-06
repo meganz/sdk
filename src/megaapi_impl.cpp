@@ -3468,6 +3468,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
         case TYPE_USERALERT_ACKNOWLEDGE: return "TYPE_USERALERT_ACKNOWLEDGE";
         case TYPE_CATCHUP: return "CATCHUP";
+        case TYPE_PUBLIC_LINK_INFORMATION: return "PUBLIC_LINK_INFORMATION";
     }
     return "UNKNOWN";
 }
@@ -9269,6 +9270,14 @@ void MegaApiImpl::catchup(MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::getPublicLinkInformation(MegaHandle ph, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PUBLIC_LINK_INFORMATION, listener);
+    request->setNodeHandle(ph);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaUserList* MegaApiImpl::getContacts()
 {
     sdkMutex.lock();
@@ -11577,6 +11586,65 @@ void MegaApiImpl::chatlinkjoin_result(error e)
 
     fireOnRequestFinish(request, megaError);
 }
+
+void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle ph, string *attr, string* key, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
+{
+    MegaError megaError(e);
+    if (requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if (!request || (request->getType() != MegaRequest::TYPE_PUBLIC_LINK_INFORMATION)) return;
+
+    if (e == API_OK)
+    {
+        handle h;
+        size_t t = 0;
+        string nodekey;
+        string attrs;
+        byte* buf = NULL;
+        const char* k = NULL;
+        unsigned int keylength = FOLDERNODEKEYLENGTH;
+        byte binkey[FILENODEKEYLENGTH];
+        SymmCipher cipher;
+        SymmCipher* sc = &client->key;
+
+        if (key->size())
+        {
+            // Discard user handle for received key
+            while ((t = key->find_first_of(':', t)) != string::npos)
+            {
+               k = key->c_str() + (++t);
+               break;
+            }
+
+            // Decrypt the received key with our folder key
+            if (client->decryptkey(k, binkey, keylength, sc, 0, ph))
+            {
+                nodekey.assign((const char*)binkey, keylength);
+                if (cipher.setkey(&nodekey))
+                {
+                    // Decrypt attrs with the decrypted key
+                    buf = Node::decryptattr(&cipher, attr->c_str(), attr->size());
+                }
+            }
+        }
+        else
+        {
+            // API doesn't return `k` for file links
+            return fireOnRequestFinish(request, API_EARGS);
+        }
+
+        MegaFolderInfoPrivate *folderInfo = new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+        request->setNodeHandle(ph);
+        request->setParentHandle(owner);
+        request->setText((const char*)buf);
+        request->setMegaFolderInfo(folderInfo);
+        delete folderInfo;
+        delete [] buf;
+    }
+
+    return fireOnRequestFinish(request, megaError);
+}
+
 
 #endif
 
@@ -20049,6 +20117,18 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_USERALERT_ACKNOWLEDGE:
         {
             client->acknowledgeuseralerts();
+            break;
+        }
+        case MegaRequest::TYPE_PUBLIC_LINK_INFORMATION:
+        {
+            MegaHandle h = request->getNodeHandle();
+            if (ISUNDEF(h))
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->getPublicLinkInformation(h);
             break;
         }
         default:

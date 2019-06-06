@@ -6909,6 +6909,84 @@ void CommandSetLastAcknowledged::procresult()
     }
 };
 
+CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)
+{
+    this->ph = ph;
+    cmd("pli");
+    arg("ph", (byte*)&publichandle, MegaClient::NODEHANDLE);
 
+    notself(client);
+    tag = client->reqtag;
+};
+
+void CommandFolderLinkInfo::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        client->app->folderlinkinfo_result((error)client->json.getint(), UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+    }
+    else
+    {
+        string attr;
+        string key;
+        handle owner = UNDEF;
+        handle ph =  UNDEF;
+        m_off_t currentSize = 0;
+        m_off_t versionsSize  = 0;
+        int numFolders = 0;
+        int numFiles = 0;
+        int numVersions = 0;
+
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID5('a','t','t','r','s'):
+                    client->json.storeobject(&attr);
+                    break;
+
+                case MAKENAMEID2('p','h'):
+                    ph = client->json.gethandle(MegaClient::NODEHANDLE);
+                    break;
+
+                case 'u':
+                    owner = client->json.gethandle(MegaClient::USERHANDLE);
+                    break;
+
+                case 's':
+                    if (client->json.enterarray())
+                    {
+                        currentSize = int(client->json.getint());
+                        numFiles = int(client->json.getint());
+                        numFolders = int(client->json.getint());
+                        versionsSize  = int(client->json.getint());
+                        numVersions = int(client->json.getint());
+                        client->json.leavearray();
+                    }
+                    break;
+
+                 case 'k':
+                     client->json.storeobject(&key);
+                     break;
+
+                 case EOO:
+                    if (!attr.size())
+                    {
+                        client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+                    }
+
+                    client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
+                    return;
+
+                 default:
+                    if (!client->json.storeobject())
+                    {
+                        LOG_err << "Failed to parse folder link information response";
+                        client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+                    }
+            }
+        }
+    }
+};
 
 } // namespace

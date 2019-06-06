@@ -4647,6 +4647,11 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
     return false;
 }
 
+void MegaClient::getPublicLinkInformation(handle h)
+{
+    reqs.add(new CommandFolderLinkInfo(this, h));
+}
+
 void MegaClient::dispatchmore(direction_t d)
 {
     // keep pipeline full by dispatching additional queued transfers, if

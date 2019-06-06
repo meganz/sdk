@@ -351,6 +351,9 @@ struct MEGA_API MegaApp
     // result of the user alert acknowledge request
     virtual void acknowledgeuseralerts_result(error) { }
 
+    // get info about a folder link
+    virtual void folderlinkinfo_result(error, handle , handle, string*, string* , m_off_t, uint32_t , uint32_t , m_off_t , uint32_t) {}
+
     virtual ~MegaApp() { }
 };
 } // namespace

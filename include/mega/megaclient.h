@@ -557,6 +557,9 @@ public:
     // change the storage status
     bool setstoragestatus(storagestatus_t);
 
+    // get info about a folder link
+    void getPublicLinkInformation(handle);
+
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges
