@@ -1684,10 +1684,10 @@ public:
     ~MegaBackgroundMediaUploadPrivate();
 
     bool analyseMediaInfo(const char* inputFilepath) override;
-    std::string encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
+    char *encryptFile(const char* inputFilepath, int64_t startPos, m_off_t* length, const char *outputFilepath,
                      bool adjustsizeonly) override;
 
-    std::string getUploadURL() override;
+    char *getUploadURL() override;
 
     bool serialize(string* s);
     char *serialize() override;
@@ -1925,7 +1925,7 @@ class MegaApiImpl : public MegaApp
         static char *handleToBase64(MegaHandle handle);
         static char *userHandleToBase64(MegaHandle handle);
         static char *binaryToBase64(const char* binaryData, size_t length);
-        static std::string base64ToBinary(const char *base64string);
+        static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
         static const char* ebcEncryptKey(const char* encryptionKey, const char* plainKey);
         void retryPendingConnections(bool disconnect = false, bool includexfers = false, MegaRequestListener* listener = NULL);
         void setDnsServers(const char *dnsServers, MegaRequestListener* listener = NULL);

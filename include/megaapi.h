@@ -6282,6 +6282,8 @@ public:
      * Encryption is done by reading small pieces of the file, encrypting them, and outputting to the new file,
      * so that RAM usage is not excessive.
      *
+     * You take ownership of the returned value.
+     *
      * @param inputFilepath The file to encrypt a portion of (and the one that is ultimately being uploaded).
      * @param startPos The index of the first byte of the file to encrypt
      * @param length The number of bytes of the file to encrypt. The function will round this value up by up to 1MB to fit the
@@ -6291,17 +6293,19 @@ public:
      * @param adjustsizeonly If this is set true, then encryption is not performed, and only the length parameter is adjusted.
      *        This feature is to enable precalculating the exact sizes of the file portions for upload.
      * @return If the function tries to encrypt and succeeds, the return value is the suffix to append to the URL when uploading this enrypted chunk.
-     *         If adjustsizeonly was set, and the function succeeds, the return value will be a nonempty string.
-     *         If the function fails, the return value is an empty string, and an error will have been logged.
+     *         If adjustsizeonly was set, and the function succeeds, the return value will be NULL.
+     *         If the function fails, the return value is NULL, and an error will have been logged.
      */
-    virtual std::string encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly);
+    virtual char *encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly);
 
     /**
      * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
      *
-     * @return The URL to upload to (after appending the suffix), if one has been received. Otherwise the string will be empty.
+     * You take ownership of the returned value.
+     * 
+     * @return The URL to upload to (after appending the suffix), if one has been received. Otherwise NULL.
      */
-    virtual std::string getUploadURL();
+    virtual char *getUploadURL();
 
     /**
      * @brief Attach a thumbnail by its file attribute handle.
@@ -6890,10 +6894,14 @@ class MegaApi
          *
          * This operation is the inverse of binaryToString64.
          *
+         * You take ownership of the pointer assigned to *binary.
+         *
          * @param base64string The base 64 encoded string to decode.
-         * @return A std::string containing the decoded binary data.
+         * @param binary A pointer to a pointer to assign with a `new unsigned char[]` 
+         *        allocated buffer containing the decoded binary data.  
+         * @param size A pointer to a variable that will be assigned the size of the buffer allocated.
          */
-        static std::string base64ToBinary(const char *base64string);
+        static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
 
         /**
          * @brief Add entropy to internal random number generators

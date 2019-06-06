@@ -1769,9 +1769,9 @@ char *MegaApi::userHandleToBase64(MegaHandle handle)
     return MegaApiImpl::userHandleToBase64(handle);
 }
 
-string MegaApi::base64ToBinary(const char * d)
+void MegaApi::base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize)
 {
-    return MegaApiImpl::base64ToBinary(d);
+    return MegaApiImpl::base64ToBinary(base64string, binary, binarysize);
 }
 
 char *MegaApi::binaryToBase64(const char* binaryData, size_t length)
@@ -5460,7 +5460,12 @@ MegaBackgroundMediaUpload *MegaBackgroundMediaUpload::createInstance(MegaApi *ap
 
 MegaBackgroundMediaUpload* MegaBackgroundMediaUpload::unserialize(const char* d, MegaApi* api)
 {
-    return d ? new MegaBackgroundMediaUploadPrivate(MegaApi::base64ToBinary(d), api) : NULL;
+    unsigned char* binary;
+    size_t binSize;
+    MegaApi::base64ToBinary(d, &binary, &binSize);
+    std::string binString((char*)binary, binSize);
+    delete[] binary;
+    return d ? new MegaBackgroundMediaUploadPrivate(binString, api) : NULL;
 }
 
 bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
@@ -5468,14 +5473,14 @@ bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
     return false;
 }
 
-std::string MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
+char *MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
 {
-    return string();
+    return NULL;
 }
 
-std::string MegaBackgroundMediaUpload::getUploadURL()
+char *MegaBackgroundMediaUpload::getUploadURL()
 {
-    return string();
+    return NULL;
 }
 
 char *MegaBackgroundMediaUpload::serialize()

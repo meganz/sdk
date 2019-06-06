@@ -1040,12 +1040,12 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
     return true;
 }
 
-std::string MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
+char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
 {
     if (startPos != ChunkedHash::chunkfloor(startPos))
     {
         LOG_err << "non-chunk start postion supplied";
-        return string();
+        return nullptr;
     }
 
     std::unique_ptr<FileAccess> fain(api->fsAccess->newfileaccess());
@@ -1061,12 +1061,12 @@ std::string MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilep
         if (startPos < 0 || startPos > fain->size)
         {
             LOG_err << "invalid startPos supplied";
-            return string();
+            return nullptr;
         } 
         else if (*length < 0 || startPos + *length > fain->size)
         {
             LOG_err << "invalid enryption length supplied";
-            return string();
+            return nullptr;
         }
         else
         {
@@ -1094,18 +1094,18 @@ std::string MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilep
                     if (ef.encrypt(startPos, endPos, urlSuffix))
                     {
                         ((int64_t*)filekey)[3] = chunkmacs.macsmac(&cipher);
-                        return urlSuffix;
+                        return MegaApi::strdup(urlSuffix.c_str());
                     }
                 }
             }
         }
     }
-    return string();  // empty string indicates failure
+    return nullptr; 
 }
 
-std::string MegaBackgroundMediaUploadPrivate::getUploadURL()
+char *MegaBackgroundMediaUploadPrivate::getUploadURL()
 {
-    return url;
+    return url.empty() ? nullptr : MegaApi::strdup(url.c_str());
 }
 
 EncryptFilePieceByChunks::EncryptFilePieceByChunks(FileAccess *cFain, m_off_t cInPos, FileAccess *cFaout, m_off_t cOutPos,
@@ -5296,12 +5296,14 @@ char *MegaApiImpl::binaryToBase64(const char *binaryData, size_t length)
     return ret;
 }
 
-std::string MegaApiImpl::base64ToBinary(const char *base64string)
+void MegaApiImpl::base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize)
 {
     string data;
     data.resize(strlen(base64string) * 3 / 4 + 3);
     data.resize(Base64::atob(base64string, (byte*)data.data(), int(data.size())));
-    return data;
+    *binarysize = data.size();
+    *binary = new unsigned char[*binarysize];
+    memcpy(*binary, data.data(), *binarysize);
 }
 
 void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener *listener)
@@ -20618,7 +20620,11 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EINCOMPLETE;
                 break;
             }
-            std::string binaryUploadToken = MegaApi::base64ToBinary(uploadToken);
+            unsigned char* binTok;
+            size_t binTokSize;
+            MegaApi::base64ToBinary(uploadToken, &binTok, &binTokSize);
+            std::string binaryUploadToken((char*)binTok, binTokSize);
+            delete[] binTok;
             if (binaryUploadToken.size() != 36)
             {
                 LOG_err << "Invalid upload token";
