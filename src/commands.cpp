@@ -4948,7 +4948,9 @@ void CommandQueryRecoveryLink::procresult()
         return client->app->queryrecoverylink_result(API_EINTERNAL);
     }
 
-    if (client->loggedin() == FULLACCOUNT && uh != client->me)
+    if ((client->loggedin() == FULLACCOUNT && uh != client->me)
+            && (type == CHANGE_EMAIL || ts > 1559871183))
+    // on June 7, 2019 1:33:03 AM the API started to record the userhandle for all types of links
     {
         return client->app->queryrecoverylink_result(API_EACCESS);
     }
