@@ -30,7 +30,7 @@
 namespace mega
 {
 
-constexpr unsigned RAID_ACTIVE_CHANNEL_FAIL_THRESHOLD = 5;
+const unsigned RAID_ACTIVE_CHANNEL_FAIL_THRESHOLD = 5;
 
 struct FaultyServers
 {

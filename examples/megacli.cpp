@@ -2085,8 +2085,6 @@ static void store_line(char* l)
     line = l;
 }
 
-#if __cplusplus >= 201100L
-
 class FileFindCommand : public Command
 {
 public:
@@ -2224,6 +2222,7 @@ void getDepthFirstFileHandles(Node* n, deque<handle>& q)
     }
 }
 
+#ifdef HAVE_AUTOCOMPLETE
 void exec_find(autocomplete::ACState& s)
 {
     if (s.words[1].s == "raided")
@@ -2248,6 +2247,7 @@ void exec_find(autocomplete::ACState& s)
         }
     }
 }
+#endif
 
 bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
 {
@@ -2259,6 +2259,7 @@ bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
     }
 }
 
+#ifdef USE_FILESYSTEM
 bool recursiveCompare(Node* mn, fs::path p)
 {
     nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
@@ -2315,7 +2316,7 @@ bool recursiveCompare(Node* mn, fs::path p)
         return false;
     };
 }
-
+#endif
 Node* nodeFromRemotePath(const string& s)
 {
     Node* n;
@@ -2334,6 +2335,7 @@ Node* nodeFromRemotePath(const string& s)
     return n;
 }
 
+#ifdef USE_FILESYSTEM
 fs::path pathFromLocalPath(const string& s, bool mustexist)
 {
     fs::path p = s.empty() ? fs::current_path() : fs::u8path(s);
@@ -2344,7 +2346,9 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
     }
     return p;
 }
+#endif
 
+#ifdef HAVE_AUTOCOMPLETE
 void exec_treecompare(autocomplete::ACState& s)
 {
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -2359,7 +2363,7 @@ void exec_querytransferquota(autocomplete::ACState& ac)
 {
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
 }
-#endif // __cplusplus >= 201100L
+#endif
 
 void DemoApp::querytransferquota_result(int n)
 {
@@ -2474,11 +2478,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(sequence(text("history")));
     p->Add(sequence(text("quit")));
 
-#if __cplusplus >= 201100L
     p->Add(exec_find, sequence(text("find"), text("raided")));
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
-#endif
 
     return autocompleteTemplate = std::move(p);
 }

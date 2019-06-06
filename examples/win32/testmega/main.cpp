@@ -202,13 +202,13 @@ int main()
 
         MegaNode *parent = megaApi->getNodeByHandle(b->getParentHandle());
 
-        cout << displayTime(b->getTimestamp()) << " " << b->getUserEmail() << " " << (b->getIsUpdate() ? "updated" : "uploaded") << " " << (b->getIsMedia() ? "media" : "files") << " in " << (parent ? parent->getName() : "<unknown>") << endl;
+        //cout << displayTime(b->getTimestamp()) << " " << b->getUserEmail() << " " << (b->getIsUpdate() ? "updated" : "uploaded") << " " << (b->getIsMedia() ? "media" : "files") << " in " << (parent ? parent->getName() : "<unknown>") << endl;
 
-        MegaNodeList* l = b->getNodes();
-        for (int j = 0; j < l->size(); ++j)
-        {
-            cout << l->get(j)->getName() << endl;
-        }
+        //MegaNodeList* l = b->getNodes();
+        //for (int j = 0; j < l->size(); ++j)
+        //{
+        //    cout << l->get(j)->getName() << endl;
+        //}
 }
 
 
