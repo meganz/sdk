@@ -6923,7 +6923,7 @@ void CommandFolderLinkInfo::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->folderlinkinfo_result((error)client->json.getint(), UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+        return client->app->folderlinkinfo_result((error)client->json.getint(), UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
     }
     else
     {
@@ -6972,18 +6972,18 @@ void CommandFolderLinkInfo::procresult()
                  case EOO:
                     if (!attr.size())
                     {
-                        client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+                       return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
                     }
 
-                    client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
-                    return;
+                    return client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
 
                  default:
                     if (!client->json.storeobject())
                     {
                         LOG_err << "Failed to parse folder link information response";
-                        client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+                        return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
                     }
+                    break;
             }
         }
     }
