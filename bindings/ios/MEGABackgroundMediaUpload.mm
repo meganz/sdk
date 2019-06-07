@@ -58,12 +58,13 @@
 }
 
 - (NSString *)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(int64_t *)length outputFilePath:(NSString *)outputFilePath adjustsSizeOnly:(BOOL)adjustsSizeOnly {
-    std::string suffix = self.mediaUpload->encryptFile(inputFilePath.UTF8String, start, length, outputFilePath.UTF8String, adjustsSizeOnly);
-    return @(suffix.c_str());
+    const char *suffix = self.mediaUpload->encryptFile(inputFilePath.UTF8String, start, length, outputFilePath.UTF8String, adjustsSizeOnly);
+    return suffix == NULL ? nil : @(suffix);
 }
 
 - (NSString *)uploadURLString {
-    return @(self.mediaUpload->getUploadURL().c_str());
+    const char *urlString = self.mediaUpload->getUploadURL();
+    return urlString == NULL ? nil : @(urlString);
 }
 
 - (void)setCoordinatesWithLatitude:(double)latitude longitude:(double)longitude isUnshareable:(BOOL)unshareable {
@@ -71,8 +72,8 @@
 }
 
 - (NSData *)serialize {
-    std::string binary = self.mediaUpload->serialize();
-    return [NSData dataWithBytes:binary.data() length:binary.size()];
+    const char *binary = self.mediaUpload->serialize();
+    return binary == NULL ? nil : [NSData dataWithBytes:binary length:strlen(binary)];
 }
 
 + (instancetype)unserializByData:(NSData *)data MEGASdk:(MEGASdk *)sdk {

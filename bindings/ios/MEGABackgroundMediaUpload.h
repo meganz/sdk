@@ -82,14 +82,14 @@ NS_ASSUME_NONNULL_BEGIN
  *         If adjustsizeonly was set, and the function succeeds, the return value will be a nonempty string.
  *         If the function fails, the return value is an empty string, and an error will have been logged.
  */
-- (NSString *)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(int64_t *)length outputFilePath:(nullable NSString *)outputFilePath adjustsSizeOnly:(BOOL)adjustsSizeOnly;
+- (nullable NSString *)encryptFileAtPath:(NSString *)inputFilePath startPosition:(int64_t)start length:(int64_t *)length outputFilePath:(nullable NSString *)outputFilePath adjustsSizeOnly:(BOOL)adjustsSizeOnly;
 
 /**
  * @brief Retrieves the value of the uploadURL once it has been successfully requested via requestBackgroundUploadURLWithFileSize:mediaUpload:delegate: in MEGASdk.
  *
  * @return The URL to upload to (after appending the suffix), if one has been received. Otherwise the string will be empty.
  */
-- (NSString *)uploadURLString;
+- (nullable NSString *)uploadURLString;
 
 /**
  * @brief Sets the GPS coordinates for the node
@@ -114,7 +114,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * @return serialized version of this object (including URL, mediainfo attributes, and internal data suitable to resume uploading with in future).
  */
-- (NSData *)serialize;
+- (nullable NSData *)serialize;
 
 /**
  * @brief Get back the needed MEGABackgroundMediaUpload after the iOS app exited and restarted.
