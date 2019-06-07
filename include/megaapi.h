@@ -14313,23 +14313,23 @@ class MegaApi
          * this function is more efficient than a fetchnodes.
          *
          * Valid data in the MegaRequest object received on all callbacks:
-         * - MegaRequest::getNodeHandle - Returns the public handle of the folder link
+         * - MegaRequest::getLink() - Returns the public link to the folder
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle() - Returns the public handle of the folder
          * - MegaRequest::getMegaFolderInfo() - Returns information about the contents of the folder
+         * - MegaRequest::getNodeHandle() - Returns the public handle of the folder
          * - MegaRequest::getParentHandle() - Returns the handle of the owner of the folder
          * - MegaRequest::getText() - Returns the name of the folder
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_EARGS  - If the public handle not corresponds to a valid folder link
-         * - MegaError::API_ENOENT - If the public handle is not valid.
+         * - MegaError::API_EARGS  - If the link is not a valid folder link
+         * - MegaError::API_EINCOMPLETE - If the public link does not contain the key
          *
-         * @param ph MegaHandle that represents the public handle of the folder
+         * @param megaFolderLink Public link to a folder in MEGA
          * @param listener MegaRequestListener to track this request
          */
-        void getPublicLinkInformation(MegaHandle ph, MegaRequestListener *listener = NULL);
+        void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;

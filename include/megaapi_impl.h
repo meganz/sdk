@@ -2403,7 +2403,7 @@ class MegaApiImpl : public MegaApp
         void getMegaAchievements(MegaRequestListener *listener = NULL);
 
         void catchup(MegaRequestListener *listener = NULL);
-        void getPublicLinkInformation(MegaHandle ph, MegaRequestListener *listener = NULL);
+        void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);

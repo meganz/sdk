@@ -558,7 +558,7 @@ public:
     bool setstoragestatus(storagestatus_t);
 
     // get info about a folder link
-    void getPublicLinkInformation(handle);
+    void getPublicLinkInformation(handle h);
 
 #ifdef ENABLE_CHAT
 

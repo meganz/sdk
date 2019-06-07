@@ -3706,9 +3706,9 @@ void MegaApi::catchup(MegaRequestListener *listener)
     pImpl->catchup(listener);
 }
 
-void MegaApi::getPublicLinkInformation(MegaHandle ph, MegaRequestListener *listener)
+void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
 {
-    pImpl->getPublicLinkInformation(ph, listener);
+    pImpl->getPublicLinkInformation(megaFolderLink, listener);
 }
 
 #ifdef HAVE_LIBUV

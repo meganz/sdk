@@ -9270,10 +9270,10 @@ void MegaApiImpl::catchup(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getPublicLinkInformation(MegaHandle ph, MegaRequestListener *listener)
+void MegaApiImpl::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PUBLIC_LINK_INFORMATION, listener);
-    request->setNodeHandle(ph);
+    request->setLink(megaFolderLink);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11629,8 +11629,8 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle ph, string
         }
         else
         {
-            // API doesn't return `k` for file links
-            return fireOnRequestFinish(request, API_EARGS);
+            LOG_warn << "The folder link information doesn't contains the decryption key";
+            return fireOnRequestFinish(request, API_EINTERNAL);
         }
 
         MegaFolderInfoPrivate *folderInfo = new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
@@ -20121,14 +20121,19 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_PUBLIC_LINK_INFORMATION:
         {
-            MegaHandle h = request->getNodeHandle();
-            if (ISUNDEF(h))
+            const char *link = request->getLink();
+            if (!link)
             {
                 e = API_EARGS;
                 break;
             }
 
-            client->getPublicLinkInformation(h);
+            e = client->folderaccess(link);
+            if (e == API_OK)
+            {
+                client->getPublicLinkInformation(client->getpublicfolderhandle());
+            }
+
             break;
         }
         default:
