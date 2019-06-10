@@ -6970,12 +6970,27 @@ void CommandFolderLinkInfo::procresult()
                      break;
 
                  case EOO:
-                    if (!attr.size())
+                    if (attr.empty())
                     {
-                       return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+                        LOG_err << "The folder link information doesn't contain the attr string";
+                        return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
                     }
+                    if (key.empty())
+                    {
+                        LOG_err << "The folder link information doesn't contain the decryption key";
+                        return client->app->folderlinkinfo_result(API_EKEY, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+                    }
+                    else
+                    {
+                        size_t pos = key.find(":");
+                        if (pos == string::npos)
+                        {
+                            LOG_warn << "The folder link information has no valid decryption key";
+                            return client->app->folderlinkinfo_result(API_EKEY, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+                        }
 
-                    return client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
+                        return client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
+                    }
 
                  default:
                     if (!client->json.storeobject())

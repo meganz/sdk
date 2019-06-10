@@ -2712,6 +2712,7 @@ protected:
         virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
         virtual void getmegaachievements_result(AchievementsDetails*, error);
         virtual void getwelcomepdf_result(handle, string*, error);
+        virtual void folderlinkinfo_result(error, handle , handle, string*, string* , m_off_t, uint32_t , uint32_t , m_off_t , uint32_t);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
@@ -2735,7 +2736,6 @@ protected:
         virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error);
         virtual void chatlinkclose_result(error);
         virtual void chatlinkjoin_result(error);
-        virtual void folderlinkinfo_result(error, handle , handle, string*, string* , m_off_t, uint32_t , uint32_t , m_off_t , uint32_t);
 #endif
 
 #ifdef ENABLE_SYNC

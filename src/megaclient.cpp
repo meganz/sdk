@@ -7675,7 +7675,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
     return j->leavearray();
 }
 
-error MegaClient::folderaccess(const char *folderlink)
+error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
 {
     // structure of public folder links: https://mega.nz/#F!<handle>!<key>
 
@@ -7697,25 +7697,33 @@ error MegaClient::folderaccess(const char *folderlink)
         return API_EARGS;
     }
 
-    const char *k = ptr + 1;
-
-    handle h = 0;
-    byte folderkey[SymmCipher::KEYLENGTH];
-
     if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
     {
         return API_EARGS;
     }
 
-    if (Base64::atob(k, folderkey, sizeof folderkey) != sizeof folderkey)
+    const char *k = ptr + 1;
+    if (Base64::atob(k, key, sizeof key) != sizeof key)
     {
         return API_EARGS;
     }
 
-    setrootnode(h);
-    key.setkey(folderkey);
-
     return API_OK;
+}
+
+error MegaClient::folderaccess(const char *folderlink)
+{
+    handle h = UNDEF;
+    byte folderkey[SymmCipher::KEYLENGTH];
+
+    error e;
+    if ((e = parsefolderlink(folderlink, h, folderkey)) == API_OK)
+    {
+        setrootnode(h);
+        key.setkey(folderkey);
+    }
+
+    return e;
 }
 
 void MegaClient::prelogin(const char *email)

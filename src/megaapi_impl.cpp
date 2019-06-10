@@ -11587,7 +11587,9 @@ void MegaApiImpl::chatlinkjoin_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle ph, string *attr, string* key, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
+#endif
+
+void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle ph, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
 {
     MegaError megaError(e);
     if (requestMap.find(client->restag) == requestMap.end()) return;
@@ -11596,57 +11598,55 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle ph, string
 
     if (e == API_OK)
     {
-        handle h;
-        size_t t = 0;
-        string nodekey;
-        string attrs;
-        byte* buf = NULL;
-        const char* k = NULL;
-        unsigned int keylength = FOLDERNODEKEYLENGTH;
-        byte binkey[FILENODEKEYLENGTH];
+        // Extract the folder key from the link (skip the public handle)
+        handle h = UNDEF;
+        byte folderkeybuf[SymmCipher::KEYLENGTH];
+        error e = client->parsefolderlink(request->getLink(), h, folderkeybuf);
+        assert(e == API_OK);
+        assert(h == ph);
+        const string binfolderkey((const char *)folderkeybuf, sizeof (folderkeybuf));
+
+        // Extract the node key from the received key (skip the userhandle)
+        size_t pos = k->find(":");
+        assert (pos != string::npos);
+        const char *strnodekey = k->c_str() + pos + 1;
+
+        // Decrypt the nodekey with the folder key
         SymmCipher cipher;
-        SymmCipher* sc = &client->key;
-
-        if (key->size())
+        cipher.setkey(&binfolderkey);
+        byte binnodekey[FOLDERNODEKEYLENGTH];
+        if (client->decryptkey(strnodekey, binnodekey, sizeof (binnodekey), &cipher, 0, UNDEF))
         {
-            // Discard user handle for received key
-            while ((t = key->find_first_of(':', t)) != string::npos)
+            // Decrypt node attributes with nodekey
+            string nodekey((const char*)binnodekey, sizeof (binnodekey));
+            cipher.setkey(&nodekey);
+            byte* buf = Node::decryptattr(&cipher, attr->c_str(), attr->size());
+            if (buf)
             {
-               k = key->c_str() + (++t);
-               break;
+                MegaFolderInfoPrivate *folderInfo = new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+                request->setMegaFolderInfo(folderInfo);
+                request->setNodeHandle(ph);
+                request->setParentHandle(owner);
+                // TODO: extract the foldername from `buf`
+                request->setText((const char*)buf);
+                delete folderInfo;
+                delete [] buf;
             }
-
-            // Decrypt the received key with our folder key
-            if (client->decryptkey(k, binkey, keylength, sc, 0, ph))
+            else
             {
-                nodekey.assign((const char*)binkey, keylength);
-                if (cipher.setkey(&nodekey))
-                {
-                    // Decrypt attrs with the decrypted key
-                    buf = Node::decryptattr(&cipher, attr->c_str(), attr->size());
-                }
+                LOG_err << "Error decrypting node attributes with decrypted nodekey";
+                megaError = API_EKEY;
             }
         }
         else
         {
-            LOG_warn << "The folder link information doesn't contains the decryption key";
-            return fireOnRequestFinish(request, API_EINTERNAL);
+            LOG_err << "Error decrypting nodekey with folder link key";
+            megaError = API_EKEY;
         }
-
-        MegaFolderInfoPrivate *folderInfo = new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
-        request->setNodeHandle(ph);
-        request->setParentHandle(owner);
-        request->setText((const char*)buf);
-        request->setMegaFolderInfo(folderInfo);
-        delete folderInfo;
-        delete [] buf;
     }
 
     return fireOnRequestFinish(request, megaError);
 }
-
-
-#endif
 
 #ifdef ENABLE_SYNC
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
@@ -20128,12 +20128,13 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            e = client->folderaccess(link);
+            handle h = UNDEF;
+            byte folderkey[SymmCipher::KEYLENGTH];
+            error e = client->parsefolderlink(link, h, folderkey);
             if (e == API_OK)
             {
                 client->getPublicLinkInformation(client->getpublicfolderhandle());
             }
-
             break;
         }
         default:
