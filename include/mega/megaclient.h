@@ -290,6 +290,9 @@ public:
     // check if logged in
     sessiontype_t loggedin();
 
+    // check if logged in a folder link
+    bool loggedinfolderlink();
+
     // check the reason of being blocked
     void whyamiblocked();
 

@@ -9964,6 +9964,11 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     return API_OK;
 }
 
+bool MegaClient::loggedinfolderlink()
+{
+    return !ISUNDEF(publichandle);
+}
+
 sessiontype_t MegaClient::loggedin()
 {
     if (ISUNDEF(me))
@@ -10581,28 +10586,33 @@ void MegaClient::fetchnodes(bool nocache)
             (*it)->changestate(SYNC_CANCELED);
         }
 #endif
-        if (loggedin() == FULLACCOUNT)
+
+        if (!loggedinfolderlink())
         {
 #ifdef ENABLE_CHAT
-            fetchkeys();
+            if (loggedin() == FULLACCOUNT)
+            {
+                fetchkeys();
+            }
 #endif
-        }
-        if (!k.size())
-        {
-            getuserdata();
-        }
+            if (!k.size())
+            {
+                getuserdata();
+            }
 
-        fetchtimezone();
-        char me64[12];
-        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-        reqs.add(new CommandGetUA(this, me64, ATTR_PUSH_SETTINGS, NULL, 0));
+            fetchtimezone();
+            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_PUSH_SETTINGS, NULL, 0));
+        }
 
         reqs.add(new CommandFetchNodes(this, nocache));
 
-        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, NULL, 0));
+        if (!loggedinfolderlink())
+        {
+            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
+        }
     }
 
-    if (unshareablekey.empty())
+    if (unshareablekey.empty() && !loggedinfolderlink())
     {
         reqs.add(new CommandUnshareableUA(this, true, 5));
     }
