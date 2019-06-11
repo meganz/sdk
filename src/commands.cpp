@@ -3128,8 +3128,7 @@ void CommandDelUA::procresult()
     }
 }
 
-#endif
-
+#endif  // #ifdef DEBUG
 
 CommandUnshareableUA::CommandUnshareableUA(MegaClient* client, bool fetch, int triesleft)
 {
@@ -3226,8 +3225,6 @@ void CommandUnshareableUA::procresult()
         }
     }
 }
-
-
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {

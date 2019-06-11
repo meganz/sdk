@@ -17403,23 +17403,26 @@ static error updateAttributesMapWithCoordinates(AttrMap& attrs, int latitude, in
         Base64Str<3> latEncoded((const byte*)&latitude);
         Base64Str<3> lonEncoded((const byte*)&longitude);
         string coordsValue = string(latEncoded) + lonEncoded.chars;
+        if (coordsValue.size() != 8)
+        {
+            return API_EARGS;
+        }
+
         if (unshareable)
         {
-            if (client->unshareablekey.size() != Base64Str<SymmCipher::KEYLENGTH>::STRLEN || coordsValue.size() != 8)
+            if (client->unshareablekey.size() != Base64Str<SymmCipher::KEYLENGTH>::STRLEN)
             {
-                return API_EINTERNAL;
+                return API_EKEY;
             }
-            else
-            {
-                SymmCipher c;
-                byte data[SymmCipher::BLOCKSIZE] = { 0 };
-                memcpy(data, "unshare/", 8);
-                memcpy(data + 8, (void*)coordsValue.data(), coordsValue.size());
-                client->setkey(&c, client->unshareablekey.data());
-                c.ctr_crypt(data, unsigned(8 + coordsValue.size()), 0, 0, NULL, true);
-                attrs.map[coordsNameUnshareable] = Base64Str<SymmCipher::BLOCKSIZE>(data);
-                attrs.map.erase(coordsNameShareable);
-            }
+
+            SymmCipher c;
+            byte data[SymmCipher::BLOCKSIZE] = { 0 };
+            memcpy(data, "unshare/", 8);
+            memcpy(data + 8, (void*)coordsValue.data(), coordsValue.size());
+            client->setkey(&c, client->unshareablekey.data());
+            c.ctr_crypt(data, unsigned(8 + coordsValue.size()), 0, 0, NULL, true);
+            attrs.map[coordsNameUnshareable] = Base64Str<SymmCipher::BLOCKSIZE>(data);
+            attrs.map.erase(coordsNameShareable);
         }
         else
         {

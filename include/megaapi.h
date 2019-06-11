@@ -6339,7 +6339,7 @@ public:
      * node is later shared, the GPS coordinates cannot be decrypted by a different account.
      *
      * @param latitude The GPS latitude
-     * @param latitude The GPS longitude
+     * @param longitude The GPS longitude
      * @param unshareable Set this true to prevent the coordinates being readable by other accounts.
      */
     virtual void setCoordinates(double latitude, double longitude, bool unshareable);
@@ -8880,7 +8880,8 @@ class MegaApi
          * error code is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - The handle of the uploaded file attribute.
          *
-         * Use the result in the MegaRequest::getNodeHandle as the thumbnail handle in the call to backgroundMediaUploadComplete.
+         * Use the result in the MegaRequest::getNodeHandle as the thumbnail handle in the
+         * call to MegaApi::backgroundMediaUploadComplete.
          *
          * @param bu the MegaBackgroundMediaUpload that the fingernail will be assoicated with
          * @param srcFilePath Source path of the file that will be set as thumbnail
@@ -8931,7 +8932,8 @@ class MegaApi
          * error code is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - The handle of the uploaded file attribute.
          *
-         * Use the result in the MegaRequest::getNodeHandle as the preview handle in the call to backgroundMediaUploadComplete.
+         * Use the result in the MegaRequest::getNodeHandle as the preview handle in the
+         * call to MegaApi::backgroundMediaUploadComplete.
          *
          * @param bu the MegaBackgroundMediaUpload that the fingernail will be assoicated with
          * @param srcFilePath Source path of the file that will be set as thumbnail
