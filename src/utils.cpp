@@ -1074,20 +1074,11 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
 
 string * TLVstore::tlvRecordsToContainer()
 {
-    TLV_map::iterator it;
-    size_t buflen = 0;
-
-    for (it = tlv.begin(); it != tlv.end(); it++)
-    {
-        // add string length + null char + 2 bytes for length + value length
-        buflen += it->first.length() + 1 + 2 + it->second.length();
-    }
-
     string * result = new string;
     size_t offset = 0;
     size_t length;
 
-    for (it = tlv.begin(); it != tlv.end(); it++)
+    for (TLV_map::iterator it = tlv.begin(); it != tlv.end(); it++)
     {
         // copy Type
         result->append(it->first);

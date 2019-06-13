@@ -4888,7 +4888,7 @@ bool MegaClient::sc_shares()
 
                 // ignore unrelated share packets (should never be triggered)
                 outbound = (oh == me);
-                if (!ISUNDEF(oh) && !(outbound) && (uh != me))
+                if (!ISUNDEF(oh) && !outbound && (uh != me))
                 {
                     return false;
                 }
