@@ -6293,7 +6293,7 @@ public:
      * @param adjustsizeonly If this is set true, then encryption is not performed, and only the length parameter is adjusted.
      *        This feature is to enable precalculating the exact sizes of the file portions for upload.
      * @return If the function tries to encrypt and succeeds, the return value is the suffix to append to the URL when uploading this enrypted chunk.
-     *         If adjustsizeonly was set, and the function succeeds, the return value will be NULL.
+     *         If adjustsizeonly was set, and the function succeeds, the return value will be non-NULL (and will need deallocation as usual).
      *         If the function fails, the return value is NULL, and an error will have been logged.
      */
     virtual char *encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly);

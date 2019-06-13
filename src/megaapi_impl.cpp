@@ -1075,7 +1075,8 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
             *length = endPos - startPos;
             if (adjustsizeonly)
             {
-                return nullptr;
+                // return non-null to indicate success.  As it's a string return in the standard case, caller must deallocate as usual.
+                return MegaApi::strdup("1");
             }
             else
             {
