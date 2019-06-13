@@ -1075,7 +1075,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
             *length = endPos - startPos;
             if (adjustsizeonly)
             {
-                return "1";  // nonempty to indicate success
+                return nullptr;
             }
             else
             {
