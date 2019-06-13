@@ -668,7 +668,7 @@ void MegaClient::getprivatekey(const char *code)
     reqs.add(new CommandGetPrivateKey(this, code));
 }
 
-void MegaClient::confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey, int accountversion)
+void MegaClient::confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkeyptr, int accountversion)
 {
     if (accountversion == 1)
     {
@@ -679,11 +679,11 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         string emailstr = email;
         uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
 
-        if (masterkey)
+        if (masterkeyptr)
         {
             // encrypt provided masterkey using the new password
             byte encryptedMasterKey[SymmCipher::KEYLENGTH];
-            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            memcpy(encryptedMasterKey, masterkeyptr, sizeof encryptedMasterKey);
             pwcipher.ecb_encrypt(encryptedMasterKey);
 
             reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, encryptedMasterKey, NULL));
@@ -691,19 +691,19 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         else
         {
             // create a new masterkey
-            byte masterkey[SymmCipher::KEYLENGTH];
-            rng.genblock(masterkey, sizeof masterkey);
+            byte newmasterkey[SymmCipher::KEYLENGTH];
+            rng.genblock(newmasterkey, sizeof newmasterkey);
 
             // generate a new session
             byte initialSession[2 * SymmCipher::KEYLENGTH];
             rng.genblock(initialSession, sizeof initialSession);
-            key.setkey(masterkey);
+            key.setkey(newmasterkey);
             key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
 
             // and encrypt the master key to the new password
-            pwcipher.ecb_encrypt(masterkey);
+            pwcipher.ecb_encrypt(newmasterkey);
 
-            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, masterkey, initialSession));
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, newmasterkey, initialSession));
         }
     }
     else
@@ -733,29 +733,29 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         SymmCipher cipher;
         cipher.setkey(derivedKey);
 
-        if (masterkey)
+        if (masterkeyptr)
         {
             // encrypt provided masterkey using the new password
             byte encryptedMasterKey[SymmCipher::KEYLENGTH];
-            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            memcpy(encryptedMasterKey, masterkeyptr, sizeof encryptedMasterKey);
             cipher.ecb_encrypt(encryptedMasterKey);
             reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, encryptedMasterKey, NULL));
         }
         else
         {
             // create a new masterkey
-            byte masterkey[SymmCipher::KEYLENGTH];
-            rng.genblock(masterkey, sizeof masterkey);
+            byte newmasterkey[SymmCipher::KEYLENGTH];
+            rng.genblock(newmasterkey, sizeof newmasterkey);
 
             // generate a new session
             byte initialSession[2 * SymmCipher::KEYLENGTH];
             rng.genblock(initialSession, sizeof initialSession);
-            key.setkey(masterkey);
+            key.setkey(newmasterkey);
             key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
 
             // and encrypt the master key to the new password
-            cipher.ecb_encrypt(masterkey);
-            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, masterkey, initialSession));
+            cipher.ecb_encrypt(newmasterkey);
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, newmasterkey, initialSession));
         }
     }
 }
@@ -1154,13 +1154,13 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     // actions in server-client stream)
     for (i = sizeof sessionid; i--; )
     {
-        sessionid[i] = 'a' + rng.genuint32(26);
+        sessionid[i] = static_cast<char>('a' + rng.genuint32(26));
     }
 
     // initialize random API request sequence ID (server API is idempotent)
     for (i = sizeof reqid; i--; )
     {
-        reqid[i] = 'a' + rng.genuint32(26);
+        reqid[i] = static_cast<char>('a' + rng.genuint32(26));
     }
 
     nextuh = 0;  
@@ -3140,7 +3140,7 @@ bool MegaClient::dispatch(direction_t d)
             app->transfer_prepare(nexttransfer);
         }
 
-        bool openok;
+        bool openok = false;
         bool openfinished = false;
 
         // verify that a local path was given and start/resume transfer
@@ -3391,7 +3391,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
         int facount = 0;
 
         // do we have the pre-set threshold number of file attributes available? complete upload.
-        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, 0));
+        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, fatype(0)));
              it != pendingfa.end() && it->first.first == th; it++)
         {
             facount++;
@@ -4533,7 +4533,7 @@ void MegaClient::pendingattrstring(handle h, string* fa)
 {
     char buf[128];
 
-    for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(h, 0));
+    for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(h, fatype(0)));
          it != pendingfa.end() && it->first.first == h; )
     {
         if (it->first.second != fa_media)
@@ -4553,7 +4553,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool 
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
-    key->cbc_encrypt((byte*)data->data(), int(data->size()));
+    key->cbc_encrypt((byte*)data->data(), data->size());
 
     queuedfa.push_back(new HttpReqCommandPutFA(this, th, t, data, checkAccess));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
@@ -4887,7 +4887,8 @@ bool MegaClient::sc_shares()
                 }
 
                 // ignore unrelated share packets (should never be triggered)
-                if (!ISUNDEF(oh) && !(outbound = (oh == me)) && (uh != me))
+                outbound = (oh == me);
+                if (!ISUNDEF(oh) && !(outbound) && (uh != me))
                 {
                     return false;
                 }
@@ -5007,7 +5008,7 @@ bool MegaClient::sc_upgrade()
 
 void MegaClient::sc_paymentreminder()
 {
-    m_time_t expiryts;
+    m_time_t expiryts = 0;
 
     for (;;)
     {
@@ -5020,7 +5021,7 @@ void MegaClient::sc_paymentreminder()
         case EOO:
             if (statecurrent)
             {
-                useralerts.add(new UserAlert::PaymentReminder(expiryts, useralerts.nextId()));
+                useralerts.add(new UserAlert::PaymentReminder(expiryts ? expiryts : m_time(), useralerts.nextId()));
             }
             return;
 
@@ -6842,7 +6843,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 {
     byte hash[SymmCipher::KEYLENGTH];
 
-    transform(s->begin(), s->end(), s->begin(), ::tolower);
+    tolower_string(*s);
     stringhash(s->c_str(), hash, c);
 
     return MemAccess::get<uint64_t>((const char*)hash);
@@ -7126,7 +7127,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         handle uh = nn[nni].uploadhandle;
 
                         // do we have pending file attributes for this upload? set them.
-                        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, 0));
+                        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, fatype(0)));
                              it != pendingfa.end() && it->first.first == uh; )
                         {
                             reqs.add(new CommandAttachFA(this, h, it->first.second, it->second.first, it->second.second));
@@ -8016,7 +8017,7 @@ User* MegaClient::finduser(const char* uid, int add)
 
     // convert e-mail address to lowercase (ASCII only)
     Node::copystring(&nuid, uid);
-    transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+    tolower_string(nuid);
 
     um_map::iterator it = umindex.find(nuid);
 
@@ -8095,7 +8096,7 @@ void MegaClient::mapuser(handle uh, const char* email)
     string nuid;
 
     Node::copystring(&nuid, email);
-    transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+    tolower_string(nuid);
 
     // does user uh exist?
     uh_map::iterator hit = uhindex.find(uh);
@@ -8351,7 +8352,7 @@ void MegaClient::queuepubkeyreq(const char *uid, PubKeyAction *pka)
         {
             string nuid;
             Node::copystring(&nuid, uid);
-            transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+            tolower_string(nuid);
 
             u = new User(nuid.c_str());
             u->uid = nuid;
@@ -9045,9 +9046,9 @@ void MegaClient::procsnk(JSON* j)
                 {
                     byte keybuf[FILENODEKEYLENGTH];
 
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, unsigned(n->nodekey.size()));
+                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
 
-                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, unsigned(n->nodekey.size())));
+                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, n->nodekey.size()));
                 }
             }
 
@@ -9411,7 +9412,7 @@ unsigned MegaClient::addnode(node_vector* v, Node* n) const
 void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* selector)
 {
     node_vector rshares, rnodes;
-    unsigned si, ni;
+    unsigned si, ni = unsigned(-1);
     Node* sn;
     Node* n;
     string crkeys;
@@ -9435,7 +9436,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     if (!selector)
     {
         si = 0;
-        ni = -1;
+        ni = unsigned(-1);
         if (shares->empty() || nodes->empty())
         {
             return;
@@ -9503,7 +9504,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 {
                     if (setkey == (int)n->nodekey.size())
                     {
-                        sn->sharekey->ecb_decrypt(keybuf, unsigned(n->nodekey.size()));
+                        sn->sharekey->ecb_decrypt(keybuf, n->nodekey.size());
                         n->setkey(keybuf);
                         setkey = -1;
                     }
@@ -9522,7 +9523,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         sprintf(buf, "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
-                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, unsigned(n->nodekey.size()));
+                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
                         Base64::btoa(keybuf, int(n->nodekey.size()), strchr(buf + 7, 0));
                         crkeys.append(buf);
                     }
@@ -10159,9 +10160,9 @@ void MegaClient::setkeypair()
     unsigned t = unsigned(privks.size());
 
     privks.resize((t + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE);
-    rng.genblock((byte*)(privks.data() + t), int(privks.size() - t));
+    rng.genblock((byte*)(privks.data() + t), privks.size() - t);
 
-    key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), (unsigned)privks.size());
+    key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), privks.size());
 
     reqs.add(new CommandSetKeyPair(this,
                                       (const byte*)privks.data(),
