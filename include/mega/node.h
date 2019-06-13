@@ -141,7 +141,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static int hasfileattribute(const string *fileattrstring, fatype);
 
     // decrypt node attribute string
-    static byte* decryptattr(SymmCipher*, const char*, int);
+    static byte* decryptattr(SymmCipher*, const char*, size_t);
 
     // inbound share
     Share* inshare;

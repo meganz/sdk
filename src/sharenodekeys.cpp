@@ -70,7 +70,7 @@ void ShareNodeKeys::add(NodeCore* n, Node* sn, int specific, const byte* item, i
             sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), key, n->nodekey.size());
 
             ptr = strchr(buf + 5, 0);
-            ptr += Base64::btoa(key, n->nodekey.size(), ptr);
+            ptr += Base64::btoa(key, int(n->nodekey.size()), ptr);
             *ptr++ = '"';
 
             keys.append(buf, ptr - buf);
@@ -115,7 +115,7 @@ void ShareNodeKeys::get(Command* c, bool skiphandles)
         {
             for (unsigned i = 0; i < items.size(); i++)
             {
-                c->element((const byte*)items[i].c_str(), items[i].size());
+                c->element((const byte*)items[i].c_str(), int(items[i].size()));
             }
         }
 
@@ -123,7 +123,7 @@ void ShareNodeKeys::get(Command* c, bool skiphandles)
 
         // emit linkage/keys
         c->beginarray();
-        c->appendraw(keys.c_str() + 1, keys.size() - 1);
+        c->appendraw(keys.c_str() + 1, int(keys.size() - 1));
         c->endarray();
 
         c->endarray();

@@ -170,7 +170,7 @@ bool Transfer::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(combinedUrls.data(), ll);
 
-    char s = state;
+    char s = static_cast<char>(state);
     d->append((const char*)&s, sizeof(s));
     d->append((const char*)&priority, sizeof(priority));
     d->append("", 1);

@@ -49,18 +49,17 @@ int AttrMap::nameid2string(nameid id, char* buf)
         }
     }
 
-    return ptr - buf;
+    return static_cast<int>(ptr - buf);
 }
 
 nameid AttrMap::string2nameid(const char *a)
 {
-    int len;
     if (!a)
     {
         return 0;
     }
 
-    len = strlen(a);
+    size_t len = strlen(a);
     if (len > 8)
     {
         return 0;
