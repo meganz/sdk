@@ -203,7 +203,7 @@ struct MEGA_API HttpReq
     reqstatus_t status;
     m_off_t pos;
 
-    long httpstatus;
+    int httpstatus;
 
     httpmethod_t method;
     contenttype_t type;

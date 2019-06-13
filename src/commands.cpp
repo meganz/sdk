@@ -2007,11 +2007,11 @@ void CommandSetShare::procresult()
     {
         switch (client->json.getnameid())
         {
-            byte key[SymmCipher::KEYLENGTH + 1];
-
             case MAKENAMEID2('o', 'k'):  // an owner key response will only
                                          // occur if the same share was created
                                          // concurrently with a different key
+            {
+                byte key[SymmCipher::KEYLENGTH + 1];
                 if (client->json.storebinary(key, sizeof key + 1) == SymmCipher::KEYLENGTH)
                 {
                     Node* n;
@@ -2028,7 +2028,8 @@ void CommandSetShare::procresult()
                     }
                 }
                 break;
-
+            }
+                
             case 'u':   // user/handle confirmation
                 if (client->json.enterarray())
                 {
@@ -6314,7 +6315,7 @@ void CommandGetMegaAchievements::procresult()
                             achievement.transfer = client->json.getint();
                             const char *exp_ts = client->json.getvalue();
                             char *pEnd = NULL;
-                            achievement.expire = strtol(exp_ts, &pEnd, 10);
+                            achievement.expire = int(strtol(exp_ts, &pEnd, 10));
                             if (*pEnd == 'm')
                             {
                                 achievement.expire *= 30;
@@ -6427,7 +6428,7 @@ void CommandGetMegaAchievements::procresult()
                         reward.transfer = client->json.getint();
                         const char *exp_ts = client->json.getvalue();
                         char *pEnd = NULL;
-                        reward.expire = strtol(exp_ts, &pEnd, 10);
+                        reward.expire = int(strtol(exp_ts, &pEnd, 10));
                         if (*pEnd == 'm')
                         {
                             reward.expire *= 30;

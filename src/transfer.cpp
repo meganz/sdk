@@ -529,7 +529,7 @@ void Transfer::complete()
         // verify integrity of file
         FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n;
+        Node* n = nullptr;
         bool fixfingerprint = false;
         bool fixedfingerprint = false;
         bool syncxfer = false;

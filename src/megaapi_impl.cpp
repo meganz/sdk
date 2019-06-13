@@ -8248,7 +8248,7 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
     }
     sdkMutex.unlock();
 
-    links = new MegaStringListPrivate(listoflinks.data(),listoflinks.size());
+    links = new MegaStringListPrivate(listoflinks.data(), int(listoflinks.size()));
 
     return links;
 }
@@ -8279,7 +8279,7 @@ MegaNodeList *MegaApiImpl::httpServerGetWebDavAllowedNodes()
     }
     sdkMutex.unlock();
 
-    nodes = new MegaNodeListPrivate(listofnodes.data(),listofnodes.size());
+    nodes = new MegaNodeListPrivate(listofnodes.data(), int(listofnodes.size()));
 
     return nodes;
 }
@@ -8627,7 +8627,7 @@ MegaStringList *MegaApiImpl::ftpServerGetLinks()
     }
     sdkMutex.unlock();
 
-    links = new MegaStringListPrivate(listoflinks.data(),listoflinks.size());
+    links = new MegaStringListPrivate(listoflinks.data(), int(listoflinks.size()));
 
     return links;
 }
@@ -8658,7 +8658,7 @@ MegaNodeList *MegaApiImpl::ftpServerGetAllowedNodes()
     }
     sdkMutex.unlock();
 
-    nodes = new MegaNodeListPrivate(listofnodes.data(),listofnodes.size());
+    nodes = new MegaNodeListPrivate(listofnodes.data(), int(listofnodes.size()));
 
     return nodes;
 }
@@ -23293,7 +23293,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
     if (basePath.size())
     {
         string sBasePath = basePath;
-        int lastIndex = sBasePath.size() - 1;
+        int lastIndex = int(sBasePath.size() - 1);
         if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
         {
             string utf8Separator;
