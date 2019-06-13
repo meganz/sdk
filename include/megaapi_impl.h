@@ -834,7 +834,7 @@ public:
     bool isValid() const;
 
     virtual ~MegaPushNotificationSettingsPrivate();
-    virtual MegaPushNotificationSettings *copy() const;
+    virtual MegaPushNotificationSettings *copy() const override;
 
 private:
     m_time_t mGlobalDND = -1;        // defaults to -1 if not defined
@@ -1037,7 +1037,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaRequestPrivate(MegaRequestPrivate *request);
 
         virtual ~MegaRequestPrivate();
-        MegaRequest *copy();
+        MegaRequest *copy() override;
         void setNodeHandle(MegaHandle nodeHandle);
         void setLink(const char* link);
         void setParentHandle(MegaHandle parentHandle);
@@ -1068,51 +1068,51 @@ class MegaRequestPrivate : public MegaRequest
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
 
-        virtual int getType() const;
-        virtual const char *getRequestString() const;
-        virtual const char* toString() const;
-        virtual const char* __str__() const;
-        virtual const char* __toString() const;
-        virtual MegaHandle getNodeHandle() const;
-        virtual const char* getLink() const;
-        virtual MegaHandle getParentHandle() const;
-        virtual const char* getSessionKey() const;
-        virtual const char* getName() const;
-        virtual const char* getEmail() const;
-        virtual const char* getPassword() const;
-        virtual const char* getNewPassword() const;
-        virtual const char* getPrivateKey() const;
-        virtual int getAccess() const;
-        virtual const char* getFile() const;
-        virtual int getNumRetry() const;
-        virtual MegaNode *getPublicNode() const;
-        virtual MegaNode *getPublicMegaNode() const;
-        virtual int getParamType() const;
-        virtual const char *getText() const;
-        virtual long long getNumber() const;
-        virtual bool getFlag() const;
-        virtual long long getTransferredBytes() const;
-        virtual long long getTotalBytes() const;
-        virtual MegaRequestListener *getListener() const;
-        virtual MegaAccountDetails *getMegaAccountDetails() const;
-        virtual int getTransferTag() const;
-        virtual int getNumDetails() const;
-        virtual int getTag() const;
-        virtual MegaPricing *getPricing() const;
+        virtual int getType() const override;
+        virtual const char *getRequestString() const override;
+        virtual const char* toString() const override;
+        virtual const char* __str__() const override;
+        virtual const char* __toString() const override;
+        virtual MegaHandle getNodeHandle() const override;
+        virtual const char* getLink() const override;
+        virtual MegaHandle getParentHandle() const override;
+        virtual const char* getSessionKey() const override;
+        virtual const char* getName() const override;
+        virtual const char* getEmail() const override;
+        virtual const char* getPassword() const override;
+        virtual const char* getNewPassword() const override;
+        virtual const char* getPrivateKey() const override;
+        virtual int getAccess() const override;
+        virtual const char* getFile() const override;
+        virtual int getNumRetry() const override;
+        virtual MegaNode *getPublicNode() const override;
+        virtual MegaNode *getPublicMegaNode() const override;
+        virtual int getParamType() const override;
+        virtual const char *getText() const override;
+        virtual long long getNumber() const override;
+        virtual bool getFlag() const override;
+        virtual long long getTransferredBytes() const override;
+        virtual long long getTotalBytes() const override;
+        virtual MegaRequestListener *getListener() const override;
+        virtual MegaAccountDetails *getMegaAccountDetails() const override;
+        virtual int getTransferTag() const override;
+        virtual int getNumDetails() const override;
+        virtual int getTag() const override;
+        virtual MegaPricing *getPricing() const override;
         AccountDetails * getAccountDetails() const;
-        virtual MegaAchievementsDetails *getMegaAchievementsDetails() const;
+        virtual MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
-        MegaTimeZoneDetails *getMegaTimeZoneDetails () const;
+        MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
 
 #ifdef ENABLE_CHAT
-        virtual MegaTextChatPeerList *getMegaTextChatPeerList() const;
+        virtual MegaTextChatPeerList *getMegaTextChatPeerList() const override;
         void setMegaTextChatPeerList(MegaTextChatPeerList *chatPeers);
-        virtual MegaTextChatList *getMegaTextChatList() const;
+        virtual MegaTextChatList *getMegaTextChatList() const override;
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
-        virtual MegaStringMap *getMegaStringMap() const;
+        virtual MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
-        virtual MegaFolderInfo *getMegaFolderInfo() const;
+        virtual MegaFolderInfo *getMegaFolderInfo() const override;
         void setMegaFolderInfo(const MegaFolderInfo *);
         const MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
         void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
@@ -1516,7 +1516,7 @@ class MegaNodeListPrivate : public MegaNodeList
 		virtual MegaNode* get(int i) const override;
 		virtual int size() const override;
 
-        virtual void addNode(MegaNode* node);
+        virtual void addNode(MegaNode* node) override;
 	
 	protected:
 		MegaNode** list;
