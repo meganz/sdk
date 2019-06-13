@@ -267,7 +267,7 @@ User* User::unserialize(MegaClient* client, string* d)
     }
 #endif
 
-    if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
+    if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, int(end - ptr)))
     {
         client->discarduser(uh);
         return NULL;
@@ -689,7 +689,7 @@ attr_t User::string2attr(const char* name)
     }
 }
 
-bool User::needversioning(attr_t at)
+int User::needversioning(attr_t at)
 {
     switch(at)
     {

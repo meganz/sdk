@@ -562,11 +562,11 @@ void Node::copystring(string* s, const char* p)
 }
 
 // decrypt attrstring and check magic number prefix
-byte* Node::decryptattr(SymmCipher* key, const char* attrstring, int attrstrlen)
+byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrlen)
 {
     if (attrstrlen)
     {
-        int l = attrstrlen * 3 / 4 + 3;
+        int l = int(attrstrlen * 3 / 4 + 3);
         byte* buf = new byte[l];
 
         l = Base64::atob(attrstring, buf, l);
@@ -1024,7 +1024,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
     if (newlocalpath)
     {
         // extract name component from localpath, check for rename unless newnode
-        int p;
+        size_t p;
 
         for (p = newlocalpath->size(); p -= sync->client->fsaccess->localseparator.size(); )
         {
@@ -1660,7 +1660,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
         memcpy(crc, ptr, sizeof crc);
         ptr += sizeof crc;
 
-        if (Serialize64::unserialize((byte*)ptr, end - ptr, &mtime) < 0)
+        if (Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime) < 0)
         {
             LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;

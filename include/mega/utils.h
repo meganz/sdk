@@ -349,6 +349,9 @@ std::string webdavurlescape(const std::string &value);
 std::string escapewebdavchar(const char c);
 std::string webdavnameescape(const std::string &value);
 
+void tolower_string(std::string& str);
+
+
 struct CacheableWriter
 {
     CacheableWriter(string& d);

@@ -773,7 +773,7 @@ void CommandGetFile::procresult()
                     key.setkey(filekey, FILENODE);
 
                     if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
-                                                 at, int(eos ? eos - at : strlen(at)))))
+                                                 at, eos ? eos - at : strlen(at))))
                     {
                         JSON json;
 
@@ -1069,7 +1069,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 
         if (nn[i].nodekey.size() <= sizeof key)
         {
-            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, unsigned(nn[i].nodekey.size()));
+            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
             arg("k", key, int(nn[i].nodekey.size()));
         }
         else
@@ -3268,7 +3268,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 
         if ((n = client->nodebyhandle(h)))
         {
-            client->key.ecb_encrypt((byte*)n->nodekey.data(), nodekey, unsigned(n->nodekey.size()));
+            client->key.ecb_encrypt((byte*)n->nodekey.data(), nodekey, n->nodekey.size());
 
             element(h, MegaClient::NODEHANDLE);
             element(nodekey, int(n->nodekey.size()));
@@ -3278,7 +3278,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
     endarray();
 }
 
-CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, unsigned keylen)
+CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, size_t keylen)
 {
     cmd("k");
     beginarray("cr");
@@ -3294,7 +3294,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, un
     beginarray();
     element(0);
     element(0);
-    element(key, keylen);
+    element(key, static_cast<int>(keylen));
     endarray();
 
     endarray();
@@ -3556,10 +3556,10 @@ void CommandGetUserData::procresult()
                     {
                         case 's':
                             // -1: expired, 1: active, 2: grace-period
-                            s = client->json.getint();
+                            s = client->json.getint32();
                             break;
                         case 'm':
-                            m = client->json.getint();
+                            m = client->json.getint32();
                             break;
                         case EOO:
                             endobject = true;
@@ -4504,7 +4504,7 @@ void CommandConfirmSignupLink2::procresult()
 {
     string name;
     string email;
-    handle uh;
+    handle uh = UNDEF;
     int version = 0;
 
     if (client->json.isnumeric())

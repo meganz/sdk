@@ -242,7 +242,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         char bsize[sizeof(size)+1];
         int l = Serialize64::serialize((byte *)bsize, size);
         char *buf = new char[l * 4 / 3 + 4];
-        char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+        char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
         string result(1, ssize);
         result.append(buf);
         result.append(fingerprint);
@@ -1155,8 +1155,8 @@ string MegaNodePrivate::getLocalPath()
 bool WildcardMatch(const char *pszString, const char *pszMatch)
 //  cf. http://www.planet-source-code.com/vb/scripts/ShowCode.asp?txtCodeId=1680&lngWId=3
 {
-    const char *cp;
-    const char *mp;
+    const char *cp = nullptr;
+    const char *mp = nullptr;
 
     while ((*pszString) && (*pszMatch != '*'))
     {
@@ -3938,7 +3938,7 @@ MegaNodeListPrivate::MegaNodeListPrivate()
 
 MegaNodeListPrivate::MegaNodeListPrivate(node_vector& v)
 {
-    list = NULL; s = v.size();
+    list = NULL; s = static_cast<int>(v.size());
     if (!s) return;
 
     list = new MegaNode*[s];
@@ -4215,7 +4215,7 @@ MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
 MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc)
 {
     list = NULL;
-    s = v.size();
+    s = static_cast<int>(v.size());
 
     if (!s)
         return;
@@ -4938,6 +4938,9 @@ MegaApiImpl::~MegaApiImpl()
     requestQueue.push(request);
     waiter->notify();
     thread.join();
+
+    delete mPushSettings;
+    delete mTimezones;
 
     requestMap.erase(request->getTag());
 
@@ -6736,7 +6739,7 @@ void MegaApiImpl::getNodeAttribute(MegaNode *node, int type, const char *dstFile
         {
             const char *base64Handle = node->getBase64Handle();
             path.append(base64Handle);
-            path.push_back('0' + type);
+            path.push_back(static_cast<char>('0' + type));
             path.append(".jpg");
             delete [] base64Handle;
         }
@@ -6820,7 +6823,7 @@ void MegaApiImpl::getUserAttr(const char *email_or_handle, int type, const char 
         if((c=='/') || (c == '\\'))
         {
             path.append(email_or_handle);
-            path.push_back('0' + type);
+            path.push_back(static_cast<char>('0' + type));
             path.append(".jpg");
         }
 
@@ -6854,7 +6857,7 @@ void MegaApiImpl::getChatUserAttr(const char *email_or_handle, int type, const c
         if((c=='/') || (c == '\\'))
         {
             path.append(email_or_handle);
-            path.push_back('0' + type);
+            path.push_back(static_cast<char>('0' + type));
             path.append(".jpg");
         }
 
@@ -10502,7 +10505,7 @@ bool MegaApiImpl::getLanguageCode(const char *languageCode, string *code)
 
     code->clear();
     string s = languageCode;
-    transform(s.begin(), s.end(), s.begin(), ::tolower);
+    tolower_string(s);
 
     while (s.size() >= 2)
     {
@@ -10809,7 +10812,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     char bsize[sizeof(size)+1];
     int l = Serialize64::serialize((byte *)bsize, size);
     char *buf = new char[l * 4 / 3 + 4];
-    char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
 
     string result(1, ssize);
     result.append(buf);
@@ -10860,7 +10863,7 @@ char *MegaApiImpl::getFingerprint(MegaInputStream *inputStream, int64_t mtime)
     char bsize[sizeof(size)+1];
     int l = Serialize64::serialize((byte *)bsize, size);
     char *buf = new char[l * 4 / 3 + 4];
-    char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+    char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
 
     string result(1, ssize);
     result.append(buf);
@@ -11567,7 +11570,7 @@ void MegaApiImpl::getprivatekey_result(error e, const byte *privk, const size_t 
 
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     memcpy(privkbuf, privk, len_privk);
-    key.ecb_decrypt(privkbuf, unsigned(len_privk));
+    key.ecb_decrypt(privkbuf, len_privk);
 
     AsymmCipher uk;
     if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, int(len_privk)))
@@ -13372,11 +13375,11 @@ void MegaApiImpl::prelogin_result(int version, string* email, string *salt, erro
             }
             else
             {
-                error e;
+                error err;
                 byte pwkey[SymmCipher::KEYLENGTH];
-                if ((e = client->pw_key(password, pwkey)))
+                if ((err = client->pw_key(password, pwkey)))
                 {
-                    fireOnRequestFinish(request, MegaError(e));
+                    fireOnRequestFinish(request, MegaError(err));
                     return;
                 }
 
@@ -13737,7 +13740,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     keystring.assign((char*)key,FILENODEKEYLENGTH);
     nodeKey.setkey(key, FILENODE);
 
-    byte *buf = Node::decryptattr(&nodeKey, attrstring.c_str(), int(attrstring.size()));
+    byte *buf = Node::decryptattr(&nodeKey, attrstring.c_str(), attrstring.size());
     if (buf)
     {
         JSON json;
@@ -13785,7 +13788,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
                 char bsize[sizeof(size)+1];
                 int l = Serialize64::serialize((byte *)bsize, size);
                 char *buf = new char[l * 4 / 3 + 4];
-                char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+                char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
 
                 string result(1, ssize);
                 result.append(buf);
@@ -13912,7 +13915,7 @@ void MegaApiImpl::account_details(AccountDetails*, bool, bool, bool, bool, bool,
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_ACCOUNT_DETAILS)) return;
 
-	int numPending = request->getNumber();
+	long long numPending = request->getNumber();
     numPending--;
 	request->setNumber(numPending);
 	if(!numPending)
@@ -16546,7 +16549,7 @@ char *MegaApiImpl::getSdkFingerprintFromMegaFingerprint(const char *megaFingerpr
     char bsize[sizeof(size) + 1];
     int l = Serialize64::serialize((byte *)bsize, size);
     char *buf = new char[l * 4 / 3 + 4];
-    char sizelen = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+    char sizelen = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
     string result(1, sizelen);
     result.append(buf);
     result.append(megaFingerprint);
@@ -16604,7 +16607,7 @@ MegaNode* MegaApiImpl::getNodeByPath(const char *path, MegaNode* node)
 	int l = 0;
 	const char* bptr = path;
 	int remote = 0;
-	Node* n;
+	Node* n = nullptr;
 	Node* nn;
 
 	// split path by / or :
@@ -18052,7 +18055,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            accesslevel_t a;
+            accesslevel_t a = ACCESS_UNKNOWN;
 			switch(access)
 			{
 				case MegaShare::ACCESS_UNKNOWN:
@@ -18903,7 +18906,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             byte pwbuf[SymmCipher::KEYLENGTH];
-            handle uh;
+            handle uh = UNDEF;
             if (resumeProcess)
             {
                 size_t pwkeyLen = strlen(sid);
@@ -19568,7 +19571,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string utf8name(localPath);
             MegaBackupController *mbc = NULL;
-            int tagexisting;
+            int tagexisting = 0;
             bool existing = false;
             for (std::map<int, MegaBackupController *>::iterator it = backupsMap.begin(); it != backupsMap.end(); ++it)
             {
@@ -23082,7 +23085,7 @@ void MegaBackupController::start(bool skip)
 
     size_t plastsep = basepath.find_last_of("\\/");
     if(plastsep == string::npos)
-        plastsep = -1;
+        plastsep = size_t(-1);
     string name = basepath.substr(plastsep+1);
 
     std::ostringstream ossremotename;
@@ -25220,7 +25223,7 @@ int MegaHTTPServer::onHeaderField(http_parser *parser, const char *at, size_t le
 {
     MegaHTTPContext* httpctx = (MegaHTTPContext*) parser->data;
     httpctx->lastheader = string(at, length);
-    transform(httpctx->lastheader.begin(), httpctx->lastheader.end(), httpctx->lastheader.begin(), ::tolower);
+    tolower_string(httpctx->lastheader);
 
     if (length == 5 && !memcmp(at, "Range", 5))
     {
@@ -30500,11 +30503,11 @@ MegaPushNotificationSettingsPrivate::MegaPushNotificationSettingsPrivate(const s
                         }
                         else if (scheduleSubTitle == "start" && scheduleJson.isnumeric())
                         {
-                            mGlobalScheduleStart = scheduleJson.getint();
+                            mGlobalScheduleStart = scheduleJson.getint32();
                         }
                         else if (scheduleSubTitle == "end" && scheduleJson.isnumeric())
                         {
-                            mGlobalScheduleEnd = scheduleJson.getint();
+                            mGlobalScheduleEnd = scheduleJson.getint32();
                         }
                         else
                         {
