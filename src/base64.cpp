@@ -128,8 +128,6 @@ int Base64::atob(const char* a, byte* b, int blen)
 
         b[p++] = (c[2] << 6) | c[3];
     }
-
-    return p;
 }
 
 void Base64::itoa(int64_t val, string *result)
@@ -374,8 +372,6 @@ int Base32::atob(const char *a, byte *b, int blen)
 
         b[p++] = (c[6] << 5) | c[7];
     }
-
-    return p;
 }
 
 bool URLCodec::issafe(char c)

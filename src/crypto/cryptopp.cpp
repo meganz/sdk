@@ -29,7 +29,7 @@ namespace mega {
 using namespace CryptoPP;
 
 // cryptographically strong random byte sequence
-void PrnGen::genblock(byte* buf, int len)
+void PrnGen::genblock(byte* buf, size_t len)
 {
     GenerateBlock(buf, len);
 }
@@ -88,13 +88,13 @@ bool SymmCipher::setkey(const string* key)
     return false;
 }
 
-void SymmCipher::cbc_encrypt(byte* data, unsigned len, const byte* iv)
+void SymmCipher::cbc_encrypt(byte* data, size_t len, const byte* iv)
 {
     aescbc_e.Resynchronize(iv ? iv : zeroiv);
     aescbc_e.ProcessData(data, data, len);
 }
 
-void SymmCipher::cbc_decrypt(byte* data, unsigned len, const byte* iv)
+void SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
 {
     aescbc_d.Resynchronize(iv ? iv : zeroiv);
     aescbc_d.ProcessData(data, data, len);
@@ -116,12 +116,12 @@ void SymmCipher::cbc_decrypt_pkcs_padding(const std::string *data, const byte *i
                                                      StreamTransformationFilter::PKCS_PADDING));
 }
 
-void SymmCipher::ecb_encrypt(byte* data, byte* dst, unsigned len)
+void SymmCipher::ecb_encrypt(byte* data, byte* dst, size_t len)
 {
     aesecb_e.ProcessData(dst ? dst : data, data, len);
 }
 
-void SymmCipher::ecb_decrypt(byte* data, unsigned len)
+void SymmCipher::ecb_decrypt(byte* data, size_t len)
 {
     aesecb_d.ProcessData(data, data, len);
 }
@@ -322,13 +322,13 @@ static void rsaencrypt(Integer* key, Integer* m)
     *m = a_exp_b_mod_c(*m, key[AsymmCipher::PUB_E], key[AsymmCipher::PUB_PQ]);
 }
 
-unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int buflen)
+unsigned AsymmCipher::rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen)
 {
     Integer t(plain, plainlen);
 
     rsaencrypt(key, &t);
 
-    int i = t.ByteCount();
+    unsigned i = t.ByteCount();
 
     if (i > buflen)
     {
@@ -343,9 +343,9 @@ unsigned AsymmCipher::rawencrypt(const byte* plain, int plainlen, byte* buf, int
     return t.ByteCount();
 }
 
-int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, int plainlen, byte* buf, int buflen)
+int AsymmCipher::encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen)
 {
-    if ((int)key[PUB_PQ].ByteCount() + 2 > buflen)
+    if (key[PUB_PQ].ByteCount() + 2 > buflen)
     {
         return 0;
     }
@@ -400,13 +400,13 @@ static void rsadecrypt(Integer* key, Integer* m)
     *m = *m * key[AsymmCipher::PRIV_P] + xp;
 }
 
-unsigned AsymmCipher::rawdecrypt(const byte* cipher, int cipherlen, byte* buf, int buflen)
+unsigned AsymmCipher::rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen)
 {
     Integer m(cipher, cipherlen);
 
     rsadecrypt(key, &m);
 
-    int i = m.ByteCount();
+    unsigned i = m.ByteCount();
 
     if (i > buflen)
     {
@@ -421,18 +421,18 @@ unsigned AsymmCipher::rawdecrypt(const byte* cipher, int cipherlen, byte* buf, i
     return m.ByteCount();
 }
 
-int AsymmCipher::decrypt(const byte* cipher, int cipherlen, byte* out, int numbytes)
+int AsymmCipher::decrypt(const byte* cipher, size_t cipherlen, byte* out, size_t numbytes)
 {
     Integer m;
 
-    if (!decodeintarray(&m, 1, cipher, cipherlen))
+    if (!decodeintarray(&m, 1, cipher, int(cipherlen)))
     {
         return 0;
     }
 
     rsadecrypt(key, &m);
 
-    unsigned l = key[AsymmCipher::PRIV_P].ByteCount() + key[AsymmCipher::PRIV_Q].ByteCount() - 2;
+    size_t l = key[AsymmCipher::PRIV_P].ByteCount() + key[AsymmCipher::PRIV_Q].ByteCount() - 2;
 
     if (m.ByteCount() > l)
     {
@@ -521,7 +521,7 @@ void AsymmCipher::serializeintarray(Integer* t, int numints, string* d, bool hea
     {
         if (headers)
         {
-            c = t[i].BitCount() >> 8;
+            c = static_cast<char>(t[i].BitCount() >> 8);
             d->append(&c, sizeof c);
 
             c = (char)t[i].BitCount();
@@ -652,7 +652,7 @@ HMACSHA256::HMACSHA256(const byte *key, size_t length)
 {
 }
 
-void HMACSHA256::add(const byte *data, unsigned len)
+void HMACSHA256::add(const byte *data, size_t len)
 {
     hmac.Update(data, len);
 }

@@ -52,7 +52,7 @@ File::~File()
 
 bool File::serialize(string *d)
 {
-    char type = transfer->type;
+    char type = char(transfer->type);
     d->append((const char*)&type, sizeof(type));
 
     if (!FileFingerprint::serialize(d))

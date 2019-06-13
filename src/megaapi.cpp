@@ -4502,7 +4502,7 @@ char *MegaApi::getMimeType(const char *extension)
     };
 
     string key = extension;
-    std::transform(key.begin(), key.end(), key.begin(), [](char c) { return static_cast<char>(::tolower(c)); });
+    tolower_string(key);
     map<string, string>::const_iterator it = mimeMap.find(key);
     return it == mimeMap.cend() ? nullptr : MegaApi::strdup(it->second.c_str());
 }

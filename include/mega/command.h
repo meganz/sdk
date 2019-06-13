@@ -356,7 +356,7 @@ public:
 class MEGA_API CommandSingleKeyCR : public Command
 {
 public:
-    CommandSingleKeyCR(handle, handle, const byte*, unsigned);
+    CommandSingleKeyCR(handle, handle, const byte*, size_t);
 };
 
 class MEGA_API CommandDelNode : public Command

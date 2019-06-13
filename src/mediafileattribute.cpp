@@ -44,7 +44,7 @@ uint32_t GetMediaInfoVersion()
     {
         std::string s = ZenLib::Ztring(MediaInfoLib::MediaInfo::Option_Static(__T("Info_Version")).c_str()).To_Local();   // eg. __T("MediaInfoLib - v17.10")
         unsigned column = 1;
-        for (unsigned i = s.size(); i--; )
+        for (size_t i = s.size(); i--; )
         {
             if (isdigit(s[i]))
             {
@@ -117,7 +117,7 @@ unsigned MediaFileInfo::Lookup(const std::string& name, std::map<std::string, un
 
 byte MediaFileInfo::LookupShortFormat(unsigned containerid, unsigned videocodecid, unsigned audiocodecid)
 {
-    for (unsigned i = mediaCodecs.shortformats.size(); i--; )
+    for (size_t i = mediaCodecs.shortformats.size(); i--; )
     {
         // only 256 entries max, so iterating will be very quick
         MediaCodecs::shortformatrec& r = mediaCodecs.shortformats[i];
@@ -203,7 +203,7 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
         mediaCodecsReceived = true;
 
         // update any download transfers we already processed
-        for (unsigned i = queuedForDownloadTranslation.size(); i--; )
+        for (size_t i = queuedForDownloadTranslation.size(); i--; )
         {
             queuedvp& q = queuedForDownloadTranslation[i];
             sendOrQueueMediaPropertiesFileAttributesForExistingFile(q.vp, q.fakey, client, q.handle);
@@ -218,7 +218,7 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
         ++i;   // the call below may remove this item from the map
 
         // indicate that file attribute 8 can be retrieved now, allowing the transfer to complete
-        client->pendingfa[pair<handle, fatype>(th, fa_media)] = pair<handle, int>(0, 0);
+        client->pendingfa[pair<handle, fatype>(th, fatype(fa_media))] = pair<handle, int>(0, 0);
         client->checkfacompletion(th);
     }
 }
@@ -240,7 +240,7 @@ unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaPropert
     if (mediaCodecsReceived)
     {
         // indicate we have this attribute ready to go. Otherwise the transfer will be put on hold till we can
-        client->pendingfa[pair<handle, fatype>(uploadHandle, fa_media)] = pair<handle, int>(0, 0);
+        client->pendingfa[pair<handle, fatype>(uploadHandle, fatype(fa_media))] = pair<handle, int>(0, 0);
     }
     return 1;
 }
@@ -483,13 +483,13 @@ std::string MediaProperties::encodeMediaPropertiesAttributes(MediaProperties vp,
     // LE code below
     byte v[8];
     v[7] = vp.shortformat;
-    v[6] = vp.playtime >> 10;
-    v[5] = (vp.playtime >> 2) & 255;
-    v[4] = ((vp.playtime & 3) << 6) + (vp.fps >> 2);
-    v[3] = ((vp.fps & 3) << 6) + ((vp.height >> 9) & 63);
-    v[2] = (vp.height >> 1) & 255;
-    v[1] = ((vp.width >> 8) & 127) + ((vp.height & 1) << 7);
-    v[0] = vp.width & 255;
+    v[6] = byte(vp.playtime >> 10);
+    v[5] = byte((vp.playtime >> 2) & 255);
+    v[4] = byte(((vp.playtime & 3) << 6) + (vp.fps >> 2));
+    v[3] = byte(((vp.fps & 3) << 6) + ((vp.height >> 9) & 63));
+    v[2] = byte((vp.height >> 1) & 255);
+    v[1] = byte(((vp.width >> 8) & 127) + ((vp.height & 1) << 7));
+    v[0] = byte(vp.width & 255);
 
     std::string result = formatfileattr(fa_media, v, sizeof v, fakey);
 

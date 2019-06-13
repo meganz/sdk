@@ -158,7 +158,7 @@ Proxy *HttpIO::getautoproxy()
         {
             string proxyURL;
             proxy->setProxyType(Proxy::CUSTOM);
-            int len = wcslen(ieProxyConfig.lpszProxy);
+            int len = static_cast<int>(wcslen(ieProxyConfig.lpszProxy));
             proxyURL.assign((const char*)ieProxyConfig.lpszProxy, len * sizeof(wchar_t) + 1);
 
             // only save one proxy
@@ -474,7 +474,7 @@ void HttpReq::put(void* data, unsigned len, bool purge)
     {
         if (bufpos + len > buflen)
         {
-            len = buflen - bufpos;
+            len = static_cast<unsigned>(buflen - bufpos);
         }
 
         memcpy(buf + bufpos, data, len);
@@ -564,7 +564,7 @@ void HttpReq::setcontentlength(m_off_t len)
 {
     if (!buf && type != REQ_BINARY)
     {
-        in.reserve(len);
+        in.reserve(static_cast<size_t>(len));
     }
 
     contentlength = len;
@@ -577,7 +577,7 @@ byte* HttpReq::reserveput(unsigned* len)
     {
         if (bufpos + *len > buflen)
         {
-            *len = buflen - bufpos;
+            *len = static_cast<unsigned>(buflen - bufpos);
         }
 
         return buf + bufpos;
@@ -594,10 +594,10 @@ byte* HttpReq::reserveput(unsigned* len)
 
         if (bufpos + *len > (int) in.size())
         {
-            in.resize(bufpos + *len);
+            in.resize(static_cast<size_t>(bufpos + *len));
         }
 
-        *len = in.size() - bufpos;
+        *len = static_cast<unsigned>(in.size() - bufpos);
 
         return (byte*)in.data() + bufpos;
     }
@@ -670,7 +670,7 @@ void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
     while (chunksize)
     {
         byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-        key->ctr_crypt(chunkstart, chunksize, startpos, ctriv, mac, 1);
+        key->ctr_crypt(chunkstart, static_cast<unsigned>(chunksize), startpos, ctriv, mac, 1);
         memcpy((*macs)[startpos].mac, mac, sizeof mac);
         (*macs)[startpos].finished = false;
         LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
