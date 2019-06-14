@@ -19,8 +19,7 @@
 * program.
 */
 
-#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-// autocomplete for clients using c++11 - so far just megacli and megaclc on windows and linux.
+// autocomplete - so far just megacli and megaclc on windows and linux.
 
 #ifndef MEGA_AUTOCOMPLETE_H
 #define MEGA_AUTOCOMPLETE_H 1
@@ -84,6 +83,9 @@ namespace autocomplete {
         const quoted_word& word() {
             return words[i];
         }
+
+        bool extractflag(const string& flag);
+        bool extractflagparam(const string& flag, string& param);
 
         ACN selectedSyntax;
     };
@@ -267,5 +269,4 @@ namespace autocomplete {
     ACN contactEmail(MegaClient*);
 
 }} //namespaces
-#endif
 #endif
