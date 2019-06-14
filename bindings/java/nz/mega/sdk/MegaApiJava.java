@@ -8016,4 +8016,16 @@ public class MegaApiJava {
     public int smsAllowedState() {
         return megaApi.smsAllowedState();
     }
+
+    /**
+     * @brief Returns the email of the user who made the changes
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRecentActionBucket object is deleted.
+     *
+     * @return The associated user's email
+     */
+    public void getUserEmail(long handle, nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.getUserEmail(handle, createDelegateRequestListener(listener));
+    }
 }
