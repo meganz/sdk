@@ -7639,7 +7639,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
         if (!warnlevel())
         {
-            if (actionpackets && v >= 0 && v < 4 && statecurrent)
+            if (actionpackets && v >= 0 && v <= 3 && statecurrent)
             {
                 string email;
                 Node::copystring(&email, m);

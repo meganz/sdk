@@ -832,7 +832,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
+        long tmp = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || (tmp != 0 && tmp != 1))
         {
             flagMkExported = false;
@@ -861,7 +861,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
+        long tmp = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || (tmp != 0 && tmp != 1))
         {
             flagDontShowAgain = false;
