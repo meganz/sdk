@@ -60,19 +60,20 @@ struct MEGA_API User : public Cachable
         bool firstname : 1;
         bool lastname : 1;
         bool country : 1;
-        bool birthday : 1;  // wraps status of birthday, birthmonth, birthyear
+        bool birthday : 1;      // wraps status of birthday, birthmonth, birthyear
         bool email : 1;
-        bool language : 1;  // preferred language code
+        bool language : 1;      // preferred language code
         bool pwdReminder : 1;   // password-reminder-dialog information
         bool disableVersions : 1;   // disable fileversioning
         bool contactLinkVerification : 1; // Verify contact requests with contact links
         bool richPreviews : 1;  // enable messages with rich previews
         bool lastPsa : 1;
         bool rubbishTime : 1;   // days to keep nodes in rubbish bin before auto clean
-        bool storageState : 1;   // state of the storage (0 = green, 1 = orange, 2 = red)
+        bool storageState : 1;  // state of the storage (0 = green, 1 = orange, 2 = red)
         bool geolocation : 1;   // enable send geolocations
         bool cameraUploadsFolder : 1;   // target folder for Camera Uploads
         bool myChatFilesFolder : 1;   // target folder for my chat files
+        bool pushSettings : 1;  // push notification settings
     } changed;
 
     // user's public key
@@ -113,7 +114,7 @@ public:
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);
     static attr_t string2attr(const char *name);
-    static bool needversioning(attr_t at);
+    static int needversioning(attr_t at);
     static char scope(attr_t at);
 
     enum {

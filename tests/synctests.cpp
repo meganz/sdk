@@ -362,6 +362,18 @@ struct StandardClient : public MegaApp
         clientthread.join();
     }
 
+    void localLogout()
+    {
+        thread_do([](MegaClient& mc, promise<bool>&) {
+            #ifdef _WIN32
+                // logout stalls in windows due to the issue above
+                mc.purgenodesusersabortsc();
+            #else
+                mc.locallogout();
+            #endif
+        });
+    }
+
     static mutex om;
     bool logcb = false;
     chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
@@ -1893,7 +1905,7 @@ GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, MoveSeveralExistingIntoDeepNewLocalFolders)
+GTEST_TEST(BasicSync, DISABLED_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -2005,7 +2017,7 @@ GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
 
     // logout (but keep caches)
     fs::path sync1path = pclientA1->syncSet[1].localpath;
-    pclientA1.reset();
+    pclientA1->localLogout();
 
     // remove local folders
     error_code e;
@@ -2122,7 +2134,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
 
     cout << "*********************  logout A1 (but keep caches on disk)" << endl;
     fs::path sync1path = pclientA1->syncSet[1].localpath;
-    pclientA1.reset();
+    pclientA1->localLogout();
 
     cout << "*********************  add remote folders via A2" << endl;
     future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("newremote", 2, 2, pb, "f/f_1/f_1_0"); });
@@ -2191,7 +2203,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
     fs::path sync1path = pclientA1->syncSet[1].localpath;
 
     // logout A1 (but keep caches on disk)
-    pclientA1.reset();
+    pclientA1->localLogout();
 
     // remove remote folder via A2
     future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_1", pb); });
@@ -2317,7 +2329,7 @@ GTEST_TEST(BasicSync, SpecialCreateFile)
 }
 #endif
 
-GTEST_TEST(BasicSync, moveAndDeleteLocalFile)
+GTEST_TEST(BasicSync, DISABLED_moveAndDeleteLocalFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -2365,12 +2377,12 @@ public:
 #ifdef _WIN32
         OutputDebugStringA(message);
         OutputDebugStringA("\r\n");
-#endif
-
-        if (loglevel <= logWarning)
+#else
+        if (loglevel >= SimpleLogger::logCurrentLevel)
         {
-            std::cout << message << std::endl;
+            std::cout << "[" << time << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message << " (" << source << ")" << std::endl;
         }
+#endif
     }
 };
 
@@ -2398,8 +2410,7 @@ int main (int argc, char *argv[])
     SimpleLogger::setLogLevel(logDebug);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&logger);
 #else
-    SimpleLogger::setAllOutputs(&std::cout);
-    SimpleLogger::setLogLevel(logDebug);
+    SimpleLogger::setOutputClass(&logger);
 #endif
 
 #if defined(WIN32) && defined(NO_READLINE)

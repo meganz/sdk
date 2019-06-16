@@ -90,6 +90,10 @@ ELSE(WIN32)
     endif()
 ENDIF(WIN32)
 
+if ("${prebuilt_dir}" STREQUAL "")
+  SET (prebuilt_dir ${Mega3rdPartyDir})
+ENDIF()
+
 IF(WIN32)
     if (UNCHECKED_ITERATORS)
         if(build_64_bit)
@@ -237,6 +241,8 @@ IF(WIN32)
             ImportVcpkgLibrary(pdfium       "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/pdfium.lib" "${prebuilt_dir}/libs/x32/pdfium.lib")
         ENDIF(USE_PDFIUM)
         
+        ImportVcpkgLibrary(gtest           "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/gtestd.lib" "${prebuilt_dir}/libs/x32/gtest.lib")
+
     else(USE_PREBUILT_3RDPARTY)
 
         IF(USE_CRYPTOPP)

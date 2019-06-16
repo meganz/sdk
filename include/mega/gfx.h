@@ -39,7 +39,7 @@ public:
     string localfilename;
 
     // vector with the required image type
-    vector<int> imagetypes;
+    vector<fatype> imagetypes;
 
     // handle related to the image
     handle h;

@@ -668,7 +668,7 @@ void MegaClient::getprivatekey(const char *code)
     reqs.add(new CommandGetPrivateKey(this, code));
 }
 
-void MegaClient::confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkey, int accountversion)
+void MegaClient::confirmrecoverylink(const char *code, const char *email, const char *password, const byte *masterkeyptr, int accountversion)
 {
     if (accountversion == 1)
     {
@@ -679,11 +679,11 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         string emailstr = email;
         uint64_t loginHash = stringhash64(&emailstr, &pwcipher);
 
-        if (masterkey)
+        if (masterkeyptr)
         {
             // encrypt provided masterkey using the new password
             byte encryptedMasterKey[SymmCipher::KEYLENGTH];
-            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            memcpy(encryptedMasterKey, masterkeyptr, sizeof encryptedMasterKey);
             pwcipher.ecb_encrypt(encryptedMasterKey);
 
             reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, encryptedMasterKey, NULL));
@@ -691,19 +691,19 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         else
         {
             // create a new masterkey
-            byte masterkey[SymmCipher::KEYLENGTH];
-            rng.genblock(masterkey, sizeof masterkey);
+            byte newmasterkey[SymmCipher::KEYLENGTH];
+            rng.genblock(newmasterkey, sizeof newmasterkey);
 
             // generate a new session
             byte initialSession[2 * SymmCipher::KEYLENGTH];
             rng.genblock(initialSession, sizeof initialSession);
-            key.setkey(masterkey);
+            key.setkey(newmasterkey);
             key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
 
             // and encrypt the master key to the new password
-            pwcipher.ecb_encrypt(masterkey);
+            pwcipher.ecb_encrypt(newmasterkey);
 
-            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, masterkey, initialSession));
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)&loginHash, sizeof(loginHash), NULL, newmasterkey, initialSession));
         }
     }
     else
@@ -733,29 +733,29 @@ void MegaClient::confirmrecoverylink(const char *code, const char *email, const 
         SymmCipher cipher;
         cipher.setkey(derivedKey);
 
-        if (masterkey)
+        if (masterkeyptr)
         {
             // encrypt provided masterkey using the new password
             byte encryptedMasterKey[SymmCipher::KEYLENGTH];
-            memcpy(encryptedMasterKey, masterkey, sizeof encryptedMasterKey);
+            memcpy(encryptedMasterKey, masterkeyptr, sizeof encryptedMasterKey);
             cipher.ecb_encrypt(encryptedMasterKey);
             reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, encryptedMasterKey, NULL));
         }
         else
         {
             // create a new masterkey
-            byte masterkey[SymmCipher::KEYLENGTH];
-            rng.genblock(masterkey, sizeof masterkey);
+            byte newmasterkey[SymmCipher::KEYLENGTH];
+            rng.genblock(newmasterkey, sizeof newmasterkey);
 
             // generate a new session
             byte initialSession[2 * SymmCipher::KEYLENGTH];
             rng.genblock(initialSession, sizeof initialSession);
-            key.setkey(masterkey);
+            key.setkey(newmasterkey);
             key.ecb_encrypt(initialSession, initialSession + SymmCipher::KEYLENGTH, SymmCipher::KEYLENGTH);
 
             // and encrypt the master key to the new password
-            cipher.ecb_encrypt(masterkey);
-            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, masterkey, initialSession));
+            cipher.ecb_encrypt(newmasterkey);
+            reqs.add(new CommandConfirmRecoveryLink(this, code, (byte*)hashedauthkey.data(), SymmCipher::KEYLENGTH, clientkey, newmasterkey, initialSession));
         }
     }
 }
@@ -1155,13 +1155,13 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     // actions in server-client stream)
     for (i = sizeof sessionid; i--; )
     {
-        sessionid[i] = 'a' + rng.genuint32(26);
+        sessionid[i] = static_cast<char>('a' + rng.genuint32(26));
     }
 
     // initialize random API request sequence ID (server API is idempotent)
     for (i = sizeof reqid; i--; )
     {
-        reqid[i] = 'a' + rng.genuint32(26);
+        reqid[i] = static_cast<char>('a' + rng.genuint32(26));
     }
 
     nextuh = 0;  
@@ -1277,6 +1277,7 @@ void MegaClient::exec()
         {
             LOG_debug << "Cached user data expired";
             getuserdata();
+            fetchtimezone();
         }
 
         if (pendinghttp.size())
@@ -3140,7 +3141,7 @@ bool MegaClient::dispatch(direction_t d)
             app->transfer_prepare(nexttransfer);
         }
 
-        bool openok;
+        bool openok = false;
         bool openfinished = false;
 
         // verify that a local path was given and start/resume transfer
@@ -3391,7 +3392,7 @@ void MegaClient::checkfacompletion(handle th, Transfer* t)
         int facount = 0;
 
         // do we have the pre-set threshold number of file attributes available? complete upload.
-        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, 0));
+        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(th, fatype(0)));
              it != pendingfa.end() && it->first.first == th; it++)
         {
             facount++;
@@ -4534,7 +4535,7 @@ void MegaClient::pendingattrstring(handle h, string* fa)
 {
     char buf[128];
 
-    for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(h, 0));
+    for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(h, fatype(0)));
          it != pendingfa.end() && it->first.first == h; )
     {
         if (it->first.second != fa_media)
@@ -4554,7 +4555,7 @@ void MegaClient::putfa(handle th, fatype t, SymmCipher* key, string* data, bool 
 {
     // CBC-encrypt attribute data (padded to next multiple of BLOCKSIZE)
     data->resize((data->size() + SymmCipher::BLOCKSIZE - 1) & -SymmCipher::BLOCKSIZE);
-    key->cbc_encrypt((byte*)data->data(), int(data->size()));
+    key->cbc_encrypt((byte*)data->data(), data->size());
 
     queuedfa.push_back(new HttpReqCommandPutFA(this, th, t, data, checkAccess));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
@@ -4888,7 +4889,8 @@ bool MegaClient::sc_shares()
                 }
 
                 // ignore unrelated share packets (should never be triggered)
-                if (!ISUNDEF(oh) && !(outbound = (oh == me)) && (uh != me))
+                outbound = (oh == me);
+                if (!ISUNDEF(oh) && !outbound && (uh != me))
                 {
                     return false;
                 }
@@ -5008,7 +5010,7 @@ bool MegaClient::sc_upgrade()
 
 void MegaClient::sc_paymentreminder()
 {
-    m_time_t expiryts;
+    m_time_t expiryts = 0;
 
     for (;;)
     {
@@ -5021,7 +5023,7 @@ void MegaClient::sc_paymentreminder()
         case EOO:
             if (statecurrent)
             {
-                useralerts.add(new UserAlert::PaymentReminder(expiryts, useralerts.nextId()));
+                useralerts.add(new UserAlert::PaymentReminder(expiryts ? expiryts : m_time(), useralerts.nextId()));
             }
             return;
 
@@ -5269,8 +5271,8 @@ void MegaClient::sc_userattr()
 
                         if (!fetchingnodes)
                         {
-                            // silently fetch-upon-update this critical attribute
-                            if (type == ATTR_DISABLE_VERSIONS)
+                            // silently fetch-upon-update these critical attributes
+                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS)
                             {
                                 getua(u, type, 0);
                             }
@@ -6843,7 +6845,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 {
     byte hash[SymmCipher::KEYLENGTH];
 
-    transform(s->begin(), s->end(), s->begin(), ::tolower);
+    tolower_string(*s);
     stringhash(s->c_str(), hash, c);
 
     return MemAccess::get<uint64_t>((const char*)hash);
@@ -7127,7 +7129,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         handle uh = nn[nni].uploadhandle;
 
                         // do we have pending file attributes for this upload? set them.
-                        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, 0));
+                        for (fa_map::iterator it = pendingfa.lower_bound(pair<handle, fatype>(uh, fatype(0)));
                              it != pendingfa.end() && it->first.first == uh; )
                         {
                             reqs.add(new CommandAttachFA(this, h, it->first.second, it->second.first, it->second.second));
@@ -7639,7 +7641,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
         if (!warnlevel())
         {
-            if (actionpackets && v >= 0 && v < 4 && statecurrent)
+            if (actionpackets && v >= 0 && v <= 3 && statecurrent)
             {
                 string email;
                 Node::copystring(&email, m);
@@ -7818,6 +7820,7 @@ void MegaClient::login(const byte* session, int size)
 
         reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
         getuserdata();
+        fetchtimezone();
     }
     else
     {
@@ -8016,7 +8019,7 @@ User* MegaClient::finduser(const char* uid, int add)
 
     // convert e-mail address to lowercase (ASCII only)
     Node::copystring(&nuid, uid);
-    transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+    tolower_string(nuid);
 
     um_map::iterator it = umindex.find(nuid);
 
@@ -8095,7 +8098,7 @@ void MegaClient::mapuser(handle uh, const char* email)
     string nuid;
 
     Node::copystring(&nuid, email);
-    transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+    tolower_string(nuid);
 
     // does user uh exist?
     uh_map::iterator hit = uhindex.find(uh);
@@ -8351,7 +8354,7 @@ void MegaClient::queuepubkeyreq(const char *uid, PubKeyAction *pka)
         {
             string nuid;
             Node::copystring(&nuid, uid);
-            transform(nuid.begin(), nuid.end(), nuid.begin(), ::tolower);
+            tolower_string(nuid);
 
             u = new User(nuid.c_str());
             u->uid = nuid;
@@ -8592,7 +8595,7 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * "+" - Public and plain text, accessible by anyone knowing userhandle
  * "^" - Private and non-encrypted.
  *
- * @param at Attribute name.
+ * @param at Attribute type.
  * @param av Attribute value.
  * @param avl Attribute value length.
  * @param ctag Tag to identify the request at intermediate layer
@@ -8684,7 +8687,7 @@ void MegaClient::putua(userattr_map *attrs, int ctag)
  * @brief Queue a user attribute retrieval.
  *
  * @param u User.
- * @param at Attribute name.
+ * @param at Attribute type.
  * @param ctag Tag to identify the request at intermediate layer
  */
 void MegaClient::getua(User* u, const attr_t at, int ctag)
@@ -8705,14 +8708,14 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
             {
                 TLVstore *tlv = TLVstore::containerToTLVrecords(cachedav, &key);
                 restag = tag;
-                app->getua_result(tlv);
+                app->getua_result(tlv, at);
                 delete tlv;
                 return;
             }
             else
             {
                 restag = tag;
-                app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()));
+                app->getua_result((byte*) cachedav->data(), unsigned(cachedav->size()), at);
                 return;
             }
         }
@@ -9045,9 +9048,9 @@ void MegaClient::procsnk(JSON* j)
                 {
                     byte keybuf[FILENODEKEYLENGTH];
 
-                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, unsigned(n->nodekey.size()));
+                    sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
 
-                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, unsigned(n->nodekey.size())));
+                    reqs.add(new CommandSingleKeyCR(sh, nh, keybuf, n->nodekey.size()));
                 }
             }
 
@@ -9411,7 +9414,7 @@ unsigned MegaClient::addnode(node_vector* v, Node* n) const
 void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* selector)
 {
     node_vector rshares, rnodes;
-    unsigned si, ni;
+    unsigned si, ni = unsigned(-1);
     Node* sn;
     Node* n;
     string crkeys;
@@ -9435,7 +9438,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
     if (!selector)
     {
         si = 0;
-        ni = -1;
+        ni = unsigned(-1);
         if (shares->empty() || nodes->empty())
         {
             return;
@@ -9503,7 +9506,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                 {
                     if (setkey == (int)n->nodekey.size())
                     {
-                        sn->sharekey->ecb_decrypt(keybuf, unsigned(n->nodekey.size()));
+                        sn->sharekey->ecb_decrypt(keybuf, n->nodekey.size());
                         n->setkey(keybuf);
                         setkey = -1;
                     }
@@ -9522,7 +9525,7 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         sprintf(buf, "\",%u,%u,\"", nsi, nni);
 
                         // generate & queue share nodekey
-                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, unsigned(n->nodekey.size()));
+                        sn->sharekey->ecb_encrypt((byte*)n->nodekey.data(), keybuf, n->nodekey.size());
                         Base64::btoa(keybuf, int(n->nodekey.size()), strchr(buf + 7, 0));
                         crkeys.append(buf);
                     }
@@ -10159,9 +10162,9 @@ void MegaClient::setkeypair()
     unsigned t = unsigned(privks.size());
 
     privks.resize((t + SymmCipher::BLOCKSIZE - 1) & - SymmCipher::BLOCKSIZE);
-    rng.genblock((byte*)(privks.data() + t), int(privks.size() - t));
+    rng.genblock((byte*)(privks.data() + t), privks.size() - t);
 
-    key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), (unsigned)privks.size());
+    key.ecb_encrypt((byte*)privks.data(), (byte*)privks.data(), privks.size());
 
     reqs.add(new CommandSetKeyPair(this,
                                       (const byte*)privks.data(),
@@ -10537,6 +10540,12 @@ void MegaClient::fetchnodes(bool nocache)
             versions_disabled = false;
         }
 
+        av = ownUser->getattr(ATTR_PUSH_SETTINGS);
+        if (av && !ownUser->isattrvalid(ATTR_PUSH_SETTINGS))
+        {
+            getua(ownUser, ATTR_PUSH_SETTINGS);
+        }
+
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
     }
@@ -10574,10 +10583,14 @@ void MegaClient::fetchnodes(bool nocache)
         {
             getuserdata();
         }
-        reqs.add(new CommandFetchNodes(this, nocache));
 
+        fetchtimezone();
         char me64[12];
         Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
+        reqs.add(new CommandGetUA(this, me64, ATTR_PUSH_SETTINGS, NULL, 0));
+
+        reqs.add(new CommandFetchNodes(this, nocache));
+
         reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, NULL, 0));
     }
 }
@@ -10890,17 +10903,14 @@ void MegaClient::purgenodesusersabortsc()
     pcrnotify.clear();
     useralerts.clear();
 
-#ifndef ENABLE_CHAT
-    users.clear();
-    uhindex.clear();
-    umindex.clear();
-#else
+#ifdef ENABLE_CHAT
     for (textchat_map::iterator it = chats.begin(); it != chats.end();)
     {
         delete it->second;
         chats.erase(it++);
     }
     chatnotify.clear();
+#endif
 
     for (user_map::iterator it = users.begin(); it != users.end(); )
     {
@@ -10918,9 +10928,7 @@ void MegaClient::purgenodesusersabortsc()
             it++;
         }
     }
-
     assert(users.size() <= 1 && uhindex.size() <= 1 && umindex.size() <= 1);
-#endif
 
     for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
     {
@@ -13061,7 +13069,7 @@ namespace action_bucket_compare
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
 
-    static bool isvideo(const Node* n, char ext[10])
+    static bool isvideo(const Node* n, const char *ext)
     {
         if (n->hasfileattribute(fa_media) && n->nodekey.size() == FILENODEKEYLENGTH)
         {
@@ -13094,11 +13102,10 @@ namespace action_bucket_compare
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
         string localname, name = n->displayname();
         mc->fsaccess->path2local(&name, &localname);
-        char ext[10];
-        if (mc->fsaccess->getextension(&localname, ext, sizeof(ext)))
+        char ext[12];
+        if (mc->fsaccess->getextension(&localname, ext, sizeof(ext) - 4))  // plenty of buffer space left to append a '.'
         {
             strcat(ext, ".");
-
             if (webclient_is_image_def.find(ext) != string::npos ||
                 webclient_is_image_raw.find(ext) != string::npos ||
                 (webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW)) ||

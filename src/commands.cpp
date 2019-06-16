@@ -719,7 +719,7 @@ void CommandGetFile::procresult()
                     key.setkey(filekey, FILENODE);
 
                     if ((buf = Node::decryptattr(tslot ? tslot->transfer->transfercipher() : &key,
-                                                 at, int(eos ? eos - at : strlen(at)))))
+                                                 at, eos ? eos - at : strlen(at))))
                     {
                         JSON json;
 
@@ -1004,7 +1004,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 
         if (nn[i].nodekey.size() <= sizeof key)
         {
-            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, unsigned(nn[i].nodekey.size()));
+            client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
             arg("k", key, int(nn[i].nodekey.size()));
         }
         else
@@ -2007,11 +2007,11 @@ void CommandSetShare::procresult()
     {
         switch (client->json.getnameid())
         {
-            byte key[SymmCipher::KEYLENGTH + 1];
-
             case MAKENAMEID2('o', 'k'):  // an owner key response will only
                                          // occur if the same share was created
                                          // concurrently with a different key
+            {
+                byte key[SymmCipher::KEYLENGTH + 1];
                 if (client->json.storebinary(key, sizeof key + 1) == SymmCipher::KEYLENGTH)
                 {
                     Node* n;
@@ -2028,7 +2028,8 @@ void CommandSetShare::procresult()
                     }
                 }
                 break;
-
+            }
+                
             case 'u':   // user/handle confirmation
                 if (client->json.enterarray())
                 {
@@ -2844,7 +2845,7 @@ void CommandGetUA::procresult()
                 buf.assign(ptr, (end-ptr));
                 value.resize(buf.size() / 4 * 3 + 3);
                 value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
             }
             return;
         }
@@ -2916,7 +2917,7 @@ void CommandGetUA::procresult()
                         }
                         else
                         {
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                         }
                         return;
                     }
@@ -2938,7 +2939,7 @@ void CommandGetUA::procresult()
                             string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
-                            client->app->getua_result(tlvRecords);
+                            client->app->getua_result(tlvRecords, at);
                             delete tlvRecords;
                         }
                             break;
@@ -2946,7 +2947,7 @@ void CommandGetUA::procresult()
                         case '+':   // public
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
 #ifdef  ENABLE_CHAT
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
@@ -2958,14 +2959,14 @@ void CommandGetUA::procresult()
                         case '#':   // protected
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
 
                         case '^': // private, non-encrypted
 
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
 
                             if (at == ATTR_DISABLE_VERSIONS)
                             {
@@ -2995,7 +2996,7 @@ void CommandGetUA::procresult()
                             }
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()));
+                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
                             break;
                     }
 
@@ -3106,7 +3107,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 
         if ((n = client->nodebyhandle(h)))
         {
-            client->key.ecb_encrypt((byte*)n->nodekey.data(), nodekey, unsigned(n->nodekey.size()));
+            client->key.ecb_encrypt((byte*)n->nodekey.data(), nodekey, n->nodekey.size());
 
             element(h, MegaClient::NODEHANDLE);
             element(nodekey, int(n->nodekey.size()));
@@ -3116,7 +3117,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
     endarray();
 }
 
-CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, unsigned keylen)
+CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, size_t keylen)
 {
     cmd("k");
     beginarray("cr");
@@ -3132,7 +3133,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, un
     beginarray();
     element(0);
     element(0);
-    element(key, keylen);
+    element(key, static_cast<int>(keylen));
     endarray();
 
     endarray();
@@ -3399,10 +3400,10 @@ void CommandGetUserData::procresult()
                     {
                         case 's':
                             // -1: expired, 1: active, 2: grace-period
-                            s = client->json.getint();
+                            s = client->json.getint32();
                             break;
                         case 'm':
-                            m = client->json.getint();
+                            m = client->json.getint32();
                             break;
                         case EOO:
                             endobject = true;
@@ -4357,7 +4358,7 @@ void CommandConfirmSignupLink2::procresult()
 {
     string name;
     string email;
-    handle uh;
+    handle uh = UNDEF;
     int version = 0;
 
     if (client->json.isnumeric())
@@ -6331,7 +6332,7 @@ void CommandGetMegaAchievements::procresult()
                             achievement.transfer = client->json.getint();
                             const char *exp_ts = client->json.getvalue();
                             char *pEnd = NULL;
-                            achievement.expire = strtol(exp_ts, &pEnd, 10);
+                            achievement.expire = int(strtol(exp_ts, &pEnd, 10));
                             if (*pEnd == 'm')
                             {
                                 achievement.expire *= 30;
@@ -6444,7 +6445,7 @@ void CommandGetMegaAchievements::procresult()
                         reward.transfer = client->json.getint();
                         const char *exp_ts = client->json.getvalue();
                         char *pEnd = NULL;
-                        reward.expire = strtol(exp_ts, &pEnd, 10);
+                        reward.expire = int(strtol(exp_ts, &pEnd, 10));
                         if (*pEnd == 'm')
                         {
                             reward.expire *= 30;

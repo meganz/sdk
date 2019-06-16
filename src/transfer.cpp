@@ -170,7 +170,7 @@ bool Transfer::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(combinedUrls.data(), ll);
 
-    char s = state;
+    char s = static_cast<char>(state);
     d->append((const char*)&s, sizeof(s));
     d->append((const char*)&priority, sizeof(priority));
     d->append("", 1);
@@ -529,7 +529,7 @@ void Transfer::complete()
         // verify integrity of file
         FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n;
+        Node* n = nullptr;
         bool fixfingerprint = false;
         bool fixedfingerprint = false;
         bool syncxfer = false;

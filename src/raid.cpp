@@ -83,7 +83,7 @@ struct FaultyServers
         {
             m_time_t now = m_time();
             m_time_t worsttime = now - 10 * 3600;   // 10 hours
-            for (unsigned i = urls.size(); i--; )
+            for (auto i = unsigned(urls.size()); i--; )
             {
                 Map::iterator j = recentFails.find(server(urls[i]));
                 if (j != recentFails.end() && j->second > worsttime)

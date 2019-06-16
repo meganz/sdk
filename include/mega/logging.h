@@ -149,7 +149,6 @@ public:
             case logWarning: return "warn";
             case logError: return "err";
             case logFatal: return "FATAL";
-            default: return "";
         }
         return "";
     }
