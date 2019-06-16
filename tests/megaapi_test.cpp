@@ -21,7 +21,9 @@
 
 // Note: The tests in this module are meant to be pure unit tests: Fast tests without I/O.
 
+#include <atomic>
 #include <memory>
+#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -192,4 +194,31 @@ TEST(megaapi, MegaStringTable_copy_emptyStringTable)
     auto copiedStringTable = unique_ptr<MegaStringTable>{stringListTable->copy()};
     ASSERT_EQ(0, copiedStringTable->size());
     ASSERT_EQ(nullptr, copiedStringTable->get(0));
+}
+
+TEST(megaapi, getMimeType)
+{
+    vector<thread> threads;
+    atomic<int> successCount{0};
+
+    // 100 threads was enough to reliably crash the old non-thread-safe version
+    for (int i = 0; i < 100; ++i)
+    {
+        threads.emplace_back([&successCount]
+        {
+            if (::mega::MegaApi::getMimeType("nosuch") == nullptr) ++successCount;
+            if (::mega::MegaApi::getMimeType(nullptr) == nullptr) ++successCount;
+            if (::mega::MegaApi::getMimeType("323") == string("text/h323")) ++successCount;
+            if (::mega::MegaApi::getMimeType(".323") == string("text/h323")) ++successCount;
+            if (::mega::MegaApi::getMimeType("zip") == string("application/x-zip-compressed")) ++successCount;
+            if (::mega::MegaApi::getMimeType(".zip") == string("application/x-zip-compressed")) ++successCount;
+        });
+    }
+
+    for (auto& t : threads)
+    {
+        t.join();
+    }
+
+    ASSERT_EQ(600, successCount);
 }
