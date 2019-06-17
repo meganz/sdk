@@ -3215,27 +3215,7 @@ bool MegaClient::dispatch(direction_t d)
                     m_off_t p = 0;
 
                     // resume at the end of the last contiguous completed block
-                    for (chunkmac_map::iterator it = nexttransfer->chunkmacs.begin();
-                         it != nexttransfer->chunkmacs.end(); it++)
-                    {
-                        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, nexttransfer->size);
-
-                        if (nexttransfer->pos == it->first && it->second.finished)
-                        {
-                            nexttransfer->pos = chunkceil;
-                            nexttransfer->progresscompleted = chunkceil;
-                        }
-                        else if (it->second.finished)
-                        {
-                            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
-                            nexttransfer->progresscompleted += chunksize;
-                        }
-                        else
-                        {
-                            nexttransfer->progresscompleted += it->second.offset;
-                            p += it->second.offset;
-                        }
-                    }
+                    nexttransfer->chunkmacs.calcprogress(nexttransfer->size, nexttransfer->pos, nexttransfer->progresscompleted, &p);
 
                     if (nexttransfer->progresscompleted > nexttransfer->size)
                     {
