@@ -7697,23 +7697,28 @@ error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
         return API_EARGS;
     }
 
-    if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
+    // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
+    handle auxh = 0;
+    if (Base64::atob(f, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
     {
         return API_EARGS;
     }
 
+    byte auxkey[SymmCipher::KEYLENGTH];
     const char *k = ptr + 1;
-    if (Base64::atob(k, key, SymmCipher::KEYLENGTH) != SymmCipher::KEYLENGTH)
+    if (Base64::atob(k, auxkey, sizeof auxkey) != sizeof auxkey)
     {
         return API_EARGS;
     }
 
+    h = auxh;
+    memcpy(key, auxkey, sizeof auxkey);
     return API_OK;
 }
 
 error MegaClient::folderaccess(const char *folderlink)
 {
-    handle h = 0;
+    handle h = UNDEF;
     byte folderkey[SymmCipher::KEYLENGTH];
 
     error e;

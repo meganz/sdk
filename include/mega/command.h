@@ -1100,8 +1100,6 @@ public:
 
 class MEGA_API CommandFolderLinkInfo: public Command
 {
-    handle ph;
-
 public:
     void procresult();
 

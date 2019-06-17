@@ -6911,7 +6911,6 @@ void CommandSetLastAcknowledged::procresult()
 
 CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)
 {
-    this->ph = ph;
     cmd("pli");
     arg("ph", (byte*)&publichandle, MegaClient::NODEHANDLE);
 
