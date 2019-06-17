@@ -11599,7 +11599,7 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle ph, string
     if (e == API_OK)
     {
         // Extract the folder key from the link (skip the public handle)
-        handle h = UNDEF;
+        handle h = 0;
         byte folderkeybuf[SymmCipher::KEYLENGTH];
         error e = client->parsefolderlink(request->getLink(), h, folderkeybuf);
         assert(e == API_OK);
@@ -20128,12 +20128,12 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            handle h = UNDEF;
+            handle h = 0;
             byte folderkey[SymmCipher::KEYLENGTH];
-            error e = client->parsefolderlink(link, h, folderkey);
+            e = client->parsefolderlink(link, h, folderkey);
             if (e == API_OK)
             {
-                client->getPublicLinkInformation(client->getpublicfolderhandle());
+                client->getPublicLinkInformation(h);
             }
             break;
         }

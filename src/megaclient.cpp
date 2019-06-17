@@ -7713,7 +7713,7 @@ error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
 
 error MegaClient::folderaccess(const char *folderlink)
 {
-    handle h = UNDEF;
+    handle h = 0;
     byte folderkey[SymmCipher::KEYLENGTH];
 
     error e;
