@@ -2571,7 +2571,7 @@ protected:
         void cancelsignup_result(error) override;
 
         // check the reason of being blocked
-        virtual void whyamiblocked_result(int);
+        virtual void whyamiblocked_result(error);
 
         // contact link management
         virtual void contactlinkcreate_result(error, handle);

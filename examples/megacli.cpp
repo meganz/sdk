@@ -6030,12 +6030,11 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     client->fetchnodes();
 }
 
-void DemoApp::whyamiblocked_result(int code)
+void DemoApp::whyamiblocked_result(error code)
 {
     if (code < 0)
     {
-        error e = (error) code;
-        cout << "Why am I blocked failed: " << errorstring(e) << endl;
+        cout << "Why am I blocked failed: " << errorstring(code) << endl;
     }
     else if (code == 0)
     {
