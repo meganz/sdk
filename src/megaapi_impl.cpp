@@ -6249,7 +6249,7 @@ void MegaApiImpl::updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool
 }
 
 
-void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
+void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ACCOUNT_DETAILS, listener);
 	int numDetails = 0;
@@ -6260,6 +6260,7 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
 	if(purchases) numDetails |= 0x10;
 	if(sessions) numDetails |= 0x20;
 	request->setNumDetails(numDetails);
+    request->setAccess(source);
 
 	requestQueue.push(request);
     waiter->notify();
@@ -17576,7 +17577,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             request->setNumber(numReqs);
 
-			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
+			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions, request->getAccess());
 			break;
 		}
         case MegaRequest::TYPE_QUERY_TRANSFER_QUOTA:
