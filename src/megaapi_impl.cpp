@@ -11305,16 +11305,6 @@ void MegaApiImpl::chatremove_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chaturl_result(error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_URL)) return;
-
-    fireOnRequestFinish(request, megaError);
-}
-
 void MegaApiImpl::chaturl_result(string *url, error e)
 {
     MegaError megaError(e);

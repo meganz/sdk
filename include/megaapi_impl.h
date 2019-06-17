@@ -158,7 +158,7 @@ public:
     void setLogLevel(int logLevel);
     void setLogToConsole(bool enable);
     void postLog(int logLevel, const char *message, const char *filename, int line);
-    virtual void log(const char *time, int loglevel, const char *source, const char *message);
+    void log(const char *time, int loglevel, const char *source, const char *message) override;
 
 private:
     MegaMutex mutex;
@@ -174,7 +174,7 @@ public:
     unsigned nc;
 
     MegaTreeProcCopy(MegaClient *client);
-    virtual bool processMegaNode(MegaNode* node);
+    bool processMegaNode(MegaNode* node) override;
     void allocnodes(void);
 
 protected:
@@ -189,7 +189,7 @@ class MegaSizeProcessor : public MegaTreeProcessor
 
     public:
         MegaSizeProcessor();
-        virtual bool processMegaNode(MegaNode* node);
+        bool processMegaNode(MegaNode* node) override;
         long long getTotalBytes();
 };
 
@@ -213,10 +213,10 @@ protected:
     int pendingTransfers;
 
 public:
-    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
-    virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
-    virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
-    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
 };
 
 
@@ -330,11 +330,11 @@ protected:
     void clearCurrentBackupData();
 
 public:
-    virtual void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e);
-    virtual void onTransferStart(MegaApi *api, MegaTransfer *transfer);
-    virtual void onTransferUpdate(MegaApi *api, MegaTransfer *transfer);
-    virtual void onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError* e);
-    virtual void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e);
+    void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
+    void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
+    void onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError* e) override;
+    void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
 
     long long getNumberFolders() const;
     void setNumberFolders(long long value);
@@ -382,9 +382,9 @@ protected:
     error e;
 
 public:
-    virtual void onTransferStart(MegaApi *, MegaTransfer *t);
-    virtual void onTransferUpdate(MegaApi *, MegaTransfer *t);
-    virtual void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e);
+    void onTransferStart(MegaApi *, MegaTransfer *t) override;
+    void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
+    void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
 };
 
 class MegaNodePrivate : public MegaNode, public Cachable
@@ -397,74 +397,74 @@ class MegaNodePrivate : public MegaNode, public Cachable
                         bool isForeign = false, const char *chatauth = NULL);
 
         MegaNodePrivate(MegaNode *node);
-        virtual ~MegaNodePrivate();
-        virtual int getType();
-        virtual const char* getName();
-        virtual const char* getFingerprint();
-        virtual bool hasCustomAttrs();
-        MegaStringList *getCustomAttrNames();
-        virtual const char *getCustomAttr(const char* attrName);
-        virtual int getDuration();
-        virtual int getWidth();
-        virtual int getHeight();
-        virtual int getShortformat();
-        virtual int getVideocodecid();
-        virtual double getLatitude();
-        virtual double getLongitude();
-        virtual char *getBase64Handle();
-        virtual int64_t getSize();
-        virtual int64_t getCreationTime();
-        virtual int64_t getModificationTime();
-        virtual MegaHandle getHandle();
-        virtual MegaHandle getRestoreHandle();
-        virtual MegaHandle getParentHandle();
-        virtual std::string* getNodeKey();
-        virtual char *getBase64Key();
-        virtual std::string* getAttrString();
-        virtual char* getFileAttrString();
-        virtual int getTag();
-        virtual int64_t getExpirationTime();
-        virtual MegaHandle getPublicHandle();
-        virtual MegaNode* getPublicNode();
-        virtual char *getPublicLink(bool includeKey = true);
-        virtual bool isFile();
-        virtual bool isFolder();
-        virtual bool isRemoved();
-        virtual bool hasChanged(int changeType);
-        virtual int getChanges();
-        virtual bool hasThumbnail();
-        virtual bool hasPreview();
-        virtual bool isPublic();
-        virtual bool isExported();
-        virtual bool isExpired();
-        virtual bool isTakenDown();
-        virtual bool isForeign();
-        virtual std::string* getPrivateAuth();
-        virtual MegaNodeList *getChildren();
-        virtual void setPrivateAuth(const char *privateAuth);
+        ~MegaNodePrivate() override;
+        int getType() override;
+        const char* getName() override;
+        const char* getFingerprint() override;
+        bool hasCustomAttrs() override;
+        MegaStringList *getCustomAttrNames() override;
+        const char *getCustomAttr(const char* attrName) override;
+        int getDuration() override;
+        int getWidth() override;
+        int getHeight() override;
+        int getShortformat() override;
+        int getVideocodecid() override;
+        double getLatitude() override;
+        double getLongitude() override;
+        char *getBase64Handle() override;
+        int64_t getSize() override;
+        int64_t getCreationTime() override;
+        int64_t getModificationTime() override;
+        MegaHandle getHandle() override;
+        MegaHandle getRestoreHandle() override;
+        MegaHandle getParentHandle() override;
+        std::string* getNodeKey() override;
+        char *getBase64Key() override;
+        std::string* getAttrString() override;
+        char* getFileAttrString() override;
+        int getTag() override;
+        int64_t getExpirationTime() override;
+        MegaHandle getPublicHandle() override;
+        MegaNode* getPublicNode() override;
+        char *getPublicLink(bool includeKey = true) override;
+        bool isFile() override;
+        bool isFolder() override;
+        bool isRemoved() override;
+        bool hasChanged(int changeType) override;
+        int getChanges() override;
+        bool hasThumbnail() override;
+        bool hasPreview() override;
+        bool isPublic() override;
+        bool isExported() override;
+        bool isExpired() override;
+        bool isTakenDown() override;
+        bool isForeign() override;
+        std::string* getPrivateAuth() override;
+        MegaNodeList *getChildren() override;
+        void setPrivateAuth(const char *privateAuth) override;
         void setPublicAuth(const char *publicAuth);
         void setChatAuth(const char *chatAuth);
         void setForeign(bool foreign);
         void setChildren(MegaNodeList *children);
         void setName(const char *newName);
-        virtual std::string* getPublicAuth();
-        virtual const char *getChatAuth();
-        virtual bool isShared();
-        virtual bool isOutShare();
-        virtual bool isInShare();
+        std::string* getPublicAuth() override;
+        const char *getChatAuth() override;
+        bool isShared() override;
+        bool isOutShare() override;
+        bool isInShare() override;
         std::string* getSharekey();
-        virtual MegaHandle getOwner() const;
+        MegaHandle getOwner() const override;
 
 #ifdef ENABLE_SYNC
-        virtual bool isSyncDeleted();
-        virtual std::string getLocalPath();
+        bool isSyncDeleted() override;
+        std::string getLocalPath() override;
 #endif
 
         static MegaNode *fromNode(Node *node);
-        virtual MegaNode *copy();
+        MegaNode *copy() override;
 
-        virtual char *serialize();
-        virtual bool serialize(string*);
+        char *serialize() override;
+        bool serialize(string*) override;
         static MegaNodePrivate* unserialize(string*);
 
     protected:
@@ -520,10 +520,10 @@ class MegaUserPrivate : public MegaUser
 		MegaUserPrivate(User *user);
 		MegaUserPrivate(MegaUser *user);
 		static MegaUser *fromUser(User *user);
-		virtual MegaUser *copy();
+        virtual MegaUser *copy();
 
 		~MegaUserPrivate();
-		virtual const char* getEmail();
+        virtual const char* getEmail();
         virtual MegaHandle getHandle();
         virtual int getVisibility();
         virtual int64_t getTimestamp();
@@ -602,12 +602,12 @@ class MegaSharePrivate : public MegaShare
 {
 	public:
         static MegaShare *fromShare(MegaHandle nodeMegaHandle, Share *share, bool pending = false);
-		virtual MegaShare *copy();
-		virtual ~MegaSharePrivate();
-		virtual const char *getUser();
-		virtual MegaHandle getNodeHandle();
-		virtual int getAccess();
-		virtual int64_t getTimestamp();
+        virtual MegaShare *copy();
+        virtual ~MegaSharePrivate();
+        virtual const char *getUser();
+        virtual MegaHandle getNodeHandle();
+        virtual int getAccess();
+        virtual int64_t getTimestamp();
         virtual bool isPending();
 
 	protected:
@@ -663,29 +663,29 @@ class MegaTransferPrivate : public MegaTransfer, public Cachable
         void setNotificationNumber(long long notificationNumber);
         void setListener(MegaTransferListener *listener);
 
-		virtual int getType() const;
-		virtual const char * getTransferString() const;
-		virtual const char* toString() const;
-		virtual const char* __str__() const;
-		virtual const char* __toString() const;
+        virtual int getType() const;
+        virtual const char * getTransferString() const;
+        virtual const char* toString() const;
+        virtual const char* __str__() const;
+        virtual const char* __toString() const;
         virtual int64_t getStartTime() const;
-		virtual long long getTransferredBytes() const;
-		virtual long long getTotalBytes() const;
-		virtual const char* getPath() const;
-		virtual const char* getParentPath() const;
+        virtual long long getTransferredBytes() const;
+        virtual long long getTotalBytes() const;
+        virtual const char* getPath() const;
+        virtual const char* getParentPath() const;
         virtual MegaHandle getNodeHandle() const;
         virtual MegaHandle getParentHandle() const;
-		virtual long long getStartPos() const;
-		virtual long long getEndPos() const;
-		virtual const char* getFileName() const;
-		virtual MegaTransferListener* getListener() const;
-		virtual int getNumRetry() const;
-		virtual int getMaxRetries() const;
+        virtual long long getStartPos() const;
+        virtual long long getEndPos() const;
+        virtual const char* getFileName() const;
+        virtual MegaTransferListener* getListener() const;
+        virtual int getNumRetry() const;
+        virtual int getMaxRetries() const;
         virtual int64_t getTime() const;
-		virtual int getTag() const;
-		virtual long long getSpeed() const;
+        virtual int getTag() const;
+        virtual long long getSpeed() const;
         virtual long long getMeanSpeed() const;
-		virtual long long getDeltaSize() const;
+        virtual long long getDeltaSize() const;
         virtual int64_t getUpdateTime() const;
         virtual MegaNode *getPublicNode() const;
         virtual MegaNode *getPublicMegaNode() const;
@@ -1512,9 +1512,9 @@ class MegaNodeListPrivate : public MegaNodeList
         MegaNodeListPrivate(Node** newlist, int size);
         MegaNodeListPrivate(const MegaNodeListPrivate *nodeList, bool copyChildren = false);
         virtual ~MegaNodeListPrivate();
-		virtual MegaNodeList *copy() const override;
-		virtual MegaNode* get(int i) const override;
-		virtual int size() const override;
+        virtual MegaNodeList *copy() const override;
+        virtual MegaNode* get(int i) const override;
+        virtual int size() const override;
 
         virtual void addNode(MegaNode* node) override;
 	
@@ -1545,9 +1545,9 @@ class MegaUserListPrivate : public MegaUserList
         MegaUserListPrivate();
         MegaUserListPrivate(User** newlist, int size);
         virtual ~MegaUserListPrivate();
-		virtual MegaUserList *copy();
-		virtual MegaUser* get(int i);
-		virtual int size();
+        virtual MegaUserList *copy();
+        virtual MegaUser* get(int i);
+        virtual int size();
 	
 	protected:
         MegaUserListPrivate(MegaUserListPrivate *userList);
@@ -1561,8 +1561,8 @@ class MegaShareListPrivate : public MegaShareList
         MegaShareListPrivate();
         MegaShareListPrivate(Share** newlist, MegaHandle *MegaHandlelist, int size, bool pending = false);
         virtual ~MegaShareListPrivate();
-		virtual MegaShare* get(int i);
-		virtual int size();
+        virtual MegaShare* get(int i);
+        virtual int size();
 		
 	protected:
 		MegaShare** list;
@@ -1575,8 +1575,8 @@ class MegaTransferListPrivate : public MegaTransferList
         MegaTransferListPrivate();
         MegaTransferListPrivate(MegaTransfer** newlist, int size);
         virtual ~MegaTransferListPrivate();
-		virtual MegaTransfer* get(int i);
-		virtual int size();
+        virtual MegaTransfer* get(int i);
+        virtual int size();
 	
 	protected:
 		MegaTransfer** list;
@@ -2552,243 +2552,242 @@ protected:
         int maxRetries;
 
         // a request-level error occurred
-        virtual void request_error(error);
-        virtual void request_response_progress(m_off_t, m_off_t);
+        void request_error(error) override;
+        void request_response_progress(m_off_t, m_off_t) override;
 
         // login result
-        virtual void prelogin_result(int, string*, string*, error);
-        virtual void login_result(error);
-        virtual void logout_result(error);
-        virtual void pubkey_result(User *);
-        virtual void userdata_result(string*, string*, string*, error);
+        void prelogin_result(int, string*, string*, error) override;
+        void login_result(error) override;
+        void logout_result(error) override;
+        void userdata_result(string*, string*, string*, error) override;
+        void pubkey_result(User *) override;
 
         // ephemeral session creation/resumption result
-        virtual void ephemeral_result(error);
-        virtual void ephemeral_result(handle, const byte*);
+        void ephemeral_result(error) override;
+        void ephemeral_result(handle, const byte*) override;
 
         // check the reason of being blocked
-        virtual void whyamiblocked_result(int);
+        void whyamiblocked_result(int) override;
 
         // contact link management
-        virtual void contactlinkcreate_result(error, handle);
-        virtual void contactlinkquery_result(error, handle, string*, string*, string*, string*);
-        virtual void contactlinkdelete_result(error);
+        void contactlinkcreate_result(error, handle) override;
+        void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
+        void contactlinkdelete_result(error) override;
 
         // multi-factor authentication
-        virtual void multifactorauthsetup_result(string*, error);
-        virtual void multifactorauthcheck_result(int);
-        virtual void multifactorauthdisable_result(error);
+        void multifactorauthsetup_result(string*, error) override;
+        void multifactorauthcheck_result(int) override;
+        void multifactorauthdisable_result(error) override;
 
         // fetch time zone
-        virtual void fetchtimezone_result(error, vector<string>*, vector<int>*, int);
+        void fetchtimezone_result(error, vector<string>*, vector<int>*, int) override;
 
         // keep me alive feature
-        virtual void keepmealive_result(error);
-        virtual void acknowledgeuseralerts_result(error);
+        void keepmealive_result(error) override;
+        void acknowledgeuseralerts_result(error) override;
 
         // get the current PSA
-        virtual void getpsa_result (error, int, string*, string*, string*, string*, string*);
+        void getpsa_result (error, int, string*, string*, string*, string*, string*) override;
 
         // account creation
-        virtual void sendsignuplink_result(error);
-        virtual void querysignuplink_result(error);
-        virtual void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t);
-        virtual void confirmsignuplink_result(error);
-        virtual void confirmsignuplink2_result(handle, const char*, const char*, error);
-        virtual void setkeypair_result(error);
+        void sendsignuplink_result(error) override;
+        void querysignuplink_result(error) override;
+        void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
+        void confirmsignuplink_result(error) override;
+        void confirmsignuplink2_result(handle, const char*, const char*, error) override;
+        void setkeypair_result(error) override;
 
         // account credentials, properties and history
-        virtual void account_details(AccountDetails*,  bool, bool, bool, bool, bool, bool);
-        virtual void account_details(AccountDetails*, error);
-        virtual void querytransferquota_result(int);
+        void account_details(AccountDetails*,  bool, bool, bool, bool, bool, bool) override;
+        void account_details(AccountDetails*, error) override;
+        void querytransferquota_result(int) override;
 
-        virtual void setattr_result(handle, error);
-        virtual void rename_result(handle, error);
-        virtual void unlink_result(handle, error);
-        virtual void unlinkversions_result(error);
-        virtual void nodes_updated(Node**, int);
-        virtual void users_updated(User**, int);
-        virtual void useralerts_updated(UserAlert::Base**, int);
-        virtual void account_updated();
-        virtual void pcrs_updated(PendingContactRequest**, int);
+        void setattr_result(handle, error) override;
+        void rename_result(handle, error) override;
+        void unlink_result(handle, error) override;
+        void unlinkversions_result(error) override;
+        void nodes_updated(Node**, int) override;
+        void users_updated(User**, int) override;
+        void useralerts_updated(UserAlert::Base**, int) override;
+        void account_updated() override;
+        void pcrs_updated(PendingContactRequest**, int) override;
 
         // password change result
-        virtual void changepw_result(error);
+        void changepw_result(error) override;
 
         // user attribute update notification
-        virtual void userattr_update(User*, int, const char*);
+        void userattr_update(User*, int, const char*) override;
 
-        virtual void nodes_current();
-        virtual void catchup_result();
+        void nodes_current() override;
+        void catchup_result() override;
 
-        virtual void fetchnodes_result(error);
-        virtual void putnodes_result(error, targettype_t, NewNode*);
+        void fetchnodes_result(error) override;
+        void putnodes_result(error, targettype_t, NewNode*) override;
 
         // share update result
-        virtual void share_result(error);
-        virtual void share_result(int, error);
+        void share_result(error) override;
+        void share_result(int, error) override;
 
         // contact request results
-        void setpcr_result(handle, error, opcactions_t);
-        void updatepcr_result(error, ipcactions_t);
+        void setpcr_result(handle, error, opcactions_t) override;
+        void updatepcr_result(error, ipcactions_t) override;
 
         // file attribute fetch result
-        virtual void fa_complete(handle, fatype, const char*, uint32_t);
-        virtual int fa_failed(handle, fatype, int, error);
+        void fa_complete(handle, fatype, const char*, uint32_t) override;
+        int fa_failed(handle, fatype, int, error) override;
 
         // file attribute modification result
-        virtual void putfa_result(handle, fatype, error);
-        virtual void putfa_result(handle, fatype, const char*);
+        void putfa_result(handle, fatype, error) override;
+        void putfa_result(handle, fatype, const char*) override;
 
         // purchase transactions
-        virtual void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
-                                                unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid);
-        virtual void enumeratequotaitems_result(error e);
-        virtual void additem_result(error);
-        virtual void checkout_result(const char*, error);
-        virtual void submitpurchasereceipt_result(error);
-        virtual void creditcardstore_result(error);
-        virtual void creditcardquerysubscriptions_result(int, error);
-        virtual void creditcardcancelsubscriptions_result(error);
-        virtual void getpaymentmethods_result(int, error);
-        virtual void copysession_result(string*, error);
+        void enumeratequotaitems_result(handle product, unsigned prolevel, unsigned gbstorage, unsigned gbtransfer,
+                                                unsigned months, unsigned amount, const char* currency, const char* description, const char* iosid, const char* androidid) override;
+        void enumeratequotaitems_result(error e) override;
+        void additem_result(error) override;
+        void checkout_result(const char*, error) override;
+        void submitpurchasereceipt_result(error) override;
+        void creditcardstore_result(error) override;
+        void creditcardquerysubscriptions_result(int, error) override;
+        void creditcardcancelsubscriptions_result(error) override;
+        void getpaymentmethods_result(int, error) override;
+        void copysession_result(string*, error) override;
 
-        virtual void userfeedbackstore_result(error);
-        virtual void sendevent_result(error);
+        void userfeedbackstore_result(error) override;
+        void sendevent_result(error) override;
 
-        virtual void checkfile_result(handle h, error e);
-        virtual void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring);
+        void checkfile_result(handle h, error e) override;
+        void checkfile_result(handle h, error e, byte* filekey, m_off_t size, m_time_t ts, m_time_t tm, string* filename, string* fingerprint, string* fileattrstring) override;
 
         // user invites/attributes
-        virtual void removecontact_result(error);
-        virtual void putua_result(error);
-        virtual void getua_result(error);
-        virtual void getua_result(byte*, unsigned, attr_t);
-        virtual void getua_result(TLVstore *, attr_t);
+        void removecontact_result(error) override;
+        void putua_result(error) override;
+        void getua_result(error) override;
+        void getua_result(byte*, unsigned, attr_t) override;
+        void getua_result(TLVstore *, attr_t) override;
 #ifdef DEBUG
-        virtual void delua_result(error);
+        void delua_result(error) override;
 #endif
 
-        virtual void getuseremail_result(string *, error);
+        void getuseremail_result(string *, error) override;
 
         // file node export result
-        virtual void exportnode_result(error);
-        virtual void exportnode_result(handle, handle);
+        void exportnode_result(error) override;
+        void exportnode_result(handle, handle) override;
 
         // exported link access result
-        virtual void openfilelink_result(error);
-        virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int);
+        void openfilelink_result(error) override;
+        void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
         // global transfer queue updates (separate signaling towards the queued objects)
-        virtual void file_added(File*);
-        virtual void file_removed(File*, error e);
-        virtual void file_complete(File*);
-        virtual File* file_resume(string*, direction_t *type);
+        void file_added(File*) override;
+        void file_removed(File*, error e) override;
+        void file_complete(File*) override;
+        File* file_resume(string*, direction_t *type) override;
 
-        virtual void transfer_prepare(Transfer*);
-        virtual void transfer_failed(Transfer*, error error, dstime timeleft);
-        virtual void transfer_update(Transfer*);
+        void transfer_prepare(Transfer*) override;
+        void transfer_failed(Transfer*, error error, dstime timeleft) override;
+        void transfer_update(Transfer*) override;
 
-        virtual dstime pread_failure(error, int, void*, dstime);
-        virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*);
+        dstime pread_failure(error, int, void*, dstime) override;
+        bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
 
-        virtual void reportevent_result(error);
-        virtual void sessions_killed(handle sessionid, error e);
+        void reportevent_result(error) override;
+        void sessions_killed(handle sessionid, error e) override;
 
-        virtual void cleanrubbishbin_result(error);
+        void cleanrubbishbin_result(error) override;
 
-        virtual void getrecoverylink_result(error);
-        virtual void queryrecoverylink_result(error);
-        virtual void queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails);
-        virtual void getprivatekey_result(error, const byte *privk = NULL, const size_t len_privk = 0);
-        virtual void confirmrecoverylink_result(error);
-        virtual void confirmcancellink_result(error);
-        virtual void getemaillink_result(error);
-        virtual void confirmemaillink_result(error);
-        virtual void getversion_result(int, const char*, error);
-        virtual void getlocalsslcertificate_result(m_time_t, string *certdata, error);
-        virtual void getmegaachievements_result(AchievementsDetails*, error);
-        virtual void getwelcomepdf_result(handle, string*, error);
+        void getrecoverylink_result(error) override;
+        void queryrecoverylink_result(error) override;
+        void queryrecoverylink_result(int type, const char *email, const char *ip, time_t ts, handle uh, const vector<string> *emails) override;
+        void getprivatekey_result(error, const byte *privk = NULL, const size_t len_privk = 0) override;
+        void confirmrecoverylink_result(error) override;
+        void confirmcancellink_result(error) override;
+        void getemaillink_result(error) override;
+        void confirmemaillink_result(error) override;
+        void getversion_result(int, const char*, error) override;
+        void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
+        void getmegaachievements_result(AchievementsDetails*, error) override;
+        void getwelcomepdf_result(handle, string*, error) override;
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
-        virtual void chatcreate_result(TextChat *, error);
-        virtual void chatinvite_result(error);
-        virtual void chatremove_result(error);
-        virtual void chaturl_result(error);
-        virtual void chaturl_result(string*, error);
-        virtual void chatgrantaccess_result(error);
-        virtual void chatremoveaccess_result(error);
-        virtual void chatupdatepermissions_result(error);
-        virtual void chattruncate_result(error);
-        virtual void chatsettitle_result(error);
-        virtual void chatpresenceurl_result(string*, error);
-        virtual void registerpushnotification_result(error);
-        virtual void archivechat_result(error);
+        void chatcreate_result(TextChat *, error) override;
+        void chatinvite_result(error) override;
+        void chatremove_result(error) override;
+        void chaturl_result(string*, error) override;
+        void chatgrantaccess_result(error) override;
+        void chatremoveaccess_result(error) override;
+        void chatupdatepermissions_result(error) override;
+        void chattruncate_result(error) override;
+        void chatsettitle_result(error) override;
+        void chatpresenceurl_result(string*, error) override;
+        void registerpushnotification_result(error) override;
+        void archivechat_result(error) override;
 
-        virtual void chats_updated(textchat_map *, int);
-        virtual void richlinkrequest_result(string*, error);
-        virtual void chatlink_result(handle, error);
-        virtual void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error);
-        virtual void chatlinkclose_result(error);
-        virtual void chatlinkjoin_result(error);
+        void chats_updated(textchat_map *, int) override;
+        void richlinkrequest_result(string*, error) override;
+        void chatlink_result(handle, error) override;
+        void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) override;
+        void chatlinkclose_result(error) override;
+        void chatlinkjoin_result(error) override;
 #endif
 
 #ifdef ENABLE_SYNC
         // sync status updates and events
-        virtual void syncupdate_state(Sync*, syncstate_t);
-        virtual void syncupdate_scanning(bool scanning);
-        virtual void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path);
-        virtual void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode);
-        virtual void syncupdate_local_file_addition(Sync* sync, LocalNode* localNode, const char *path);
-        virtual void syncupdate_local_file_deletion(Sync* sync, LocalNode* localNode);
-        virtual void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path);
-        virtual void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path);
-        virtual void syncupdate_get(Sync* sync, Node *node, const char* path);
-        virtual void syncupdate_put(Sync* sync, LocalNode *localNode, const char*);
-        virtual void syncupdate_remote_file_addition(Sync *sync, Node* n);
-        virtual void syncupdate_remote_file_deletion(Sync *sync, Node* n);
-        virtual void syncupdate_remote_folder_addition(Sync *sync, Node* n);
-        virtual void syncupdate_remote_folder_deletion(Sync* sync, Node* n);
-        virtual void syncupdate_remote_copy(Sync*, const char*);
-        virtual void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent);
-        virtual void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
-        virtual void syncupdate_treestate(LocalNode*);
-        virtual bool sync_syncable(Sync *, const char*, string *, Node *);
-        virtual bool sync_syncable(Sync *, const char*, string *);
-        virtual void syncupdate_local_lockretry(bool);
+        void syncupdate_state(Sync*, syncstate_t) override;
+        void syncupdate_scanning(bool scanning) override;
+        void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
+        void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode) override;
+        void syncupdate_local_file_addition(Sync* sync, LocalNode* localNode, const char *path) override;
+        void syncupdate_local_file_deletion(Sync* sync, LocalNode* localNode) override;
+        void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path) override;
+        void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path) override;
+        void syncupdate_get(Sync* sync, Node *node, const char* path) override;
+        void syncupdate_put(Sync* sync, LocalNode *localNode, const char*) override;
+        void syncupdate_remote_file_addition(Sync *sync, Node* n) override;
+        void syncupdate_remote_file_deletion(Sync *sync, Node* n) override;
+        void syncupdate_remote_folder_addition(Sync *sync, Node* n) override;
+        void syncupdate_remote_folder_deletion(Sync* sync, Node* n) override;
+        void syncupdate_remote_copy(Sync*, const char*) override;
+        void syncupdate_remote_move(Sync *sync, Node *n, Node* prevparent) override;
+        void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname) override;
+        void syncupdate_treestate(LocalNode*) override;
+        bool sync_syncable(Sync *, const char*, string *, Node *) override;
+        bool sync_syncable(Sync *, const char*, string *) override;
+        void syncupdate_local_lockretry(bool) override;
 #endif
 
 protected:
         // suggest reload due to possible race condition with other clients
-        virtual void reload(const char*);
+        void reload(const char*) override;
 
         // wipe all users, nodes and shares
-        virtual void clearing();
+        void clearing() override;
 
         // failed request retry notification
-        virtual void notify_retry(dstime, retryreason_t);
+        void notify_retry(dstime, retryreason_t) override;
 
         // notify about db commit
-        virtual void notify_dbcommit();
+        void notify_dbcommit() override;
 
         // notify about a storage event
-        virtual void notify_storage(int);
+        void notify_storage(int) override;
 
         // notify about an automatic change to HTTPS
-        virtual void notify_change_to_https();
+        void notify_change_to_https() override;
 
         // notify about account confirmation
-        virtual void notify_confirmation(const char*);
+        void notify_confirmation(const char*) override;
 
         // network layer disconnected
-        virtual void notify_disconnect();
+        void notify_disconnect() override;
 
         // notify about a finished HTTP request
-        virtual void http_result(error, int, byte *, int);
+        void http_result(error, int, byte *, int) override;
 
         // notify about a finished timer
-        virtual void timer_result(error);
+        void timer_result(error) override;
 
         void sendPendingScRequest();
         void sendPendingRequests();
