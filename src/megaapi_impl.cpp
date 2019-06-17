@@ -11601,8 +11601,8 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle ph, string
         // Extract the folder key from the link (skip the public handle)
         handle h = 0;
         byte folderkeybuf[SymmCipher::KEYLENGTH];
-        error e = client->parsefolderlink(request->getLink(), h, folderkeybuf);
-        assert(e == API_OK);
+        error parseError = client->parsefolderlink(request->getLink(), h, folderkeybuf);
+        assert(parseError == API_OK);
         assert(h == ph);
         const string binfolderkey((const char *)folderkeybuf, sizeof (folderkeybuf));
 
