@@ -51,9 +51,7 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
-#ifdef HAVE_AUTOCOMPLETE
-    namespace ac = ::mega::autocomplete;
-#endif
+namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
 
@@ -2223,7 +2221,6 @@ void getDepthFirstFileHandles(Node* n, deque<handle>& q)
     }
 }
 
-#ifdef HAVE_AUTOCOMPLETE
 void exec_find(autocomplete::ACState& s)
 {
     if (s.words[1].s == "raided")
@@ -2248,7 +2245,6 @@ void exec_find(autocomplete::ACState& s)
         }
     }
 }
-#endif
 
 bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
 {
@@ -2349,7 +2345,7 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
 }
 #endif
 
-#ifdef HAVE_AUTOCOMPLETE
+#ifdef USE_FILESYSTEM
 void exec_treecompare(autocomplete::ACState& s)
 {
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -2478,9 +2474,10 @@ void exec_history(autocomplete::ACState& s);
 void exec_help(autocomplete::ACState& s);
 void exec_quit(autocomplete::ACState& s);
 void exec_find(autocomplete::ACState& s);
+#ifdef USE_FILESYSTEM
 void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
-
+#endif
 
 autocomplete::ACN autocompleteSyntax()
 {
@@ -2604,8 +2601,10 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+#ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
+#endif
 
     return autocompleteTemplate = std::move(p);
 }
@@ -3470,7 +3469,7 @@ void exec_lls(autocomplete::ACState& s)
     fs::path ls_folder = s.words.size() > 1 ? fs::u8path(s.words[1].s) : fs::current_path();
     std::error_code ec;
     auto status = fs::status(ls_folder, ec);
-    status;
+    (void)status;
     if (ec)
     {
         cerr << ec.message() << endl;
@@ -6731,7 +6730,6 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 }
 
 #ifndef NO_READLINE
-#ifdef HAVE_AUTOCOMPLETE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
     string s = acs.completions[0].s;
@@ -6785,7 +6783,6 @@ char** my_rl_completion(const char */*text*/, int /*start*/, int end)
     return result;
 }
 #endif
-#endif
 
 // main loop
 void megacli()
@@ -6793,9 +6790,7 @@ void megacli()
 #ifndef NO_READLINE
     char *saved_line = NULL;
     int saved_point = 0;
-#ifdef HAVE_AUTOCOMPLETE
     rl_attempted_completion_function = my_rl_completion;
-#endif
 
     rl_save_prompt();
 
@@ -7013,10 +7008,8 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
-#ifdef HAVE_AUTOCOMPLETE
     ac::ACN acs = autocompleteSyntax();
-#endif
-#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
+#if defined(WIN32) && defined(NO_READLINE)
     static_cast<WinConsole*>(console)->setAutocompleteSyntax((acs));
 #endif
 
