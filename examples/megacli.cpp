@@ -2390,6 +2390,7 @@ void exec_apiurl(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
+void exec_cancelsignup(autocomplete::ACState& s);
 void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);
@@ -2490,6 +2491,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
+    p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
@@ -4777,6 +4779,11 @@ void exec_signup(autocomplete::ACState& s)
     }
 }
 
+void exec_cancelsignup(autocomplete::ACState& s)
+{
+    client->cancelsignup();
+}
+
 void exec_whoami(autocomplete::ACState& s)
 {
     if (client->loggedin() == NOTLOGGEDIN)
@@ -6028,6 +6035,14 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     cout << Base64Str<SymmCipher::KEYLENGTH>(pw) << endl;
 
     client->fetchnodes();
+}
+
+void DemoApp::cancelsignup_result(error)
+{
+    cout << "Singup link canceled. Start again!" << endl;
+    signupcode.clear();
+    signupemail.clear();
+    signupname.clear();
 }
 
 void DemoApp::whyamiblocked_result(error code)

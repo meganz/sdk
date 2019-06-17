@@ -4204,7 +4204,7 @@ void CommandResumeEphemeralSession::procresult()
     }
 }
 
-CommandCancelSignup::CommandCancelSignup(MegaClient *)
+CommandCancelSignup::CommandCancelSignup(MegaClient *client)
 {
     cmd("ucr");
 
