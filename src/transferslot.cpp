@@ -358,7 +358,7 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
     chunkpos = 0;
     progresscompleted = 0;
 
-    for (chunkmac_map::iterator it = begin(); it != end(); it++)
+    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
     {
         m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
 
@@ -377,7 +377,7 @@ void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progre
             progresscompleted += it->second.offset;
             if (lastblockprogress)
             {
-                *lastblockprogress = it->second.offset;
+                *lastblockprogress += it->second.offset;
             }
         }
     }
