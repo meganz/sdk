@@ -2238,7 +2238,7 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
 
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(true, true, true, false, false, false, listener);
+    pImpl->getAccountDetails(true, true, true, false, false, false, -1, listener);
 }
 
 void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, int source, MegaRequestListener *listener)
@@ -2248,7 +2248,7 @@ void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, i
 
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, listener);
+    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, -1, listener);
 }
 
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)

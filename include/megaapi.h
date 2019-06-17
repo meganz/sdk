@@ -8601,7 +8601,7 @@ class MegaApi
          * @param source code associated to trace the origin of storage requests, used for debugging purposes
          * @param listener MegaRequestListener to track this request
          */
-        void getSpecificAccountDetails(bool storage, bool transfer, bool pro, int source, MegaRequestListener *listener);
+        void getSpecificAccountDetails(bool storage, bool transfer, bool pro, int source = -1, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get details about the MEGA account
