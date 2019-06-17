@@ -1910,6 +1910,7 @@ class MegaApiImpl : public MegaApp
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+        void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
         void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
@@ -2567,6 +2568,7 @@ protected:
         // ephemeral session creation/resumption result
         virtual void ephemeral_result(error);
         virtual void ephemeral_result(handle, const byte*);
+        void cancelsignup_result(error) override;
 
         // check the reason of being blocked
         virtual void whyamiblocked_result(int);
@@ -2813,6 +2815,9 @@ protected:
 
         // return false if there's a schedule and it currently does not apply. Otherwise, true
         bool isScheduleNotifiable();
+
+        // deletes backups, requests and transfers. Reset total stats for down/uploads
+        int abortPendingActions(error preverror = API_OK);
 };
 
 class MegaHashSignatureImpl
