@@ -7703,7 +7703,7 @@ error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
     }
 
     const char *k = ptr + 1;
-    if (Base64::atob(k, key, sizeof key) != sizeof key)
+    if (Base64::atob(k, key, SymmCipher::KEYLENGTH) != SymmCipher::KEYLENGTH)
     {
         return API_EARGS;
     }
