@@ -1895,7 +1895,6 @@ class MegaApiImpl : public MegaApp
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
         char *getSequenceNumber();
-        char *dumpXMPPSession();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
 
@@ -1930,7 +1929,6 @@ class MegaApiImpl : public MegaApp
         char* getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
-        char* getMyXMPPJid();
         bool isAchievementsEnabled();
         bool isBusinessAccount();
         bool isMasterBusinessAccount();
@@ -2561,8 +2559,8 @@ protected:
         virtual void prelogin_result(int, string*, string*, error);
         virtual void login_result(error);
         virtual void logout_result(error);
-        virtual void userdata_result(string*, string*, string*, handle, error);
         virtual void pubkey_result(User *);
+        virtual void userdata_result(string*, string*, string*, error);
 
         // ephemeral session creation/resumption result
         virtual void ephemeral_result(error);
