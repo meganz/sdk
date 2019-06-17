@@ -2241,9 +2241,9 @@ void MegaApi::getAccountDetails(MegaRequestListener *listener)
     pImpl->getAccountDetails(true, true, true, false, false, false, listener);
 }
 
-void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener)
+void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener, int source)
 {
-    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, listener);
+    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, listener, source);
 }
 
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
