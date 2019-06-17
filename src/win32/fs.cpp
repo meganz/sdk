@@ -1081,7 +1081,7 @@ bool WinFileSystemAccess::getextension(string* filename, char* extension, size_t
         - (filename->size() & 1));   // if the string has had an extra null char added for surety, get back on wchar_t boundary.
 
     char c;
-    int i, j;
+    size_t i, j;
 
 	size--;
 
