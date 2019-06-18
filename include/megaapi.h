@@ -14320,7 +14320,9 @@ class MegaApi
          * - MegaRequest::getMegaFolderInfo() - Returns information about the contents of the folder
          * - MegaRequest::getNodeHandle() - Returns the public handle of the folder
          * - MegaRequest::getParentHandle() - Returns the handle of the owner of the folder
-         * - MegaRequest::getText() - Returns the name of the folder
+         * - MegaRequest::getText() - Returns the name of the folder. If there's no name
+         * returns the special status string "CRYPTO_ERROR". If the length
+         * of the name is zero returns the special status string "BLANK".
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS  - If the link is not a valid folder link
