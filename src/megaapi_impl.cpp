@@ -11623,12 +11623,30 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle ph, string
             byte* buf = Node::decryptattr(&cipher, attr->c_str(), attr->size());
             if (buf)
             {
+                AttrMap attrs;
+                string fileName;
+                string validName;
+                string fingerprint;
+                FileFingerprint ffp;
+                m_time_t mtime = 0;
+                Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
+
+                // Normalize node name to UTF-8 string
+                attr_map::iterator it;
+                it = attrs.map.find('n');
+                if (it != attrs.map.end() && it->second.size())
+                {
+                    client->fsaccess->normalize(&(it->second));
+                    fileName = it->second.c_str();
+                    validName = fileName;
+                }
+
                 MegaFolderInfoPrivate *folderInfo = new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
                 request->setMegaFolderInfo(folderInfo);
                 request->setNodeHandle(ph);
                 request->setParentHandle(owner);
-                // TODO: extract the foldername from `buf`
-                request->setText((const char*)buf);
+                request->setText(fileName.c_str());
+
                 delete folderInfo;
                 delete [] buf;
             }
@@ -13316,18 +13334,18 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         return;
     }
 
-    string attrstring;
+    AttrMap attrs;
     string fileName;
     string validName;
-    string keystring;
     string fingerprint;
     FileFingerprint ffp;
+    m_time_t mtime = 0;
 
+    string attrstring;
     attrstring.resize(a->length()*4/3+4);
     attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
 
-    m_time_t mtime = 0;
-
+    string keystring;
     SymmCipher nodeKey;
     keystring.assign((char*)key,FILENODEKEYLENGTH);
     nodeKey.setkey(key, FILENODE);
@@ -13335,61 +13353,19 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
     byte *buf = Node::decryptattr(&nodeKey, attrstring.c_str(), int(attrstring.size()));
     if (buf)
     {
-        JSON json;
-        nameid name;
-        string* t;
-        AttrMap attrs;
+        Node::parseattr(buf, attrs, size, mtime, fileName, fingerprint, ffp);
 
-        json.begin((char*)buf+5);
-        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
-        {
-            JSON::unescape(t);
-
-            if (name == 'n')
-            {
-                client->fsaccess->normalize(t);
-            }
-        }
-
-        delete[] buf;
-
+        // Normalize node name to UTF-8 string
         attr_map::iterator it;
         it = attrs.map.find('n');
-        if (it == attrs.map.end())
+        if (it != attrs.map.end() && it->second.size())
         {
-            fileName = "CRYPTO_ERROR";
-        }
-        else if (!it->second.size())
-        {
-            fileName = "BLANK";
-        }
-        else
-        {
+            client->fsaccess->normalize(&(it->second));
             fileName = it->second.c_str();
             validName = fileName;
         }
 
-        it = attrs.map.find('c');
-        if (it != attrs.map.end())
-        {
-            if (ffp.unserializefingerprint(&it->second))
-            {
-                ffp.size = size;
-                mtime = ffp.mtime;
-
-                char bsize[sizeof(size)+1];
-                int l = Serialize64::serialize((byte *)bsize, size);
-                char *buf = new char[l * 4 / 3 + 4];
-                char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
-
-                string result(1, ssize);
-                result.append(buf);
-                result.append(it->second);
-                delete [] buf;
-
-                fingerprint = result;
-            }
-        }
+        delete [] buf;
     }
     else
     {
