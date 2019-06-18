@@ -3223,27 +3223,7 @@ bool MegaClient::dispatch(direction_t d)
                     m_off_t p = 0;
 
                     // resume at the end of the last contiguous completed block
-                    for (chunkmac_map::iterator it = nexttransfer->chunkmacs.begin();
-                         it != nexttransfer->chunkmacs.end(); it++)
-                    {
-                        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, nexttransfer->size);
-
-                        if (nexttransfer->pos == it->first && it->second.finished)
-                        {
-                            nexttransfer->pos = chunkceil;
-                            nexttransfer->progresscompleted = chunkceil;
-                        }
-                        else if (it->second.finished)
-                        {
-                            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
-                            nexttransfer->progresscompleted += chunksize;
-                        }
-                        else
-                        {
-                            nexttransfer->progresscompleted += it->second.offset;
-                            p += it->second.offset;
-                        }
-                    }
+                    nexttransfer->chunkmacs.calcprogress(nexttransfer->size, nexttransfer->pos, nexttransfer->progresscompleted, &p);
 
                     if (nexttransfer->progresscompleted > nexttransfer->size)
                     {
@@ -7650,7 +7630,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
 
         if (!warnlevel())
         {
-            if (actionpackets && v >= 0 && v < 4 && statecurrent)
+            if (actionpackets && v >= 0 && v <= 3 && statecurrent)
             {
                 string email;
                 Node::copystring(&email, m);
@@ -9560,11 +9540,11 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
 
 void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
                                    bool transfer, bool pro, bool transactions,
-                                   bool purchases, bool sessions)
+                                   bool purchases, bool sessions, int source)
 {
     if (storage || transfer || pro)
     {
-        reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro));
+        reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro, source));
     }
 
     if (transactions)

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file megaapi_impl.cpp
  * @brief Private implementation of the intermediate layer for the MEGA C++ SDK.
  *
@@ -6602,7 +6602,7 @@ void MegaApiImpl::updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool
 }
 
 
-void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
+void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source, MegaRequestListener *listener)
 {
 	MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ACCOUNT_DETAILS, listener);
 	int numDetails = 0;
@@ -6613,6 +6613,7 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
 	if(purchases) numDetails |= 0x10;
 	if(sessions) numDetails |= 0x20;
 	request->setNumDetails(numDetails);
+    request->setAccess(source);
 
 	requestQueue.push(request);
     waiter->notify();
@@ -8674,7 +8675,7 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
     }
     sdkMutex.unlock();
 
-    links = new MegaStringListPrivate(listoflinks.data(),listoflinks.size());
+    links = new MegaStringListPrivate(listoflinks.data(), int(listoflinks.size()));
 
     return links;
 }
@@ -8705,7 +8706,7 @@ MegaNodeList *MegaApiImpl::httpServerGetWebDavAllowedNodes()
     }
     sdkMutex.unlock();
 
-    nodes = new MegaNodeListPrivate(listofnodes.data(),listofnodes.size());
+    nodes = new MegaNodeListPrivate(listofnodes.data(), int(listofnodes.size()));
 
     return nodes;
 }
@@ -9053,7 +9054,7 @@ MegaStringList *MegaApiImpl::ftpServerGetLinks()
     }
     sdkMutex.unlock();
 
-    links = new MegaStringListPrivate(listoflinks.data(),listoflinks.size());
+    links = new MegaStringListPrivate(listoflinks.data(), int(listoflinks.size()));
 
     return links;
 }
@@ -9084,7 +9085,7 @@ MegaNodeList *MegaApiImpl::ftpServerGetAllowedNodes()
     }
     sdkMutex.unlock();
 
-    nodes = new MegaNodeListPrivate(listofnodes.data(),listofnodes.size());
+    nodes = new MegaNodeListPrivate(listofnodes.data(), int(listofnodes.size()));
 
     return nodes;
 }
@@ -11848,14 +11849,9 @@ void MegaApiImpl::chatremoveaccess_result(error e)
 
 void MegaApiImpl::chatupdatepermissions_result(error e)
 {
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS)
-    {
-        return;
-    }
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_UPDATE_PERMISSIONS)) return;
 
     MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
@@ -11863,14 +11859,9 @@ void MegaApiImpl::chatupdatepermissions_result(error e)
 
 void MegaApiImpl::chattruncate_result(error e)
 {
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_TRUNCATE)
-    {
-        return;
-    }
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_TRUNCATE)) return;
 
     MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
@@ -11878,14 +11869,9 @@ void MegaApiImpl::chattruncate_result(error e)
 
 void MegaApiImpl::chatsettitle_result(error e)
 {
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_SET_TITLE)
-    {
-        return;
-    }
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_SET_TITLE)) return;
 
     MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
@@ -11908,14 +11894,9 @@ void MegaApiImpl::chatpresenceurl_result(string *url, error e)
 
 void MegaApiImpl::registerpushnotification_result(error e)
 {
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION)
-    {
-        return;
-    }
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION)) return;
 
     MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
@@ -11923,14 +11904,9 @@ void MegaApiImpl::registerpushnotification_result(error e)
 
 void MegaApiImpl::archivechat_result(error e)
 {
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)
-    {
-        return;
-    }
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_ARCHIVE)) return;
 
     MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
@@ -11952,53 +11928,37 @@ void MegaApiImpl::chats_updated(textchat_map *chats, int count)
 
 void MegaApiImpl::richlinkrequest_result(string *richLink, error e)
 {
-    MegaError megaError(e);
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_RICH_LINK)
-    {
-        return;
-    }
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_RICH_LINK)) return;
 
     if (!e)
     {
         request->setText(richLink->c_str());
     }
+    MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::chatlink_result(handle h, error e)
 {
-    MegaError megaError(e);
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_LINK_HANDLE)
-    {
-        return;
-    }
-
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_LINK_HANDLE)) return;
+    
     if (!e && !request->getFlag())
     {
         request->setParentHandle(h);
-    }
+    }    
+    MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, string *ct, int numPeers, m_time_t ts, error e)
 {
-    MegaError megaError(e);
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_CHAT_LINK_URL)
-    {
-        return;
-    }
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_LINK_URL)) return;
 
     if (!e)
     {
@@ -12009,36 +11969,27 @@ void MegaApiImpl::chatlinkurl_result(handle chatid, int shard, string *link, str
         request->setNumDetails(numPeers);
         request->setNumber(ts);
     }
+    MegaError megaError(e);
     fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::chatlinkclose_result(error e)
 {
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_SET_PRIVATE_MODE)) return;
+    
     MegaError megaError(e);
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_SET_PRIVATE_MODE)
-    {
-        return;
-    }
-
     fireOnRequestFinish(request, megaError);
 }
 
 void MegaApiImpl::chatlinkjoin_result(error e)
 {
+    if(requestMap.find(client->restag) == requestMap.end()) return;
+    MegaRequestPrivate* request = requestMap.at(client->restag);
+    if(!request || (request->getType() != MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT)) return;
+    
     MegaError megaError(e);
-    MegaRequestPrivate* request;
-    map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
-    if(it == requestMap.end()       ||
-            !(request = it->second) ||
-            request->getType() != MegaRequest::TYPE_AUTOJOIN_PUBLIC_CHAT)
-    {
-        return;
-    }
-
     fireOnRequestFinish(request, megaError);
 }
 
@@ -18178,7 +18129,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             request->setNumber(numReqs);
 
-			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions);
+			client->getaccountdetails(request->getAccountDetails(), storage, transfer, pro, transactions, purchases, sessions, request->getAccess());
 			break;
 		}
         case MegaRequest::TYPE_QUERY_TRANSFER_QUOTA:
@@ -24001,7 +23952,7 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
     if (basePath.size())
     {
         string sBasePath = basePath;
-        int lastIndex = sBasePath.size() - 1;
+        int lastIndex = int(sBasePath.size() - 1);
         if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
         {
             string utf8Separator;

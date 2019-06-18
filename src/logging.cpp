@@ -22,9 +22,17 @@
  * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
+#if defined(WINDOWS_PHONE) && !defined(__STDC_LIMIT_MACROS)
+#define __STDC_LIMIT_MACROS
+#endif
+
 #include "mega/logging.h"
 #include <time.h>
 #include <assert.h>
+
+#if defined(WINDOWS_PHONE)
+#include <stdint.h>
+#endif
 
 namespace mega {
 

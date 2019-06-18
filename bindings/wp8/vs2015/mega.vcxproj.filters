@@ -301,6 +301,9 @@
     <ClInclude Include="..\MUserAlertList.h">
       <Filter>Bindings</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\include\mega\testhooks.h">
+      <Filter>SDK\Header</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\DelegateMGfxProcessor.cpp">
@@ -554,6 +557,9 @@
     </ClCompile>
     <ClCompile Include="..\MUserAlertList.cpp">
       <Filter>Bindings</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\src\testhooks.cpp">
+      <Filter>SDK\Source</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

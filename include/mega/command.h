@@ -570,7 +570,7 @@ class MEGA_API CommandGetUserQuota : public Command
 public:
     void procresult();
 
-    CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool);
+    CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool, int source);
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command

@@ -19,13 +19,16 @@
 * program.
 */
 
-#if !defined(__MINGW32__) && !defined(__ANDROID__) && ( (__cplusplus >= 201100L) || (defined(_MSC_VER) && _MSC_VER >= 1600) ) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-// autocomplete for clients using c++11 capabilities (and that have filesystem available - the one in experimental namespace is ok)
+// autocomplete to support platforms without readline (and complement readline where it is available)
 
 #include <mega/autocomplete.h>
 #include <mega/megaclient.h>
 #include <cassert>
 #include <algorithm>
+
+#if !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
+
+#define HAVE_FILESYSTEM
 
 #if (__cplusplus >= 201700L)
     #include <filesystem>
@@ -38,27 +41,8 @@
     #include <experimental/filesystem>
     namespace fs = std::experimental::filesystem;
 #endif
-
-template<class T>
-static T clamp(T v, T lo, T hi)
-{
-    // todo: switch to c++17 std version when we can
-    if (v < lo)
-    {
-        return lo;
-    }
-    else if (v > hi)
-    {
-        return hi;
-    }
-    else
-    {
-        return v;
-    }
-}
-
 #endif
-
+#endif
 
 namespace mega {
 namespace autocomplete {
@@ -126,6 +110,38 @@ string ACState::quoted_word::getQuoted()
     string qs = s;
     q.applyQuotes(qs);
     return qs;
+}
+
+bool ACState::extractflag(const string& flag)
+{
+    for (auto i = words.begin(); i != words.end(); ++i)
+    {
+        if (i->s == flag && !i->q.quoted)
+        {
+            words.erase(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ACState::extractflagparam(const string& flag, string& param)
+{
+    for (auto i = words.begin(); i != words.end(); ++i)
+    {
+        if (i->s == flag)
+        {
+            auto j = i;
+            ++j;
+            if (j != words.end())
+            {
+                param = j->s;
+                words.erase(i, ++j);
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void ACState::addCompletion(const std::string& s, bool caseInsensitive, bool couldextend) 
@@ -589,6 +605,7 @@ bool LocalFS::addCompletions(ACState& s)
 {
     if (s.atCursor())
     {
+#ifdef HAVE_FILESYSTEM
         fs::path searchPath = fs::u8path(s.word().s + (s.word().s.empty() || (s.word().s.back() == '\\'  || s.word().s.back() == '/' ) ? "*" : ""));
 #ifdef WIN32
         char sep = (!s.word().s.empty() && s.word().s.find('/') != string::npos ) ?'/':'\\';
@@ -625,6 +642,9 @@ bool LocalFS::addCompletions(ACState& s)
                 }
             }
         }
+#else
+// todo: implement local directory listing for any platforms without std::filsystem, if it turns out to be needed
+#endif
         return true;
     }
     else
@@ -1353,4 +1373,3 @@ ACN contactEmail(MegaClient* client)
 
 }}; //namespaces
 
-#endif
