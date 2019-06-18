@@ -2389,7 +2389,6 @@ void exec_quit(ac::ACState&)
     quit_flag = true;
 }
 
-void exec_ls(autocomplete::ACState& s);
 void exec_apiurl(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
@@ -2401,7 +2400,7 @@ void exec_ls(autocomplete::ACState& s);
 void exec_cd(autocomplete::ACState& s);
 void exec_pwd(autocomplete::ACState& s);
 void exec_lcd(autocomplete::ACState& s);
-void exec_ls(autocomplete::ACState& s);
+void exec_lls(autocomplete::ACState& s);
 void exec_lpwd(autocomplete::ACState& s);
 void exec_lmkdir(autocomplete::ACState& s);
 void exec_import(autocomplete::ACState& s);
@@ -2502,7 +2501,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
 #ifdef USE_FILESYSTEM
-    p->Add(exec_ls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
+    p->Add(exec_lls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
     p->Add(exec_lpwd, sequence(text("lpwd")));
     p->Add(exec_lmkdir, sequence(text("lmkdir"), localFSFolder()));
 #endif
@@ -3299,6 +3298,7 @@ void exec_du(autocomplete::ACState& s)
 void exec_get(autocomplete::ACState& s)
 {
     Node *n;
+    string regularexpression;
     if (s.extractflag("-r"))
     {
 #ifdef USE_FILESYSTEM
@@ -3331,36 +3331,25 @@ void exec_get(autocomplete::ACState& s)
         cout << "Sorry, -r not supported yet" << endl;
 #endif
     }
-                        else if (extractparam("re", words))
-                        {
-#if __cplusplus >= 201100L
-                            if (words.size() == 2)
-                            {
-                                if (!(n = nodebypath(".")))
-                                {
-                                    cout << ": No current folder" << endl;
-                                }
-                                else if (n->type != FOLDERNODE && n->type != ROOTNODE)
-                                {
-                                    cout << ": not in a folder" << endl;
-                                }
-                                else
-                                {
-                                    unsigned queued = 0;
-                                    if (regexget(words[1], n, queued))
-                                    {
-                                        cout << "queued " << queued << " files for download" << endl;
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                reportsyntax = true;
-                            }
-#else
-                            cout << "Sorry, -re not supported yet" << endl;
-#endif
-                        }
+    else if (s.extractflagparam("-re", regularexpression))
+    {
+        if (!(n = nodebypath(".")))
+        {
+            cout << ": No current folder" << endl;
+        }
+        else if (n->type != FOLDERNODE && n->type != ROOTNODE)
+        {
+            cout << ": not in a folder" << endl;
+        }
+        else
+        {
+            unsigned queued = 0;
+            if (regexget(regularexpression, n, queued))
+            {
+                cout << "queued " << queued << " files for download" << endl;
+            }
+        }
+    }
     else
     {
         if (client->openfilelink(s.words[1].s.c_str(), 0) == API_OK)
