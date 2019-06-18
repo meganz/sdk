@@ -6622,33 +6622,35 @@ bool MegaApiImpl::isScheduleNotifiable()
     }
 }
 
-int MegaApiImpl::abortPendingActions(error preverror)
+// clears backups and requests/transfers notifying failure with EACCESS (and  resets total up/down bytes)
+void MegaApiImpl::abortPendingActions(error preverror)
 {
-    while (!backupsMap.empty())
+    for (auto it : backupsMap)
     {
-        std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
-        delete it->second;
-        backupsMap.erase(it);
+        delete it.second;
     }
+    backupsMap.clear();
 
-    while (!requestMap.empty())
+    for (auto it = requestMap.cbegin(), next_it = it; it != requestMap.cend(); it = next_it)
     {
-        std::map<int,MegaRequestPrivate*>::iterator it = requestMap.begin();
+        ++next_it;
         if(it->second)
         {
-            fireOnRequestFinish(it->second, MegaError(preverror ? preverror : MegaError::API_EACCESS));
+            fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
         }
     }
+    requestMap.clear();
 
-    while (!transferMap.empty())
+    for (auto it = transferMap.crbegin(), next_it = it; it != transferMap.crend(); it = next_it)
     {
-        std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
+        ++next_it;
         if (it->second)
         {
             it->second->setState(MegaTransfer::STATE_FAILED);
-            fireOnTransferFinish(it->second, MegaError(preverror ? preverror : MegaError::API_EACCESS));
+            fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
         }
     }
+    transferMap.clear();
 
     resetTotalDownloads();
     resetTotalUploads();
@@ -16934,30 +16936,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap.erase(request->getTag());
 
-            while (!backupsMap.empty())
-            {
-                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
-                delete it->second;
-                backupsMap.erase(it);
-            }
-
-            while (!requestMap.empty())
-            {
-                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-
-            while (!transferMap.empty())
-            {
-                std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
-                if (it->second)
-                {
-                    it->second->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
-                }
-            }
-            resetTotalDownloads();
-            resetTotalUploads();
+            abortPendingActions();
 
             requestMap[request->getTag()]=request;
 

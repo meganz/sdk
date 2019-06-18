@@ -2817,7 +2817,7 @@ protected:
         bool isScheduleNotifiable();
 
         // deletes backups, requests and transfers. Reset total stats for down/uploads
-        int abortPendingActions(error preverror = API_OK);
+        void abortPendingActions(error preverror = API_OK);
 };
 
 class MegaHashSignatureImpl
