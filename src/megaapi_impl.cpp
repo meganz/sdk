@@ -18321,25 +18321,29 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            int reqtag = request->getTag();
-            requestMap.erase(reqtag);
-
-            abortPendingActions();
-
-            requestMap[reqtag] = request;
-
-            client->locallogout();
-            if (resumeProcess)
-            {
-                client->resumeephemeral(uh, pwbuf);
-            }
-            else if (cancelProcess)
+            if (cancelProcess)
             {
                 client->cancelsignup();
             }
             else
             {
-                client->createephemeral();
+                int reqtag = request->getTag();
+                requestMap.erase(reqtag);
+
+                abortPendingActions();
+
+                requestMap[reqtag] = request;
+
+                client->locallogout();
+
+                if (resumeProcess)
+                {
+                    client->resumeephemeral(uh, pwbuf);
+                }
+                else
+                {
+                    client->createephemeral();
+                }
             }
             break;
 		}
