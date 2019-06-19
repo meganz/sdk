@@ -4757,23 +4757,6 @@ MegaUser *MegaApiImpl::getMyUser()
     return user;
 }
 
-char *MegaApiImpl::getMyXMPPJid()
-{
-    sdkMutex.lock();
-    if (ISUNDEF(client->me))
-    {
-        sdkMutex.unlock();
-        return NULL;
-    }
-
-    char jid[16];
-    Base32::btoa((const byte *)&client->me, MegaClient::USERHANDLE, jid);
-    char *result = MegaApi::strdup(jid);
-
-    sdkMutex.unlock();
-    return result;
-}
-
 bool MegaApiImpl::isAchievementsEnabled()
 {
     return client->achievements_enabled;
@@ -5302,21 +5285,6 @@ char *MegaApiImpl::getSequenceNumber()
     sdkMutex.unlock();
 
     return scsn;
-}
-
-char *MegaApiImpl::dumpXMPPSession()
-{
-    sdkMutex.lock();
-    char* buf = NULL;
-
-    if (client->loggedin())
-    {
-        buf = new char[MAX_SESSION_LENGTH * 4 / 3 + 4];
-        Base64::btoa((const byte *)client->sid.data(), int(client->sid.size()), buf);
-    }
-
-    sdkMutex.unlock();
-    return buf;
 }
 
 char *MegaApiImpl::getAccountAuth()
@@ -11338,16 +11306,6 @@ void MegaApiImpl::chatremove_result(error e)
     fireOnRequestFinish(request, megaError);
 }
 
-void MegaApiImpl::chaturl_result(error e)
-{
-    MegaError megaError(e);
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_CHAT_URL)) return;
-
-    fireOnRequestFinish(request, megaError);
-}
-
 void MegaApiImpl::chaturl_result(string *url, error e)
 {
     MegaError megaError(e);
@@ -13021,7 +12979,7 @@ void MegaApiImpl::logout_result(error e)
     fireOnRequestFinish(request,MegaError(e));
 }
 
-void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, handle bjid, error result)
+void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, error result)
 {
     MegaError megaError(result);
     if(requestMap.find(client->restag) == requestMap.end()) return;
@@ -13030,13 +12988,9 @@ void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, han
 
     if(result == API_OK)
     {
-        char jid[16];
-        Base32::btoa((byte *)&bjid, MegaClient::USERHANDLE, jid);
-
         request->setPassword(pubk->c_str());
         request->setPrivateKey(privk->c_str());
         request->setName(name->c_str());
-        request->setText(jid);
     }
     fireOnRequestFinish(request, megaError);
 }
