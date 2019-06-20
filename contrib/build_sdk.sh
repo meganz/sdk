@@ -141,7 +141,7 @@ package_download() {
         cp /tmp/megasdkbuild/$3 $file 
     else
         echo "Downloading $name to get $3"
-        wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        wget --secure-protocol=TLSv1 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
         curl -k $url > $file || exit 1
     fi
     
@@ -296,7 +296,13 @@ package_install() {
     local cwd=$(pwd)
     cd $dir
 
-    make install $target &> ../$name.install.log
+    if [ $android_build -eq 1 ] && [[ $name == "Crypto++"* ]]; then
+        echo make install-lib $target
+        make install-lib $target &> ../$name.install.log || make install $target &> ../$name.install.log
+    else
+        echo make install $target
+        make install $target &> ../$name.install.log
+    fi
     local exit_code=$?
     if [ $exit_code -ne 0 ]; then
         echo "Failed to install $name, exit status: $exit_code"
@@ -408,6 +414,8 @@ cryptopp_pkg() {
     sed "s#CXXFLAGS += -march=native#CXXFLAGS += #g" -i $cryptopp_dir/GNUmakefile
     
     if [ $android_build -eq 1 ]; then
+        cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.h $cryptopp_dir/
+        cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.c $cryptopp_dir/
         package_build $name $cryptopp_dir "static -f GNUmakefile-cross"
         package_install $name $cryptopp_dir $install_dir "-f GNUmakefile-cross"
     else

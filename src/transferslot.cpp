@@ -201,7 +201,7 @@ TransferSlot::~TransferSlot()
             TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
             if (outputPiece)
             {
-                if (fa && fa->fwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos))
+                if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                 {
 
                     LOG_verbose << "Sync write succeeded";
@@ -351,6 +351,36 @@ bool chunkmac_map::unserialize(const char*& ptr, const char* end)
         ptr += sizeof(ChunkMAC);
     }
     return true;
+}
+
+void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* lastblockprogress)
+{
+    chunkpos = 0;
+    progresscompleted = 0;
+
+    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
+    {
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
+
+        if (chunkpos == it->first && it->second.finished)
+        {
+            chunkpos = chunkceil;
+            progresscompleted = chunkceil;
+        }
+        else if (it->second.finished)
+        {
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            progresscompleted += chunksize;
+        }
+        else
+        {
+            progresscompleted += it->second.offset;
+            if (lastblockprogress)
+            {
+                *lastblockprogress += it->second.offset;
+            }
+        }
+    }
 }
 
 // file transfer state machine
@@ -653,12 +683,12 @@ void TransferSlot::doio(MegaClient* client)
                                     p += outputPiece->buf.datalen();
 
                                     LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
-                                    asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos);
+                                    asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
                                     reqs[i]->status = REQ_ASYNCIO;
                                 }
                                 else
                                 {
-                                    if (fa->fwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos))
+                                    if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                                     {
                                         LOG_verbose << "Sync write succeeded";
                                         transferbuf.bufferWriteCompleted(i);

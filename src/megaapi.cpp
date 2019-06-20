@@ -1647,11 +1647,6 @@ MegaUser *MegaApi::getMyUser()
     return pImpl->getMyUser();
 }
 
-char *MegaApi::getMyXMPPJid()
-{
-    return pImpl->getMyXMPPJid();
-}
-
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
@@ -1884,11 +1879,6 @@ char *MegaApi::dumpSession()
 char *MegaApi::getSequenceNumber()
 {
     return pImpl->getSequenceNumber();
-}
-
-char *MegaApi::dumpXMPPSession()
-{
-    return pImpl->dumpXMPPSession();
 }
 
 char *MegaApi::getAccountAuth()
@@ -2243,17 +2233,17 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
 
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(true, true, true, false, false, false, listener);
+    pImpl->getAccountDetails(true, true, true, false, false, false, -1, listener);
 }
 
-void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener)
+void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, int source, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, listener);
+    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, source, listener);
 }
 
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, listener);
+    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, -1, listener);
 }
 
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
@@ -4502,7 +4492,7 @@ char *MegaApi::getMimeType(const char *extension)
     };
 
     string key = extension;
-    std::transform(key.begin(), key.end(), key.begin(), [](char c) { return static_cast<char>(::tolower(c)); });
+    tolower_string(key);
     map<string, string>::const_iterator it = mimeMap.find(key);
     return it == mimeMap.cend() ? nullptr : MegaApi::strdup(it->second.c_str());
 }

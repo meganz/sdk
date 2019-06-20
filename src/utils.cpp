@@ -682,7 +682,7 @@ bool TextChat::setMode(bool publicchat)
 
 bool TextChat::setFlag(bool value, uint8_t offset)
 {
-    if (((flags >> offset) & 1U) == value)
+    if (bool((flags >> offset) & 1U) == value)
     {
         return false;
     }
@@ -964,7 +964,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     keyString.append(*cleartext);
 
     //Save the length of the valid message
-    int keylen = keyString.size();
+    size_t keylen = keyString.size();
 
     //Resize to add padding
     keyString.resize(asym.key[AsymmCipher::PUB_PQ].ByteCount() - 2);
@@ -980,7 +980,7 @@ bool PayCrypter::rsaEncryptKeys(const string *cleartext, const byte *pubkdata, i
     result->resize(asym.rawencrypt((byte *)keyString.data(), keyString.size(), (byte *)result->data(), result->size()));
 
     //Complete the result (2-byte header + RSA result)
-    int reslen = result->size();
+    size_t reslen = result->size();
     result->insert(0, 1, (byte)(reslen >> 8));
     result->insert(1, 1, (byte)(reslen));
     return true;
@@ -1062,7 +1062,7 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
 
     string *result = new string;
     result->resize(1);
-    result->at(0) = encSetting;
+    result->at(0) = static_cast<char>(encSetting);
     result->append((char*) iv, ivlen);
     result->append((char*) cipherText.data(), cipherText.length()); // includes auth. tag
 
@@ -1074,20 +1074,11 @@ string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptio
 
 string * TLVstore::tlvRecordsToContainer()
 {
-    TLV_map::iterator it;
-    unsigned buflen = 0;
-
-    for (it = tlv.begin(); it != tlv.end(); it++)
-    {
-        // add string length + null char + 2 bytes for length + value length
-        buflen += it->first.length() + 1 + 2 + it->second.length();
-    }
-
     string * result = new string;
-    unsigned offset = 0;
-    unsigned length;
+    size_t offset = 0;
+    size_t length;
 
-    for (it = tlv.begin(); it != tlv.end(); it++)
+    for (TLV_map::iterator it = tlv.begin(); it != tlv.end(); it++)
     {
         // copy Type
         result->append(it->first);
@@ -1096,8 +1087,8 @@ string * TLVstore::tlvRecordsToContainer()
         // set Length of value
         length = it->second.length();
         result->resize(offset + 2);
-        result->at(offset) = length >> 8;
-        result->at(offset + 1) = length & 0xFF;
+        result->at(offset) = static_cast<char>(length >> 8);
+        result->at(offset + 1) = static_cast<char>(length & 0xFF);
         offset += 2;
 
         // copy the Value
@@ -1213,15 +1204,15 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data)
 
     TLVstore *tlv = new TLVstore();
 
-    unsigned offset = 0;
+    size_t offset = 0;
 
     string type;
-    unsigned typelen;
+    size_t typelen;
     string value;
     unsigned valuelen;
     size_t pos;
 
-    unsigned datalen = data->length();
+    size_t datalen = data->length();
 
     while (offset < datalen)
     {
@@ -1288,7 +1279,7 @@ TLVstore * TLVstore::containerToTLVrecords(const string *data, SymmCipher *key)
     memcpy(iv, &(data->data()[offset]), ivlen);
     offset += ivlen;
 
-    unsigned cipherTextLen = data->length() - offset;
+    unsigned cipherTextLen = unsigned(data->length() - offset);
     string cipherText = data->substr(offset, cipherTextLen);
 
     unsigned clearTextLen = cipherTextLen - taglen;
@@ -1479,7 +1470,7 @@ int m_clock_getmonotonictime(timespec *t)
     struct __timeb64 tb;
     _ftime64(&tb);
     t->tv_sec = tb.time;
-    t->tv_nsec = tb.millitm = tb.millitm * 1000000;
+    t->tv_nsec = long(tb.millitm) * 1000000;
     return 0;
 #else
 #ifdef CLOCK_BOOTTIME
@@ -1826,6 +1817,11 @@ string webdavnameescape(const string &value) {
     }
 
     return escaped.str();
+}
+
+void tolower_string(std::string& str)
+{
+    std::transform(str.begin(), str.end(), str.begin(), [](char c) {return static_cast<char>(::tolower(c)); });
 }
 
 
