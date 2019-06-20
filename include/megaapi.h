@@ -2977,7 +2977,6 @@ class MegaRequest
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
-         * - MegaApi::getUserData - Returns the XMPP JID of the user
          * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
          * @return Text relative to this request
@@ -7029,7 +7028,6 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the logged user
          * - MegaRequest::getPassword - Returns the the public RSA key of the account, Base64-encoded
          * - MegaRequest::getPrivateKey - Returns the private RSA key of the account, Base64-encoded
-         * - MegaRequest::getText - Returns the XMPP JID of the logged user
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7044,7 +7042,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the contact
          * - MegaRequest::getPassword - Returns the public RSA key of the contact, Base64-encoded
          *
          * @param user Contact to get the data
@@ -7062,7 +7059,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the user
          * - MegaRequest::getPassword - Returns the public RSA key of the user, Base64-encoded
          *
          * @param user Email or Base64 handle of the user
@@ -7094,18 +7090,6 @@ class MegaApi
          * @return The current sequence number
          */
         char *getSequenceNumber();
-
-        /**
-         * @brief Returns the current XMPP session key
-         *
-         * You have to be logged in to get a valid session key. Otherwise,
-         * this function returns NULL.
-         *
-         * You take the ownership of the returned value.
-         *
-         * @return Current XMPP session key
-         */
-        char *dumpXMPPSession();
 
         /**
          * @brief Get an authentication token that can be used to identify the user account
@@ -7751,18 +7735,6 @@ class MegaApi
          * @return MegaUser of the currently open account, otherwise NULL
          */
         MegaUser* getMyUser();
-
-        /**
-         * @brief Returns the XMPP JID of the currently open account
-         *
-         * If the MegaApi object isn't logged in,
-         * this function returns NULL
-         *
-         * You take the ownership of the returned value
-         *
-         * @return XMPP JID of the current account
-         */
-        char* getMyXMPPJid();
 
         /**
          * @brief Returns whether MEGA Achievements are enabled for the open account
@@ -8934,9 +8906,10 @@ class MegaApi
          * @param storage If true, account storage details are requested
          * @param transfer If true, account transfer details are requested
          * @param pro If true, pro level of account is requested
+         * @param source code associated to trace the origin of storage requests, used for debugging purposes
          * @param listener MegaRequestListener to track this request
          */
-        void getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener = NULL);
+        void getSpecificAccountDetails(bool storage, bool transfer, bool pro, int source = -1, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get details about the MEGA account

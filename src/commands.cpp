@@ -3288,7 +3288,6 @@ void CommandGetUserData::procresult()
     string pubk;
     string privk;
     string k;
-    handle jid = UNDEF;
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     int len_privk = 0;
     m_time_t since = 0;
@@ -3309,7 +3308,7 @@ void CommandGetUserData::procresult()
         {
             e = API_ENOENT;
         }
-        return client->app->userdata_result(NULL, NULL, NULL, jid, e);
+        return client->app->userdata_result(NULL, NULL, NULL, e);
     }
 
     for (;;)
@@ -3326,10 +3325,6 @@ void CommandGetUserData::procresult()
 
         case MAKENAMEID4('n', 'a', 'm', 'e'):
             client->json.storeobject(&name);
-            break;
-
-        case 'u':
-            jid = client->json.gethandle(MegaClient::USERHANDLE);
             break;
 
         case 'k':
@@ -3375,7 +3370,7 @@ void CommandGetUserData::procresult()
                     default:
                         if (!client->json.storeobject())
                         {
-                            return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                            return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                         }
                     }
                 }
@@ -3406,7 +3401,7 @@ void CommandGetUserData::procresult()
                         default:
                             if (!client->json.storeobject())
                             {
-                                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                             }
                     }
                 }
@@ -3417,7 +3412,7 @@ void CommandGetUserData::procresult()
                      || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
                 {
                     LOG_err << "Invalid business status / account mode";
-                    return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                    return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                 }
             }
             break;
@@ -3454,13 +3449,13 @@ void CommandGetUserData::procresult()
             client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
             client->cachedug = true;
 
-            client->app->userdata_result(&name, &pubk, &privk, jid, API_OK);
+            client->app->userdata_result(&name, &pubk, &privk, API_OK);
             return;
 
         default:
             if (!client->json.storeobject())
             {
-                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
             }
         }
     }
@@ -3520,7 +3515,7 @@ void CommandGetMiscFlags::procresult()
 }
 
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro)
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
 
@@ -3537,6 +3532,8 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
     {
         arg("pro", "1", 0);
     }
+
+    arg("src", source);
 
     arg("v", 1);
 
