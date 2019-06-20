@@ -1147,6 +1147,46 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     return result;
 }
 
+
+int MegaApiImpl::setPauseSyncDownForSyncOwner(MegaNode *node, bool newval)
+{
+    int toret = 0; //TODO: undef for sync tags?
+    if (!node)
+    {
+        return toret;
+    }
+
+    sdkMutex.lock();
+    Node *n = client->nodebyhandle(node->getHandle());
+    if (n->localnode && n->localnode->sync)
+    {
+        n->localnode->sync->uploadingrecursive = newval;
+        toret = n->localnode->sync->tag;
+    }
+    sdkMutex.unlock();
+    return toret;
+}
+
+
+void MegaApiImpl::setPauseSyncDownBySyncTag(int tag, bool newval)
+{
+    sdkMutex.lock();
+    sync_list::iterator it = client->syncs.begin();
+    while(it != client->syncs.end())
+    {
+        Sync *sync = (*it);
+        if(sync->tag == tag)
+        {
+            sync->uploadingrecursive = newval;
+            break;
+        }
+        it++;
+    }
+    sdkMutex.unlock();
+    return;
+}
+
+
 char *MegaApiImpl::getBlockedPath()
 {
     char *path = NULL;
@@ -21618,6 +21658,13 @@ void MegaFolderUploadController::start()
 
         if(!child || !child->isFolder())
         {
+
+            if (!megaApi->getLocalPath(parent).find(localpath)) //TODO: think if parentpath should be "parentpath/name"
+            {
+                syncstoresume.push_back(megaApi->setPauseSyncDownForSyncOwner(parent, true));
+                //TODO: we might want to pause also here & in ::onFolderAvailable for already existing folders
+            }
+
             pendingFolders.push_back(localpath);
             megaApi->createFolder(name, parent, this);
         }
@@ -21629,6 +21676,14 @@ void MegaFolderUploadController::start()
 
         delete child;
         delete parent;
+    }
+}
+
+MegaFolderUploadController::~MegaFolderUploadController()
+{
+    for (auto it = syncstoresume.begin(); it != syncstoresume.end(); it++)
+    {
+        megaApi->setPauseSyncDownBySyncTag(*it, false);
     }
 }
 
@@ -21674,6 +21729,10 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
                     if(!child || !child->isFolder())
                     {
                         pendingFolders.push_back(localPath);
+                        if (!megaApi->getLocalPath(parent).find(localPath))//TODO: we might want to do local2path first
+                        {
+                            syncstoresume.push_back(megaApi->setPauseSyncDownForSyncOwner(parent, true));
+                        }
                         megaApi->createFolder(name.c_str(), parent, this);
                     }
                     else

@@ -49,6 +49,7 @@ Sync::Sync(MegaClient* cclient, string* crootpath, const char* cdebris,
     errorcode = API_OK;
     tmpfa = NULL;
     initializing = true;
+    uploadingrecursive = false;
     updatedfilesize = ~0;
     updatedfilets = 0;
     updatedfileinitialts = 0;

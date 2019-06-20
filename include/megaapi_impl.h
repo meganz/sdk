@@ -198,6 +198,7 @@ class MegaFolderUploadController : public MegaRequestListener, public MegaTransf
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     void start();
+    virtual ~MegaFolderUploadController();
 
 protected:
     void onFolderAvailable(MegaHandle handle);
@@ -211,6 +212,7 @@ protected:
     int recursive;
     int tag;
     int pendingTransfers;
+    std::vector<int>syncstoresume;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -2109,6 +2111,8 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByTag(int tag);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
+        int setPauseSyncDownForSyncOwner(MegaNode *node, bool newval);
+        void setPauseSyncDownBySyncTag(int tag, bool newval);
         char *getBlockedPath();
         void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif

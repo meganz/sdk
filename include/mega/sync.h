@@ -123,6 +123,10 @@ public:
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing;
 
+    // true if uploading recursively
+    bool uploadingrecursive;
+
+
     // true if the local synced folder is a network folder
     bool isnetwork;
 

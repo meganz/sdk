@@ -2572,6 +2572,11 @@ void MegaClient::exec()
                             (*it)->errorcode = API_ENOENT;
                             (*it)->changestate(SYNC_FAILED);
                         }
+                        else if((*it)->uploadingrecursive)
+                        {
+                            LOG_warn << "Postponing syncdown on demand until recursive upload ends";
+                            //TODO: do sth else?
+                        }
                         else
                         {
                             string localpath = (*it)->localroot.localname;
