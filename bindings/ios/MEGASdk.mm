@@ -599,6 +599,14 @@ using namespace mega;
     self.megaApi->resumeCreateAccount((sessionId != nil) ? [sessionId UTF8String] : NULL);
 }
 
+- (void)cancelCreateAccountWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cancelCreateAccount([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cancelCreateAccount {
+    self.megaApi->cancelCreateAccount();
+}
+
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->sendSignupLink((email != nil) ? [email UTF8String] : NULL, (name != nil) ? [name UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
