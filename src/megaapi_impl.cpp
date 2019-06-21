@@ -1150,7 +1150,7 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
 
 int MegaApiImpl::setPauseSyncDownForSyncOwner(MegaNode *node, bool newval)
 {
-    int toret = 0; //TODO: undef for sync tags?
+    int toret = -1;
     if (!node)
     {
         return toret;
@@ -21659,10 +21659,9 @@ void MegaFolderUploadController::start()
         if(!child || !child->isFolder())
         {
 
-            if (!megaApi->getLocalPath(parent).find(localpath)) //TODO: think if parentpath should be "parentpath/name"
+            if (!megaApi->getLocalPath(parent).find(localpath))
             {
                 syncstoresume.push_back(megaApi->setPauseSyncDownForSyncOwner(parent, true));
-                //TODO: we might want to pause also here & in ::onFolderAvailable for already existing folders
             }
 
             pendingFolders.push_back(localpath);
@@ -21729,7 +21728,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
                     if(!child || !child->isFolder())
                     {
                         pendingFolders.push_back(localPath);
-                        if (!megaApi->getLocalPath(parent).find(localPath))//TODO: we might want to do local2path first
+                        if (!megaApi->getLocalPath(parent).find(localPath))
                         {
                             syncstoresume.push_back(megaApi->setPauseSyncDownForSyncOwner(parent, true));
                         }

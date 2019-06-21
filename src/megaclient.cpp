@@ -2575,7 +2575,8 @@ void MegaClient::exec()
                         else if((*it)->uploadingrecursive)
                         {
                             LOG_warn << "Postponing syncdown on demand until recursive upload ends";
-                            //TODO: do sth else?
+                            success = false; // notice: this will inform the app of a lock
+                                            // it's not a filesystem lock, but a induced lock
                         }
                         else
                         {
