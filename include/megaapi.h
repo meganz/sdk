@@ -6729,6 +6729,10 @@ class MegaApi
          * - MegaRequest::getFlag - Returns the first parameter
          * - MegaRequest::getNumber - Returns the second parameter
          *
+         * If there is no Internet connection available, in iOS, this method will retry for up to 5 seconds and
+         * may fail with the error code MegaError::API_EACCESS in onRequestFinish() if not possible to retrieve the
+         * DNS servers from the system.
+         *
          * @param disconnect true if you want to disconnect already connected requests
          * It's not recommended to set this flag to true if you are not fully sure about what are you doing. If you
          * send a request that needs some time to complete and you disconnect it in a loop without giving it enough time,
