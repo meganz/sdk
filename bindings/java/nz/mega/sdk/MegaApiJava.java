@@ -1106,18 +1106,6 @@ public class MegaApiJava {
     }
 
     /**
-     * Returns the current XMPP session key.
-     * <p>
-     * You have to be logged in to get a valid session key. Otherwise,
-     * this function returns null.
-     * 
-     * @return Current XMPP session key.
-     */
-    public String dumpXMPPSession() {
-        return megaApi.dumpXMPPSession();
-    }
-
-    /**
      * Initialize the creation of a new MEGA account.
      * <p>
      * The associated request type with this request is MegaRequest.TYPE_CREATE_ACCOUNT.
@@ -1865,18 +1853,6 @@ public class MegaApiJava {
      */
     public MegaUser getMyUser(){
     	return megaApi.getMyUser();
-    }
-    
-    /**
-     * Returns the XMPP JID of the currently open account
-     *
-     * If the MegaApi object isn't logged in,
-     * this function returns null
-     *
-     * @return XMPP JID of the current account
-     */
-    public String getMyXMPPJid() {
-    	return megaApi.getMyXMPPJid();
     }
 
     /**
