@@ -18128,13 +18128,10 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     servers = dnsservers;
                 }
+#if TARGET_OS_IPHONE
                 else
                 {
-#if TARGET_OS_IPHONE
-                // Workaround to get the IP of valid DNS servers on iOS
-                int retries = 5;
-                while (retries)
-                {
+                    // Workaround to get the IP of valid DNS servers on iOS
                     __res_state res;
                     bool valid;
                     if (res_ninit(&res) == 0)
@@ -18171,21 +18168,14 @@ void MegaApiImpl::sendPendingRequests()
                         res_ndestroy(&res);
                     }
 
-                    if (servers.size())
+                    if (!servers.size())
+                    {
+                        LOG_warn << "Failed to get DNS servers at Retry Pending Connections";
+                        e = API_EACCESS;    // ie. when iOS has no Internet connection at all
                         break;
-
-                    retries--;
-                    sleep(1);
-                }
-
-                if (!retries)
-                {
-                    LOG_warn << "Failed to get DNS servers at Retry Pending Connections";
-                    e = API_EACCESS;
-                    break;
+                    }
                 }
 #endif
-                }
 #ifndef __MINGW32__
                 if (servers.size())
                 {
