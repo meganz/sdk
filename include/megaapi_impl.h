@@ -233,17 +233,17 @@ public:
     void abortCurrent();
 
     // MegaBackup interface
-    MegaBackup *copy();
-    const char *getLocalFolder() const;
-    MegaHandle getMegaHandle() const;
-    int getTag() const;
-    int64_t getPeriod() const;
-    const char *getPeriodString() const;
-    int getMaxBackups() const;
-    int getState() const;
-    long long getNextStartTime(long long oldStartTimeAbsolute = -1) const;
-    bool getAttendPastBackups() const;
-    MegaTransferList *getFailedTransfers();
+    MegaBackup *copy() override;
+    const char *getLocalFolder() const override;
+    MegaHandle getMegaHandle() const override;
+    int getTag() const override;
+    int64_t getPeriod() const override;
+    const char *getPeriodString() const override;
+    int getMaxBackups() const override;
+    int getState() const override;
+    long long getNextStartTime(long long oldStartTimeAbsolute = -1) const override;
+    bool getAttendPastBackups() const override;
+    MegaTransferList *getFailedTransfers() override;
 
 
     // MegaBackup setters
@@ -336,23 +336,23 @@ public:
     void onTransferTemporaryError(MegaApi *, MegaTransfer *t, MegaError* e) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
 
-    long long getNumberFolders() const;
+    long long getNumberFolders() const override;
     void setNumberFolders(long long value);
-    long long getNumberFiles() const;
+    long long getNumberFiles() const override;
     void setNumberFiles(long long value);
-    long long getMeanSpeed() const;
+    long long getMeanSpeed() const override;
     void setMeanSpeed(long long value);
-    long long getSpeed() const;
+    long long getSpeed() const override;
     void setSpeed(long long value);
-    long long getTotalBytes() const;
+    long long getTotalBytes() const override;
     void setTotalBytes(long long value);
-    long long getTransferredBytes() const;
+    long long getTransferredBytes() const override;
     void setTransferredBytes(long long value);
-    int64_t getUpdateTime() const;
+    int64_t getUpdateTime() const override;
     void setUpdateTime(const int64_t &value);
-    int64_t getCurrentBKStartTime() const;
+    int64_t getCurrentBKStartTime() const override;
     void setCurrentBKStartTime(const int64_t &value);
-    long long getTotalFiles() const;
+    long long getTotalFiles() const override;
     void setTotalFiles(long long value);
     MegaBackupListener *getBackupListener() const;
     void setBackupListener(MegaBackupListener *value);
