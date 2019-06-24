@@ -3298,9 +3298,9 @@ void CommandGetUserData::procresult()
     bool aplvp = false;
 
     bool b = false;
-    int m = -1;
-    int s = -2;
-    std::vector<std::pair<int, m_time_t>> sts;
+    bizmode_t m = BIZ_MODE_UNKNOWN;
+    bizstatus_t s = BIZ_STATUS_UNKNOWN;
+    std::vector<std::pair<bizstatus_t, m_time_t>> sts;
 
     if (client->json.isnumeric())
     {
@@ -3391,18 +3391,19 @@ void CommandGetUserData::procresult()
                     {
                         case 's':   // status
                             // -1: expired, 1: active, 2: grace-period
-                            s = client->json.getint32();
+                            s = bizstatus_t(client->json.getint32());
                             break;
 
                         case 'm':   // mode
-                            m = client->json.getint32();
+                            m = bizmode_t(client->json.getint32());
                             break;
+
                         case MAKENAMEID3('s', 't', 's'):    // status timestamps
                             // ie. "sts":[{"s":-1,"ts":1566182227},{"s":1,"ts":1563590227}]
                             client->json.enterarray();
                             while (client->json.enterobject())
                             {
-                                int status = -2;
+                                bizstatus_t status = BIZ_STATUS_UNKNOWN;
                                 m_time_t ts = 0;
 
                                 bool exit = false;
@@ -3411,7 +3412,7 @@ void CommandGetUserData::procresult()
                                     switch (client->json.getnameid())
                                     {
                                         case 's':
-                                           status = client->json.getint();
+                                           status = bizstatus_t(client->json.getint());
                                            break;
 
                                         case MAKENAMEID2('t', 's'):
@@ -3419,7 +3420,7 @@ void CommandGetUserData::procresult()
                                            break;
 
                                         case EOO:
-                                            if (status != -2 && ts != 0)
+                                            if (status != BIZ_STATUS_UNKNOWN && ts != 0)
                                             {
                                                 sts.push_back(std::make_pair(status, ts));
                                             }
@@ -3488,8 +3489,8 @@ void CommandGetUserData::procresult()
             if (b)  // business account
             {
                 // integrity checks
-                if ((s < -1 || s > 2)           // status not received or invalid
-                        || (m != 0 && m != 1))  // master flag not received or invalid
+                if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
+                        || (m != BIZ_MODE_MASTER && m != BIZ_MODE_SUBUSER))  // master flag not received or invalid
                 {
                     LOG_err << "GetUserData: invalid business status / account mode";
                 }
@@ -3500,17 +3501,17 @@ void CommandGetUserData::procresult()
                         client->businessStatus = s;
                         client->app->notify_business_status(s);
                     }
-                    client->businessMaster = bool(m);
+                    client->businessMaster = (m == BIZ_MODE_MASTER);
 
                     for (auto it : sts)
                     {
-                        int status = it.first;
+                        bizstatus_t status = it.first;
                         m_time_t ts = it.second;
-                        if (status == -1)
+                        if (status == BIZ_STATUS_EXPIRED)
                         {
                             client->timetoexpired = ts;
                         }
-                        else if (status == 1)
+                        else if (status == BIZ_STATUS_GRACE_PERIOD)
                         {
                             client->timetograceperiod = ts;
                         }
@@ -3546,7 +3547,7 @@ void CommandGetUserData::procresult()
             }
             else
             {
-                client->businessStatus = 0;
+                client->businessStatus = BIZ_STATUS_INACTIVE;
                 client->businessMaster = false;
             }
 

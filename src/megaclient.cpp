@@ -1045,7 +1045,7 @@ void MegaClient::init()
 
     notifyStorageChangeOnStateCurrent = false;  
     businessMaster = false;
-    businessStatus = 0;
+    businessStatus = BIZ_STATUS_INACTIVE;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -6144,43 +6144,44 @@ void MegaClient::sc_la()
 
 void MegaClient::sc_ub()
 {
-    int status = -2;
-    int master = 1;
+    bizstatus_t status = BIZ_STATUS_UNKNOWN;
+    bizmode_t mode = BIZ_MODE_UNKNOWN;
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
             case 's':
-                status = int(jsonsc.getint());
+                status = bizstatus_t(jsonsc.getint());
                 break;
 
             case 'm':
-                master = int(jsonsc.getint());
+                mode = bizmode_t(jsonsc.getint());
                 break;
 
             case EOO:
-                if ((status < -1 || status > 2))
+                if ((status < BIZ_STATUS_EXPIRED || status > BIZ_STATUS_GRACE_PERIOD))
                 {
                     std::string err = "Missing or invalid status in `ub` action packet";
                     LOG_err << err;
                     sendevent(99449, err.c_str(), 0);
                     return;
                 }
+                if ( (mode != BIZ_MODE_MASTER && mode != BIZ_MODE_SUBUSER)
+                     && (status != BIZ_STATUS_INACTIVE) )   // when inactive, `m` might be missing (unknown/undefined)
+                {
+                    LOG_err << "Unexpected mode for business account at `ub`. Mode: " << mode;
+                    return;
+                }
 
                 businessStatus = status;
-                businessMaster = master;
+                businessMaster = mode == BIZ_MODE_MASTER;
 
-                if (businessStatus == 1)
+                // FIXME: if API decides tp include the expiration ts, remove the block below
+                if (businessStatus == BIZ_STATUS_ACTIVE)
                 {
                     // If new status is active, reset timestamps of transitions
                     timetograceperiod = 0;
                     timetoexpired = 0;
-                }
-
-                if (master && status == 0)    // the account is not anymore a business account
-                {
-                    LOG_err << "Business account inactive, but no `m:0` received in `ub` action packet";
-                    businessMaster = false;
                 }
 
                 app->notify_business_status(businessStatus);

@@ -2787,7 +2787,7 @@ protected:
         void http_result(error, int, byte *, int) override;
 
         // notify about a business account status change
-        virtual void notify_business_status(int status);
+        virtual void notify_business_status(bizstatus_t status);
 
         // notify about a finished timer
         void timer_result(error) override;

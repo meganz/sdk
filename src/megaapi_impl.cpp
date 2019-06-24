@@ -4774,7 +4774,7 @@ bool MegaApiImpl::isMasterBusinessAccount()
 
 bool MegaApiImpl::isBusinessAccountActive()
 {
-    return (getBusinessStatus() > 0);
+    return getBusinessStatus() >= BIZ_STATUS_ACTIVE;
 }
 
 int MegaApiImpl::getBusinessStatus()
@@ -4784,11 +4784,11 @@ int MegaApiImpl::getBusinessStatus()
     // Check if current status has expired (based on ts of transition) and update status
     if (client->timetoexpired && client->timetoexpired < now)
     {
-       client->businessStatus = -1;
+       client->businessStatus = BIZ_STATUS_EXPIRED;
     }
     else if (client->timetograceperiod && client->timetograceperiod < now)
     {
-        client->businessStatus = 2;
+        client->businessStatus = BIZ_STATUS_GRACE_PERIOD;
     }
 
     return client->businessStatus;
@@ -12652,7 +12652,7 @@ void MegaApiImpl::notify_disconnect()
     fireOnEvent(event);
 }
 
-void MegaApiImpl::notify_business_status(int status)
+void MegaApiImpl::notify_business_status(bizstatus_t status)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_BUSINESS_STATUS);
     event->setNumber(status);

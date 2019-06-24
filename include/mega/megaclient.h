@@ -1453,7 +1453,7 @@ public:
     bool businessMaster;
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
-    int businessStatus;
+    bizstatus_t businessStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();

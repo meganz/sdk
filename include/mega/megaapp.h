@@ -307,7 +307,7 @@ struct MEGA_API MegaApp
 
     virtual void notify_storage(int) { }
 
-    virtual void notify_business_status(int) { }
+    virtual void notify_business_status(bizstatus_t) { }
 
     virtual void notify_change_to_https() { }
 
