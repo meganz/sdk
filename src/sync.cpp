@@ -221,12 +221,12 @@ bool Sync::readstatecache()
 
 bool Sync::isUp() const
 {
-    return syncDescriptor.syncType & SyncDescriptor::TYPE_UP;
+    return descriptor.syncType & SyncDescriptor::TYPE_UP;
 }
 
 bool Sync::isDown() const
 {
-    return syncDescriptor.syncType & SyncDescriptor::TYPE_DOWN;
+    return descriptor.syncType & SyncDescriptor::TYPE_DOWN;
 }
 
 // remove LocalNode from DB cache

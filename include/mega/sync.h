@@ -60,7 +60,7 @@ public:
     std::auto_ptr<DirNotify> dirnotify;
 #endif
 
-    SyncDescriptor syncDescriptor;
+    SyncDescriptor descriptor;
 
     bool isUp() const;
     bool isDown() const;

@@ -6431,7 +6431,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
 
 // update node attributes
 // (with speculative instant completion)
-error MegaClient::setattr(Node* n, const char *prevattr)
+error MegaClient::setattr(Node* n, const char *prevname)
 {
     if (!checkaccess(n, FULL))
     {
@@ -6449,7 +6449,27 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     n->tag = reqtag;
     notifynode(n);
 
-    reqs.add(new CommandSetAttr(this, n, cipher, prevattr));
+    bool send_set_attr = true;
+    const bool is_rename = prevname != NULL;
+    if (n->localnode && n->localnode->sync)
+    {
+        if (n->localnode->sync->isUp())
+        {
+            if (is_rename && !n->localnode->sync->descriptor.syncDeletions)
+            {
+                send_set_attr = false;
+            }
+        }
+        else
+        {
+            send_set_attr = false;
+        }
+    }
+
+    if (send_set_attr)
+    {
+        reqs.add(new CommandSetAttr(this, n, cipher, prevname));
+    }
 
     return API_OK;
 }
@@ -6643,11 +6663,20 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent)
 
         bool send_move_node = true;
 #ifdef ENABLE_SYNC
-        if (prevParent->localnode &&
-            prevParent->localnode->sync &&
-            !prevParent->localnode->sync->isUp())
+        const bool is_delete_op = syncdel == SYNCDEL_DEBRISDAY;
+        if (prevParent->localnode && prevParent->localnode->sync)
         {
-            send_move_node = false;
+            if (prevParent->localnode->sync->isUp())
+            {
+                if (is_delete_op && !prevParent->localnode->sync->descriptor.syncDeletions)
+                {
+                    send_move_node = false;
+                }
+            }
+            else
+            {
+                send_move_node = false;
+            }
         }
 #endif
 
@@ -6676,9 +6705,19 @@ error MegaClient::unlink(Node* n, bool keepversions)
 
     bool send_del_node = true;
 #ifdef ENABLE_SYNC
-    if (n->localnode && n->localnode->sync && !n->localnode->sync->isUp())
+    if (n->localnode && n->localnode->sync)
     {
-        send_del_node = false;
+        if (n->localnode->sync->isUp())
+        {
+            if (!n->localnode->sync->descriptor.syncDeletions)
+            {
+                send_del_node = false;
+            }
+        }
+        else
+        {
+            send_del_node = false;
+        }
     }
 #endif
 
@@ -11272,7 +11311,7 @@ error MegaClient::addsync(const SyncDescriptor& syncDescriptor, string* rootpath
             LOG_debug << "Adding sync: " << utf8path;
 
             Sync* sync = new Sync(this, rootpath, debris, localdebris, remotenode, fsfp, inshare, tag, appData);
-            sync->syncDescriptor = syncDescriptor;
+            sync->descriptor = syncDescriptor;
             sync->isnetwork = isnetwork;
 
             if (sync->scan(rootpath, fa))
