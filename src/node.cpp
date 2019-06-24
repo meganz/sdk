@@ -544,11 +544,11 @@ void Node::copystring(string* s, const char* p)
 }
 
 // decrypt attrstring and check magic number prefix
-byte* Node::decryptattr(SymmCipher* key, const char* attrstring, int attrstrlen)
+byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrlen)
 {
     if (attrstrlen)
     {
-        int l = attrstrlen * 3 / 4 + 3;
+        int l = int(attrstrlen * 3 / 4 + 3);
         byte* buf = new byte[l];
 
         l = Base64::atob(attrstring, buf, l);
@@ -1031,6 +1031,13 @@ bool PublicLink::isExpired()
 // no shortname allowed as the last path component.
 void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 {
+    if (!sync)
+    {
+        LOG_err << "LocalNode::init() was never called";
+        assert(false);
+        return;
+    }
+
     bool newnode = !localname.size();
     Node* todelete = NULL;
     int nc = 0;
@@ -1052,7 +1059,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
     if (newlocalpath)
     {
         // extract name component from localpath, check for rename unless newnode
-        int p;
+        size_t p;
 
         for (p = newlocalpath->size(); p -= sync->client->fsaccess->localseparator.size(); )
         {
@@ -1203,13 +1210,20 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
 void LocalNode::bumpnagleds()
 {
+    if (!sync)
+    {
+        LOG_err << "LocalNode::init() was never called";
+        assert(false);
+        return;
+    }
+
     nagleds = sync->client->waiter->ds + 11;
 }
 
 LocalNode::LocalNode()
-{
-    checked = false;
-}
+: sync{nullptr}
+, checked{false}
+{}
 
 // initialize fresh LocalNode object - must be called exactly once
 void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* cfullpath)
@@ -1264,6 +1278,13 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 // update treestates back to the root LocalNode, inform app about changes
 void LocalNode::treestate(treestate_t newts)
 {
+    if (!sync)
+    {
+        LOG_err << "LocalNode::init() was never called";
+        assert(false);
+        return;
+    }
+
     if (newts != TREESTATE_NONE)
     {
         ts = newts;
@@ -1337,6 +1358,13 @@ void LocalNode::setnode(Node* cnode)
 
 void LocalNode::setnotseen(int newnotseen)
 {
+    if (!sync)
+    {
+        LOG_err << "LocalNode::init() was never called";
+        assert(false);
+        return;
+    }
+
     if (!newnotseen)
     {
         if (notseen)
@@ -1361,6 +1389,13 @@ void LocalNode::setnotseen(int newnotseen)
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
 void LocalNode::setfsid(handle newfsid)
 {
+    if (!sync)
+    {
+        LOG_err << "LocalNode::init() was never called";
+        assert(false);
+        return;
+    }
+
     if (fsid_it != sync->client->fsidnode.end())
     {
         if (newfsid == fsid)
@@ -1387,6 +1422,13 @@ void LocalNode::setfsid(handle newfsid)
 
 LocalNode::~LocalNode()
 {
+    if (!sync)
+    {
+        LOG_err << "LocalNode::init() was never called";
+        assert(false);
+        return;
+    }
+
     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
     {
         sync->statecachedel(this);
@@ -1479,6 +1521,13 @@ LocalNode::~LocalNode()
 
 void LocalNode::getlocalpath(string* path, bool sdisable) const
 {
+    if (!sync)
+    {
+        LOG_err << "LocalNode::init() was never called";
+        assert(false);
+        return;
+    }
+
     const LocalNode* l = this;
 
     path->erase();
@@ -1519,6 +1568,13 @@ string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
 
 void LocalNode::getlocalsubpath(string* path) const
 {
+    if (!sync)
+    {
+        LOG_err << "LocalNode::init() was never called";
+        assert(false);
+        return;
+    }
+
     const LocalNode* l = this;
 
     path->erase();
@@ -1688,7 +1744,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
         memcpy(crc, ptr, sizeof crc);
         ptr += sizeof crc;
 
-        if (Serialize64::unserialize((byte*)ptr, end - ptr, &mtime) < 0)
+        if (Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime) < 0)
         {
             LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
             return NULL;

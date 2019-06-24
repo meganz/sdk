@@ -370,6 +370,7 @@
     <ClInclude Include="..\..\..\include\mega\share.h" />
     <ClInclude Include="..\..\..\include\mega\sharenodekeys.h" />
     <ClInclude Include="..\..\..\include\mega\sync.h" />
+    <ClInclude Include="..\..\..\include\mega\testhooks.h" />
     <ClInclude Include="..\..\..\include\mega\thread.h" />
     <ClInclude Include="..\..\..\include\mega\thread\cppthread.h" />
     <ClInclude Include="..\..\..\include\mega\transfer.h" />
@@ -462,11 +463,13 @@
     <ClCompile Include="..\..\..\src\pendingcontactrequest.cpp" />
     <ClCompile Include="..\..\..\src\proxy.cpp" />
     <ClCompile Include="..\..\..\src\pubkeyaction.cpp" />
+    <ClCompile Include="..\..\..\src\raid.cpp" />
     <ClCompile Include="..\..\..\src\request.cpp" />
     <ClCompile Include="..\..\..\src\serialize64.cpp" />
     <ClCompile Include="..\..\..\src\share.cpp" />
     <ClCompile Include="..\..\..\src\sharenodekeys.cpp" />
     <ClCompile Include="..\..\..\src\sync.cpp" />
+    <ClCompile Include="..\..\..\src\testhooks.cpp" />
     <ClCompile Include="..\..\..\src\thread\cppthread.cpp" />
     <ClCompile Include="..\..\..\src\transfer.cpp" />
     <ClCompile Include="..\..\..\src\transferslot.cpp" />
@@ -477,7 +480,6 @@
     <ClCompile Include="..\..\..\src\waiterbase.cpp" />
     <ClCompile Include="..\..\..\src\win32\fs.cpp" />
     <ClCompile Include="..\..\..\src\win32\waiter.cpp" />
-    <ClCompile Include="..\..\..\src\win32\raid.cpp" />
     <ClCompile Include="..\DelegateMGfxProcessor.cpp" />
     <ClCompile Include="..\DelegateMGlobalListener.cpp" />
     <ClCompile Include="..\DelegateMListener.cpp" />

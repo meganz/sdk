@@ -267,7 +267,7 @@ User* User::unserialize(MegaClient* client, string* d)
     }
 #endif
 
-    if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, end - ptr))
+    if ((ptr < end) && !u->pubk.setkey(AsymmCipher::PUBKEY, (byte*)ptr, int(end - ptr)))
     {
         client->discarduser(uh);
         return NULL;
@@ -666,7 +666,7 @@ attr_t User::string2attr(const char* name)
     }
 }
 
-bool User::needversioning(attr_t at)
+int User::needversioning(attr_t at)
 {
     switch(at)
     {
@@ -832,7 +832,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
+        long tmp = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || (tmp != 0 && tmp != 1))
         {
             flagMkExported = false;
@@ -861,7 +861,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
+        long tmp = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || (tmp != 0 && tmp != 1))
         {
             flagDontShowAgain = false;

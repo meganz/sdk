@@ -356,7 +356,7 @@ public:
 class MEGA_API CommandSingleKeyCR : public Command
 {
 public:
-    CommandSingleKeyCR(handle, handle, const byte*, unsigned);
+    CommandSingleKeyCR(handle, handle, const byte*, size_t);
 };
 
 class MEGA_API CommandDelNode : public Command
@@ -547,7 +547,7 @@ class MEGA_API CommandGetUserQuota : public Command
 public:
     void procresult();
 
-    CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool);
+    CommandGetUserQuota(MegaClient*, AccountDetails*, bool, bool, bool, int source);
 };
 
 class MEGA_API CommandQueryTransferQuota : public Command

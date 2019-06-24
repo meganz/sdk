@@ -92,7 +92,7 @@ CurlHttpIO::CurlHttpIO()
         LOG_debug << "SSL version: " << data->ssl_version;
 
         string curlssl = data->ssl_version;
-        std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
+        tolower_string(curlssl);
         if (strstr(curlssl.c_str(), "gskit"))
         {
             LOG_fatal << "Unsupported SSL backend (GSKit). Aborting.";
@@ -1488,7 +1488,7 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
     scheme->clear();
     hostname->clear();
 
-    size_t starthost, endhost, startport, endport;
+    size_t starthost, endhost = 0, startport, endport;
 
     starthost = url->find("://");
 
@@ -2016,7 +2016,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     pkpErrors = 0;
                 }
 
-                curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
+                long httpstatus;
+                curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &httpstatus);
+                req->httpstatus = int(httpstatus);
 
                 LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
                           << (req->httpiohandle ? (((CurlHttpContext*)req->httpiohandle)->hostname + " - " + ((CurlHttpContext*)req->httpiohandle)->hostip) : "(unknown) ");
@@ -2349,12 +2351,12 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     {
         if (req->contentlength < 0)
         {
-            req->setcontentlength(atol((char*)ptr + 15));
+            req->setcontentlength(atoll((char*)ptr + 15));
         }
     }
     else if (len > 24 && !memcmp(ptr, "Original-Content-Length:", 24))
     {
-        req->setcontentlength(atol((char*)ptr + 24));
+        req->setcontentlength(atoll((char*)ptr + 24));
     }
     else if (len > 17 && !memcmp(ptr, "X-MEGA-Time-Left:", 17))
     {
@@ -2680,7 +2682,7 @@ bool CurlDNSEntry::isIPv6Expired()
 
 SockInfo::SockInfo()
 {
-    fd = -1;
+    fd = curl_socket_t(-1);
     mode = NONE;
 #if defined(_WIN32)
     handle = WSA_INVALID_EVENT;
