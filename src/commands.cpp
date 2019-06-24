@@ -3377,7 +3377,7 @@ void CommandGetUserData::procresult()
             }
             break;
 
-        case 'b':
+        case 'b':   // business account's info
             assert(!b);
             b = true;
             if (client->json.enterobject())
@@ -3387,21 +3387,24 @@ void CommandGetUserData::procresult()
                 {
                     switch (client->json.getnameid())
                     {
-                        case 's':
+                        case 's':   // status
                             // -1: expired, 1: active, 2: grace-period
                             s = client->json.getint32();
                             break;
-                        case 'm':
+
+                        case 'm':   // mode
                             m = client->json.getint32();
                             break;
-                        case MAKENAMEID3('s', 't', 's'):
+                        case MAKENAMEID3('s', 't', 's'):    // status timestamps
+                            // ie. "sts":[{"s":-1,"ts":1566182227},{"s":1,"ts":1563590227}]
                             client->json.enterarray();
                             while (client->json.enterobject())
                             {
-                                bool noexit = true;
                                 int type = 0;
                                 m_time_t ts = 0;
-                                while (noexit)
+
+                                bool exit = false;
+                                while (!exit)
                                 {
                                     switch (client->json.getnameid())
                                     {
@@ -3414,7 +3417,7 @@ void CommandGetUserData::procresult()
                                            break;
 
                                         case EOO:
-                                            noexit = false;
+                                            exit = true;
                                             break;
 
                                         default:

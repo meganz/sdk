@@ -4779,14 +4779,16 @@ bool MegaApiImpl::isBusinessAccountActive()
 
 int MegaApiImpl::getBusinessStatus()
 {
-    // Check whether transition ts has not expired, otherwise update status
-    if (client->timetoexpired && client->timetoexpired < Waiter::ds)
+    m_time_t now = m_time(nullptr);
+
+    // Check if current status has expired (based on ts of transition) and update status
+    if (client->timetoexpired && client->timetoexpired < now)
     {
-       client->businessStatus = 2;
+       client->businessStatus = -1;
     }
-    else if (client->timetograceperiod && client->timetograceperiod < Waiter::ds)
+    else if (client->timetograceperiod && client->timetograceperiod < now)
     {
-        client->businessStatus = -1;
+        client->businessStatus = 2;
     }
 
     return client->businessStatus;

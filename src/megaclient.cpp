@@ -6172,7 +6172,7 @@ void MegaClient::sc_ub()
 
                 if (businessStatus == 1)
                 {
-                    // If new status is active, reset transition timestamps
+                    // If new status is active, reset timestamps of transitions
                     timetograceperiod = 0;
                     timetoexpired = 0;
                 }

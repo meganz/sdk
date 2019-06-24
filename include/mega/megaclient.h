@@ -676,7 +676,10 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
+    // timestamp when a business account will enter into Grace Period
     m_time_t timetograceperiod;
+
+    // timestamp when a business account will finally expire
     m_time_t timetoexpired;
 
     // storage status
