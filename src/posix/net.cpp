@@ -35,22 +35,22 @@ extern JavaVM *MEGAjvm;
 
 namespace mega {
 
-MUTEX_CLASS CurlHttpIO::curlMutex(false);
+std::mutex CurlHttpIO::curlMutex;
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
-MUTEX_CLASS **CurlHttpIO::sslMutexes = NULL;
-static MUTEX_CLASS lock_init_mutex(false);
+std::recursive_mutex **CurlHttpIO::sslMutexes = NULL;
+static std::mutex lock_init_mutex;
 void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
 {
-    MUTEX_CLASS *mutex = sslMutexes[lockNumber];
+    std::recursive_mutex *mutex = sslMutexes[lockNumber];
     if (mutex == NULL)
     {
         // we still have to be careful about multiple threads getting to this point simultaneously
         lock_init_mutex.lock();
         if (!(mutex = sslMutexes[lockNumber]))
         {
-            mutex = sslMutexes[lockNumber] = new MUTEX_CLASS(true);
+            mutex = sslMutexes[lockNumber] = new std::recursive_mutex;
         }
         lock_init_mutex.unlock();
     }
@@ -158,8 +158,8 @@ CurlHttpIO::CurlHttpIO()
     {
         LOG_debug << "Initializing OpenSSL locking callbacks";
         int numLocks = CRYPTO_num_locks();
-        sslMutexes = new MUTEX_CLASS*[numLocks];
-        memset(sslMutexes, 0, numLocks * sizeof(MUTEX_CLASS*));
+        sslMutexes = new std::recursive_mutex*[numLocks];
+        memset(sslMutexes, 0, numLocks * sizeof(std::recursive_mutex*));
 #if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
         CRYPTO_THREADID_set_callback(CurlHttpIO::id_function);
 #else

@@ -4555,7 +4555,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 {
     this->api = api;
 
-    sdkMutex.init(true);
     maxRetries = 7;
 	currentTransfer = NULL;
     pendingUploads = 0;
@@ -7333,7 +7332,7 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
 
 void MegaApiImpl::setStreamingMinimumRate(int bytesPerSecond)
 {
-    MutexGuard g(sdkMutex);
+    std::lock_guard<std::recursive_mutex> g(sdkMutex);
     client->minstreamingrate = bytesPerSecond;
 }
 
@@ -9618,7 +9617,7 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
 
 MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigned maxnodes)
 {
-    MutexGuard g(sdkMutex);
+    std::lock_guard<std::recursive_mutex> g(sdkMutex);
     m_time_t since = m_time() - days * 86400;
     recentactions_vector v = client->getRecentActions(maxnodes, since);
     return new MegaRecentActionBucketListPrivate(v, client);
@@ -20137,7 +20136,6 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 
 TransferQueue::TransferQueue()
 {
-    mutex.init(false);
 }
 
 void TransferQueue::push(MegaTransferPrivate *transfer)
@@ -20186,7 +20184,6 @@ void TransferQueue::removeListener(MegaTransferListener *listener)
 
 RequestQueue::RequestQueue()
 {
-    mutex.init(false);
 }
 
 void RequestQueue::push(MegaRequestPrivate *request)
@@ -20544,7 +20541,6 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
 
 ExternalLogger::ExternalLogger()
 {
-    mutex.init(true);
     logToConsole = false;
     SimpleLogger::setOutputClass(this);
 }

@@ -13039,7 +13039,7 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 
 namespace action_bucket_compare
 {
-    MUTEX_CLASS media_check(false);   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
+    std::mutex media_check;   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
     MegaClient* mc;
 
     const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
@@ -13124,7 +13124,7 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
     node_vector v = getRecentNodes(maxcount, since, false);
 
     using namespace action_bucket_compare;
-    MutexGuard g(media_check); // when we can use c++11, switch to a lambda.  In the meantime, force just one MegaClient at a time instead.
+    std::lock_guard<std::mutex> g(media_check); // when we can use c++11, switch to a lambda.  In the meantime, force just one MegaClient at a time instead.
     mc = this;
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )

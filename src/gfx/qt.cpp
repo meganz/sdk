@@ -58,7 +58,7 @@ namespace mega {
 QByteArray *GfxProcQT::formatstring = NULL;
 
 #ifdef HAVE_FFMPEG
-MUTEX_CLASS GfxProcQT::gfxMutex(false);
+std::mutex GfxProcQT::gfxMutex;
 #endif
 
 /************* EXIF STUFF **************/

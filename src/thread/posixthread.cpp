@@ -70,63 +70,6 @@ PosixThread::~PosixThread()
     delete thread;
 }
 
-//PosixMutex
-PosixMutex::PosixMutex()
-{
-    mutex = NULL;
-    attr = NULL;
-}
-
-PosixMutex::PosixMutex(bool recursive)
-{
-    mutex = NULL;
-    attr = NULL;
-
-    init(recursive);
-}
-
-void PosixMutex::init(bool recursive)
-{
-    if (recursive)
-    {
-        mutex = new pthread_mutex_t();
-        attr = new pthread_mutexattr_t();
-        pthread_mutexattr_init(attr);
-        pthread_mutexattr_settype(attr, PTHREAD_MUTEX_RECURSIVE);
-        pthread_mutex_init(mutex, attr);
-    }
-    else
-    {
-        mutex = new pthread_mutex_t();
-        pthread_mutex_init(mutex, NULL);
-    }
-}
-
-void PosixMutex::lock()
-{
-    pthread_mutex_lock(mutex);
-}
-
-void PosixMutex::unlock()
-{
-    pthread_mutex_unlock(mutex);
-}
-
-PosixMutex::~PosixMutex()
-{
-    if (mutex)
-    {
-        pthread_mutex_destroy(mutex);
-        delete mutex;
-    }
-
-    if (attr)
-    {
-        pthread_mutexattr_destroy(attr);
-        delete attr;
-    }
-}
-
 //PosixSemaphore
 PosixSemaphore::PosixSemaphore()
 {

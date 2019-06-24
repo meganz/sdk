@@ -64,7 +64,7 @@ extern "C" {
 namespace mega {
 
 #ifdef HAVE_FFMPEG
-MUTEX_CLASS GfxProcFreeImage::gfxMutex(false);
+std::mutex GfxProcFreeImage::gfxMutex;
 #endif
 
 GfxProcFreeImage::GfxProcFreeImage()
