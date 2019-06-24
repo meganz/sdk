@@ -11739,10 +11739,6 @@ bool MegaClient::syncdown(LocalNode* l, string* localpath, bool rubbish)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds)
 {
-    if (!l->sync->isUp())
-    {
-        return true;
-    }
     bool insync = true;
 
     list<string> strings;
