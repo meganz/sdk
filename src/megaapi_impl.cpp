@@ -11509,13 +11509,13 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
     {
         // Decrypt nodekey with the key of the folder link
         SymmCipher cipher;
-        cipher.setkey((const byte *)request->getPrivateKey(), sizeof(request->getPrivateKey());
-        const char *nodekeystr = k->data() + 10;    // skip the userhandle(8) and the `:`
+        cipher.setkey((const byte *)request->getPrivateKey(), sizeof(request->getPrivateKey()));
+        const char *nodekeystr = k->data() + 9;    // skip the userhandle(8) and the `:`
         byte nodekey[FOLDERNODEKEYLENGTH];
         if (client->decryptkey(nodekeystr, nodekey, sizeof(nodekey), &cipher, 0, UNDEF))
         {
             // Decrypt node attributes with the nodekey
-            cipher.setkey(&nodekey);
+            cipher.setkey(nodekey);
             byte* buf = Node::decryptattr(&cipher, attr->c_str(), attr->size());
             if (buf)
             {
@@ -19989,8 +19989,9 @@ void MegaApiImpl::sendPendingRequests()
             e = client->parsefolderlink(link, h, folderkey);
             if (e == API_OK)
             {
+                const string binfolderkey((const char *)folderkey, sizeof (folderkey));
                 request->setNodeHandle(h);
-                request->setPrivateKey(folderkey);
+                request->setPrivateKey(binfolderkey.data());
                 client->getpubliclinkinfo(h);
             }
             break;
