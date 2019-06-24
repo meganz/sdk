@@ -1110,8 +1110,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
-    timetograceperiod = 0;
-    timetoexpired = 0;
+    tsgraceperiod = 0;
+    tsexpired = 0;
     ststatus = STORAGE_GREEN;
     looprequested = false;
 
@@ -3604,8 +3604,8 @@ void MegaClient::locallogout()
     fetchnodestag = 0;
     ststatus = STORAGE_GREEN;
     overquotauntil = 0;
-    timetograceperiod = 0;
-    timetoexpired = 0;
+    tsgraceperiod = 0;
+    tsexpired = 0;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -6180,8 +6180,8 @@ void MegaClient::sc_ub()
                 if (businessStatus == BIZ_STATUS_ACTIVE)
                 {
                     // If new status is active, reset timestamps of transitions
-                    timetograceperiod = 0;
-                    timetoexpired = 0;
+                    tsgraceperiod = 0;
+                    tsexpired = 0;
                 }
 
                 app->notify_business_status(businessStatus);

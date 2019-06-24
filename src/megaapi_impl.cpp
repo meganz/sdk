@@ -4782,11 +4782,11 @@ int MegaApiImpl::getBusinessStatus()
     m_time_t now = m_time(nullptr);
 
     // Check if current status has expired (based on ts of transition) and update status
-    if (client->timetoexpired && client->timetoexpired < now)
+    if (client->tsexpired && client->tsexpired < now)
     {
        client->businessStatus = BIZ_STATUS_EXPIRED;
     }
-    else if (client->timetograceperiod && client->timetograceperiod < now)
+    else if (client->tsgraceperiod && client->tsgraceperiod < now)
     {
         client->businessStatus = BIZ_STATUS_GRACE_PERIOD;
     }

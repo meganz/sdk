@@ -677,10 +677,10 @@ public:
     m_time_t overquotauntil;
 
     // timestamp when a business account will enter into Grace Period
-    m_time_t timetograceperiod;
+    m_time_t tsgraceperiod;
 
     // timestamp when a business account will finally expire
-    m_time_t timetoexpired;
+    m_time_t tsexpired;
 
     // storage status
     storagestatus_t ststatus;

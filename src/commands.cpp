@@ -3509,11 +3509,11 @@ void CommandGetUserData::procresult()
                         m_time_t ts = it.second;
                         if (status == BIZ_STATUS_EXPIRED)
                         {
-                            client->timetoexpired = ts;
+                            client->tsexpired = ts;
                         }
                         else if (status == BIZ_STATUS_GRACE_PERIOD)
                         {
-                            client->timetograceperiod = ts;
+                            client->tsgraceperiod = ts;
                         }
                         else
                         {
@@ -3525,13 +3525,13 @@ void CommandGetUserData::procresult()
                     // backoff to a shorter one in order to refresh the business status asap
                     m_time_t auxts = 0;
                     m_time_t now = m_time(nullptr);
-                    if (client->timetograceperiod && client->timetograceperiod > now)
+                    if (client->tsgraceperiod && client->tsgraceperiod > now)
                     {
-                        auxts = client->timetograceperiod;
+                        auxts = client->tsgraceperiod;
                     }
-                    else if (client->timetoexpired && client->timetoexpired > now)
+                    else if (client->tsexpired && client->tsexpired > now)
                     {
-                        auxts = client->timetoexpired;
+                        auxts = client->tsexpired;
                     }
                     if (auxts)
                     {
