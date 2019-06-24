@@ -13009,7 +13009,8 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
     v.reserve(nodes.size());
     for (node_map::iterator i = nodes.begin(); i != nodes.end(); ++i)
     {
-        if (i->second->type == FILENODE && i->second->ctime >= since)
+        if (i->second->type == FILENODE && i->second->ctime >= since &&  // recent files only 
+            (!i->second->parent || i->second->parent->type != FILENODE)) // excluding versions
         {
             v.push_back(i->second);
         }
@@ -13020,7 +13021,7 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 
     // 2. Order them chronologically and restrict them to a maximum of `maxcount`
     node_vector v2;
-    unsigned maxItems = std::max(maxcount, unsigned(v.size()));
+    unsigned maxItems = std::min(maxcount, unsigned(v.size()));
     v2.reserve(maxItems);
     while (v2.size() < maxItems && !v.empty())
     {
