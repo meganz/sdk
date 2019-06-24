@@ -575,24 +575,23 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
     nameid name;
     string *t;
 
-    json.begin((char*)bufattr+5);
+    json.begin((char*)bufattr + 5);
     while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
     {
         JSON::unescape(t);
     }
 
-    attr_map::iterator it;
-    it = attrs.map.find('n');
+    attr_map::iterator it = attrs.map.find('n');   // filename
     if (it == attrs.map.end())
     {
         fileName = "CRYPTO_ERROR";
     }
-    else if (!it->second.size())
+    else if (it->second.empty())
     {
         fileName = "BLANK";
     }
 
-    it = attrs.map.find('c');
+    it = attrs.map.find('c');   // checksum
     if (it != attrs.map.end())
     {
         if (ffp.unserializefingerprint(&it->second))
@@ -600,7 +599,7 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
             ffp.size = size;
             mtime = ffp.mtime;
 
-            char bsize[sizeof(size)+1];
+            char bsize[sizeof(size) + 1];
             int l = Serialize64::serialize((byte *)bsize, size);
             char *buf = new char[l * 4 / 3 + 4];
             char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);

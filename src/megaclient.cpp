@@ -4627,7 +4627,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
     return false;
 }
 
-void MegaClient::getPublicLinkInformation(handle h)
+void MegaClient::getpubliclinkinfo(handle h)
 {
     reqs.add(new CommandFolderLinkInfo(this, h));
 }
