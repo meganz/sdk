@@ -3520,6 +3520,27 @@ void CommandGetUserData::procresult()
                         }
                     }
 
+                    // if current business status will expire sooner than the scheduled `ug`, update the
+                    // backoff to a shorter one in order to refresh the business status asap
+                    m_time_t auxts = 0;
+                    m_time_t now = m_time(nullptr);
+                    if (client->timetograceperiod && client->timetograceperiod > now)
+                    {
+                        auxts = client->timetograceperiod;
+                    }
+                    else if (client->timetoexpired && client->timetoexpired > now)
+                    {
+                        auxts = client->timetoexpired;
+                    }
+                    if (auxts)
+                    {
+                        dstime diff = (now - auxts) * 10;
+                        dstime current = client->btugexpiration.backoffdelta();
+                        if (current > diff)
+                        {
+                            client->btugexpiration.backoff(diff);
+                        }
+                    }
                     // TODO: check if type of account has changed and notify with new event
                 }
             }
