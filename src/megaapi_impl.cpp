@@ -19985,13 +19985,13 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             handle h = UNDEF;
-            byte folderkey[SymmCipher::KEYLENGTH];
+            byte folderkey[SymmCipher::KEYLENGTH + 1];
             e = client->parsefolderlink(link, h, folderkey);
             if (e == API_OK)
             {
-                const string binfolderkey((const char *)folderkey, sizeof (folderkey));
+                folderkey[SymmCipher::KEYLENGTH] = '\0';
                 request->setNodeHandle(h);
-                request->setPrivateKey(binfolderkey.data());
+                request->setPrivateKey((const char*)folderkey);
                 client->getpubliclinkinfo(h);
             }
             break;

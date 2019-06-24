@@ -2680,6 +2680,9 @@ protected:
         void openfilelink_result(error) override;
         void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
+        // retrieval of public link information
+        void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
+
         // global transfer queue updates (separate signaling towards the queued objects)
         void file_added(File*) override;
         void file_removed(File*, error e) override;
@@ -2732,7 +2735,6 @@ protected:
         void chatlinkurl_result(handle, int, string*, string*, int, m_time_t, error) override;
         void chatlinkclose_result(error) override;
         void chatlinkjoin_result(error) override;
-        void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
 #endif
 
 #ifdef ENABLE_SYNC
