@@ -1657,11 +1657,6 @@ MegaUser *MegaApi::getMyUser()
     return pImpl->getMyUser();
 }
 
-char *MegaApi::getMyXMPPJid()
-{
-    return pImpl->getMyXMPPJid();
-}
-
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
@@ -1904,11 +1899,6 @@ char *MegaApi::dumpSession()
 char *MegaApi::getSequenceNumber()
 {
     return pImpl->getSequenceNumber();
-}
-
-char *MegaApi::dumpXMPPSession()
-{
-    return pImpl->dumpXMPPSession();
 }
 
 char *MegaApi::getAccountAuth()
