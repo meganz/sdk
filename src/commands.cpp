@@ -3296,9 +3296,11 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
+
     bool b = false;
     int m = -1;
     int s = -2;
+    std::vector<std::pair<int, m_time_t>> sts;
 
     if (client->json.isnumeric())
     {
@@ -3400,7 +3402,7 @@ void CommandGetUserData::procresult()
                             client->json.enterarray();
                             while (client->json.enterobject())
                             {
-                                int type = 0;
+                                int status = -2;
                                 m_time_t ts = 0;
 
                                 bool exit = false;
@@ -3409,7 +3411,7 @@ void CommandGetUserData::procresult()
                                     switch (client->json.getnameid())
                                     {
                                         case 's':
-                                           type = client->json.getint();
+                                           status = client->json.getint();
                                            break;
 
                                         case MAKENAMEID2('t', 's'):
@@ -3417,6 +3419,14 @@ void CommandGetUserData::procresult()
                                            break;
 
                                         case EOO:
+                                            if (status != -2 && ts != 0)
+                                            {
+                                                sts.push_back(std::make_pair(status, ts));
+                                            }
+                                            else
+                                            {
+                                                LOG_warn << "Unpaired/missing business status-ts in b.sts";
+                                            }
                                             exit = true;
                                             break;
 
@@ -3427,26 +3437,15 @@ void CommandGetUserData::procresult()
                                             }
                                     }
                                 }
-
-                                // Time to grace period
-                                if (type == 2)
-                                {
-                                    client->timetograceperiod = ts;
-                                }
-                                // Time to expired
-                                else if (type == -1)
-                                {
-                                    client->timetoexpired = ts;
-                                }
-
                                 client->json.leaveobject();
-                             }
+                            }
                             client->json.leavearray();
                             break;
 
                         case EOO:
                             endobject = true;
                             break;
+
                         default:
                             if (!client->json.storeobject())
                             {
@@ -3502,6 +3501,25 @@ void CommandGetUserData::procresult()
                         client->app->notify_business_status(s);
                     }
                     client->businessMaster = bool(m);
+
+                    for (auto it : sts)
+                    {
+                        int status = it.first;
+                        m_time_t ts = it.second;
+                        if (status == -1)
+                        {
+                            client->timetoexpired = ts;
+                        }
+                        else if (status == 1)
+                        {
+                            client->timetograceperiod = ts;
+                        }
+                        else
+                        {
+                            LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
+                        }
+                    }
+
                     // TODO: check if type of account has changed and notify with new event
                 }
             }
