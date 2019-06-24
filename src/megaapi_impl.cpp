@@ -4764,7 +4764,7 @@ bool MegaApiImpl::isAchievementsEnabled()
 
 bool MegaApiImpl::isBusinessAccount()
 {
-    return bool(client->businessStatus);
+    return client->businessStatus != BIZ_STATUS_INACTIVE;
 }
 
 bool MegaApiImpl::isMasterBusinessAccount()
