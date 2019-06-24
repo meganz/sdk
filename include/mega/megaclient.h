@@ -676,6 +676,9 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
+    m_time_t timetograceperiod;
+    m_time_t timetoexpired;
+
     // storage status
     storagestatus_t ststatus;
 

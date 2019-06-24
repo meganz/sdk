@@ -1110,6 +1110,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
+    timetograceperiod = 0;
+    timetoexpired = 0;
     ststatus = STORAGE_GREEN;
     looprequested = false;
 
@@ -3602,6 +3604,8 @@ void MegaClient::locallogout()
     fetchnodestag = 0;
     ststatus = STORAGE_GREEN;
     overquotauntil = 0;
+    timetograceperiod = 0;
+    timetoexpired = 0;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -6165,6 +6169,13 @@ void MegaClient::sc_ub()
 
                 businessStatus = status;
                 businessMaster = master;
+
+                if (businessStatus == 1)
+                {
+                    // If new status is active, reset transition timestamps
+                    timetograceperiod = 0;
+                    timetoexpired = 0;
+                }
 
                 if (master && status == 0)    // the account is not anymore a business account
                 {

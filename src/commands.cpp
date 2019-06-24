@@ -3394,6 +3394,53 @@ void CommandGetUserData::procresult()
                         case 'm':
                             m = client->json.getint32();
                             break;
+                        case MAKENAMEID3('s', 't', 's'):
+                            client->json.enterarray();
+                            while (client->json.enterobject())
+                            {
+                                bool noexit = true;
+                                int type = 0;
+                                m_time_t ts = 0;
+                                while (noexit)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                           type = client->json.getint();
+                                           break;
+
+                                        case MAKENAMEID2('t', 's'):
+                                           ts = client->json.getint();
+                                           break;
+
+                                        case EOO:
+                                            noexit = false;
+                                            break;
+
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                            }
+                                    }
+                                }
+
+                                // Time to grace period
+                                if (type == 2)
+                                {
+                                    client->timetograceperiod = ts;
+                                }
+                                // Time to expired
+                                else if (type == -1)
+                                {
+                                    client->timetoexpired = ts;
+                                }
+
+                                client->json.leaveobject();
+                             }
+                            client->json.leavearray();
+                            break;
+
                         case EOO:
                             endobject = true;
                             break;

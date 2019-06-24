@@ -4774,11 +4774,21 @@ bool MegaApiImpl::isMasterBusinessAccount()
 
 bool MegaApiImpl::isBusinessAccountActive()
 {
-    return (client->businessStatus > 0);
+    return (getBusinessStatus() > 0);
 }
 
 int MegaApiImpl::getBusinessStatus()
 {
+    // Check whether transition ts has not expired, otherwise update status
+    if (client->timetoexpired && client->timetoexpired < Waiter::ds)
+    {
+       client->businessStatus = 2;
+    }
+    else if (client->timetograceperiod && client->timetograceperiod < Waiter::ds)
+    {
+        client->businessStatus = -1;
+    }
+
     return client->businessStatus;
 }
 
