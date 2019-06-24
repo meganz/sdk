@@ -3549,6 +3549,7 @@ void CommandGetUserData::procresult()
             {
                 client->businessStatus = BIZ_STATUS_INACTIVE;
                 client->businessMaster = false;
+                client->tsexpired = client->tsgraceperiod = 0;
             }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
