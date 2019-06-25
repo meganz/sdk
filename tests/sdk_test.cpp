@@ -3887,16 +3887,18 @@ TEST_F(SdkTest, SdkRecentsTest)
     waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
     ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload an updated test file2 (error: " << lastError[0] << ")";
 
-    WaitMillisec(2000);
+    WaitMillisec(4000);
 
     MegaRecentActionBucketList* buckets = megaApi[0]->getRecentActions(1, 10);
 
     for (int i = 0; i < buckets->size(); ++i)
     {
         cout << "bucket " << i << endl;
+        auto bucket = buckets->get(i);
         for (int j = 0; j < buckets->get(i)->getNodes()->size(); ++j)
         {
-            cout << buckets->get(i)->getNodes()->get(j)->getName() << endl;
+            auto node = bucket->getNodes()->get(j);
+            cout << node->getName() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
         }
     }
 
