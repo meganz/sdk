@@ -219,6 +219,8 @@ public:
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
+private:
+    bool checkNotBreaksRecursivity(const std::string &originlocalpath, const string &localpath, MegaNode *parent);
 };
 
 

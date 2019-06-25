@@ -21633,6 +21633,24 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
 }
 
+bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent)
+{
+    Node *n = client->nodebyhandle(parent->getHandle());
+    if (n && n->localnode && n->localnode->sync)
+    {
+        string synclocalpath;
+        n->localnode->sync->localroot.getlocalpath(&synclocalpath);
+        string localsynclocalpath;
+        client->fsaccess->path2local(&synclocalpath, &localsynclocalpath);
+        if (!localsynclocalpath.find(originlocalpath))
+        {
+            LOG_err << "Folder transfer failed - Detected recursivity: " << originlocalpath << " contained in synced folder: " << localsynclocalpath; //TODO: review local vs utf8 paths
+            return false;
+        }
+    }
+    return true;
+}
+
 void MegaFolderUploadController::start()
 {
     transfer->setFolderTransferTag(-1);
@@ -21653,6 +21671,16 @@ void MegaFolderUploadController::start()
         string path = transfer->getPath();
         string localpath;
         client->fsaccess->path2local(&path, &localpath);
+
+        // avoid recursivity
+        if (!checkNotBreaksRecursivity(localpath, localpath, parent))
+        {
+            transfer->setState(MegaTransfer::STATE_FAILED);
+            megaApi->fireOnTransferFinish(transfer, MegaError(API_ECIRCULAR));
+            delete parent;
+            delete this;
+            return;
+        }
 
         MegaNode *child = megaApi->getChildNode(parent, name);
 
