@@ -14301,7 +14301,7 @@ class MegaApi
          * If the length of the name is zero, it returns the special status string "BLANK".
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
-         * - MegaError::API_EARGS  - If the link is not a valid folder link
+         * - MegaError::API_EARGS - If the link is not a valid folder link
          * - MegaError::API_EKEY - If the public link does not contain the key or it is invalid
          *
          * @param megaFolderLink Public link to a folder in MEGA
