@@ -3898,7 +3898,7 @@ TEST_F(SdkTest, SdkRecentsTest)
         for (int j = 0; j < buckets->get(i)->getNodes()->size(); ++j)
         {
             auto node = bucket->getNodes()->get(j);
-            cout << node->getName() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
+            cout << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
         }
     }
 
