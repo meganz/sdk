@@ -2508,7 +2508,9 @@ protected:
         vector<string> excludedPaths;
         long long syncLowerSizeLimit;
         long long syncUpperSizeLimit;
-        std::recursive_mutex sdkMutex;
+        std::recursive_timed_mutex sdkMutex;
+        typedef std::unique_lock<std::recursive_timed_mutex> SdkMutexGuard;
+        bool syncPathStateLockTimeout = false;
         MegaTransferPrivate *currentTransfer;
         MegaRequestPrivate *activeRequest;
         MegaTransferPrivate *activeTransfer;
