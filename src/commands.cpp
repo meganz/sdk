@@ -6952,10 +6952,10 @@ void CommandFolderLinkInfo::procresult()
         case 's':
             if (client->json.enterarray())
             {
-                currentSize = int(client->json.getint());
+                currentSize = client->json.getint();
                 numFiles = int(client->json.getint());
                 numFolders = int(client->json.getint());
-                versionsSize  = int(client->json.getint());
+                versionsSize  = client->json.getint();
                 numVersions = int(client->json.getint());
                 client->json.leavearray();
             }
