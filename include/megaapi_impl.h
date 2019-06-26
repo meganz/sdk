@@ -2510,7 +2510,7 @@ protected:
         long long syncUpperSizeLimit;
         std::recursive_timed_mutex sdkMutex;
         using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
-        std::atomic<bool> syncPathStateLockTimeout = false;
+        std::atomic<bool> syncPathStateLockTimeout{ false };
         MegaTransferPrivate *currentTransfer;
         MegaRequestPrivate *activeRequest;
         MegaTransferPrivate *activeTransfer;
