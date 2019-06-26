@@ -148,9 +148,11 @@ if (WIN32)
         endforeach(flag_var)
     ENDIF()
 
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP ")
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
 
+    # for inet_ntoa (which is available in XP)
+    add_definitions( -D_WINSOCK_DEPRECATED_NO_WARNINGS )
 ENDIF(WIN32)
 
 include(CheckIncludeFile)
