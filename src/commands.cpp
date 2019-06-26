@@ -3519,7 +3519,7 @@ void CommandGetMiscFlags::procresult()
 }
 
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro)
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
 
@@ -3536,6 +3536,8 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
     {
         arg("pro", "1", 0);
     }
+
+    arg("src", source);
 
     arg("v", 1);
 
