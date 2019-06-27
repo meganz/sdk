@@ -3744,6 +3744,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_FETCH_TIMEZONE: return "FETCH_TIMEZONE";
         case TYPE_USERALERT_ACKNOWLEDGE: return "USERALERT_ACKNOWLEDGE";
         case TYPE_CATCHUP: return "CATCHUP";
+        case TYPE_PUBLIC_LINK_INFORMATION: return "PUBLIC_LINK_INFORMATION";
         case TYPE_GET_BACKGROUND_UPLOAD_URL: return "GET_BACKGROUND_UPLOAD_URL";
         case TYPE_COMPLETE_BACKGROUND_UPLOAD: return "COMPLETE_BACKGROUND_UPLOAD";
     }
@@ -9664,6 +9665,14 @@ void MegaApiImpl::catchup(MegaRequestListener *listener)
     waiter->notify();
 }
 
+void MegaApiImpl::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_PUBLIC_LINK_INFORMATION, listener);
+    request->setLink(megaFolderLink);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 MegaUserList* MegaApiImpl::getContacts()
 {
     sdkMutex.lock();
@@ -11953,6 +11962,68 @@ void MegaApiImpl::chatlinkjoin_result(error e)
 
 #endif
 
+void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
+{
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+            || request->getType() != MegaRequest::TYPE_PUBLIC_LINK_INFORMATION) return;
+
+    if (e == API_OK)
+    {
+        // Decrypt nodekey with the key of the folder link
+        SymmCipher cipher;
+        byte folderkey[SymmCipher::KEYLENGTH];
+        Base64::atob(request->getPrivateKey(), folderkey, sizeof(folderkey));
+        cipher.setkey(folderkey);
+        const char *nodekeystr = k->data() + 9;    // skip the userhandle(8) and the `:`
+        byte nodekey[FOLDERNODEKEYLENGTH];
+        if (client->decryptkey(nodekeystr, nodekey, sizeof(nodekey), &cipher, 0, UNDEF))
+        {
+            // Decrypt node attributes with the nodekey
+            cipher.setkey(nodekey);
+            byte* buf = Node::decryptattr(&cipher, attr->c_str(), attr->size());
+            if (buf)
+            {
+                AttrMap attrs;
+                string fileName;
+                string fingerprint;
+                FileFingerprint ffp;
+                m_time_t mtime = 0;
+                Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
+
+                // Normalize node name to UTF-8 string
+                attr_map::iterator it = attrs.map.find('n');
+                if (it != attrs.map.end() && !it->second.empty())
+                {
+                    client->fsaccess->normalize(&(it->second));
+                    fileName = it->second.c_str();
+                }
+
+                MegaFolderInfoPrivate *folderInfo = new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
+                request->setMegaFolderInfo(folderInfo);
+                request->setParentHandle(owner);
+                request->setText(fileName.c_str());
+
+                delete folderInfo;
+                delete [] buf;
+            }
+            else
+            {
+                LOG_err << "Error decrypting node attributes with decrypted nodekey";
+                e = API_EKEY;
+            }
+        }
+        else
+        {
+            LOG_err << "Error decrypting nodekey with folder link key";
+            e = API_EKEY;
+        }
+    }
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
 #ifdef ENABLE_SYNC
 void MegaApiImpl::syncupdate_state(Sync *sync, syncstate_t newstate)
 {
@@ -13603,18 +13674,12 @@ void MegaApiImpl::openfilelink_result(error result)
 // (it is the application's responsibility to delete n!)
 void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, string* a, string* fa, int)
 {
-    if (requestMap.find(client->restag) == requestMap.end())
-    {
-        return;
-    }
-
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || ((request->getType() != MegaRequest::TYPE_IMPORT_LINK)
-                     && (request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE)
-                     && (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT)))
-    {
-        return;
-    }
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+            || ( request->getType() != MegaRequest::TYPE_IMPORT_LINK
+                 && request->getType() != MegaRequest::TYPE_GET_PUBLIC_NODE
+                 && request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) ) return;
 
     if (!client->loggedin() && (request->getType() == MegaRequest::TYPE_IMPORT_LINK))
     {
@@ -13629,88 +13694,37 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         return;
     }
 
-    string attrstring;
+    AttrMap attrs;
     string fileName;
     string validName;
-    string keystring;
     string fingerprint;
 	string originalfingerprint;
     FileFingerprint ffp;
+    m_time_t mtime = 0;
 
+    string attrstring;
     attrstring.resize(a->length()*4/3+4);
     attrstring.resize(Base64::btoa((const byte *)a->data(), int(a->length()), (char *)attrstring.data()));
 
-    m_time_t mtime = 0;
-
+    string keystring;
     SymmCipher nodeKey;
-    keystring.assign((char*)key,FILENODEKEYLENGTH);
+    keystring.assign((char*)key, FILENODEKEYLENGTH);
     nodeKey.setkey(key, FILENODE);
 
     byte *buf = Node::decryptattr(&nodeKey, attrstring.c_str(), attrstring.size());
     if (buf)
     {
-        JSON json;
-        nameid name;
-        string* t;
-        AttrMap attrs;
+        Node::parseattr(buf, attrs, size, mtime, fileName, fingerprint, ffp);
 
-        json.begin((char*)buf+5);
-        while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+        // Normalize node name to UTF-8 string
+        attr_map::iterator it = attrs.map.find('n');
+        if (it != attrs.map.end() && !it->second.empty())
         {
-            JSON::unescape(t);
-
-            if (name == 'n')
-            {
-                client->fsaccess->normalize(t);
-            }
-        }
-
-        delete[] buf;
-
-        attr_map::iterator it;
-        it = attrs.map.find('n');
-        if (it == attrs.map.end())
-        {
-            fileName = "CRYPTO_ERROR";
-        }
-        else if (!it->second.size())
-        {
-            fileName = "BLANK";
-        }
-        else
-        {
+            client->fsaccess->normalize(&(it->second));
             fileName = it->second.c_str();
             validName = fileName;
         }
-
-        it = attrs.map.find('c');
-        if (it != attrs.map.end())
-        {
-            if (ffp.unserializefingerprint(&it->second))
-            {
-                ffp.size = size;
-                mtime = ffp.mtime;
-
-                char bsize[sizeof(size)+1];
-                int l = Serialize64::serialize((byte *)bsize, size);
-                char *buf = new char[l * 4 / 3 + 4];
-                char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
-
-                string result(1, ssize);
-                result.append(buf);
-                result.append(it->second);
-                delete [] buf;
-
-                fingerprint = result;
-            }
-        }
-
-        it = attrs.map.find(MAKENAMEID2('c', '0'));
-        if (it != attrs.map.end())
-        {
-            originalfingerprint = it->second;
-        }
-
+        delete [] buf;
     }
     else
     {
@@ -20512,6 +20526,27 @@ void MegaApiImpl::sendPendingRequests()
             client->acknowledgeuseralerts();
             break;
         }
+        case MegaRequest::TYPE_PUBLIC_LINK_INFORMATION:
+        {
+            const char *link = request->getLink();
+            if (!link)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            handle h = UNDEF;
+            byte folderkey[SymmCipher::KEYLENGTH];
+            e = client->parsefolderlink(link, h, folderkey);
+            if (e == API_OK)
+            {
+                request->setNodeHandle(h);
+                Base64Str<SymmCipher::KEYLENGTH> folderkeyB64(folderkey);
+                request->setPrivateKey(folderkeyB64.chars);
+                client->getpubliclinkinfo(h);
+            }
+            break;
+        }
         case MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL:
         {
             client->reqs.add(new CommandPutFileBackgroundURL(request->getNumber(), client->putmbpscap, request->getTag()));
@@ -20582,7 +20617,6 @@ void MegaApiImpl::sendPendingRequests()
                                                         (uint32_t*)(uploadState->filekey + FILENODEKEYLENGTH / 2)));
             }
 #endif
-
             AttrMap attrs;
             attrs.map['n'] = utf8Name;
             attrs.map['c'] = megafingerprint.get();

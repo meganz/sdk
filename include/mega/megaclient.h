@@ -311,6 +311,9 @@ public:
     void killsession(handle session);
     void killallsessions();
 
+    // extract public handle and key from folder link
+    error parsefolderlink(const char* folderlink, handle &h, byte *key);
+
     // set folder link: node, key
     error folderaccess(const char*folderlink);
 
@@ -560,6 +563,9 @@ public:
 
     // change the storage status
     bool setstoragestatus(storagestatus_t);
+
+    // get info about a folder link
+    void getpubliclinkinfo(handle h);
 
 #ifdef ENABLE_CHAT
 

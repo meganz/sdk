@@ -2474,6 +2474,7 @@ class MegaApiImpl : public MegaApp
         void getMegaAchievements(MegaRequestListener *listener = NULL);
 
         void catchup(MegaRequestListener *listener = NULL);
+        void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, MegaError e);
@@ -2751,6 +2752,9 @@ protected:
         // exported link access result
         void openfilelink_result(error) override;
         void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
+
+        // retrieval of public link information
+        void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
 
         // global transfer queue updates (separate signaling towards the queued objects)
         void file_added(File*) override;

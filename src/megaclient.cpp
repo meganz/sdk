@@ -4638,6 +4638,11 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
     return false;
 }
 
+void MegaClient::getpubliclinkinfo(handle h)
+{
+    reqs.add(new CommandFolderLinkInfo(this, h));
+}
+
 void MegaClient::dispatchmore(direction_t d)
 {
     // keep pipeline full by dispatching additional queued transfers, if
@@ -7662,7 +7667,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
     return j->leavearray();
 }
 
-error MegaClient::folderaccess(const char *folderlink)
+error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
 {
     // structure of public folder links: https://mega.nz/#F!<handle>!<key>
 
@@ -7684,25 +7689,38 @@ error MegaClient::folderaccess(const char *folderlink)
         return API_EARGS;
     }
 
-    const char *k = ptr + 1;
+    // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
+    handle auxh = 0;
+    if (Base64::atob(f, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
+    {
+        return API_EARGS;
+    }
 
-    handle h = 0;
+    byte auxkey[SymmCipher::KEYLENGTH];
+    const char *k = ptr + 1;
+    if (Base64::atob(k, auxkey, sizeof auxkey) != sizeof auxkey)
+    {
+        return API_EARGS;
+    }
+
+    h = auxh;
+    memcpy(key, auxkey, sizeof auxkey);
+    return API_OK;
+}
+
+error MegaClient::folderaccess(const char *folderlink)
+{
+    handle h = UNDEF;
     byte folderkey[SymmCipher::KEYLENGTH];
 
-    if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
+    error e;
+    if ((e = parsefolderlink(folderlink, h, folderkey)) == API_OK)
     {
-        return API_EARGS;
+        setrootnode(h);
+        key.setkey(folderkey);
     }
 
-    if (Base64::atob(k, folderkey, sizeof folderkey) != sizeof folderkey)
-    {
-        return API_EARGS;
-    }
-
-    setrootnode(h);
-    key.setkey(folderkey);
-
-    return API_OK;
+    return e;
 }
 
 void MegaClient::prelogin(const char *email)

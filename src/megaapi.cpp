@@ -3751,6 +3751,11 @@ void MegaApi::catchup(MegaRequestListener *listener)
     pImpl->catchup(listener);
 }
 
+void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
+{
+    pImpl->getPublicLinkInformation(megaFolderLink, listener);
+}
+
 #ifdef HAVE_LIBUV
 bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath, bool useIPv6)
 {
