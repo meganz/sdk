@@ -1158,7 +1158,7 @@ int MegaApiImpl::setPauseSyncDownForSyncOwner(MegaNode *node, bool newval)
 
     sdkMutex.lock();
     Node *n = client->nodebyhandle(node->getHandle());
-    if (n->localnode && n->localnode->sync)
+    if (n && n->localnode && n->localnode->sync)
     {
         n->localnode->sync->uploadingrecursive = newval;
         toret = n->localnode->sync->tag;
@@ -21648,6 +21648,42 @@ bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originl
             return false;
         }
     }
+
+    DirAccess* da;
+    da = client->fsaccess->newdiraccess();
+    if (da->dopen((string *)&localpath, NULL, false)) //loop for folders within localpath, and get corresponding meganode, to look for conflictive syncs contained in the folder to be uploaded
+    {
+        size_t t = localpath.size();
+        string localname;
+
+        while (da->dnext((string *)&localpath, &localname, client->followsymlinks))
+        {
+            string chillocalPath = localpath;
+            if (t)
+            {
+                chillocalPath.append(client->fsaccess->localseparator);
+            }
+
+            chillocalPath.append(localname);
+
+            FileAccess *fa = client->fsaccess->newfileaccess();
+            if (fa->fopen(&chillocalPath, true, false))
+            {
+                string name = localname;
+                client->fsaccess->local2name(&name);
+                if (fa->type != FILENODE)
+                {
+                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
+                    if(child && child->isFolder())
+                    {
+                        return checkNotBreaksRecursivity(originlocalpath, chillocalPath, child);
+                    }
+                    delete child;
+                }
+            }
+        }
+    }
+
     return true;
 }
 
