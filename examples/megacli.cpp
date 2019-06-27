@@ -51,9 +51,7 @@
 #include "mega/gfx/freeimage.h"
 #endif
 
-#ifdef HAVE_AUTOCOMPLETE
-    namespace ac = ::mega::autocomplete;
-#endif
+namespace ac = ::mega::autocomplete;
 
 #include <iomanip>
 
@@ -2223,7 +2221,6 @@ void getDepthFirstFileHandles(Node* n, deque<handle>& q)
     }
 }
 
-#ifdef HAVE_AUTOCOMPLETE
 void exec_find(autocomplete::ACState& s)
 {
     if (s.words[1].s == "raided")
@@ -2248,7 +2245,6 @@ void exec_find(autocomplete::ACState& s)
         }
     }
 }
-#endif
 
 bool typematchesnodetype(nodetype_t pathtype, nodetype_t nodetype)
 {
@@ -2347,9 +2343,7 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
     }
     return p;
 }
-#endif
 
-#ifdef HAVE_AUTOCOMPLETE
 void exec_treecompare(autocomplete::ACState& s)
 {
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -2359,12 +2353,12 @@ void exec_treecompare(autocomplete::ACState& s)
         recursiveCompare(n, p);
     }
 }
+#endif
 
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
 }
-#endif
 
 void DemoApp::querytransferquota_result(int n)
 {
@@ -2385,7 +2379,6 @@ void exec_quit(ac::ACState&)
     quit_flag = true;
 }
 
-void exec_ls(autocomplete::ACState& s);
 void exec_apiurl(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
@@ -2397,7 +2390,7 @@ void exec_ls(autocomplete::ACState& s);
 void exec_cd(autocomplete::ACState& s);
 void exec_pwd(autocomplete::ACState& s);
 void exec_lcd(autocomplete::ACState& s);
-void exec_ls(autocomplete::ACState& s);
+void exec_lls(autocomplete::ACState& s);
 void exec_lpwd(autocomplete::ACState& s);
 void exec_lmkdir(autocomplete::ACState& s);
 void exec_import(autocomplete::ACState& s);
@@ -2498,7 +2491,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
 #ifdef USE_FILESYSTEM
-    p->Add(exec_ls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
+    p->Add(exec_lls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
     p->Add(exec_lpwd, sequence(text("lpwd")));
     p->Add(exec_lmkdir, sequence(text("lmkdir"), localFSFolder()));
 #endif
@@ -2602,7 +2595,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_quit, either(text("quit"), text("q"), text("exit")));
 
     p->Add(exec_find, sequence(text("find"), text("raided")));
+#ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
+#endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
 
     return autocompleteTemplate = std::move(p);
@@ -6674,7 +6669,6 @@ void DemoApp::userattr_update(User* u, int priv, const char* n)
 }
 
 #ifndef NO_READLINE
-#ifdef HAVE_AUTOCOMPLETE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
     string s = acs.completions[0].s;
@@ -6728,7 +6722,6 @@ char** my_rl_completion(const char */*text*/, int /*start*/, int end)
     return result;
 }
 #endif
-#endif
 
 // main loop
 void megacli()
@@ -6736,9 +6729,7 @@ void megacli()
 #ifndef NO_READLINE
     char *saved_line = NULL;
     int saved_point = 0;
-#ifdef HAVE_AUTOCOMPLETE
     rl_attempted_completion_function = my_rl_completion;
-#endif
 
     rl_save_prompt();
 
@@ -6956,10 +6947,8 @@ int main()
                             "." TOSTRING(MEGA_MINOR_VERSION)
                             "." TOSTRING(MEGA_MICRO_VERSION));
 
-#ifdef HAVE_AUTOCOMPLETE
     ac::ACN acs = autocompleteSyntax();
-#endif
-#if defined(WIN32) && defined(NO_READLINE) && defined(HAVE_AUTOCOMPLETE)
+#if defined(WIN32) && defined(NO_READLINE)
     static_cast<WinConsole*>(console)->setAutocompleteSyntax((acs));
 #endif
 
