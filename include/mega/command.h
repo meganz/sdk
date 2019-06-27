@@ -1098,6 +1098,14 @@ public:
     CommandSetLastAcknowledged(MegaClient*);
 };
 
+class MEGA_API CommandFolderLinkInfo: public Command
+{
+    handle ph = UNDEF;
+public:
+    void procresult();
+
+    CommandFolderLinkInfo(MegaClient*, handle);
+};
 
 } // namespace
 

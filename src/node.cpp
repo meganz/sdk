@@ -569,6 +569,51 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     return NULL;
 }
 
+void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtime , string &fileName, string &fingerprint, FileFingerprint &ffp)
+{
+    JSON json;
+    nameid name;
+    string *t;
+
+    json.begin((char*)bufattr + 5);
+    while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+    {
+        JSON::unescape(t);
+    }
+
+    attr_map::iterator it = attrs.map.find('n');   // filename
+    if (it == attrs.map.end())
+    {
+        fileName = "CRYPTO_ERROR";
+    }
+    else if (it->second.empty())
+    {
+        fileName = "BLANK";
+    }
+
+    it = attrs.map.find('c');   // checksum
+    if (it != attrs.map.end())
+    {
+        if (ffp.unserializefingerprint(&it->second))
+        {
+            ffp.size = size;
+            mtime = ffp.mtime;
+
+            char bsize[sizeof(size) + 1];
+            int l = Serialize64::serialize((byte *)bsize, size);
+            char *buf = new char[l * 4 / 3 + 4];
+            char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+
+            string result(1, ssize);
+            result.append(buf);
+            result.append(it->second);
+            delete [] buf;
+
+            fingerprint = result;
+        }
+    }
+}
+
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
