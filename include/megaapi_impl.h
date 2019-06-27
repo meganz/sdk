@@ -66,39 +66,15 @@ namespace mega
 
 #ifdef USE_QT
 class MegaThread : public QtThread {};
-class MegaMutex : public QtMutex
-{
-public:
-    MegaMutex() : QtMutex() { }
-    MegaMutex(bool recursive) : QtMutex(recursive) { }
-};
 class MegaSemaphore : public QtSemaphore {};
 #elif USE_PTHREAD
 class MegaThread : public PosixThread {};
-class MegaMutex : public PosixMutex
-{
-public:
-    MegaMutex() : PosixMutex() { }
-    MegaMutex(bool recursive) : PosixMutex(recursive) { }
-};
 class MegaSemaphore : public PosixSemaphore {};
 #elif defined(_WIN32) && !defined(USE_CPPTHREAD) && !defined(WINDOWS_PHONE)
 class MegaThread : public Win32Thread {};
-class MegaMutex : public Win32Mutex
-{
-public:
-    MegaMutex() : Win32Mutex() { }
-    MegaMutex(bool recursive) : Win32Mutex(recursive) { }
-};
 class MegaSemaphore : public Win32Semaphore {};
 #else
 class MegaThread : public CppThread {};
-class MegaMutex : public CppMutex
-{
-public:
-    MegaMutex() : CppMutex() { }
-    MegaMutex(bool recursive) : CppMutex(recursive) { }
-};
 class MegaSemaphore : public CppSemaphore {};
 #endif
 
@@ -161,7 +137,7 @@ public:
     void log(const char *time, int loglevel, const char *source, const char *message) override;
 
 private:
-    MegaMutex mutex;
+    std::recursive_mutex mutex;
     set <MegaLogger *> megaLoggers;
     bool logToConsole;
 };
@@ -1796,7 +1772,7 @@ class RequestQueue
 {
     protected:
         std::deque<MegaRequestPrivate *> requests;
-        MegaMutex mutex;
+        std::mutex mutex;
 
     public:
         RequestQueue();
@@ -1817,7 +1793,7 @@ class TransferQueue
 {
     protected:
         std::deque<MegaTransferPrivate *> transfers;
-        MegaMutex mutex;
+        std::mutex mutex;
 
     public:
         TransferQueue();
@@ -2533,7 +2509,9 @@ protected:
         vector<string> excludedPaths;
         long long syncLowerSizeLimit;
         long long syncUpperSizeLimit;
-        MegaMutex sdkMutex;
+        std::recursive_timed_mutex sdkMutex;
+        using SdkMutexGuard = std::unique_lock<std::recursive_timed_mutex>;   // (equivalent to typedef)
+        std::atomic<bool> syncPathStateLockTimeout{ false };
         MegaTransferPrivate *currentTransfer;
         MegaRequestPrivate *activeRequest;
         MegaTransferPrivate *activeTransfer;

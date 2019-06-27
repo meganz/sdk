@@ -4556,7 +4556,6 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 {
     this->api = api;
 
-    sdkMutex.init(true);
     maxRetries = 7;
 	currentTransfer = NULL;
     pendingUploads = 0;
@@ -7334,7 +7333,7 @@ void MegaApiImpl::startStreaming(MegaNode* node, m_off_t startPos, m_off_t size,
 
 void MegaApiImpl::setStreamingMinimumRate(int bytesPerSecond)
 {
-    MutexGuard g(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
     client->minstreamingrate = bytesPerSecond;
 }
 
@@ -7431,7 +7430,20 @@ int MegaApiImpl::syncPathState(string* path)
 #endif
 
     int state = MegaApi::STATE_NONE;
-    sdkMutex.lock();
+
+    // Avoid blocking on the mutex for a long time, as we may be blocking windows explorer (or another platform's equivalent) from opening or displaying a window, unrelated to sync folders
+    // We try to lock the SDK mutex.  If we can't get it in 10ms then we return a simple default, and subsequent requests try to lock the mutex but don't wait.
+    SdkMutexGuard g(sdkMutex, std::defer_lock);
+    if (!syncPathStateLockTimeout && !g.try_lock_for(std::chrono::milliseconds(10)) ||
+        syncPathStateLockTimeout && !g.try_lock())
+    {
+        syncPathStateLockTimeout = true;
+        return MegaApi::STATE_IGNORED;
+    }
+
+    // once we do manage to lock, return to normal operation.
+    syncPathStateLockTimeout = false;
+
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
         Sync *sync = (*it);
@@ -7490,7 +7502,6 @@ int MegaApiImpl::syncPathState(string* path)
             break;
         }
     }
-    sdkMutex.unlock();
     return state;
 }
 
@@ -9627,7 +9638,7 @@ int MegaApiImpl::getAccess(MegaNode* megaNode)
 
 MegaRecentActionBucketList* MegaApiImpl::getRecentActions(unsigned days, unsigned maxnodes)
 {
-    MutexGuard g(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
     m_time_t since = m_time() - days * 86400;
     recentactions_vector v = client->getRecentActions(maxnodes, since);
     return new MegaRecentActionBucketListPrivate(v, client);
@@ -20179,7 +20190,6 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
 
 TransferQueue::TransferQueue()
 {
-    mutex.init(false);
 }
 
 void TransferQueue::push(MegaTransferPrivate *transfer)
@@ -20228,7 +20238,6 @@ void TransferQueue::removeListener(MegaTransferListener *listener)
 
 RequestQueue::RequestQueue()
 {
-    mutex.init(false);
 }
 
 void RequestQueue::push(MegaRequestPrivate *request)
@@ -20586,7 +20595,6 @@ bool MegaAccountDetailsPrivate::isTemporalBandwidthValid()
 
 ExternalLogger::ExternalLogger()
 {
-    mutex.init(true);
     logToConsole = false;
     SimpleLogger::setOutputClass(this);
 }

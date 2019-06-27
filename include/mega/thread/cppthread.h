@@ -26,7 +26,6 @@
 
 #ifndef THREAD_CLASS
 #define THREAD_CLASS CppThread
-#define MUTEX_CLASS CppMutex
 #define SEMAPHORE_CLASS CppSemaphore
 
 #include "mega/thread.h"
@@ -56,21 +55,6 @@ protected:
 };
 
 	
-class CppMutex : public Mutex
-{
-public:
-    CppMutex();
-    CppMutex(bool recursive);
-    virtual void init(bool recursive);
-    virtual void lock();
-    virtual void unlock();
-	virtual ~CppMutex();
-
-protected:
-    std::mutex *mutex;
-    std::recursive_mutex *rmutex;
-};
-
 class CppSemaphore : public Semaphore
 {
 public:

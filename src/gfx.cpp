@@ -368,7 +368,7 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     return true;
 }
 
-GfxProc::GfxProc() : mutex(false)
+GfxProc::GfxProc()
 {
     client = NULL;
     finished = false;
@@ -382,7 +382,7 @@ GfxProc::~GfxProc()
     thread.join();
 }
 
-GfxJobQueue::GfxJobQueue() : mutex(false)
+GfxJobQueue::GfxJobQueue()
 {
 
 }

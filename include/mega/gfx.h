@@ -58,7 +58,7 @@ class MEGA_API GfxJobQueue
 {
     protected:
         std::deque<GfxJob *> jobs;
-        MUTEX_CLASS mutex;
+        std::mutex mutex;
 
     public:
         GfxJobQueue();
@@ -71,7 +71,7 @@ class MEGA_API GfxProc
 {
     bool finished;
     WAIT_CLASS waiter;
-    MUTEX_CLASS mutex;
+    std::mutex mutex;
     THREAD_CLASS thread;
     GfxJobQueue requests;
     GfxJobQueue responses;
