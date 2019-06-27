@@ -534,7 +534,7 @@ MegaNodePrivate *MegaNodePrivate::unserialize(string *d)
     CacheableReader r(*d);
     string name, fingerprint, originalfingerprint, attrstring, nodekey, privauth, pubauth, chatauth;
     int64_t size, ctime, mtime;
-    MegaHandle nodehandle, parenthandle, owner;
+    MegaHandle nodehandle, parenthandle, owner = INVALID_HANDLE;
     bool isPublicNode, foreign;
     unsigned char expansions[8];
     string fileattrstring; // fileattrstring is not serialized
@@ -6231,9 +6231,9 @@ bool MegaApiImpl::testAllocation(unsigned allocCount, size_t allocSize)
         LOG_warn << "MegaApi::testAllocation detected low memory: " << allocCount << " " << allocSize;
         success = false;
     }
-    for (unsigned i = v.size(); i--; )
+    for (auto it : v)
     {
-        delete[] v[i];
+        delete[] it;
     }
     return success;
 }

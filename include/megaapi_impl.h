@@ -1118,7 +1118,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaFolderInfo(const MegaFolderInfo *);
         const MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
         void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
-        virtual MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const;
+        MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
 
 #ifdef ENABLE_SYNC
