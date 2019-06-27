@@ -99,6 +99,9 @@ static int ets = 0;
 // import welcome pdf at account creation
 static bool pdf_to_import = false;
 
+// public link information
+static string publiclink;
+
 // local console
 Console* console;
 
@@ -2343,9 +2346,7 @@ fs::path pathFromLocalPath(const string& s, bool mustexist)
     }
     return p;
 }
-#endif
 
-#ifdef USE_FILESYSTEM
 void exec_treecompare(autocomplete::ACState& s)
 {
     fs::path p = pathFromLocalPath(s.words[1].s, true);
@@ -2355,12 +2356,12 @@ void exec_treecompare(autocomplete::ACState& s)
         recursiveCompare(n, p);
     }
 }
+#endif
 
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
 }
-#endif
 
 void DemoApp::querytransferquota_result(int n)
 {
@@ -2381,7 +2382,6 @@ void exec_quit(ac::ACState&)
     quit_flag = true;
 }
 
-void exec_ls(autocomplete::ACState& s);
 void exec_apiurl(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
@@ -2393,10 +2393,11 @@ void exec_ls(autocomplete::ACState& s);
 void exec_cd(autocomplete::ACState& s);
 void exec_pwd(autocomplete::ACState& s);
 void exec_lcd(autocomplete::ACState& s);
-void exec_ls(autocomplete::ACState& s);
+void exec_lls(autocomplete::ACState& s);
 void exec_lpwd(autocomplete::ACState& s);
 void exec_lmkdir(autocomplete::ACState& s);
 void exec_import(autocomplete::ACState& s);
+void exec_folderlinkinfo(autocomplete::ACState& s);
 void exec_open(autocomplete::ACState& s);
 void exec_put(autocomplete::ACState& s);
 void exec_putq(autocomplete::ACState& s);
@@ -2496,11 +2497,12 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_pwd, sequence(text("pwd")));
     p->Add(exec_lcd, sequence(text("lcd"), opt(localFSFolder())));
 #ifdef USE_FILESYSTEM
-    p->Add(exec_ls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
+    p->Add(exec_lls, sequence(text("lls"), opt(flag("-R")), opt(localFSFolder())));
     p->Add(exec_lpwd, sequence(text("lpwd")));
     p->Add(exec_lmkdir, sequence(text("lmkdir"), localFSFolder()));
 #endif
     p->Add(exec_import, sequence(text("import"), exportedLink(true, false)));
+    p->Add(exec_folderlinkinfo, sequence(text("folderlink"), opt(param("link"))));
     p->Add(exec_open, sequence(text("open"), exportedLink(false, true)));
     p->Add(exec_put, sequence(text("put"), localFSPath("localpattern"), opt(either(remoteFSPath(client, &cwd, "dst"),param("dstemail")))));
     p->Add(exec_putq, sequence(text("putq"), opt(param("cancelslot"))));
@@ -2603,8 +2605,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_find, sequence(text("find"), text("raided")));
 #ifdef USE_FILESYSTEM
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
-    p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
 #endif
+    p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -4867,6 +4869,23 @@ void exec_import(autocomplete::ACState& s)
     }
 }
 
+void exec_folderlinkinfo(autocomplete::ACState& s)
+{
+    publiclink = s.words[1].s;
+
+    handle ph = UNDEF;
+    byte folderkey[SymmCipher::KEYLENGTH];
+    if (client->parsefolderlink(publiclink.c_str(), ph, folderkey) == API_OK)
+    {
+        cout << "Loading public folder link info..." << endl;
+        client->getpubliclinkinfo(ph);
+    }
+    else
+    {
+        cout << "Malformed link: " << publiclink << endl;
+    }
+}
+
 void exec_reload(autocomplete::ACState& s)
 {
     cout << "Reloading account..." << endl;
@@ -6284,6 +6303,71 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     }
 
     delete [] buf;
+}
+
+void DemoApp::folderlinkinfo_result(error e, handle owner, handle /*ph*/, string *attr, string* k, m_off_t currentSize, uint32_t numFiles, uint32_t numFolders, m_off_t versionsSize, uint32_t numVersions)
+{
+    if (e != API_OK)
+    {
+        cout << "Retrieval of public folder link information failed: " << e << endl;
+        return;
+    }
+
+    handle ph;
+    byte folderkey[SymmCipher::KEYLENGTH];
+    error eaux = client->parsefolderlink(publiclink.c_str(), ph, folderkey);
+    assert(eaux == API_OK);
+
+    // Decrypt nodekey with the key of the folder link
+    SymmCipher cipher;
+    cipher.setkey(folderkey);
+    const char *nodekeystr = k->data() + 9;    // skip the userhandle(8) and the `:`
+    byte nodekey[FOLDERNODEKEYLENGTH];
+    if (client->decryptkey(nodekeystr, nodekey, sizeof(nodekey), &cipher, 0, UNDEF))
+    {
+        // Decrypt node attributes with the nodekey
+        cipher.setkey(nodekey);
+        byte* buf = Node::decryptattr(&cipher, attr->c_str(), attr->size());
+        if (buf)
+        {
+            AttrMap attrs;
+            string fileName;
+            string fingerprint;
+            FileFingerprint ffp;
+            m_time_t mtime = 0;
+            Node::parseattr(buf, attrs, currentSize, mtime, fileName, fingerprint, ffp);
+
+            // Normalize node name to UTF-8 string
+            attr_map::iterator it = attrs.map.find('n');
+            if (it != attrs.map.end() && !it->second.empty())
+            {
+                client->fsaccess->normalize(&(it->second));
+                fileName = it->second.c_str();
+            }
+
+            std::string ownerStr, ownerBin((const char *)&owner, sizeof(owner));
+            Base64::btoa(ownerBin, ownerStr);
+
+            cout << "Folder link information:" << publiclink << endl;
+            cout << "\tFolder name: " << fileName << endl;
+            cout << "\tOwner: " << ownerStr << endl;
+            cout << "\tNum files: " << numFiles << endl;
+            cout << "\tNum folders: " << numFolders - 1 << endl;
+            cout << "\tNum versions: " << numVersions << endl;
+
+            delete [] buf;
+        }
+        else
+        {
+            cout << "folderlink: error decrypting node attributes with decrypted nodekey" << endl;
+        }
+    }
+    else
+    {
+        cout << "folderlink: error decrypting nodekey with folder link key";
+    }
+
+    publiclink.clear();
 }
 
 void DemoApp::checkfile_result(handle /*h*/, error e)

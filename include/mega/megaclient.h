@@ -313,6 +313,9 @@ public:
     void killsession(handle session);
     void killallsessions();
 
+    // extract public handle and key from folder link
+    error parsefolderlink(const char* folderlink, handle &h, byte *key);
+
     // set folder link: node, key
     error folderaccess(const char*folderlink);
 
@@ -343,7 +346,7 @@ public:
 #endif
 
     // retrieve user details
-    void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool);
+    void getaccountdetails(AccountDetails*, bool, bool, bool, bool, bool, bool, int source = -1);
 
     // check if the available bandwidth quota is enough to transfer an amount of bytes
     void querytransferquota(m_off_t size);
@@ -562,6 +565,9 @@ public:
 
     // change the storage status
     bool setstoragestatus(storagestatus_t);
+
+    // get info about a folder link
+    void getpubliclinkinfo(handle h);
 
 #ifdef ENABLE_CHAT
 

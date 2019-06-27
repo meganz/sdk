@@ -57,6 +57,17 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c) const
 // replace characters that are not allowed in local fs names with a %xx escape sequence
 void FileSystemAccess::escapefsincompatible(string* name) const
 {
+    if (!name->compare(".."))
+    {
+        name->replace(0, 2, "%2e%2e");
+        return;
+    }
+    if (!name->compare("."))
+    {
+        name->replace(0, 1, "%2e");
+        return;
+    }
+
     char buf[4];
     unsigned char c;
 
@@ -75,6 +86,16 @@ void FileSystemAccess::escapefsincompatible(string* name) const
 
 void FileSystemAccess::unescapefsincompatible(string* name) const
 {
+    if (!name->compare("%2e%2e"))
+    {
+        name->replace(0, 6, "..");
+        return;
+    }
+    if (!name->compare("%2e"))
+    {
+        name->replace(0, 3, ".");
+        return;
+    }
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed and encode an incompatible character

@@ -1268,12 +1268,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
 
 ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
 {
-#if (__cplusplus < 201400L)
     auto n = std::unique_ptr<Either>(new Either());
-#else
-    auto n = std::make_unique<Either>();
-#endif
-
     n->Add(n1);
     n->Add(n2);
     n->Add(n3);
@@ -1282,7 +1277,7 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
     n->Add(n6);
     n->Add(n7);
     n->Add(n8);
-    return n;
+    return std::move(n);
 }
 
 static ACN sequenceBuilder(ACN n1, ACN n2)

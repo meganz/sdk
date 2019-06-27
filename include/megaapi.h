@@ -2684,7 +2684,7 @@ class MegaRequest
             TYPE_ADD_BACKUP, TYPE_REMOVE_BACKUP, TYPE_TIMER, TYPE_ABORT_CURRENT_BACKUP,
             TYPE_GET_PSA, TYPE_FETCH_TIMEZONE, TYPE_USERALERT_ACKNOWLEDGE,
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
-            TYPE_CATCHUP,
+            TYPE_CATCHUP, TYPE_PUBLIC_LINK_INFORMATION,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS,
             TYPE_GET_COUNTRY_CALLING_CODES,
@@ -3069,7 +3069,6 @@ class MegaRequest
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
-         * - MegaApi::getUserData - Returns the XMPP JID of the user
          * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
          * @return Text relative to this request
@@ -6842,6 +6841,9 @@ class MegaApi
          * - MegaRequest::getFlag - Returns the first parameter
          * - MegaRequest::getNumber - Returns the second parameter
          *
+         * If not possible to retrieve the DNS servers from the system, in iOS, this request will fail with
+         * the error code MegaError::API_EACCESS in onRequestFinish().
+         *
          * @param disconnect true if you want to disconnect already connected requests
          * It's not recommended to set this flag to true if you are not fully sure about what are you doing. If you
          * send a request that needs some time to complete and you disconnect it in a loop without giving it enough time,
@@ -7162,7 +7164,6 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the logged user
          * - MegaRequest::getPassword - Returns the the public RSA key of the account, Base64-encoded
          * - MegaRequest::getPrivateKey - Returns the private RSA key of the account, Base64-encoded
-         * - MegaRequest::getText - Returns the XMPP JID of the logged user
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7177,7 +7178,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the contact
          * - MegaRequest::getPassword - Returns the public RSA key of the contact, Base64-encoded
          *
          * @param user Contact to get the data
@@ -7195,7 +7195,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the user
          * - MegaRequest::getPassword - Returns the public RSA key of the user, Base64-encoded
          *
          * @param user Email or Base64 handle of the user
@@ -7227,18 +7226,6 @@ class MegaApi
          * @return The current sequence number
          */
         char *getSequenceNumber();
-
-        /**
-         * @brief Returns the current XMPP session key
-         *
-         * You have to be logged in to get a valid session key. Otherwise,
-         * this function returns NULL.
-         *
-         * You take the ownership of the returned value.
-         *
-         * @return Current XMPP session key
-         */
-        char *dumpXMPPSession();
 
         /**
          * @brief Get an authentication token that can be used to identify the user account
@@ -7869,18 +7856,6 @@ class MegaApi
          * @return MegaUser of the currently open account, otherwise NULL
          */
         MegaUser* getMyUser();
-
-        /**
-         * @brief Returns the XMPP JID of the currently open account
-         *
-         * If the MegaApi object isn't logged in,
-         * this function returns NULL
-         *
-         * You take the ownership of the returned value
-         *
-         * @return XMPP JID of the current account
-         */
-        char* getMyXMPPJid();
 
         /**
          * @brief Returns whether MEGA Achievements are enabled for the open account
@@ -9052,9 +9027,10 @@ class MegaApi
          * @param storage If true, account storage details are requested
          * @param transfer If true, account transfer details are requested
          * @param pro If true, pro level of account is requested
+         * @param source code associated to trace the origin of storage requests, used for debugging purposes
          * @param listener MegaRequestListener to track this request
          */
-        void getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener = NULL);
+        void getSpecificAccountDetails(bool storage, bool transfer, bool pro, int source = -1, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get details about the MEGA account
@@ -14426,6 +14402,18 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
+       
+       /**
+         * @brief Catch up with API for pending actionpackets
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CATCHUP
+         *
+         * When onRequestFinish is called with MegaError::API_OK, the SDK is guaranteed to be
+         * up to date (as for the time this function is called).
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void catchup(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Catch up with API for pending actionpackets
@@ -14451,8 +14439,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
-        
-        void catchup(MegaRequestListener *listener = NULL);
+ 
         /**
          * @brief Check a verification code that the user should have received via txt
          *
@@ -14508,6 +14495,34 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Retrieve basic information about a folder link
+         *
+         * This function retrieves basic information from a folder link, like the number of files / folders
+         * and the name of the folder. For folder links containing a lot of files/folders,
+         * this function is more efficient than a fetchnodes.
+         *
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getLink() - Returns the public link to the folder
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaFolderInfo() - Returns information about the contents of the folder
+         * - MegaRequest::getNodeHandle() - Returns the public handle of the folder
+         * - MegaRequest::getParentHandle() - Returns the handle of the owner of the folder
+         * - MegaRequest::getText() - Returns the name of the folder.
+         * If there's no name, it returns the special status string "CRYPTO_ERROR".
+         * If the length of the name is zero, it returns the special status string "BLANK".
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the link is not a valid folder link
+         * - MegaError::API_EKEY - If the public link does not contain the key or it is invalid
+         *
+         * @param megaFolderLink Public link to a folder in MEGA
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener = NULL);
 
 private:
         MegaApiImpl *pImpl;

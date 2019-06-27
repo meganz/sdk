@@ -6503,6 +6503,61 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
  */
 - (SMSState)smsAllowedState;
 
+/**
+ * @brief Retrieve basic information about a folder link
+ *
+ * This function retrieves basic information from a folder link, like the number of files / folders
+ * and the name of the folder. For folder links containing a lot of files/folders,
+ * this function is more efficient than a fetchnodes.
+ *
+ * Valid data in the MegaRequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the public link to the folder
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaFolderInfo] - Returns information about the contents of the folder
+ * - [MEGARequest nodeHandle] - Returns the public handle of the folder
+ * - [MEGARequest parentHandle] - Returns the handle of the owner of the folder
+ * - [MEGARequest text] - Returns the name of the folder.
+ * If there's no name, it returns the special status string "CRYPTO_ERROR".
+ * If the length of the name is zero, it returns the special status string "BLANK".
+ *
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiEArgs - If the link is not a valid folder link
+ * - MEGAErrorTypeApiEKey - If the public link does not contain the key or it is invalid
+ *
+ * @param folderLink Public link to a folder in MEGA
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getPublicLinkInformationWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Retrieve basic information about a folder link
+ *
+ * This function retrieves basic information from a folder link, like the number of files / folders
+ * and the name of the folder. For folder links containing a lot of files/folders,
+ * this function is more efficient than a fetchnodes.
+ *
+ * Valid data in the MegaRequest object received on all callbacks:
+ * - [MEGARequest link] - Returns the public link to the folder
+ *
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaFolderInfo] - Returns information about the contents of the folder
+ * - [MEGARequest nodeHandle] - Returns the public handle of the folder
+ * - [MEGARequest parentHandle] - Returns the handle of the owner of the folder
+ * - [MEGARequest text] - Returns the name of the folder.
+ * If there's no name, it returns the special status string "CRYPTO_ERROR".
+ * If the length of the name is zero, it returns the special status string "BLANK".
+ *
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiEArgs - If the link is not a valid folder link
+ * - MEGAErrorTypeApiEKey - If the public link does not contain the key or it is invalid
+ *
+ * @param folderLink Public link to a folder in MEGA
+ */
+- (void)getPublicLinkInformationWithFolderLink:(NSString *)folderLink;
+
 #pragma mark - Debug log messages
 
 /**
