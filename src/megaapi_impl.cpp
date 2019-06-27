@@ -6231,9 +6231,9 @@ bool MegaApiImpl::testAllocation(unsigned allocCount, size_t allocSize)
         LOG_warn << "MegaApi::testAllocation detected low memory: " << allocCount << " " << allocSize;
         success = false;
     }
-    for (size_t i = v.size(); i--;)
+    for (auto it : v)
     {
-        delete[] v[i];
+        delete[] it;
     }
     return success;
 }
