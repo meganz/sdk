@@ -31,6 +31,24 @@
 #include "mega/logging.h"
 
 namespace mega {
+
+NewNode::NewNode()
+{
+    syncid = UNDEF;
+    added = false;
+    source = NEW_NODE;
+    ovhandle = UNDEF;
+    uploadhandle = UNDEF;
+    localnode = NULL;
+    fileattributes = NULL;
+}
+
+NewNode::~NewNode()
+{
+    delete fileattributes;
+}
+
+
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {

@@ -45,6 +45,7 @@
 #import "MEGATreeProcessorDelegate.h"
 #import "MEGAUser.h"
 #import "MEGAUserList.h"
+#import "MEGABackgroundMediaUpload.h"
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
@@ -574,9 +575,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @brief Check if multi-factor authentication can be enabled for the current account.
  *
  * It's needed to be logged into an account and with the nodes loaded (login + fetchNodes) before
- * using this function. Otherwise it will always return false.
+ * using this function. Otherwise it will always return NO.
  *
- * @return YES if multi-factor authentication can be enabled for the current account, otherwise false.
+ * @return YES if multi-factor authentication can be enabled for the current account, otherwise NO.
  */
 - (BOOL)multiFactorAuthAvailable;
 
@@ -589,7 +590,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest flag] - Returns true if multi-factor authentication is enabled or false if it's disabled.
+ * - [MEGARequest flag] - Returns YES if multi-factor authentication is enabled or NO if it's disabled.
  *
  * @param email Email to check
  * @param delegate MEGARequestDelegate to track this request
@@ -605,7 +606,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest flag] - Returns true if multi-factor authentication is enabled or false if it's disabled.
+ * - [MEGARequest flag] - Returns YES if multi-factor authentication is enabled or NO if it's disabled.
  *
  * @param email Email to check
  */
@@ -644,7 +645,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * The associated request type with this request is MEGARequestTypeMultiFactorAuthSet
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest flag] - Returns true
+ * - [MEGARequest flag] - Returns YES
  * - [MEGARequest password] - Returns the pin sent in the first parameter
  *
  * @param pin Valid pin code for multi-factor authentication
@@ -658,7 +659,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * The associated request type with this request is MEGARequestTypeMultiFactorAuthSet
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest flag] - Returns true
+ * - [MEGARequest flag] - Returns YES
  * - [MEGARequest password] - Returns the pin sent in the first parameter
  *
  * @param pin Valid pin code for multi-factor authentication
@@ -671,7 +672,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * The associated request type with this request is MEGARequestTypeMultiFactorAuthSet
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest flag] - Returns false
+ * - [MEGARequest flag] - Returns NO
  * - [MEGARequest password] - Returns the pin sent in the first parameter
  *
  * @param pin Valid pin code for multi-factor authentication
@@ -685,7 +686,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * The associated request type with this request is MEGARequestTypeMultiFactorAuthSet
  * Valid data in the MEGARequest object received on callbacks:
- * - [MEGARequest flag] - Returns false
+ * - [MEGARequest flag] - Returns NO
  * - [MEGARequest password] - Returns the pin sent in the first parameter
  *
  * @param pin Valid pin code for multi-factor authentication
@@ -2484,7 +2485,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest link] - Returns the public link to be encrypted
  * - [MEGARequest password] - Returns the password to encrypt the link
- * - [MEGARequest flag] - Returns true
+ * - [MEGARequest flag] - Returns YES
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -2503,7 +2504,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest link] - Returns the public link to be encrypted
  * - [MEGARequest password] - Returns the password to encrypt the link
- * - [MEGARequest flag] - Returns true
+ * - [MEGARequest flag] - Returns YES
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -2557,7 +2558,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeSetAttrNode
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
- * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest flag] - Returns YES (official attribute)
  * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
  * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
  * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
@@ -2567,7 +2568,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param longitude Longitude in signed decimal degrees notation.
  * @param delegate Delegate to track this request.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -2577,7 +2578,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeSetAttrNode
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
- * - [MEGARequest flag] - Returns true (official attribute)
+ * - [MEGARequest flag] - Returns YES (official attribute)
  * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
  * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
  * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
@@ -2586,7 +2587,31 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param latitude Latitude in signed decimal degrees notation.
  * @param longitude Longitude in signed decimal degrees notation.
  */
-- (void)setNodeCoordinates:(MEGANode *)node latitude:(double)latitude longitude:(double)longitude;
+- (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude;
+
+/**
+ * @brief Set the GPS coordinates of image files as a node attribute.
+ *
+ * To remove the existing coordinates, set both the latitude and longitude to nil.
+ *
+ * The 'unshareable' variant of this function stores the coordinates with an extra
+ * layer of encryption which only this user can decrypt, so that even if this node is shared
+ * with others, they cannot read the coordinates.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeCoordinates
+ * - [MEGARequest numDetails] - Returns the longitude, scaled to integer in the range of [0, 2^24]
+ * - [MEGARequest transferTag] - Returns the latitude, scaled to integer in the range of [0, 2^24)
+ *
+ * @param node MEGANode that will receive the information.
+ * @param latitude Latitude in signed decimal degrees notation.
+ * @param longitude Longitude in signed decimal degrees notation.
+ * @param delegate Delegate to track this request.
+ */
+- (void)setUnshareableNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Generate a public link of a file/folder in MEGA.
@@ -2594,7 +2619,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeExport.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest access] - Returns true
+ * - [MEGARequest access] - Returns YES
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -2611,7 +2636,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeExport.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest access] - Returns true
+ * - [MEGARequest access] - Returns YES
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -2627,7 +2652,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeExport.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest access] - Returns true
+ * - [MEGARequest access] - Returns YES
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -2645,7 +2670,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeExport.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest access] - Returns true
+ * - [MEGARequest access] - Returns YES
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
@@ -2662,7 +2687,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeExport.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest access] - Returns false
+ * - [MEGARequest access] - Returns NO
  *
  * @param node MEGANode to stop sharing.
  * @param delegate Delegate to track this request.
@@ -2675,7 +2700,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypeExport.
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest nodeHandle] - Returns the handle of the node
- * - [MEGARequest access] - Returns false
+ * - [MEGARequest access] - Returns NO
  *
  * @param node MEGANode to stop sharing.
  */
@@ -3787,7 +3812,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest access] - Returns true if the master key has been exported
+ * - [MEGARequest access] - Returns YES if the master key has been exported
  *
  * If the corresponding user attribute is not set yet, the request will fail with the
  * error code MEGAErrorTypeApiENoent.
@@ -3805,7 +3830,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * Valid data in the MEGARequest object received in onRequestFinish when the error code
  * is MEGAErrorTypeApiOk:
- * - [MEGARequest access] - Returns true if the master key has been exported
+ * - [MEGARequest access] - Returns YES if the master key has been exported
  *
  * If the corresponding user attribute is not set yet, the request will fail with the
  * error code MEGAErrorTypeApiENoent.
@@ -4063,7 +4088,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * See [MEGASdk usingHttpsOnly]
  *
- * @param httpsOnly True to use HTTPS communications only
+ * @param httpsOnly YES to use HTTPS communications only
  * @param delegate MEGARequestDelegate to track this request.
  */
 - (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate;
@@ -4082,7 +4107,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * See [MEGASdk usingHttpsOnly]
  *
- * @param httpsOnly True to use HTTPS communications only
+ * @param httpsOnly YES to use HTTPS communications only
  */
 - (void)useHttpsOnly:(BOOL)httpsOnly;
 
@@ -4830,7 +4855,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypePauseTransfer
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
- * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ * - [MEGARequest flag] - Returns YES if the transfer has to be pause or NO if it has to be resumed
  *
  * @param transfer Transfer to pause or resume
  * @param pause YES to pause the transfer or NO to resume it
@@ -4844,7 +4869,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypePauseTransfer
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
- * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ * - [MEGARequest flag] - Returns YES if the transfer has to be pause or NO if it has to be resumed
  *
  * @param transfer Transfer to pause or resume
  * @param pause YES to pause the transfer or NO to resume it
@@ -4857,7 +4882,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypePauseTransfer
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
- * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ * - [MEGARequest flag] - Returns YES if the transfer has to be pause or NO if it has to be resumed
  *
  * @param transferTag Tag of the transfer to pause or resume
  * @param pause YES to pause the transfer or NO to resume it
@@ -4871,7 +4896,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * The associated request type with this request is MEGARequestTypePauseTransfer
  * Valid data in the MEGARequest object received on callbacks:
  * - [MEGARequest transferTag] - Returns the tag of the transfer to pause or resume
- * - [MEGARequest flag] - Returns true if the transfer has to be pause or false if it has to be resumed
+ * - [MEGARequest flag] - Returns YES if the transfer has to be pause or NO if it has to be resumed
  *
  * @param transferTag Tag of the transfer to pause or resume
  * @param pause YES to pause the transfer or NO to resume it
@@ -5019,6 +5044,81 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * in bytes per second.
  */
 - (void)setUploadLimitWithBpsLimit:(NSInteger)bpsLimit;
+
+/**
+ * @brief Request the URL suitable for uploading a media file.
+ *
+ * This function requests the URL needed for uploading the file. The URL will need the urlSuffix
+ * from the encryptFileAtPath:startPosition:length:outputFilePath:urlSuffix:adjustsSizeOnly:
+ * in MEGABackgroundMediaUpload to be appended before actually sending.
+ * The result of the request is signalled by the delegate onRequestFinsish callback with MEGARequestTypeGetBackgroundUploadURL.
+ * Provided the error code is MEGAErrorTypeApiOk, the URL is available from uploadURLString in the MEGABackgroundMediaUpload.
+ *
+ * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
+ * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
+ * A new URL could specify a different upload server for example.
+ *
+ * @param filesize The size of the file
+ * @param mediaUpload A pointer to the MEGABackgroundMediaUpload object tracking this upload
+ * @param delegate The MEGARequestDelegate to be called back with the result
+ */
+- (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)mediaUpload delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Create the node after completing the background upload of the file.
+ *
+ * Call this function after completing the background upload of all the file data
+ * The node representing the file will be created in the cloud, with all the suitable
+ * attributes and file attributes attached.
+ * The associated request type with this request is MEGARequestTypeCompleteBackgroundUpload.
+ *
+ * @param mediaUpload The MEGABackgroundMediaUpload object tracking this upload.
+ * @param fileName The leaf name of the file, utf-8 encoded.
+ * @param parentNode The folder node under which this new file should appear.
+ * @param fingerprint The fingerprint for the uploaded file.
+ * To generate this, you can use the following APIs in MEGASdk:
+ * - fingerprintForFilePath:
+ * - fingerprintForData:modificationTime:
+ * - fingerprintForFilePath:modificationTime:
+ * @param originalFingerprint If the file uploaded is modified from the original,
+ *        pass the fingerprint of the original file here, otherwise nil.
+ * @param token The N binary bytes of the token returned from the file upload (of the last portion). N=36 currently.
+ * @param delegate The MEGARequestDelegate to be called back with the result.
+ */
+- (void)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Call this to enable the library to attach media info attributes.
+ *
+ * Those attributes allows to know if a file is a video, and play it with the correct codec.
+ *
+ * If media info is not ready, this function returns NO and automatically retrieves the mappings for type names
+ * and MEGA encodings, required to analyse media files. When media info is received, the callbacks
+ * onEvent is called with the EventMediaInfoReady event type.
+ *
+ * @return YES if the library is ready, otherwise NO (the request for media translation data is sent to MEGA).
+ */
+- (BOOL)ensureMediaInfo;
+
+/**
+ * @brief confirm available memory to avoid OOM situations
+ *
+ * Before queueing a thumbnail or preview upload (or other memory intensive task),
+ * it may be useful on some devices to check if there is plenty of memory available
+ * in the memory pool used by MEGASdk (especially since some platforms may not have
+ * the facility to check for themselves, and/or deallocation may need to wait on a GC)
+ * and if not, delay until any current resource constraints (eg. other current operations,
+ * or other RAM-hungry apps in the device), have finished. This function just
+ * makes several memory allocations and then immediately releases them. If all allocations
+ * succeeded, it returns YES, indicating that memory is (probably) available.
+ * Of course, another app or operation may grab that memory immediately so it not a
+ * guarantee. However it may help to reduce the frequency of OOM situations on phones for example.
+ *
+ * @param count The number of allocations to make
+ * @param size The size of those memory allocations
+ * @return YES if all the allocations succeeded
+ */
+- (BOOL)testAllocationByAllocationCount:(NSUInteger)count allocationSize:(NSUInteger)size;
 
 #pragma mark - Filesystem inspection
 
@@ -5436,22 +5536,6 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  */
 - (NSString *)fingerprintForFilePath:(NSString *)filePath;
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-
-/**
- * @brief Get a Base64-encoded fingerprint from an ALAssetRepresentation and a modification time
- *
- * If the input stream is nil, has a negative size or can't be read, this function returns nil
- *
- * @param assetRepresentation ALAssetRepresentation that provides the data to create the fingerprint
- * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
- * @return Base64-encoded fingerprint
- */
-- (NSString *)fingerprintForAssetRepresentation:(ALAssetRepresentation *)assetRepresentation modificationTime:(NSDate *)modificationTime;
-
-#pragma clang diagnostic pop
-
 /**
  * @brief Get a Base64-encoded fingerprint from a NSData and a modification time
  *
@@ -5462,6 +5546,17 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @return Base64-encoded fingerprint
  */
 - (NSString *)fingerprintForData:(NSData *)data modificationTime:(NSDate *)modificationTime;
+
+/**
+ * @brief Get a Base64-encoded fingerprint from a local file and a modification time
+ *
+ * If the file can't be found or can't be opened, this function returns nil.
+ *
+ * @param filePath Local file path.
+ * @param modificationTime Modification time that will be taken into account for the creation of the fingerprint
+ * @return Base64-encoded fingerprint
+ */
+- (NSString *)fingerprintForFilePath:(NSString *)filePath modificationTime:(NSDate *)modificationTime;
 
 /**
  * @brief Get a Base64-encoded fingerprint for a node.
@@ -5495,6 +5590,17 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @return MEGANode object with the provided fingerprint.
  */
 - (MEGANode *)nodeForFingerprint:(NSString *)fingerprint parent:(MEGANode *)parent;
+
+/**
+ * @brief Returns nodes that have an original fingerprint equal to the supplied value
+ *
+ * Search the node tree and return a list of nodes that have an original fingerprint, which
+ * matches the supplied originalfingerprint.
+ *
+ * @param fingerprint Original fingerprint to check
+ * @return List of nodes with the same original fingerprint
+ */
+- (MEGANodeList *)nodesForOriginalFingerprint:(NSString *)fingerprint;
 
 /**
  * @brief Check if the account already has a node with the provided fingerprint.
@@ -6064,8 +6170,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 
 /**
  * @brief Check if the HTTP proxy server is listening on all network interfaces
- * @return true if the HTTP proxy server is listening on 127.0.0.1 only, or it's not started.
- * If it's started and listening on all network interfaces, this function returns false
+ * @return YES if the HTTP proxy server is listening on 127.0.0.1 only, or it's not started.
+ * If it's started and listening on all network interfaces, this function returns NO
  */
 - (BOOL)httpServerIsLocalOnly;
 
@@ -6108,7 +6214,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 /**
  * @brief Check if it's allowed to serve folders
  *
- * This function can return true even if the HTTP proxy server is not running
+ * This function can return YES even if the HTTP proxy server is not running
  *
  * Even if folders are allowed to be served by this function, restrictions related to
  * other configuration options ([MEGASdk httpServerSetRestrictedMode]) are still applied.
@@ -6558,9 +6664,9 @@ typedef NS_ENUM(NSUInteger, StorageState) {
 /**
  * @brief Enable log to console
  *
- * By default, log to console is false.
+ * By default, log to console is NO.
  *
- * @param enable True to show messages in console, false to skip them.
+ * @param enable YES to show messages in console, NO to skip them.
  */
 + (void)setLogToConsole:(BOOL)enable;
 

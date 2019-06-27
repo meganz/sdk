@@ -327,7 +327,7 @@ bool Text::addCompletions(ACState& s)
     }
     else
     {
-        bool matches = param ? (!s.word().s.empty() && s.word().s[0] != '-') : (s.word().s == exactText);
+        bool matches = param ? (!s.word().s.empty() && (s.word().s[0] != '-' || s.word().q.quoted)) : (s.word().s == exactText);
         s.i += matches ? 1 : 0;
         return !matches;
     }
@@ -335,7 +335,7 @@ bool Text::addCompletions(ACState& s)
 
 bool Text::match(ACState& s) const
 {
-    if (s.i < s.words.size() && (param ? !s.word().s.empty() && s.word().s[0] != '-' : s.word().s == exactText))
+    if (s.i < s.words.size() && (param ? !s.word().s.empty() && (s.word().s[0] != '-' || s.word().q.quoted) : s.word().s == exactText))
     {
         s.i += 1;
         return true;
@@ -1266,7 +1266,7 @@ void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, C
     }
 }
 
-ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
+ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n9, ACN n10, ACN n11, ACN n12, ACN n13)
 {
     auto n = std::unique_ptr<Either>(new Either());
     n->Add(n1);
@@ -1277,6 +1277,11 @@ ACN either(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
     n->Add(n6);
     n->Add(n7);
     n->Add(n8);
+    n->Add(n9);
+    n->Add(n10);
+    n->Add(n11);
+    n->Add(n12);
+    n->Add(n13);
     return std::move(n);
 }
 
@@ -1285,9 +1290,9 @@ static ACN sequenceBuilder(ACN n1, ACN n2)
     return n2 ? std::make_shared<Sequence>(n1, n2) : n1;
 }
 
-ACN sequence(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8)
+ACN sequence(ACN n1, ACN n2, ACN n3, ACN n4, ACN n5, ACN n6, ACN n7, ACN n8, ACN n9, ACN n10)
 {
-    return sequenceBuilder(n1, sequenceBuilder(n2, sequenceBuilder(n3, sequenceBuilder(n4, sequenceBuilder(n5, sequenceBuilder(n6, sequenceBuilder(n7, n8)))))));
+    return sequenceBuilder(n1, sequenceBuilder(n2, sequenceBuilder(n3, sequenceBuilder(n4, sequenceBuilder(n5, sequenceBuilder(n6, sequenceBuilder(n7, sequenceBuilder(n8, sequenceBuilder(n9, n10)))))))));
 }
 
 ACN text(const std::string s)
