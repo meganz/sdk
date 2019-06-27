@@ -2977,7 +2977,6 @@ class MegaRequest
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
-         * - MegaApi::getUserData - Returns the XMPP JID of the user
          * - MegaApi::getUserAttribute - Returns the value of the attribute
          *
          * @return Text relative to this request
@@ -6730,6 +6729,9 @@ class MegaApi
          * - MegaRequest::getFlag - Returns the first parameter
          * - MegaRequest::getNumber - Returns the second parameter
          *
+         * If not possible to retrieve the DNS servers from the system, in iOS, this request will fail with
+         * the error code MegaError::API_EACCESS in onRequestFinish().
+         *
          * @param disconnect true if you want to disconnect already connected requests
          * It's not recommended to set this flag to true if you are not fully sure about what are you doing. If you
          * send a request that needs some time to complete and you disconnect it in a loop without giving it enough time,
@@ -7029,7 +7031,6 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the logged user
          * - MegaRequest::getPassword - Returns the the public RSA key of the account, Base64-encoded
          * - MegaRequest::getPrivateKey - Returns the private RSA key of the account, Base64-encoded
-         * - MegaRequest::getText - Returns the XMPP JID of the logged user
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -7044,7 +7045,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the contact
          * - MegaRequest::getPassword - Returns the public RSA key of the contact, Base64-encoded
          *
          * @param user Contact to get the data
@@ -7062,7 +7062,6 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getText - Returns the XMPP ID of the user
          * - MegaRequest::getPassword - Returns the public RSA key of the user, Base64-encoded
          *
          * @param user Email or Base64 handle of the user
@@ -7094,18 +7093,6 @@ class MegaApi
          * @return The current sequence number
          */
         char *getSequenceNumber();
-
-        /**
-         * @brief Returns the current XMPP session key
-         *
-         * You have to be logged in to get a valid session key. Otherwise,
-         * this function returns NULL.
-         *
-         * You take the ownership of the returned value.
-         *
-         * @return Current XMPP session key
-         */
-        char *dumpXMPPSession();
 
         /**
          * @brief Get an authentication token that can be used to identify the user account
@@ -7735,18 +7722,6 @@ class MegaApi
          * @return MegaUser of the currently open account, otherwise NULL
          */
         MegaUser* getMyUser();
-
-        /**
-         * @brief Returns the XMPP JID of the currently open account
-         *
-         * If the MegaApi object isn't logged in,
-         * this function returns NULL
-         *
-         * You take the ownership of the returned value
-         *
-         * @return XMPP JID of the current account
-         */
-        char* getMyXMPPJid();
 
         /**
          * @brief Returns whether MEGA Achievements are enabled for the open account

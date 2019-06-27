@@ -3846,3 +3846,66 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 }
 
+
+
+TEST_F(SdkTest, SdkRecentsTest)
+{
+    megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST SdkRecentsTest___");
+
+    MegaNode *rootnode = megaApi[0]->getRootNode();
+
+    deleteFile(UPFILE);
+    deleteFile(DOWNFILE);
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename1.data(), rootnode);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload a test file (error: " << lastError[0] << ")";
+
+    ofstream f(filename1);
+    f << "update";
+    f.close();
+    megaApi[0]->startUpload(filename1.data(), rootnode);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload an updated test file (error: " << lastError[0] << ")";
+
+    WaitMillisec(2000);  // make sure of different timestamp
+
+    string filename2 = DOWNFILE;
+    createFile(filename2, false);
+    transferFlags[0][MegaTransfer::TYPE_UPLOAD] = false;
+    megaApi[0]->startUpload(filename2.data(), rootnode);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload a test file2 (error: " << lastError[0] << ")";
+
+    ofstream f2(filename2);
+    f2 << "update";
+    f2.close();
+    megaApi[0]->startUpload(filename2.data(), rootnode);
+    waitForResponse(&transferFlags[0][MegaTransfer::TYPE_UPLOAD]);
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Cannot upload an updated test file2 (error: " << lastError[0] << ")";
+
+    WaitMillisec(4000);
+
+    MegaRecentActionBucketList* buckets = megaApi[0]->getRecentActions(1, 10);
+
+    for (int i = 0; i < buckets->size(); ++i)
+    {
+        cout << "bucket " << i << endl;
+        auto bucket = buckets->get(i);
+        for (int j = 0; j < buckets->get(i)->getNodes()->size(); ++j)
+        {
+            auto node = bucket->getNodes()->get(j);
+            cout << node->getName() << " " << node->getCreationTime() << " " << bucket->getTimestamp() << " " << bucket->getParentHandle() << " " << bucket->isUpdate() << " " << bucket->isMedia() << endl;
+        }
+    }
+
+    ASSERT_TRUE(buckets != nullptr);
+    ASSERT_TRUE(buckets->size() > 0);
+    ASSERT_TRUE(buckets->get(0)->getNodes()->size() > 1);
+    ASSERT_EQ(string(buckets->get(0)->getNodes()->get(0)->getName()), DOWNFILE);
+    ASSERT_EQ(string(buckets->get(0)->getNodes()->get(1)->getName()), UPFILE);
+}
+

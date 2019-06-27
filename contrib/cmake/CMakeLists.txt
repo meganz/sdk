@@ -1,4 +1,4 @@
-# This file enables building with cmake on windows  
+# This file enables building with cmake on windows
 #
 # use cases
 #  - generate a visual studio solution and projects, eg: cmake . -G "Visual Studio 15 2017"
@@ -15,20 +15,19 @@
 cmake_minimum_required(VERSION 3.7.2)
 
 #indicate which dependent libraries to use in the build
-set (USE_CRYPTOPP 1 CACHE TYPE BOOL)
-set (USE_OPENSSL 1 CACHE TYPE BOOL)
-set (USE_CURL 1 CACHE TYPE BOOL)
-set (USE_SQLITE 1 CACHE TYPE BOOL)
-set (USE_MEDIAINFO 1 CACHE TYPE BOOL)
-set (USE_FREEIMAGE 1 CACHE TYPE BOOL)
-set (USE_SODIUM 0 CACHE TYPE BOOL)
-set (ENABLE_SYNC 1 CACHE TYPE BOOL)
-set (ENABLE_CHAT 0 CACHE TYPE BOOL)
-set (HAVE_FFMPEG 1 CACHE TYPE BOOL)
-set (USE_WEBRTC 0 CACHE TYPE BOOL)
-set (USE_LIBUV 0 CACHE TYPE BOOL)
-set (USE_QT 0 CACHE TYPE BOOL)
-set (USE_PDFIUM 0  CACHE TYPE BOOL)
+set (USE_CRYPTOPP 1 CACHE STRING "")
+set (USE_OPENSSL 1 CACHE STRING "")
+set (USE_CURL 1 CACHE STRING "")
+set (USE_SQLITE 1 CACHE STRING "")
+set (USE_MEDIAINFO 1 CACHE STRING "")
+set (USE_FREEIMAGE 1 CACHE STRING "")
+set (USE_SODIUM 0 CACHE STRING "")
+set (ENABLE_SYNC 1 CACHE STRING "")
+set (ENABLE_CHAT 0 CACHE STRING "")
+set (HAVE_FFMPEG 1 CACHE STRING "")
+set (USE_WEBRTC 0 CACHE STRING "")
+set (USE_LIBUV 0 CACHE STRING "")
+set (USE_QT 0 CACHE STRING "")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -37,10 +36,10 @@ else()
 ENDIF()
 
 if (WIN32)
-    set (NO_READLINE 1 CACHE TYPE BOOL)
-    set (UNCHECKED_ITERATORS 0 CACHE TYPE BOOL)
-    set(USE_PREBUILT_3RDPARTY 0 CACHE TYPE BOOL)
-    set(HAVE_LIBUV ${USE_LIBUV})
+    set (NO_READLINE 1 CACHE STRING "")
+    set (UNCHECKED_ITERATORS 0 CACHE STRING "")
+    set (USE_PREBUILT_3RDPARTY 0 CACHE STRING "")
+    set (HAVE_LIBUV ${USE_LIBUV})
     IF (USE_WEBRTC)
         IF ("${WebRtcDir}" STREQUAL "")
             SET (WebRtcDir "${Mega3rdPartyDir}/libwebrtc/build32debug")
@@ -72,16 +71,20 @@ else()
     set (build_64_bit 1 CACHE TYPE BOOL)
 endif()
 
+if ("${MEGA_PROJECT_NAME}" STREQUAL "")
+    set(MEGA_PROJECT_NAME, "MegaSDK")
+endif()
+
 if(build_64_bit)
-    project (MegaSDK64 LANGUAGES CXX C)
+    project ("${MEGA_PROJECT_NAME}64" LANGUAGES CXX C)
 else(build_64_bit)
-    project (MegaSDK32 LANGUAGES CXX C)
+    project ("${MEGA_PROJECT_NAME}32" LANGUAGES CXX C)
 endif(build_64_bit)
 
 IF(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
     if ("${Mega3rdPartyDir}" STREQUAL "")
-        set(Mega3rdPartyDir "${MegaDir}/../3rdParty" CACHE TYPE STRING)
+        set(Mega3rdPartyDir "${MegaDir}/../3rdParty" CACHE STRING "")
     endif()
 ELSE(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
@@ -125,19 +128,17 @@ endif(NOT CMAKE_BUILD_TYPE)
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 
-# node deletion in debug under VC++ is pretty slow without this.  However libraries we depend on need to be built with the same setting or linking fails 
-# (hence the build3rdParty script using the xNN-windows-static-uncheckediterators triplets)
-if (UNCHECKED_ITERATORS OR NOT USE_PREBUILT_3RDPARTY)
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
-endif()
+if (WIN32)
+    # node deletion in debug under VC++ is pretty slow without this.  However libraries we depend on need to be built with the same setting or linking fails 
+    # (hence the build3rdParty script using the xNN-windows-static-uncheckediterators triplets)
+    if (UNCHECKED_ITERATORS AND NOT USE_PREBUILT_3RDPARTY)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
+    endif()
 
-# accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
-if(WIN32)
+    # accurate __cplusplus macro for vc++, selecting c++17 here for windows builds though the MEGA SDK library must build for older c++ standards also
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
     add_definitions( -DNOMINMAX )
-endif()
 
-IF(WIN32)
     IF (NOT USE_PREBUILT_3RDPARTY)
         #Link against the static C/C++ libraries on windows
         foreach(flag_var
@@ -149,6 +150,10 @@ IF(WIN32)
            endif(${flag_var} MATCHES "/MD")
         endforeach(flag_var)
     ENDIF()
+
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
+
 ENDIF(WIN32)
 
 include(CheckIncludeFile)
@@ -447,9 +452,9 @@ target_link_libraries(Mega PUBLIC z
                 $<${USE_LIBUV}:uv> 
                 $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:freeimage_IlmImf> $<${USE_FREEIMAGE}:freeimage_IlmImfUtil> $<${USE_FREEIMAGE}:freeimage_IlmThread> $<${USE_FREEIMAGE}:freeimage_Iex> $<${USE_FREEIMAGE}:freeimage_IexMath>
                                               $<${USE_FREEIMAGE}:freeimage_jpeg> $<${USE_FREEIMAGE}:freeimage_turbojpeg> $<${USE_FREEIMAGE}:freeimage_jpegxr> $<${USE_FREEIMAGE}:freeimage_jxrglue> $<${USE_FREEIMAGE}:freeimage_openjp2>
-                                              $<${USE_FREEIMAGE}:freeimage_lzma>  $<${USE_FREEIMAGE}:freeimage_lcms2>  $<${USE_FREEIMAGE}:freeimage_raw>  
+                                              $<${USE_FREEIMAGE}:freeimage_lzma>  $<${USE_FREEIMAGE}:freeimage_lcms2>  $<${USE_FREEIMAGE}:freeimage_raw>
                                               $<${USE_FREEIMAGE}:freeimage_tiff>  $<${USE_FREEIMAGE}:freeimage_tiffxx>  
-                                              $<${USE_FREEIMAGE}:freeimage_jasper>  $<${USE_FREEIMAGE}:freeimage_libpng>  $<${USE_FREEIMAGE}:freeimage_half>  
+                                              $<${USE_FREEIMAGE}:freeimage_jasper>  $<${USE_FREEIMAGE}:freeimage_libpng>  $<${USE_FREEIMAGE}:freeimage_half_s>
                                               $<${USE_FREEIMAGE}:freeimage_webp> $<${USE_FREEIMAGE}:freeimage_webpdecoder>  $<${USE_FREEIMAGE}:freeimage_webpdemux>  $<${USE_FREEIMAGE}:freeimage_webpmux>                                               
                 $<${HAVE_FFMPEG}:ffmpeg_avformat> $<${HAVE_FFMPEG}:ffmpeg_avcodec> $<${HAVE_FFMPEG}:ffmpeg_avutil> $<${HAVE_FFMPEG}:ffmpeg_avfilter> $<${HAVE_FFMPEG}:ffmpeg_avdevice> $<${HAVE_FFMPEG}:ffmpeg_avdevice > 
                 $<${HAVE_FFMPEG}:ffmpeg_swscale>  $<${HAVE_FFMPEG}:ffmpeg_swresample>  

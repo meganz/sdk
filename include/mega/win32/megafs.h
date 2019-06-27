@@ -33,8 +33,8 @@ struct MEGA_API WinDirAccess : public DirAccess
     string globbase;
 
 public:
-    bool dopen(string*, FileAccess*, bool);
-    bool dnext(string*, string*, bool, nodetype_t*);
+    bool dopen(string*, FileAccess*, bool) override;
+    bool dnext(string*, string*, bool, nodetype_t*) override;
 
     WinDirAccess();
     virtual ~WinDirAccess();
@@ -44,39 +44,39 @@ struct MEGA_API WinDirNotify;
 class MEGA_API WinFileSystemAccess : public FileSystemAccess
 {
 public:
-    FileAccess* newfileaccess();
-    DirAccess* newdiraccess();
-    DirNotify* newdirnotify(string*, string*);
+    FileAccess* newfileaccess() override;
+    DirAccess* newdiraccess() override;
+    DirNotify* newdirnotify(string*, string*) override;
 
-    bool issyncsupported(string*, bool* = NULL);
+    bool issyncsupported(string*, bool* = NULL) override;
 
-    void tmpnamelocal(string*) const;
+    void tmpnamelocal(string*) const override;
 
-    void path2local(string*, string*) const;
-    void local2path(string*, string*) const;
+    void path2local(string*, string*) const override;
+    void local2path(string*, string*) const override;
 
     static int sanitizedriveletter(string*);
 
-    bool getsname(string*, string*) const;
+    bool getsname(string*, string*) const override;
 
-    bool renamelocal(string*, string*, bool);
-    bool copylocal(string*, string*, m_time_t);
-    bool unlinklocal(string*);
-    bool rmdirlocal(string*);
-    bool mkdirlocal(string*, bool);
-    bool setmtimelocal(string *, m_time_t);
-    bool chdirlocal(string*) const;
-    size_t lastpartlocal(string*) const;
-    bool getextension(string*, char*, int) const;
-    bool expanselocalpath(string *path, string *absolutepath);
+    bool renamelocal(string*, string*, bool) override;
+    bool copylocal(string*, string*, m_time_t) override;
+    bool unlinklocal(string*) override;
+    bool rmdirlocal(string*) override;
+    bool mkdirlocal(string*, bool) override;
+    bool setmtimelocal(string *, m_time_t) override;
+    bool chdirlocal(string*) const override;
+    size_t lastpartlocal(string*) const override;
+    bool getextension(string*, char*, size_t) const override;
+    bool expanselocalpath(string *path, string *absolutepath) override;
 
-    void addevents(Waiter*, int);
+    void addevents(Waiter*, int) override;
 
     static bool istransient(DWORD);
     bool istransientorexists(DWORD);
 
-    void osversion(string*) const;
-    void statsid(string*) const;
+    void osversion(string*) const override;
+    void statsid(string*) const override;
 
     static void emptydirlocal(string*, dev_t = 0);
 
@@ -104,13 +104,13 @@ struct MEGA_API WinDirNotify : public DirNotify
     DWORD dwBytes;
     OVERLAPPED overlapped;
 
-    void addnotify(LocalNode*, string*);
+    void addnotify(LocalNode*, string*) override;
 
     static VOID CALLBACK completion(DWORD dwErrorCode, DWORD dwBytes, LPOVERLAPPED lpOverlapped);
     void process(DWORD wNumberOfBytesTransfered);
     void readchanges();
 
-    fsfp_t fsfingerprint();
+    fsfp_t fsfingerprint() override;
 
     WinDirNotify(string*, string*);
     ~WinDirNotify();
@@ -137,21 +137,21 @@ public:
 
     bool fopen(string*, bool, bool);
     bool fopen(string*, bool, bool, bool);
-    void updatelocalname(string*);
+    void updatelocalname(string*) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool frawread(byte *, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
 
-    bool sysread(byte *, unsigned, m_off_t);
-    bool sysstat(m_time_t*, m_off_t*);
-    bool sysopen(bool async = false);
-    void sysclose();
+    bool sysread(byte *, unsigned, m_off_t) override;
+    bool sysstat(m_time_t*, m_off_t*) override;
+    bool sysopen(bool async = false) override;
+    void sysclose() override;
 
     // async interface
-    virtual bool asyncavailable();
-    virtual void asyncsysopen(AsyncIOContext* context);
-    virtual void asyncsysread(AsyncIOContext* context);
-    virtual void asyncsyswrite(AsyncIOContext* context);
+    bool asyncavailable() override;
+    void asyncsysopen(AsyncIOContext* context) override;
+    void asyncsysread(AsyncIOContext* context) override;
+    void asyncsyswrite(AsyncIOContext* context) override;
 
     static bool skipattributes(DWORD);
 
@@ -160,7 +160,7 @@ public:
 
 protected:
 #ifndef WINDOWS_PHONE
-    virtual AsyncIOContext* newasynccontext();
+    AsyncIOContext* newasynccontext() override;
     static VOID CALLBACK asyncopfinished(
             DWORD        dwErrorCode,
             DWORD        dwNumberOfBytesTransfered,

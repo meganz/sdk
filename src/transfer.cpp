@@ -326,25 +326,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     }
     ptr++;
 
-    for (chunkmac_map::iterator it = t->chunkmacs.begin(); it != t->chunkmacs.end(); it++)
-    {
-        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, t->size);
-
-        if (t->pos == it->first && it->second.finished)
-        {
-            t->pos = chunkceil;
-            t->progresscompleted = chunkceil;
-        }
-        else if (it->second.finished)
-        {
-            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
-            t->progresscompleted += chunksize;
-        }
-        else
-        {
-            t->progresscompleted += it->second.offset;
-        }
-    }
+    t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
     transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
     return t;
@@ -529,7 +511,7 @@ void Transfer::complete()
         // verify integrity of file
         FileAccess* fa = client->fsaccess->newfileaccess();
         FileFingerprint fingerprint;
-        Node* n;
+        Node* n = nullptr;
         bool fixfingerprint = false;
         bool fixedfingerprint = false;
         bool syncxfer = false;
