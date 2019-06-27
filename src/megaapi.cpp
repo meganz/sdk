@@ -1721,11 +1721,6 @@ MegaUser *MegaApi::getMyUser()
     return pImpl->getMyUser();
 }
 
-char *MegaApi::getMyXMPPJid()
-{
-    return pImpl->getMyXMPPJid();
-}
-
 bool MegaApi::isAchievementsEnabled()
 {
     return pImpl->isAchievementsEnabled();
@@ -1968,11 +1963,6 @@ char *MegaApi::dumpSession()
 char *MegaApi::getSequenceNumber()
 {
     return pImpl->getSequenceNumber();
-}
-
-char *MegaApi::dumpXMPPSession()
-{
-    return pImpl->dumpXMPPSession();
 }
 
 char *MegaApi::getAccountAuth()
@@ -2327,17 +2317,17 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
 
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(true, true, true, false, false, false, listener);
+    pImpl->getAccountDetails(true, true, true, false, false, false, -1, listener);
 }
 
-void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, MegaRequestListener *listener)
+void MegaApi::getSpecificAccountDetails(bool storage, bool transfer, bool pro, int source, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, listener);
+    pImpl->getAccountDetails(storage, transfer, pro, false, false, false, source, listener);
 }
 
 void MegaApi::getExtendedAccountDetails(bool sessions, bool purchases, bool transactions, MegaRequestListener *listener)
 {
-    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, listener);
+    pImpl->getAccountDetails(false, false, false, sessions, purchases, transactions, -1, listener);
 }
 
 void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
@@ -3788,6 +3778,11 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
 void MegaApi::catchup(MegaRequestListener *listener)
 {
     pImpl->catchup(listener);
+}
+
+void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
+{
+    pImpl->getPublicLinkInformation(megaFolderLink, listener);
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)

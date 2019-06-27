@@ -3288,7 +3288,6 @@ void CommandGetUserData::procresult()
     string pubk;
     string privk;
     string k;
-    handle jid = UNDEF;
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
     int len_privk = 0;
     m_time_t since = 0;
@@ -3311,7 +3310,7 @@ void CommandGetUserData::procresult()
         {
             e = API_ENOENT;
         }
-        return client->app->userdata_result(NULL, NULL, NULL, jid, e);
+        return client->app->userdata_result(NULL, NULL, NULL, e);
     }
 
     for (;;)
@@ -3328,10 +3327,6 @@ void CommandGetUserData::procresult()
 
         case MAKENAMEID4('n', 'a', 'm', 'e'):
             client->json.storeobject(&name);
-            break;
-
-        case 'u':
-            jid = client->json.gethandle(MegaClient::USERHANDLE);
             break;
 
         case 'k':
@@ -3380,7 +3375,7 @@ void CommandGetUserData::procresult()
                     default:
                         if (!client->json.storeobject())
                         {
-                            return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                            return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                         }
                     }
                 }
@@ -3411,7 +3406,7 @@ void CommandGetUserData::procresult()
                         default:
                             if (!client->json.storeobject())
                             {
-                                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                             }
                     }
                 }
@@ -3422,7 +3417,7 @@ void CommandGetUserData::procresult()
                      || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
                 {
                     LOG_err << "Invalid business status / account mode";
-                    return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                    return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
                 }
             }
             break;
@@ -3430,7 +3425,7 @@ void CommandGetUserData::procresult()
         case MAKENAMEID4('s', 'm', 's', 'v'):
             if (!client->json.storeobject(&smsv))
             {
-                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
             }
             break;
 
@@ -3468,13 +3463,13 @@ void CommandGetUserData::procresult()
             client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
             client->cachedug = true;
 
-            client->app->userdata_result(&name, &pubk, &privk, jid, API_OK);
+            client->app->userdata_result(&name, &pubk, &privk, API_OK);
             return;
 
         default:
             if (!client->json.storeobject())
             {
-                return client->app->userdata_result(NULL, NULL, NULL, jid, API_EINTERNAL);
+                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
             }
         }
     }
@@ -3537,7 +3532,7 @@ void CommandGetMiscFlags::procresult()
 }
 
 
-CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro)
+CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
     details = ad;
 
@@ -3554,6 +3549,8 @@ CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad,
     {
         arg("pro", "1", 0);
     }
+
+    arg("src", source);
 
     arg("v", 1);
 
@@ -6912,7 +6909,7 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
     cmd("sla");
     notself(client);
     tag = client->reqtag;
-};
+}
 
 void CommandSetLastAcknowledged::procresult()
 {
@@ -6925,7 +6922,7 @@ void CommandSetLastAcknowledged::procresult()
         client->json.storeobject();
         client->app->acknowledgeuseralerts_result(API_EINTERNAL);
     }
-};
+}
 
 CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phonenumber, bool reverifying_whitelisted)
 {
@@ -7187,5 +7184,92 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
     app.getcountrycallingcodes_result(API_OK, &country_calling_codes);
 }
 
+CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)
+{
+    ph = publichandle;
+
+    cmd("pli");
+    arg("ph", (byte*)&publichandle, MegaClient::NODEHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandFolderLinkInfo::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->folderlinkinfo_result((error)client->json.getint(), UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+    }
+    string attr;
+    string key;
+    handle owner = UNDEF;
+    handle ph = 0;
+    m_off_t currentSize = 0;
+    m_off_t versionsSize  = 0;
+    int numFolders = 0;
+    int numFiles = 0;
+    int numVersions = 0;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+        case MAKENAMEID5('a','t','t','r','s'):
+            client->json.storeobject(&attr);
+            break;
+
+        case MAKENAMEID2('p','h'):
+            ph = client->json.gethandle(MegaClient::NODEHANDLE);
+            break;
+
+        case 'u':
+            owner = client->json.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case 's':
+            if (client->json.enterarray())
+            {
+                currentSize = client->json.getint();
+                numFiles = int(client->json.getint());
+                numFolders = int(client->json.getint());
+                versionsSize  = client->json.getint();
+                numVersions = int(client->json.getint());
+                client->json.leavearray();
+            }
+            break;
+
+        case 'k':
+            client->json.storeobject(&key);
+            break;
+
+        case EOO:
+            if (attr.empty())
+            {
+                LOG_err << "The folder link information doesn't contain the attr string";
+                return client->app->folderlinkinfo_result(API_EINCOMPLETE, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            if (key.size() <= 9 || key.find(":") == string::npos)
+            {
+                LOG_err << "The folder link information doesn't contain a valid decryption key";
+                return client->app->folderlinkinfo_result(API_EKEY, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            if (ph != this->ph)
+            {
+                LOG_err << "Folder link information: public handle doesn't match";
+                return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+
+            return client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
+
+        default:
+            if (!client->json.storeobject())
+            {
+                LOG_err << "Failed to parse folder link information response";
+                return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            break;
+        }
+    }
+}
 
 } // namespace

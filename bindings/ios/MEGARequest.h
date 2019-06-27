@@ -131,8 +131,15 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeRemoveBackup,
     MEGARequestTypeTimer,
     MEGARequestTypeAbortCurrentBackup,
-    MEGARequestTypeFetchTimeZone,
     MEGARequestTypeGetPSA,
+    MEGARequestTypeFetchTimeZone,
+    MEGARequestTypeUseralertAcknowledge,
+    MEGARequestTypeChatLinkHandle,
+    MEGARequestTypeChatLinkUrl,
+    MEGARequestTypeSetPrivateMode,
+    MEGARequestTypeAutojoinPublicChat,
+    MEGARequestTypeCatchup,
+    MEGARequestTypePublicLinkInformation,
     TotalOfRequestTypes
 };
 

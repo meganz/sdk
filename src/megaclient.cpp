@@ -3216,27 +3216,7 @@ bool MegaClient::dispatch(direction_t d)
                     m_off_t p = 0;
 
                     // resume at the end of the last contiguous completed block
-                    for (chunkmac_map::iterator it = nexttransfer->chunkmacs.begin();
-                         it != nexttransfer->chunkmacs.end(); it++)
-                    {
-                        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, nexttransfer->size);
-
-                        if (nexttransfer->pos == it->first && it->second.finished)
-                        {
-                            nexttransfer->pos = chunkceil;
-                            nexttransfer->progresscompleted = chunkceil;
-                        }
-                        else if (it->second.finished)
-                        {
-                            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
-                            nexttransfer->progresscompleted += chunksize;
-                        }
-                        else
-                        {
-                            nexttransfer->progresscompleted += it->second.offset;
-                            p += it->second.offset;
-                        }
-                    }
+                    nexttransfer->chunkmacs.calcprogress(nexttransfer->size, nexttransfer->pos, nexttransfer->progresscompleted, &p);
 
                     if (nexttransfer->progresscompleted > nexttransfer->size)
                     {
@@ -4647,6 +4627,11 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         return true;
     }
     return false;
+}
+
+void MegaClient::getpubliclinkinfo(handle h)
+{
+    reqs.add(new CommandFolderLinkInfo(this, h));
 }
 
 void MegaClient::dispatchmore(direction_t d)
@@ -7673,7 +7658,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
     return j->leavearray();
 }
 
-error MegaClient::folderaccess(const char *folderlink)
+error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
 {
     // structure of public folder links: https://mega.nz/#F!<handle>!<key>
 
@@ -7695,25 +7680,38 @@ error MegaClient::folderaccess(const char *folderlink)
         return API_EARGS;
     }
 
-    const char *k = ptr + 1;
+    // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
+    handle auxh = 0;
+    if (Base64::atob(f, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
+    {
+        return API_EARGS;
+    }
 
-    handle h = 0;
+    byte auxkey[SymmCipher::KEYLENGTH];
+    const char *k = ptr + 1;
+    if (Base64::atob(k, auxkey, sizeof auxkey) != sizeof auxkey)
+    {
+        return API_EARGS;
+    }
+
+    h = auxh;
+    memcpy(key, auxkey, sizeof auxkey);
+    return API_OK;
+}
+
+error MegaClient::folderaccess(const char *folderlink)
+{
+    handle h = UNDEF;
     byte folderkey[SymmCipher::KEYLENGTH];
 
-    if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
+    error e;
+    if ((e = parsefolderlink(folderlink, h, folderkey)) == API_OK)
     {
-        return API_EARGS;
+        setrootnode(h);
+        key.setkey(folderkey);
     }
 
-    if (Base64::atob(k, folderkey, sizeof folderkey) != sizeof folderkey)
-    {
-        return API_EARGS;
-    }
-
-    setrootnode(h);
-    key.setkey(folderkey);
-
-    return API_OK;
+    return e;
 }
 
 void MegaClient::prelogin(const char *email)
@@ -9551,11 +9549,11 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
 
 void MegaClient::getaccountdetails(AccountDetails* ad, bool storage,
                                    bool transfer, bool pro, bool transactions,
-                                   bool purchases, bool sessions)
+                                   bool purchases, bool sessions, int source)
 {
     if (storage || transfer || pro)
     {
-        reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro));
+        reqs.add(new CommandGetUserQuota(this, ad, storage, transfer, pro, source));
     }
 
     if (transactions)
@@ -13031,7 +13029,8 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
     v.reserve(nodes.size());
     for (node_map::iterator i = nodes.begin(); i != nodes.end(); ++i)
     {
-        if (i->second->type == FILENODE && i->second->ctime >= since)
+        if (i->second->type == FILENODE && i->second->ctime >= since &&  // recent files only 
+            (!i->second->parent || i->second->parent->type != FILENODE)) // excluding versions
         {
             v.push_back(i->second);
         }
@@ -13042,7 +13041,7 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 
     // 2. Order them chronologically and restrict them to a maximum of `maxcount`
     node_vector v2;
-    unsigned maxItems = std::max(maxcount, unsigned(v.size()));
+    unsigned maxItems = std::min(maxcount, unsigned(v.size()));
     v2.reserve(maxItems);
     while (v2.size() < maxItems && !v.empty())
     {

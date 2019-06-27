@@ -192,6 +192,8 @@ struct DemoApp : public MegaApp
     void openfilelink_result(error) override;
     void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
+    void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
+
     void checkfile_result(handle, error) override;
     void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
 

@@ -172,6 +172,7 @@ class chunkmac_map : public map<m_off_t, ChunkMAC>
 public:
     void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
+    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
 };
 
 /**

@@ -2069,6 +2069,14 @@ using namespace mega;
     self.megaApi->getMegaAchievements();
 }
 
+- (void)getPublicLinkInformationWithFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPublicLinkInformation(folderLink.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getPublicLinkInformationWithFolderLink:(NSString *)folderLink {
+    self.megaApi->getPublicLinkInformation(folderLink.UTF8String);
+}
+
 #pragma mark - SMS
 
 - (SMSState)smsAllowedState {

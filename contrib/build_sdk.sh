@@ -141,7 +141,7 @@ package_download() {
         cp /tmp/megasdkbuild/$3 $file 
     else
         echo "Downloading $name to get $3"
-        wget --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        wget --secure-protocol=TLSv1 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
         curl -k $url > $file || exit 1
     fi
     
@@ -669,9 +669,9 @@ curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.49.1"
+    local curl_ver="7.59.0"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
-    local curl_md5="2feb3767b958add6a177c6602ff21e8c"
+    local curl_md5="a44f98c25c7506e7103039b542aa5ad8"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""
@@ -686,12 +686,12 @@ curl_pkg() {
     if [ $use_dynamic -eq 1 ]; then
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
+            --without-librtmp --without-libidn --without-libidn2 --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
             --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     else
         local curl_params="--disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp --disable-dict \
             --disable-telnet --disable-tftp --disable-pop3 --disable-imap --disable-smtp --disable-gopher --disable-sspi \
-            --without-librtmp --without-libidn --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
+            --without-librtmp --without-libidn --without-libidn2 --without-libssh2 --enable-ipv6 --disable-manual --without-nghttp2 --without-libpsl \
             --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 

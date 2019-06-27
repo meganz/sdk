@@ -44,7 +44,7 @@ struct MEGA_API MegaApp
     virtual void logout_result(error) { }
 
     // user data result
-    virtual void userdata_result(string*, string*, string*, handle, error) { }
+    virtual void userdata_result(string*, string*, string*, error) { }
 
     // user public key retrieval result
     virtual void pubkey_result(User *) { }
@@ -350,6 +350,9 @@ struct MEGA_API MegaApp
 
     // result of the user alert acknowledge request
     virtual void acknowledgeuseralerts_result(error) { }
+
+    // get info about a folder link
+    virtual void folderlinkinfo_result(error, handle , handle, string*, string* , m_off_t, uint32_t , uint32_t , m_off_t , uint32_t) {}
 
     // result of sms verification commands
     virtual void smsverificationsend_result(error) { }
