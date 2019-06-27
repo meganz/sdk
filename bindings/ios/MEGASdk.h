@@ -6503,6 +6503,23 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
  */
 - (SMSState)smsAllowedState;
 
+/**
+ * @brief Requests the currently available country calling codes
+ *
+ * The response value is stored as a dictionary of mapping from two-letter country code
+ * to a list of calling codes. For instance:
+ * {
+ *   "AD": ["376"],
+ *   "AE": ["971", "13"],
+ * }
+ *
+ * Valid data in the delegate object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getCountryCallingCodesWithDelegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Debug log messages
 
 /**

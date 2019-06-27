@@ -2075,6 +2075,10 @@ using namespace mega;
     return (SMSState)self.megaApi->smsAllowedState();
 }
 
+- (void)getCountryCallingCodesWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getCountryCallingCodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 #pragma mark - Debug log messages
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {

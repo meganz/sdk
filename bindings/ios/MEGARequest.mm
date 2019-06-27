@@ -25,6 +25,7 @@
 #import "MEGAAchievementsDetails+init.h"
 #import "MEGAFolderInfo+init.h"
 #import "MEGATimeZoneDetails+init.h"
+#import "MEGAStringList+init.h"
 
 using namespace mega;
 
@@ -183,6 +184,18 @@ using namespace mega;
 
 - (MEGAFolderInfo *)megaFolderInfo {
     return self.megaRequest ? [[MEGAFolderInfo alloc] initWithMegaFolderInfo:self.megaRequest->getMegaFolderInfo()->copy() cMemoryOwn:YES] : nil;
+}
+
+- (NSDictionary<NSString *, MEGAStringList *> *)megaStringListDictionary {
+    MegaStringListMap *map = self.megaRequest->getMegaStringListMap();
+    NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:map->size()];
+    MegaStringList *keyList = map->getKeys();
+    for (int i = 0; i < keyList->size(); i++) {
+        const char *key = keyList->get(i);
+        dict[@(key)] = [[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)map->get(key) cMemoryOwn:YES];
+    }
+    
+    return [dict copy];
 }
 
 - (NSInteger)transferTag {
