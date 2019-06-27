@@ -78,6 +78,7 @@ class MegaShareList;
 class MegaTransferList;
 class MegaFolderInfo;
 class MegaTimeZoneDetails;
+class MegaPushNotificationSettings;
 class MegaApi;
 
 class MegaSemaphore;
@@ -1176,7 +1177,8 @@ class MegaUser
             CHANGE_TYPE_STORAGE_STATE               = 0x80000,
             CHANGE_TYPE_GEOLOCATION                 = 0x100000,
             CHANGE_TYPE_CAMERA_UPLOADS_FOLDER       = 0x200000,
-            CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000
+            CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000,
+            CHANGE_TYPE_PUSH_SETTINGS               = 0x800000
         };
 
         /**
@@ -1252,6 +1254,9 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
          * Check if option for geolocation messages has changed
          *
+         * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
+         * Check if settings for push notifications have changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1326,6 +1331,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_GEOLOCATION    = 0x100000
          * Check if option for geolocation messages has changed
+         *
+         * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
+         * Check if settings for push notifications have changed
          *
          */
         virtual int getChanges();
@@ -3113,7 +3121,8 @@ class MegaRequest
          *
          * In any other case, this function returns NULL.
          *
-         * You take the ownership of the returned value.
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
          *
          * @return Details about timezones and the current default
          */
@@ -3219,6 +3228,20 @@ class MegaRequest
          * @return Object with information about the contents of a folder
          */
         virtual MegaFolderInfo *getMegaFolderInfo() const;
+
+        /**
+         * @brief Returns settings for push notifications
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getPushNotificationSettings - Returns settings for push notifications
+         *
+         * @return Object with settings for push notifications
+         */
+        virtual const MegaPushNotificationSettings *getMegaPushNotificationSettings() const;
 };
 
 /**
@@ -3828,6 +3851,300 @@ public:
      * @return Default time zone index, or -1 if there isn't a good default known
      */
     virtual int getDefault() const;
+};
+
+/**
+ * @brief Provides information about the notification settings
+ *
+ * The notifications can be configured:
+ *
+ * 1. Globally
+ *  1.1. Mute all notifications
+ *  1.2. Notify only during a schedule: from one time to another time of the day, specifying the timezone of reference
+ *  1.3. Do Not Disturb for a period of time: it overrides the schedule, if any (no notification will be generated)
+ *
+ * 2. Chats: Mute for all chats notifications
+ *
+ * 3. Per chat:
+ *  2.1. Mute all notifications from the specified chat
+ *  2.2. Always notify for the specified chat
+ *  2.3. Do Not Disturb for a period of time for the specified chat
+ *
+ * @note Notification settings per chat override any global notification setting.
+ * @note The DND mode per chat is not compatible with the option to always notify and viceversa.
+ *
+ * 4. Contacts: new incoming contact request, outgoing contact request accepted...
+ * 5. Shared folders: new shared folder, access removed...
+ *
+ */
+class MegaPushNotificationSettings
+{
+public:
+
+    /**
+     * @brief Creates a new instance of MegaPushNotificationSettings
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaPushNotificationSettings *createInstance();
+
+    virtual ~MegaPushNotificationSettings();
+
+    /**
+     * @brief Creates a copy of this MegaPushNotificationSettings object
+     *
+     * The resulting object is fully independent of the source MegaPushNotificationSettings,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaPushNotificationSettings object
+     */
+    virtual MegaPushNotificationSettings *copy() const;
+
+    /**
+     * @brief Returns whether notifications are globaly enabled or not
+     *
+     * The purpose of this method is to control the UI in order to enable
+     * the modification of the global parameters (dnd & schedule) or not.
+     *
+     * @return True if notifications are enabled, false if disabled
+     */
+    virtual bool isGlobalEnabled() const;
+
+    /**
+     * @brief Returns whether Do-Not-Disturb mode is enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isGlobalDndEnabled() const;
+
+    /**
+     * @brief Returns the timestamp until the DND mode is enabled
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalEnabled
+     * returns false and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
+     *
+     * If there's no DND mode established, this function returns -1.
+     * @note a DND value of 0 means the DND does not expire.
+     *
+     * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual int64_t getGlobalDnd() const;
+
+    /**
+     * @brief Returns whether there is a schedule for notifications or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isGlobalScheduleEnabled() const;
+
+    /**
+     * @brief Returns the time of the day when notifications start
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalScheduleEnabled
+     * returns true.
+     *
+     * @return Minutes counting from 00:00 (based on the configured timezone)
+     */
+    virtual int getGlobalScheduleStart() const;
+
+    /**
+     * @brief Returns the time of the day when notifications stop
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalScheduleEnabled
+     * returns true.
+     *
+     * @return Minutes counting from 00:00 (based on the configured timezone)
+     */
+    virtual int getGlobalScheduleEnd() const;
+
+    /**
+     * @brief Returns the timezone of reference for the notification schedule
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalScheduleEnabled
+     * returns true.
+     *
+     * You take the ownership of the returned value
+     *
+     * @return Minutes counting from 00:00 (based on the configured timezone)
+     */
+    virtual const char *getGlobalScheduleTimezone() const;
+
+    /**
+     * @brief Returns whether notifications for a chat are enabled or not
+     *
+     * The purpose of this method is to control the UI in order to enable
+     * the modification of the chat parameters (dnd & always notify) or not.
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isChatEnabled(MegaHandle chatid) const;
+
+    /**
+     * @brief Returns whether Do-Not-Disturb mode for a chat is enabled or not
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isChatDndEnabled(MegaHandle chatid) const;
+
+    /**
+     * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isChatEnabled
+     * returns false and MegaPushNotificationSettings::isChatDndEnabled returns true.
+     *
+     * If there's no DND mode established for the specified chat, this function returns -1.
+     * @note a DND value of 0 means the DND does not expire.
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @return Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual int64_t getChatDnd(MegaHandle chatid) const;
+
+    /**
+     * @brief Returns whether always notify for a chat or not
+     *
+     * This option overrides the global notification settings.
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isChatAlwaysNotifyEnabled(MegaHandle chatid) const;
+
+    /**
+     * @brief Returns whether notifications about Contacts are enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isContactsEnabled() const;
+
+    /**
+     * @brief Returns whether notifications about shared-folders are enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isSharesEnabled() const;
+
+    /**
+     * @brief Returns whether notifications about chats are enabled or not
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isChatsEnabled() const;
+
+    /**
+     * @brief Enable or disable notifications globally
+     *
+     * If notifications are globally disabled, the DND global setting will be
+     * cleared and the specified schedule, if any, will have no effect.
+     *
+     * @note When notifications are globally disabled, settings per chat still apply.
+     *
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableGlobal(bool enable);
+
+    /**
+     * @brief Set the global DND mode for a period of time
+     *
+     * No notifications will be generated until the specified timestamp.
+     *
+     * If notifications were globally disabled, this function will enable them
+     * back (but will not generate notification until the specified timestamp).
+     *
+     * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual void setGlobalDnd(int64_t timestamp);
+
+    /**
+     * @brief Disable the globally specified DND mode
+     */
+    virtual void disableGlobalDnd();
+
+    /**
+     * @brief Set the schedule for notifications globally
+     *
+     * Notifications, if globally enabled, will be generated only from \c start
+     * to \c end time, using the \c timezone as reference.
+     *
+     * The timezone should be one of the values returned by MegaTimeZoneDetails::getTimeZone.
+     * @see MegaApi::fetchTimeZone for more details.
+     *
+     * @param start Minutes counting from 00:00 (based on the configured timezone)
+     * @param end Minutes counting from 00:00 (based on the configured timezone)
+     * @param timezone C-String representing the timezone
+     */
+    virtual void setGlobalSchedule(int start, int end, const char *timezone);
+
+    /**
+     * @brief Disable the schedule for notifications globally
+     */
+    virtual void disableGlobalSchedule();
+
+    /**
+     * @brief Enable or disable notifications for a chat
+     *
+     * If notifications for this chat are disabled, the DND settings for this chat,
+     * if any, will be cleared.
+     *
+     * @note Settings per chat override any global notification setting.
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableChat(MegaHandle chatid, bool enable);
+
+    /**
+     * @brief Set the DND mode for a chat for a period of time
+     *
+     * No notifications will be generated until the specified timestamp.
+     *
+     * This setting is not compatible with the "Always notify". If DND mode is
+     * configured, the "Always notify" will be disabled.
+     *
+     * If chat notifications were totally disabled for the specified chat, this
+     * function will enable them back (but will not generate notification until
+     * the specified timestamp).
+     *
+     * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual void setChatDnd(MegaHandle chatid, int64_t timestamp);
+
+    /**
+     * @brief Enable or disable "Always notify" setting
+     *
+     * Notifications for this chat will always be generated, even if they are globally
+     * disabled, out of the global schedule or a global DND mode is set.
+     *
+     * This setting is not compatible with the DND mode for the specified chat. In consequence,
+     * if "Always notify" is enabled and the DND mode was configured, it will be disabled.
+     * Also, if notifications were disabled for the specified chat, they will be enabled.
+     *
+     * @note Settings per chat override any global notification setting.
+     *
+     * @param chatid MegaHandle that identifies the chat room
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableChatAlwaysNotify(MegaHandle chatid, bool enable);
+
+    /**
+     * @brief Enable or disable notifications related to contacts
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableContacts(bool enable);
+
+    /**
+     * @brief Enable or disable notifications related to shared-folders
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableShares(bool enable);
+
+    /**
+     * @brief Enable or disable notifications related to all chats
+     * @param enable True to enable, false to disable
+     */
+    virtual void enableChats(bool enable);
+
+protected:
+    MegaPushNotificationSettings();
 };
 
 /**
@@ -5954,7 +6271,8 @@ class MegaApi
             USER_ATTR_STORAGE_STATE = 21,        // private - char array
             USER_ATTR_GEOLOCATION = 22,          // private - byte array
             USER_ATTR_CAMERA_UPLOADS_FOLDER = 23,// private - byte array
-            USER_ATTR_MY_CHAT_FILES_FOLDER = 24  // private - byte array
+            USER_ATTR_MY_CHAT_FILES_FOLDER = 24, // private - byte array
+            USER_ATTR_PUSH_SETTINGS = 25         // private - char array
         };
 
         enum {
@@ -8238,6 +8556,8 @@ class MegaApi
          * Get the state of the storage (private non-encrypted)
          * MegaApi::USER_ATTR_GEOLOCATION = 22
          * Get whether the user has enabled send geolocation messages (private)
+         * MegaApi::USER_ATTR_PUSH_SETTINGS = 23
+         * Get the settings for push notifications (private non-encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -9115,6 +9435,39 @@ class MegaApi
          */
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
+
+        /**
+         * @brief Get push notification settings
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+         *
+         * @see MegaPushNotificationSettings class for more details.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPushNotificationSettings(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set push notification settings
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+         * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+         *
+         * @see MegaPushNotificationSettings class for more details. You can prepare a new object by
+         * calling MegaPushNotificationSettings::createInstance.
+         *
+         * @param settings MegaPushNotificationSettings with the new settings
+         * @param listener MegaRequestListener to track this request
+         */
+        void setPushNotificationSettings(MegaPushNotificationSettings *settings, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get the number of days for rubbish-bin cleaning scheduler
@@ -13877,7 +14230,30 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void chatLinkJoin(MegaHandle publichandle, const char *unifiedKey, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Returns whether notifications about a chat have to be generated
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @return true if notification has to be created
+         */
+        bool isChatNotifiable(MegaHandle chatid);
+
 #endif
+
+        /**
+         * @brief Returns whether notifications about incoming have to be generated
+         *
+         * @return true if notification has to be created
+         */
+        bool isSharesNotifiable();
+
+        /**
+         * @brief Returns whether notifications about pending contact requests have to be generated
+         *
+         * @return true if notification has to be created
+         */
+        bool isContactsNotifiable();
 
         /**
          * @brief Get the MEGA Achievements of the account logged in

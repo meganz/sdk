@@ -276,15 +276,10 @@ void DemoApp::transfer_update(Transfer* /*t*/)
     // (this is handled in the prompt logic)
 }
 
-void DemoApp::transfer_failed(Transfer* t, error e)
+void DemoApp::transfer_failed(Transfer* t, error e, dstime)
 {
     displaytransferdetails(t, "failed (");
     cout << errorstring(e) << ")" << endl;
-}
-
-void DemoApp::transfer_limit(Transfer *t)
-{
-    displaytransferdetails(t, "bandwidth limit reached\n");
 }
 
 void DemoApp::transfer_complete(Transfer* t)
@@ -774,7 +769,7 @@ void DemoApp::chatlinkclose_result(error e)
     }
 }
 
-void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, m_time_t ts, error e)
+void DemoApp::chatlinkurl_result(handle chatid, int shard, string *url, string *ct, int, m_time_t ts, error e)
 {
     if (e)
     {
@@ -1146,6 +1141,10 @@ void DemoApp::putfa_result(handle, fatype, error e)
     }
 }
 
+void DemoApp::putfa_result(handle, fatype, const char*)
+{
+}
+
 void DemoApp::removecontact_result(error e)
 {
     if (e)
@@ -1182,7 +1181,7 @@ void DemoApp::getua_result(error e)
     cout << "User attribute retrieval failed (" << errorstring(e) << ")" << endl;
 }
 
-void DemoApp::getua_result(byte* data, unsigned l)
+void DemoApp::getua_result(byte* data, unsigned l, attr_t)
 {
 #ifdef ENABLE_CHAT
     if (client->fetchingkeys)
@@ -1196,7 +1195,7 @@ void DemoApp::getua_result(byte* data, unsigned l)
     cout << endl;
 }
 
-void DemoApp::getua_result(TLVstore *tlv)
+void DemoApp::getua_result(TLVstore *tlv, attr_t)
 {
 #ifdef ENABLE_CHAT
     if (client->fetchingkeys)
@@ -1356,7 +1355,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
     const char* bptr = ptr;
     int remote = 0;
     int folderlink = 0;
-    Node* n;
+    Node* n = nullptr;
     Node* nn;
 
     // split path by / or :
@@ -1845,7 +1844,7 @@ public:
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
-    void proc(MegaClient* client, Node* n)
+    void proc(MegaClient* mc, Node* n)
     {
         if (nn)
         {
@@ -1867,7 +1866,7 @@ public:
             else
             {
                 byte buf[FOLDERNODEKEYLENGTH];
-                client->rng.genblock(buf, sizeof buf);
+                mc->rng.genblock(buf, sizeof buf);
                 t->nodekey.assign((char*) buf, FOLDERNODEKEYLENGTH);
             }
 
@@ -1885,7 +1884,7 @@ public:
 
             t->attrstring = new string;
             tattrs.getjson(&attrstring);
-            client->makeattr(&key, t->attrstring, attrstring.c_str());
+            mc->makeattr(&key, t->attrstring, attrstring.c_str());
         }
         else
         {
@@ -2090,7 +2089,7 @@ class FileFindCommand : public Command
 public:
     struct Stack : public std::deque<handle>
     {
-        int filesLeft = 0;
+        size_t filesLeft = 0;
         set<string> servers;
     };
         
@@ -2311,8 +2310,8 @@ bool recursiveCompare(Node* mn, fs::path p)
     else
     {
         cout << "Extra content detected between " << mn->displaypath() << " and " << p.u8string() << endl;
-        for (auto& m : ms) cout << "Extra remote: " << m.first << endl;
-        for (auto& p : ps) cout << "Extra local: " << p.second << endl;
+        for (auto& mi : ms) cout << "Extra remote: " << mi.first << endl;
+        for (auto& pi : ps) cout << "Extra local: " << pi.second << endl;
         return false;
     };
 }
@@ -2555,24 +2554,24 @@ struct Login
         *this = Login();
     }
 
-    void login(MegaClient* client)
+    void login(MegaClient* mc)
     {
-        byte pwkey[SymmCipher::KEYLENGTH];
+        byte keybuf[SymmCipher::KEYLENGTH];
 
         if (version == 1)
         {
-            if (error e = client->pw_key(password.c_str(), pwkey))
+            if (error e = mc->pw_key(password.c_str(), keybuf))
             {
                 cout << "Login error: " << e << endl;
             }
             else
             {
-                client->login(email.c_str(), pwkey, (!pin.empty()) ? pin.c_str() : NULL);
+                mc->login(email.c_str(), keybuf, (!pin.empty()) ? pin.c_str() : NULL);
             }
         }
         else if (version == 2 && !salt.empty())
         {
-            client->login2(email.c_str(), password.c_str(), &salt, (!pin.empty()) ? pin.c_str() : NULL);
+            mc->login2(email.c_str(), password.c_str(), &salt, (!pin.empty()) ? pin.c_str() : NULL);
         }
         else
         {
@@ -4823,10 +4822,10 @@ static void process_line(char* l)
                         {
                             handle chatid;
                             Base64::atob(words[1].c_str(), (byte*) &chatid, MegaClient::CHATHANDLE);
-                            bool del = (words.size() == 3 && words[2] == "del");
+                            bool delflag = (words.size() == 3 && words[2] == "del");
                             bool createifmissing = words.size() == 2 || (words.size() == 3 && words[2] != "query");
 
-                            client->chatlink(chatid, del, createifmissing);
+                            client->chatlink(chatid, delflag, createifmissing);
                             return;
                         }
                         else
@@ -4992,14 +4991,14 @@ static void process_line(char* l)
                         {
                             if (client->ownuser()->email.compare(words[1]))
                             {
-                                int del = words.size() == 3 && words[2] == "del";
+                                int delflag = words.size() == 3 && words[2] == "del";
                                 int rmd = words.size() == 3 && words[2] == "rmd";
                                 int clink = words.size() == 4 && words[2] == "clink";
                                 if (words.size() == 2 || words.size() == 3 || words.size() == 4)
                                 {
-                                    if (del || rmd)
+                                    if (delflag || rmd)
                                     {
-                                        client->setpcr(words[1].c_str(), del ? OPCA_DELETE : OPCA_REMIND);
+                                        client->setpcr(words[1].c_str(), delflag ? OPCA_DELETE : OPCA_REMIND);
                                     }
                                     else
                                     {
@@ -6431,7 +6430,7 @@ void DemoApp::getprivatekey_result(error e,  const byte *privk, const size_t len
 
         byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
         memcpy(privkbuf, privk, len_privk);
-        key.ecb_decrypt(privkbuf, unsigned(len_privk));
+        key.ecb_decrypt(privkbuf, len_privk);
 
         AsymmCipher uk;
         if (!uk.setkey(AsymmCipher::PRIVKEY, privkbuf, unsigned(len_privk)))
@@ -6672,7 +6671,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     SymmCipher nodeKey;
     nodeKey.setkey(key, FILENODE);
 
-    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(), int(attrstring.size()));
+    byte *buf = Node::decryptattr(&nodeKey,attrstring.c_str(), attrstring.size());
     if (!buf)
     {
         cout << "The file won't be imported, the provided key is invalid." << endl;
@@ -6818,7 +6817,7 @@ bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t,
     return true;
 }
 
-dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/)
+dstime DemoApp::pread_failure(error e, int retry, void* /*appdata*/, dstime)
 {
     if (retry < 5)
     {
@@ -6913,7 +6912,7 @@ void DemoApp::notify_confirmation(const char *email)
     }
 }
 
-void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*)
+void DemoApp::enumeratequotaitems_result(handle, unsigned, unsigned, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*)
 {
     // FIXME: implement
 }
@@ -6928,12 +6927,7 @@ void DemoApp::additem_result(error)
     // FIXME: implement
 }
 
-void DemoApp::checkout_result(error)
-{
-    // FIXME: implement
-}
-
-void DemoApp::checkout_result(const char*)
+void DemoApp::checkout_result(const char*, error)
 {
     // FIXME: implement
 }
@@ -6958,6 +6952,7 @@ void DemoApp::getwelcomepdf_result(handle ph, string *k, error e)
     }
 }
 
+#ifdef ENABLE_CHAT
 void DemoApp::richlinkrequest_result(string *json, error e)
 {
     if (!e)
@@ -6970,6 +6965,7 @@ void DemoApp::richlinkrequest_result(string *json, error e)
 
     }
 }
+#endif
 
 void DemoApp::contactlinkcreate_result(error e, handle h)
 {

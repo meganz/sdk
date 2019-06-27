@@ -56,7 +56,7 @@ public:
      * @param len The number of random bytes to generate.
      * @return Void.
      */
-    void genblock(byte* buf, int len);
+    void genblock(byte* buf, size_t len);
 
     /**
      * @brief Generates a random integer between 0 ... max - 1.
@@ -110,7 +110,7 @@ public:
      *     SymCipher::BLOCKSIZE.
      * @return Void.
      */
-    void ecb_encrypt(byte*, byte* = NULL, unsigned = BLOCKSIZE);
+    void ecb_encrypt(byte*, byte* = NULL, size_t = BLOCKSIZE);
 
     /**
      * @brief Decrypt symmetrically using AES in ECB mode.
@@ -120,7 +120,7 @@ public:
      *     SymCipher::BLOCKSIZE.
      * @return Void.
      */
-    void ecb_decrypt(byte*, unsigned = BLOCKSIZE);
+    void ecb_decrypt(byte*, size_t = BLOCKSIZE);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode.
@@ -132,7 +132,7 @@ public:
      * @param iv Initialisation vector to use. Choose randomly and never re-use.
      * @return Void.
      */
-    void cbc_encrypt(byte* data, unsigned len, const byte* iv = NULL);
+    void cbc_encrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
      * @brief Decrypt symmetrically using AES in CBC mode.
@@ -144,7 +144,7 @@ public:
      * @param iv Initialisation vector.
      * @return Void.
      */
-    void cbc_decrypt(byte* data, unsigned len, const byte* iv = NULL);
+    void cbc_decrypt(byte* data, size_t len, const byte* iv = NULL);
 
     /**
      * @brief Encrypt symmetrically using AES in CBC mode and pkcs padding
@@ -312,7 +312,7 @@ public:
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    int encrypt(PrnGen &rng, const byte* plain, int plainlen, byte* buf, int buflen);
+    int encrypt(PrnGen &rng, const byte* plain, size_t plainlen, byte* buf, size_t buflen);
 
     /**
      * @brief Decrypts a cipher text into a buffer and strips random padding.
@@ -323,7 +323,7 @@ public:
      * @param buflen Length of the plain text.
      * @return Always returns 1.
      */
-    int decrypt(const byte* cipher, int cipherlen, byte* buf, int buflen);
+    int decrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
 
     /**
      * @brief Encrypts a plain text into a buffer.
@@ -334,7 +334,7 @@ public:
      * @param buflen Length of the cipher text.
      * @return Number of bytes encrypted, 0 on failure.
      */
-    unsigned rawencrypt(const byte* plain, int plainlen, byte* buf, int buflen);
+    unsigned rawencrypt(const byte* plain, size_t plainlen, byte* buf, size_t buflen);
 
     /**
      * @brief Decrypts a cipher text into a buffer.
@@ -345,7 +345,7 @@ public:
      * @param buflen Length of the plain text.
      * @return Always returns 1.
      */
-    unsigned rawdecrypt(const byte* cipher, int cipherlen, byte* buf, int buflen);
+    unsigned rawdecrypt(const byte* cipher, size_t cipherlen, byte* buf, size_t buflen);
 
     static void serializeintarray(CryptoPP::Integer*, int, string*, bool headers = true);
 
@@ -429,7 +429,7 @@ public:
      * @param data Data to add
      * @param len Data length
      */
-    void add(const byte* data, unsigned len);
+    void add(const byte* data, size_t len);
 
     /**
      * @brief Compute the HMAC for the current message

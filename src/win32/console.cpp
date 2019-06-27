@@ -157,9 +157,9 @@ struct Utf8Rdbuf : public streambuf
                 }
                 if (!b)
                 {
-                    wostringstream s;
-                    s << L"<CHAR/" << hex << unsigned short(ws.data()[i]) << L">";
-                    wstring str = s.str();
+                    wostringstream wos;
+                    wos << L"<CHAR/" << hex << unsigned short(ws.data()[i]) << L">";
+                    wstring str = wos.str();
                     WriteConsoleW(h, str.data(), DWORD(str.size()), &written, NULL);
                 }
             }
@@ -648,7 +648,10 @@ bool WinConsole::consolePeekBlocking()
 
     INPUT_RECORD ir;
     DWORD nRead;
-    BOOL ok = ReadConsoleInputW(hInput, &ir, 1, &nRead);  // discard the event record
+    if (!ReadConsoleInputW(hInput, &ir, 1, &nRead))  // discard the event record
+    {
+        return false;
+    }
 
     irs.push_back(ir);
 
@@ -979,11 +982,6 @@ void WinConsole::setecho(bool echo)
 }
 
 #ifdef NO_READLINE
-static bool operator==(COORD& a, COORD& b) 
-{
-    return a.X == b.X && a.Y == b.Y; 
-}
-
 void WinConsole::redrawPromptIfLoggingOccurred()
 {
     if (promptRetracted)
