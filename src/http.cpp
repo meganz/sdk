@@ -706,14 +706,14 @@ bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
     while (chunksize)
     {
         byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-        buf = nextbuffer(chunksize);
+        buf = nextbuffer(unsigned(chunksize));
         if (!buf) return false;
-        key->ctr_crypt(buf, chunksize, startpos, ctriv, mac, 1);
+        key->ctr_crypt(buf, unsigned(chunksize), startpos, ctriv, mac, 1);
         memcpy((*macs)[startpos].mac, mac, sizeof mac);
         (*macs)[startpos].finished = false;
         LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
 
-        updateCRC(buf, chunksize, startpos - pos);
+        updateCRC(buf, unsigned(chunksize), unsigned(startpos - pos));
 
         startpos = endpos;
         endpos = ChunkedHash::chunkceil(startpos, finalpos);
