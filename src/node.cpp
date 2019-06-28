@@ -620,7 +620,7 @@ void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtim
             char bsize[sizeof(size) + 1];
             int l = Serialize64::serialize((byte *)bsize, size);
             char *buf = new char[l * 4 / 3 + 4];
-            char ssize = 'A' + Base64::btoa((const byte *)bsize, l, buf);
+            char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
 
             string result(1, ssize);
             result.append(buf);

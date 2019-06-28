@@ -10893,7 +10893,7 @@ MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
 
 MegaNodeList *MegaApiImpl::getNodesByOriginalFingerprint(const char *originalfingerprint, MegaNode* megaparent)
 {
-    MutexGuard g(sdkMutex);
+    SdkMutexGuard g(sdkMutex);
     Node* parent = megaparent ? client->nodebyhandle(megaparent->getHandle()) : NULL;
 
     if (!originalfingerprint || (megaparent && (!parent || parent->type == FILENODE)))
@@ -18513,7 +18513,7 @@ void MegaApiImpl::sendPendingRequests()
                 string fileattr;
                 appendFileAttribute(fileattr, type, fileattrhandle);
 
-                client->reqs.add(new CommandAttachFA(client, node->nodehandle, type, fileattr, nextTag));
+                client->reqs.add(new CommandAttachFA(client, node->nodehandle, fatype(type), fileattr, nextTag));
             }
             else
             {
