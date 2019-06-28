@@ -76,7 +76,7 @@ public:
     int lastError[2];
 
     // flags to monitor the completion of requests/transfers
-    bool requestFlags[2][MegaRequest::TYPE_SET_PROXY];
+    bool requestFlags[2][MegaRequest::TOTAL_OF_REQUEST_TYPES];
     bool transferFlags[2][MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD];
 
     // relevant values received in response of requests
