@@ -22,6 +22,8 @@
 #ifndef MEGAAPI_IMPL_H
 #define MEGAAPI_IMPL_H
 
+#include <atomic>
+
 #include "mega.h"
 #include "mega/gfx/external.h"
 #include "megaapi.h"

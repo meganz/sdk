@@ -22,6 +22,8 @@
 #ifndef GFX_H
 #define GFX_H 1
 
+#include <mutex>
+
 #include "megawaiter.h"
 #include "mega/thread/qtthread.h"
 #include "mega/thread/posixthread.h"
