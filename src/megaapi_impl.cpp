@@ -13987,17 +13987,21 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
         }
     }
 
-	if(requestMap.find(client->restag) == requestMap.end()) return;
-	MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request ||
-            ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
-            (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
-
-    int attrType = request->getParamType();
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+        || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER &&
+            request->getType() != MegaRequest::TYPE_SET_ATTR_USER))
+    {
+        delete pushSettings;
+        return;
+    }
+    
+    assert(type == request->getParamType());
 
     if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
     {
-        if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
+        if (type == MegaApi::USER_ATTR_PWD_REMINDER)
         {
             // merge received value with updated items
             string newValue;
@@ -14015,11 +14019,12 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 fireOnRequestFinish(request, MegaError(API_OK));
             }
         }
+        delete pushSettings;
         return;
     }
 
     // only for TYPE_GET_ATTR_USER
-    switch (attrType)
+    switch (type)
     {
         case MegaApi::USER_ATTR_AVATAR:
             if (len)
@@ -14066,12 +14071,12 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 string str((const char*)data,len);
                 request->setText(str.c_str());
 
-                if (attrType == MegaApi::USER_ATTR_DISABLE_VERSIONS
-                        || attrType == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
+                if (type == MegaApi::USER_ATTR_DISABLE_VERSIONS
+                        || type == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
                 {
                     request->setFlag(str == "1");
                 }
-                else if (attrType == MegaApi::USER_ATTR_PWD_REMINDER)
+                else if (type == MegaApi::USER_ATTR_PWD_REMINDER)
                 {
                     m_time_t currenttime = m_time();
                     bool isMasterKeyExported = User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len);
@@ -14107,7 +14112,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
                 request->setNumber(value);
 
-                if (attrType == MegaApi::USER_ATTR_STORAGE_STATE && (value < MegaApi::STORAGE_STATE_GREEN || value > MegaApi::STORAGE_STATE_RED))
+                if (type == MegaApi::USER_ATTR_STORAGE_STATE && (value < MegaApi::STORAGE_STATE_GREEN || value > MegaApi::STORAGE_STATE_RED))
                 {
                     e = API_EINTERNAL;
                 }
@@ -27399,6 +27404,7 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
         }
         if (!isHandleAllowed(baseFolderNode->getHandle()) )
         {
+            delete baseFolderNode;
             return NULL;
         }
         delete baseFolderNode;
