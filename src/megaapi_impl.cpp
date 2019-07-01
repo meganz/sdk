@@ -21633,8 +21633,10 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
 }
 
-bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent)
+bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, string accumulateddestpath, int &errorCode, bool checkChildrenRecursivity, bool allowUploadsToSelfSynced)
 {
+    string transformedSyncDownPath;
+    string utf8name;
     Node *n = client->nodebyhandle(parent->getHandle());
     if (n && n->localnode && n->localnode->sync)
     {
@@ -21642,46 +21644,99 @@ bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originl
         n->localnode->sync->localroot.getlocalpath(&synclocalpath);
         string localsynclocalpath;
         client->fsaccess->path2local(&synclocalpath, &localsynclocalpath);
-        if (!localsynclocalpath.find(originlocalpath))
+
+        // get name (utf8) form local localpath and the corresponding MegaNode
+        int index = localpath.rfind(client->fsaccess->localseparator);
+        if (index != string::npos )
+        {
+            string localname = localpath.substr(index + client->fsaccess->localseparator.size());
+            utf8name = localname;
+            client->fsaccess->local2name(&utf8name);
+
+            if (accumulateddestpath.size())
+            {
+                accumulateddestpath += client->fsaccess->localseparator ;
+            }
+            accumulateddestpath += localname ; //problem, if first destination is within a sync? TODO: review
+
+            transformedSyncDownPath = localsynclocalpath + accumulateddestpath; //TODO: improve this concatenation?
+        }
+        else
+        {
+            //TODO: assert?
+        }
+
+        if(transformedSyncDownPath.size() && (transformedSyncDownPath.compare(localpath) || allowUploadsToSelfSynced) && !transformedSyncDownPath.find(originlocalpath) )
         {
             LOG_err << "Folder transfer failed - Detected recursivity: " << originlocalpath << " contained in synced folder: " << localsynclocalpath; //TODO: review local vs utf8 paths
+            errorCode = MegaError::API_ECIRCULAR;
             return false;
+        }
+        else
+        {
+            //TODO: here we might want to finish the loop in certain circumstances. rethink
         }
     }
 
-    DirAccess* da;
-    da = client->fsaccess->newdiraccess();
-    if (da->dopen((string *)&localpath, NULL, false)) //loop for folders within localpath, and get corresponding meganode, to look for conflictive syncs contained in the folder to be uploaded
+    if (checkChildrenRecursivity)
     {
-        size_t t = localpath.size();
-        string localname;
+        MegaNode *megaNodeForLocalPath = NULL;
 
-        while (da->dnext((string *)&localpath, &localname, client->followsymlinks))
+        DirAccess* da;
+        da = client->fsaccess->newdiraccess();
+
+        // get name (utf8) form local localpath and the corresponding MegaNode
+        if (!utf8name.size())
         {
-            string chillocalPath = localpath;
-            if (t)
+            int index = localpath.rfind(client->fsaccess->localseparator);
+            if (index != string::npos )
             {
-                chillocalPath.append(client->fsaccess->localseparator);
+                string localname = localpath.substr(index + client->fsaccess->localseparator.size());
+                utf8name = localname;
+                client->fsaccess->local2name(&utf8name);
             }
+        }
+        if (utf8name.size() && parent->isFolder())
+        {
+            megaNodeForLocalPath = megaApi->getChildNode(parent, utf8name.c_str());
+        }
 
-            chillocalPath.append(localname);
-
-            FileAccess *fa = client->fsaccess->newfileaccess();
-            if (fa->fopen(&chillocalPath, true, false))
+        if(megaNodeForLocalPath) //TODO: ok if megaNodeForLocalPath is !folder?
+        {
+            if (da->dopen((string *)&localpath, NULL, false)) //loop for folders within localpath, and get corresponding meganode, to look for conflictive syncs contained in the folder to be uploaded
             {
-                string name = localname;
-                client->fsaccess->local2name(&name);
-                if (fa->type != FILENODE)
+                size_t t = localpath.size();
+                string localname;
+
+                while (da->dnext((string *)&localpath, &localname, client->followsymlinks))
                 {
-                    MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                    if(child && child->isFolder())
+                    string chillocalPath = localpath;
+                    if (t)
                     {
-                        return checkNotBreaksRecursivity(originlocalpath, chillocalPath, child);
+                        chillocalPath.append(client->fsaccess->localseparator);
                     }
-                    delete child;
+
+                    chillocalPath.append(localname);
+
+                    FileAccess *fa = client->fsaccess->newfileaccess();
+                    if (fa->fopen(&chillocalPath, true, false))
+                    {
+                        string name = localname;
+                        client->fsaccess->local2name(&name);
+                        //if (fa->type != FILENODE) // we want to address files too
+                        {
+                            if (!checkNotBreaksRecursivity(originlocalpath, chillocalPath, megaNodeForLocalPath, accumulateddestpath, errorCode, checkChildrenRecursivity, allowUploadsToSelfSynced))
+                            {
+                                errorCode = MegaError::API_ECIRCULAR; // we might want another error here
+                                return false;
+                            }
+
+                        }
+                    }
                 }
             }
         }
+        delete megaNodeForLocalPath;
     }
 
     return true;
@@ -21709,10 +21764,11 @@ void MegaFolderUploadController::start()
         client->fsaccess->path2local(&path, &localpath);
 
         // avoid recursivity
-        if (!checkNotBreaksRecursivity(localpath, localpath, parent))
+        int errroCode;
+        if (!checkNotBreaksRecursivity(localpath, localpath, parent, "", errroCode, true, false))
         {
             transfer->setState(MegaTransfer::STATE_FAILED);
-            megaApi->fireOnTransferFinish(transfer, MegaError(API_ECIRCULAR));
+            megaApi->fireOnTransferFinish(transfer, MegaError(errroCode));
             delete parent;
             delete this;
             return;
