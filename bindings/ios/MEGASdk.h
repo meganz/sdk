@@ -6681,6 +6681,19 @@ typedef NS_ENUM(NSInteger, AccountSuspensionType) {
  */
 - (void)getCountryCallingCodesWithDelegate:(id<MEGARequestDelegate>)delegate;
 
+/*
+ * @brief Requests the user contacts registered in MEGA and verificated through SMS.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MegaError::API_OK:
+ * - [MegaRequest getMegaStringTable]
+ *
+ * @param contacts An NSArray containing user contacts (NSDictionary "phoneNumber":"userName").
+ * @param listener MegaRequestListener to track this request
+ */
+- (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
+
 #pragma mark - Debug log messages
 
 /**

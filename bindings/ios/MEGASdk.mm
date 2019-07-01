@@ -2108,6 +2108,16 @@ using namespace mega;
     return (SMSState)self.megaApi->smsAllowedState();
 }
 
+- (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate {
+    MegaStringMap *stringMapContacts = MegaStringMap::createInstance();
+    for (NSDictionary *contact in contacts) {
+        NSString *key = contact.allKeys[0];
+        NSString *value = contact.allValues[0];
+        stringMapContacts->set(key.UTF8String, value.UTF8String);
+    }
+    self.megaApi->getRegisteredContacts(stringMapContacts, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (void)getCountryCallingCodesWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getCountryCallingCodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

@@ -491,6 +491,15 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) NSDictionary<NSString *, MEGAStringList*> *megaStringListDictionary;
 
 /**
+ * @brief Gets the string table response from a request.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk getRegisteredContacts:] - Obtains the user contacts registered in MEGA and verificated through SMS.
+ *
+ */
+@property (readonly, nonatomic) NSArray<MEGAStringList *> *megaStringTableArray;
+
+/**
  * @brief Creates a copy of this MEGARequest object
  *
  * The resulting object is fully independent of the source MEGARequest,
