@@ -585,7 +585,6 @@ int main(int argc, char *argv[])
     return 1;
 #endif
 
-    static byte pwkey[SymmCipher::KEYLENGTH];
     SyncApp *app;
 
     // use logInfo level

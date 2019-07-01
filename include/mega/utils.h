@@ -36,7 +36,7 @@ struct timespec
 #endif
 
 namespace mega {
-// convert 2...8 character ID to int64 integer (endian agnostic)
+// convert 1...8 character ID to int64 integer (endian agnostic)
 #define MAKENAMEID1(a) (nameid)(a)
 #define MAKENAMEID2(a, b) (nameid)(((a) << 8) + (b))
 #define MAKENAMEID3(a, b, c) (nameid)(((a) << 16) + ((b) << 8) + (c))

@@ -1107,7 +1107,7 @@ public:
 class MEGA_API CommandSMSVerificationSend : public Command
 {
 public:
-    void procresult();
+    void procresult() override;
 
     // don't request if it's definitely not a phone number
     static bool isphonenumber(const string& s); 
@@ -1118,7 +1118,7 @@ public:
 class MEGA_API CommandSMSVerificationCheck : public Command
 {
 public:
-    void procresult();
+    void procresult() override;
 
     // don't request if it's definitely not a verification code
     static bool isverificationcode(const string& s);
@@ -1129,6 +1129,7 @@ public:
 class MEGA_API CommandGetRegisteredContacts : public Command
 {
 public:
+    // static to be called from unit tests
     static void processResult(MegaApp& app, JSON& json);
 
     void procresult() override;
@@ -1139,6 +1140,7 @@ public:
 class MEGA_API CommandGetCountryCallingCodes : public Command
 {
 public:
+    // static to be called from unit tests
     static void processResult(MegaApp& app, JSON& json);
 
     void procresult() override;

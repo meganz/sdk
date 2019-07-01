@@ -6898,9 +6898,9 @@ class MegaApi
         bool appleVoipPushEnabled();
 
         /**
-         * @brief Check if the opt-in or account ublocking SMS is allowed
+         * @brief Check if the opt-in or account unblocking SMS is allowed
          *
-         * The result indicated whether the sendSMSVerificationCode() function can be used.
+         * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
          *
          * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
          */
@@ -6909,8 +6909,8 @@ class MegaApi
         /**
          * @brief Check if the opt-in or account unblocking SMS is allowed
          *
-         * Returns the phone number previously confirmed with sendSMSVerificationCode()
-         * and checkSMSVerificationCode().
+         * Returns the phone number previously confirmed with MegaApi::sendSMSVerificationCode
+         * and MegaApi::checkSMSVerificationCode.
          *
          * You take the ownership of the returned value.
          * 
@@ -14416,25 +14416,19 @@ class MegaApi
         void catchup(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Catch up with API for pending actionpackets
-         *
-         * The associated request type with this request is MegaRequest::TYPE_CATCHUP
-         *
-         * When onRequestFinish is called with MegaError::API_OK, the SDK is guaranteed to be
-         * up to date (as for the time this function is called).
          * @brief Send a verification code txt to the supplied phone number
          *
-         * Sends a 6 digit code to the user's phone.  The number is supplied in this function call.
-         * The code is txted to the user.  Once the user has it, they can type it into the app
-         * and the call checkSMSVerificationCode() can be used to validate the user did receive the txt,
-         * so that really is their phone number.
+         * Sends a 6 digit code to the user's phone. The phone number is supplied in this function call.
+         * The code is sent by SMS to the user. Once the user receives it, they can type it into the app
+         * and the call MegaApi::checkSMSVerificationCode can be used to validate the user did
+         * receive the verification code, so that really is their phone number.
          *
-         * The frequency with which this call can be used is very limited (once or twice per
-         * 24 hour period, at the time of writing this), so it's important to get the 
-         * number right on the first try.  The result will be API_ETEMPUNAVAIL if it has
+         * The frequency with which this call can be used is very limited (the API allows at most
+         * two SMS mssages sent for phone number per 24 hour period), so it's important to get the
+         * number right on the first try. The result will be MegaError::API_ETEMPUNAVAIL if it has
          * been tried too frequently.
          *
-         * Make sure to test the result of smsAllowedState() before calling this function.
+         * Make sure to test the result of MegaApi::smsAllowedState before calling this function.
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -14443,8 +14437,8 @@ class MegaApi
         /**
          * @brief Check a verification code that the user should have received via txt
          *
-         * This function validates that the user received the txt sent by sendSMSVerificationCode().
-         * If the user supplied the right code, the result will be API_OK.
+         * This function validates that the user received the verification code sent by MegaApi::sendSMSVerificationCode.
+         * If the user supplied the right code, the result will be MegaError::API_OK.
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -14456,21 +14450,21 @@ class MegaApi
          * The request will return any of the provided contacts that are registered at MEGA, i.e.,
          * are verified through SMS (currently).
          *
-         * contacts is a MegaStringMap from 'user detail' to the user's name. For instance:
+         * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getMegaStringMap - Returns the contacts that are to be checked
+         * \c contacts is a MegaStringMap from 'user detail' to the user's name. For instance:
          * {
          *   "+0000000010": "John Smith",
          *   "+0000000011": "Peter Smith",
          * }
          *
-         * The response value is stored as a MegaStringTable with three columns:
-         * 1. entry user detail (the user detail as it was provided in the request)
-         * 2. identifier (the user's identifier)
-         * 3. user detail (the normalized user detail, e.g., +00 0000 0010)
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_REGISTERED_CONTACTS
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getMegaStringTable
+         * - MegaRequest::getMegaStringTable - Returns the information about the contacts with three columns:
+         *  1. entry user detail (the user detail as it was provided in the request)
+         *  2. identifier (the user's identifier)
+         *  3. user detail (the normalized user detail, e.g., +00 0000 0010)
          *
          * @param contacts The map of contacts to get registered contacts from
          * @param listener MegaRequestListener to track this request

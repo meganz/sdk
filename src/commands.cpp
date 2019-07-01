@@ -6172,6 +6172,7 @@ void CommandChatLinkURL::procresult()
 
                 case MAKENAMEID2('t', 's'):
                     ts = client->json.getint();
+                    break;
 
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
@@ -6940,11 +6941,11 @@ CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const
     }
 
     tag = client->reqtag;
-};
+}
 
 bool CommandSMSVerificationSend::isphonenumber(const string& s)
 {
-    for (int i = s.size(); i--; )
+    for (auto i = s.size(); i--; )
     {
         if (!(isdigit(s[i]) || (i == 0 && s[i] == '+')))
         {
@@ -6965,7 +6966,7 @@ void CommandSMSVerificationSend::procresult()
         client->json.storeobject();
         client->app->smsverificationsend_result(API_EINTERNAL);
     }
-};
+}
 
 CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, const string& verificationcode)
 {
