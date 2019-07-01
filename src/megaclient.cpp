@@ -3567,6 +3567,7 @@ void MegaClient::locallogout()
     nsr_enabled = false;
     aplvp_enabled = false;
     smsve_state = -1;
+    sms_verifiedphone.clear();
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
