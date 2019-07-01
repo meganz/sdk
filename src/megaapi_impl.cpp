@@ -20929,7 +20929,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             string phoneNumber = request->getText();
             bool reverifying_whitelisted = request->getFlag();
-            if (CommandSMSVerificationSend::isphonenumber(phoneNumber))
+            if (CommandSMSVerificationSend::isPhoneNumber(phoneNumber))
             {
                 client->reqs.add(new CommandSMSVerificationSend(client, phoneNumber, reverifying_whitelisted));
                 if (reverifying_whitelisted)
@@ -20946,7 +20946,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE:
         {
             string code = request->getText();
-            if (CommandSMSVerificationCheck::isverificationcode(code))
+            if (CommandSMSVerificationCheck::isVerificationCode(code))
             {
                 client->reqs.add(new CommandSMSVerificationCheck(client, code));
                 client->reqs.add(new CommandGetUserData(client));

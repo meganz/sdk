@@ -1133,7 +1133,7 @@ public:
     void procresult() override;
 
     // don't request if it's definitely not a phone number
-    static bool isphonenumber(const string& s); 
+    static bool isPhoneNumber(const string& s);
 
     CommandSMSVerificationSend(MegaClient*, const string& phonenumber, bool reverifying_whitelisted = false);
 };
@@ -1144,7 +1144,7 @@ public:
     void procresult() override;
 
     // don't request if it's definitely not a verification code
-    static bool isverificationcode(const string& s);
+    static bool isVerificationCode(const string& s);
 
     CommandSMSVerificationCheck(MegaClient*, const string& code);
 };

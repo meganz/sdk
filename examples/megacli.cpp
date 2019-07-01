@@ -5615,7 +5615,7 @@ void exec_smsverify(autocomplete::ACState& s)
 {
     if (s.words[1].s == "send")
     {
-        if (CommandSMSVerificationSend::isphonenumber(s.words[2].s))
+        if (CommandSMSVerificationSend::isPhoneNumber(s.words[2].s))
         {
             client->reqs.add(new CommandSMSVerificationSend(client, s.words[2].s));
         }
@@ -5626,7 +5626,7 @@ void exec_smsverify(autocomplete::ACState& s)
     }
     else if (s.words[1].s == "code")
     {
-        if (CommandSMSVerificationCheck::isverificationcode(s.words[2].s))
+        if (CommandSMSVerificationCheck::isVerificationCode(s.words[2].s))
         {
             client->reqs.add(new CommandSMSVerificationCheck(client, s.words[2].s));
         }

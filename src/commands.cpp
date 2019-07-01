@@ -7097,7 +7097,7 @@ CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const
     cmd("smss");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
-    if (isphonenumber(phonenumber))
+    if (isPhoneNumber(phonenumber))
     {
         arg("n", phonenumber.c_str());
     }
@@ -7110,7 +7110,7 @@ CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const
     tag = client->reqtag;
 }
 
-bool CommandSMSVerificationSend::isphonenumber(const string& s)
+bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
 {
     for (auto i = s.size(); i--; )
     {
@@ -7140,7 +7140,7 @@ CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, con
     cmd("smsv");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
-    if (isverificationcode(verificationcode))
+    if (isVerificationCode(verificationcode))
     {
         arg("c", verificationcode.c_str());
     }
@@ -7148,7 +7148,7 @@ CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, con
     tag = client->reqtag;
 }
 
-bool CommandSMSVerificationCheck::isverificationcode(const string& s)
+bool CommandSMSVerificationCheck::isVerificationCode(const string& s)
 {
     for (const char c : s)
     {
@@ -7177,14 +7177,14 @@ CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, c
 {
     cmd("usabd");
 
-    tag = client->reqtag;
-
     beginobject("e");
     for (const auto& pair : contacts)
     {
         arg(pair.first, pair.second);
     }
     endobject();
+
+    tag = client->reqtag;
 }
 
 void CommandGetRegisteredContacts::procresult()
@@ -7200,67 +7200,60 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
         return;
     }
 
-    vector<tuple<string, string, string>> registered_contacts;
+    vector<tuple<string, string, string>> registeredContacts;
 
-    string entry_user_detail;
+    string entryUserDetail;
     string id;
-    string user_detail;
+    string userDetail;
 
-    for (;;)
+    while(json.enterobject())
     {
-        if (json.enterobject())
+        bool exit = false;
+        while (!exit)
         {
-            bool end_of_object = false;
-            while (!end_of_object)
+            switch (json.getnameid())
             {
-                switch (json.getnameid())
+                case MAKENAMEID3('e', 'u', 'd'):
                 {
-                    case MAKENAMEID3('e', 'u', 'd'):
+                    json.storeobject(&entryUserDetail);
+                    break;
+                }
+                case MAKENAMEID2('i', 'd'):
+                {
+                    json.storeobject(&id);
+                    break;
+                }
+                case MAKENAMEID2('u', 'd'):
+                {
+                    json.storeobject(&userDetail);
+                    break;
+                }
+                case EOO:
+                {
+                    if (entryUserDetail.empty() || id.empty() || userDetail.empty())
                     {
-                        json.storeobject(&entry_user_detail);
-                        break;
+                        LOG_err << "Missing or empty field when parsing 'get registered contacts' response";
+                        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                        return;
                     }
-                    case MAKENAMEID2('i', 'd'):
+                    registeredContacts.emplace_back(make_tuple(move(entryUserDetail), move(id), move(userDetail)));
+                    exit = true;
+                    break;
+                }
+                default:
+                {
+                    if (!json.storeobject())
                     {
-                        json.storeobject(&id);
-                        break;
-                    }
-                    case MAKENAMEID2('u', 'd'):
-                    {
-                        json.storeobject(&user_detail);
-                        break;
-                    }
-                    case EOO:
-                    {
-                        end_of_object = true;
-                        break;
-                    }
-                    default:
-                    {
-                        if (!json.storeobject())
-                        {
-                            LOG_err << "Failed to parse 'get registered contacts' response";
-                            app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
-                            return;
-                        }
+                        LOG_err << "Failed to parse 'get registered contacts' response";
+                        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+                        return;
                     }
                 }
             }
-            json.leaveobject();
-            if (entry_user_detail.empty() || id.empty() || user_detail.empty())
-            {
-                LOG_err << "Missing or empty field when parsing 'get registered contacts' response";
-                app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
-                return;
-            }
-            registered_contacts.emplace_back(move(entry_user_detail), move(id), move(user_detail));
         }
-        else
-        {
-            break;
-        }
+        json.leaveobject();
     }
-    app.getregisteredcontacts_result(API_OK, &registered_contacts);
+    app.getregisteredcontacts_result(API_OK, &registeredContacts);
 }
 
 CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
@@ -7283,73 +7276,62 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
         return;
     }
 
-    map<string, vector<string>> country_calling_codes;
+    map<string, vector<string>> countryCallingCodes;
 
-    string country_code;
-    vector<string> calling_codes;
+    string countryCode;
+    vector<string> callingCodes;
 
-    for (;;)
+    while (json.enterobject())
     {
-        if (json.enterobject())
+        bool exit = false;
+        while (!exit)
         {
-            bool end_of_object = false;
-            while (!end_of_object)
+            switch (json.getnameid())
             {
-                switch (json.getnameid())
+                case MAKENAMEID2('c', 'c'):
                 {
-                    case MAKENAMEID2('c', 'c'):
+                    json.storeobject(&countryCode);
+                    break;
+                }
+                case MAKENAMEID1('l'):
+                {
+                    if (json.enterarray())
                     {
-                        json.storeobject(&country_code);
-                        break;
-                    }
-                    case MAKENAMEID1('l'):
-                    {
-                        if (json.enterarray())
+                        std::string code;
+                        while(json.storeobject(&code))
                         {
-                            for (;;)
-                            {
-                                std::string code;
-                                if (!json.storeobject(&code))
-                                {
-                                    break;
-                                }
-                                calling_codes.emplace_back(move(code));
-                            }
-                            json.leavearray();
+                            callingCodes.emplace_back(move(code));
                         }
-                        break;
+                        json.leavearray();
                     }
-                    case EOO:
+                    break;
+                }
+                case EOO:
+                {
+                    if (countryCode.empty() || callingCodes.empty())
                     {
-                        end_of_object = true;
-                        break;
+                        LOG_err << "Missing or empty fields when parsing 'get country calling codes' response";
+                        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                        return;
                     }
-                    default:
+                    countryCallingCodes.emplace(make_pair(move(countryCode), move(callingCodes)));
+                    exit = true;
+                    break;
+                }
+                default:
+                {
+                    if (!json.storeobject())
                     {
-                        if (!json.storeobject())
-                        {
-                            LOG_err << "Failed to parse 'get country calling codes' response";
-                            app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
-                            return;
-                        }
+                        LOG_err << "Failed to parse 'get country calling codes' response";
+                        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+                        return;
                     }
                 }
             }
-            json.leaveobject();
-            if (country_code.empty() || calling_codes.empty())
-            {
-                LOG_err << "Missing or empty fields when parsing 'get country calling codes' response";
-                app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
-                return;
-            }
-            country_calling_codes.emplace(move(country_code), move(calling_codes));
         }
-        else
-        {
-            break;
-        }
+        json.leaveobject();
     }
-    app.getcountrycallingcodes_result(API_OK, &country_calling_codes);
+    app.getcountrycallingcodes_result(API_OK, &countryCallingCodes);
 }
 
 CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)

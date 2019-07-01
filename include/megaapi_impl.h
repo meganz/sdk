@@ -1,5 +1,4 @@
 /**
-/**
  * @file megaapi_impl.h
  * @brief Private header file of the intermediate layer for the MEGA C++ SDK.
  *
@@ -2692,14 +2691,14 @@ protected:
         void acknowledgeuseralerts_result(error) override;
 
         // account validation by txted verification code
-        virtual void smsverificationsend_result(error);
-        virtual void smsverificationcheck_result(error);
+        void smsverificationsend_result(error) override;
+        void smsverificationcheck_result(error) override;
 
         // get registered contacts
-        virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*);
+        void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) override;
 
         // get country calling codes
-        virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*);
+        void getcountrycallingcodes_result(error, map<string, vector<string>>*) override;
 
         // get the current PSA
         void getpsa_result (error, int, string*, string*, string*, string*, string*) override;
