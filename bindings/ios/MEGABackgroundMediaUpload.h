@@ -100,7 +100,7 @@ NS_ASSUME_NONNULL_BEGIN
  * node is later shared, the GPS coordinates cannot be decrypted by a different account.
  *
  * @param latitude The GPS latitude
- * @param latitude The GPS longitude
+ * @param longitude The GPS longitude
  * @param unshareable Set this true to prevent the coordinates being readable by other accounts.
  */
 - (void)setCoordinatesWithLatitude:(double)latitude longitude:(double)longitude isUnshareable:(BOOL)unshareable;

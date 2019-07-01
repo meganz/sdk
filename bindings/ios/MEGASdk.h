@@ -5756,8 +5756,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * Each bucket contains files that were added/modified in a set, by a single user.
  *
- * @param date       Only return nodes that are more recent than this time.
- * @param maxNodes   Only return nodes up to this many.
+ * @param days Age of actions since added/modified nodes will be considered (in days).
+ * @param maxNodes Maximum amount of nodes to be considered.
  *
  * @return Array of buckets containing nodes that were added/modifed as a set
  */
