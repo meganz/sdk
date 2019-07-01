@@ -188,29 +188,7 @@ int main()
 		Sleep(1000);
 	}
 
-
-    MegaRecentActionBucketList* rabl = megaApi->getRecentActions(time(NULL)-24*60*60, 1000);
-
-    for (int i = 0; i < rabl->size(); ++i)
-    {
-        if (i != 0)
-        {
-            cout << "---" << endl;
-        }
-
-        MegaRecentActionBucket* b = rabl->get(i);
-
-        MegaNode *parent = megaApi->getNodeByHandle(b->getParentHandle());
-
-        //cout << displayTime(b->getTimestamp()) << " " << b->getUserEmail() << " " << (b->getIsUpdate() ? "updated" : "uploaded") << " " << (b->getIsMedia() ? "media" : "files") << " in " << (parent ? parent->getName() : "<unknown>") << endl;
-
-        //MegaNodeList* l = b->getNodes();
-        //for (int j = 0; j < l->size(); ++j)
-        //{
-        //    cout << l->get(j)->getName() << endl;
-        //}
-}
-
+    // Add code here to exercise MegaApi
 
 
 

@@ -138,7 +138,7 @@ Node* SyncApp::nodebypath(const char* ptr, string* user = NULL, string* namepart
     int l = 0;
     const char* bptr = ptr;
     int remote = 0;
-    Node* n;
+    Node* n = nullptr;
     Node* nn;
 
     // split path by / or :
@@ -435,8 +435,8 @@ void SyncApp::fetchnodes_result(error e)
             }
             else
             {
-                error e = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
-                if (e)
+                error err = client->addsync(&localname, DEBRISFOLDER, NULL, n, 0);
+                if (err)
                 {
                     LOG_err << "Sync could not be added! ";
                     exit(1);

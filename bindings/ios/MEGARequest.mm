@@ -206,4 +206,14 @@ using namespace mega;
     return self.megaRequest ? self.megaRequest->getNumDetails() : 0;
 }
 
+- (NSArray<MEGAStringList *> *)megaStringTableArray {
+    MegaStringTable *table = self.megaRequest ? self.megaRequest->getMegaStringTable() : nil;
+    NSMutableArray<MEGAStringList *> *array = NSMutableArray.alloc.init;
+    for (int i = 0; i < table->size(); i++) {
+        [array addObject:[[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)table->get(i) cMemoryOwn:YES]];
+    }
+    
+    return array.copy;
+}
+
 @end

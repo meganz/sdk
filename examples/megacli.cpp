@@ -47,6 +47,10 @@
 #endif
 #endif
 
+#if __cplusplus >= 201100L
+#include <regex>
+#endif
+
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
 #endif
@@ -2511,6 +2515,7 @@ autocomplete::ACN autocompleteSyntax()
 #else
     p->Add(exec_get, sequence(text("get"), remoteFSPath(client, &cwd), opt(sequence(param("offset"), opt(param("length"))))));
 #endif
+    p->Add(exec_get, sequence(text("get"), flag("-re"), param("regularexpression")));
     p->Add(exec_get, sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(exec_getq, sequence(text("getq"), opt(param("cancelslot"))));
     p->Add(exec_pause, sequence(text("pause"), either(text("status"), sequence(opt(either(text("get"), text("put"))), opt(text("hard"))))));
@@ -2648,6 +2653,39 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
                 return false;
             }
         }
+    }
+    return true;
+}
+#endif
+
+#if __cplusplus >= 201100L
+bool regexget(const string& expression, Node* n, unsigned& queued)
+{
+    try
+    {
+        std::regex re(expression);
+
+        if (n->type == FOLDERNODE || n->type == ROOTNODE)
+        {
+            for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+            {
+                if ((*it)->type == FILENODE)
+                {
+                    if (regex_search(string((*it)->displayname()), re))
+                    {
+                        auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, fs::current_path().u8string().c_str());
+                        f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
+                        client->startxfer(GET, f);
+                        queued += 1;
+                    }
+                }
+            }
+        }
+    }
+    catch (std::exception& e)
+    {
+        cout << "ERROR: " << e.what() << endl;
+        return false;
     }
     return true;
 }
@@ -3264,6 +3302,7 @@ void exec_du(autocomplete::ACState& s)
 void exec_get(autocomplete::ACState& s)
 {
     Node *n;
+    string regularexpression;
     if (s.extractflag("-r"))
     {
 #ifdef USE_FILESYSTEM
@@ -3295,6 +3334,25 @@ void exec_get(autocomplete::ACState& s)
 #else
         cout << "Sorry, -r not supported yet" << endl;
 #endif
+    }
+    else if (s.extractflagparam("-re", regularexpression))
+    {
+        if (!(n = nodebypath(".")))
+        {
+            cout << ": No current folder" << endl;
+        }
+        else if (n->type != FOLDERNODE && n->type != ROOTNODE)
+        {
+            cout << ": not in a folder" << endl;
+        }
+        else
+        {
+            unsigned queued = 0;
+            if (regexget(regularexpression, n, queued))
+            {
+                cout << "queued " << queued << " files for download" << endl;
+            }
+        }
     }
     else
     {
@@ -5510,7 +5568,10 @@ void exec_mediainfo(autocomplete::ACState& s)
         if (client->fsaccess->getextension(&localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
         {
             mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
-            cout << showMediaInfo(mp, client->mediaFileInfo, false) << endl;
+                                uint32_t dummykey[4] = { 1, 2, 3, 4 };  // check encode/decode
+                                string attrs = mp.convertMediaPropertyFileAttributes(dummykey, client->mediaFileInfo);
+                                MediaProperties dmp = MediaProperties::decodeMediaPropertiesAttributes(":" + attrs, dummykey);
+                                cout << showMediaInfo(dmp, client->mediaFileInfo, false) << endl;
         }
         else
         {

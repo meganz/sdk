@@ -67,39 +67,6 @@ Win32Thread::~Win32Thread()
     CloseHandle(hThread);
 }
 
-//Mutex
-Win32Mutex::Win32Mutex()
-{
-    InitializeCriticalSection(&mutex);
-}
-
-Win32Mutex::Win32Mutex(bool recursive)
-{
-    InitializeCriticalSection(&mutex);
-
-    init(recursive);        // just for correctness
-}
-
-void Win32Mutex::init(bool recursive)
-{
-
-}
-
-void Win32Mutex::lock()
-{
-    EnterCriticalSection(&mutex);
-}
-
-void Win32Mutex::unlock()
-{
-    LeaveCriticalSection(&mutex);
-}
-
-Win32Mutex::~Win32Mutex()
-{
-    DeleteCriticalSection(&mutex);
-}
-
 //Semaphore
 Win32Semaphore::Win32Semaphore()
 {

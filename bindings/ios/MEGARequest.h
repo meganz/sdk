@@ -140,6 +140,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeAutojoinPublicChat,
     MEGARequestTypeCatchup,
     MEGARequestTypePublicLinkInformation,
+    MEGARequestTypeGetBackgroundUploadURL,
+    MEGARequestTypeCompleteBackgroundUpload,
     TotalOfRequestTypes
 };
 
@@ -487,6 +489,15 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  * @brief Returns a dictionary of mega string list.
  */
 @property (readonly, nonatomic) NSDictionary<NSString *, MEGAStringList*> *megaStringListDictionary;
+
+/**
+ * @brief Gets the string table response from a request.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk getRegisteredContacts:] - Obtains the user contacts registered in MEGA and verificated through SMS.
+ *
+ */
+@property (readonly, nonatomic) NSArray<MEGAStringList *> *megaStringTableArray;
 
 /**
  * @brief Creates a copy of this MEGARequest object

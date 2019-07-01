@@ -99,3 +99,4 @@ megaclient_statecache*
 *.db-journal
 
 /third_party/Makefile
+/third_party/3rdparty

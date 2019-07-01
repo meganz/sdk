@@ -251,8 +251,8 @@ namespace autocomplete {
     bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput, bool reportNoMatch);
 
     // functions to bulid command descriptions
-    ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr);
-    ACN sequence(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr);
+    ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr, ACN n9 = nullptr, ACN n10 = nullptr, ACN n11 = nullptr, ACN n12 = nullptr, ACN n13 = nullptr);
+    ACN sequence(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr, ACN n9 = nullptr, ACN n10 = nullptr);
     ACN text(const std::string s);
     ACN param(const std::string s);
     ACN flag(const std::string s);
