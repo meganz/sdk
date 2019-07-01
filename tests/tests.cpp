@@ -25,6 +25,7 @@
 #include "megaapi.h"
 #include <memory>
 #include <thread>
+#include <atomic>
 using namespace std;
 
 using namespace mega;
