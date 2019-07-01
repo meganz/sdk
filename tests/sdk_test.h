@@ -148,6 +148,12 @@ public:
     void purgeTree(MegaNode *p);
     bool waitForResponse(bool *responseReceived, unsigned int timeout = maxTimeout);
 
+    bool synchronousCall(bool &responseFlag, std::function<void()> f, unsigned int timeout = maxTimeout);
+
+    // convenience functions - template args just make it easy to code, no need to copy all the exact argument types with listener defaults etc. To add a new one, just copy a line and change the flag and the function called.
+    template<typename ... uploadArgs> int synchronousUpload(int apiIndex, uploadArgs... args) { synchronousCall(transferFlags[apiIndex][MegaTransfer::TYPE_UPLOAD], [this, apiIndex, args...]() { megaApi[apiIndex]->startUpload(args...); }); return lastError[apiIndex]; }
+    template<typename ... uploadArgs> int synchronousCatchup(int apiIndex, uploadArgs... args) { synchronousCall(requestFlags[apiIndex][MegaRequest::TYPE_CATCHUP], [this, apiIndex, args...]() { megaApi[apiIndex]->catchup(args...); }); return lastError[apiIndex]; }
+
     void createFile(string filename, bool largeFile = true);
     size_t getFilesize(string filename);
     void deleteFile(string filename);

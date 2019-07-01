@@ -14001,6 +14001,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
     if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
     {
+        static_assert(int(ATTR_PWD_REMINDER) == int(MegaApi::USER_ATTR_PWD_REMINDER));
         if (int(type) == MegaApi::USER_ATTR_PWD_REMINDER)
         {
             // merge received value with updated items
@@ -14071,6 +14072,10 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 string str((const char*)data,len);
                 request->setText(str.c_str());
 
+                static_assert(int(MegaApi::USER_ATTR_DISABLE_VERSIONS) == ATTR_DISABLE_VERSIONS);
+                static_assert(int(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION) == ATTR_CONTACT_LINK_VERIFICATION);
+                static_assert(int(MegaApi::USER_ATTR_PWD_REMINDER) == ATTR_PWD_REMINDER);
+
                 if (int(type) == MegaApi::USER_ATTR_DISABLE_VERSIONS
                         || int(type) == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
                 {
@@ -14112,6 +14117,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
                 request->setNumber(value);
 
+                static_assert(int(MegaApi::USER_ATTR_STORAGE_STATE) == ATTR_STORAGE_STATE);
                 if (int(type) == MegaApi::USER_ATTR_STORAGE_STATE && (value < MegaApi::STORAGE_STATE_GREEN || value > MegaApi::STORAGE_STATE_RED))
                 {
                     e = API_EINTERNAL;
