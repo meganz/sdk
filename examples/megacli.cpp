@@ -47,9 +47,7 @@
 #endif
 #endif
 
-#if __cplusplus >= 201100L
 #include <regex>
-#endif
 
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
@@ -2655,7 +2653,6 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 }
 #endif
 
-#if __cplusplus >= 201100L
 bool regexget(const string& expression, Node* n, unsigned& queued)
 {
     try
@@ -2670,7 +2667,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string((*it)->displayname()), re))
                     {
-                        auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, fs::current_path().u8string().c_str());
+                        auto f = new AppFileGet(n);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
                         client->startxfer(GET, f);
                         queued += 1;
@@ -2686,8 +2683,6 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
     }
     return true;
 }
-#endif
-
 
 struct Login
 {
