@@ -14001,7 +14001,8 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
     if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
     {
-        if (type == MegaApi::USER_ATTR_PWD_REMINDER)
+        static_assert(int(ATTR_PWD_REMINDER) == int(MegaApi::USER_ATTR_PWD_REMINDER));
+        if (type == ATTR_PWD_REMINDER)
         {
             // merge received value with updated items
             string newValue;
@@ -14071,12 +14072,16 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 string str((const char*)data,len);
                 request->setText(str.c_str());
 
-                if (type == MegaApi::USER_ATTR_DISABLE_VERSIONS
-                        || type == MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION)
+                static_assert(int(MegaApi::USER_ATTR_DISABLE_VERSIONS) == ATTR_DISABLE_VERSIONS);
+                static_assert(int(MegaApi::USER_ATTR_CONTACT_LINK_VERIFICATION) == ATTR_CONTACT_LINK_VERIFICATION);
+                static_assert(int(MegaApi::USER_ATTR_PWD_REMINDER) == ATTR_PWD_REMINDER);
+
+                if (type == ATTR_DISABLE_VERSIONS
+                        || type == ATTR_CONTACT_LINK_VERIFICATION)
                 {
                     request->setFlag(str == "1");
                 }
-                else if (type == MegaApi::USER_ATTR_PWD_REMINDER)
+                else if (type == ATTR_PWD_REMINDER)
                 {
                     m_time_t currenttime = m_time();
                     bool isMasterKeyExported = User::getPwdReminderData(User::PWD_MK_EXPORTED, (const char*)data, len);
@@ -14112,7 +14117,9 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
                 request->setNumber(value);
 
-                if (type == MegaApi::USER_ATTR_STORAGE_STATE && (value < MegaApi::STORAGE_STATE_GREEN || value > MegaApi::STORAGE_STATE_RED))
+                static_assert(int(MegaApi::USER_ATTR_STORAGE_STATE) == ATTR_STORAGE_STATE);
+
+                if (type == ATTR_STORAGE_STATE && (value < MegaApi::STORAGE_STATE_GREEN || value > MegaApi::STORAGE_STATE_RED))
                 {
                     e = API_EINTERNAL;
                 }
