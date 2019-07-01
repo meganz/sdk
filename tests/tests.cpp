@@ -22,6 +22,10 @@
 #include "mega.h"
 #include "gtest/gtest.h"
 
+#include "megaapi.h"
+#include <memory>
+#include <thread>
+#include <atomic>
 using namespace std;
 
 using namespace mega;
@@ -56,6 +60,31 @@ size_t checksize(size_t& n, size_t added)
 {
     n += added;
     return n;
+}
+
+TEST(MegaApi, getMimeType)
+{
+
+    vector<thread> threads;
+
+    atomic<int> successCount{ 0 };
+
+    // 100 threads was enough to reliably crash the old non-thread-safe version
+    for (int i = 0; i < 100; ++i)
+    {
+        threads.emplace_back(thread([&successCount]() {
+            if (::mega::MegaApi::getMimeType("nosuch") == nullptr) ++successCount;
+            if (::mega::MegaApi::getMimeType(nullptr) == nullptr) ++successCount;
+            if (::mega::MegaApi::getMimeType("323") == string("text/h323")) ++successCount;
+            if (::mega::MegaApi::getMimeType(".323") == string("text/h323")) ++successCount;
+            if (::mega::MegaApi::getMimeType("zip") == string("application/x-zip-compressed")) ++successCount;
+            if (::mega::MegaApi::getMimeType(".zip") == string("application/x-zip-compressed")) ++successCount;
+        }));
+    }
+
+    for (auto& t : threads) t.join();
+
+    ASSERT_EQ(successCount, 600);
 }
 
 TEST(Cacheable, CacheableReaderWriter)

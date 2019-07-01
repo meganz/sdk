@@ -140,6 +140,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeAutojoinPublicChat,
     MEGARequestTypeCatchup,
     MEGARequestTypePublicLinkInformation,
+    MEGARequestTypeGetBackgroundUploadURL,
+    MEGARequestTypeCompleteBackgroundUpload,
     TotalOfRequestTypes
 };
 

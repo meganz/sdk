@@ -182,6 +182,7 @@ class MEGA_API MegaClient
 public:
     // own identity
     handle me;
+    string uid;
 
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
@@ -294,6 +295,9 @@ public:
 
     // check if logged in
     sessiontype_t loggedin();
+
+    // check if logged in a folder link
+    bool loggedinfolderlink();
 
     // check the reason of being blocked
     void whyamiblocked();
@@ -949,6 +953,9 @@ public:
     // session key to protect local storage
     string sessionkey;
 
+    // key protecting non-shareable GPS coordinates in nodes
+    string unshareablekey;
+
     // application key
     char appkey[16];
 
@@ -1084,6 +1091,7 @@ public:
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
+    void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
     // get up to "maxcount" nodes, not older than "since", ordered by creation time
     node_vector getRecentNodes(unsigned maxcount, m_time_t since, bool includerubbishbin);

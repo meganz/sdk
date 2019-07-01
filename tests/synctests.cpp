@@ -29,8 +29,7 @@
 #include <future>
 //#include <mega/tsthooks.h>
 #include <fstream>
-
-
+#include <atomic>
 
 bool suppressfiles = false;
 
@@ -802,9 +801,7 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            vector<Node*> subnodes;
-            vector<Node*> results;
-            return client.childnodesbyname(n, path.c_str(), false);
+            vector<Node*> results, subnodes = client.childnodesbyname(n, path.c_str(), false);
             for (int i = subnodes.size(); i--; )
             {
                 if (subnodes[i]->type != FILENODE)
@@ -903,7 +900,7 @@ struct StandardClient : public MegaApp
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
             cout << " and unmatched remote nodes:";
-            for (auto& n : ns) cout << " " << n.first;
+            for (auto& i : ns) cout << " " << i.first;
             cout << endl;
             return false;
         };
@@ -1012,7 +1009,7 @@ struct StandardClient : public MegaApp
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
             cout << " and unmatched LocalNodes:";
-            for (auto& n : ns) cout << " " << n.first;
+            for (auto& i : ns) cout << " " << i.first;
             cout << endl;
             return false;
         };
@@ -1096,7 +1093,7 @@ struct StandardClient : public MegaApp
             cout << "](with " << descendants << " descendants) in " << mn->path() << ", ended up with unmatched model nodes:";
             for (auto& m : ms) cout << " " << m.first;
             cout << " and unmatched filesystem paths:";
-            for (auto& p : ps) cout << " " << p.second;
+            for (auto& i : ps) cout << " " << i.second;
             cout << endl;
             return false;
         };

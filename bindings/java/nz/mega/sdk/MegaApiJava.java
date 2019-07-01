@@ -7815,7 +7815,30 @@ public class MegaApiJava {
     public void getMegaAchievements() {
         megaApi.getMegaAchievements();
     }
-
+    
+    /**
+     * Set original fingerprint for MegaNode
+     *
+     * @param node
+     * @param fingerprint
+     * @param listener
+     */
+    
+    public void setOriginalFingerprint(MegaNode node, String fingerprint, MegaRequestListenerInterface listener){
+        megaApi.setOriginalFingerprint(node,fingerprint,createDelegateRequestListener(listener));
+    }
+    
+    /**
+     * Get MegaNode list by original fingerprint
+     *
+     * @param originalfingerprint
+     * @param parent
+     */
+    
+    public MegaNodeList getNodesByOriginalFingerprint(String originalfingerprint, MegaNode parent){
+        return megaApi.getNodesByOriginalFingerprint(originalfingerprint, parent);
+    }
+    
     /**
      * @brief Retrieve basic information about a folder link
      *
@@ -7874,7 +7897,7 @@ public class MegaApiJava {
     public void getPublicLinkInformation(String megaFolderLink) {
         megaApi.getPublicLinkInformation(megaFolderLink);
     }
-
+    
     /****************************************************************************************************/
     // INTERNAL METHODS
     /****************************************************************************************************/

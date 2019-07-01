@@ -64,18 +64,12 @@ struct MEGA_API NewNode : public NodeCore
 
     handle syncid;
     LocalNode* localnode;
+    string* fileattributes;  // owned here, usually NULL
 
     bool added;
 
-    NewNode()
-    {
-        syncid = UNDEF;
-        added = false;
-        source = NEW_NODE;
-        ovhandle = UNDEF;
-        uploadhandle = UNDEF;
-        localnode = NULL;
-    }
+    NewNode();
+    ~NewNode();
 };
 
 struct MEGA_API PublicLink
