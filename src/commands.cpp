@@ -3587,7 +3587,8 @@ void CommandGetUserData::procresult()
         case MAKENAMEID4('s', 'm', 's', 'v'):
             if (!client->json.storeobject(&smsv))
             {
-                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                LOG_err << "Invalid verified phone number (smsv)";
+                assert(false);
             }
             break;
 
