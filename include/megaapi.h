@@ -722,6 +722,14 @@ class MegaNode
         virtual char * getPublicLink(bool includeKey = true);
 
         /**
+         * @brief Returns the creation time for the public link of the exported node (in seconds since the epoch).
+         *
+         * @return Creation time for the public link of the node. Returns 0 if the creation time is not available
+         * and -1 if the MegaNode has not been exported.
+         */
+        virtual int64_t getPublicLinkCreationTime();
+
+        /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
          * @return true if this node represents a file, otherwise false
          */

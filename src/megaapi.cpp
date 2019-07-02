@@ -418,6 +418,11 @@ char * MegaNode::getPublicLink(bool includeKey)
     return NULL;
 }
 
+int64_t MegaNode::getPublicLinkCreationTime()
+{
+    return 0;
+}
+
 bool MegaNode::isFile()
 {
     return false;

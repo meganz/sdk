@@ -188,7 +188,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
     if (node->isExported())
     {
-        this->plink = new PublicLink(node->getPublicHandle(), node->getExpirationTime(), node->isTakenDown());
+        this->plink = new PublicLink(node->getPublicHandle(), 0, node->getExpirationTime(), node->isTakenDown());
 
         if (type == FOLDERNODE)
         {
@@ -897,6 +897,11 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
     }
 
     return MegaApi::strdup(strlink.c_str());
+}
+
+int64_t MegaNodePrivate::getPublicLinkCreationTime()
+{
+    return plink ? plink->cts : -1;
 }
 
 bool MegaNodePrivate::isFile()
