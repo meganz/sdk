@@ -220,7 +220,9 @@ public:
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
 private:
-    bool checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, string accumulateddestpath, int &errorCode, bool checkChildrenRecursivity, bool allowUploadsToSelfSynced);
+    void calculatePathRelativeToSyncRoot(Node *node, std::string &pathRelativeToSync);
+    void calculatetransformedSyncDownPath(Node *node, std::string &transformedSyncDownPath);
+    bool checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, int &errorCode, string parentSyncDownPath = string(), bool checkChildrenRecursivity = true, bool allowUploadsToSelfSynced = true);
 
 };
 

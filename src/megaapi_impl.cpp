@@ -21633,48 +21633,107 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
 }
 
-bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, string accumulateddestpath, int &errorCode, bool checkChildrenRecursivity, bool allowUploadsToSelfSynced)
+// Note: this will prepend localseparator to pathRelativeToSync
+void MegaFolderUploadController::calculatePathRelativeToSyncRoot(Node *node, string &pathRelativeToSync)
 {
-    string transformedSyncDownPath;
-    string utf8name;
-    Node *n = client->nodebyhandle(parent->getHandle());
-    if (n && n->localnode && n->localnode->sync)
+    Node *syncNode = node->localnode->sync->localroot.node;
+    Node *currentNode = node;
+    while (currentNode != syncNode)
+    {
+        if (!currentNode)
+        {
+            assert(false && "Found node within sync but sync node not found climbing up ancestors");
+            break;
+        }
+        string utf8Name = currentNode->displayname();
+        string localizedName;
+        client->fsaccess->path2local(&utf8Name, &localizedName);
+
+        pathRelativeToSync.insert(0,client->fsaccess->localseparator + localizedName);
+
+        currentNode = currentNode->parent;
+    }
+}
+
+void MegaFolderUploadController::calculatetransformedSyncDownPath(Node *node, std::string &transformedSyncDownPath)
+{
+    if (node && node->localnode && node->localnode->sync)
     {
         string synclocalpath;
-        n->localnode->sync->localroot.getlocalpath(&synclocalpath);
+        node->localnode->sync->localroot.getlocalpath(&synclocalpath);
+        string localsynclocalpath;
+        client->fsaccess->path2local(&synclocalpath, &localsynclocalpath);
+
+        // gather relative path from localroot to sync root
+        string pathRelativeToSync;
+        calculatePathRelativeToSyncRoot(node, pathRelativeToSync);
+        transformedSyncDownPath = localsynclocalpath + pathRelativeToSync;
+    }
+}
+
+bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, int &errorCode, string parentSyncDownPath, bool checkChildrenRecursivity, bool allowUploadsToSelfSynced)
+{
+    // We want to avoid that uploading a path (originlocalpath) writes something into a MEGA location synced with a descendant of that path.
+    // With one exception: the upload entails the update of a corresponding local path with its synced MEGA node.
+    //           Common use case 1: upload excluded files
+    //           Common use case 2: we a have a local structure and the same in MEGA, and we have something synchronize, but some other folders arent. We want to upload to have a manual one-way up-sync.
+
+    // 1 - in this iterative algorithm, localpath is to be uploaded in parent.
+    //    If parent is synced, we get the corresponding local path were it will be downsynced (transformedSyncDownPath)
+    //    if transformedSyncDownPath is contained within originlocalpath, we drop the error
+
+    // 2 - If localpath is a folder and has a corresponding MegaNode -megaNodeForLocalPath- (i.e: it's not a new folder to be uploaded),
+    //     we get loop its children and call this recursively passing megaNodeForLocalPath
+    string transformedSyncDownPath;
+    string localname;
+    string utf8name;
+    Node *parentNode = client->nodebyhandle(parent->getHandle());
+    if (parentNode && parentNode->localnode && parentNode->localnode->sync)
+    {
+        string synclocalpath;
+        parentNode->localnode->sync->localroot.getlocalpath(&synclocalpath);
         string localsynclocalpath;
         client->fsaccess->path2local(&synclocalpath, &localsynclocalpath);
 
         // get name (utf8) form local localpath and the corresponding MegaNode
-        int index = localpath.rfind(client->fsaccess->localseparator);
+        size_t index = localpath.rfind(client->fsaccess->localseparator);
         if (index != string::npos )
         {
-            string localname = localpath.substr(index + client->fsaccess->localseparator.size());
-            utf8name = localname;
-            client->fsaccess->local2name(&utf8name);
+            localname = localpath.substr(index + client->fsaccess->localseparator.size());
 
-            if (accumulateddestpath.size())
+            if (!parentSyncDownPath.size())
             {
-                accumulateddestpath += client->fsaccess->localseparator ;
+                // gather relative path from localroot to sync root
+                calculatetransformedSyncDownPath(parentNode, parentSyncDownPath);
             }
-            accumulateddestpath += localname ; //problem, if first destination is within a sync? TODO: review
 
-            transformedSyncDownPath = localsynclocalpath + accumulateddestpath; //TODO: improve this concatenation?
+            transformedSyncDownPath = parentSyncDownPath + client->fsaccess->localseparator + localname;
         }
         else
         {
-            //TODO: assert?
+            assert(false && "Couldn't get name from localpath to check recursivity breaks");
         }
 
-        if(transformedSyncDownPath.size() && (transformedSyncDownPath.compare(localpath) || allowUploadsToSelfSynced) && !transformedSyncDownPath.find(originlocalpath) )
+        // if localpath is to be uploaded to its synced location, we grant it and dont go any further down
+        if(transformedSyncDownPath.size() && (!transformedSyncDownPath.compare(localpath) && allowUploadsToSelfSynced) )
         {
-            LOG_err << "Folder transfer failed - Detected recursivity: " << originlocalpath << " contained in synced folder: " << localsynclocalpath; //TODO: review local vs utf8 paths
+            string utf8originlocalpath;
+            client->fsaccess->local2path((string *)&originlocalpath, &utf8originlocalpath);
+            LOG_debug << "Uploading synced folder to itself. Permission granted: " << utf8originlocalpath;
+            return true;
+        }
+
+        //otherwise, we check transformedSyncDownPath doesn't lay within originlocalpath
+        if(transformedSyncDownPath.size() && !transformedSyncDownPath.find(originlocalpath))
+        {
+            string utf8originlocalpath;
+            client->fsaccess->local2path((string *)&originlocalpath, &utf8originlocalpath);
+            string utf8localsynclocalpath;
+            client->fsaccess->local2path(&localsynclocalpath, &utf8localsynclocalpath);
+
+            LOG_err << "Folder transfer failed - Detected recursivity: " << utf8originlocalpath << " contained in synced folder: " << utf8localsynclocalpath;
             errorCode = MegaError::API_ECIRCULAR;
             return false;
-        }
-        else
-        {
-            //TODO: here we might want to finish the loop in certain circumstances. rethink
         }
     }
 
@@ -21685,47 +21744,60 @@ bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originl
         DirAccess* da;
         da = client->fsaccess->newdiraccess();
 
-        // get name (utf8) form local localpath and the corresponding MegaNode
-        if (!utf8name.size())
+        if (!localname.size())
         {
             int index = localpath.rfind(client->fsaccess->localseparator);
             if (index != string::npos )
             {
-                string localname = localpath.substr(index + client->fsaccess->localseparator.size());
-                utf8name = localname;
-                client->fsaccess->local2name(&utf8name);
+                localname = localpath.substr(index + client->fsaccess->localseparator.size());
             }
         }
+
+        // get name (utf8) form local localpath and the corresponding MegaNode
+        utf8name = localname;
+        client->fsaccess->local2name(&utf8name);
         if (utf8name.size() && parent->isFolder())
         {
             megaNodeForLocalPath = megaApi->getChildNode(parent, utf8name.c_str());
         }
 
-        if(megaNodeForLocalPath) //TODO: ok if megaNodeForLocalPath is !folder?
+        if(megaNodeForLocalPath)
         {
-            if (da->dopen((string *)&localpath, NULL, false)) //loop for folders within localpath, and get corresponding meganode, to look for conflictive syncs contained in the folder to be uploaded
+            if (!transformedSyncDownPath.size()) //could have been calculated before, if parent was within a sync
             {
-                size_t t = localpath.size();
-                string localname;
+                Node *nodeForLocalPath = client->nodebyhandle(megaNodeForLocalPath->getHandle());
+                calculatetransformedSyncDownPath(nodeForLocalPath, transformedSyncDownPath);
+            }
 
-                while (da->dnext((string *)&localpath, &localname, client->followsymlinks))
+            // if localpath is to be uploaded to its synced location, we grant it and dont go any further down
+            if(transformedSyncDownPath.size() && (!transformedSyncDownPath.compare(localpath) && allowUploadsToSelfSynced) )
+            {
+                string utf8localpath;
+                client->fsaccess->local2path((string *)&localpath, &utf8localpath);
+
+                LOG_debug << "Uploading. Getting into a folder synced to itself. Permission granted: " << utf8localpath;
+                return true;
+            }
+
+            if (da->dopen((string *)&localpath, NULL, false)) //loop within localpath
+            {
+                string localChildrenName;
+                while (da->dnext((string *)&localpath, &localChildrenName, client->followsymlinks))
                 {
-                    string chillocalPath = localpath;
-                    if (t)
+                    string childLocalPath = localpath;
+                    if (localpath.size())
                     {
-                        chillocalPath.append(client->fsaccess->localseparator);
+                        childLocalPath.append(client->fsaccess->localseparator);
                     }
 
-                    chillocalPath.append(localname);
+                    childLocalPath.append(localChildrenName);
 
                     FileAccess *fa = client->fsaccess->newfileaccess();
-                    if (fa->fopen(&chillocalPath, true, false))
+                    if (fa->fopen(&childLocalPath, true, false))
                     {
-                        string name = localname;
-                        client->fsaccess->local2name(&name);
                         //if (fa->type != FILENODE) // we want to address files too
                         {
-                            if (!checkNotBreaksRecursivity(originlocalpath, chillocalPath, megaNodeForLocalPath, accumulateddestpath, errorCode, checkChildrenRecursivity, allowUploadsToSelfSynced))
+                            if (!checkNotBreaksRecursivity(originlocalpath, childLocalPath, megaNodeForLocalPath, errorCode, transformedSyncDownPath, checkChildrenRecursivity, allowUploadsToSelfSynced))
                             {
                                 errorCode = MegaError::API_ECIRCULAR; // we might want another error here
                                 return false;
@@ -21765,7 +21837,7 @@ void MegaFolderUploadController::start()
 
         // avoid recursivity
         int errroCode;
-        if (!checkNotBreaksRecursivity(localpath, localpath, parent, "", errroCode, true, false))
+        if (!checkNotBreaksRecursivity(localpath, localpath, parent, errroCode))
         {
             transfer->setState(MegaTransfer::STATE_FAILED);
             megaApi->fireOnTransferFinish(transfer, MegaError(errroCode));
