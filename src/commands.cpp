@@ -7207,7 +7207,7 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
     string id;
     string userDetail;
 
-    while(json.enterobject())
+    while (json.enterobject())
     {
         bool exit = false;
         while (!exit)
@@ -7299,7 +7299,7 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
                     if (json.enterarray())
                     {
                         std::string code;
-                        while(json.storeobject(&code))
+                        while (json.storeobject(&code))
                         {
                             callingCodes.emplace_back(move(code));
                         }

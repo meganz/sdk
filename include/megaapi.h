@@ -2159,6 +2159,12 @@ public:
     virtual int size() const;
 };
 
+/**
+* @brief A map of strings to string lists
+*
+* A MegaStringListMap takes owership of the MegaStringList objects passed to it. It does
+* NOT take ownership of the keys passed to it but makes a local copy.
+*/
 class MegaStringListMap
 {
 public:
@@ -2211,6 +2217,14 @@ public:
     virtual int size() const;
 };
 
+/**
+* @brief A list of string lists forming a table of strings.
+*
+* Each row can have a different number of columns.
+* However, ideally this class should be used as a table only.
+*
+* A MegaStringTable takes owership of the MegaStringList objects passed to it.
+*/
 class MegaStringTable
 {
 public:
@@ -14906,6 +14920,11 @@ class MegaApi
          *  2. identifier (the user's identifier)
          *  3. user detail (the normalized user detail, e.g., +00 0000 0010)
          *
+         * There is a limit on how many unique details can be looked up per account, to prevent
+         * abuse and iterating over the phone number space to find users in Mega.
+         * An API_ETOOMANY error will be returned if you hit one of these limits.
+         * An API_EARGS error will be returned if your contact details are invalid (malformed SMS number for example)
+         *
          * @param contacts The map of contacts to get registered contacts from
          * @param listener MegaRequestListener to track this request
          */
@@ -14924,7 +14943,10 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getMegaStringListMap
+         * - MegaRequest::getMegaStringListMap where the keys are two-letter country codes and the
+         *   values a list of calling codes.
+         *
+         * For this command, there are currently no command specific error codes returned by the API.
          *
          * @param listener MegaRequestListener to track this request
          */
