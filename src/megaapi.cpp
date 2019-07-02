@@ -1192,7 +1192,13 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_ENOENT:
             return "Not found";
         case API_ECIRCULAR:
-            return "Circular linkage detected";
+            switch (context)
+            {
+                case API_EC_UPLOAD:
+                    return "Upload produces recursivity";
+                default:
+                    return "Circular linkage detected";
+            }
         case API_EACCESS:
             return "Access denied";
         case API_EEXIST:
