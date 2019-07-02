@@ -112,12 +112,7 @@ IF(WIN32)
             set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x86-windows-static")
         endif(build_64_bit)
     endif()
-ELSE(WIN32)
-    set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/x64-linux")
-    include_directories( "${vcpkg_dir}/include" )
-    link_directories( "${vcpkg_dir}/lib" )
 ENDIF(WIN32)
-
 
 if (NOT CMAKE_BUILD_TYPE)
     message("Generated with config types: ${CMAKE_CONFIGURATION_TYPES}")
