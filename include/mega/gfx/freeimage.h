@@ -43,7 +43,7 @@ protected:
     const char* supportedformats();
 
 #ifdef HAVE_FFMPEG
-    static MUTEX_CLASS gfxMutex;
+    static std::mutex gfxMutex;
     const char* supportedformatsFfmpeg();
     bool readbitmapFfmpeg(FileAccess*, string*, int);
 #endif

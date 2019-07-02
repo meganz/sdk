@@ -298,6 +298,11 @@ const char *MegaNode::getFingerprint()
     return NULL;
 }
 
+const char *MegaNode::getOriginalFingerprint()
+{
+    return NULL;
+}
+
 bool MegaNode::hasCustomAttrs()
 {
     return false;
@@ -920,6 +925,11 @@ MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
 }
 
 const MegaPushNotificationSettings *MegaRequest::getMegaPushNotificationSettings() const
+{
+    return NULL;
+}
+
+MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
 {
     return NULL;
 }
@@ -1754,6 +1764,16 @@ char *MegaApi::userHandleToBase64(MegaHandle handle)
     return MegaApiImpl::userHandleToBase64(handle);
 }
 
+void MegaApi::base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize)
+{
+    return MegaApiImpl::base64ToBinary(base64string, binary, binarysize);
+}
+
+char *MegaApi::binaryToBase64(const char* binaryData, size_t length)
+{
+    return MegaApiImpl::binaryToBase64(binaryData, length);
+}
+
 void MegaApi::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener* listener)
 {
     pImpl->retryPendingConnections(disconnect, includexfers, listener);
@@ -2101,6 +2121,16 @@ void MegaApi::setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestL
     pImpl->setThumbnail(node, srcFilePath, listener);
 }
 
+void MegaApi::putThumbnail(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
+{
+    pImpl->putThumbnail(bu, srcFilePath, listener);
+}
+
+void MegaApi::setThumbnailByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener)
+{
+    pImpl->setThumbnailByHandle(node, fileattribute, listener);
+}
+
 void MegaApi::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->getPreview(node, dstFilePath, listener);
@@ -2114,6 +2144,16 @@ void MegaApi::cancelGetPreview(MegaNode* node, MegaRequestListener *listener)
 void MegaApi::setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener)
 {
     pImpl->setPreview(node, srcFilePath, listener);
+}
+
+void MegaApi::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath, MegaRequestListener *listener)
+{
+    pImpl->putPreview(bu, srcFilePath, listener);
+}
+
+void MegaApi::setPreviewByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener)
+{
+    pImpl->setPreviewByHandle(node, fileattribute, listener);
 }
 
 void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)
@@ -2144,6 +2184,11 @@ char *MegaApi::getUserAvatarColor(const char *userhandle)
 void MegaApi::setAvatar(const char *dstFilePath, MegaRequestListener *listener)
 {
     pImpl->setAvatar(dstFilePath, listener);
+}
+
+bool MegaApi::testAllocation(unsigned allocCount, size_t allocSize)
+{
+    return pImpl->testAllocation(allocCount, allocSize);
 }
 
 void MegaApi::getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener)
@@ -2208,7 +2253,12 @@ void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *lis
 
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
-    pImpl->setNodeCoordinates(node, latitude, longitude, listener);
+    pImpl->setNodeCoordinates(node, false, latitude, longitude, listener);
+}
+
+void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
+{
+    pImpl->setNodeCoordinates(node, true, latitude, longitude, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
@@ -3380,7 +3430,7 @@ long long MegaApi::getSize(MegaNode *n)
 }
 
 char *MegaApi::getFingerprint(const char *filePath)
-{
+{   
     return pImpl->getFingerprint(filePath);
 }
 
@@ -3407,6 +3457,11 @@ MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint, MegaNode *paren
 MegaNodeList *MegaApi::getNodesByFingerprint(const char *fingerprint)
 {
     return pImpl->getNodesByFingerprint(fingerprint);
+}
+
+MegaNodeList *MegaApi::getNodesByOriginalFingerprint(const char* originalFingerprint, MegaNode* parent)
+{
+    return pImpl->getNodesByOriginalFingerprint(originalFingerprint, parent);
 }
 
 MegaNode *MegaApi::getExportableNodeByFingerprint(const char *fingerprint, const char *name)
@@ -3694,6 +3749,11 @@ void MegaApi::getMegaAchievements(MegaRequestListener *listener)
 void MegaApi::catchup(MegaRequestListener *listener)
 {
     pImpl->catchup(listener);
+}
+
+void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener)
+{
+    pImpl->getPublicLinkInformation(megaFolderLink, listener);
 }
 
 #ifdef HAVE_LIBUV
@@ -4652,9 +4712,9 @@ bool MegaApi::isContactsNotifiable()
 
 char* MegaApi::strdup(const char* buffer)
 {
-    if(!buffer)
+    if (!buffer)
         return NULL;
-    int tam = int(strlen(buffer)+1);
+    int tam = int(strlen(buffer) + 1);
     char *newbuffer = new char[tam];
     memcpy(newbuffer, buffer, tam);
     return newbuffer;
@@ -4732,6 +4792,27 @@ bool MegaApi::createPreview(const char *imagePath, const char *dstPath)
 bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
 {
     return pImpl->createAvatar(imagePath, dstPath);
+}
+
+void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
+{
+    return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener); 
+}
+
+void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
+    const char *string64UploadToken, MegaRequestListener *listener)
+{
+    pImpl->backgroundMediaUploadComplete(state, utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, listener);
+}
+
+bool MegaApi::ensureMediaInfo()
+{
+    return pImpl->ensureMediaInfo();
+}
+
+void MegaApi::setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener)
+{
+    return pImpl->setOriginalFingerprint(node, originalFingerprint, listener);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -5358,6 +5439,57 @@ char *MegaAccountTransaction::getCurrency() const
 double MegaAccountTransaction::getAmount() const
 {
     return 0;
+}
+
+MegaBackgroundMediaUpload *MegaBackgroundMediaUpload::createInstance(MegaApi *api)
+{
+    return new MegaBackgroundMediaUploadPrivate(api);
+}
+
+MegaBackgroundMediaUpload* MegaBackgroundMediaUpload::unserialize(const char* d, MegaApi* api)
+{
+    unsigned char* binary;
+    size_t binSize;
+    MegaApi::base64ToBinary(d, &binary, &binSize);
+    std::string binString((char*)binary, binSize);
+    delete[] binary;
+    return d ? new MegaBackgroundMediaUploadPrivate(binString, api) : NULL;
+}
+
+bool MegaBackgroundMediaUpload::analyseMediaInfo(const char* inputFilepath)
+{
+    return false;
+}
+
+char *MegaBackgroundMediaUpload::encryptFile(const char* inputFilepath, int64_t startPos, int64_t* length, const char* outputFilepath, bool adjustsizeonly)
+{
+    return NULL;
+}
+
+char *MegaBackgroundMediaUpload::getUploadURL()
+{
+    return NULL;
+}
+
+char *MegaBackgroundMediaUpload::serialize()
+{
+    return NULL;
+}
+
+void MegaBackgroundMediaUpload::setThumbnail(MegaHandle h)
+{
+}
+
+void MegaBackgroundMediaUpload::setPreview(MegaHandle h)
+{
+}
+
+void MegaBackgroundMediaUpload::setCoordinates(double lat, double lon, bool unshareable)
+{
+}
+
+MegaBackgroundMediaUpload::~MegaBackgroundMediaUpload()
+{
 }
 
 int64_t MegaInputStream::getSize()

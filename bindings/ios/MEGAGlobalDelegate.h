@@ -161,6 +161,8 @@
  *
  * - EventNodesCurrent: when all external changes have been received
  *
+ * - EventMediaInfoReady: when codec-mappings have been received
+ *
  * You can check the type of event by calling [MEGAEvent type]
  *
  * @param api MEGASdk object connected to the account

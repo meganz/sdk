@@ -375,6 +375,7 @@ struct CacheableWriter
     void serializehandle(handle field);
     void serializebool(bool field);
     void serializebyte(byte field);
+    void serializedouble(double field);
     void serializechunkmacs(const chunkmac_map& m);
 
     // Each class that might get extended should store expansion flags at the end
@@ -396,6 +397,7 @@ struct CacheableReader
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
     bool unserializebyte(byte& s);
+    bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);

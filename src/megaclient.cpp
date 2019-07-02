@@ -1372,33 +1372,41 @@ void MegaClient::exec()
                             // remove from list
                             handle fah = MemAccess::get<handle>(fa->in.data());
 
-                            Node* n;
-                            handle h;
-                            handlepair_set::iterator it;
-
-                            // do we have a valid upload handle?
-                            h = fa->th;
-
-                            it = uhnh.lower_bound(pair<handle, handle>(h, 0));
-
-                            if (it != uhnh.end() && it->first == h)
+                            if (fa->th == UNDEF)
                             {
-                                h = it->second;
-                            }
-
-                            // are we updating a live node? issue command directly.
-                            // otherwise, queue for processing upon upload
-                            // completion.
-                            if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
-                            {
-                                LOG_debug << "Attaching file attribute";
-                                reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
+                                // client app requested the upload without a node yet, and it will use the fa handle
+                                app->putfa_result(fah, fa->type, nullptr);
                             }
                             else
                             {
-                                pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
-                                LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
-                                checkfacompletion(fa->th);
+                                Node* n;
+                                handle h;
+                                handlepair_set::iterator it;
+
+                                // do we have a valid upload handle?
+                                h = fa->th;
+
+                                it = uhnh.lower_bound(pair<handle, handle>(h, 0));
+
+                                if (it != uhnh.end() && it->first == h)
+                                {
+                                    h = it->second;
+                                }
+
+                                // are we updating a live node? issue command directly.
+                                // otherwise, queue for processing upon upload
+                                // completion.
+                                if ((n = nodebyhandle(h)) || (n = nodebyhandle(fa->th)))
+                                {
+                                    LOG_debug << "Attaching file attribute";
+                                    reqs.add(new CommandAttachFA(this, n->nodehandle, fa->type, fah, fa->tag));
+                                }
+                                else
+                                {
+                                    pendingfa[pair<handle, fatype>(fa->th, fa->type)] = pair<handle, int>(fah, fa->tag);
+                                    LOG_debug << "Queueing pending file attribute. Total: " << pendingfa.size();
+                                    checkfacompletion(fa->th);
+                                }
                             }
                         }
                         else
@@ -3545,6 +3553,8 @@ void MegaClient::locallogout()
     pendingsccommit = false;
 
     me = UNDEF;
+    uid.clear();
+    unshareablekey.clear();
     publichandle = UNDEF;
     cachedscsn = UNDEF;
     achievements_enabled = false;
@@ -3559,6 +3569,9 @@ void MegaClient::locallogout()
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
+#ifdef USE_MEDIAINFO
+    mediaFileInfo = MediaFileInfo();
+#endif
 
     freeq(GET);
     freeq(PUT);
@@ -4633,6 +4646,11 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         return true;
     }
     return false;
+}
+
+void MegaClient::getpubliclinkinfo(handle h)
+{
+    reqs.add(new CommandFolderLinkInfo(this, h));
 }
 
 void MegaClient::dispatchmore(direction_t d)
@@ -7715,7 +7733,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
     return j->leavearray();
 }
 
-error MegaClient::folderaccess(const char *folderlink)
+error MegaClient::parsefolderlink(const char *folderlink, handle &h, byte *key)
 {
     // structure of public folder links: https://mega.nz/#F!<handle>!<key>
 
@@ -7737,25 +7755,38 @@ error MegaClient::folderaccess(const char *folderlink)
         return API_EARGS;
     }
 
-    const char *k = ptr + 1;
+    // Node handle size is 6 Bytes, so we init with zeros to avoid comparison problems
+    handle auxh = 0;
+    if (Base64::atob(f, (byte*)&auxh, NODEHANDLE) != NODEHANDLE)
+    {
+        return API_EARGS;
+    }
 
-    handle h = 0;
+    byte auxkey[SymmCipher::KEYLENGTH];
+    const char *k = ptr + 1;
+    if (Base64::atob(k, auxkey, sizeof auxkey) != sizeof auxkey)
+    {
+        return API_EARGS;
+    }
+
+    h = auxh;
+    memcpy(key, auxkey, sizeof auxkey);
+    return API_OK;
+}
+
+error MegaClient::folderaccess(const char *folderlink)
+{
+    handle h = UNDEF;
     byte folderkey[SymmCipher::KEYLENGTH];
 
-    if (Base64::atob(f, (byte*)&h, NODEHANDLE) != NODEHANDLE)
+    error e;
+    if ((e = parsefolderlink(folderlink, h, folderkey)) == API_OK)
     {
-        return API_EARGS;
+        setrootnode(h);
+        key.setkey(folderkey);
     }
 
-    if (Base64::atob(k, folderkey, sizeof folderkey) != sizeof folderkey)
-    {
-        return API_EARGS;
-    }
-
-    setrootnode(h);
-    key.setkey(folderkey);
-
-    return API_OK;
+    return e;
 }
 
 void MegaClient::prelogin(const char *email)
@@ -9998,6 +10029,11 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
     return API_OK;
 }
 
+bool MegaClient::loggedinfolderlink()
+{
+    return !ISUNDEF(publichandle);
+}
+
 sessiontype_t MegaClient::loggedin()
 {
     if (ISUNDEF(me))
@@ -10615,25 +10651,35 @@ void MegaClient::fetchnodes(bool nocache)
             (*it)->changestate(SYNC_CANCELED);
         }
 #endif
-#ifdef ENABLE_CHAT
-        if (loggedin() == FULLACCOUNT)
-        {
-            fetchkeys();
-        }
-#endif
-        if (!k.size())
-        {
-            getuserdata();
-        }
 
-        fetchtimezone();
-        char me64[12];
-        Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
-        reqs.add(new CommandGetUA(this, me64, ATTR_PUSH_SETTINGS, NULL, 0));
+        if (!loggedinfolderlink())
+        {
+#ifdef ENABLE_CHAT
+            if (loggedin() == FULLACCOUNT)
+            {
+                fetchkeys();
+            }
+#endif
+            if (!k.size())
+            {
+                getuserdata();
+            }
+
+            fetchtimezone();
+            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_PUSH_SETTINGS, NULL, 0));
+        }
 
         reqs.add(new CommandFetchNodes(this, nocache));
 
-        reqs.add(new CommandGetUA(this, me64, ATTR_DISABLE_VERSIONS, NULL, 0));
+        if (!loggedinfolderlink())
+        {
+            reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_DISABLE_VERSIONS, NULL, 0));
+        }
+    }
+
+    if (unshareablekey.empty() && !loggedinfolderlink())
+    {
+        reqs.add(new CommandUnshareableUA(this, true, 5));
     }
 }
 
@@ -13103,7 +13149,7 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 
 namespace action_bucket_compare
 {
-    MUTEX_CLASS media_check(false);   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
+    std::mutex media_check;   // when we can use c++11, switch to a lambda that remembers the MegaClient* for compare().  In the meantime, force just one MegaClient at a time instead.
     MegaClient* mc;
 
     const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
@@ -13188,7 +13234,7 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
     node_vector v = getRecentNodes(maxcount, since, false);
 
     using namespace action_bucket_compare;
-    MutexGuard g(media_check); // when we can use c++11, switch to a lambda.  In the meantime, force just one MegaClient at a time instead.
+    std::lock_guard<std::mutex> g(media_check); // when we can use c++11, switch to a lambda.  In the meantime, force just one MegaClient at a time instead.
     mc = this;
 
     for (node_vector::iterator i = v.begin(); i != v.end(); )
@@ -13233,6 +13279,43 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
     // sort buckets in the vector
     std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
     return rav;
+}
+
+
+void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Node* parent, node_vector *nv)
+{
+    if (parent)
+    {
+        for (node_list::iterator i = parent->children.begin(); i != parent->children.end(); ++i)
+        {
+            if ((*i)->type == FILENODE)
+            {
+                attr_map::const_iterator a = (*i)->attrs.map.find(MAKENAMEID2('c', '0'));
+                if (a != (*i)->attrs.map.end() && !a->second.compare(originalfingerprint))
+                {
+                    nv->push_back(*i);
+                }
+            }
+            else
+            {
+                nodesbyoriginalfingerprint(originalfingerprint, *i, nv);
+            }
+        }
+    }
+    else
+    {
+        for (node_map::const_iterator i = nodes.begin(); i != nodes.end(); ++i)
+        {
+            if (i->second->type == FILENODE)
+            {
+                attr_map::const_iterator a = i->second->attrs.map.find(MAKENAMEID2('c', '0'));
+                if (a != i->second->attrs.map.end() && !a->second.compare(originalfingerprint))
+                {
+                    nv->push_back(i->second);
+                }
+            }
+        }
+    }
 }
 
 // a chunk transfer request failed: record failed protocol & host

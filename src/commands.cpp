@@ -393,6 +393,60 @@ void CommandPutFile::procresult()
     }
 }
 
+// request upload target URL for application to upload photo to using eg. iOS background upload feature
+CommandPutFileBackgroundURL::CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag)
+{
+    cmd("u");
+    arg("ssl", 2);   // always SSL for background uploads
+    arg("v", 2);
+    arg("s", size);
+    arg("ms", putmbpscap);
+
+    tag = ctag;
+}
+
+// set up file transfer with returned target URL
+void CommandPutFileBackgroundURL::procresult()
+{
+    string url;
+
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+        if (!canceled)
+        {
+            client->app->backgrounduploadurl_result(e, NULL);
+        }
+        return;
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'p':
+                client->json.storeobject(canceled ? NULL : &url);
+                break;
+
+            case EOO:
+                if (canceled) return;
+
+                client->app->backgrounduploadurl_result(API_OK, &url);
+                return;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    if (!canceled)
+                    {
+                        client->app->backgrounduploadurl_result(API_EINTERNAL, NULL);
+                    }
+                    return;
+                }
+        }
+    }
+}
+
 // request temporary source URL for DirectRead
 CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
 {
@@ -961,32 +1015,43 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     {
         beginobject();
 
-        switch (nn[i].source)
+        NewNode* nni = &nn[i];
+        switch (nni->source)
         {
             case NEW_NODE:
-                arg("h", (byte*)&nn[i].nodehandle, MegaClient::NODEHANDLE);
+                arg("h", (byte*)&nni->nodehandle, MegaClient::NODEHANDLE);
                 break;
 
             case NEW_PUBLIC:
-                arg("ph", (byte*)&nn[i].nodehandle, MegaClient::NODEHANDLE);
+                arg("ph", (byte*)&nni->nodehandle, MegaClient::NODEHANDLE);
                 break;
 
             case NEW_UPLOAD:
-                arg("h", nn[i].uploadtoken, sizeof nn->uploadtoken);
+                arg("h", nni->uploadtoken, sizeof nn->uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
 
-                client->pendingattrstring(nn[i].uploadhandle, &s);
+                if (nni->fileattributes)
+                {
+                    // if attributes are set on the newnode then the app is not using the pendingattr mechanism
+                    s.swap(*nni->fileattributes);
+                    delete nni->fileattributes;
+                    nni->fileattributes = NULL;
+                }
+                else
+                {
+                    client->pendingattrstring(nn[i].uploadhandle, &s);
 
-                #ifdef USE_MEDIAINFO
-                client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
-                #endif              
+#ifdef USE_MEDIAINFO
+                    client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
+#endif
+                }
 
                 if (s.size())
                 {
                     arg("fa", s.c_str(), 1);
-                }
+                }                
         }
 
         if (!ISUNDEF(nn[i].parenthandle))
@@ -1818,6 +1883,7 @@ void CommandLogin::procresult()
                 }
 
                 client->me = me;
+                client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
                 client->achievements_enabled = ach;
 
                 if (len_sek)
@@ -3062,7 +3128,103 @@ void CommandDelUA::procresult()
     }
 }
 
-#endif
+#endif  // #ifdef DEBUG
+
+CommandUnshareableUA::CommandUnshareableUA(MegaClient* client, bool fetch, int triesleft)
+{
+    maxtries = triesleft;
+    fetching = fetch;
+    if (fetching)
+    {
+        cmd("uga");
+        arg("u", client->uid.c_str());
+        arg("ua", User::attr2string(ATTR_UNSHAREABLE_KEY).c_str());
+        arg("v", 1);
+    }
+    else
+    {
+        byte newunshareablekey[SymmCipher::BLOCKSIZE];
+        client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
+
+        cmd("up");
+        arg(User::attr2string(ATTR_UNSHAREABLE_KEY).c_str(), newunshareablekey, sizeof(newunshareablekey));
+        notself(client);
+    }
+    tag = 0;
+}
+
+void CommandUnshareableUA::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+
+        if (e == API_ENOENT && fetching && maxtries > 0)
+        {
+            // we can't get it because it doesn't exist yet, so make it now
+            LOG_info << "Creating unshareable key";
+            client->reqs.add(new CommandUnshareableUA(client, false, maxtries - 1));
+        }
+        else
+        {
+            LOG_err << "Could not get or create unshareable key";
+        }
+        return;
+    }
+    else if (!fetching)
+    {
+        LOG_info << "Successful creation of unshareable key";
+        // success uploading the key.  It just replies with [<uh>]
+        client->json.storeobject();
+        // fetch the value stored (protects somewhat against a creation race from multiple clients)
+        if (maxtries > 0)
+        {
+            client->reqs.add(new CommandUnshareableUA(client, true, maxtries - 1));
+        }
+    }
+    else
+    {
+        const char* ptr;
+        const char* end;
+        string buf;
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+            case MAKENAMEID2('a', 'v'):
+            {
+                if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+                {
+                    return;
+                }
+                buf.assign(ptr, (end - ptr));
+                LOG_info << "Unshareable key received, size: " << buf.size();
+                break;
+            }
+            case EOO:
+            {
+                assert(fetching);
+                if (buf.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
+                {
+                    client->unshareablekey.swap(buf);
+                }
+                else
+                {
+                    LOG_err << "Unshareable key not included in reply, or wrong length";
+                }
+                return;
+            }
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Bad field in unshareable reply";
+                    return;
+                }
+            }
+        }
+    }
+}
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
@@ -4234,6 +4396,7 @@ void CommandCreateEphemeralSession::procresult()
     else
     {
         client->me = client->json.gethandle(MegaClient::USERHANDLE);
+        client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
         client->resumeephemeral(client->me, pw, tag);
     }
 }
@@ -4292,6 +4455,7 @@ void CommandResumeEphemeralSession::procresult()
                 }
 
                 client->me = uh;
+                client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
 
                 return client->app->ephemeral_result(uh, pw);
 
@@ -6627,9 +6791,6 @@ CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 {
     cmd("mc");
 
-    // This command is for internal usage only
-    tag = 0;
-
     client = c;
     callback = cb;
 }
@@ -6645,8 +6806,14 @@ void CommandMediaCodecs::procresult()
             LOG_err << "mc result: " << result;
         }
         version = int(result);
+        callback(client, version);
     }
-    callback(client, version);
+    else
+    {
+        // It's wrongly formatted, consume this one so the next command can be processed.
+        LOG_err << "mc response badly formatted";
+        client->json.storeobject();  
+    }
 }
 
 CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
@@ -6995,7 +7162,7 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
     cmd("sla");
     notself(client);
     tag = client->reqtag;
-};
+}
 
 void CommandSetLastAcknowledged::procresult()
 {
@@ -7008,8 +7175,94 @@ void CommandSetLastAcknowledged::procresult()
         client->json.storeobject();
         client->app->acknowledgeuseralerts_result(API_EINTERNAL);
     }
-};
+}
 
+CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)
+{
+    ph = publichandle;
 
+    cmd("pli");
+    arg("ph", (byte*)&publichandle, MegaClient::NODEHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandFolderLinkInfo::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->folderlinkinfo_result((error)client->json.getint(), UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+    }
+    string attr;
+    string key;
+    handle owner = UNDEF;
+    handle ph = 0;
+    m_off_t currentSize = 0;
+    m_off_t versionsSize  = 0;
+    int numFolders = 0;
+    int numFiles = 0;
+    int numVersions = 0;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+        case MAKENAMEID5('a','t','t','r','s'):
+            client->json.storeobject(&attr);
+            break;
+
+        case MAKENAMEID2('p','h'):
+            ph = client->json.gethandle(MegaClient::NODEHANDLE);
+            break;
+
+        case 'u':
+            owner = client->json.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case 's':
+            if (client->json.enterarray())
+            {
+                currentSize = client->json.getint();
+                numFiles = int(client->json.getint());
+                numFolders = int(client->json.getint());
+                versionsSize  = client->json.getint();
+                numVersions = int(client->json.getint());
+                client->json.leavearray();
+            }
+            break;
+
+        case 'k':
+            client->json.storeobject(&key);
+            break;
+
+        case EOO:
+            if (attr.empty())
+            {
+                LOG_err << "The folder link information doesn't contain the attr string";
+                return client->app->folderlinkinfo_result(API_EINCOMPLETE, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            if (key.size() <= 9 || key.find(":") == string::npos)
+            {
+                LOG_err << "The folder link information doesn't contain a valid decryption key";
+                return client->app->folderlinkinfo_result(API_EKEY, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            if (ph != this->ph)
+            {
+                LOG_err << "Folder link information: public handle doesn't match";
+                return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+
+            return client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
+
+        default:
+            if (!client->json.storeobject())
+            {
+                LOG_err << "Failed to parse folder link information response";
+                return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            break;
+        }
+    }
+}
 
 } // namespace

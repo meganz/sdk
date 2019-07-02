@@ -54,9 +54,6 @@ const int HttpIO::SCREQUESTTIMEOUT = 400;
 // connect timeout (ds)
 const int HttpIO::CONNECTTIMEOUT = 120;
 
-// size (in bytes) of the CRC of uploaded chunks
-const int HttpReqUL::CRCSIZE = 12;
-
 #ifdef _WIN32
 const char* mega_inet_ntop(int af, const void* src, char* dst, int cnt)
 {
@@ -655,42 +652,27 @@ void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
 
 
 
-// prepare chunk for uploading: mac and encrypt
-void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
-                        chunkmac_map* macs, uint64_t ctriv, m_off_t pos,
-                        m_off_t npos)
+EncryptByChunks::EncryptByChunks(SymmCipher* k, chunkmac_map* m, uint64_t iv) : key(k), macs(m), ctriv(iv)
 {
-    size = (unsigned)(npos - pos);
+    memset(crc, 0, CRCSIZE);
+}
 
-    byte *chunkstart = (byte*)out->data();
-    m_off_t startpos = pos;
-    m_off_t finalpos = npos;
-    m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
-    m_off_t chunksize = endpos - startpos;
-    while (chunksize)
+void EncryptByChunks::updateCRC(byte* data, unsigned size, unsigned offset)
+{
+    uint32_t *intc = (uint32_t *)crc;
+
+    int ol = offset % CRCSIZE;
+    if (ol)
     {
-        byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-        key->ctr_crypt(chunkstart, static_cast<unsigned>(chunksize), startpos, ctriv, mac, 1);
-        memcpy((*macs)[startpos].mac, mac, sizeof mac);
-        (*macs)[startpos].finished = false;
-        LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
-
-        chunkstart += chunksize;
-        startpos = endpos;
-        endpos = ChunkedHash::chunkceil(startpos, finalpos);
-        chunksize = endpos - startpos;
+        int ll = CRCSIZE - ol;
+        size -= ll;
+        while (ll--)
+        {
+            crc[ol++] ^= *data++;
+        }
     }
-    assert(endpos == finalpos);
-
-    // unpad for POSTing
-    out->resize(size);
-
-    const char *data = out->data();
-    byte c[CRCSIZE];
-    memset(c, 0, CRCSIZE);
 
     uint32_t *intdata = (uint32_t *)data;
-    uint32_t *intc = (uint32_t *)c;
     int ll = size % CRCSIZE;
     int l = size / CRCSIZE;
     if (l)
@@ -709,15 +691,73 @@ void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
         data += (size - ll);
         while (ll--)
         {
-            c[ll] ^= data[ll];
+            crc[ll] ^= data[ll];
         }
     }
+}
 
-    char crc[32];
-    char buf[512];
-    Base64::btoa(c, CRCSIZE, crc);
-    snprintf(buf, sizeof buf, "%s/%" PRIu64 "?c=%s", tempurl, pos, crc);
-    setreq(buf, REQ_BINARY);
+bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
+{
+    byte* buf;
+    m_off_t startpos = pos;
+    m_off_t finalpos = npos;
+    m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
+    m_off_t chunksize = endpos - startpos;
+    while (chunksize)
+    {
+        byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+        buf = nextbuffer(unsigned(chunksize));
+        if (!buf) return false;
+        key->ctr_crypt(buf, unsigned(chunksize), startpos, ctriv, mac, 1);
+        memcpy((*macs)[startpos].mac, mac, sizeof mac);
+        (*macs)[startpos].finished = false;
+        LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
+
+        updateCRC(buf, unsigned(chunksize), unsigned(startpos - pos));
+
+        startpos = endpos;
+        endpos = ChunkedHash::chunkceil(startpos, finalpos);
+        chunksize = endpos - startpos;
+    }
+    assert(endpos == finalpos);
+    buf = nextbuffer(0);   // last call in case caller does buffer post-processing (such as write to file as we go)
+
+    ostringstream s;
+    s << "/" << pos << "?c=" << Base64Str<EncryptByChunks::CRCSIZE>(crc);
+    urlSuffix = s.str();
+
+    return !!buf;
+}
+
+
+EncryptBufferByChunks::EncryptBufferByChunks(byte* b, SymmCipher* k, chunkmac_map* m, uint64_t iv)
+    : EncryptByChunks(k, m, iv)
+    , chunkstart(b)
+{
+}
+
+byte* EncryptBufferByChunks::nextbuffer(unsigned bufsize)
+{
+    byte* pos = chunkstart;
+    chunkstart += bufsize;
+    return pos;
+}
+
+// prepare chunk for uploading: mac and encrypt
+void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
+                        chunkmac_map* macs, uint64_t ctriv, m_off_t pos,
+                        m_off_t npos)
+{
+    EncryptBufferByChunks eb((byte*)out->data(), key, macs, ctriv);
+
+    string urlSuffix;
+    eb.encrypt(pos, npos, urlSuffix);
+
+    // unpad for POSTing
+    size = (unsigned)(npos - pos);
+    out->resize(size);
+
+    setreq((tempurl + urlSuffix).c_str(), REQ_BINARY);
 }
 
 // number of bytes sent in this request

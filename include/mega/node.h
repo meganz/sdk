@@ -64,18 +64,12 @@ struct MEGA_API NewNode : public NodeCore
 
     handle syncid;
     LocalNode* localnode;
+    string* fileattributes;  // owned here, usually NULL
 
     bool added;
 
-    NewNode()
-    {
-        syncid = UNDEF;
-        added = false;
-        source = NEW_NODE;
-        ovhandle = UNDEF;
-        uploadhandle = UNDEF;
-        localnode = NULL;
-    }
+    NewNode();
+    ~NewNode();
 };
 
 struct MEGA_API PublicLink
@@ -142,6 +136,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // decrypt node attribute string
     static byte* decryptattr(SymmCipher*, const char*, size_t);
+
+    // parse node attributes from an incoming buffer, this function must be called after call decryptattr
+    static void parseattr(byte*, AttrMap&, m_off_t, m_time_t&, string&, string&, FileFingerprint&);
 
     // inbound share
     Share* inshare;
