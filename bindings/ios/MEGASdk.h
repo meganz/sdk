@@ -100,7 +100,10 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeRubbishTime             = 19, // private - byte array
     MEGAUserAttributeLastPSA                 = 20, // private - char array
     MEGAUserAttributeStorageState            = 21, // private - char array
-    MEGAUserAttributeGeolocation             = 22 // private - char array
+    MEGAUserAttributeGeolocation             = 22, // private - byte array
+    MEGAUserAttributeCameraUploadsFolder     = 23, // private - byte array
+    MEGAUserAttributeMyChatFilesFolder       = 24, // private - byte array
+    MEGAUserAttributePushSettings            = 25 // private - char array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -4011,6 +4014,108 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * the application has to answer before send a message of this type.
  */
 - (void)isGeolocationEnabled;
+
+/**
+ * @brief Set My Chat Files target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ *
+ * @param handle Handle of the node to be used as target folder
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setMyChatFilesFolder:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set My Chat Files target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ *
+ * @param handle Handle of the node to be used as target folder
+ */
+- (void)setMyChatFilesFolder:(uint64_t)handle;
+
+/**
+ * @brief Gets My chat files target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Chat Files are stored
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMyChatFilesFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets My chat files target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeMyChatFilesFolder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where My Chat Files are stored
+ */
+- (void)getMyChatFilesFolder;
+
+/**
+ * @brief Set Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ *
+ * @param handle Handle of the node to be used as target folder
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setCameraUploadsFolder:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ *
+ * @param handle Handle of the node to be used as target folder
+ */
+- (void)setCameraUploadsFolder:(uint64_t)handle;
+
+/**
+ * @brief Gets Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getCameraUploadsFolderWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Gets Camera Uploads target folder.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCameraUploadsFolder
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node where Camera Uploads files are stored
+ */
+- (void)getCameraUploadsFolder;
 
 /**
  * @brief Get the number of days for rubbish-bin cleaning scheduler
