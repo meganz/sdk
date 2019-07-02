@@ -154,6 +154,20 @@ using namespace mega;
     return self.megaApi->isAchievementsEnabled();
 }
 
+#pragma mark - Business
+
+- (BOOL)isBusinessAccount {
+    return self.megaApi->isBusinessAccount();
+}
+
+- (BOOL)isMasterBusinessAccount {
+    return self.megaApi->isMasterBusinessAccount();
+}
+
+- (BOOL)isBusinessAccountActive {
+    return self.megaApi->isBusinessAccountActive();
+}
+
 #ifdef ENABLE_CHAT
 
 - (NSString *)myFingerprint {

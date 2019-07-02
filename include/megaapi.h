@@ -7699,7 +7699,6 @@ class MegaApi
          *
          * If this request succeeds, a change-email link will be sent to the specified email address.
          * If no user is logged in, you will get the error code MegaError::API_EACCESS in onRequestFinish().
-         * If the account is business and the user is a sub-user, you will get the error code MegaError::API_EMASTERONLY in onRequestFinish().
          *
          * If the MEGA account is a sub-user business account, onRequestFinish will
          * be called with the error code MegaError::API_EMASTERONLY.
