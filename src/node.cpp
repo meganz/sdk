@@ -394,7 +394,6 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
 
         plink = new PublicLink(ph, cts, ets, takendown);
     }
-
     n->plink = plink;
 
     n->setfingerprint();
@@ -489,10 +488,12 @@ bool Node::serialize(string* d)
         d->append(fileattrstring.c_str(), ll);
     }
 
-    bool hasLinkCreationTs = true;
     char isExported = plink ? 1 : 0;
     d->append((char*)&isExported, 1);
+
+    char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
+
     d->append("\0\0\0\0\0", 6);
 
     if (inshare)
@@ -548,7 +549,10 @@ bool Node::serialize(string* d)
         d->append((char*) &plink->ph, MegaClient::NODEHANDLE);
         d->append((char*) &plink->ets, sizeof(plink->ets));
         d->append((char*) &plink->takendown, sizeof(plink->takendown));
-        d->append((char*) &plink->cts, sizeof(plink->cts));
+        if (hasLinkCreationTs)
+        {
+            d->append((char*) &plink->cts, sizeof(plink->cts));
+        }
     }
 
     return true;
@@ -1040,6 +1044,14 @@ NodeCore::NodeCore()
 NodeCore::~NodeCore()
 {
     delete attrstring;
+}
+
+PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+{
+    this->ph = ph;
+    this->cts = cts;
+    this->ets = ets;
+    this->takendown = takendown;
 }
 
 PublicLink::PublicLink(PublicLink *plink)

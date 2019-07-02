@@ -79,15 +79,9 @@ struct MEGA_API PublicLink
     m_time_t ets;
     bool takendown;
 
-    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
-    {
-        this->ph = ph;
-        this->cts = cts;
-        this->ets = ets;
-        this->takendown = takendown;
-    }
-
+    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown);
     PublicLink(PublicLink *plink);
+
     bool isExpired();
 };
 
