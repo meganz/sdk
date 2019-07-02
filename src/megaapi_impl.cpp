@@ -188,7 +188,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
     if (node->isExported())
     {
-        this->plink = new PublicLink(node->getPublicHandle(), 0, node->getExpirationTime(), node->isTakenDown());
+        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(), node->getExpirationTime(), node->isTakenDown());
 
         if (type == FOLDERNODE)
         {
