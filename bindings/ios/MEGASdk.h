@@ -4025,7 +4025,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param handle Handle of the node to be used as target folder
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setMyChatFilesFolder:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setMyChatFilesFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set My Chat Files target folder.
@@ -4036,7 +4036,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * @param handle Handle of the node to be used as target folder
  */
-- (void)setMyChatFilesFolder:(uint64_t)handle;
+- (void)setMyChatFilesFolderWithHandle:(uint64_t)handle;
 
 /**
  * @brief Gets My chat files target folder.
@@ -4076,7 +4076,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  * @param handle Handle of the node to be used as target folder
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)setCameraUploadsFolder:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
+- (void)setCameraUploadsFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Set Camera Uploads target folder.
@@ -4087,7 +4087,7 @@ typedef NS_ENUM(NSUInteger, StorageState) {
  *
  * @param handle Handle of the node to be used as target folder
  */
-- (void)setCameraUploadsFolder:(uint64_t)handle;
+- (void)setCameraUploadsFolderWithHandle:(uint64_t)handle;
 
 /**
  * @brief Gets Camera Uploads target folder.

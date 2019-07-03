@@ -1217,11 +1217,11 @@ using namespace mega;
     self.megaApi->isGeolocationEnabled();
 }
 
-- (void)setMyChatFilesFolder:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setMyChatFilesFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setMyChatFilesFolder(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setMyChatFilesFolder:(uint64_t)handle {
+- (void)setMyChatFilesFolderWithHandle:(uint64_t)handle {
     self.megaApi->setMyChatFilesFolder(handle);
 }
 
@@ -1233,11 +1233,11 @@ using namespace mega;
     self.megaApi->getMyChatFilesFolder();
 }
 
-- (void)setCameraUploadsFolder:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+- (void)setCameraUploadsFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setCameraUploadsFolder(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)setCameraUploadsFolder:(uint64_t)handle {
+- (void)setCameraUploadsFolderWithHandle:(uint64_t)handle {
     self.megaApi->setCameraUploadsFolder(handle);
 }
 
