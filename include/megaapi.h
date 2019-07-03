@@ -14888,7 +14888,12 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - the phoneNumber as supplied to this function
          *
-         * If the txt is sent the result in onRequestFinish will be MegaError::API_OK.
+         * When the operation completes, onRequestFinish is called and the MegaError object can be:
+         * - MegaError::API_ETEMPUNAVAIL if a limit is reached.
+         * - MegaError::API_EACCESS if your account is already verified with an SMS number
+         * - MegaError::API_EEXIST if the number is already verified for some other account.
+         * - MegaError::API_EARGS if the phone number is badly formatted or invalid.
+         * - MegaError::API_OK is returned upon success.
          *
          * @param phoneNumber The phone number to txt the code to, supplied by the user.
          * @param listener MegaRequestListener to track this request
@@ -14905,7 +14910,11 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - the verificationCode as supplied to this function
          *
-         * If the verificationCode is correct the result in onRequestFinish will be MegaError::API_OK.
+         * When the operation completes, onRequestFinish is called and the MegaError object can be:
+         * - MegaError::API_EEACCESS if you have reached the verification limits.
+         * - MegaError::API_EFAILED if the verification code does not match.
+         * - MegaError::API_EEXPIRED if the phone number was verified on a different account.
+         * - MegaError::API_OK is returned upon success.
          *
          * @param verificationCode A string supplied by the user, that they should have received via txt.
          * @param listener MegaRequestListener to track this request
