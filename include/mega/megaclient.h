@@ -218,7 +218,7 @@ public:
     bool aplvp_enabled;
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
-    int smsve_state;
+    smsve_state_t smsve_state;
 
     // the verified account phone number, filled in from 'ug'
     string sms_verifiedphone;

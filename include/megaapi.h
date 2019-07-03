@@ -14884,7 +14884,15 @@ class MegaApi
          *
          * Make sure to test the result of MegaApi::smsAllowedState before calling this function.
          *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_SMS_VERIFICATIONCODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - the phoneNumber as supplied to this function
+         *
+         * If the txt is sent the result in onRequestFinish will be MegaError::API_OK.
+         *
+         * @param phoneNumber The phone number to txt the code to, supplied by the user.
          * @param listener MegaRequestListener to track this request
+         * @param reverifying_whitelisted debug usage only.  May be removed in future.
          */
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
  
@@ -14892,8 +14900,14 @@ class MegaApi
          * @brief Check a verification code that the user should have received via txt
          *
          * This function validates that the user received the verification code sent by MegaApi::sendSMSVerificationCode.
-         * If the user supplied the right code, the result will be MegaError::API_OK.
          *
+         * The associated request type with this request is MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - the verificationCode as supplied to this function
+         *
+         * If the verificationCode is correct the result in onRequestFinish will be MegaError::API_OK.
+         *
+         * @param verificationCode A string supplied by the user, that they should have received via txt.
          * @param listener MegaRequestListener to track this request
          */
         void checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener = NULL);

@@ -1078,7 +1078,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
-    smsve_state = -1;
+    smsve_state = SMS_STATE_UNKNOWN;
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
@@ -3566,7 +3566,7 @@ void MegaClient::locallogout()
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
-    smsve_state = -1;
+    smsve_state = SMS_STATE_UNKNOWN;
     sms_verifiedphone.clear();
     loggingout = 0;
     cachedug = false;

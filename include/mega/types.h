@@ -527,6 +527,15 @@ typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, R
 
 typedef enum { STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
 
+
+enum smsve_state_t {
+    // These values (except unknown) are delivered from the servers
+    SMS_STATE_UNKNOWN = -1,       // Flag was not received
+    SMS_STATE_NOT_ALLOWED = 0,    // No SMS allowed
+    SMS_STATE_ONLY_UNBLOCK = 1,   // Only unblock SMS allowed
+    SMS_STATE_FULL = 2            // Opt-in and unblock SMS allowed
+};
+
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
