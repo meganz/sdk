@@ -119,10 +119,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
             dp->push_back(this);
         }
 
-        if (type == FILENODE)
-        {
-            fingerprint_it = client->fingerprints.end();
-        }
+        client->fingerprints.newnode(this);
     }
 }
 
@@ -132,10 +129,7 @@ Node::~Node()
     client->preadabort(this);
 
     // remove node's fingerprint from hash
-    if (type == FILENODE && fingerprint_it != client->fingerprints.end())
-    {
-        client->fingerprints.erase(fingerprint_it);
-    }
+    client->fingerprints.remove(this);
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
@@ -683,10 +677,7 @@ void Node::setfingerprint()
 {
     if (type == FILENODE && nodekey.size() >= sizeof crc)
     {
-        if (fingerprint_it != client->fingerprints.end())
-        {
-            client->fingerprints.erase(fingerprint_it);
-        }
+        client->fingerprints.remove(this);
 
         attr_map::iterator it = attrs.map.find('c');
 
@@ -706,7 +697,7 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        fingerprint_it = client->fingerprints.insert((FileFingerprint*)this);
+        client->fingerprints.add(this);
     }
 }
 
@@ -1799,4 +1790,60 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 }
 
 #endif
+
+void Fingerprints::newnode(Node* n)
+{
+    if (n->type == FILENODE)
+    {
+        n->fingerprint_it = m_fingerprints.end();
+    }
+}
+
+void Fingerprints::add(Node* n)
+{
+    if (n->type == FILENODE)
+    {
+        n->fingerprint_it = m_fingerprints.insert((FileFingerprint*)this);
+        m_sumSizes += n->size;
+    }
+}
+
+void Fingerprints::remove(Node* n)
+{
+    if (n->type == FILENODE && n->fingerprint_it != m_fingerprints.end())
+    {
+        m_sumSizes -= n->size;
+        m_fingerprints.erase(n->fingerprint_it);
+        n->fingerprint_it = m_fingerprints.end();
+    }
+}
+
+void Fingerprints::clear()
+{
+    m_fingerprints.clear();
+    m_sumSizes = 0;
+}
+
+m_off_t Fingerprints::getSumSizes()
+{
+    return m_sumSizes;
+}
+
+Node* Fingerprints::nodebyfingerprint(FileFingerprint* fingerprint)
+{
+    fingerprint_set::iterator it = m_fingerprints.find(fingerprint);
+    return it == m_fingerprints.end() ? nullptr : static_cast<Node*>(*it);
+}
+
+node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
+{
+    node_vector *nodes = new node_vector();
+    auto p = m_fingerprints.equal_range(fingerprint);
+    for (iterator it = p.first; it != p.second; ++it)
+    {
+        nodes->push_back(static_cast<Node*>(*it));
+    }
+    return nodes;
+}
+
 } // namespace

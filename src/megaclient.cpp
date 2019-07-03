@@ -12383,11 +12383,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
         {
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                if (n->fingerprint_it != fingerprints.end())
-                {
-                    fingerprints.erase(n->fingerprint_it);
-                    n->fingerprint_it = fingerprints.end();
-                }
+                fingerprints.remove(n);
             }
         }
         else if (nn[nni].localnode && (n = nn[nni].localnode->node))
@@ -13016,25 +13012,12 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 
 Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 {
-    fingerprint_set::iterator it;
-
-    if ((it = fingerprints.find(fingerprint)) != fingerprints.end())
-    {
-        return (Node*)*it;
-    }
-
-    return NULL;
+    return fingerprints.nodebyfingerprint(fingerprint);
 }
 
 node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
 {
-    node_vector *nodes = new node_vector();
-    pair<fingerprint_set::iterator, fingerprint_set::iterator> p = fingerprints.equal_range(fingerprint);
-    for (fingerprint_set::iterator it = p.first; it != p.second; it++)
-    {
-        nodes->push_back((Node*)*it);
-    }
-    return nodes;
+    return fingerprints.nodesbyfingerprint(fingerprint);
 }
 
 static bool nodes_ctime_less(const Node* a, const Node* b)

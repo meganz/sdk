@@ -1016,7 +1016,7 @@ public:
     transferslot_list::iterator slotit;
 
     // FileFingerprint to node mapping
-    fingerprint_set fingerprints;
+    Fingerprints fingerprints;
 
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;

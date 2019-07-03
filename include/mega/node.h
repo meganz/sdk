@@ -89,6 +89,28 @@ struct MEGA_API PublicLink
     bool isExpired();
 };
 
+// Container storing FileFingerprint* (Node* in practice) ordered by fingerprint.
+struct Fingerprints
+{
+    // maps FileFingerprints to node
+    using fingerprint_set = std::multiset<FileFingerprint*, FileFingerprintCmp>;
+    using iterator = fingerprint_set::iterator;
+
+    void newnode(Node* n);
+    void add(Node* n);
+    void remove(Node* n);
+    void clear();
+    m_off_t getSumSizes();
+
+    Node* nodebyfingerprint(FileFingerprint* fingerprint);
+    node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
+
+private:
+    fingerprint_set m_fingerprints;
+    m_off_t m_sumSizes = 0;
+};
+
+
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
@@ -188,7 +210,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_list::iterator child_it;
 
     // own position in fingerprint set (only valid for file nodes)
-    fingerprint_set::iterator fingerprint_it;
+    Fingerprints::iterator fingerprint_it;
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
