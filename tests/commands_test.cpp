@@ -68,6 +68,8 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
 
     JSON json;
     json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"},{"eud":"+64271234567","id":"42","ud":"+64 27 123 4567"})";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetRegisteredContacts::processResult(app, json);
 
@@ -80,6 +82,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
     ASSERT_EQ(API_OK, app.lastError);
     ASSERT_NE(nullptr, app.registeredContacts);
     ASSERT_EQ(expected, *app.registeredContacts);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
@@ -88,6 +91,8 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
 
     JSON json;
     json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz"})";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetRegisteredContacts::processResult(app, json);
 
@@ -99,6 +104,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
     ASSERT_EQ(API_OK, app.lastError);
     ASSERT_NE(nullptr, app.registeredContacts);
     ASSERT_EQ(expected, *app.registeredContacts);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_extraFieldShouldBeIgnored)
@@ -107,6 +113,8 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_extraFieldShouldBeIgno
 
     JSON json;
     json.pos = R"({"eud":"foo@mega.co.nz","id":"13","ud":"foo@mega.co.nz","blah":"42"})";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetRegisteredContacts::processResult(app, json);
 
@@ -118,6 +126,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_extraFieldShouldBeIgno
     ASSERT_EQ(API_OK, app.lastError);
     ASSERT_NE(nullptr, app.registeredContacts);
     ASSERT_EQ(expected, *app.registeredContacts);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
@@ -126,12 +135,15 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
 
     JSON json;
     json.pos = R"({"eud":"foo@mega.co.nz","id":"13","blah":"foo@mega.co.nz"})";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetRegisteredContacts::processResult(app, json);
 
     ASSERT_EQ(1, app.callCount);
     ASSERT_EQ(API_EINTERNAL, app.lastError);
     ASSERT_EQ(nullptr, app.registeredContacts);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetRegisteredContacts_processResult_errorCodeReceived)
@@ -140,12 +152,15 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_errorCodeReceived)
 
     JSON json;
     json.pos = "-8";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetRegisteredContacts::processResult(app, json);
 
     ASSERT_EQ(1, app.callCount);
     ASSERT_EQ(API_EEXPIRED, app.lastError);
     ASSERT_EQ(nullptr, app.registeredContacts);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 namespace {
@@ -182,6 +197,8 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_happyPath)
 
     JSON json;
     json.pos = R"({"cc":"AD","l":[376]},{"cc":"AE","l":[971,13]},{"cc":"AF","l":[93,13,42]})";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetCountryCallingCodes::processResult(app, json);
 
@@ -195,6 +212,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_happyPath)
     ASSERT_EQ(API_OK, app.lastError);
     ASSERT_NE(nullptr, app.countryCallingCodes);
     ASSERT_EQ(expected, *app.countryCallingCodes);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetCountryCallingCodes_processResult_onlyOneCountry)
@@ -203,6 +221,8 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_onlyOneCountry)
 
     JSON json;
     json.pos = R"({"cc":"AD","l":[12,376]})";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetCountryCallingCodes::processResult(app, json);
 
@@ -214,6 +234,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_onlyOneCountry)
     ASSERT_EQ(API_OK, app.lastError);
     ASSERT_NE(nullptr, app.countryCallingCodes);
     ASSERT_EQ(expected, *app.countryCallingCodes);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetCountryCallingCodes_processResult_extraFieldShouldBeIgnored)
@@ -222,6 +243,8 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_extraFieldShouldBeIgn
 
     JSON json;
     json.pos = R"({"cc":"AD","l":[12,376],"blah":"42"})";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetCountryCallingCodes::processResult(app, json);
 
@@ -233,6 +256,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_extraFieldShouldBeIgn
     ASSERT_EQ(API_OK, app.lastError);
     ASSERT_NE(nullptr, app.countryCallingCodes);
     ASSERT_EQ(expected, *app.countryCallingCodes);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
@@ -241,12 +265,15 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
 
     JSON json;
     json.pos = R"({"cc":"AD","blah":[12,376]})";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetCountryCallingCodes::processResult(app, json);
 
     ASSERT_EQ(1, app.callCount);
     ASSERT_EQ(API_EINTERNAL, app.lastError);
     ASSERT_EQ(nullptr, app.countryCallingCodes);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }
 
 TEST(Commands, CommandGetCountryCallingCodes_processResult_errorCodeReceived)
@@ -255,10 +282,13 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_errorCodeReceived)
 
     JSON json;
     json.pos = "-8";
+    const auto json_begin = json.pos;
+    const auto json_length = strlen(json.pos);
 
     CommandGetCountryCallingCodes::processResult(app, json);
 
     ASSERT_EQ(1, app.callCount);
     ASSERT_EQ(API_EEXPIRED, app.lastError);
     ASSERT_EQ(nullptr, app.countryCallingCodes);
+    ASSERT_EQ(json_length, std::distance(json_begin, json.pos)); // assert json has been parsed all the way
 }

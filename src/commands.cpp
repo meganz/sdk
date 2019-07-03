@@ -7207,6 +7207,7 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
     string id;
     string userDetail;
 
+    bool success = true;
     while (json.enterobject())
     {
         bool exit = false;
@@ -7234,10 +7235,12 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
                     if (entryUserDetail.empty() || id.empty() || userDetail.empty())
                     {
                         LOG_err << "Missing or empty field when parsing 'get registered contacts' response";
-                        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
-                        return;
+                        success = false;
                     }
-                    registeredContacts.emplace_back(make_tuple(move(entryUserDetail), move(id), move(userDetail)));
+                    else
+                    {
+                        registeredContacts.emplace_back(make_tuple(move(entryUserDetail), move(id), move(userDetail)));
+                    }
                     exit = true;
                     break;
                 }
@@ -7254,7 +7257,14 @@ void CommandGetRegisteredContacts::processResult(MegaApp& app, JSON& json)
         }
         json.leaveobject();
     }
-    app.getregisteredcontacts_result(API_OK, &registeredContacts);
+    if (success)
+    {
+        app.getregisteredcontacts_result(API_OK, &registeredContacts);
+    }
+    else
+    {
+        app.getregisteredcontacts_result(API_EINTERNAL, nullptr);
+    }
 }
 
 CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
@@ -7282,6 +7292,7 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
     string countryCode;
     vector<string> callingCodes;
 
+    bool success = true;
     while (json.enterobject())
     {
         bool exit = false;
@@ -7312,10 +7323,12 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
                     if (countryCode.empty() || callingCodes.empty())
                     {
                         LOG_err << "Missing or empty fields when parsing 'get country calling codes' response";
-                        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
-                        return;
+                        success = false;
                     }
-                    countryCallingCodes.emplace(make_pair(move(countryCode), move(callingCodes)));
+                    else
+                    {
+                        countryCallingCodes.emplace(make_pair(move(countryCode), move(callingCodes)));
+                    }
                     exit = true;
                     break;
                 }
@@ -7332,7 +7345,14 @@ void CommandGetCountryCallingCodes::processResult(MegaApp& app, JSON& json)
         }
         json.leaveobject();
     }
-    app.getcountrycallingcodes_result(API_OK, &countryCallingCodes);
+    if (success)
+    {
+        app.getcountrycallingcodes_result(API_OK, &countryCallingCodes);
+    }
+    else
+    {
+        app.getcountrycallingcodes_result(API_EINTERNAL, nullptr);
+    }
 }
 
 CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)
