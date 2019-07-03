@@ -5040,6 +5040,7 @@ public:
         API_EC_DEFAULT = 0,         ///< Default error code context
         API_EC_DOWNLOAD = 1,        ///< Download transfer context.
         API_EC_IMPORT = 2,          ///< Import context.
+        API_EC_UPLOAD = 3,        ///< Upload transfer context.
     };
 
     /**
