@@ -849,7 +849,7 @@ const char *GfxProcQT::supportedformatsPDF()
 
 QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString imagePath)
 {
-    MutexGuard g(gfxMutex);
+    std::lock_guard<std::mutex> g(gfxMutex);
 #ifdef _WIN32
     FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toLocal8Bit().constData(), NULL);
     QString temporaryfile;
