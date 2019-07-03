@@ -21671,7 +21671,38 @@ void MegaFolderUploadController::calculatetransformedSyncDownPath(Node *node, st
     }
 }
 
-bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, int &errorCode, string parentSyncDownPath, bool checkChildrenRecursivity, bool allowUploadsToSelfSynced)
+bool MegaFolderUploadController::checkUploadDoesntBreakRecursivity(const std::string &localpath, MegaNode *parent, int &errorCode)
+{
+    std::set<MegaHandle> syncsNodesAndAncestors;
+    for (auto sync : client->syncs)
+    {
+        if (sync->localroot.node)
+        {
+            Node *n = sync->localroot.node;
+            do
+            {
+                syncsNodesAndAncestors.insert(n->nodehandle);
+                n = n->parent;
+            } while (n);
+        }
+    }
+
+    if (!syncsNodesAndAncestors.size())// No sync to collide: no possible recursivity issue
+    {
+        LOG_verbose << "There is no configured sync: No possible recursivity issue.";
+        return true;
+    }
+
+    // not a synced node (no sync in parents), and no syncs below: no posible recursivity issue
+    if (!megaApi->isSynced(parent) && syncsNodesAndAncestors.find(parent->getHandle()) == syncsNodesAndAncestors.end())
+    {
+        LOG_verbose << "Upload parent is not within a sync nor an ancestor to a synced node. No possible recursivity issue.";
+        return true;
+    }
+    return checkNotBreaksRecursivity(localpath, localpath, parent, errorCode, syncsNodesAndAncestors);
+}
+
+bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, int &errorCode, std::set<MegaHandle> &syncsNodesAndAncestors, string parentSyncDownPath, bool checkChildrenRecursivity, bool allowUploadsToSelfSynced)
 {
     // We want to avoid that uploading a path (originlocalpath) writes something into a MEGA location synced with a descendant of that path.
     // With one exception: the upload entails the update of a corresponding local path with its synced MEGA node.
@@ -21763,6 +21794,12 @@ bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originl
 
         if(megaNodeForLocalPath)
         {
+            if (syncsNodesAndAncestors.find(parent->getHandle()) == syncsNodesAndAncestors.end())
+            {// it does not make sense to go down a path that does not have synched nodes within
+                LOG_verbose << "Corresponding node is not an ancestor to a synced node. No need to check deeper.";
+                return true;
+            }
+
             if (!transformedSyncDownPath.size()) //could have been calculated before, if parent was within a sync
             {
                 Node *nodeForLocalPath = client->nodebyhandle(megaNodeForLocalPath->getHandle());
@@ -21774,7 +21811,6 @@ bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originl
             {
                 string utf8localpath;
                 client->fsaccess->local2path((string *)&localpath, &utf8localpath);
-
                 LOG_debug << "Uploading. Getting into a folder synced to itself. Permission granted: " << utf8localpath;
                 return true;
             }
@@ -21797,7 +21833,7 @@ bool MegaFolderUploadController::checkNotBreaksRecursivity(const string &originl
                     {
                         //if (fa->type != FILENODE) // we want to address files too
                         {
-                            if (!checkNotBreaksRecursivity(originlocalpath, childLocalPath, megaNodeForLocalPath, errorCode, transformedSyncDownPath, checkChildrenRecursivity, allowUploadsToSelfSynced))
+                            if (!checkNotBreaksRecursivity(originlocalpath, childLocalPath, megaNodeForLocalPath, errorCode, syncsNodesAndAncestors, transformedSyncDownPath, checkChildrenRecursivity, allowUploadsToSelfSynced))
                             {
                                 errorCode = MegaError::API_ECIRCULAR; // we might want another error here
                                 return false;
@@ -21837,7 +21873,7 @@ void MegaFolderUploadController::start()
 
         // avoid recursivity
         int errroCode;
-        if (!checkNotBreaksRecursivity(localpath, localpath, parent, errroCode))
+        if (!checkUploadDoesntBreakRecursivity(localpath, parent, errroCode))
         {
             transfer->setState(MegaTransfer::STATE_FAILED);
             megaApi->fireOnTransferFinish(transfer, MegaError(errroCode));

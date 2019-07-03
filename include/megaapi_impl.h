@@ -222,7 +222,8 @@ public:
 private:
     void calculatePathRelativeToSyncRoot(Node *node, std::string &pathRelativeToSync);
     void calculatetransformedSyncDownPath(Node *node, std::string &transformedSyncDownPath);
-    bool checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, int &errorCode, string parentSyncDownPath = string(), bool checkChildrenRecursivity = true, bool allowUploadsToSelfSynced = true);
+    bool checkUploadDoesntBreakRecursivity(const string &localpath, MegaNode *parent, int &errorCode);
+    bool checkNotBreaksRecursivity(const string &originlocalpath, const string &localpath, MegaNode *parent, int &errorCode, std::set<MegaHandle> &syncsNodesAndAncestors, string parentSyncDownPath = string(), bool checkChildrenRecursivity = true, bool allowUploadsToSelfSynced = true);
 
 };
 
