@@ -964,16 +964,19 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                 QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
                 return imageReader;
             }
+            else
             {
                 FPDF_CloseDocument(pdf_doc);
                 LOG_err << "Error loading PDF page to create thumb for " << imagePath.toUtf8().constData();
             }
         }
+        else
         {
             FPDF_CloseDocument(pdf_doc);
             LOG_err << "Error getting number of pages for " << imagePath.toUtf8().constData();
         }
     }
+    else
     {
         LOG_err << "Error loading PDF to create thumbnail for " << imagePath.toUtf8().constData() << " " << FPDF_GetLastError();
     }
