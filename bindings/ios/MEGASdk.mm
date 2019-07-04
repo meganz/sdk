@@ -1217,6 +1217,38 @@ using namespace mega;
     self.megaApi->isGeolocationEnabled();
 }
 
+- (void)setMyChatFilesFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setMyChatFilesFolder(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setMyChatFilesFolderWithHandle:(uint64_t)handle {
+    self.megaApi->setMyChatFilesFolder(handle);
+}
+
+- (void)getMyChatFilesFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getMyChatFilesFolder([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getMyChatFilesFolder {
+    self.megaApi->getMyChatFilesFolder();
+}
+
+- (void)setCameraUploadsFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setCameraUploadsFolder(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setCameraUploadsFolderWithHandle:(uint64_t)handle {
+    self.megaApi->setCameraUploadsFolder(handle);
+}
+
+- (void)getCameraUploadsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getCameraUploadsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getCameraUploadsFolder {
+    self.megaApi->getCameraUploadsFolder();
+}
+
 - (void)getRubbishBinAutopurgePeriodWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getRubbishBinAutopurgePeriod([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
