@@ -5633,6 +5633,7 @@ void MegaClient::sc_ph()
     bool takendown = false;
     bool reinstated = false;
     m_time_t ets = 0;
+    m_time_t cts = 0;
     Node *n;
 
     bool done = false;
@@ -5665,6 +5666,9 @@ void MegaClient::sc_ph()
         case MAKENAMEID3('e', 't', 's'):
             ets = jsonsc.getint();
             break;
+        case MAKENAMEID2('t', 's'):
+            cts = jsonsc.getint();
+            break;
         case EOO:
             done = true;
             if (ISUNDEF(h))
@@ -5680,6 +5684,11 @@ void MegaClient::sc_ph()
             if (!deleted && !created && !updated && !takendown)
             {
                 LOG_err << "d/n/u/down element not provided";
+                break;
+            }
+            if (!deleted && !cts)
+            {
+                LOG_err << "creation timestamp element not provided";
                 break;
             }
 
@@ -5701,7 +5710,7 @@ void MegaClient::sc_ph()
                 }
                 else
                 {
-                    n->setpubliclink(ph, ets, takendown);
+                    n->setpubliclink(ph, cts, ets, takendown);
                 }
 
                 n->changed.publiclink = true;
@@ -7495,6 +7504,7 @@ void MegaClient::procph(JSON *j)
             handle h = UNDEF;
             handle ph = UNDEF;
             m_time_t ets = 0;
+            m_time_t cts = 0;
             Node *n = NULL;
             bool takendown = false;
 
@@ -7512,6 +7522,9 @@ void MegaClient::procph(JSON *j)
                     case MAKENAMEID3('e', 't', 's'):
                         ets = j->getint();
                         break;
+                    case MAKENAMEID2('t', 's'):
+                        cts = j->getint();
+                        break;
                     case MAKENAMEID4('d','o','w','n'):
                         takendown = (j->getint() == 1);
                         break;
@@ -7527,11 +7540,16 @@ void MegaClient::procph(JSON *j)
                             LOG_err << "ph element not provided";
                             break;
                         }
+                        if (!cts)
+                        {
+                            LOG_err << "creation timestamp element not provided";
+                            break;
+                        }
 
                         n = nodebyhandle(h);
                         if (n)
                         {
-                            n->setpubliclink(ph, ets, takendown);
+                            n->setpubliclink(ph, cts, ets, takendown);
                         }
                         else
                         {

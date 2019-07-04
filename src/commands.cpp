@@ -4151,7 +4151,7 @@ void CommandSetPH::procresult()
     Node *n = client->nodebyhandle(h);
     if (n)
     {
-        n->setpubliclink(ph, ets, false);
+        n->setpubliclink(ph, time(nullptr), ets, false);
         n->changed.publiclink = true;
         client->notifynode(n);
     }

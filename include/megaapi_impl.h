@@ -406,6 +406,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
+        int64_t getPublicLinkCreationTime();
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;

@@ -231,6 +231,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     Node* n;
     int i;
     char isExported = '\0';
+    char hasLinkCreationTs = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -305,7 +306,10 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     isExported = MemAccess::get<char>(ptr);
     ptr += sizeof(isExported);
 
-    for (i = 7; i--;)
+    hasLinkCreationTs = MemAccess::get<char>(ptr);
+    ptr += sizeof(hasLinkCreationTs);
+
+    for (i = 6; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -381,7 +385,14 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         bool takendown = MemAccess::get<bool>(ptr);
         ptr += sizeof(takendown);
 
-        plink = new PublicLink(ph, ets, takendown);
+        m_time_t cts = 0;
+        if (hasLinkCreationTs)
+        {
+            cts = MemAccess::get<m_time_t>(ptr);
+            ptr += sizeof(cts);
+        }
+
+        plink = new PublicLink(ph, cts, ets, takendown);
     }
     n->plink = plink;
 
@@ -479,7 +490,11 @@ bool Node::serialize(string* d)
 
     char isExported = plink ? 1 : 0;
     d->append((char*)&isExported, 1);
-    d->append("\0\0\0\0\0\0", 7);
+
+    char hasLinkCreationTs = plink ? 1 : 0;
+    d->append((char*)&hasLinkCreationTs, 1);
+
+    d->append("\0\0\0\0\0", 6);
 
     if (inshare)
     {
@@ -534,6 +549,10 @@ bool Node::serialize(string* d)
         d->append((char*) &plink->ph, MegaClient::NODEHANDLE);
         d->append((char*) &plink->ets, sizeof(plink->ets));
         d->append((char*) &plink->takendown, sizeof(plink->takendown));
+        if (hasLinkCreationTs)
+        {
+            d->append((char*) &plink->cts, sizeof(plink->cts));
+        }
     }
 
     return true;
@@ -999,15 +1018,16 @@ bool Node::isbelow(Node* p) const
     }
 }
 
-void Node::setpubliclink(handle ph, m_time_t ets, bool takendown)
+void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
 {
     if (!plink) // creation
     {
-        plink = new PublicLink(ph, ets, takendown);
+        plink = new PublicLink(ph, cts, ets, takendown);
     }
     else            // update
     {
         plink->ph = ph;
+        plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
     }
@@ -1026,9 +1046,18 @@ NodeCore::~NodeCore()
     delete attrstring;
 }
 
+PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+{
+    this->ph = ph;
+    this->cts = cts;
+    this->ets = ets;
+    this->takendown = takendown;
+}
+
 PublicLink::PublicLink(PublicLink *plink)
 {
     this->ph = plink->ph;
+    this->cts = plink->cts;
     this->ets = plink->ets;
     this->takendown = plink->takendown;
 }

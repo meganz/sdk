@@ -75,17 +75,13 @@ struct MEGA_API NewNode : public NodeCore
 struct MEGA_API PublicLink
 {
     handle ph;
+    m_time_t cts;
     m_time_t ets;
     bool takendown;
 
-    PublicLink(handle ph, m_time_t ets, bool takendown)
-    {
-        this->ph = ph;
-        this->ets = ets;
-        this->takendown = takendown;
-    }
-
+    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown);
     PublicLink(PublicLink *plink);
+
     bool isExpired();
 };
 
@@ -217,7 +213,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // handle of public link for the node
     PublicLink *plink;
 
-    void setpubliclink(handle, m_time_t, bool);
+    void setpubliclink(handle, m_time_t, m_time_t, bool);
 
     bool serialize(string*);
     static Node* unserialize(MegaClient*, string*, node_vector*);
