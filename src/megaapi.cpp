@@ -2281,6 +2281,11 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
     pImpl->fetchNodes(listener);
 }
 
+void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
+{
+    pImpl->getCloudStorageUsed(listener);
+}
+
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
 {
     pImpl->getAccountDetails(true, true, true, false, false, false, -1, listener);

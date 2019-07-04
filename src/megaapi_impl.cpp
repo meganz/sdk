@@ -3747,6 +3747,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_PUBLIC_LINK_INFORMATION: return "PUBLIC_LINK_INFORMATION";
         case TYPE_GET_BACKGROUND_UPLOAD_URL: return "GET_BACKGROUND_UPLOAD_URL";
         case TYPE_COMPLETE_BACKGROUND_UPLOAD: return "COMPLETE_BACKGROUND_UPLOAD";
+        case TYPE_GET_CLOUDSTORAGEUSED: return "TYPE_GET_CLOUDSTORAGEUSED";
     }
     return "UNKNOWN";
 }
@@ -6569,6 +6570,12 @@ void MegaApiImpl::updatePwdReminderData(bool lastSuccess, bool lastSkipped, bool
     waiter->notify();
 }
 
+void MegaApiImpl::getCloudStorageUsed(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_CLOUDSTORAGEUSED, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
 
 void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source, MegaRequestListener *listener)
 {
@@ -18095,6 +18102,18 @@ void MegaApiImpl::sendPendingRequests()
 			client->fetchnodes();
 			break;
 		}
+        case MegaRequest::TYPE_GET_CLOUDSTORAGEUSED:
+        {
+            if (client->loggedin() != FULLACCOUNT)
+            {
+                e = API_EACCESS;
+                break;
+            }
+
+            request->setNumber(client->fingerprints.getSumSizes());
+            fireOnRequestFinish(request, API_OK);
+            break;
+        }
 		case MegaRequest::TYPE_ACCOUNT_DETAILS:
 		{
             if(client->loggedin() != FULLACCOUNT)
