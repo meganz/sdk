@@ -6319,6 +6319,7 @@ void CommandChatLinkURL::procresult()
 
                 case MAKENAMEID2('t', 's'):
                     ts = client->json.getint();
+                    break;
 
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
