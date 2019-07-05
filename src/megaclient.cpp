@@ -1030,6 +1030,7 @@ void MegaClient::init()
 
     delete pendingsc;
     pendingsc = NULL;
+    stopsc = false;
 
     btcs.reset();
     btsc.reset();
@@ -1873,6 +1874,7 @@ void MegaClient::exec()
                             useralerts.begincatchup = false;
                             useralerts.catchupdone = true;
                         }
+                        stopsc = true;
                     }
                 }
 
@@ -1908,8 +1910,15 @@ void MegaClient::exec()
                     pendingsc = NULL;
                 }
 
-                // failure, repeat with capped exponential backoff
-                btsc.backoff();
+                if (stopsc)
+                {
+                    btsc.backoff(NEVER);
+                }
+                else
+                {
+                    // failure, repeat with capped exponential backoff
+                    btsc.backoff();
+                }
                 break;
 
             case REQ_INFLIGHT:
@@ -1974,7 +1983,7 @@ void MegaClient::exec()
 #endif
         }
 
-        if (!pendingsc && *scsn && btsc.armed())
+        if (!pendingsc && *scsn && btsc.armed() && !stopsc)
         {
             pendingsc = new HttpReq();
             pendingsc->logname = clientname + "sc ";
@@ -2754,7 +2763,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed server-client requests
-        if (!pendingsc && *scsn)
+        if (!pendingsc && *scsn && !stopsc)
         {
             btsc.update(&nds);
         }
@@ -3584,6 +3593,7 @@ void MegaClient::locallogout()
 
     delete pendingcs;
     pendingcs = NULL;
+    stopsc = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {

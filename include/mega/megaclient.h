@@ -732,6 +732,7 @@ private:
     // server-client command trigger connection
     HttpReq* pendingsc;
     BackoffTimer btsc;
+    bool stopsc = false;
 
     // badhost report
     HttpReq* badhostcs;
