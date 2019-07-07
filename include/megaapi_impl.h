@@ -1512,7 +1512,7 @@ protected:
                         const std::unique_ptr<const char[]>& lhs) const;
     };
 
-    map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> m_map;
+    map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> mMap;
 };
 
 class MegaStringTablePrivate : public MegaStringTable
@@ -1525,7 +1525,7 @@ public:
     const MegaStringList* get(int i) const override;
     int size() const override;
 protected:
-    vector<std::unique_ptr<const MegaStringList>> m_table;
+    vector<std::unique_ptr<const MegaStringList>> mTable;
 };
 
 class MegaNodeListPrivate : public MegaNodeList
