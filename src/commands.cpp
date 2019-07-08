@@ -3704,14 +3704,20 @@ void CommandGetUserData::procresult()
                             client->btugexpiration.backoff(diff);
                         }
                     }
-                    // TODO: check if type of account has changed and notify with new event
+                    // TODO: check if type of account has changed and notify with new event (not yet supported by API)
                 }
             }
             else
             {
+                BizStatus oldStatus = client->mBizStatus;
                 client->mBizStatus = BIZ_STATUS_INACTIVE;
                 client->mBizMode = BIZ_MODE_UNKNOWN;
                 client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+
+                if (client->mBizStatus != oldStatus)
+                {
+                    client->app->notify_business_status(client->mBizStatus);
+                }
             }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
