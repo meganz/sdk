@@ -2360,7 +2360,7 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 #endif
 
-void exec_fingerprintsumsizes(autocomplete::ACState& s)
+void exec_getcloudstorageused(autocomplete::ACState& s)
 {
     cout << client->mFingerprints.getSumSizes() << endl;
 }
@@ -2626,7 +2626,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
-    p->Add(exec_fingerprintsumsizes, sequence(text("fingerprintsumsizes")));
+    p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
 
     return autocompleteTemplate = std::move(p);

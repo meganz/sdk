@@ -395,6 +395,7 @@ void exec_addbulkrelays(ac::ACState& ac)
     addRelay("gfs302n120.userstorage.mega.co.nz", g_nextPort++);
     addRelay("gfs302n121.userstorage.mega.co.nz", g_nextPort++);
     addRelay("gfs302n123.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs530n015.userstorage.mega.co.nz", g_nextPort++);
 }
 
 void exec_getjavascript(ac::ACState& ac)
