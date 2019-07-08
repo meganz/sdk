@@ -322,6 +322,17 @@ string User::attr2string(attr_t type)
 {
     string attrname;
 
+    // Special first character (required, except for the oldest attributes):
+    // `+` is public and unencrypted
+    // `#` is 'protected' and unencrypted, the API will allow contacts to fetch it but not give it out to non-contacts
+    // `^` is private but unencrypted, i.e.the API won't give it out to anybody except you, but the API can read the value as well
+    // `*` is private and encrypted, API only gives it to you and the API doesn't have a way to know the true value
+    // `%` business usage
+
+    // Special second character (optional)
+    // ! only store a single copy and do not keep a history of changes
+    // ~ only store one time (ignore subsequent updates, and no history of course) 
+
     switch(type)
     {
         case ATTR_AVATAR:
@@ -428,6 +439,10 @@ string User::attr2string(attr_t type)
             attrname = "^!ps";
             break;
 
+        case ATTR_UNSHAREABLE_KEY:
+            attrname = "*~usk";  // unshareable key (for encrypting attributes that should not be shared)
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -531,6 +546,10 @@ string User::attr2longname(attr_t type)
 
     case ATTR_GEOLOCATION:
         longname = "GEOLOCATION";
+        break;
+            
+    case ATTR_UNSHAREABLE_KEY:
+        longname = "UNSHAREABLE_KEY";
         break;
 
     case ATTR_CAMERA_UPLOADS_FOLDER:
@@ -660,6 +679,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_PUSH_SETTINGS;
     }
+    else if (!strcmp(name, "*~usk"))
+    {
+        return ATTR_UNSHAREABLE_KEY;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -684,7 +707,6 @@ int User::needversioning(attr_t at)
         case ATTR_LAST_PSA:
         case ATTR_RUBBISH_TIME:
         case ATTR_GEOLOCATION:
-        case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
             return 0;
@@ -716,6 +738,7 @@ char User::scope(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_MY_CHAT_FILES_FOLDER:
+        case ATTR_UNSHAREABLE_KEY:
             return '*';
 
         case ATTR_AVATAR:
@@ -832,7 +855,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
+        long tmp = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || (tmp != 0 && tmp != 1))
         {
             flagMkExported = false;
@@ -861,7 +884,7 @@ bool User::mergePwdReminderData(int numDetails, const char *data, unsigned int s
     else
     {
         char *pEnd = NULL;
-        int tmp = strtol(buf.data(), &pEnd, 10);
+        long tmp = strtol(buf.data(), &pEnd, 10);
         if (*pEnd != '#' || (tmp != 0 && tmp != 1))
         {
             flagDontShowAgain = false;

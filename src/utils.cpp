@@ -106,6 +106,11 @@ void CacheableWriter::serializebyte(byte field)
     dest.append((char*)&field, sizeof(field));
 }
 
+void CacheableWriter::serializedouble(double field)
+{
+    dest.append((char*)&field, sizeof(field));
+}
+
 void CacheableWriter::serializeexpansionflags(bool b0, bool b1, bool b2, bool b3, bool b4, bool b5, bool b6, bool b7)
 {
     unsigned char b[8];
@@ -262,6 +267,18 @@ bool CacheableReader::unserializebyte(byte& field)
     }
     field = MemAccess::get<byte>(ptr);
     ptr += sizeof(byte);
+    fieldnum += 1;
+    return true;
+}
+
+bool CacheableReader::unserializedouble(double& field)
+{
+    if (ptr + sizeof(double) > end)
+    {
+        return false;
+    }
+    field = MemAccess::get<double>(ptr);
+    ptr += sizeof(double);
     fieldnum += 1;
     return true;
 }

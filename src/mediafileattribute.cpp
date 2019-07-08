@@ -24,6 +24,7 @@
 #include "mega/base64.h"
 #include "mega/command.h"
 #include "mega/megaclient.h"
+#include "mega/megaapp.h"
 
 #ifdef USE_MEDIAINFO
 #include "MediaInfo/MediaInfo.h"
@@ -73,7 +74,7 @@ MediaFileInfo::MediaFileInfo()
 
 void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, string* ifSuitableFilename)
 {
-    if (!mediaCodecsRequested)
+    if (!mediaCodecsReceived && !mediaCodecsRequested)
     {
         if (ifSuitableFilename)
         {
@@ -221,6 +222,8 @@ void MediaFileInfo::onCodecMappingsReceipt(MegaClient* client, int codecListVers
         client->pendingfa[pair<handle, fatype>(th, fatype(fa_media))] = pair<handle, int>(0, 0);
         client->checkfacompletion(th);
     }
+
+    client->app->mediadetection_ready();
 }
 
 unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle)
@@ -407,7 +410,7 @@ std::string formatfileattr(uint32_t id, byte* data, unsigned datalen, uint32_t f
 // ----------------------------------------- MediaProperties --------------------------------------------------------
 
 MediaProperties::MediaProperties()
-    : shortformat(254)
+    : shortformat(UNKNOWN_FORMAT)
     , width(0)
     , height(0)
     , fps(0)
@@ -451,6 +454,16 @@ std::string MediaProperties::serialize()
     r.serializebool(no_audio);
     r.serializeexpansionflags();
     return s;
+}
+
+bool MediaProperties::isPopulated()
+{
+    return shortformat != UNKNOWN_FORMAT;
+}
+
+bool MediaProperties::isIdentified()
+{
+    return isPopulated() && shortformat != NOT_IDENTIFIED_FORMAT;
 }
 
 bool MediaProperties::operator==(const MediaProperties& o) const
@@ -587,7 +600,7 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
 {
     // Check if we should retry video property extraction, due to previous failure with older library
     MediaProperties vp = MediaProperties::decodeMediaPropertiesAttributes(fileattributes, fakey);
-    if (vp.shortformat == 255) 
+    if (vp.isIdentified())
     {
         if (vp.fps < MEDIA_INFO_BUILD)
         {
@@ -815,7 +828,7 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
             (audiocodecid && !videocodecid)))) 
     {
         LOG_warn << "mediainfo failed to extract media information for this file";
-        shortformat = 255;                                  // mediaInfo could not fully identify this file.  Maybe a later version can.
+        shortformat = NOT_IDENTIFIED_FORMAT;                // mediaInfo could not fully identify this file.  Maybe a later version can.
         fps = MEDIA_INFO_BUILD;                             // updated when we change relevant things in this executable
         width = GetMediaInfoVersion();                      // mediaInfoLib version that couldn't do it.  1710 at time of writing (ie oct 2017 tag)
         height = 0;

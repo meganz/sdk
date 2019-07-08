@@ -169,8 +169,10 @@ struct ChunkMAC
 class chunkmac_map : public map<m_off_t, ChunkMAC>
 {
 public:
+    int64_t macsmac(SymmCipher *cipher);
     void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
+    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
 };
 
 /**
@@ -438,7 +440,9 @@ typedef enum {
     ATTR_GEOLOCATION = 22,                  // private - byte array - non-versioned
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
-    ATTR_PUSH_SETTINGS = 25                 // private - non-encripted - char array in B64 - non-versioned
+    ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
+    ATTR_UNSHAREABLE_KEY = 26               // private - char array
+
 } attr_t;
 typedef map<attr_t, string> userattr_map;
 

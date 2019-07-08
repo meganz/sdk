@@ -93,7 +93,7 @@ public:
 // file attribute put
 struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
-    handle th;
+    handle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
     string* data;
     m_off_t progressreported;
@@ -302,6 +302,18 @@ public:
 };
 #endif
 
+// Tries to fetch the unshareable-attribute key, creates it if necessary
+class MEGA_API CommandUnshareableUA : public Command
+{
+    bool fetching;
+    int maxtries;
+public:
+    CommandUnshareableUA(MegaClient*, bool fetch, int triesleft);
+
+    void procresult();
+};
+
+
 class MEGA_API CommandGetUserEmail : public Command
 {
 public:
@@ -442,6 +454,17 @@ public:
 
     CommandPutFile(MegaClient *client, TransferSlot*, int);
 };
+
+class MEGA_API CommandPutFileBackgroundURL : public Command
+{
+    string* result;
+
+public:
+    void procresult();
+
+    CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag);
+};
+
 
 class MEGA_API CommandAttachFA : public Command
 {
@@ -1098,6 +1121,14 @@ public:
     CommandSetLastAcknowledged(MegaClient*);
 };
 
+class MEGA_API CommandFolderLinkInfo: public Command
+{
+    handle ph = UNDEF;
+public:
+    void procresult();
+
+    CommandFolderLinkInfo(MegaClient*, handle);
+};
 
 } // namespace
 

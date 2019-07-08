@@ -1,8 +1,8 @@
 /**
- * @file MEGAInputStream.h
+ * @file MEGAFileInputStream.h
  * @brief Implementation of MegaInputStream
  *
- * (c) 2013-2015 by Mega Limited, Auckland, New Zealand
+ * (c) 2018 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -19,28 +19,19 @@
  * program.
  */
 
-#import <AssetsLibrary/AssetsLibrary.h>
+#import <Foundation/Foundation.h>
 #import "megaapi.h"
 
-class MEGAInputStream : public mega::MegaInputStream {
+class MEGAFileInputStream : public mega::MegaInputStream {
 
 public:
-    
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    
-    MEGAInputStream(ALAssetRepresentation *assetRepresentation);
-    MEGAInputStream(NSData *data);
+    MEGAFileInputStream(NSString *filePath);
     int64_t getSize();
     bool read(char *buffer, size_t size);
     
 private:
-    ALAssetRepresentation *assetRepresentation;
-    
-#pragma clang diagnostic pop
-    
-    NSData *data;
-    long offset;
+    NSFileHandle *fileHandle;
+    int64_t fileSize;
 };
 
 

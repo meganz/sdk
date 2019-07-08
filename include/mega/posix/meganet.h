@@ -55,7 +55,7 @@ struct MEGA_API CurlHttpContext;
 class CurlHttpIO: public HttpIO
 {
 protected:
-    static MUTEX_CLASS curlMutex;
+    static std::mutex curlMutex;
 
     string useragent;
     CURLM* curlm[3];
@@ -97,7 +97,7 @@ protected:
     static int upload_timer_callback(CURLM *multi, long timeout_ms, void *userp);
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
-    static MUTEX_CLASS **sslMutexes;
+    static std::recursive_mutex **sslMutexes;
     static void locking_function(int mode, int lockNumber, const char *, int);
 
 #if OPENSSL_VERSION_NUMBER >= 0x10000000

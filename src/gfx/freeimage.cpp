@@ -45,6 +45,7 @@ extern "C" {
 #pragma warning(disable:4996)
 #pragma warning(push)
 #pragma warning(disable:4242)
+#pragma warning(disable:4244)
 #endif
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -63,7 +64,7 @@ extern "C" {
 namespace mega {
 
 #ifdef HAVE_FFMPEG
-MUTEX_CLASS GfxProcFreeImage::gfxMutex(false);
+std::mutex GfxProcFreeImage::gfxMutex;
 #endif
 
 GfxProcFreeImage::GfxProcFreeImage()
