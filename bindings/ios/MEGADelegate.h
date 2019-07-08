@@ -268,7 +268,7 @@
  *   - BusinessStatusExpired = -1
  *   - BusinessStatusInactive = 0
  *   - BusinessStatusActive = 1
- *   - BusinessStatusGracePerior = 2
+ *   - BusinessStatusGracePeriod = 2
  *
  *  Valid data in the MEGAEvent object received in the callback:
  *    - [MEGAEvent number] returns the new business status.
