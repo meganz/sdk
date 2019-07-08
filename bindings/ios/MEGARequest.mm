@@ -187,7 +187,7 @@ using namespace mega;
 }
 
 - (NSDictionary<NSString *, MEGAStringList *> *)megaStringListDictionary {
-    MegaStringListMap *map = self.megaRequest->getMegaStringListMap();
+    MegaStringListMap *map = self.megaRequest->getMegaStringListMap()->copy();
     NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:map->size()];
     MegaStringList *keyList = map->getKeys();
     for (int i = 0; i < keyList->size(); i++) {
