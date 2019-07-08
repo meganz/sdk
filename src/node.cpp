@@ -290,7 +290,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
 
-        if ((ptr + ll > end) || ptr[ll + 1])
+        if ((ptr + ll > end) || ptr[ll + 2])
         {
             return NULL;
         }
