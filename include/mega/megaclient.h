@@ -1016,7 +1016,10 @@ public:
     transferslot_list::iterator slotit;
 
     // FileFingerprint to node mapping
-    Fingerprints fingerprints;
+    Fingerprints mFingerprints;
+
+    // send updates to app when the storage size changes
+    int64_t mNotifiedSumSize = 0;
 
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;

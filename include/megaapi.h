@@ -3294,7 +3294,8 @@ public:
         EVENT_ACCOUNT_BLOCKED           = 4,
         EVENT_STORAGE                   = 5,
         EVENT_NODES_CURRENT             = 6,
-        EVENT_MEDIA_INFO_READY          = 7
+        EVENT_MEDIA_INFO_READY          = 7,
+        EVENT_STORAGE_SUM_CHANGED       = 8,
     };
 
     virtual ~MegaEvent();
@@ -3331,9 +3332,11 @@ public:
     /**
      * @brief Returns a number relative to this event
      *
+     * For event EVENT_STORAGE_SUM_CHANGED, this number is the new storage sum.
+     * 
      * @return Number relative to this event
      */
-    virtual int getNumber() const;
+    virtual int64_t getNumber() const;
 };
 
 /**

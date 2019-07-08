@@ -106,8 +106,8 @@ struct Fingerprints
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
 
 private:
-    fingerprint_set m_fingerprints;
-    m_off_t m_sumSizes = 0;
+    fingerprint_set mFingerprints;
+    m_off_t mSumSizes = 0;
 };
 
 

@@ -11755,6 +11755,13 @@ void MegaApiImpl::mediadetection_ready()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::storagesum_changed(int64_t newsum)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_STORAGE_SUM_CHANGED);
+    event->setNumber(newsum);
+    fireOnEvent(event);
+}
+
 #ifdef ENABLE_CHAT
 
 void MegaApiImpl::chatcreate_result(TextChat *chat, error e)
@@ -18110,7 +18117,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            request->setNumber(client->fingerprints.getSumSizes());
+            request->setNumber(client->mFingerprints.getSumSizes());
             fireOnRequestFinish(request, API_OK);
             break;
         }
@@ -29917,7 +29924,7 @@ const char *MegaEventPrivate::getText() const
     return text;
 }
 
-int MegaEventPrivate::getNumber() const
+int64_t MegaEventPrivate::getNumber() const
 {
     return number;
 }
@@ -29931,7 +29938,7 @@ void MegaEventPrivate::setText(const char *text)
     this->text = MegaApi::strdup(text);
 }
 
-void MegaEventPrivate::setNumber(int number)
+void MegaEventPrivate::setNumber(int64_t number)
 {
     this->number = number;
 }

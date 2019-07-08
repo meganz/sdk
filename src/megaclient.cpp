@@ -1047,6 +1047,7 @@ void MegaClient::init()
     business = false;
     businessMaster = false;
     businessStatus = 0;
+    mNotifiedSumSize = 0;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -2680,6 +2681,13 @@ void MegaClient::exec()
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
+
+    int64_t storage = mFingerprints.getSumSizes();
+    if (mNotifiedSumSize != storage)
+    {
+        mNotifiedSumSize = storage;
+        app->storagesum_changed(storage);
+    }
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -10899,7 +10907,7 @@ void MegaClient::purgenodesusersabortsc()
 #ifdef ENABLE_SYNC
     todebris.clear();
     tounlink.clear();
-    fingerprints.clear();
+    mFingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -12383,7 +12391,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
         {
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                fingerprints.remove(n);
+                mFingerprints.remove(n);
             }
         }
         else if (nn[nni].localnode && (n = nn[nni].localnode->node))
@@ -13012,12 +13020,12 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 
 Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 {
-    return fingerprints.nodebyfingerprint(fingerprint);
+    return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
 node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
 {
-    return fingerprints.nodesbyfingerprint(fingerprint);
+    return mFingerprints.nodesbyfingerprint(fingerprint);
 }
 
 static bool nodes_ctime_less(const Node* a, const Node* b)

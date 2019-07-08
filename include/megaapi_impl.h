@@ -1162,19 +1162,19 @@ public:
     MegaEventPrivate(int type);
     MegaEventPrivate(MegaEventPrivate *event);
     virtual ~MegaEventPrivate();
-    MegaEvent *copy();
+    MegaEvent *copy() override;
 
-    virtual int getType() const;
-    virtual const char *getText() const;
-    virtual int getNumber() const;
+    virtual int getType() const override;
+    virtual const char *getText() const override;
+    virtual int64_t getNumber() const override;
 
     void setText(const char* text);
-    void setNumber(int number);
+    void setNumber(int64_t number);
 
 protected:
     int type;
     const char* text;
-    int number;
+    int64_t number;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -2767,8 +2767,10 @@ protected:
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
         void getwelcomepdf_result(handle, string*, error) override;
-        virtual void backgrounduploadurl_result(error, string*) override;
-        virtual void mediadetection_ready() override;
+        void backgrounduploadurl_result(error, string*) override;
+        void mediadetection_ready() override;
+        void storagesum_changed(int64_t newsum) override;
+
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
