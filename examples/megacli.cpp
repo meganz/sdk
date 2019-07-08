@@ -2376,7 +2376,7 @@ void exec_getuserquota(autocomplete::ACState& s)
         storage = transfer = pro = true;
     }    
 
-    client->reqs.add(new CommandGetUserQuota(client, new AccountDetails, storage, transfer, pro, -1));
+    client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
 }
 
 void exec_querytransferquota(autocomplete::ACState& ac)
