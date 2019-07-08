@@ -290,7 +290,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
 
-        if ((ptr + ll > end) || ptr[ll + 2])
+        if (ptr + ll > end)
         {
             return NULL;
         }
@@ -301,6 +301,11 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     else
     {
         fa = NULL;
+    }
+
+    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
+    {
+        return NULL;
     }
 
     isExported = MemAccess::get<char>(ptr);
@@ -315,6 +320,11 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         {
             ptr += (unsigned char)*ptr + 1;
         }
+    }
+
+    if (ptr + sizeof(short) > end)
+    {
+        return NULL;
     }
 
     short numshares = MemAccess::get<short>(ptr);
