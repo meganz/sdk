@@ -9192,7 +9192,7 @@ class MegaApi
          * The SDK keeps a running total of the sum of the sizes of all the files stored in the cloud.
          * This function retrieves that sum, via listener in order to avoid any blocking when called
          * from a GUI thread. Provided the local state is caught up, the number will match the 
-         * storageUsed from MegaApi::getAccountDetails which requests data form the servers, and is much.
+         * storageUsed from MegaApi::getAccountDetails which requests data from the servers, and is much
          * quicker to retrieve.
          *
          * The MegaApi object must be logged in in an account or a public folder
