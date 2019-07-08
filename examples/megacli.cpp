@@ -2362,7 +2362,7 @@ void exec_treecompare(autocomplete::ACState& s)
 
 void exec_fingerprintsumsizes(autocomplete::ACState& s)
 {
-    cout << client->fingerprints.getSumSizes() << endl;
+    cout << client->mFingerprints.getSumSizes() << endl;
 }
 
 void exec_getuserquota(autocomplete::ACState& s)
