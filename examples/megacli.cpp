@@ -2371,7 +2371,10 @@ void exec_getuserquota(autocomplete::ACState& s)
     bool transfer = s.extractflag("-transfer");
     bool pro = s.extractflag("-pro");
 
-    if (!storage && !transfer && !pro) storage = transfer = pro = true;
+    if (!storage && !transfer && !pro)
+    {
+        storage = transfer = pro = true;
+    }    
 
     client->reqs.add(new CommandGetUserQuota(client, new AccountDetails, storage, transfer, pro, -1));
 }
