@@ -1044,8 +1044,8 @@ void MegaClient::init()
     *scsn = 0;
 
     notifyStorageChangeOnStateCurrent = false;  
-    businessMaster = false;
-    businessStatus = BIZ_STATUS_INACTIVE;
+    mBizMode = BIZ_MODE_UNKNOWN;
+    mBizStatus = BIZ_STATUS_INACTIVE;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -1110,8 +1110,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
-    tsgraceperiod = 0;
-    tsexpired = 0;
+    mBizGracePeriodTs = 0;
+    mBizExpirationTs = 0;
     ststatus = STORAGE_GREEN;
     looprequested = false;
 
@@ -3617,8 +3617,8 @@ void MegaClient::locallogout()
     fetchnodestag = 0;
     ststatus = STORAGE_GREEN;
     overquotauntil = 0;
-    tsgraceperiod = 0;
-    tsexpired = 0;
+    mBizGracePeriodTs = 0;
+    mBizExpirationTs = 0;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -6162,18 +6162,18 @@ void MegaClient::sc_la()
 
 void MegaClient::sc_ub()
 {
-    bizstatus_t status = BIZ_STATUS_UNKNOWN;
-    bizmode_t mode = BIZ_MODE_UNKNOWN;
+    BizStatus status = BIZ_STATUS_UNKNOWN;
+    BizMode mode = BIZ_MODE_UNKNOWN;
     for (;;)
     {
         switch (jsonsc.getnameid())
         {
             case 's':
-                status = bizstatus_t(jsonsc.getint());
+                status = BizStatus(jsonsc.getint());
                 break;
 
             case 'm':
-                mode = bizmode_t(jsonsc.getint());
+                mode = BizMode(jsonsc.getint());
                 break;
 
             case EOO:
@@ -6191,18 +6191,18 @@ void MegaClient::sc_ub()
                     return;
                 }
 
-                businessStatus = status;
-                businessMaster = mode == BIZ_MODE_MASTER;
+                mBizStatus = status;
+                mBizMode = mode;
 
                 // FIXME: if API decides tp include the expiration ts, remove the block below
-                if (businessStatus == BIZ_STATUS_ACTIVE)
+                if (mBizStatus == BIZ_STATUS_ACTIVE)
                 {
                     // If new status is active, reset timestamps of transitions
-                    tsgraceperiod = 0;
-                    tsexpired = 0;
+                    mBizGracePeriodTs = 0;
+                    mBizExpirationTs = 0;
                 }
 
-                app->notify_business_status(businessStatus);
+                app->notify_business_status(mBizStatus);
                 return;
 
             default:

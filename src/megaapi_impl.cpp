@@ -5048,12 +5048,12 @@ bool MegaApiImpl::isAchievementsEnabled()
 
 bool MegaApiImpl::isBusinessAccount()
 {
-    return client->businessStatus != BIZ_STATUS_INACTIVE;
+    return client->mBizStatus != BIZ_STATUS_INACTIVE;
 }
 
 bool MegaApiImpl::isMasterBusinessAccount()
 {
-    return client->businessMaster;
+    return client->mBizMode == BIZ_MODE_MASTER;
 }
 
 bool MegaApiImpl::isBusinessAccountActive()
@@ -5066,16 +5066,16 @@ int MegaApiImpl::getBusinessStatus()
     m_time_t now = m_time(nullptr);
 
     // Check if current status has expired (based on ts of transition) and update status
-    if (client->tsexpired && client->tsexpired < now)
+    if (client->mBizExpirationTs && client->mBizExpirationTs < now)
     {
-       client->businessStatus = BIZ_STATUS_EXPIRED;
+       client->mBizStatus = BIZ_STATUS_EXPIRED;
     }
-    else if (client->tsgraceperiod && client->tsgraceperiod < now)
+    else if (client->mBizGracePeriodTs && client->mBizGracePeriodTs < now)
     {
-        client->businessStatus = BIZ_STATUS_GRACE_PERIOD;
+        client->mBizStatus = BIZ_STATUS_GRACE_PERIOD;
     }
 
-    return client->businessStatus;
+    return client->mBizStatus;
 }
 
 bool MegaApiImpl::checkPassword(const char *password)
@@ -13210,7 +13210,7 @@ void MegaApiImpl::notify_disconnect()
     fireOnEvent(event);
 }
 
-void MegaApiImpl::notify_business_status(bizstatus_t status)
+void MegaApiImpl::notify_business_status(BizStatus status)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_BUSINESS_STATUS);
     event->setNumber(status);
