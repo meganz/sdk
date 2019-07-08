@@ -1803,7 +1803,7 @@ void Fingerprints::add(Node* n)
 {
     if (n->type == FILENODE)
     {
-        n->fingerprint_it = mFingerprints.insert((FileFingerprint*)this);
+        n->fingerprint_it = mFingerprints.insert(n);
         mSumSizes += n->size;
     }
 }
