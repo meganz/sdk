@@ -19,6 +19,8 @@
  * program.
  */
 
+#include "mega.h"
+
 using namespace mega;
 
 extern MegaClient* client;
@@ -266,6 +268,8 @@ struct DemoAppFolder : public DemoApp
     void users_updated(User**, int) {}
     void pcrs_updated(PendingContactRequest**, int) {}
 };
+
+#include <mega/autocomplete.h>
 
 void exec_apiurl(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);

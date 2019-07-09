@@ -348,7 +348,7 @@ void CommandPutFile::procresult()
     {
         if (!canceled)
         {
-            tslot->transfer->failed((error)client->json.getint());
+            tslot->transfer->failed(error(client->json.getint()));
         }
        
         return;
@@ -495,7 +495,7 @@ void CommandDirectRead::procresult()
     {
         if (!canceled && drn)
         {
-            return drn->cmdresult((error)client->json.getint());
+            return drn->cmdresult(error(client->json.getint()));
         }
     }
     else
@@ -1155,7 +1155,6 @@ void CommandPutNodes::procresult()
         {
             client->activateoverquota(0);
         }
-
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
@@ -2066,7 +2065,7 @@ void CommandSetShare::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->share_result((error)client->json.getint());
+        return client->app->share_result(error(client->json.getint()));
     }
 
     for (;;)
@@ -2441,7 +2440,7 @@ void CommandPurchaseAddItem::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->additem_result((error)client->json.getint());
+        return client->app->additem_result(error(client->json.getint()));
     }
 
     handle item = client->json.gethandle(8);
@@ -2481,7 +2480,7 @@ void CommandPurchaseCheckout::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->checkout_result(NULL, (error)client->json.getint());
+        return client->app->checkout_result(NULL, error(client->json.getint()));
     }
 
     //Expected response: "EUR":{"res":X,"code":Y}}
@@ -3459,11 +3458,14 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
-    bool b = false;
-    int m = -1;
-    int s = -2;
+
     int  smsve = -1;
     string smsv;
+
+    bool b = false;
+    BizMode m = BIZ_MODE_UNKNOWN;
+    BizStatus s = BIZ_STATUS_UNKNOWN;
+    std::vector<std::pair<BizStatus, m_time_t>> sts;
 
     if (client->json.isnumeric())
     {
@@ -3545,7 +3547,7 @@ void CommandGetUserData::procresult()
             }
             break;
 
-        case 'b':
+        case 'b':   // business account's info
             assert(!b);
             b = true;
             if (client->json.enterobject())
@@ -3555,16 +3557,64 @@ void CommandGetUserData::procresult()
                 {
                     switch (client->json.getnameid())
                     {
-                        case 's':
+                        case 's':   // status
                             // -1: expired, 1: active, 2: grace-period
-                            s = client->json.getint32();
+                            s = BizStatus(client->json.getint32());
                             break;
-                        case 'm':
-                            m = client->json.getint32();
+
+                        case 'm':   // mode
+                            m = BizMode(client->json.getint32());
                             break;
+
+                        case MAKENAMEID3('s', 't', 's'):    // status timestamps
+                            // ie. "sts":[{"s":-1,"ts":1566182227},{"s":1,"ts":1563590227}]
+                            client->json.enterarray();
+                            while (client->json.enterobject())
+                            {
+                                BizStatus status = BIZ_STATUS_UNKNOWN;
+                                m_time_t ts = 0;
+
+                                bool exit = false;
+                                while (!exit)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                           status = BizStatus(client->json.getint());
+                                           break;
+
+                                        case MAKENAMEID2('t', 's'):
+                                           ts = client->json.getint();
+                                           break;
+
+                                        case EOO:
+                                            if (status != BIZ_STATUS_UNKNOWN && ts != 0)
+                                            {
+                                                sts.push_back(std::make_pair(status, ts));
+                                            }
+                                            else
+                                            {
+                                                LOG_warn << "Unpaired/missing business status-ts in b.sts";
+                                            }
+                                            exit = true;
+                                            break;
+
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                            }
+                                    }
+                                }
+                                client->json.leaveobject();
+                            }
+                            client->json.leavearray();
+                            break;
+
                         case EOO:
                             endobject = true;
                             break;
+
                         default:
                             if (!client->json.storeobject())
                             {
@@ -3573,14 +3623,6 @@ void CommandGetUserData::procresult()
                     }
                 }
                 client->json.leaveobject();
-
-                // integrity checks
-                if ( (s == -2 || (s != -1 && s != 1 && s != 2))     // status not received or invalid
-                     || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
-                {
-                    LOG_err << "Invalid business status / account mode";
-                    return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
-                }
             }
             break;
 
@@ -3592,7 +3634,7 @@ void CommandGetUserData::procresult()
             }
             break;
 
-        case EOO:            
+        case EOO:
             if (v)
             {
                 client->accountversion = v;
@@ -3608,13 +3650,11 @@ void CommandGetUserData::procresult()
             client->ssrs_enabled = ssrs;
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
+
             client->smsve_state = smsve_state_t(smsve);
             client->sms_verifiedphone = smsv;
-            client->k = k;
 
-            client->business = b;
-            client->businessStatus = b ? s : 0;
-            client->businessMaster = b ? bool(m) : false;
+            client->k = k;
 
             if (len_privk)
             {
@@ -3625,6 +3665,78 @@ void CommandGetUserData::procresult()
 
             client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
             client->cachedug = true;
+
+            if (b)  // business account
+            {
+                // integrity checks
+                if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
+                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                {
+                    LOG_err << "GetUserData: invalid business status / account mode";
+                }
+                else
+                {
+                    if (client->mBizStatus != s)
+                    {
+                        client->mBizStatus = s;
+                        client->app->notify_business_status(s);
+                    }
+                    client->mBizMode = m;
+
+                    for (auto it : sts)
+                    {
+                        BizStatus status = it.first;
+                        m_time_t ts = it.second;
+                        if (status == BIZ_STATUS_EXPIRED)
+                        {
+                            client->mBizExpirationTs = ts;
+                        }
+                        else if (status == BIZ_STATUS_GRACE_PERIOD)
+                        {
+                            client->mBizGracePeriodTs = ts;
+                        }
+                        else
+                        {
+                            LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
+                        }
+                    }
+
+                    // if current business status will expire sooner than the scheduled `ug`, update the
+                    // backoff to a shorter one in order to refresh the business status asap
+                    m_time_t auxts = 0;
+                    m_time_t now = m_time(nullptr);
+                    if (client->mBizGracePeriodTs && client->mBizGracePeriodTs > now)
+                    {
+                        auxts = client->mBizGracePeriodTs;
+                    }
+                    else if (client->mBizExpirationTs && client->mBizExpirationTs > now)
+                    {
+                        auxts = client->mBizExpirationTs;
+                    }
+                    if (auxts)
+                    {
+                        dstime diff = (now - auxts) * 10;
+                        dstime current = client->btugexpiration.backoffdelta();
+                        if (current > diff)
+                        {
+                            client->btugexpiration.backoff(diff);
+                        }
+                    }
+                    // TODO: check if type of account has changed and notify with new event (not yet supported by API)
+                }
+            }
+            else
+            {
+                BizStatus oldStatus = client->mBizStatus;
+                client->mBizStatus = BIZ_STATUS_INACTIVE;
+                client->mBizMode = BIZ_MODE_UNKNOWN;
+                client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+
+                if (client->mBizStatus != oldStatus)
+                {
+                    client->app->notify_business_status(client->mBizStatus);
+                }
+            }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
             return;
@@ -4156,7 +4268,7 @@ void CommandSetPH::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->exportnode_result((error)client->json.getint());
+        return client->app->exportnode_result(error(client->json.getint()));
     }
 
     handle ph = client->json.gethandle();
@@ -4169,7 +4281,7 @@ void CommandSetPH::procresult()
     Node *n = client->nodebyhandle(h);
     if (n)
     {
-        n->setpubliclink(ph, ets, false);
+        n->setpubliclink(ph, time(nullptr), ets, false);
         n->changed.publiclink = true;
         client->notifynode(n);
     }
@@ -4196,7 +4308,7 @@ void CommandGetPH::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->openfilelink_result((error)client->json.getint());
+        return client->app->openfilelink_result(error(client->json.getint()));
     }
 
     m_off_t s = -1;
@@ -5038,7 +5150,7 @@ void CommandCleanRubbishBin::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->cleanrubbishbin_result((error)client->json.getint());
+        client->app->cleanrubbishbin_result(error(client->json.getint()));
     }
     else
     {
@@ -5819,7 +5931,7 @@ void CommandChatGrantAccess::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error) client->json.getint();
+        error e = error(client->json.getint());
         if (e == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())

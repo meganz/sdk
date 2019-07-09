@@ -384,9 +384,6 @@ typedef list<DirectReadSlot*> drs_list;
 typedef map<const string*, LocalNode*, StringCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
 
-// maps FileFingerprints to node
-typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
-
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
@@ -549,6 +546,10 @@ struct recentaction
     node_vector nodes;
 };
 typedef vector<recentaction> recentactions_vector;
+
+typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
+typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
+
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

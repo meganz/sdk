@@ -407,6 +407,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
+        int64_t getPublicLinkCreationTime();
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;
@@ -1169,19 +1170,19 @@ public:
     MegaEventPrivate(int type);
     MegaEventPrivate(MegaEventPrivate *event);
     virtual ~MegaEventPrivate();
-    MegaEvent *copy();
+    MegaEvent *copy() override;
 
-    virtual int getType() const;
-    virtual const char *getText() const;
-    virtual int getNumber() const;
+    virtual int getType() const override;
+    virtual const char *getText() const override;
+    virtual int64_t getNumber() const override;
 
     void setText(const char* text);
-    void setNumber(int number);
+    void setNumber(int64_t number);
 
 protected:
     int type;
     const char* text;
-    int number;
+    int64_t number;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -1985,6 +1986,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+        void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
@@ -2826,8 +2828,10 @@ protected:
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
         void getwelcomepdf_result(handle, string*, error) override;
-        virtual void backgrounduploadurl_result(error, string*) override;
-        virtual void mediadetection_ready() override;
+        void backgrounduploadurl_result(error, string*) override;
+        void mediadetection_ready() override;
+        void storagesum_changed(int64_t newsum) override;
+
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
@@ -2904,6 +2908,9 @@ protected:
 
         // notify about a finished HTTP request
         void http_result(error, int, byte *, int) override;
+
+        // notify about a business account status change
+        virtual void notify_business_status(BizStatus status);
 
         // notify about a finished timer
         void timer_result(error) override;

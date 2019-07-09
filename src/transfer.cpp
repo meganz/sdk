@@ -354,26 +354,29 @@ void Transfer::failed(error e, dstime timeleft)
         client->reqtag = creqtag;
     }
 
-    if (e != API_EOVERQUOTA)
+    if (e != API_EBUSINESSPASTDUE)
     {
-        bt.backoff();
-        state = TRANSFERSTATE_RETRYING;
-        client->app->transfer_failed(this, e, timeleft);
-        client->looprequested = true;
-    }
-    else
-    {
-        bt.backoff(timeleft ? timeleft : NEVER);
-        client->activateoverquota(timeleft);
-        if (!slot)
+        if (e != API_EOVERQUOTA)
         {
+            bt.backoff();
+            state = TRANSFERSTATE_RETRYING;
             client->app->transfer_failed(this, e, timeleft);
+            client->looprequested = true;
+        }
+        else
+        {
+            bt.backoff(timeleft ? timeleft : NEVER);
+            client->activateoverquota(timeleft);
+            if (!slot)
+            {
+                client->app->transfer_failed(this, e, timeleft);
+            }
         }
     }
 
     for (file_list::iterator it = files.begin(); it != files.end(); it++)
     {
-        if ( (*it)->failed(e)
+        if ( ((*it)->failed(e) && (e != API_EBUSINESSPASTDUE))
                 || (e == API_ENOENT // putnodes returned -9, file-storage server unavailable
                     && type == PUT
                     && tempurls.empty()
