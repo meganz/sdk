@@ -168,6 +168,10 @@ using namespace mega;
     return self.megaApi->isBusinessAccountActive();
 }
 
+- (BusinessStatus)businessStatus {
+    return (BusinessStatus) self.megaApi->getBusinessStatus();
+}
+
 #ifdef ENABLE_CHAT
 
 - (NSString *)myFingerprint {
