@@ -2441,7 +2441,7 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef USE_MEDIAINFO
     p->Add(exec_mediainfo, sequence(text("mediainfo"), either(sequence(text("calc"), localFSFile()), sequence(text("show"), remoteFSFile(client, &cwd)))));
 #endif
-    p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber")), sequence(text("code"), param("verificationcode")))));
+    p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
     p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd)));
@@ -5533,22 +5533,14 @@ void exec_smsverify(autocomplete::ACState& s)
 {
     if (s.words[1].s == "send")
     {
-        if (CommandSMSVerificationSend::isPhoneNumber(s.words[2].s))
-        {
-            client->reqs.add(new CommandSMSVerificationSend(client, s.words[2].s));
-        }
-        else
+        if (client->smsverificationsend(s.words[2].s, s.words[3].s == "reverifywhitelisted") != API_OK)
         {
             cout << "phonenumber is invalid" << endl;
         }
     }
     else if (s.words[1].s == "code")
     {
-        if (CommandSMSVerificationCheck::isVerificationCode(s.words[2].s))
-        {
-            client->reqs.add(new CommandSMSVerificationCheck(client, s.words[2].s));
-        }
-        else
+        if (client->smsverificationcheck(s.words[2].s) != API_OK)
         {
             cout << "verificationcode is invalid" << endl;
         }
@@ -5557,6 +5549,7 @@ void exec_smsverify(autocomplete::ACState& s)
 
 void exec_verifiedphonenumber(autocomplete::ACState& s)
 {
+    cout << "Verified phone number: " << client->mSmsVerifiedPhone << endl;
 }
 
 void exec_killsession(autocomplete::ACState& s)

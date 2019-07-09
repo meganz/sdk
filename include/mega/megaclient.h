@@ -573,6 +573,12 @@ public:
     // get info about a folder link
     void getpubliclinkinfo(handle h);
 
+    // send an sms to verificate a phone number (returns EARGS if phone number has invalid format)
+    error smsverificationsend(const string& phoneNumber, bool reVerifyingWhitelisted = false);
+
+    // check the verification code received by sms is valid (returns EARGS if provided code has invalid format)
+    error smsverificationcheck(const string& verificationCode);
+
 #ifdef ENABLE_CHAT
 
     // create a new chat with multiple users and different privileges

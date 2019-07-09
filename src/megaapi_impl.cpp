@@ -20988,31 +20988,19 @@ void MegaApiImpl::sendPendingRequests()
         {
             string phoneNumber = request->getText();
             bool reverifying_whitelisted = request->getFlag();
-            if (CommandSMSVerificationSend::isPhoneNumber(phoneNumber))
-            {
-                client->reqs.add(new CommandSMSVerificationSend(client, phoneNumber, reverifying_whitelisted));
-                if (reverifying_whitelisted)
-                {
-                    client->reqs.add(new CommandGetUserData(client));
-                }
-            }
-            else
-            {
-                e = API_EARGS;
-            }
+
+            e = client->smsverificationsend(phoneNumber, reverifying_whitelisted);
             break;
         }
         case MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE:
         {
             string code = request->getText();
-            if (CommandSMSVerificationCheck::isVerificationCode(code))
+            e = client->smsverificationcheck(code);
+            // FIXME: if the API returned the new state and the verified phone number in
+            // the response to the code's verification, the following block can be deleted
+            if (e == API_OK)
             {
-                client->reqs.add(new CommandSMSVerificationCheck(client, code));
                 client->reqs.add(new CommandGetUserData(client));
-            }
-            else
-            {
-                e = API_EARGS;
             }
             break;
         }

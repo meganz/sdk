@@ -7205,19 +7205,17 @@ void CommandSetLastAcknowledged::procresult()
     }
 }
 
-CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phonenumber, bool reverifying_whitelisted)
+CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phoneNumber, bool reVerifyingWhitelisted)
 {
     cmd("smss");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
-    if (isPhoneNumber(phonenumber))
-    {
-        arg("n", phonenumber.c_str());
-    }
+    assert(isPhoneNumber(phoneNumber));
+    arg("n", phoneNumber.c_str());
 
-    if (reverifying_whitelisted)
+    if (reVerifyingWhitelisted)
     {
-        arg("to", 1);
+        arg("to", 1);   // test override
     }
 
     tag = client->reqtag;
