@@ -1228,6 +1228,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             switch (context)
             {
                 case API_EC_IMPORT:
+                case API_EC_DOWNLOAD:
                     return "Not accessible due to ToS/AUP violation";
                 default:
                     return "Blocked";
