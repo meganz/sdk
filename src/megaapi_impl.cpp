@@ -5054,22 +5054,41 @@ bool MegaApiImpl::isAchievementsEnabled()
 
 bool MegaApiImpl::isBusinessAccount()
 {
-    return client->business;
+    return client->mBizStatus != BIZ_STATUS_INACTIVE;
 }
 
 bool MegaApiImpl::isMasterBusinessAccount()
 {
-    return client->businessMaster;
+    return client->mBizMode == BIZ_MODE_MASTER;
 }
 
 bool MegaApiImpl::isBusinessAccountActive()
 {
-    return (client->businessStatus > 0);
+    return getBusinessStatus() >= BIZ_STATUS_ACTIVE;
 }
 
 int MegaApiImpl::getBusinessStatus()
 {
-    return client->businessStatus;
+    m_time_t now = m_time(nullptr);
+
+    // Check if current status has expired (based on ts of transition) and update status
+    BizStatus oldStatus = client->mBizStatus;
+    if (client->mBizExpirationTs && client->mBizExpirationTs < now)
+    {
+        client->mBizStatus = BIZ_STATUS_EXPIRED;
+
+    }
+    else if (client->mBizGracePeriodTs && client->mBizGracePeriodTs < now)
+    {
+        client->mBizStatus = BIZ_STATUS_GRACE_PERIOD;
+    }
+
+    if (client->mBizStatus != oldStatus)
+    {
+        client->app->notify_business_status(client->mBizStatus);
+    }
+
+    return client->mBizStatus;
 }
 
 bool MegaApiImpl::checkPassword(const char *password)
@@ -13217,6 +13236,13 @@ void MegaApiImpl::notify_disconnect()
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_business_status(BizStatus status)
+{
+    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_BUSINESS_STATUS);
+    event->setNumber(status);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::http_result(error e, int httpCode, byte *data, int size)
 {
     if (requestMap.find(client->restag) == requestMap.end())
@@ -14368,6 +14394,14 @@ void MegaApiImpl::whyamiblocked_result(int code)
         else if (code == 200)
         {
             reason = "Your account has been suspended due to multiple breaches of Mega's Terms of Service. Please check your email inbox.";
+        }
+        else if (code == 400)
+        {
+            reason = "Your account has been disabled by your administrator. You may contact your business account administrator for further details.";
+        }
+        else if (code == 401)
+        {
+            reason = "Your account has been removed by your administrator. You may contact your business account administrator for further details.";
         }
         //else if (code == 300) --> default reason
 

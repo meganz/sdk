@@ -1044,11 +1044,11 @@ void MegaClient::init()
     scnotifyurl.clear();
     *scsn = 0;
 
-    notifyStorageChangeOnStateCurrent = false;  
-    business = false;
-    businessMaster = false;
-    businessStatus = 0;
+    notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
+
+    mBizMode = BIZ_MODE_UNKNOWN;
+    mBizStatus = BIZ_STATUS_INACTIVE;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -1113,6 +1113,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
+    mBizGracePeriodTs = 0;
+    mBizExpirationTs = 0;
     ststatus = STORAGE_GREEN;
     looprequested = false;
 
@@ -3634,6 +3636,8 @@ void MegaClient::locallogout()
     fetchnodestag = 0;
     ststatus = STORAGE_GREEN;
     overquotauntil = 0;
+    mBizGracePeriodTs = 0;
+    mBizExpirationTs = 0;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -4188,6 +4192,11 @@ bool MegaClient::procsc()
                             case MAKENAMEID2('l', 'a'):
                                 // last acknowledged
                                 sc_la();
+                                break;
+
+                            case MAKENAMEID2('u', 'b'):
+                                // business account update
+                                sc_ub();
                                 break;
                         }
                     }
@@ -6177,6 +6186,62 @@ void MegaClient::sc_la()
             }
         }
     }
+}
+
+void MegaClient::sc_ub()
+{
+    BizStatus status = BIZ_STATUS_UNKNOWN;
+    BizMode mode = BIZ_MODE_UNKNOWN;
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 's':
+                status = BizStatus(jsonsc.getint());
+                break;
+
+            case 'm':
+                mode = BizMode(jsonsc.getint());
+                break;
+
+            case EOO:
+                if ((status < BIZ_STATUS_EXPIRED || status > BIZ_STATUS_GRACE_PERIOD))
+                {
+                    std::string err = "Missing or invalid status in `ub` action packet";
+                    LOG_err << err;
+                    sendevent(99449, err.c_str(), 0);
+                    return;
+                }
+                if ( (mode != BIZ_MODE_MASTER && mode != BIZ_MODE_SUBUSER)
+                     && (status != BIZ_STATUS_INACTIVE) )   // when inactive, `m` might be missing (unknown/undefined)
+                {
+                    LOG_err << "Unexpected mode for business account at `ub`. Mode: " << mode;
+                    return;
+                }
+
+                mBizStatus = status;
+                mBizMode = mode;
+
+                // FIXME: if API decides tp include the expiration ts, remove the block below
+                if (mBizStatus == BIZ_STATUS_ACTIVE)
+                {
+                    // If new status is active, reset timestamps of transitions
+                    mBizGracePeriodTs = 0;
+                    mBizExpirationTs = 0;
+                }
+
+                app->notify_business_status(mBizStatus);
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `ub` action packet";
+                    return;
+                }
+        }
+    }
+
 }
 
 // scan notified nodes for

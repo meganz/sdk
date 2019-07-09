@@ -49,7 +49,9 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
     MEGAErrorTypeApiEAppKey = -22,                 // invalid or missing application key
     MEGAErrorTypeApiESSL = -23,                    // invalid SSL key
     MEGAErrorTypeApiEgoingOverquota = -24,         // Not enough quota
-    MEGAErrorTypeApiEMFARequired = -26             // Multi-factor authentication required
+    MEGAErrorTypeApiEMFARequired = -26,            // Multi-factor authentication required
+    MEGAErrorTypeApiEMasterOnly = -27,             ///< Access denied for sub-users (only for business accounts)
+    MEGAErrorTypeApiEBusinessPastDue = -28         ///< Business account expired
 };
 
 

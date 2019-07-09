@@ -686,6 +686,12 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
+
     // storage status
     storagestatus_t ststatus;
 
@@ -821,6 +827,7 @@ private:
 #endif
     void sc_uac();
     void sc_la();
+    void sc_ub();
 
     void init();
 
@@ -1460,14 +1467,11 @@ public:
     // the SDK is trying to log out
     int loggingout;
 
-    // true if the account is a business account
-    bool business;
-
     // true if the account is a master business account, false if it's a sub-user account
-    bool businessMaster;
+    BizMode mBizMode;
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
-    int businessStatus;
+    BizStatus mBizStatus;
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
     ~MegaClient();
