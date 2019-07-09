@@ -7138,14 +7138,14 @@ class MegaApi
         int smsAllowedState();
 
         /**
-         * @brief Check if the opt-in or account unblocking SMS is allowed
+         * @brief Get the verified phone number for the account logged in
          *
          * Returns the phone number previously confirmed with MegaApi::sendSMSVerificationCode
          * and MegaApi::checkSMSVerificationCode.
          *
          * You take the ownership of the returned value.
          * 
-         * @return NULL if there no verified number, otherwise a string containing that phone number.
+         * @return NULL if there is no verified number, otherwise a string containing that phone number.
          */
         char* smsVerifiedPhoneNumber();
 
