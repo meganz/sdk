@@ -1504,16 +1504,11 @@ public:
     MegaStringListMap* copy() const override;
     const MegaStringList* get(const char* key) const override;
     MegaStringList *getKeys() const override;
-    void set(const char* key, const MegaStringList* value) override; // takes ownership of value
+    void set(const char* key, const MegaStringList* value) override;
     int size() const override;
-protected:
-    struct Compare
-    {
-        bool operator()(const std::unique_ptr<const char[]>& rhs,
-                        const std::unique_ptr<const char[]>& lhs) const;
-    };
 
-    map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> mMap;
+protected:
+    map<std::string, std::unique_ptr<const MegaStringList>> mMap;
 };
 
 class MegaStringTablePrivate : public MegaStringTable
@@ -1522,9 +1517,10 @@ public:
     MegaStringTablePrivate() = default;
     MEGA_DISABLE_COPY_MOVE(MegaStringTablePrivate)
     MegaStringTable* copy() const override;
-    void append(const MegaStringList* value) override; // takes ownership of value
+    void append(const MegaStringList* value) override;
     const MegaStringList* get(int i) const override;
     int size() const override;
+
 protected:
     vector<std::unique_ptr<const MegaStringList>> mTable;
 };
