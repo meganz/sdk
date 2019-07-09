@@ -5779,6 +5779,10 @@ class MegaGlobalListener
          *
          * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
          *
+         * - MegaEvent::EVENT_STORAGE_SUM_CHANGED: when the storage sum has changed.
+         *
+         * For this event type, MegaEvent::getNumber provides the new storage sum.
+         *
          * - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
          *
          * For this event type, MegaEvent::getNumber provides the new business status.
@@ -6246,6 +6250,10 @@ class MegaListener
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
          * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received
+         *
+         * - MegaEvent::EVENT_STORAGE_SUM_CHANGED: when the storage sum has changed.
+         *
+         * For this event type, MegaEvent::getNumber provides the new storage sum.
          *
          * - MegaEvent::EVENT_BUSINESS_STATUS: when the status of a business account has changed.
          *
