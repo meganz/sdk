@@ -3063,8 +3063,8 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
 #endif
 
     stringMap = NULL;
-    stringListMap = NULL;
-    stringTable = NULL;
+    mStringListMap = NULL;
+    mStringTable = NULL;
     folderInfo = NULL;
     settings = NULL;
     backgroundMediaUpload = NULL;
@@ -3138,8 +3138,8 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #endif
 
     this->stringMap = request->getMegaStringMap() ? request->stringMap->copy() : NULL;
-    this->stringListMap = request->getMegaStringListMap() ? request->stringListMap->copy() : NULL;
-    this->stringTable = request->getMegaStringTable() ? request->stringTable->copy() : NULL;
+    this->mStringListMap = request->getMegaStringListMap() ? request->mStringListMap->copy() : NULL;
+    this->mStringTable = request->getMegaStringTable() ? request->mStringTable->copy() : NULL;
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
@@ -3214,30 +3214,30 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
 
 MegaStringListMap *MegaRequestPrivate::getMegaStringListMap() const
 {
-    return stringListMap;
+    return mStringListMap;
 }
 
-void MegaRequestPrivate::setMegaStringListMap(const MegaStringListMap* string_list_map)
+void MegaRequestPrivate::setMegaStringListMap(const MegaStringListMap* stringListMap)
 {
-    if (stringListMap)
+    if (mStringListMap)
     {
-        delete stringListMap;
+        delete mStringListMap;
     }
-    stringListMap = string_list_map ? string_list_map->copy() : nullptr;
+    mStringListMap = stringListMap ? stringListMap->copy() : nullptr;
 }
 
 MegaStringTable *MegaRequestPrivate::getMegaStringTable() const
 {
-    return stringTable;
+    return mStringTable;
 }
 
-void MegaRequestPrivate::setMegaStringTable(const MegaStringTable* string_table)
+void MegaRequestPrivate::setMegaStringTable(const MegaStringTable* stringTable)
 {
-    if (stringTable)
+    if (mStringTable)
     {
-        delete stringTable;
+        delete mStringTable;
     }
-    stringTable = string_table ? string_table->copy() : nullptr;
+    mStringTable = stringTable ? stringTable->copy() : nullptr;
 }
 
 MegaFolderInfo *MegaRequestPrivate::getMegaFolderInfo() const
@@ -3351,8 +3351,8 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete achievementsDetails;
     delete [] text;
     delete stringMap;
-    delete stringListMap;
-    delete stringTable;
+    delete mStringListMap;
+    delete mStringTable;
     delete folderInfo;
     delete timeZoneDetails;
     delete settings;

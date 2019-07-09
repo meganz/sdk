@@ -1095,9 +1095,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
         MegaStringListMap *getMegaStringListMap() const override;
-        void setMegaStringListMap(const MegaStringListMap *);
+        void setMegaStringListMap(const MegaStringListMap *stringListMap);
         MegaStringTable *getMegaStringTable() const override;
-        void setMegaStringTable(const MegaStringTable *);
+        void setMegaStringTable(const MegaStringTable *stringTable);
         MegaFolderInfo *getMegaFolderInfo() const override;
         void setMegaFolderInfo(const MegaFolderInfo *);
         const MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
@@ -1157,8 +1157,8 @@ protected:
         MegaTextChatList *chatList;
 #endif
         MegaStringMap *stringMap;
-        MegaStringListMap *stringListMap;
-        MegaStringTable *stringTable;
+        MegaStringListMap *mStringListMap;
+        MegaStringTable *mStringTable;
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
