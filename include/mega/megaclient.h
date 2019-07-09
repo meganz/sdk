@@ -738,6 +738,7 @@ private:
     // server-client command trigger connection
     HttpReq* pendingsc;
     BackoffTimer btsc;
+    bool stopsc = false;
 
     // badhost report
     HttpReq* badhostcs;
@@ -1023,7 +1024,10 @@ public:
     transferslot_list::iterator slotit;
 
     // FileFingerprint to node mapping
-    fingerprint_set fingerprints;
+    Fingerprints mFingerprints;
+
+    // send updates to app when the storage size changes
+    int64_t mNotifiedSumSize = 0;
 
     // asymmetric to symmetric key rewriting
     handle_vector nodekeyrewrite;

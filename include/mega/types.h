@@ -383,9 +383,6 @@ typedef list<DirectReadSlot*> drs_list;
 typedef map<const string*, LocalNode*, StringCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
 
-// maps FileFingerprints to node
-typedef multiset<FileFingerprint*, FileFingerprintCmp> fingerprint_set;
-
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,

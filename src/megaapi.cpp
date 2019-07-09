@@ -418,6 +418,11 @@ char * MegaNode::getPublicLink(bool includeKey)
     return NULL;
 }
 
+int64_t MegaNode::getPublicLinkCreationTime()
+{
+    return 0;
+}
+
 bool MegaNode::isFile()
 {
     return false;
@@ -1202,7 +1207,13 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_ENOENT:
             return "Not found";
         case API_ECIRCULAR:
-            return "Circular linkage detected";
+            switch (context)
+            {
+                case API_EC_UPLOAD:
+                    return "Upload produces recursivity";
+                default:
+                    return "Circular linkage detected";
+            }
         case API_EACCESS:
             return "Access denied";
         case API_EEXIST:
@@ -2279,6 +2290,11 @@ void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
 void MegaApi::fetchNodes(MegaRequestListener *listener)
 {
     pImpl->fetchNodes(listener);
+}
+
+void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
+{
+    pImpl->getCloudStorageUsed(listener);
 }
 
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
@@ -5751,7 +5767,7 @@ const char *MegaEvent::getText() const
     return NULL;
 }
 
-int MegaEvent::getNumber() const
+int64_t MegaEvent::getNumber() const
 {
     return 0;
 }

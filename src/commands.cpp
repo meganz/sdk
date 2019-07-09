@@ -4260,7 +4260,7 @@ void CommandSetPH::procresult()
     Node *n = client->nodebyhandle(h);
     if (n)
     {
-        n->setpubliclink(ph, ets, false);
+        n->setpubliclink(ph, time(nullptr), ets, false);
         n->changed.publiclink = true;
         client->notifynode(n);
     }
@@ -6428,6 +6428,7 @@ void CommandChatLinkURL::procresult()
 
                 case MAKENAMEID2('t', 's'):
                     ts = client->json.getint();
+                    break;
 
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)

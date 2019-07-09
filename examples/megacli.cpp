@@ -2360,6 +2360,25 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 #endif
 
+void exec_getcloudstorageused(autocomplete::ACState& s)
+{
+    cout << client->mFingerprints.getSumSizes() << endl;
+}
+
+void exec_getuserquota(autocomplete::ACState& s)
+{
+    bool storage = s.extractflag("-storage");
+    bool transfer = s.extractflag("-transfer");
+    bool pro = s.extractflag("-pro");
+
+    if (!storage && !transfer && !pro)
+    {
+        storage = transfer = pro = true;
+    }    
+
+    client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
+}
+
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
@@ -2607,6 +2626,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
+    p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
+    p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6647,13 +6668,13 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (storage)
     {
-        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)" << endl;
+        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
         for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;            
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
             cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
         }
     }
