@@ -9837,6 +9837,7 @@ void MegaApiImpl::catchup(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CATCHUP, listener);
     scRequestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
