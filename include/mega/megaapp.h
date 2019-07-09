@@ -255,6 +255,9 @@ struct MEGA_API MegaApp
     // codec-mappings received
     virtual void mediadetection_ready() {}
 
+    // Locally calculated sum of sizes of files stored in cloud has changed
+    virtual void storagesum_changed(int64_t newsum) {}
+
     // global transfer queue updates
     virtual void file_added(File*) { }
     virtual void file_removed(File*, error) { }

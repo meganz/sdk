@@ -2292,6 +2292,11 @@ void MegaApi::fetchNodes(MegaRequestListener *listener)
     pImpl->fetchNodes(listener);
 }
 
+void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
+{
+    pImpl->getCloudStorageUsed(listener);
+}
+
 void MegaApi::getAccountDetails(MegaRequestListener *listener)
 {
     pImpl->getAccountDetails(true, true, true, false, false, false, -1, listener);
@@ -5762,7 +5767,7 @@ const char *MegaEvent::getText() const
     return NULL;
 }
 
-int MegaEvent::getNumber() const
+int64_t MegaEvent::getNumber() const
 {
     return 0;
 }

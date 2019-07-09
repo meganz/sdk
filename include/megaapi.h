@@ -2622,6 +2622,7 @@ class MegaRequest
             TYPE_CHAT_LINK_HANDLE, TYPE_CHAT_LINK_URL, TYPE_SET_PRIVATE_MODE, TYPE_AUTOJOIN_PUBLIC_CHAT,
             TYPE_CATCHUP, TYPE_PUBLIC_LINK_INFORMATION,
             TYPE_GET_BACKGROUND_UPLOAD_URL, TYPE_COMPLETE_BACKGROUND_UPLOAD,
+            TYPE_GET_CLOUD_STORAGE_USED,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3041,6 +3042,7 @@ class MegaRequest
          * - MegaApi::resumeSync - Returns the fingerprint of the local file
          * - MegaApi::creditCardQuerySubscriptions - Returns the number of credit card subscriptions
          * - MegaApi::getPaymentMethods - Returns a bitfield with the available payment methods
+         * - MegaApi::getCloudStorageUsed - Returns the sum of the sizes of file cloud nodes.
          *
          * @return Number related to this request
          */
@@ -3300,7 +3302,8 @@ public:
         EVENT_ACCOUNT_BLOCKED           = 4,
         EVENT_STORAGE                   = 5,
         EVENT_NODES_CURRENT             = 6,
-        EVENT_MEDIA_INFO_READY          = 7
+        EVENT_MEDIA_INFO_READY          = 7,
+        EVENT_STORAGE_SUM_CHANGED       = 8,
     };
 
     virtual ~MegaEvent();
@@ -3337,9 +3340,11 @@ public:
     /**
      * @brief Returns a number relative to this event
      *
+     * For event EVENT_STORAGE_SUM_CHANGED, this number is the new storage sum.
+     * 
      * @return Number relative to this event
      */
-    virtual int getNumber() const;
+    virtual int64_t getNumber() const;
 };
 
 /**
@@ -9189,6 +9194,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void fetchNodes(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the sum of sizes of all the files stored in the MEGA cloud.
+         *
+         * The SDK keeps a running total of the sum of the sizes of all the files stored in the cloud.
+         * This function retrieves that sum, via listener in order to avoid any blocking when called
+         * from a GUI thread. Provided the local state is caught up, the number will match the 
+         * storageUsed from MegaApi::getAccountDetails which requests data from the servers, and is much
+         * quicker to retrieve.
+         *
+         * The MegaApi object must be logged in in an account or a public folder
+         * to successfully complete this request.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_CLOUDSTORAGEUSED
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - returns the cloud storage bytes used (calculated locally from the node data structures)
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCloudStorageUsed(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Get details about the MEGA account
