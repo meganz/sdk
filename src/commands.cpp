@@ -3651,8 +3651,8 @@ void CommandGetUserData::procresult()
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
 
-            client->smsve_state = smsve_state_t(smsve);
-            client->sms_verifiedphone = smsv;
+            client->mSmsVerificationState = SmsVerificationState(smsve);
+            client->mSmsVerifiedPhone = smsv;
 
             client->k = k;
 
@@ -3792,7 +3792,7 @@ void CommandGetMiscFlags::procresult()
             client->aplvp_enabled = bool(client->json.getint());
             break;
         case MAKENAMEID5('s', 'm', 's', 'v', 'e'):   // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed
-            client->smsve_state = smsve_state_t(client->json.getint());
+            client->mSmsVerificationState = SmsVerificationState(client->json.getint());
             break;
         case EOO:
             endobject = true;

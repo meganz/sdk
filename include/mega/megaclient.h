@@ -218,10 +218,10 @@ public:
     bool aplvp_enabled;
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
-    smsve_state_t smsve_state;
+    SmsVerificationState mSmsVerificationState;
 
     // the verified account phone number, filled in from 'ug'
-    string sms_verifiedphone;
+    string mSmsVerifiedPhone;
 	
     // pseudo-random number generator
     PrnGen rng;

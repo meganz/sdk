@@ -5563,13 +5563,13 @@ bool MegaApiImpl::appleVoipPushEnabled()
 
 int MegaApiImpl::smsAllowedState()
 {
-    return (client->smsve_state < 1 || client->smsve_state > 2) ? 0 : client->smsve_state;
+    return (client->mSmsVerificationState != SMS_STATE_UNKNOWN) ? client->mSmsVerificationState : 0;
 }
 
 char* MegaApiImpl::smsVerifiedPhoneNumber()
 {
     SdkMutexGuard g(sdkMutex);
-    return client->sms_verifiedphone.empty() ? NULL : MegaApi::strdup(client->sms_verifiedphone.c_str());
+    return client->mSmsVerifiedPhone.empty() ? NULL : MegaApi::strdup(client->mSmsVerifiedPhone.c_str());
 }
 
 bool MegaApiImpl::multiFactorAuthAvailable()
