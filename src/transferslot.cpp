@@ -946,12 +946,17 @@ void TransferSlot::doio(MegaClient* client)
 
                         return transfer->failed(API_EOVERQUOTA, backoff);
                     }
-                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404 || reqs[i]->httpstatus == 0)
+                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404)
                     {
                         if (!tryRaidRecoveryFromHttpGetError(i))
                         {
                             return transfer->failed(API_EAGAIN);
                         }
+                    }
+                    else if (reqs[i]->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(i))
+                    {
+                        // status 0 indicates network error or timeout; no headers recevied.
+                        // tryRaidRecoveryFromHttpGetError has switched to loading a different part instead of this one.
                     }
                     else
                     {
