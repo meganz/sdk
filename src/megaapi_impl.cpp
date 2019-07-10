@@ -14000,6 +14000,28 @@ void MegaApiImpl::getua_result(error e)
                 request->setFlag(true);
             }
         }
+        else if (request->getParamType() == MegaApi::USER_ATTR_ALIAS &&
+                 request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
+        {
+            // The attribute doesn't exists so we have to create it
+            MegaStringMap *stringMap = request->getMegaStringMap();
+            attr_t type = attr_t(request->getParamType());
+            TLVstore tlv;
+            string value;
+            const char *buf, *key;
+            MegaStringList *keys = stringMap->getKeys();
+            for (int i=0; i < keys->size(); i++)
+            {
+                key = keys->get(i);
+                tlv.set(key, stringMap->get(key));
+            }
+            delete keys;
+
+            // serialize and encrypt the TLV container
+            string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
+            client->putua(type, (byte *)container->data(), unsigned(container->size()));
+            delete container;
+        }
     }
 
     fireOnRequestFinish(request, megaError);
