@@ -89,9 +89,9 @@ struct DemoApp : public MegaApp
     FileAccess* newfile();
 
     void request_error(error) override;
-    
+
     void request_response_progress(m_off_t, m_off_t) override;
-    
+
     void prelogin_result(int version, string* email, string *salt, error e) override;
     void login_result(error) override;
     void multifactorauthdisable_result(error) override;
@@ -100,8 +100,9 @@ struct DemoApp : public MegaApp
 
     void ephemeral_result(error) override;
     void ephemeral_result(handle, const byte*) override;
+    void cancelsignup_result(error) override;
 
-    void whyamiblocked_result(int) override;
+    void whyamiblocked_result(error) override;
 
     void sendsignuplink_result(error) override;
     void querysignuplink_result(error) override;
@@ -275,6 +276,7 @@ void exec_apiurl(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
+void exec_cancelsignup(autocomplete::ACState& s);
 void exec_confirm(autocomplete::ACState& s);
 void exec_session(autocomplete::ACState& s);
 void exec_mount(autocomplete::ACState& s);

@@ -3992,20 +3992,27 @@ bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
     return true;
 }
 
+
 MegaStringListMap* MegaStringListMapPrivate::copy() const
 {
     auto map = new MegaStringListMapPrivate;
     for (const auto& pair : mMap)
     {
-        map->set(pair.first.c_str(), pair.second.get());
+        map->set(pair.first.get(), pair.second->copy());
     }
     return map;
 }
 
 const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
 {
-    auto iter = mMap.find(key);
-    return (iter != mMap.end()) ? iter->second.get() : nullptr;
+    auto key_ptr = std::unique_ptr<const char[]>{key};
+    auto iter = mMap.find(key_ptr);
+    key_ptr.release();
+    if (iter != mMap.end())
+    {
+        return iter->second.get();
+    }
+    return nullptr;
 }
 
 MegaStringList *MegaStringListMapPrivate::getKeys() const
@@ -4013,16 +4020,15 @@ MegaStringList *MegaStringListMapPrivate::getKeys() const
     vector<char*> list;
     for (const auto& pair : mMap)
     {
-        list.emplace_back(MegaApi::strdup(pair.first.c_str()));
+        list.emplace_back(MegaApi::strdup(pair.first.get()));
     }
     return new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
 }
 
 void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
 {
-    assert(key);
-    string newKey(key ? key : "");
-    mMap[newKey] = std::unique_ptr<const MegaStringList>{value->copy()};
+    std::unique_ptr<const char[]> key_ptr{MegaApi::strdup(key)};
+    mMap[std::move(key_ptr)] = std::unique_ptr<const MegaStringList>{value};
 }
 
 int MegaStringListMapPrivate::size() const
@@ -4030,19 +4036,26 @@ int MegaStringListMapPrivate::size() const
     return static_cast<int>(mMap.size());
 }
 
+bool MegaStringListMapPrivate::Compare::operator()(const std::unique_ptr<const char[]>& rhs,
+                                                   const std::unique_ptr<const char[]>& lhs) const
+{
+    return strcmp(rhs.get(), lhs.get()) < 0;
+}
+
+
 MegaStringTable* MegaStringTablePrivate::copy() const
 {
     auto table = new MegaStringTablePrivate;
     for (const auto& value : mTable)
     {
-        table->append(value.get());
+        table->append(value->copy());
     }
     return table;
 }
 
 void MegaStringTablePrivate::append(const MegaStringList* value)
 {
-    mTable.emplace_back(value->copy());
+    mTable.emplace_back(value);
 }
 
 const MegaStringList* MegaStringTablePrivate::get(int i) const
@@ -5811,6 +5824,14 @@ void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *list
     waiter->notify();
 }
 
+void MegaApiImpl::cancelCreateAccount(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
+    request->setParamType(2);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
@@ -7112,6 +7133,40 @@ bool MegaApiImpl::isScheduleNotifiable()
         assert(now >= dayStart && now <= dayStart + 24 * 60 * 60);
         return now <= scheduleEnd || now >= scheduleStart;
     }
+}
+
+// clears backups and requests/transfers notifying failure with EACCESS (and  resets total up/down bytes)
+void MegaApiImpl::abortPendingActions(error preverror)
+{
+    for (auto it : backupsMap)
+    {
+        delete it.second;
+    }
+    backupsMap.clear();
+
+    for (auto it = requestMap.cbegin(), next_it = it; it != requestMap.cend(); it = next_it)
+    {
+        ++next_it;
+        if(it->second)
+        {
+            fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
+        }
+    }
+    requestMap.clear();
+
+    for (auto it = transferMap.crbegin(), next_it = it; it != transferMap.crend(); it = next_it)
+    {
+        ++next_it;
+        if (it->second)
+        {
+            it->second->setState(MegaTransfer::STATE_FAILED);
+            fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
+        }
+    }
+    transferMap.clear();
+
+    resetTotalDownloads();
+    resetTotalUploads();
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
@@ -13700,31 +13755,8 @@ void MegaApiImpl::logout_result(error e)
     {
         requestMap.erase(request->getTag());
 
-        error preverror = (error)request->getParamType();       
-        while (!backupsMap.empty())
-        {
-            std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
-            delete it->second;
-            backupsMap.erase(it);
-        }
-
-        while (!requestMap.empty())
-        {
-            std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-            if(it->second) fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
-        }
-
-        while (!transferMap.empty())
-        {
-            std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
-            if (it->second)
-            {
-                it->second->setState(MegaTransfer::STATE_FAILED);
-                fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
-            }
-        }
-        resetTotalDownloads();
-        resetTotalUploads();
+        error preverror = (error)request->getParamType();
+        abortPendingActions(preverror);
 
         pendingUploads = 0;
         pendingDownloads = 0;
@@ -14519,7 +14551,17 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     client->reqtag = creqtag;
 }
 
-void MegaApiImpl::whyamiblocked_result(int code)
+void MegaApiImpl::cancelsignup_result(error e)
+{
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end()) return;
+    MegaRequestPrivate *request = it->second;
+    if (!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::whyamiblocked_result(error code)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -17753,30 +17795,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap.erase(request->getTag());
 
-            while (!backupsMap.empty())
-            {
-                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
-                delete it->second;
-                backupsMap.erase(it);
-            }
-
-            while (!requestMap.empty())
-            {
-                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-
-            while (!transferMap.empty())
-            {
-                std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
-                if (it->second)
-                {
-                    it->second->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
-                }
-            }
-            resetTotalDownloads();
-            resetTotalUploads();
+            abortPendingActions();
 
             requestMap[request->getTag()]=request;
 
@@ -19154,8 +19173,9 @@ void MegaApiImpl::sendPendingRequests()
             const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
+            bool cancelProcess = (request->getParamType() == 2);
 
-            if ( (!resumeProcess && (!email || !name || (!password && !pwkey))) ||
+            if ( (!resumeProcess && !cancelProcess && (!email || !name || (!password && !pwkey))) ||
                  (resumeProcess && !sid) )
             {
                 e = API_EARGS; break;
@@ -19176,43 +19196,29 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            requestMap.erase(request->getTag());
-
-            while (!backupsMap.empty())
+            if (cancelProcess)
             {
-                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
-                delete it->second;
-                backupsMap.erase(it);
-            }
-
-            while (!requestMap.empty())
-            {
-                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-
-            while (!transferMap.empty())
-            {
-                std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
-                if (it->second)
-                {
-                    it->second->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
-                }
-            }
-            resetTotalDownloads();
-            resetTotalUploads();
-
-            requestMap[request->getTag()]=request;
-
-            client->locallogout();
-            if (resumeProcess)
-            {
-                client->resumeephemeral(uh, pwbuf);
+                client->cancelsignup();
             }
             else
             {
-                client->createephemeral();
+                int reqtag = request->getTag();
+                requestMap.erase(reqtag);
+
+                abortPendingActions();
+
+                requestMap[reqtag] = request;
+
+                client->locallogout();
+
+                if (resumeProcess)
+                {
+                    client->resumeephemeral(uh, pwbuf);
+                }
+                else
+                {
+                    client->createephemeral();
+                }
             }
             break;
         }
@@ -21009,14 +21015,14 @@ void MegaApiImpl::sendPendingRequests()
             const auto contacts = request->getMegaStringMap();
             if (contacts)
             {
-                map<const char*, const char*> contacts_map; // non-owning
-                const auto contacts_keys = contacts->getKeys();
-                for (int i = 0; i < contacts_keys->size(); ++i)
+                map<const char*, const char*> contactsMap; // non-owning
+                const auto contactsKeys = std::unique_ptr<MegaStringList>{contacts->getKeys()};
+                for (int i = 0; i < contactsKeys->size(); ++i)
                 {
-                    const auto key = contacts_keys->get(i);
-                    contacts_map[key] = contacts->get(key);
+                    const auto key = contactsKeys->get(i);
+                    contactsMap[key] = contacts->get(key);
                 }
-                client->reqs.add(new CommandGetRegisteredContacts{client, contacts_map});
+                client->reqs.add(new CommandGetRegisteredContacts{client, contactsMap});
             }
             else
             {

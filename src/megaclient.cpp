@@ -10220,6 +10220,11 @@ void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
     reqs.add(new CommandResumeEphemeralSession(this, uh, pw, ctag ? ctag : reqtag));
 }
 
+void MegaClient::cancelsignup()
+{
+    reqs.add(new CommandCancelSignup(this));
+}
+
 void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
 {
     SymmCipher pwcipher(pwhash);

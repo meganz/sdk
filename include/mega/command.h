@@ -176,6 +176,14 @@ public:
     CommandResumeEphemeralSession(MegaClient*, handle, const byte*, int);
 };
 
+class MEGA_API CommandCancelSignup : public Command
+{
+public:
+    void procresult();
+
+    CommandCancelSignup(MegaClient*);
+};
+
 class MEGA_API CommandWhyAmIblocked : public Command
 {
 public:

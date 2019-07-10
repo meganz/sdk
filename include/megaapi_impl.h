@@ -1504,11 +1504,16 @@ public:
     MegaStringListMap* copy() const override;
     const MegaStringList* get(const char* key) const override;
     MegaStringList *getKeys() const override;
-    void set(const char* key, const MegaStringList* value) override;
+    void set(const char* key, const MegaStringList* value) override; // takes ownership of value
     int size() const override;
-
 protected:
-    map<std::string, std::unique_ptr<const MegaStringList>> mMap;
+    struct Compare
+    {
+        bool operator()(const std::unique_ptr<const char[]>& rhs,
+                        const std::unique_ptr<const char[]>& lhs) const;
+    };
+
+    map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> mMap;
 };
 
 class MegaStringTablePrivate : public MegaStringTable
@@ -1517,10 +1522,9 @@ public:
     MegaStringTablePrivate() = default;
     MEGA_DISABLE_COPY_MOVE(MegaStringTablePrivate)
     MegaStringTable* copy() const override;
-    void append(const MegaStringList* value) override;
+    void append(const MegaStringList* value) override; // takes ownership of value
     const MegaStringList* get(int i) const override;
     int size() const override;
-
 protected:
     vector<std::unique_ptr<const MegaStringList>> mTable;
 };
@@ -1988,6 +1992,7 @@ class MegaApiImpl : public MegaApp
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+        void cancelCreateAccount(MegaRequestListener *listener = NULL);
         void sendSignupLink(const char* email, const char *name, const char *password, MegaRequestListener *listener = NULL);
         void fastSendSignupLink(const char *email, const char *base64pwkey, const char *name, MegaRequestListener *listener = NULL);
         void querySignupLink(const char* link, MegaRequestListener *listener = NULL);
@@ -2665,11 +2670,14 @@ protected:
         void pubkey_result(User *) override;
 
         // ephemeral session creation/resumption result
-        void ephemeral_result(error) override;
-        void ephemeral_result(handle, const byte*) override;
 
         // check the reason of being blocked
-        void whyamiblocked_result(int) override;
+        void ephemeral_result(error) override;
+        void ephemeral_result(handle, const byte*) override;
+        void cancelsignup_result(error) override;
+
+        // check the reason of being blocked
+        void whyamiblocked_result(error) override;
 
         // contact link management
         void contactlinkcreate_result(error, handle) override;
@@ -2924,7 +2932,7 @@ protected:
         bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(Node* node, const char* searchString, bool recursive = 1);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
-		void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
+		    void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
         void putNodeAttribute(MegaBackgroundMediaUpload* bu, int type, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setUserAttr(int type, const char *value, MegaRequestListener *listener = NULL);
@@ -2933,6 +2941,10 @@ protected:
 
         // return false if there's a schedule and it currently does not apply. Otherwise, true
         bool isScheduleNotifiable();
+
+        // deletes backups, requests and transfers. Reset total stats for down/uploads
+        void abortPendingActions(error preverror = API_OK);
+
         friend class MegaBackgroundMediaUploadPrivate;
 };
 

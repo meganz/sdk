@@ -1302,6 +1302,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
             switch (context)
             {
                 case API_EC_IMPORT:
+                case API_EC_DOWNLOAD:
                     return "Not accessible due to ToS/AUP violation";
                 default:
                     return "Blocked";
@@ -2019,6 +2020,11 @@ void MegaApi::createAccount(const char* email, const char* password, const char*
 void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener)
 {
     pImpl->resumeCreateAccount(sid, listener);
+}
+
+void MegaApi::cancelCreateAccount(MegaRequestListener *listener)
+{
+    pImpl->cancelCreateAccount(listener);
 }
 
 void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
