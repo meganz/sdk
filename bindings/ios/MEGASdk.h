@@ -1272,8 +1272,10 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * Until the user successfully confirms the signup link sent to the provided email address,
  * you can resume the ephemeral session in order to change the email address, resend the
  * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:]) and also
- * to receive notifications in case the user confirms the account using another client 
- * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
+ * to receive notifications in case the user confirms the account using another client
+ * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).It is also possible
+ * to cancel the registration process by [MEGASdk cancelCreateAccount:delegate:], which invalidates
+ * the signup link associated to the ephemeral session (the session will be still valid).
  *
  * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MEGARequest object received on callbacks:
@@ -1298,7 +1300,9 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * you can resume the ephemeral session in order to change the email address, resend the
  * signup link (@see [MEGASdk sendSignupLinkWithEmail:name:password:delegate:]) and also
  * to receive notifications in case the user confirms the account using another client
- * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).
+ * ([MEGAGlobalDelegate onAccountUpdate:] or [MEGADelegate onAccountUpdate:]).It is also possible
+ * to cancel the registration process by [MEGASdk cancelCreateAccount:delegate:], which invalidates
+ * the signup link associated to the ephemeral session (the session will be still valid).
  *
  * The associated request type with this request is MEGARequestTypeCreateAccount.
  * Valid data in the MEGARequest object received on callbacks:
@@ -1311,6 +1315,33 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  * @param sessionId Session id valid for the ephemeral account (@see [MEGASdk createAccountWithEmail:password:firstname:lastname:])
  */
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId;
+
+/**
+ * @brief Cancel a registration process
+ *
+ * If a signup link has been generated during registration process, call this function
+ * to invalidate it. The ephemeral session will not be invalidated, only the signup link.
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value 2
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)cancelCreateAccountWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Cancel a registration process
+ *
+ * If a signup link has been generated during registration process, call this function
+ * to invalidate it. The ephemeral session will not be invalidated, only the signup link.
+ *
+ * The associated request type with this request is MEGARequestTypeCreateAccount.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest paramType] - Returns the value 2
+ *
+ */
+- (void)cancelCreateAccount;
 
 /**
  * @brief Sends the confirmation email for a new account

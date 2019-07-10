@@ -168,6 +168,10 @@ using namespace mega;
     return self.megaApi->isBusinessAccountActive();
 }
 
+- (BusinessStatus)businessStatus {
+    return (BusinessStatus) self.megaApi->getBusinessStatus();
+}
+
 #ifdef ENABLE_CHAT
 
 - (NSString *)myFingerprint {
@@ -611,6 +615,14 @@ using namespace mega;
 
 - (void)resumeCreateAccountWithSessionId:(NSString *)sessionId {
     self.megaApi->resumeCreateAccount((sessionId != nil) ? [sessionId UTF8String] : NULL);
+}
+
+- (void)cancelCreateAccountWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->cancelCreateAccount([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cancelCreateAccount {
+    self.megaApi->cancelCreateAccount();
 }
 
 - (void)sendSignupLinkWithEmail:(NSString *)email name:(NSString *)name password:(NSString *)password delegate:(id<MEGARequestDelegate>)delegate {

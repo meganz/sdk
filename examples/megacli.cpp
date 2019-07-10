@@ -2411,6 +2411,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), opt(sequence(param("email"), either(param("name"), param("confirmationlink"))))));
+    p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_mount, sequence(text("mount")));
@@ -4756,6 +4757,11 @@ void exec_signup(autocomplete::ACState& s)
     }
 }
 
+void exec_cancelsignup(autocomplete::ACState& s)
+{
+    client->cancelsignup();
+}
+
 void exec_whoami(autocomplete::ACState& s)
 {
     if (client->loggedin() == NOTLOGGEDIN)
@@ -6051,12 +6057,19 @@ void DemoApp::ephemeral_result(handle uh, const byte* pw)
     client->fetchnodes();
 }
 
-void DemoApp::whyamiblocked_result(int code)
+void DemoApp::cancelsignup_result(error)
+{
+    cout << "Singup link canceled. Start again!" << endl;
+    signupcode.clear();
+    signupemail.clear();
+    signupname.clear();
+}
+
+void DemoApp::whyamiblocked_result(error code)
 {
     if (code < 0)
     {
-        error e = (error) code;
-        cout << "Why am I blocked failed: " << errorstring(e) << endl;
+        cout << "Why am I blocked failed: " << errorstring(code) << endl;
     }
     else if (code == 0)
     {

@@ -7618,7 +7618,9 @@ class MegaApi
          * you can resume the ephemeral session in order to change the email address, resend the
          * signup link (@see MegaApi::sendSignupLink) and also to receive notifications in case the
          * user confirms the account using another client (MegaGlobalListener::onAccountUpdate or
-         * MegaListener::onAccountUpdate).
+         * MegaListener::onAccountUpdate). It is also possible to cancel the registration process by
+         * MegaApi::cancelCreateAccount, which invalidates the signup link associated to the ephemeral
+         * session (the session will be still valid).
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
@@ -7632,6 +7634,20 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Cancel a registration process
+         *
+         * If a signup link has been generated during registration process, call this function
+         * to invalidate it. The ephemeral session will not be invalidated, only the signup link.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the value 2
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void cancelCreateAccount(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Sends the confirmation email for a new account
