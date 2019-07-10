@@ -21015,14 +21015,15 @@ void MegaApiImpl::sendPendingRequests()
             const auto contacts = request->getMegaStringMap();
             if (contacts)
             {
-                map<const char*, const char*> contacts_map; // non-owning
-                const auto contacts_keys = contacts->getKeys();
-                for (int i = 0; i < contacts_keys->size(); ++i)
+                map<const char*, const char*> contactsMap; // non-owning
+                const auto contactsKeys = contacts->getKeys();
+                for (int i = 0; i < contactsKeys->size(); ++i)
                 {
-                    const auto key = contacts_keys->get(i);
-                    contacts_map[key] = contacts->get(key);
+                    const auto key = contactsKeys->get(i);
+                    contactsMap[key] = contacts->get(key);
                 }
-                client->reqs.add(new CommandGetRegisteredContacts{client, contacts_map});
+                client->reqs.add(new CommandGetRegisteredContacts{client, contactsMap});
+                delete contactsKeys;
             }
             else
             {
