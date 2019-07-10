@@ -5539,7 +5539,8 @@ void exec_smsverify(autocomplete::ACState& s)
 {
     if (s.words[1].s == "send")
     {
-        if (client->smsverificationsend(s.words[2].s, s.words[3].s == "reverifywhitelisted") != API_OK)
+        bool reverifywhitelisted = (s.words.size() == 4 && s.words[3].s == "reverifywhitelisted");
+        if (client->smsverificationsend(s.words[2].s, reverifywhitelisted) != API_OK)
         {
             cout << "phonenumber is invalid" << endl;
         }
