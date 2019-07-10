@@ -2168,6 +2168,14 @@ using namespace mega;
     self.megaApi->getCountryCallingCodes([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)sendSMSVerificationCodeToPhoneNumber:(NSString *)phoneNumber delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendSMSVerificationCode([phoneNumber UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES], YES);
+}
+
+- (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->checkSMSVerificationCode([verificationCode UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 #pragma mark - Debug log messages
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {
