@@ -13957,11 +13957,11 @@ void MegaApiImpl::putua_result(error e)
 
 void MegaApiImpl::getua_result(error e)
 {
-	MegaError megaError(e);
-	if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || ((request->getType() != MegaRequest::TYPE_GET_ATTR_USER) &&
-                    (request->getType() != MegaRequest::TYPE_SET_ATTR_USER))) return;
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)
+           || (request->getType() == MegaRequest::TYPE_SET_ATTR_USER && request->getParamType() != MegaApi::USER_ATTR_ALIAS)) return;
 
     // if attempted to get ^!prd attribute but not exists yet...
     if (e == API_ENOENT)
@@ -14214,9 +14214,11 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
 void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
 {
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER)) return;
+    MegaRequestPrivate* request = NULL;
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end() || !(request = it->second)
+           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)
+           || (request->getType() == MegaRequest::TYPE_SET_ATTR_USER && request->getParamType() != MegaApi::USER_ATTR_ALIAS)) return;
 
     if (tlv)
     {
