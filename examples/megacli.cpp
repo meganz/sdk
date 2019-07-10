@@ -22,7 +22,6 @@
 #include "mega.h"
 #include "megacli.h"
 #include <fstream>
-#include <mega/autocomplete.h>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -47,9 +46,7 @@
 #endif
 #endif
 
-#if __cplusplus >= 201100L
 #include <regex>
-#endif
 
 #ifdef USE_FREEIMAGE
 #include "mega/gfx/freeimage.h"
@@ -2362,6 +2359,25 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 #endif
 
+void exec_getcloudstorageused(autocomplete::ACState& s)
+{
+    cout << client->mFingerprints.getSumSizes() << endl;
+}
+
+void exec_getuserquota(autocomplete::ACState& s)
+{
+    bool storage = s.extractflag("-storage");
+    bool transfer = s.extractflag("-transfer");
+    bool pro = s.extractflag("-pro");
+
+    if (!storage && !transfer && !pro)
+    {
+        storage = transfer = pro = true;
+    }    
+
+    client->getaccountdetails(new AccountDetails, storage, transfer, pro, false, false, false, -1);
+}
+
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
     client->querytransferquota(atoll(ac.words[1].s.c_str()));
@@ -2385,104 +2401,6 @@ void exec_quit(ac::ACState&)
 {
     quit_flag = true;
 }
-
-void exec_apiurl(autocomplete::ACState& s);
-void exec_login(autocomplete::ACState& s);
-void exec_begin(autocomplete::ACState& s);
-void exec_signup(autocomplete::ACState& s);
-void exec_confirm(autocomplete::ACState& s);
-void exec_session(autocomplete::ACState& s);
-void exec_mount(autocomplete::ACState& s);
-void exec_ls(autocomplete::ACState& s);
-void exec_cd(autocomplete::ACState& s);
-void exec_pwd(autocomplete::ACState& s);
-void exec_lcd(autocomplete::ACState& s);
-void exec_lls(autocomplete::ACState& s);
-void exec_lpwd(autocomplete::ACState& s);
-void exec_lmkdir(autocomplete::ACState& s);
-void exec_import(autocomplete::ACState& s);
-void exec_folderlinkinfo(autocomplete::ACState& s);
-void exec_open(autocomplete::ACState& s);
-void exec_put(autocomplete::ACState& s);
-void exec_putq(autocomplete::ACState& s);
-void exec_get(autocomplete::ACState& s);
-void exec_getq(autocomplete::ACState& s);
-void exec_pause(autocomplete::ACState& s);
-void exec_getfa(autocomplete::ACState& s);
-void exec_mediainfo(autocomplete::ACState& s);
-void exec_smsverify(autocomplete::ACState& s);
-void exec_mkdir(autocomplete::ACState& s);
-void exec_rm(autocomplete::ACState& s);
-void exec_mv(autocomplete::ACState& s);
-void exec_cp(autocomplete::ACState& s);
-void exec_du(autocomplete::ACState& s);
-void exec_sync(autocomplete::ACState& s);
-void exec_export(autocomplete::ACState& s);
-void exec_share(autocomplete::ACState& s);
-void exec_invite(autocomplete::ACState& s);
-void exec_clink(autocomplete::ACState& s);
-void exec_ipc(autocomplete::ACState& s);
-void exec_showpcr(autocomplete::ACState& s);
-void exec_users(autocomplete::ACState& s);
-void exec_getua(autocomplete::ACState& s);
-void exec_putua(autocomplete::ACState& s);
-void exec_delua(autocomplete::ACState& s);
-void exec_alerts(autocomplete::ACState& s);
-void exec_recentactions(autocomplete::ACState& s);
-void exec_recentnodes(autocomplete::ACState& s);
-void exec_putbps(autocomplete::ACState& s);
-void exec_killsession(autocomplete::ACState& s);
-void exec_whoami(autocomplete::ACState& s);
-void exec_passwd(autocomplete::ACState& s);
-void exec_reset(autocomplete::ACState& s);
-void exec_recover(autocomplete::ACState& s);
-void exec_cancel(autocomplete::ACState& s);
-void exec_email(autocomplete::ACState& s);
-void exec_retry(autocomplete::ACState& s);
-void exec_recon(autocomplete::ACState& s);
-void exec_reload(autocomplete::ACState& s);
-void exec_logout(autocomplete::ACState& s);
-void exec_locallogout(autocomplete::ACState& s);
-void exec_symlink(autocomplete::ACState& s);
-void exec_version(autocomplete::ACState& s);
-void exec_debug(autocomplete::ACState& s);
-void exec_clear(autocomplete::ACState& s);
-void exec_codepage(autocomplete::ACState& s);
-void exec_log(autocomplete::ACState& s);
-void exec_test(autocomplete::ACState& s);
-void exec_chats(autocomplete::ACState& s);
-void exec_chatc(autocomplete::ACState& s);
-void exec_chati(autocomplete::ACState& s);
-void exec_chatcp(autocomplete::ACState& s);
-void exec_chatr(autocomplete::ACState& s);
-void exec_chatu(autocomplete::ACState& s);
-void exec_chatup(autocomplete::ACState& s);
-void exec_chatpu(autocomplete::ACState& s);
-void exec_chatga(autocomplete::ACState& s);
-void exec_chatra(autocomplete::ACState& s);
-void exec_chatst(autocomplete::ACState& s);
-void exec_chata(autocomplete::ACState& s);
-void exec_chatl(autocomplete::ACState& s);
-void exec_chatsm(autocomplete::ACState& s);
-void exec_chatlu(autocomplete::ACState& s);
-void exec_chatlj(autocomplete::ACState& s);
-void exec_enabletransferresumption(autocomplete::ACState& s);
-void exec_setmaxdownloadspeed(autocomplete::ACState& s);
-void exec_setmaxuploadspeed(autocomplete::ACState& s);
-void exec_handles(autocomplete::ACState& s);
-void exec_httpsonly(autocomplete::ACState& s);
-void exec_mfac(autocomplete::ACState& s);
-void exec_mfae(autocomplete::ACState& s);
-void exec_mfad(autocomplete::ACState& s);
-void exec_autocomplete(autocomplete::ACState& s);
-void exec_history(autocomplete::ACState& s);
-void exec_help(autocomplete::ACState& s);
-void exec_quit(autocomplete::ACState& s);
-void exec_find(autocomplete::ACState& s);
-#ifdef USE_FILESYSTEM
-void exec_treecompare(autocomplete::ACState& s);
-void exec_querytransferquota(autocomplete::ACState& s);
-#endif
 
 autocomplete::ACN autocompleteSyntax()
 {
@@ -2523,7 +2441,8 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef USE_MEDIAINFO
     p->Add(exec_mediainfo, sequence(text("mediainfo"), either(sequence(text("calc"), localFSFile()), sequence(text("show"), remoteFSFile(client, &cwd)))));
 #endif
-    p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber")), sequence(text("code"), param("verificationcode")))));
+    p->Add(exec_smsverify, sequence(text("smsverify"), either(sequence(text("send"), param("phonenumber"), opt(param("reverifywhitelisted"))), sequence(text("code"), param("verificationcode")))));
+    p->Add(exec_verifiedphonenumber, sequence(text("verifiedphone")));
     p->Add(exec_mkdir, sequence(text("mkdir"), remoteFSFolder(client, &cwd)));
     p->Add(exec_rm, sequence(text("rm"), remoteFSPath(client, &cwd)));
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
@@ -2612,6 +2531,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_treecompare, sequence(text("treecompare"), localFSPath(), remoteFSPath(client, &cwd)));
 #endif
     p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
+    p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
+    p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -2658,7 +2579,6 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
 }
 #endif
 
-#if __cplusplus >= 201100L
 bool regexget(const string& expression, Node* n, unsigned& queued)
 {
     try
@@ -2673,7 +2593,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string((*it)->displayname()), re))
                     {
-                        auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, fs::current_path().u8string().c_str());
+                        auto f = new AppFileGet(n);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
                         client->startxfer(GET, f);
                         queued += 1;
@@ -2689,8 +2609,6 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
     }
     return true;
 }
-#endif
-
 
 struct Login
 {
@@ -5615,26 +5533,23 @@ void exec_smsverify(autocomplete::ACState& s)
 {
     if (s.words[1].s == "send")
     {
-        if (CommandSMSVerificationSend::isPhoneNumber(s.words[2].s))
-        {
-            client->reqs.add(new CommandSMSVerificationSend(client, s.words[2].s));
-        }
-        else
+        if (client->smsverificationsend(s.words[2].s, s.words[3].s == "reverifywhitelisted") != API_OK)
         {
             cout << "phonenumber is invalid" << endl;
         }
     }
     else if (s.words[1].s == "code")
     {
-        if (CommandSMSVerificationCheck::isVerificationCode(s.words[2].s))
-        {
-            client->reqs.add(new CommandSMSVerificationCheck(client, s.words[2].s));
-        }
-        else
+        if (client->smsverificationcheck(s.words[2].s) != API_OK)
         {
             cout << "verificationcode is invalid" << endl;
         }
     }
+}
+
+void exec_verifiedphonenumber(autocomplete::ACState& s)
+{
+    cout << "Verified phone number: " << client->mSmsVerifiedPhone << endl;
 }
 
 void exec_killsession(autocomplete::ACState& s)
@@ -6687,13 +6602,13 @@ void DemoApp::account_details(AccountDetails* ad, bool storage, bool transfer, b
 
     if (storage)
     {
-        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)" << endl;
+        cout << "\tAvailable storage: " << ad->storage_max << " byte(s)  used:  " << ad->storage_used << " available: " << (ad->storage_max - ad->storage_used) << endl;
 
         for (unsigned i = 0; i < sizeof rootnodenames/sizeof *rootnodenames; i++)
         {
             NodeStorage* ns = &ad->storage[client->rootnodes[i]];
 
-            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;            
+            cout << "\t\tIn " << rootnodenames[i] << ": " << ns->bytes << " byte(s) in " << ns->files << " file(s) and " << ns->folders << " folder(s)" << endl;
             cout << "\t\tUsed storage by versions: " << ns->version_bytes << " byte(s) in " << ns->version_files << " file(s)" << endl;
         }
     }

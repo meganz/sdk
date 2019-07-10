@@ -1030,6 +1030,7 @@ void MegaClient::init()
 
     delete pendingsc;
     pendingsc = NULL;
+    stopsc = false;
 
     btcs.reset();
     btsc.reset();
@@ -1043,10 +1044,11 @@ void MegaClient::init()
     scnotifyurl.clear();
     *scsn = 0;
 
-    notifyStorageChangeOnStateCurrent = false;  
-    business = false;
-    businessMaster = false;
-    businessStatus = 0;
+    notifyStorageChangeOnStateCurrent = false;
+    mNotifiedSumSize = 0;
+
+    mBizMode = BIZ_MODE_UNKNOWN;
+    mBizStatus = BIZ_STATUS_INACTIVE;
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u)
@@ -1078,7 +1080,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
-    smsve_state = SMS_STATE_UNKNOWN;
+    mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
@@ -1112,6 +1114,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     xferpaused[GET] = false;
     putmbpscap = 0;
     overquotauntil = 0;
+    mBizGracePeriodTs = 0;
+    mBizExpirationTs = 0;
     ststatus = STORAGE_GREEN;
     looprequested = false;
 
@@ -1874,6 +1878,7 @@ void MegaClient::exec()
                             useralerts.begincatchup = false;
                             useralerts.catchupdone = true;
                         }
+                        stopsc = true;
                     }
                 }
 
@@ -1909,8 +1914,15 @@ void MegaClient::exec()
                     pendingsc = NULL;
                 }
 
-                // failure, repeat with capped exponential backoff
-                btsc.backoff();
+                if (stopsc)
+                {
+                    btsc.backoff(NEVER);
+                }
+                else
+                {
+                    // failure, repeat with capped exponential backoff
+                    btsc.backoff();
+                }
                 break;
 
             case REQ_INFLIGHT:
@@ -1975,7 +1987,7 @@ void MegaClient::exec()
 #endif
         }
 
-        if (!pendingsc && *scsn && btsc.armed())
+        if (!pendingsc && *scsn && btsc.armed() && !stopsc)
         {
             pendingsc = new HttpReq();
             pendingsc->logname = clientname + "sc ";
@@ -2681,6 +2693,13 @@ void MegaClient::exec()
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
     } while (httpio->doio() || execdirectreads() || (!pendingcs && reqs.cmdspending() && btcs.armed()) || looprequested);
+
+    int64_t storage = mFingerprints.getSumSizes();
+    if (mNotifiedSumSize != storage)
+    {
+        mNotifiedSumSize = storage;
+        app->storagesum_changed(storage);
+    }
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed
@@ -2755,7 +2774,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed server-client requests
-        if (!pendingsc && *scsn)
+        if (!pendingsc && *scsn && !stopsc)
         {
             btsc.update(&nds);
         }
@@ -3566,8 +3585,8 @@ void MegaClient::locallogout()
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
-    smsve_state = SMS_STATE_UNKNOWN;
-    sms_verifiedphone.clear();
+    mSmsVerificationState = SMS_STATE_UNKNOWN;
+    mSmsVerifiedPhone.clear();
     loggingout = 0;
     cachedug = false;
     minstreamingrate = -1;
@@ -3587,6 +3606,7 @@ void MegaClient::locallogout()
 
     delete pendingcs;
     pendingcs = NULL;
+    stopsc = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {
@@ -3619,6 +3639,8 @@ void MegaClient::locallogout()
     fetchnodestag = 0;
     ststatus = STORAGE_GREEN;
     overquotauntil = 0;
+    mBizGracePeriodTs = 0;
+    mBizExpirationTs = 0;
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -4174,6 +4196,11 @@ bool MegaClient::procsc()
                                 // last acknowledged
                                 sc_la();
                                 break;
+
+                            case MAKENAMEID2('u', 'b'):
+                                // business account update
+                                sc_ub();
+                                break;
                         }
                     }
                 }
@@ -4646,6 +4673,34 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
 void MegaClient::getpubliclinkinfo(handle h)
 {
     reqs.add(new CommandFolderLinkInfo(this, h));
+}
+
+error MegaClient::smsverificationsend(const string& phoneNumber, bool reVerifyingWhitelisted)
+{
+    if (!CommandSMSVerificationSend::isPhoneNumber(phoneNumber))
+    {
+        return API_EARGS;
+    }
+
+    reqs.add(new CommandSMSVerificationSend(this, phoneNumber, reVerifyingWhitelisted));
+    if (reVerifyingWhitelisted)
+    {
+        reqs.add(new CommandGetUserData(this));
+    }
+
+    return API_OK;
+}
+
+error MegaClient::smsverificationcheck(const std::string &verificationCode)
+{
+    if (!CommandSMSVerificationCheck::isVerificationCode(verificationCode))
+    {
+        return API_EARGS;
+    }
+
+    reqs.add(new CommandSMSVerificationCheck(this, verificationCode));
+
+    return API_OK;
 }
 
 void MegaClient::dispatchmore(direction_t d)
@@ -5636,6 +5691,7 @@ void MegaClient::sc_ph()
     bool takendown = false;
     bool reinstated = false;
     m_time_t ets = 0;
+    m_time_t cts = 0;
     Node *n;
 
     bool done = false;
@@ -5668,6 +5724,9 @@ void MegaClient::sc_ph()
         case MAKENAMEID3('e', 't', 's'):
             ets = jsonsc.getint();
             break;
+        case MAKENAMEID2('t', 's'):
+            cts = jsonsc.getint();
+            break;
         case EOO:
             done = true;
             if (ISUNDEF(h))
@@ -5683,6 +5742,11 @@ void MegaClient::sc_ph()
             if (!deleted && !created && !updated && !takendown)
             {
                 LOG_err << "d/n/u/down element not provided";
+                break;
+            }
+            if (!deleted && !cts)
+            {
+                LOG_err << "creation timestamp element not provided";
                 break;
             }
 
@@ -5704,7 +5768,7 @@ void MegaClient::sc_ph()
                 }
                 else
                 {
-                    n->setpubliclink(ph, ets, takendown);
+                    n->setpubliclink(ph, cts, ets, takendown);
                 }
 
                 n->changed.publiclink = true;
@@ -6153,6 +6217,62 @@ void MegaClient::sc_la()
             }
         }
     }
+}
+
+void MegaClient::sc_ub()
+{
+    BizStatus status = BIZ_STATUS_UNKNOWN;
+    BizMode mode = BIZ_MODE_UNKNOWN;
+    for (;;)
+    {
+        switch (jsonsc.getnameid())
+        {
+            case 's':
+                status = BizStatus(jsonsc.getint());
+                break;
+
+            case 'm':
+                mode = BizMode(jsonsc.getint());
+                break;
+
+            case EOO:
+                if ((status < BIZ_STATUS_EXPIRED || status > BIZ_STATUS_GRACE_PERIOD))
+                {
+                    std::string err = "Missing or invalid status in `ub` action packet";
+                    LOG_err << err;
+                    sendevent(99449, err.c_str(), 0);
+                    return;
+                }
+                if ( (mode != BIZ_MODE_MASTER && mode != BIZ_MODE_SUBUSER)
+                     && (status != BIZ_STATUS_INACTIVE) )   // when inactive, `m` might be missing (unknown/undefined)
+                {
+                    LOG_err << "Unexpected mode for business account at `ub`. Mode: " << mode;
+                    return;
+                }
+
+                mBizStatus = status;
+                mBizMode = mode;
+
+                // FIXME: if API decides tp include the expiration ts, remove the block below
+                if (mBizStatus == BIZ_STATUS_ACTIVE)
+                {
+                    // If new status is active, reset timestamps of transitions
+                    mBizGracePeriodTs = 0;
+                    mBizExpirationTs = 0;
+                }
+
+                app->notify_business_status(mBizStatus);
+                return;
+
+            default:
+                if (!jsonsc.storeobject())
+                {
+                    LOG_warn << "Failed to parse `ub` action packet";
+                    return;
+                }
+        }
+    }
+
 }
 
 // scan notified nodes for
@@ -7498,6 +7618,7 @@ void MegaClient::procph(JSON *j)
             handle h = UNDEF;
             handle ph = UNDEF;
             m_time_t ets = 0;
+            m_time_t cts = 0;
             Node *n = NULL;
             bool takendown = false;
 
@@ -7515,6 +7636,9 @@ void MegaClient::procph(JSON *j)
                     case MAKENAMEID3('e', 't', 's'):
                         ets = j->getint();
                         break;
+                    case MAKENAMEID2('t', 's'):
+                        cts = j->getint();
+                        break;
                     case MAKENAMEID4('d','o','w','n'):
                         takendown = (j->getint() == 1);
                         break;
@@ -7530,11 +7654,16 @@ void MegaClient::procph(JSON *j)
                             LOG_err << "ph element not provided";
                             break;
                         }
+                        if (!cts)
+                        {
+                            LOG_err << "creation timestamp element not provided";
+                            break;
+                        }
 
                         n = nodebyhandle(h);
                         if (n)
                         {
-                            n->setpubliclink(ph, ets, takendown);
+                            n->setpubliclink(ph, cts, ets, takendown);
                         }
                         else
                         {
@@ -10902,7 +11031,7 @@ void MegaClient::purgenodesusersabortsc()
 #ifdef ENABLE_SYNC
     todebris.clear();
     tounlink.clear();
-    fingerprints.clear();
+    mFingerprints.clear();
 #endif
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -12386,11 +12515,7 @@ void MegaClient::putnodes_sync_result(error e, NewNode* nn, int nni)
         {
             if ((n = nodebyhandle(nn[nni].nodehandle)))
             {
-                if (n->fingerprint_it != fingerprints.end())
-                {
-                    fingerprints.erase(n->fingerprint_it);
-                    n->fingerprint_it = fingerprints.end();
-                }
+                mFingerprints.remove(n);
             }
         }
         else if (nn[nni].localnode && (n = nn[nni].localnode->node))
@@ -13019,25 +13144,12 @@ void MegaClient::setmaxconnections(direction_t d, int num)
 
 Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 {
-    fingerprint_set::iterator it;
-
-    if ((it = fingerprints.find(fingerprint)) != fingerprints.end())
-    {
-        return (Node*)*it;
-    }
-
-    return NULL;
+    return mFingerprints.nodebyfingerprint(fingerprint);
 }
 
 node_vector *MegaClient::nodesbyfingerprint(FileFingerprint* fingerprint)
 {
-    node_vector *nodes = new node_vector();
-    pair<fingerprint_set::iterator, fingerprint_set::iterator> p = fingerprints.equal_range(fingerprint);
-    for (fingerprint_set::iterator it = p.first; it != p.second; it++)
-    {
-        nodes->push_back((Node*)*it);
-    }
-    return nodes;
+    return mFingerprints.nodesbyfingerprint(fingerprint);
 }
 
 static bool nodes_ctime_less(const Node* a, const Node* b)

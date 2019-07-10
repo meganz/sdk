@@ -1135,7 +1135,7 @@ public:
     // don't request if it's definitely not a phone number
     static bool isPhoneNumber(const string& s);
 
-    CommandSMSVerificationSend(MegaClient*, const string& phonenumber, bool reverifying_whitelisted = false);
+    CommandSMSVerificationSend(MegaClient*, const string& phoneNumber, bool reVerifyingWhitelisted);
 };
 
 class MEGA_API CommandSMSVerificationCheck : public Command

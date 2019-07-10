@@ -138,6 +138,8 @@
  *      - [MEGAEvent number]: code representing the reason for being blocked.
  *          200: suspension message for any type of suspension, but copyright suspension.
  *          300: suspension only for multiple copyright violations.
+ *          400: the subuser account has been disabled.
+ *          401: the subuser account has been removed.
  *
  * - EventStorage: when the status of the storage changes.
  *
@@ -163,7 +165,16 @@
  *
  * - EventMediaInfoReady: when codec-mappings have been received
  *
- * You can check the type of event by calling [MEGAEvent type]
+ * - EventBusinessStatus: when the status of a business account has changed.
+ * The posible values are:
+ *   - BusinessStatusExpired = -1
+ *   - BusinessStatusInactive = 0
+ *   - BusinessStatusActive = 1
+ *   - BusinessStatusGracePeriod = 2
+ *
+ *  Valid data in the MEGAEvent object received in the callback:
+ *    - [MEGAEvent number] returns the new business status.
+ *
  *
  * @param api MEGASdk object connected to the account
  * @param event Details about the event

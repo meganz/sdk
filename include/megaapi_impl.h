@@ -407,6 +407,7 @@ class MegaNodePrivate : public MegaNode, public Cachable
         MegaHandle getPublicHandle() override;
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
+        int64_t getPublicLinkCreationTime();
         bool isFile() override;
         bool isFolder() override;
         bool isRemoved() override;
@@ -1094,9 +1095,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaStringMap *getMegaStringMap() const override;
         void setMegaStringMap(const MegaStringMap *);
         MegaStringListMap *getMegaStringListMap() const override;
-        void setMegaStringListMap(const MegaStringListMap *);
+        void setMegaStringListMap(const MegaStringListMap *stringListMap);
         MegaStringTable *getMegaStringTable() const override;
-        void setMegaStringTable(const MegaStringTable *);
+        void setMegaStringTable(const MegaStringTable *stringTable);
         MegaFolderInfo *getMegaFolderInfo() const override;
         void setMegaFolderInfo(const MegaFolderInfo *);
         const MegaPushNotificationSettings *getMegaPushNotificationSettings() const override;
@@ -1156,8 +1157,8 @@ protected:
         MegaTextChatList *chatList;
 #endif
         MegaStringMap *stringMap;
-        MegaStringListMap *stringListMap;
-        MegaStringTable *stringTable;
+        MegaStringListMap *mStringListMap;
+        MegaStringTable *mStringTable;
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
@@ -1169,19 +1170,19 @@ public:
     MegaEventPrivate(int type);
     MegaEventPrivate(MegaEventPrivate *event);
     virtual ~MegaEventPrivate();
-    MegaEvent *copy();
+    MegaEvent *copy() override;
 
-    virtual int getType() const;
-    virtual const char *getText() const;
-    virtual int getNumber() const;
+    virtual int getType() const override;
+    virtual const char *getText() const override;
+    virtual int64_t getNumber() const override;
 
     void setText(const char* text);
-    void setNumber(int number);
+    void setNumber(int64_t number);
 
 protected:
     int type;
     const char* text;
-    int number;
+    int64_t number;
 };
 
 class MegaAccountBalancePrivate : public MegaAccountBalance
@@ -1503,16 +1504,11 @@ public:
     MegaStringListMap* copy() const override;
     const MegaStringList* get(const char* key) const override;
     MegaStringList *getKeys() const override;
-    void set(const char* key, const MegaStringList* value) override; // takes ownership of value
+    void set(const char* key, const MegaStringList* value) override;
     int size() const override;
-protected:
-    struct Compare
-    {
-        bool operator()(const std::unique_ptr<const char[]>& rhs,
-                        const std::unique_ptr<const char[]>& lhs) const;
-    };
 
-    map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> mMap;
+protected:
+    map<std::string, std::unique_ptr<const MegaStringList>> mMap;
 };
 
 class MegaStringTablePrivate : public MegaStringTable
@@ -1521,9 +1517,10 @@ public:
     MegaStringTablePrivate() = default;
     MEGA_DISABLE_COPY_MOVE(MegaStringTablePrivate)
     MegaStringTable* copy() const override;
-    void append(const MegaStringList* value) override; // takes ownership of value
+    void append(const MegaStringList* value) override;
     const MegaStringList* get(int i) const override;
     int size() const override;
+
 protected:
     vector<std::unique_ptr<const MegaStringList>> mTable;
 };
@@ -1985,6 +1982,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
+        void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
@@ -2826,8 +2824,10 @@ protected:
         void getlocalsslcertificate_result(m_time_t, string *certdata, error) override;
         void getmegaachievements_result(AchievementsDetails*, error) override;
         void getwelcomepdf_result(handle, string*, error) override;
-        virtual void backgrounduploadurl_result(error, string*) override;
-        virtual void mediadetection_ready() override;
+        void backgrounduploadurl_result(error, string*) override;
+        void mediadetection_ready() override;
+        void storagesum_changed(int64_t newsum) override;
+
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
@@ -2904,6 +2904,9 @@ protected:
 
         // notify about a finished HTTP request
         void http_result(error, int, byte *, int) override;
+
+        // notify about a business account status change
+        virtual void notify_business_status(BizStatus status);
 
         // notify about a finished timer
         void timer_result(error) override;
