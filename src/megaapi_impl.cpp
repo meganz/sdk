@@ -18311,7 +18311,8 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (attrname.empty() ||    // unknown attribute type
-                 (type == ATTR_AVATAR && !value) ) // no destination file for avatar
+                 (type == ATTR_AVATAR && !value) || // no destination file for avatar
+                 (type == ATTR_ALIAS && request->getFlag() && !request->getText())) // No target user to retrieve it's alias
             {
                 e = API_EARGS;
                 break;
@@ -18396,30 +18397,39 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                // encode the MegaStringMap as a TLV container
-                TLVstore tlv;
-                string value;
-                const char *buf, *key;
-                MegaStringList *keys = stringMap->getKeys();
-                for (int i=0; i < keys->size(); i++)
+                if (type == ATTR_ALIAS)
                 {
-                    key = keys->get(i);
-                    buf = stringMap->get(key);
-
-                    size_t len = strlen(buf)/4*3+3;
-                    value.resize(len);
-                    value.resize(Base64::atob(buf, (byte *)value.data(), int(len)));
-
-                    tlv.set(key, value);
+                    // always get updated value before update it
+                    const char *uh = getMyUserHandle();
+                    client->getua(uh, type);
+                    delete [] uh;
                 }
-                delete keys;
+                else
+                {
+                    // encode the MegaStringMap as a TLV container
+                    TLVstore tlv;
+                    string value;
+                    const char *buf, *key;
+                    MegaStringList *keys = stringMap->getKeys();
+                    for (int i=0; i < keys->size(); i++)
+                    {
+                        key = keys->get(i);
+                        buf = stringMap->get(key);
 
-                // serialize and encrypt the TLV container
-                string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
+                        size_t len = strlen(buf)/4*3+3;
+                        value.resize(len);
+                        value.resize(Base64::atob(buf, (byte *)value.data(), int(len)));
 
-                client->putua(type, (byte *)container->data(), unsigned(container->size()));
-                delete container;
+                        tlv.set(key, value);
+                    }
+                    delete keys;
 
+                    // serialize and encrypt the TLV container
+                    string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
+
+                    client->putua(type, (byte *)container->data(), unsigned(container->size()));
+                    delete container;
+                }
                 break;
             }
             else if (scope == '^')
