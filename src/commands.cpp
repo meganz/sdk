@@ -348,7 +348,7 @@ void CommandPutFile::procresult()
     {
         if (!canceled)
         {
-            tslot->transfer->failed((error)client->json.getint());
+            tslot->transfer->failed(error(client->json.getint()));
         }
        
         return;
@@ -387,6 +387,60 @@ void CommandPutFile::procresult()
                         tslot->transfer->failed(API_EINTERNAL);
                     }
 
+                    return;
+                }
+        }
+    }
+}
+
+// request upload target URL for application to upload photo to using eg. iOS background upload feature
+CommandPutFileBackgroundURL::CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag)
+{
+    cmd("u");
+    arg("ssl", 2);   // always SSL for background uploads
+    arg("v", 2);
+    arg("s", size);
+    arg("ms", putmbpscap);
+
+    tag = ctag;
+}
+
+// set up file transfer with returned target URL
+void CommandPutFileBackgroundURL::procresult()
+{
+    string url;
+
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+        if (!canceled)
+        {
+            client->app->backgrounduploadurl_result(e, NULL);
+        }
+        return;
+    }
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case 'p':
+                client->json.storeobject(canceled ? NULL : &url);
+                break;
+
+            case EOO:
+                if (canceled) return;
+
+                client->app->backgrounduploadurl_result(API_OK, &url);
+                return;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    if (!canceled)
+                    {
+                        client->app->backgrounduploadurl_result(API_EINTERNAL, NULL);
+                    }
                     return;
                 }
         }
@@ -441,7 +495,7 @@ void CommandDirectRead::procresult()
     {
         if (!canceled && drn)
         {
-            return drn->cmdresult((error)client->json.getint());
+            return drn->cmdresult(error(client->json.getint()));
         }
     }
     else
@@ -961,32 +1015,43 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     {
         beginobject();
 
-        switch (nn[i].source)
+        NewNode* nni = &nn[i];
+        switch (nni->source)
         {
             case NEW_NODE:
-                arg("h", (byte*)&nn[i].nodehandle, MegaClient::NODEHANDLE);
+                arg("h", (byte*)&nni->nodehandle, MegaClient::NODEHANDLE);
                 break;
 
             case NEW_PUBLIC:
-                arg("ph", (byte*)&nn[i].nodehandle, MegaClient::NODEHANDLE);
+                arg("ph", (byte*)&nni->nodehandle, MegaClient::NODEHANDLE);
                 break;
 
             case NEW_UPLOAD:
-                arg("h", nn[i].uploadtoken, sizeof nn->uploadtoken);
+                arg("h", nni->uploadtoken, sizeof nn->uploadtoken);
 
                 // include pending file attributes for this upload
                 string s;
 
-                client->pendingattrstring(nn[i].uploadhandle, &s);
+                if (nni->fileattributes)
+                {
+                    // if attributes are set on the newnode then the app is not using the pendingattr mechanism
+                    s.swap(*nni->fileattributes);
+                    delete nni->fileattributes;
+                    nni->fileattributes = NULL;
+                }
+                else
+                {
+                    client->pendingattrstring(nn[i].uploadhandle, &s);
 
-                #ifdef USE_MEDIAINFO
-                client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
-                #endif              
+#ifdef USE_MEDIAINFO
+                    client->mediaFileInfo.addUploadMediaFileAttributes(nn[i].uploadhandle, &s);
+#endif
+                }
 
                 if (s.size())
                 {
                     arg("fa", s.c_str(), 1);
-                }
+                }                
         }
 
         if (!ISUNDEF(nn[i].parenthandle))
@@ -1090,7 +1155,6 @@ void CommandPutNodes::procresult()
         {
             client->activateoverquota(0);
         }
-
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
@@ -1819,6 +1883,7 @@ void CommandLogin::procresult()
                 }
 
                 client->me = me;
+                client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
                 client->achievements_enabled = ach;
 
                 if (len_sek)
@@ -2000,7 +2065,7 @@ void CommandSetShare::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->share_result((error)client->json.getint());
+        return client->app->share_result(error(client->json.getint()));
     }
 
     for (;;)
@@ -2375,7 +2440,7 @@ void CommandPurchaseAddItem::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->additem_result((error)client->json.getint());
+        return client->app->additem_result(error(client->json.getint()));
     }
 
     handle item = client->json.gethandle(8);
@@ -2415,7 +2480,7 @@ void CommandPurchaseCheckout::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->checkout_result(NULL, (error)client->json.getint());
+        return client->app->checkout_result(NULL, error(client->json.getint()));
     }
 
     //Expected response: "EUR":{"res":X,"code":Y}}
@@ -3063,7 +3128,103 @@ void CommandDelUA::procresult()
     }
 }
 
-#endif
+#endif  // #ifdef DEBUG
+
+CommandUnshareableUA::CommandUnshareableUA(MegaClient* client, bool fetch, int triesleft)
+{
+    maxtries = triesleft;
+    fetching = fetch;
+    if (fetching)
+    {
+        cmd("uga");
+        arg("u", client->uid.c_str());
+        arg("ua", User::attr2string(ATTR_UNSHAREABLE_KEY).c_str());
+        arg("v", 1);
+    }
+    else
+    {
+        byte newunshareablekey[SymmCipher::BLOCKSIZE];
+        client->rng.genblock(newunshareablekey, sizeof(newunshareablekey));
+
+        cmd("up");
+        arg(User::attr2string(ATTR_UNSHAREABLE_KEY).c_str(), newunshareablekey, sizeof(newunshareablekey));
+        notself(client);
+    }
+    tag = 0;
+}
+
+void CommandUnshareableUA::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        error e = (error)client->json.getint();
+
+        if (e == API_ENOENT && fetching && maxtries > 0)
+        {
+            // we can't get it because it doesn't exist yet, so make it now
+            LOG_info << "Creating unshareable key";
+            client->reqs.add(new CommandUnshareableUA(client, false, maxtries - 1));
+        }
+        else
+        {
+            LOG_err << "Could not get or create unshareable key";
+        }
+        return;
+    }
+    else if (!fetching)
+    {
+        LOG_info << "Successful creation of unshareable key";
+        // success uploading the key.  It just replies with [<uh>]
+        client->json.storeobject();
+        // fetch the value stored (protects somewhat against a creation race from multiple clients)
+        if (maxtries > 0)
+        {
+            client->reqs.add(new CommandUnshareableUA(client, true, maxtries - 1));
+        }
+    }
+    else
+    {
+        const char* ptr;
+        const char* end;
+        string buf;
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+            case MAKENAMEID2('a', 'v'):
+            {
+                if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
+                {
+                    return;
+                }
+                buf.assign(ptr, (end - ptr));
+                LOG_info << "Unshareable key received, size: " << buf.size();
+                break;
+            }
+            case EOO:
+            {
+                assert(fetching);
+                if (buf.size() == Base64Str<SymmCipher::BLOCKSIZE>::STRLEN)
+                {
+                    client->unshareablekey.swap(buf);
+                }
+                else
+                {
+                    LOG_err << "Unshareable key not included in reply, or wrong length";
+                }
+                return;
+            }
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    LOG_err << "Bad field in unshareable reply";
+                    return;
+                }
+            }
+        }
+    }
+}
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
@@ -3297,9 +3458,11 @@ void CommandGetUserData::procresult()
     bool ssrs = false;
     bool nsre = false;
     bool aplvp = false;
+
     bool b = false;
-    int m = -1;
-    int s = -2;
+    BizMode m = BIZ_MODE_UNKNOWN;
+    BizStatus s = BIZ_STATUS_UNKNOWN;
+    std::vector<std::pair<BizStatus, m_time_t>> sts;
 
     if (client->json.isnumeric())
     {
@@ -3378,7 +3541,7 @@ void CommandGetUserData::procresult()
             }
             break;
 
-        case 'b':
+        case 'b':   // business account's info
             assert(!b);
             b = true;
             if (client->json.enterobject())
@@ -3388,16 +3551,64 @@ void CommandGetUserData::procresult()
                 {
                     switch (client->json.getnameid())
                     {
-                        case 's':
+                        case 's':   // status
                             // -1: expired, 1: active, 2: grace-period
-                            s = client->json.getint32();
+                            s = BizStatus(client->json.getint32());
                             break;
-                        case 'm':
-                            m = client->json.getint32();
+
+                        case 'm':   // mode
+                            m = BizMode(client->json.getint32());
                             break;
+
+                        case MAKENAMEID3('s', 't', 's'):    // status timestamps
+                            // ie. "sts":[{"s":-1,"ts":1566182227},{"s":1,"ts":1563590227}]
+                            client->json.enterarray();
+                            while (client->json.enterobject())
+                            {
+                                BizStatus status = BIZ_STATUS_UNKNOWN;
+                                m_time_t ts = 0;
+
+                                bool exit = false;
+                                while (!exit)
+                                {
+                                    switch (client->json.getnameid())
+                                    {
+                                        case 's':
+                                           status = BizStatus(client->json.getint());
+                                           break;
+
+                                        case MAKENAMEID2('t', 's'):
+                                           ts = client->json.getint();
+                                           break;
+
+                                        case EOO:
+                                            if (status != BIZ_STATUS_UNKNOWN && ts != 0)
+                                            {
+                                                sts.push_back(std::make_pair(status, ts));
+                                            }
+                                            else
+                                            {
+                                                LOG_warn << "Unpaired/missing business status-ts in b.sts";
+                                            }
+                                            exit = true;
+                                            break;
+
+                                        default:
+                                            if (!client->json.storeobject())
+                                            {
+                                                return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                            }
+                                    }
+                                }
+                                client->json.leaveobject();
+                            }
+                            client->json.leavearray();
+                            break;
+
                         case EOO:
                             endobject = true;
                             break;
+
                         default:
                             if (!client->json.storeobject())
                             {
@@ -3406,18 +3617,10 @@ void CommandGetUserData::procresult()
                     }
                 }
                 client->json.leaveobject();
-
-                // integrity checks
-                if ( (s == -2 || (s != -1 && s != 1 && s != 2))     // status not received or invalid
-                     || (m == -1 || (m != 0 && m != 1)) )           // master flag not received or invalid
-                {
-                    LOG_err << "Invalid business status / account mode";
-                    return client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
-                }
             }
             break;
 
-        case EOO:            
+        case EOO:
             if (v)
             {
                 client->accountversion = v;
@@ -3433,11 +3636,7 @@ void CommandGetUserData::procresult()
             client->ssrs_enabled = ssrs;
             client->nsr_enabled = nsre;
             client->aplvp_enabled = aplvp;
-            client->k = k;
-
-            client->business = b;
-            client->businessStatus = b ? s : 0;
-            client->businessMaster = b ? bool(m) : false;
+            client->k = k;            
 
             if (len_privk)
             {
@@ -3448,6 +3647,78 @@ void CommandGetUserData::procresult()
 
             client->btugexpiration.backoff(MegaClient::USER_DATA_EXPIRATION_BACKOFF_SECS * 10);
             client->cachedug = true;
+
+            if (b)  // business account
+            {
+                // integrity checks
+                if ((s < BIZ_STATUS_EXPIRED || s > BIZ_STATUS_GRACE_PERIOD)  // status not received or invalid
+                        || (m == BIZ_MODE_UNKNOWN))  // master flag not received or invalid
+                {
+                    LOG_err << "GetUserData: invalid business status / account mode";
+                }
+                else
+                {
+                    if (client->mBizStatus != s)
+                    {
+                        client->mBizStatus = s;
+                        client->app->notify_business_status(s);
+                    }
+                    client->mBizMode = m;
+
+                    for (auto it : sts)
+                    {
+                        BizStatus status = it.first;
+                        m_time_t ts = it.second;
+                        if (status == BIZ_STATUS_EXPIRED)
+                        {
+                            client->mBizExpirationTs = ts;
+                        }
+                        else if (status == BIZ_STATUS_GRACE_PERIOD)
+                        {
+                            client->mBizGracePeriodTs = ts;
+                        }
+                        else
+                        {
+                            LOG_warn << "Unexpected status in b.sts. Status: " << status << "ts: " << ts;
+                        }
+                    }
+
+                    // if current business status will expire sooner than the scheduled `ug`, update the
+                    // backoff to a shorter one in order to refresh the business status asap
+                    m_time_t auxts = 0;
+                    m_time_t now = m_time(nullptr);
+                    if (client->mBizGracePeriodTs && client->mBizGracePeriodTs > now)
+                    {
+                        auxts = client->mBizGracePeriodTs;
+                    }
+                    else if (client->mBizExpirationTs && client->mBizExpirationTs > now)
+                    {
+                        auxts = client->mBizExpirationTs;
+                    }
+                    if (auxts)
+                    {
+                        dstime diff = (now - auxts) * 10;
+                        dstime current = client->btugexpiration.backoffdelta();
+                        if (current > diff)
+                        {
+                            client->btugexpiration.backoff(diff);
+                        }
+                    }
+                    // TODO: check if type of account has changed and notify with new event (not yet supported by API)
+                }
+            }
+            else
+            {
+                BizStatus oldStatus = client->mBizStatus;
+                client->mBizStatus = BIZ_STATUS_INACTIVE;
+                client->mBizMode = BIZ_MODE_UNKNOWN;
+                client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
+
+                if (client->mBizStatus != oldStatus)
+                {
+                    client->app->notify_business_status(client->mBizStatus);
+                }
+            }
 
             client->app->userdata_result(&name, &pubk, &privk, API_OK);
             return;
@@ -3976,7 +4247,7 @@ void CommandSetPH::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->exportnode_result((error)client->json.getint());
+        return client->app->exportnode_result(error(client->json.getint()));
     }
 
     handle ph = client->json.gethandle();
@@ -3989,7 +4260,7 @@ void CommandSetPH::procresult()
     Node *n = client->nodebyhandle(h);
     if (n)
     {
-        n->setpubliclink(ph, ets, false);
+        n->setpubliclink(ph, time(nullptr), ets, false);
         n->changed.publiclink = true;
         client->notifynode(n);
     }
@@ -4016,7 +4287,7 @@ void CommandGetPH::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->openfilelink_result((error)client->json.getint());
+        return client->app->openfilelink_result(error(client->json.getint()));
     }
 
     m_off_t s = -1;
@@ -4131,6 +4402,7 @@ void CommandCreateEphemeralSession::procresult()
     else
     {
         client->me = client->json.gethandle(MegaClient::USERHANDLE);
+        client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
         client->resumeephemeral(client->me, pw, tag);
     }
 }
@@ -4189,6 +4461,7 @@ void CommandResumeEphemeralSession::procresult()
                 }
 
                 client->me = uh;
+                client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
 
                 return client->app->ephemeral_result(uh, pw);
 
@@ -4876,7 +5149,7 @@ void CommandCleanRubbishBin::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->cleanrubbishbin_result((error)client->json.getint());
+        client->app->cleanrubbishbin_result(error(client->json.getint()));
     }
     else
     {
@@ -5657,7 +5930,7 @@ void CommandChatGrantAccess::procresult()
 {
     if (client->json.isnumeric())
     {
-        error e = (error) client->json.getint();
+        error e = error(client->json.getint());
         if (e == API_OK)
         {
             if (client->chats.find(chatid) == client->chats.end())
@@ -6175,6 +6448,7 @@ void CommandChatLinkURL::procresult()
 
                 case MAKENAMEID2('t', 's'):
                     ts = client->json.getint();
+                    break;
 
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
@@ -6544,9 +6818,6 @@ CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 {
     cmd("mc");
 
-    // This command is for internal usage only
-    tag = 0;
-
     client = c;
     callback = cb;
 }
@@ -6562,8 +6833,14 @@ void CommandMediaCodecs::procresult()
             LOG_err << "mc result: " << result;
         }
         version = int(result);
+        callback(client, version);
     }
-    callback(client, version);
+    else
+    {
+        // It's wrongly formatted, consume this one so the next command can be processed.
+        LOG_err << "mc response badly formatted";
+        client->json.storeobject();  
+    }
 }
 
 CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
@@ -6912,7 +7189,7 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
     cmd("sla");
     notself(client);
     tag = client->reqtag;
-};
+}
 
 void CommandSetLastAcknowledged::procresult()
 {
@@ -6925,8 +7202,94 @@ void CommandSetLastAcknowledged::procresult()
         client->json.storeobject();
         client->app->acknowledgeuseralerts_result(API_EINTERNAL);
     }
-};
+}
 
+CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)
+{
+    ph = publichandle;
 
+    cmd("pli");
+    arg("ph", (byte*)&publichandle, MegaClient::NODEHANDLE);
+
+    tag = client->reqtag;
+}
+
+void CommandFolderLinkInfo::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->folderlinkinfo_result((error)client->json.getint(), UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+    }
+    string attr;
+    string key;
+    handle owner = UNDEF;
+    handle ph = 0;
+    m_off_t currentSize = 0;
+    m_off_t versionsSize  = 0;
+    int numFolders = 0;
+    int numFiles = 0;
+    int numVersions = 0;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+        case MAKENAMEID5('a','t','t','r','s'):
+            client->json.storeobject(&attr);
+            break;
+
+        case MAKENAMEID2('p','h'):
+            ph = client->json.gethandle(MegaClient::NODEHANDLE);
+            break;
+
+        case 'u':
+            owner = client->json.gethandle(MegaClient::USERHANDLE);
+            break;
+
+        case 's':
+            if (client->json.enterarray())
+            {
+                currentSize = client->json.getint();
+                numFiles = int(client->json.getint());
+                numFolders = int(client->json.getint());
+                versionsSize  = client->json.getint();
+                numVersions = int(client->json.getint());
+                client->json.leavearray();
+            }
+            break;
+
+        case 'k':
+            client->json.storeobject(&key);
+            break;
+
+        case EOO:
+            if (attr.empty())
+            {
+                LOG_err << "The folder link information doesn't contain the attr string";
+                return client->app->folderlinkinfo_result(API_EINCOMPLETE, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            if (key.size() <= 9 || key.find(":") == string::npos)
+            {
+                LOG_err << "The folder link information doesn't contain a valid decryption key";
+                return client->app->folderlinkinfo_result(API_EKEY, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            if (ph != this->ph)
+            {
+                LOG_err << "Folder link information: public handle doesn't match";
+                return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+
+            return client->app->folderlinkinfo_result(API_OK, owner, ph, &attr, &key, currentSize, numFiles, numFolders, versionsSize, numVersions);
+
+        default:
+            if (!client->json.storeobject())
+            {
+                LOG_err << "Failed to parse folder link information response";
+                return client->app->folderlinkinfo_result(API_EINTERNAL, UNDEF, UNDEF, NULL, NULL, 0, 0, 0, 0, 0);
+            }
+            break;
+        }
+    }
+}
 
 } // namespace

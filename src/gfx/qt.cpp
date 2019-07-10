@@ -58,7 +58,7 @@ namespace mega {
 QByteArray *GfxProcQT::formatstring = NULL;
 
 #ifdef HAVE_FFMPEG
-MUTEX_CLASS GfxProcQT::gfxMutex(false);
+std::mutex GfxProcQT::gfxMutex;
 #endif
 
 /************* EXIF STUFF **************/
@@ -849,7 +849,7 @@ const char *GfxProcQT::supportedformatsPDF()
 
 QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString imagePath)
 {
-    MutexGuard g(gfxMutex);
+    std::lock_guard<std::mutex> g(gfxMutex);
 #ifdef _WIN32
     FPDF_DOCUMENT pdf_doc  = FPDF_LoadDocument(imagePath.toLocal8Bit().constData(), NULL);
     QString temporaryfile;
@@ -964,16 +964,19 @@ QImageReader *GfxProcQT::readbitmapPdf(int &w, int &h, int &orientation, QString
                 QImageReader *imageReader = new QImageReader(buffer, QByteArray("JPG"));
                 return imageReader;
             }
+            else
             {
                 FPDF_CloseDocument(pdf_doc);
                 LOG_err << "Error loading PDF page to create thumb for " << imagePath.toUtf8().constData();
             }
         }
+        else
         {
             FPDF_CloseDocument(pdf_doc);
             LOG_err << "Error getting number of pages for " << imagePath.toUtf8().constData();
         }
     }
+    else
     {
         LOG_err << "Error loading PDF to create thumbnail for " << imagePath.toUtf8().constData() << " " << FPDF_GetLastError();
     }

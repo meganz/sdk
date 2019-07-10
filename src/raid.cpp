@@ -39,12 +39,7 @@ struct FaultyServers
     // This class may be shared amongst many megaclients, so thread safety is needed
     typedef map<string, m_time_t> Map;
     Map recentFails;
-    MUTEX_CLASS m;
-
-    FaultyServers()
-    {
-        m.init(false);
-    }
+    std::mutex m_mutex;
 
     string server(const string& url)
     {
@@ -63,7 +58,7 @@ struct FaultyServers
 
     void add(const string& url)
     {
-        MutexGuard g(m);
+        std::lock_guard<std::mutex> g(m_mutex);
         recentFails[server(url)] = m_time();
     }
 
@@ -78,7 +73,7 @@ struct FaultyServers
         // (unless we recently had problems with the server of one of the 6 URLs, in which case start with the other 5 right away)
         unsigned worstindex = RAIDPARTS;
 
-        MutexGuard g(m);
+        std::lock_guard<std::mutex> g(m_mutex);
         if (!recentFails.empty())
         {
             m_time_t now = m_time();

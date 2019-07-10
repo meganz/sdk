@@ -31,6 +31,24 @@
 #include "mega/logging.h"
 
 namespace mega {
+
+NewNode::NewNode()
+{
+    syncid = UNDEF;
+    added = false;
+    source = NEW_NODE;
+    ovhandle = UNDEF;
+    uploadhandle = UNDEF;
+    localnode = NULL;
+    fileattributes = NULL;
+}
+
+NewNode::~NewNode()
+{
+    delete fileattributes;
+}
+
+
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
 {
@@ -101,10 +119,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
             dp->push_back(this);
         }
 
-        if (type == FILENODE)
-        {
-            fingerprint_it = client->fingerprints.end();
-        }
+        client->mFingerprints.newnode(this);
     }
 }
 
@@ -114,10 +129,7 @@ Node::~Node()
     client->preadabort(this);
 
     // remove node's fingerprint from hash
-    if (type == FILENODE && fingerprint_it != client->fingerprints.end())
-    {
-        client->fingerprints.erase(fingerprint_it);
-    }
+    client->mFingerprints.remove(this);
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
@@ -213,6 +225,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
     Node* n;
     int i;
     char isExported = '\0';
+    char hasLinkCreationTs = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -271,7 +284,7 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         ll = MemAccess::get<unsigned short>(ptr);
         ptr += sizeof ll;
 
-        if ((ptr + ll > end) || ptr[ll + 1])
+        if (ptr + ll > end)
         {
             return NULL;
         }
@@ -284,15 +297,28 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         fa = NULL;
     }
 
+    if (ptr + sizeof isExported + sizeof hasLinkCreationTs > end)
+    {
+        return NULL;
+    }
+
     isExported = MemAccess::get<char>(ptr);
     ptr += sizeof(isExported);
 
-    for (i = 7; i--;)
+    hasLinkCreationTs = MemAccess::get<char>(ptr);
+    ptr += sizeof(hasLinkCreationTs);
+
+    for (i = 6; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
             ptr += (unsigned char)*ptr + 1;
         }
+    }
+
+    if (ptr + sizeof(short) > end)
+    {
+        return NULL;
     }
 
     short numshares = MemAccess::get<short>(ptr);
@@ -363,7 +389,14 @@ Node* Node::unserialize(MegaClient* client, string* d, node_vector* dp)
         bool takendown = MemAccess::get<bool>(ptr);
         ptr += sizeof(takendown);
 
-        plink = new PublicLink(ph, ets, takendown);
+        m_time_t cts = 0;
+        if (hasLinkCreationTs)
+        {
+            cts = MemAccess::get<m_time_t>(ptr);
+            ptr += sizeof(cts);
+        }
+
+        plink = new PublicLink(ph, cts, ets, takendown);
     }
     n->plink = plink;
 
@@ -461,7 +494,11 @@ bool Node::serialize(string* d)
 
     char isExported = plink ? 1 : 0;
     d->append((char*)&isExported, 1);
-    d->append("\0\0\0\0\0\0", 7);
+
+    char hasLinkCreationTs = plink ? 1 : 0;
+    d->append((char*)&hasLinkCreationTs, 1);
+
+    d->append("\0\0\0\0\0", 6);
 
     if (inshare)
     {
@@ -516,6 +553,10 @@ bool Node::serialize(string* d)
         d->append((char*) &plink->ph, MegaClient::NODEHANDLE);
         d->append((char*) &plink->ets, sizeof(plink->ets));
         d->append((char*) &plink->takendown, sizeof(plink->takendown));
+        if (hasLinkCreationTs)
+        {
+            d->append((char*) &plink->cts, sizeof(plink->cts));
+        }
     }
 
     return true;
@@ -569,6 +610,51 @@ byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrl
     return NULL;
 }
 
+void Node::parseattr(byte *bufattr, AttrMap &attrs, m_off_t size, m_time_t &mtime , string &fileName, string &fingerprint, FileFingerprint &ffp)
+{
+    JSON json;
+    nameid name;
+    string *t;
+
+    json.begin((char*)bufattr + 5);
+    while ((name = json.getnameid()) != EOO && json.storeobject((t = &attrs.map[name])))
+    {
+        JSON::unescape(t);
+    }
+
+    attr_map::iterator it = attrs.map.find('n');   // filename
+    if (it == attrs.map.end())
+    {
+        fileName = "CRYPTO_ERROR";
+    }
+    else if (it->second.empty())
+    {
+        fileName = "BLANK";
+    }
+
+    it = attrs.map.find('c');   // checksum
+    if (it != attrs.map.end())
+    {
+        if (ffp.unserializefingerprint(&it->second))
+        {
+            ffp.size = size;
+            mtime = ffp.mtime;
+
+            char bsize[sizeof(size) + 1];
+            int l = Serialize64::serialize((byte *)bsize, size);
+            char *buf = new char[l * 4 / 3 + 4];
+            char ssize = static_cast<char>('A' + Base64::btoa((const byte *)bsize, l, buf));
+
+            string result(1, ssize);
+            result.append(buf);
+            result.append(it->second);
+            delete [] buf;
+
+            fingerprint = result;
+        }
+    }
+}
+
 // return temporary SymmCipher for this nodekey
 SymmCipher* Node::nodecipher()
 {
@@ -620,10 +706,7 @@ void Node::setfingerprint()
 {
     if (type == FILENODE && nodekey.size() >= sizeof crc)
     {
-        if (fingerprint_it != client->fingerprints.end())
-        {
-            client->fingerprints.erase(fingerprint_it);
-        }
+        client->mFingerprints.remove(this);
 
         attr_map::iterator it = attrs.map.find('c');
 
@@ -643,7 +726,7 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        fingerprint_it = client->fingerprints.insert((FileFingerprint*)this);
+        client->mFingerprints.add(this);
     }
 }
 
@@ -936,15 +1019,16 @@ bool Node::isbelow(Node* p) const
     }
 }
 
-void Node::setpubliclink(handle ph, m_time_t ets, bool takendown)
+void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
 {
     if (!plink) // creation
     {
-        plink = new PublicLink(ph, ets, takendown);
+        plink = new PublicLink(ph, cts, ets, takendown);
     }
     else            // update
     {
         plink->ph = ph;
+        plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
     }
@@ -963,9 +1047,18 @@ NodeCore::~NodeCore()
     delete attrstring;
 }
 
+PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+{
+    this->ph = ph;
+    this->cts = cts;
+    this->ets = ets;
+    this->takendown = takendown;
+}
+
 PublicLink::PublicLink(PublicLink *plink)
 {
     this->ph = plink->ph;
+    this->cts = plink->cts;
     this->ets = plink->ets;
     this->takendown = plink->takendown;
 }
@@ -1736,4 +1829,60 @@ LocalNode* LocalNode::unserialize(Sync* sync, string* d)
 }
 
 #endif
+
+void Fingerprints::newnode(Node* n)
+{
+    if (n->type == FILENODE)
+    {
+        n->fingerprint_it = mFingerprints.end();
+    }
+}
+
+void Fingerprints::add(Node* n)
+{
+    if (n->type == FILENODE)
+    {
+        n->fingerprint_it = mFingerprints.insert(n);
+        mSumSizes += n->size;
+    }
+}
+
+void Fingerprints::remove(Node* n)
+{
+    if (n->type == FILENODE && n->fingerprint_it != mFingerprints.end())
+    {
+        mSumSizes -= n->size;
+        mFingerprints.erase(n->fingerprint_it);
+        n->fingerprint_it = mFingerprints.end();
+    }
+}
+
+void Fingerprints::clear()
+{
+    mFingerprints.clear();
+    mSumSizes = 0;
+}
+
+m_off_t Fingerprints::getSumSizes()
+{
+    return mSumSizes;
+}
+
+Node* Fingerprints::nodebyfingerprint(FileFingerprint* fingerprint)
+{
+    fingerprint_set::iterator it = mFingerprints.find(fingerprint);
+    return it == mFingerprints.end() ? nullptr : static_cast<Node*>(*it);
+}
+
+node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
+{
+    node_vector *nodes = new node_vector();
+    auto p = mFingerprints.equal_range(fingerprint);
+    for (iterator it = p.first; it != p.second; ++it)
+    {
+        nodes->push_back(static_cast<Node*>(*it));
+    }
+    return nodes;
+}
+
 } // namespace
