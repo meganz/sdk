@@ -21016,14 +21016,13 @@ void MegaApiImpl::sendPendingRequests()
             if (contacts)
             {
                 map<const char*, const char*> contactsMap; // non-owning
-                const auto contactsKeys = contacts->getKeys();
+                const auto contactsKeys = std::unique_ptr<MegaStringList>{contacts->getKeys()};
                 for (int i = 0; i < contactsKeys->size(); ++i)
                 {
                     const auto key = contactsKeys->get(i);
                     contactsMap[key] = contacts->get(key);
                 }
                 client->reqs.add(new CommandGetRegisteredContacts{client, contactsMap});
-                delete contactsKeys;
             }
             else
             {
