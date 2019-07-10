@@ -13957,6 +13957,7 @@ void MegaApiImpl::putua_result(error e)
 
 void MegaApiImpl::getua_result(error e)
 {
+    MegaError megaError(e);
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
@@ -14214,6 +14215,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
 void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
 {
+    error e = API_OK;
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
@@ -14222,67 +14224,150 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
 
     if (tlv)
     {
-        // TLV data usually includes byte arrays with zeros in the middle, so values
-        // must be converted into Base64 strings to avoid problems
-        MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
-        request->setMegaStringMap(stringMap);
-
-        switch (request->getParamType())
+        if (request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
-            // prepare request params to know if a warning should show or not
-            case MegaApi::USER_ATTR_RICH_PREVIEWS:
-            {
-                const char *num = stringMap->get("num");
+            bool modified = false;
+            const char *key, *alias, *rcvAlias;
+            MegaStringMap *newAliasesMap = request->getMegaStringMap();
+            MegaStringList *keys = newAliasesMap->getKeys();
 
-                if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+            // Iterate though the string map <uh_B64, alias>
+            for (int i=0; i < keys->size(); i++)
+            {
+                key = keys->get(i);
+                alias = newAliasesMap->get(key);
+
+                // If the user alias doesn't exists or has been changed, update the TLV container
+                if (alias)
                 {
-                    if (num)
+                    rcvAlias = tlv->find(key) ?tlv->get(key).c_str() :NULL;
+                    if (rcvAlias && strcmp(alias, rcvAlias) == 0)
                     {
-                        string sValue = num;
-                        string bValue;
-                        Base64::atob(sValue, bValue);
-                        request->setFlag(bValue == "1");
-                    }
-                    else
-                    {
-                        request->setFlag(false);
+                        continue;
                     }
                 }
-                else if (request->getNumDetails() == 1) // used to check if should show warning
-                {
-                    request->setFlag(!num);
-                    // it doesn't matter the value, just if it exists
 
-                    const char *value = stringMap->get("c");
+                tlv->set(key, alias);
+                modified = true;
+            }
+
+            delete keys;
+
+            if (modified)
+            {
+                // serialize and encrypt the TLV container
+                string *container = tlv->tlvRecordsToContainer(client->rng, &client->key);
+                attr_t type = attr_t(request->getParamType());
+
+                client->putua(type, (byte *)container->data(), unsigned(container->size()));
+                delete container;
+            }
+            else
+            {
+                LOG_debug << "Aliases not changed, already up to date";
+            }
+        }
+        else
+        {
+            // TLV data usually includes byte arrays with zeros in the middle, so values
+            // must be converted into Base64 strings to avoid problems
+            MegaStringMap *stringMap = new MegaStringMapPrivate(tlv->getMap(), true);
+            request->setMegaStringMap(stringMap);
+
+            switch (request->getParamType())
+            {
+                // prepare request params to know if a warning should show or not
+                case MegaApi::USER_ATTR_RICH_PREVIEWS:
+                {
+                    const char *num = stringMap->get("num");
+
+                    if (request->getNumDetails() == 0)  // used to check if rich-links are enabled
+                    {
+                        if (num)
+                        {
+                            string sValue = num;
+                            string bValue;
+                            Base64::atob(sValue, bValue);
+                            request->setFlag(bValue == "1");
+                        }
+                        else
+                        {
+                            request->setFlag(false);
+                        }
+                    }
+                    else if (request->getNumDetails() == 1) // used to check if should show warning
+                    {
+                        request->setFlag(!num);
+                        // it doesn't matter the value, just if it exists
+
+                        const char *value = stringMap->get("c");
+                        if (value)
+                        {
+                            string sValue = value;
+                            string bValue;
+                            Base64::atob(sValue, bValue);
+                            request->setNumber(atoi(bValue.c_str()));
+                        }
+                    }
+                    break;
+                }
+                case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
+                case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
+                {
+                    const char *value = stringMap->get("h");
                     if (value)
                     {
-                        string sValue = value;
-                        string bValue;
-                        Base64::atob(sValue, bValue);
-                        request->setNumber(atoi(bValue.c_str()));
+                        handle nodehandle;
+                        Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
+                        request->setNodeHandle(nodehandle);
                     }
+                    break;
                 }
-                break;
-            }
-            case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
-            case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
-            {
-                const char *value = stringMap->get("h");
-                if (value)
+
+                case MegaApi::USER_ATTR_ALIAS:
                 {
-                    handle nodehandle;
-                    Base64::atob(value, (byte*) &nodehandle, MegaClient::NODEHANDLE);
-                    request->setNodeHandle(nodehandle);
+                    // If a uh was set in the request we have to find it in the aliases map and return it
+                    const char *uh = request->getText();
+                    if (uh)
+                    {
+                        string aliasB64;
+                        const char *buf, *key;
+                        bool found = false;
+
+                        MegaStringList *keys = stringMap->getKeys();
+                        for (int i=0; i < keys->size(); i++)
+                        {
+                            key = keys->get(i);
+                            buf = stringMap->get(key);
+
+                            if (strcmp(key, uh) == 0 && buf)
+                            {
+                                // The MegaStringMap contains values encoded in B64 so we need to decode it if we find a match
+                                size_t len = strlen(buf)/4*3+3;
+                                aliasB64.resize(len);
+                                aliasB64.resize(Base64::atob(buf, (byte *)aliasB64.data(), int(len)));
+                                request->setName(aliasB64.c_str());
+                                found = true;
+                            }
+                        }
+                        delete keys;
+
+                        if (!found)
+                        {
+                            e = API_ENOENT;
+                        }
+                    }
+                    break;
                 }
-                break;
+
+                default:
+                    break;
             }
-            default:
-                break;
+            delete stringMap;
         }
-        delete stringMap;
     }
 
-    fireOnRequestFinish(request, MegaError(API_OK));
+    fireOnRequestFinish(request, MegaError(e));
     return;
 }
 
