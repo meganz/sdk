@@ -1938,6 +1938,11 @@ void MegaApi::resumeCreateAccount(const char* sid, MegaRequestListener *listener
     pImpl->resumeCreateAccount(sid, listener);
 }
 
+void MegaApi::cancelCreateAccount(MegaRequestListener *listener)
+{
+    pImpl->cancelCreateAccount(listener);
+}
+
 void MegaApi::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
 {
     pImpl->sendSignupLink(email, name, password, listener);

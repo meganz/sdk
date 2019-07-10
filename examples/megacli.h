@@ -98,8 +98,9 @@ struct DemoApp : public MegaApp
 
     void ephemeral_result(error) override;
     void ephemeral_result(handle, const byte*) override;
+    void cancelsignup_result(error) override;
 
-    void whyamiblocked_result(int) override;
+    void whyamiblocked_result(error) override;
 
     void sendsignuplink_result(error) override;
     void querysignuplink_result(error) override;

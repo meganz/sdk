@@ -5678,6 +5678,14 @@ void MegaApiImpl::resumeCreateAccount(const char *sid, MegaRequestListener *list
     waiter->notify();
 }
 
+void MegaApiImpl::cancelCreateAccount(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_ACCOUNT, listener);
+    request->setParamType(2);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::sendSignupLink(const char *email, const char *name, const char *password, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_SIGNUP_LINK, listener);
@@ -6979,6 +6987,40 @@ bool MegaApiImpl::isScheduleNotifiable()
         assert(now >= dayStart && now <= dayStart + 24 * 60 * 60);
         return now <= scheduleEnd || now >= scheduleStart;
     }
+}
+
+// clears backups and requests/transfers notifying failure with EACCESS (and  resets total up/down bytes)
+void MegaApiImpl::abortPendingActions(error preverror)
+{
+    for (auto it : backupsMap)
+    {
+        delete it.second;
+    }
+    backupsMap.clear();
+
+    for (auto it = requestMap.cbegin(), next_it = it; it != requestMap.cend(); it = next_it)
+    {
+        ++next_it;
+        if(it->second)
+        {
+            fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
+        }
+    }
+    requestMap.clear();
+
+    for (auto it = transferMap.crbegin(), next_it = it; it != transferMap.crend(); it = next_it)
+    {
+        ++next_it;
+        if (it->second)
+        {
+            it->second->setState(MegaTransfer::STATE_FAILED);
+            fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
+        }
+    }
+    transferMap.clear();
+
+    resetTotalDownloads();
+    resetTotalUploads();
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
@@ -13535,31 +13577,8 @@ void MegaApiImpl::logout_result(error e)
     {
         requestMap.erase(request->getTag());
 
-        error preverror = (error)request->getParamType();       
-        while (!backupsMap.empty())
-        {
-            std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
-            delete it->second;
-            backupsMap.erase(it);
-        }
-
-        while (!requestMap.empty())
-        {
-            std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-            if(it->second) fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
-        }
-
-        while (!transferMap.empty())
-        {
-            std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
-            if (it->second)
-            {
-                it->second->setState(MegaTransfer::STATE_FAILED);
-                fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
-            }
-        }
-        resetTotalDownloads();
-        resetTotalUploads();
+        error preverror = (error)request->getParamType();
+        abortPendingActions(preverror);
 
         pendingUploads = 0;
         pendingDownloads = 0;
@@ -14354,7 +14373,17 @@ void MegaApiImpl::ephemeral_result(handle uh, const byte* pw)
     client->reqtag = creqtag;
 }
 
-void MegaApiImpl::whyamiblocked_result(int code)
+void MegaApiImpl::cancelsignup_result(error e)
+{
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end()) return;
+    MegaRequestPrivate *request = it->second;
+    if (!request || ((request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT))) return;
+
+    fireOnRequestFinish(request, MegaError(e));
+}
+
+void MegaApiImpl::whyamiblocked_result(error code)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -17503,30 +17532,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap.erase(request->getTag());
 
-            while (!backupsMap.empty())
-            {
-                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
-                delete it->second;
-                backupsMap.erase(it);
-            }
-
-            while (!requestMap.empty())
-            {
-                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-
-            while (!transferMap.empty())
-            {
-                std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
-                if (it->second)
-                {
-                    it->second->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
-                }
-            }
-            resetTotalDownloads();
-            resetTotalUploads();
+            abortPendingActions();
 
             requestMap[request->getTag()]=request;
 
@@ -18904,8 +18910,9 @@ void MegaApiImpl::sendPendingRequests()
             const char *pwkey = request->getPrivateKey();
             const char *sid = request->getSessionKey();
             bool resumeProcess = (request->getParamType() == 1);   // resume existing ephemeral account
+            bool cancelProcess = (request->getParamType() == 2);
 
-            if ( (!resumeProcess && (!email || !name || (!password && !pwkey))) ||
+            if ( (!resumeProcess && !cancelProcess && (!email || !name || (!password && !pwkey))) ||
                  (resumeProcess && !sid) )
             {
                 e = API_EARGS; break;
@@ -18926,43 +18933,29 @@ void MegaApiImpl::sendPendingRequests()
                 }
             }
 
-            requestMap.erase(request->getTag());
-
-            while (!backupsMap.empty())
+            if (cancelProcess)
             {
-                std::map<int,MegaBackupController*>::iterator it = backupsMap.begin();
-                delete it->second;
-                backupsMap.erase(it);
-            }
-
-            while (!requestMap.empty())
-            {
-                std::map<int,MegaRequestPrivate*>::iterator it=requestMap.begin();
-                if(it->second) fireOnRequestFinish(it->second, MegaError(MegaError::API_EACCESS));
-            }
-
-            while (!transferMap.empty())
-            {
-                std::map<int, MegaTransferPrivate *>::reverse_iterator it = transferMap.rbegin();
-                if (it->second)
-                {
-                    it->second->setState(MegaTransfer::STATE_FAILED);
-                    fireOnTransferFinish(it->second, MegaError(MegaError::API_EACCESS));
-                }
-            }
-            resetTotalDownloads();
-            resetTotalUploads();
-
-            requestMap[request->getTag()]=request;
-
-            client->locallogout();
-            if (resumeProcess)
-            {
-                client->resumeephemeral(uh, pwbuf);
+                client->cancelsignup();
             }
             else
             {
-                client->createephemeral();
+                int reqtag = request->getTag();
+                requestMap.erase(reqtag);
+
+                abortPendingActions();
+
+                requestMap[reqtag] = request;
+
+                client->locallogout();
+
+                if (resumeProcess)
+                {
+                    client->resumeephemeral(uh, pwbuf);
+                }
+                else
+                {
+                    client->createephemeral();
+                }
             }
             break;
         }

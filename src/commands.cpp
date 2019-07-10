@@ -4474,6 +4474,26 @@ void CommandResumeEphemeralSession::procresult()
     }
 }
 
+CommandCancelSignup::CommandCancelSignup(MegaClient *client)
+{
+    cmd("ucr");
+
+    tag = client->reqtag;
+}
+
+void CommandCancelSignup::procresult()
+{
+    if (client->json.isnumeric())
+    {
+        return client->app->cancelsignup_result(error(client->json.getint()));
+    }
+
+    client->json.storeobject();
+
+    client->app->cancelsignup_result(API_EINTERNAL);
+}
+
+
 CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
 {
     cmd("whyamiblocked");
@@ -4486,7 +4506,7 @@ void CommandWhyAmIblocked::procresult()
 {
     if (client->json.isnumeric())
     {
-        return client->app->whyamiblocked_result(int(client->json.getint()));
+        return client->app->whyamiblocked_result(error(client->json.getint()));
     }
 
     client->json.storeobject();
