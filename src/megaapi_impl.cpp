@@ -3992,20 +3992,27 @@ bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
     return true;
 }
 
+
 MegaStringListMap* MegaStringListMapPrivate::copy() const
 {
     auto map = new MegaStringListMapPrivate;
     for (const auto& pair : mMap)
     {
-        map->set(pair.first.c_str(), pair.second.get());
+        map->set(pair.first.get(), pair.second->copy());
     }
     return map;
 }
 
 const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
 {
-    auto iter = mMap.find(key);
-    return (iter != mMap.end()) ? iter->second.get() : nullptr;
+    auto key_ptr = std::unique_ptr<const char[]>{key};
+    auto iter = mMap.find(key_ptr);
+    key_ptr.release();
+    if (iter != mMap.end())
+    {
+        return iter->second.get();
+    }
+    return nullptr;
 }
 
 MegaStringList *MegaStringListMapPrivate::getKeys() const
@@ -4013,16 +4020,15 @@ MegaStringList *MegaStringListMapPrivate::getKeys() const
     vector<char*> list;
     for (const auto& pair : mMap)
     {
-        list.emplace_back(MegaApi::strdup(pair.first.c_str()));
+        list.emplace_back(MegaApi::strdup(pair.first.get()));
     }
     return new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
 }
 
 void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
 {
-    assert(key);
-    string newKey(key ? key : "");
-    mMap[newKey] = std::unique_ptr<const MegaStringList>{value->copy()};
+    std::unique_ptr<const char[]> key_ptr{MegaApi::strdup(key)};
+    mMap[std::move(key_ptr)] = std::unique_ptr<const MegaStringList>{value};
 }
 
 int MegaStringListMapPrivate::size() const
@@ -4030,19 +4036,26 @@ int MegaStringListMapPrivate::size() const
     return static_cast<int>(mMap.size());
 }
 
+bool MegaStringListMapPrivate::Compare::operator()(const std::unique_ptr<const char[]>& rhs,
+                                                   const std::unique_ptr<const char[]>& lhs) const
+{
+    return strcmp(rhs.get(), lhs.get()) < 0;
+}
+
+
 MegaStringTable* MegaStringTablePrivate::copy() const
 {
     auto table = new MegaStringTablePrivate;
     for (const auto& value : mTable)
     {
-        table->append(value.get());
+        table->append(value->copy());
     }
     return table;
 }
 
 void MegaStringTablePrivate::append(const MegaStringList* value)
 {
-    mTable.emplace_back(value->copy());
+    mTable.emplace_back(value);
 }
 
 const MegaStringList* MegaStringTablePrivate::get(int i) const
