@@ -2458,6 +2458,21 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
 }
 #endif
 
+void MegaApi::getUsersAliases(MegaRequestListener *listener)
+{
+    pImpl->getUsersAliases(listener);
+}
+
+void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
+{
+    pImpl->getUserAlias(uh, listener);
+}
+
+void MegaApi::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
+{
+    pImpl->setUserAlias(uh, alias);
+}
+
 void MegaApi::getRubbishBinAutopurgePeriod(MegaRequestListener *listener)
 {
     pImpl->getRubbishBinAutopurgePeriod(listener);

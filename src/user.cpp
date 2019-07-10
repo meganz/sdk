@@ -443,6 +443,10 @@ string User::attr2string(attr_t type)
             attrname = "*~usk";  // unshareable key (for encrypting attributes that should not be shared)
             break;
 
+        case ATTR_ALIAS:
+            attrname =  "*!aliass";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -683,6 +687,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_UNSHAREABLE_KEY;
     }
+    else if (!strcmp(name, "*!aliass"))
+    {
+        return ATTR_ALIAS;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -709,6 +717,7 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_ALIAS:
             return 0;
 
         case ATTR_AUTHRING:
@@ -739,6 +748,7 @@ char User::scope(attr_t at)
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
+        case ATTR_ALIAS:
             return '*';
 
         case ATTR_AVATAR:

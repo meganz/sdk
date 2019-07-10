@@ -1726,6 +1726,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_PUSH_SETTINGS;
     }
+    if (user->changed.alias)
+    {
+        changed |= MegaUser::CHANGE_TYPE_ALIAS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5371,6 +5375,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_GEOLOCATION:
         case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
+        case MegaApi::USER_ATTR_ALIAS:
             scope = '*';
             break;
 
@@ -9589,6 +9594,41 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     Base64::btoa((byte*)&nodehandle, MegaClient::NODEHANDLE, buffer);
     stringMap->set("h", buffer);
     setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, stringMap, listener);
+    delete stringMap;
+}
+
+void MegaApiImpl::getUsersAliases(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_ALIAS);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_ALIAS);
+    char uid[12];
+    Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
+    uid[11] = 0;
+    request->setText(uid);
+    request->setFlag(true);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
+{
+    MegaStringMap *stringMap = NULL;
+    if (alias)
+    {
+        stringMap = new MegaStringMapPrivate();
+        char buffer[12];
+        Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, buffer);
+        stringMap->set(buffer, alias);
+    }
+    setUserAttribute(MegaApi::USER_ATTR_ALIAS, stringMap, listener);
     delete stringMap;
 }
 
