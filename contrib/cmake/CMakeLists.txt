@@ -599,24 +599,25 @@ target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
 #test apps
-add_executable(test_sdk             ${MegaDir}/tests/sdk_test.cpp 
-                                    ${MegaDir}/tests/sdktests.cpp)
-add_executable(test_misc            ${MegaDir}/tests/commands_test.cpp
-                                    ${MegaDir}/tests/crypto_test.cpp
-                                    ${MegaDir}/tests/megaapi_test.cpp
-                                    ${MegaDir}/tests/paycrypt_test.cpp
-                                    ${MegaDir}/tests/tests.cpp)
-add_executable(test_purge_account   ${MegaDir}/tests/purge_account.cpp)
-add_executable(test_sync            ${MegaDir}/tests/synctests.cpp)
+add_executable(sdk_unit             ${MegaDir}/tests/unit/commands_test.cpp 
+                                    ${MegaDir}/tests/unit/crypto_test.cpp
+                                    ${MegaDir}/tests/unit/json_test.cpp
+                                    ${MegaDir}/tests/unit/main.cpp
+                                    ${MegaDir}/tests/unit/megaapi_test.cpp
+                                    ${MegaDir}/tests/unit/paycrypt_test.cpp)
 
-target_compile_definitions(test_sdk PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_misc PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_sync PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_link_libraries(test_sdk gtest Mega )
-target_link_libraries(test_misc gtest Mega )
-target_link_libraries(test_purge_account gtest Mega )
-target_link_libraries(test_sync gtest Mega )
+add_executable(sdk_integration      ${MegaDir}/tests/integration/main.cpp
+                                    ${MegaDir}/tests/integration/sdk_test.cpp
+                                    ${MegaDir}/tests/integration/sync_test.cpp)
+
+add_executable(sdk_purge_account    ${MegaDir}/tests/manual/purge_account.cpp)
+
+target_compile_definitions(sdk_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(sdk_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(sdk_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_link_libraries(sdk_unit gtest Mega )
+target_link_libraries(sdk_integration gtest Mega )
+target_link_libraries(sdk_purge_account gtest Mega )
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
