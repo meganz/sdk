@@ -610,14 +610,21 @@ add_executable(test_integration     ${MegaDir}/tests/integration/main.cpp
                                     ${MegaDir}/tests/integration/SdkTest_test.cpp
                                     ${MegaDir}/tests/integration/Sync_test.cpp)
 
-add_executable(test_purge_account   ${MegaDir}/tests/manual/purge_account.cpp)
+add_executable(tool_purge_account   ${MegaDir}/tests/tool/purge_account.cpp)
 
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gtest Mega )
 target_link_libraries(test_integration gtest Mega )
-target_link_libraries(test_purge_account gtest Mega )
+target_link_libraries(tool_purge_account gtest Mega )
+
+if(WIN32)
+add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
+target_include_directories(tool_tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
+target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
+target_link_libraries(tool_tcprelay Mega Dnsapi.lib)
+endif(WIN32)
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
@@ -636,14 +643,6 @@ target_link_libraries(megasimplesync Mega )
 if(WIN32)
 add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
 target_link_libraries(testmega Mega )
-endif(WIN32)
-
-if(WIN32)
-
-add_executable(tcprelay "${MegaDir}/tests/manual/tcprelay/main.cpp" "${MegaDir}/tests/manual/tcprelay/tcprelay.cpp")
-target_include_directories(tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
-target_compile_definitions(tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
-target_link_libraries(tcprelay Mega Dnsapi.lib)
 endif(WIN32)
 
 #enable_testing()

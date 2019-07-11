@@ -7,7 +7,7 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = test_purge_account
+TARGET = tool_purge_account
 TEMPLATE = app
 
 CONFIG += USE_LIBUV
@@ -20,4 +20,4 @@ LIBS += -lgtest
 
 include(../../../../bindings/qt/sdk.pri)
 
-SOURCES += ../../../../tests/manual/purge_account.cpp
+SOURCES += ../../../../tests/tool/purge_account.cpp
