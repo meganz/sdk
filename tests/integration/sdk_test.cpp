@@ -19,6 +19,7 @@
  * program.
  */
 
+#include "test.h"
 #include "sdk_test.h"
 #include "mega/testhooks.h"
 #include "megaapi_impl.h"
@@ -29,8 +30,6 @@
 #endif
 
 using namespace std;
-
-bool g_runningInCI = false;
 
 MegaFileSystemAccess fileSystemAccess;
 

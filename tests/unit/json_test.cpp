@@ -29,7 +29,6 @@
 using namespace std;
 
 using namespace mega;
-using ::testing::InitGoogleTest;
 using ::testing::Test;
 using ::testing::TestCase;
 using ::testing::TestInfo;
@@ -200,11 +199,4 @@ TEST(Cacheable, CacheableReaderWriter)
     ASSERT_EQ(mp2.audiocodecid, 8u);
     ASSERT_EQ(mp2.is_VFR, true);
     ASSERT_EQ(mp2.no_audio, false);
-}
-
-
-int main (int argc, char *argv[])
-{
-    InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

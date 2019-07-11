@@ -22,10 +22,9 @@
 *.exe
 *.out
 *.app
-/tests/sdk_test
-/tests/misc_test
-/tests/purge_account
-/tests/sync_test
+/tests/sdk_unit
+/tests/sdk_integration
+/tests/sdk_purge_account
 examples/megacli
 examples/megasimplesync
 examples/linux/megafuse
@@ -65,6 +64,7 @@ config.log
 config.status
 config.sub
 py-compile
+/sdk_build
 
 # Documentation generator
 doc/_build
