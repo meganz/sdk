@@ -640,7 +640,7 @@ endif(WIN32)
 
 if(WIN32)
 
-add_executable(tcprelay "${MegaDir}/tests/tcprelay/main.cpp" "${MegaDir}/tests/tcprelay/tcprelay.cpp")
+add_executable(tcprelay "${MegaDir}/tests/manual/tcprelay/main.cpp" "${MegaDir}/tests/manual/tcprelay/tcprelay.cpp")
 target_include_directories(tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
 target_compile_definitions(tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
 target_link_libraries(tcprelay Mega Dnsapi.lib)
