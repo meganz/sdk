@@ -9613,7 +9613,6 @@ void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
     Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
     uid[11] = 0;
     request->setText(uid);
-    request->setFlag(true);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -14248,6 +14247,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
                 }
 
                 tlv->set(key, alias);
+                request->setFlag(true);
                 modified = true;
             }
 
@@ -14349,7 +14349,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
 
                         if (!found)
                         {
-                            e = API_ENOENT;
+                            e = API_EACCESS;
                         }
                     }
                     break;
@@ -18415,8 +18415,7 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             if (attrname.empty() ||    // unknown attribute type
-                 (type == ATTR_AVATAR && !value) || // no destination file for avatar
-                 (type == ATTR_ALIAS && request->getFlag() && !request->getText())) // No target user to retrieve it's alias
+                 (type == ATTR_AVATAR && !value)) // no destination file for avatar
             {
                 e = API_EARGS;
                 break;
