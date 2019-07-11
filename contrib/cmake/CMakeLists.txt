@@ -599,16 +599,16 @@ target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
 #test apps
-add_executable(test_unit            ${MegaDir}/tests/unit/commands_test.cpp
-                                    ${MegaDir}/tests/unit/crypto_test.cpp
-                                    ${MegaDir}/tests/unit/json_test.cpp
+add_executable(test_unit            ${MegaDir}/tests/unit/Commands_test.cpp
+                                    ${MegaDir}/tests/unit/Crypto_test.cpp
+                                    ${MegaDir}/tests/unit/Serialization_test.cpp
                                     ${MegaDir}/tests/unit/main.cpp
-                                    ${MegaDir}/tests/unit/megaapi_test.cpp
-                                    ${MegaDir}/tests/unit/paycrypt_test.cpp)
+                                    ${MegaDir}/tests/unit/MegaApi_test.cpp
+                                    ${MegaDir}/tests/unit/PayCrypter_test.cpp)
 
 add_executable(test_integration     ${MegaDir}/tests/integration/main.cpp
-                                    ${MegaDir}/tests/integration/sdk_test.cpp
-                                    ${MegaDir}/tests/integration/sync_test.cpp)
+                                    ${MegaDir}/tests/integration/SdkTest_test.cpp
+                                    ${MegaDir}/tests/integration/Sync_test.cpp)
 
 add_executable(test_purge_account   ${MegaDir}/tests/manual/purge_account.cpp)
 

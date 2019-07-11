@@ -49,7 +49,7 @@ unique_ptr<MegaStringList> createMegaStringList(const vector<const char*>& data)
 
 } // anonymous
 
-TEST(megaapi, MegaStringList_get_and_size_happyPath)
+TEST(MegaApi, MegaStringList_get_and_size_happyPath)
 {
     const vector<const char*> data{
         "foo",
@@ -62,7 +62,7 @@ TEST(megaapi, MegaStringList_get_and_size_happyPath)
     ASSERT_EQ(nullptr, stringList->get(2));
 }
 
-TEST(megaapi, MegaStringList_get_and_size_emptyStringList)
+TEST(MegaApi, MegaStringList_get_and_size_emptyStringList)
 {
     const vector<const char*> data{
     };
@@ -71,7 +71,7 @@ TEST(megaapi, MegaStringList_get_and_size_emptyStringList)
     ASSERT_EQ(nullptr, stringList->get(0));
 }
 
-TEST(megaapi, MegaStringList_copy_happyPath)
+TEST(MegaApi, MegaStringList_copy_happyPath)
 {
     const vector<const char*> data{
         "foo",
@@ -85,7 +85,7 @@ TEST(megaapi, MegaStringList_copy_happyPath)
     ASSERT_EQ(nullptr, copiedStringList->get(2));
 }
 
-TEST(megaapi, MegaStringList_copy_emptyStringList)
+TEST(MegaApi, MegaStringList_copy_emptyStringList)
 {
     const vector<const char*> data{
     };
@@ -95,14 +95,14 @@ TEST(megaapi, MegaStringList_copy_emptyStringList)
     ASSERT_EQ(nullptr, copiedStringList->get(0));
 }
 
-TEST(megaapi, MegaStringList_default_constructor)
+TEST(MegaApi, MegaStringList_default_constructor)
 {
     auto stringList = unique_ptr<MegaStringList>{new MegaStringListPrivate};
     ASSERT_EQ(0, stringList->size());
     ASSERT_EQ(nullptr, stringList->get(0));
 }
 
-TEST(megaapi, MegaStringListMap_set_and_get_happyPath)
+TEST(MegaApi, MegaStringListMap_set_and_get_happyPath)
 {
     auto stringListMap = unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
     auto stringList1 = createMegaStringList({"13", "42"}).release();
@@ -118,7 +118,7 @@ TEST(megaapi, MegaStringListMap_set_and_get_happyPath)
     ASSERT_EQ(*expectedKeys, *keys);
 }
 
-TEST(megaapi, MegaStringListMap_get_emptyStringListMap)
+TEST(MegaApi, MegaStringListMap_get_emptyStringListMap)
 {
     auto stringListMap = unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
     ASSERT_EQ(0, stringListMap->size());
@@ -127,7 +127,7 @@ TEST(megaapi, MegaStringListMap_get_emptyStringListMap)
     ASSERT_EQ(0, keys->size());
 }
 
-TEST(megaapi, MegaStringListMap_copy_happyPath)
+TEST(MegaApi, MegaStringListMap_copy_happyPath)
 {
     auto stringListMap = unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
     auto stringList1 = createMegaStringList({"13", "42"}).release();
@@ -144,7 +144,7 @@ TEST(megaapi, MegaStringListMap_copy_happyPath)
     ASSERT_EQ(*expectedKeys, *keys);
 }
 
-TEST(megaapi, MegaStringListMap_copy_emptyStringListMap)
+TEST(MegaApi, MegaStringListMap_copy_emptyStringListMap)
 {
     auto stringListMap = unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
     auto copiedStringListMap = unique_ptr<MegaStringListMap>{stringListMap->copy()};
@@ -154,7 +154,7 @@ TEST(megaapi, MegaStringListMap_copy_emptyStringListMap)
     ASSERT_EQ(0, keys->size());
 }
 
-TEST(megaapi, MegaStringTable_append_and_get_happyPath)
+TEST(MegaApi, MegaStringTable_append_and_get_happyPath)
 {
     auto stringListTable = unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
     auto stringList1 = createMegaStringList({"13", "42"}).release();
@@ -167,14 +167,14 @@ TEST(megaapi, MegaStringTable_append_and_get_happyPath)
     ASSERT_EQ(nullptr, stringListTable->get(2));
 }
 
-TEST(megaapi, MegaStringTable_get_emptyStringTable)
+TEST(MegaApi, MegaStringTable_get_emptyStringTable)
 {
     auto stringListTable = unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
     ASSERT_EQ(0, stringListTable->size());
     ASSERT_EQ(nullptr, stringListTable->get(0));
 }
 
-TEST(megaapi, MegaStringTable_copy_happyPath)
+TEST(MegaApi, MegaStringTable_copy_happyPath)
 {
     auto stringListTable = unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
     auto stringList1 = createMegaStringList({"13", "42"}).release();
@@ -188,7 +188,7 @@ TEST(megaapi, MegaStringTable_copy_happyPath)
     ASSERT_EQ(nullptr, copiedStringTable->get(2));
 }
 
-TEST(megaapi, MegaStringTable_copy_emptyStringTable)
+TEST(MegaApi, MegaStringTable_copy_emptyStringTable)
 {
     auto stringListTable = unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
     auto copiedStringTable = unique_ptr<MegaStringTable>{stringListTable->copy()};
@@ -196,7 +196,7 @@ TEST(megaapi, MegaStringTable_copy_emptyStringTable)
     ASSERT_EQ(nullptr, copiedStringTable->get(0));
 }
 
-TEST(megaapi, getMimeType)
+TEST(MegaApi, getMimeType)
 {
     vector<thread> threads;
     atomic<int> successCount{0};

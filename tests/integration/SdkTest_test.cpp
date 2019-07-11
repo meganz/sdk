@@ -20,7 +20,7 @@
  */
 
 #include "test.h"
-#include "sdk_test.h"
+#include "SdkTest_test.h"
 #include "mega/testhooks.h"
 #include "megaapi_impl.h"
 #include <algorithm>

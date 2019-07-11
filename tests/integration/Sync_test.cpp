@@ -1577,7 +1577,7 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
 
 } // anonymous
 
-GTEST_TEST(BasicSync, DelRemoteFolder)
+GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
 {
     // delete a remote folder and confirm the client sending the request and another also synced both correctly update the disk
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1612,7 +1612,7 @@ GTEST_TEST(BasicSync, DelRemoteFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, DelLocalFolder)
+GTEST_TEST(Sync, BasicSync_DelLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1649,7 +1649,7 @@ GTEST_TEST(BasicSync, DelLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
 }
 
-GTEST_TEST(BasicSync, MoveLocalFolder)
+GTEST_TEST(Sync, BasicSync_MoveLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1687,7 +1687,7 @@ GTEST_TEST(BasicSync, MoveLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
+GTEST_TEST(Sync, BasicSync_MoveLocalFolderBetweenSyncs)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1739,7 +1739,7 @@ GTEST_TEST(BasicSync, MoveLocalFolderBetweenSyncs)
 
 
 
-GTEST_TEST(BasicSync, AddLocalFolder)
+GTEST_TEST(Sync, BasicSync_AddLocalFolder)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1777,7 +1777,7 @@ GTEST_TEST(BasicSync, AddLocalFolder)
 }
 
 /* this one is too slow for regular testing with the current algorithm
-GTEST_TEST(BasicSync, MAX_NEWNODES1)
+GTEST_TEST(Sync, BasicSync_MAX_NEWNODES1)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
@@ -1817,7 +1817,7 @@ GTEST_TEST(BasicSync, MAX_NEWNODES1)
 */
 
 /* this one is too slow for regular testing with the current algorithm
-GTEST_TEST(BasicSync, MAX_NEWNODES2)
+GTEST_TEST(Sync, BasicSync_MAX_NEWNODES2)
 {
     // create more nodes than we can upload in one putnodes.
     // this tree is 5x5 and the algorithm ends up creating nodes one at a time so it's pretty slow (and doesn't hit MAX_NEWNODES as a result)
@@ -1856,7 +1856,7 @@ GTEST_TEST(BasicSync, MAX_NEWNODES2)
 }
 */
 
-GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
+GTEST_TEST(Sync, BasicSync_MoveExistingIntoNewLocalFolder)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1900,7 +1900,7 @@ GTEST_TEST(BasicSync, MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, DISABLED_MoveSeveralExistingIntoDeepNewLocalFolders)
+GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -1949,7 +1949,7 @@ GTEST_TEST(BasicSync, DISABLED_MoveSeveralExistingIntoDeepNewLocalFolders)
 }
 
 /* not expected to work yet
-GTEST_TEST(BasicSync, SyncDuplicateNames)
+GTEST_TEST(Sync, BasicSync_SyncDuplicateNames)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     StandardClient clientA1(localtestroot, "clientA1");   // user 1 client 1
@@ -1983,7 +1983,7 @@ GTEST_TEST(BasicSync, SyncDuplicateNames)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.root.get(), 2));
 }*/
 
-GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
+GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     auto pclientA1 = make_unique<StandardClient>(localtestroot, "clientA1");   // user 1 client 1
@@ -2032,7 +2032,7 @@ GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
 }
 
 /* not expected to work yet
-GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
+GTEST_TEST(Sync, BasicSync_RemoteFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     // SN tagging needed for this one
@@ -2066,7 +2066,7 @@ GTEST_TEST(BasicSync, RemoteFolderCreationRaceSamename)
 }*/
 
 /* not expected to work yet
-GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
+GTEST_TEST(Sync, BasicSync_LocalFolderCreationRaceSamename)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     // SN tagging needed for this one
@@ -2100,7 +2100,7 @@ GTEST_TEST(BasicSync, LocalFolderCreationRaceSamename)
 }*/
 
 
-GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges )
+GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges )
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
@@ -2169,7 +2169,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 }
 
-GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
+GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
@@ -2225,7 +2225,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
 }
 
 
-GTEST_TEST(CmdChecks, RRAttributeAfterMoveNode)
+GTEST_TEST(Sync, CmdChecks_RRAttributeAfterMoveNode)
 {
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     unique_ptr<StandardClient> pclientA1(new StandardClient(localtestroot, "clientA1"));   // user 1 client 1
@@ -2281,7 +2281,7 @@ GTEST_TEST(CmdChecks, RRAttributeAfterMoveNode)
 
 
 #ifdef __linux__
-GTEST_TEST(BasicSync, SpecialCreateFile)
+GTEST_TEST(Sync, BasicSync_SpecialCreateFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -2324,7 +2324,7 @@ GTEST_TEST(BasicSync, SpecialCreateFile)
 }
 #endif
 
-GTEST_TEST(BasicSync, DISABLED_moveAndDeleteLocalFile)
+GTEST_TEST(Sync, DISABLED_BasicSync_moveAndDeleteLocalFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);

@@ -26,9 +26,11 @@ QMAKE_CXXFLAGS-=-std=c++11
 CONFIG += c++17
 QMAKE_CXXFLAGS+=-std=c++17
 
-SOURCES += ../../../../tests/integration/main.cpp \
-           ../../../../tests/integration/sdk_test.cpp \
-           ../../../../tests/integration/sync_test.cpp
+SOURCES += \
+    ../../../../tests/integration/main.cpp \
+    ../../../../tests/integration/SdkTest_test.cpp \
+    ../../../../tests/integration/Sync_test.cpp
 
-HEADERS += ../../../../tests/integration/sdk_test.h \
-           ../../../../tests/integration/test.h
+HEADERS += \
+    ../../../../tests/integration/test.h \
+    ../../../../tests/integration/SdkTest_test.h

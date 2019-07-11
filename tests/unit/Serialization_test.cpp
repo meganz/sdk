@@ -35,7 +35,7 @@ using ::testing::TestInfo;
 using ::testing::TestPartResult;
 using ::testing::UnitTest;
 
-TEST(JSON, storeobject)
+TEST(Serialization, JSON_storeobject)
 {
     std::string in_str("Test");
     JSON j;
@@ -44,7 +44,7 @@ TEST(JSON, storeobject)
 }
 
 // Test 64-bit int serialization/unserialization
-TEST(Serialize64, serialize)
+TEST(Serialization, Serialize64_serialize)
 {
     uint64_t in = 0xDEADBEEF;
     uint64_t out;
@@ -61,7 +61,7 @@ size_t checksize(size_t& n, size_t added)
     return n;
 }
 
-TEST(Cacheable, CacheableReaderWriter)
+TEST(Serialization, CacheableReaderWriter)
 {
     string writestring;
     CacheableWriter w(writestring);
