@@ -113,9 +113,9 @@ TEST(megaapi, MegaStringListMap_set_and_get_happyPath)
     ASSERT_EQ(*stringList1, *stringListMap->get("foo"));
     ASSERT_EQ(*stringList2, *stringListMap->get("bar"));
     ASSERT_EQ(nullptr, stringListMap->get("blah"));
-    auto expected_keys = createMegaStringList({"bar", "foo"});
+    auto expectedKeys = createMegaStringList({"bar", "foo"});
     auto keys = std::unique_ptr<MegaStringList>{stringListMap->getKeys()};
-    ASSERT_EQ(*expected_keys, *keys);
+    ASSERT_EQ(*expectedKeys, *keys);
 }
 
 TEST(megaapi, MegaStringListMap_get_emptyStringListMap)
@@ -139,9 +139,9 @@ TEST(megaapi, MegaStringListMap_copy_happyPath)
     ASSERT_EQ(*stringList1, *copiedStringListMap->get("foo"));
     ASSERT_EQ(*stringList2, *copiedStringListMap->get("bar"));
     ASSERT_EQ(nullptr, copiedStringListMap->get("blah"));
-    auto expected_keys = createMegaStringList({"bar", "foo"});
+    auto expectedKeys = createMegaStringList({"bar", "foo"});
     auto keys = std::unique_ptr<MegaStringList>{stringListMap->getKeys()};
-    ASSERT_EQ(*expected_keys, *keys);
+    ASSERT_EQ(*expectedKeys, *keys);
 }
 
 TEST(megaapi, MegaStringListMap_copy_emptyStringListMap)

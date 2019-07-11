@@ -7081,6 +7081,55 @@ typedef NS_ENUM(NSInteger, BusinessStatus) {
  */
 - (void)getCountryCallingCodesWithDelegate:(id<MEGARequestDelegate>)delegate;
 
+/**
+ * @brief Send a verification code txt to the supplied phone number
+ *
+ * Sends a 6 digit code to the user's phone. The phone number is supplied in this function call.
+ * The code is sent by SMS to the user. Once the user receives it, they can type it into the app
+ * and the call checkSMSVerificationCode:delegate: in MEGASdk to validate the user did
+ * receive the verification code, so that really is their phone number.
+ *
+ * The frequency with which this call can be used is very limited (the API allows at most
+ * two SMS mssages sent for phone number per 24 hour period), so it's important to get the
+ * number right on the first try. The result will be MEGAErrorTypeApiETempUnavail if it has
+ * been tried too frequently.
+ *
+ * Make sure to test the result of smsAllowedState in MEGASdk before calling this function.
+ *
+ * Valid data in the MegaRequest object received on callbacks:
+ * - text in MEGARequest - the phoneNumber as supplied to this function
+ *
+ * When the operation completes, MEGAErrorType can be:
+ * - MEGAErrorTypeApiETempUnavail if a limit is reached.
+ * - MEGAErrorTypeApiEAccess if your account is already verified with an SMS number
+ * - MEGAErrorTypeApiEExist if the number is already verified for some other account.
+ * - MEGAErrorTypeApiEArgs if the phone number is badly formatted or invalid.
+ * - MEGAErrorTypeApiOk is returned upon success.
+ *
+ * @param phoneNumber The phone number to txt the code to, supplied by the user.
+ * @param delegate A MEGARequestDelegate callback to track this request
+ */
+- (void)sendSMSVerificationCodeToPhoneNumber:(NSString *)phoneNumber delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check a verification code that the user should have received via txt
+ *
+ * This function validates that the user received the verification code sent by sendSMSVerificationCodeToPhoneNumber:delegate in MEGASdk.
+ *
+ * Valid data in the MEGARequest object received on callbacks:
+ * - text in MEGARequest - the verificationCode as supplied to this function
+ *
+ * When the operation completes, MEGAErrorType can be:
+ * - MEGAErrorTypeApiEAccess if you have reached the verification limits.
+ * - MEGAErrorTypeApiEFailed if the verification code does not match.
+ * - MEGAErrorTypeApiEExpired if the phone number was verified on a different account.
+ * - MEGAErrorTypeApiOk is returned upon success.
+ *
+ * @param verificationCode A string supplied by the user, that they should have received via txt.
+ * @param delegate A MEGARequestDelegate callback to track this request
+ */
+- (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate;
+
 /*
  * @brief Requests the user contacts registered in MEGA and verificated through SMS.
  *
