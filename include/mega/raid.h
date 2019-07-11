@@ -68,7 +68,7 @@ namespace mega {
         FilePiece* getAsyncOutputBufferPointer(unsigned connectionNum);
 
         // indicate that the buffer written by asyncIO (or synchronously) can now be discarded.
-        void bufferWriteCompleted(unsigned connectionNum, bool failedAndAbandoned = false);
+        void bufferWriteCompleted(unsigned connectionNum, bool succeeded);
 
         // temp URL to use on a given connection.  The same on all connections for a non-raid file.
         const std::string& tempURL(unsigned connectionNum);
@@ -186,7 +186,7 @@ namespace mega {
         void setIsRaid(Transfer* transfer, std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxDownloadRequestSize);
 
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
-        m_off_t& transferPos(unsigned connectionNum) /* override */;
+        m_off_t& transferPos(unsigned connectionNum) override;
 
         // Get the file position to upload/download to on the specified connection
         std::pair<m_off_t, m_off_t> nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& newBufferSupplied, bool& pauseConnectionForRaid);
@@ -201,9 +201,9 @@ namespace mega {
         m_off_t nextTransferPos();
 
         // decrypt and mac downloaded chunk
-        void finalize(FilePiece& r) /* override */;
-        m_off_t calcOutputChunkPos(m_off_t acquiredpos) /* override */;
-        void bufferWriteCompletedAction(FilePiece& r) /* override */;
+        void finalize(FilePiece& r) override;
+        m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
+        void bufferWriteCompletedAction(FilePiece& r) override;
 
         friend class DebugTestHook;
     };
@@ -213,7 +213,7 @@ namespace mega {
     public:
 
         // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
-        m_off_t& transferPos(unsigned connectionNum) /* override */;
+        m_off_t& transferPos(unsigned connectionNum) override;
 
         DirectReadBufferManager(DirectRead* dr);
 
@@ -225,8 +225,8 @@ namespace mega {
         m_off_t nextTransferPos();
 
         // decrypt and mac downloaded chunk
-        void finalize(FilePiece& r) /* override */;
-        m_off_t calcOutputChunkPos(m_off_t acquiredpos) /* override */;
+        void finalize(FilePiece& r) override;
+        m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
 
         friend class DebugTestHook;
     };
