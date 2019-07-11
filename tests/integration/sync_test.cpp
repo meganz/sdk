@@ -2007,7 +2007,7 @@ GTEST_TEST(BasicSync, RemoveLocalNodeBeforeSessionResume)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // save session
-    byte session[64];
+    ::mega::byte session[64];
     int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
 
     // logout (but keep caches)
@@ -2124,7 +2124,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterNonclashingLocalAndRemoteChanges
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 
     cout << "********************* save session A1" << endl;
-    byte session[64];
+    ::mega::byte session[64];
     int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
 
     cout << "*********************  logout A1 (but keep caches on disk)" << endl;
@@ -2193,7 +2193,7 @@ GTEST_TEST(BasicSync, ResumeSyncFromSessionAfterClashingLocalAddRemoteDelete)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // save session A1
-    byte session[64];
+    ::mega::byte session[64];
     int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
     fs::path sync1path = pclientA1->syncSet[1].localpath;
 

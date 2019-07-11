@@ -7,7 +7,7 @@ CONFIG(release, debug|release) {
     CONFIG += release
 }
 
-TARGET = MEGAsdktests
+TARGET = test_purge_account
 TEMPLATE = app
 
 CONFIG += USE_LIBUV
@@ -20,10 +20,4 @@ LIBS += -lgtest
 
 include(../../../../bindings/qt/sdk.pri)
 
-SOURCES += ../../../../tests/sdk_test.cpp \
-           ../../../../tests/commands_test.cpp \
-           ../../../../tests/megaapi_test.cpp \
-           ../../../../tests/sdktests.cpp
-
-HEADERS += \
-    ../../../../tests/sdk_test.h
+SOURCES += ../../../../tests/manual/purge_account.cpp
