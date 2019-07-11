@@ -68,7 +68,7 @@ namespace mega {
         FilePiece* getAsyncOutputBufferPointer(unsigned connectionNum);
 
         // indicate that the buffer written by asyncIO (or synchronously) can now be discarded.
-        void bufferWriteCompleted(unsigned connectionNum);
+        void bufferWriteCompleted(unsigned connectionNum, bool failedAndAbandoned = false);
 
         // temp URL to use on a given connection.  The same on all connections for a non-raid file.
         const std::string& tempURL(unsigned connectionNum);

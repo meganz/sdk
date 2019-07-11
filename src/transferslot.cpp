@@ -164,6 +164,11 @@ TransferSlot::~TransferSlot()
                         transferbuf.bufferWriteCompleted(i);
                         cachetransfer = true;
                     }
+                    else
+                    {
+                        LOG_verbose << "Async write failed";
+                        transferbuf.bufferWriteCompleted(i, true);
+                    }
                 }
                 delete asyncIO[i];
                 asyncIO[i] = NULL;
@@ -192,30 +197,31 @@ TransferSlot::~TransferSlot()
             }
         }
 
-        for (int j = 0; connections > 0; j++)
+        bool anydata = true;
+        while (anydata)
         {
-            int i = j >= connections ? 0 : j;  
-
-            // synchronous writes for all remaining outstanding data, including data from any failed async above
-            // check each connection first and then all that were not yet on a connection
-            TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
-            if (outputPiece)
+            anydata = false;
+            for (int i = 0; i < connections; ++i)
             {
-                if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
+                // synchronous writes for all remaining outstanding data (for raid, there can be a sequence of output pieces.  for non-raid, one piece per connection)
+                // check each connection first and then all that were not yet on a connection
+                TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                if (outputPiece)
                 {
+                    anydata = true;
+                    if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
+                    {
 
-                    LOG_verbose << "Sync write succeeded";
-                    transferbuf.bufferWriteCompleted(i);
-                    cachetransfer = true;
+                        LOG_verbose << "Sync write succeeded";
+                        transferbuf.bufferWriteCompleted(i);
+                        cachetransfer = true;
+                    }
+                    else
+                    {
+                        LOG_err << "Error caching data at: " << outputPiece->pos;
+                        transferbuf.bufferWriteCompleted(i, true);  // throws the data away so we can move on to the next one
+                    }
                 }
-                else
-                {
-                    LOG_err << "Error caching data at: " << outputPiece->pos;
-                }
-            }
-            else if (j >= connections)
-            {
-                break;
             }
         }
 
@@ -705,6 +711,7 @@ void TransferSlot::doio(MegaClient* client)
                                         LOG_err << "Error saving finished chunk";
                                         if (!fa->retry)
                                         {
+                                            transferbuf.bufferWriteCompleted(i, true);  // discard failed data so we don't retry on slot deletion
                                             return transfer->failed(API_EWRITE);
                                         }
                                         lasterror = API_EWRITE;
@@ -881,6 +888,7 @@ void TransferSlot::doio(MegaClient* client)
                             LOG_warn << "Async operation failed: " << asyncIO[i]->retry;
                             if (!asyncIO[i]->retry)
                             {
+                                transferbuf.bufferWriteCompleted(i, true);  // discard failed data so we don't retry on slot deletion
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
                                 return transfer->failed(transfer->type == PUT ? API_EREAD : API_EWRITE);
