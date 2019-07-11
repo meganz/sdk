@@ -9753,8 +9753,53 @@ class MegaApi
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
 #endif
 
+        /**
+         * @brief Gets the list of the users's aliases
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringMap - MegaStringMap with user handles and alias both encoded in B64
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void getUsersAliases(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Gets the alias for an user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+         * - MegaRequest::getFlag - Returns true (it means we have requested the alias for an specific user)
+         * - MegaRequest::getText - user handle encoded in B64
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringMap - MegaStringMap with user handles and alias both encoded in B64
+         * - MegaRequest::getName - user alias encoded in B64
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set an alias for an user
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+         * - MegaRequest::getMegaStringMap - MegaStringMap with user handles and alias both encoded in B64
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringMap - MegaStringMap with updated user handles and alias both encoded in B64
+         *
+         * @param listener MegaRequestListener to track this request
+         */
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 
         /**

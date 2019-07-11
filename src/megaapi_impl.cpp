@@ -14330,7 +14330,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
                     const char *uh = request->getText();
                     if (uh)
                     {
-                        string aliasB64;
                         const char *buf, *key;
                         bool found = false;
 
@@ -14342,11 +14341,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
 
                             if (strcmp(key, uh) == 0 && buf)
                             {
-                                // The MegaStringMap contains values encoded in B64 so we need to decode it if we find a match
-                                size_t len = strlen(buf)/4*3+3;
-                                aliasB64.resize(len);
-                                aliasB64.resize(Base64::atob(buf, (byte *)aliasB64.data(), int(len)));
-                                request->setName(aliasB64.c_str());
+                                request->setName(buf);
                                 found = true;
                             }
                         }
