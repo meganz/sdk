@@ -444,7 +444,7 @@ string User::attr2string(attr_t type)
             break;
 
         case ATTR_ALIAS:
-            attrname =  "*!aliass";
+            attrname =  "*!>alias";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -687,7 +687,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_UNSHAREABLE_KEY;
     }
-    else if (!strcmp(name, "*!aliass"))
+    else if (!strcmp(name, "*!>alias"))
     {
         return ATTR_ALIAS;
     }
