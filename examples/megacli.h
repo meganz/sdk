@@ -252,7 +252,7 @@ struct DemoApp : public MegaApp
     void contactlinkdelete_result(error) override;
 
     void smsverificationsend_result(error);
-    void smsverificationcheck_result(error);
+    void smsverificationcheck_result(error, string*);
 
     void reload(const char*) override;
     void clearing() override;

@@ -6784,7 +6784,7 @@ void DemoApp::smsverificationsend_result(error e)
     }
 }
 
-void DemoApp::smsverificationcheck_result(error e)
+void DemoApp::smsverificationcheck_result(error e, string *phoneNumber)
 {
     if (e)
     {
@@ -6792,7 +6792,7 @@ void DemoApp::smsverificationcheck_result(error e)
     }
     else
     {
-        cout << "SMS verification succeeded" << endl;
+        cout << "SMS verification succeeded (phone number: " << *phoneNumber << ")" << endl;
     }
 }
 

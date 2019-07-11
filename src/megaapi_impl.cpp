@@ -14840,7 +14840,7 @@ void MegaApiImpl::smsverificationsend_result(error e)
     }
 }
 
-void MegaApiImpl::smsverificationcheck_result(error e)
+void MegaApiImpl::smsverificationcheck_result(error e, string* phoneNumber)
 {
     map<int, MegaRequestPrivate *>::iterator it = requestMap.find(client->restag);
     if (it != requestMap.end())
@@ -14848,6 +14848,10 @@ void MegaApiImpl::smsverificationcheck_result(error e)
         MegaRequestPrivate* request = it->second;
         if (request && ((request->getType() == MegaRequest::TYPE_CHECK_SMS_VERIFICATIONCODE)))
         {
+            if (e == API_OK && phoneNumber)
+            {
+                request->setName(phoneNumber->c_str());
+            }
             fireOnRequestFinish(request, e);
         }
     }

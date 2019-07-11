@@ -368,7 +368,7 @@ struct MEGA_API MegaApp
 
     // result of sms verification commands
     virtual void smsverificationsend_result(error) { }
-    virtual void smsverificationcheck_result(error) { }
+    virtual void smsverificationcheck_result(error, string*) { }
 
     // result of get registered contacts command
     virtual void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) { }

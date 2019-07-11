@@ -2698,7 +2698,7 @@ protected:
 
         // account validation by txted verification code
         void smsverificationsend_result(error) override;
-        void smsverificationcheck_result(error) override;
+        void smsverificationcheck_result(error, std::string *phoneNumber) override;
 
         // get registered contacts
         void getregisteredcontacts_result(error, vector<tuple<string, string, string>>*) override;

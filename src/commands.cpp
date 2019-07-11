@@ -7295,13 +7295,18 @@ void CommandSMSVerificationCheck::procresult()
 {
     if (client->json.isnumeric())
     {
-        client->app->smsverificationcheck_result(static_cast<error>(client->json.getint()));
+        return client->app->smsverificationcheck_result(static_cast<error>(client->json.getint()), nullptr);
     }
-    else
+
+    string phoneNumber;
+    if (!client->json.storeobject(&phoneNumber))
     {
-        client->json.storeobject();
-        client->app->smsverificationcheck_result(API_EINTERNAL);
+        return client->app->smsverificationcheck_result(API_EINTERNAL, nullptr);
     }
+
+    assert(CommandSMSVerificationSend::isPhoneNumber(phoneNumber));
+    client->mSmsVerifiedPhone = phoneNumber;
+    client->app->smsverificationcheck_result(API_OK, &phoneNumber);
 }
 
 CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)

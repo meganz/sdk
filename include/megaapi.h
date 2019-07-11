@@ -15103,6 +15103,10 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - the verificationCode as supplied to this function
          *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - the phone number that has been verified
+         *
          * When the operation completes, onRequestFinish is called and the MegaError object can be:
          * - MegaError::API_EEACCESS if you have reached the verification limits.
          * - MegaError::API_EFAILED if the verification code does not match.
