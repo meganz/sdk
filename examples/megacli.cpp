@@ -1198,7 +1198,7 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t)
     cout << endl;
 }
 
-void DemoApp::getua_result(TLVstore *tlv, attr_t)
+void DemoApp::getua_result(TLVstore *tlv, attr_t type)
 {
 #ifdef ENABLE_CHAT
     if (client->fetchingkeys)
@@ -1230,6 +1230,31 @@ void DemoApp::getua_result(TLVstore *tlv, attr_t)
             Base64::btoa((const byte *) value.data(), valuelen, buf);
 
             cout << "\t" << key << "\t" << buf << endl;
+
+            if (type == ATTR_AUTHRING)
+            {
+                cout << "\t\tAuthring data: " << endl;
+
+                handle uh;
+                byte keyFingerprint[20];
+                byte authLevel;
+                size_t recordSize = 29;
+
+                const char* ptr = value.data();
+                const char* end = ptr + valuelen;
+                while (ptr + recordSize < end)
+                {
+                    memcpy(&uh, ptr, sizeof(uh));
+                    ptr += sizeof(uh);
+                    memcpy(keyFingerprint, ptr, sizeof(keyFingerprint));
+                    ptr += sizeof(keyFingerprint);
+                    memcpy(&authLevel, ptr, sizeof(authLevel));
+                    ptr += sizeof(authLevel);
+
+                    cout << "uh: " << Base64Str<USER_HANDLE>(uh) << " Fingerprint: " << Base64Str<sizeof(keyFingerprint)>(keyFingerprint) << " Auth: " << authLevel << endl;
+                }
+
+            }
 
             delete [] buf;
         }
