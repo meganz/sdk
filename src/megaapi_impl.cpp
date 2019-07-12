@@ -14262,14 +14262,14 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
     fireOnRequestFinish(request, MegaError(e));
 }
 
-void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
+void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
 {
     error e = API_OK;
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
-           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)
-           || (request->getType() == MegaRequest::TYPE_SET_ATTR_USER && request->getParamType() != MegaApi::USER_ATTR_ALIAS)) return;
+           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER
+               && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
     if (tlv)
     {
@@ -14307,8 +14307,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
             {
                 // serialize and encrypt the TLV container
                 string *container = tlv->tlvRecordsToContainer(client->rng, &client->key);
-                attr_t type = static_cast<attr_t>(request->getParamType());
-
+                assert(type == request->getParamType());
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
                 delete container;
             }

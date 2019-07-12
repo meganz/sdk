@@ -9946,8 +9946,8 @@ class MegaApi
          *
          * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
          *
-         * @param listener MegaRequestListener to track this request
          * @param uh handle of the user in binary
+         * @param listener MegaRequestListener to track this request
          */
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
 
@@ -9959,11 +9959,8 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
          * - MegaRequest::getMegaStringMap - MegaStringMap with user handles and alias both encoded in B64
          *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaStringMap - MegaStringMap with updated user handles and alias both encoded in B64
-         * - MegaRequest::getFlag - Returns true if the attribute has been modified, otherwise returns false.
-         *
+         * @param uh handle of the user in binary
+         * @param alias the user alias
          * @param listener MegaRequestListener to track this request
          */
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
