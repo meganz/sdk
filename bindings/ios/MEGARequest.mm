@@ -187,13 +187,15 @@ using namespace mega;
 }
 
 - (NSDictionary<NSString *, MEGAStringList *> *)megaStringListDictionary {
-    MegaStringListMap *map = self.megaRequest->getMegaStringListMap()->copy();
+    MegaStringListMap *map = self.megaRequest->getMegaStringListMap();
     NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:map->size()];
     MegaStringList *keyList = map->getKeys();
     for (int i = 0; i < keyList->size(); i++) {
-        const char *key = keyList->get(i);
-        dict[@(key)] = [[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)map->get(key) cMemoryOwn:YES];
+        const char *key = MegaApi::strdup(keyList->get(i));
+        dict[@(key)] = [[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)map->get(key)->copy() cMemoryOwn:YES];
     }
+    
+    delete keyList;
     
     return [dict copy];
 }
