@@ -351,6 +351,14 @@ string User::attr2string(attr_t type)
             attrname = "*!authring";
             break;
 
+        case ATTR_AUTHRSA:
+            attrname = "*!authRSA";
+            break;
+
+        case ATTR_AUTHCU255:
+            attrname = "*!authCu255";
+            break;
+
         case ATTR_LAST_INT:
             attrname = "*!lstint";
             break;
@@ -472,6 +480,14 @@ string User::attr2longname(attr_t type)
         longname = "AUTHRING";
         break;
 
+    case ATTR_AUTHRSA:
+        longname = "AUTHRSA";
+        break;
+
+    case ATTR_AUTHCU255:
+        longname = "AUTHCU255";
+        break;
+
     case ATTR_LAST_INT:
         longname = "LAST_INT";
         break;
@@ -582,6 +598,14 @@ attr_t User::string2attr(const char* name)
     else if (!strcmp(name, "*!authring"))
     {
         return ATTR_AUTHRING;
+    }
+    else if (!strcmp(name, "*!authRSA"))
+    {
+        return ATTR_AUTHRSA;
+    }
+    else if (!strcmp(name, "*!authCu255"))
+    {
+        return ATTR_AUTHCU255;
     }
     else if (!strcmp(name, "*!lstint"))
     {
@@ -709,9 +733,11 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_AUTHRING:
+        case ATTR_AUTHRSA:
+        case ATTR_AUTHCU255:
             return 0;
 
-        case ATTR_AUTHRING:
         case ATTR_LAST_INT:
         case ATTR_ED25519_PUBK:
         case ATTR_CU25519_PUBK:
@@ -733,6 +759,8 @@ char User::scope(attr_t at)
     {
         case ATTR_KEYRING:
         case ATTR_AUTHRING:
+        case ATTR_AUTHRSA:
+        case ATTR_AUTHCU255:
         case ATTR_LAST_INT:
         case ATTR_RICH_PREVIEWS:
         case ATTR_GEOLOCATION:
@@ -1060,6 +1088,14 @@ bool User::setChanged(attr_t at)
 
         case ATTR_AUTHRING:
             changed.authring = true;
+            break;
+
+        case ATTR_AUTHRSA:
+            changed.authrsa = true;
+            break;
+
+        case ATTR_AUTHCU255:
+            changed.authcu255 = true;
             break;
 
         case ATTR_LAST_INT:

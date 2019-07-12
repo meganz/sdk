@@ -50,7 +50,9 @@ struct MEGA_API User : public Cachable
     struct
     {
         bool keyring : 1;   // private keys
-        bool authring : 1;  // authentication information of the contact
+        bool authring : 1;  // authentication information of the contact (signing key)
+        bool authrsa : 1;   // authentication information of the contact (RSA key)
+        bool authcu255 : 1; // authentication information of the contact (Cu25519 key)
         bool lstint : 1;    // last interaction with the contact
         bool puEd255 : 1;   // public key for Ed25519
         bool puCu255 : 1;   // public key for Cu25519
