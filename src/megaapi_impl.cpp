@@ -14062,7 +14062,7 @@ void MegaApiImpl::getua_result(error e)
             string value;
             const char *buf, *key;
             MegaStringList *keys = stringMap->getKeys();
-            for (int i=0; i < keys->size(); i++)
+            for (int i = 0; i < keys->size(); i++)
             {
                 key = keys->get(i);
                 tlv.set(key, stringMap->get(key));
