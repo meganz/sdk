@@ -9678,6 +9678,7 @@ void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
     Base64::btoa((byte*)&uh, MegaClient::USERHANDLE, uid);
     uid[11] = 0;
     request->setText(uid);
+    request->setNodeHandle(uh);
     requestQueue.push(request);
     waiter->notify();
 }

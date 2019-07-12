@@ -9932,11 +9932,12 @@ class MegaApi
 #endif
 
         /**
-         * @brief Gets the alias for a user
+         * @brief Gets the alias for an user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
+         * - MegaRequest::getNodeHandle - user handle in binary
          * - MegaRequest::getText - user handle encoded in B64
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -9951,6 +9952,7 @@ class MegaApi
          * the request will fail with the error code MegaError::API_EACCESS.
          *
          * @param listener MegaRequestListener to track this request
+         * @param uh handle of the user in binary
          */
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
 
