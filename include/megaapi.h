@@ -9957,7 +9957,8 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
-         * - MegaRequest::getMegaStringMap - MegaStringMap with user handles and alias both encoded in B64
+         * - MegaRequest::getNodeHandle() - Returns the user handle in binary;
+         * - MegaRequest::getText() - Returns the user alias;
          *
          * @param uh handle of the user in binary
          * @param alias the user alias

@@ -9682,14 +9682,21 @@ void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 
 void MegaApiImpl::setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener)
 {
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMap *stringMap = NULL;
     if (alias)
     {
         stringMap = new MegaStringMapPrivate();
         stringMap->set(Base64Str<MegaClient::USERHANDLE>(uh), alias);
     }
-    setUserAttribute(MegaApi::USER_ATTR_ALIAS, stringMap, listener);
+
+    request->setMegaStringMap(stringMap);
+    request->setParamType(MegaApi::USER_ATTR_ALIAS);
+    request->setNodeHandle(uh);
+    request->setText(alias);
     delete stringMap;
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::enableGeolocation(MegaRequestListener *listener)
@@ -14297,7 +14304,6 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 }
 
                 tlv->set(key, alias);
-                request->setFlag(true);
                 modified = true;
             }
 
