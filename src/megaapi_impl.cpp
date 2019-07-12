@@ -14012,8 +14012,7 @@ void MegaApiImpl::getua_result(error e)
     MegaRequestPrivate* request = NULL;
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end() || !(request = it->second)
-           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)
-           || (request->getType() == MegaRequest::TYPE_SET_ATTR_USER && request->getParamType() != MegaApi::USER_ATTR_ALIAS)) return;
+           || (request->getType() != MegaRequest::TYPE_GET_ATTR_USER && request->getType() != MegaRequest::TYPE_SET_ATTR_USER)) return;
 
     // if attempted to get ^!prd attribute but not exists yet...
     if (e == API_ENOENT)
@@ -14057,16 +14056,16 @@ void MegaApiImpl::getua_result(error e)
         {
             // The attribute doesn't exists so we have to create it
             MegaStringMap *stringMap = request->getMegaStringMap();
-            attr_t type = attr_t(request->getParamType());
+            attr_t type = static_cast<attr_t>(request->getParamType());
             TLVstore tlv;
             const char *key;
-            MegaStringList *keys = stringMap->getKeys();
+
+            std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
             for (int i = 0; i < keys->size(); i++)
             {
                 key = keys->get(i);
                 tlv.set(key, stringMap->get(key));
             }
-            delete keys;
 
             // serialize and encrypt the TLV container
             string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);
@@ -14308,7 +14307,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
             {
                 // serialize and encrypt the TLV container
                 string *container = tlv->tlvRecordsToContainer(client->rng, &client->key);
-                attr_t type = attr_t(request->getParamType());
+                attr_t type = static_cast<attr_t>(request->getParamType());
 
                 client->putua(type, (byte *)container->data(), unsigned(container->size()));
                 delete container;
@@ -14389,6 +14388,9 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t)
                     {
                         e = API_ENOENT;
                     }
+
+                    // Clean MegaStringMap from request
+                    request->setMegaStringMap(NULL);
                 }
                 break;
             }
@@ -18430,7 +18432,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_GET_ATTR_USER:
         {
             const char* value = request->getFile();
-            attr_t type = attr_t(request->getParamType());
+            attr_t type = static_cast<attr_t>(request->getParamType());
             const char *email = request->getEmail();
             const char *ph = request->getSessionKey();
 
@@ -18479,7 +18481,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             const char* file = request->getFile();
             const char* value = request->getText();
-            attr_t type = attr_t(request->getParamType());
+            attr_t type = static_cast<attr_t>(request->getParamType());
             MegaStringMap *stringMap = request->getMegaStringMap();
 
             char scope = MegaApiImpl::userAttributeToScope(type);
@@ -18555,7 +18557,8 @@ void MegaApiImpl::sendPendingRequests()
                 TLVstore tlv;
                 string value;
                 const char *buf, *key;
-                MegaStringList *keys = stringMap->getKeys();
+
+                std::unique_ptr<MegaStringList> keys(stringMap->getKeys());
                 for (int i=0; i < keys->size(); i++)
                 {
                     key = keys->get(i);
@@ -18564,10 +18567,8 @@ void MegaApiImpl::sendPendingRequests()
                     size_t len = strlen(buf)/4*3+3;
                     value.resize(len);
                     value.resize(Base64::atob(buf, (byte *)value.data(), int(len)));
-
                     tlv.set(key, value);
                 }
-                delete keys;
 
                 // serialize and encrypt the TLV container
                 string *container = tlv.tlvRecordsToContainer(client->rng, &client->key);

@@ -9942,14 +9942,9 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getMegaStringMap - MegaStringMap with user handles and alias both encoded in B64
          * - MegaRequest::getName - user alias encoded in B64
          *
-         * If the corresponding user attribute is not set yet, the request will fail with the
-         * error code MegaError::API_ENOENT.
-         *
-         * If the corresponding user attribute exists but doesn't contains the alias for the target user,
-         * the request will fail with the error code MegaError::API_EACCESS.
+         * If the user alias doesn't exists the request will fail with the error code MegaError::API_ENOENT.
          *
          * @param listener MegaRequestListener to track this request
          * @param uh handle of the user in binary
