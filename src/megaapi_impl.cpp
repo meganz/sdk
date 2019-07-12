@@ -6992,31 +6992,45 @@ bool MegaApiImpl::isScheduleNotifiable()
 // clears backups and requests/transfers notifying failure with EACCESS (and  resets total up/down bytes)
 void MegaApiImpl::abortPendingActions(error preverror)
 {
+    if (!preverror)
+    {
+        preverror = API_EACCESS;
+    }
+
     for (auto it : backupsMap)
     {
         delete it.second;
     }
     backupsMap.clear();
 
-    for (auto it = requestMap.cbegin(), next_it = it; it != requestMap.cend(); it = next_it)
+    deque<MegaRequestPrivate*> requests;
+    for (auto requestPair : requestMap)
     {
-        ++next_it;
-        if(it->second)
+        if (requestPair.second)
         {
-            fireOnRequestFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
+            requests.push_back(requestPair.second);
         }
     }
-    requestMap.clear();
+    for (auto request : requests)
+    {
+        fireOnRequestFinish(request, preverror);
+    }
 
-    for (auto it = transferMap.crbegin(), next_it = it; it != transferMap.crend(); it = next_it)
+    deque<MegaTransferPrivate*> transfers;
+    for (auto transferPair : transferMap)
     {
-        ++next_it;
-        if (it->second)
+        if (transferPair.second)
         {
-            it->second->setState(MegaTransfer::STATE_FAILED);
-            fireOnTransferFinish(it->second, MegaError(preverror ? preverror : API_EACCESS));
+            transfers.push_front(transferPair.second);
         }
     }
+    for (auto transfer : transfers)
+    {
+        transfer->setState(MegaTransfer::STATE_FAILED);
+        fireOnTransferFinish(transfer, preverror);
+    }
+
+    requestMap.clear();
     transferMap.clear();
 
     resetTotalDownloads();
