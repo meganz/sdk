@@ -693,6 +693,16 @@ LocalNode* Sync::checkpath(LocalNode* l, string* localpath, string* localname, d
                             // (FIXME: handle type changes)
                             if (l->fsid != fa->fsid)
                             {
+                                if (*l == FileFingerprint{fa})
+                                {
+                                    // If the fingerprint is the same it is the same file and only
+                                    // its fsid changed (e.g. common on fat filesystems).
+                                    l->setfsid(fa->fsid);
+                                    statecacheadd(l);
+                                    delete fa;
+                                    return l;
+                                }
+
                                 handlelocalnode_map::iterator it;
 #ifdef _WIN32
                                 const char *colon;

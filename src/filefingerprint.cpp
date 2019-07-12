@@ -25,9 +25,15 @@
 #include "mega/logging.h"
 #include "mega/utils.h"
 
+namespace {
+
+constexpr int MAXFULL = 8192;
+
+} // anonymous
+
 namespace mega {
 
-bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
+bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
 {
     // size differs - cannot be equal
     if (lhs.size != rhs.size)
@@ -59,13 +65,9 @@ bool operator==(FileFingerprint& lhs, FileFingerprint& rhs)
     return !memcmp(lhs.crc, rhs.crc, sizeof lhs.crc);
 }
 
-FileFingerprint::FileFingerprint()
+FileFingerprint::FileFingerprint(FileAccess* fa, const bool ignoremtime)
 {
-    // mark as invalid
-    size = -1;
-    mtime = 0;
-    isvalid = false;
-    memset(crc, 0, sizeof crc);
+    genfingerprint(fa, ignoremtime);
 }
 
 bool FileFingerprint::serialize(string *d)
@@ -105,16 +107,6 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
 
     d->erase(0, ptr - d->data());
     return fp;
-}
-
-FileFingerprint& FileFingerprint::operator=(FileFingerprint& rhs)
-{
-    isvalid = rhs.isvalid;
-    size = rhs.size;
-    mtime = rhs.mtime;
-    memcpy(crc, rhs.crc, sizeof crc);
-
-    return *this;
 }
 
 bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
