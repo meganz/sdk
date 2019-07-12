@@ -9950,7 +9950,7 @@ class MegaApi
         void getUsersAliases(MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Gets the alias for an user
+         * @brief Gets the alias for a user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
