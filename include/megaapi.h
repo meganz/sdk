@@ -9932,24 +9932,6 @@ class MegaApi
 #endif
 
         /**
-         * @brief Gets the list of the users's aliases
-         *
-         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_ALIAS
-         *
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getMegaStringMap - MegaStringMap with user handles and alias both encoded in B64
-         *
-         * If the corresponding user attribute is not set yet, the request will fail with the
-         * error code MegaError::API_ENOENT.
-         *
-         * @param listener MegaRequestListener to track this request
-         */
-        void getUsersAliases(MegaRequestListener *listener = NULL);
-
-        /**
          * @brief Gets the alias for a user
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER

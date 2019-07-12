@@ -2443,7 +2443,6 @@ class MegaApiImpl : public MegaApp
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
         void setCameraUploadsFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getCameraUploadsFolder(MegaRequestListener *listener = NULL);
-        void getUsersAliases(MegaRequestListener *listener = NULL);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);
 #endif

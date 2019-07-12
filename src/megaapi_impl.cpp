@@ -9670,14 +9670,6 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     delete stringMap;
 }
 
-void MegaApiImpl::getUsersAliases(MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
-    request->setParamType(MegaApi::USER_ATTR_ALIAS);
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);

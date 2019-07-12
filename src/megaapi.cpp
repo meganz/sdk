@@ -2480,11 +2480,6 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
 }
 #endif
 
-void MegaApi::getUsersAliases(MegaRequestListener *listener)
-{
-    pImpl->getUsersAliases(listener);
-}
-
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
     pImpl->getUserAlias(uh, listener);
