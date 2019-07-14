@@ -115,7 +115,7 @@ struct MEGA_API TransferSlot
     bool retrying;
     BackoffTimer retrybt;
 
-    // transfer failure flag
+    // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;
     
     TransferSlot(Transfer*);

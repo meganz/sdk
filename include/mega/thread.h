@@ -33,23 +33,6 @@ public:
     virtual void join() = 0;
 };
 
-class Mutex
-{
-public:
-    virtual void init(bool recursive) = 0;
-    virtual void lock() = 0;
-    virtual void unlock() = 0;
-};
-
-class MutexGuard
-{
-    Mutex& m;
-public:
-    MutexGuard(Mutex& cm) : m(cm) { m.lock(); }
-    ~MutexGuard() { m.unlock(); }
-};
-
-
 class Semaphore
 {
 public:

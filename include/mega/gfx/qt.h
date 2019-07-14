@@ -90,7 +90,7 @@ protected:
 #endif
 
 #ifdef HAVE_FFMPEG
-    static MUTEX_CLASS gfxMutex;
+    static std::mutex gfxMutex;
     static const char* supportedformatsFfmpeg();
     static QImageReader *readbitmapFfmpeg(int &w, int &h, int &orientation, QString imagePath);
 #endif

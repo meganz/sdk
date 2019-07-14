@@ -1195,7 +1195,7 @@ dstime Sync::procscanq(int q)
         cachenodes();
     }
 
-    return ~0;
+    return dstime(~0);
 }
 
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)

@@ -161,8 +161,13 @@ TransferSlot::~TransferSlot()
                     if (!asyncIO[i]->failed)
                     {
                         LOG_verbose << "Async write succeeded";
-                        transferbuf.bufferWriteCompleted(i);
+                        transferbuf.bufferWriteCompleted(i, true);
                         cachetransfer = true;
+                    }
+                    else
+                    {
+                        LOG_verbose << "Async write failed";
+                        transferbuf.bufferWriteCompleted(i, false);
                     }
                 }
                 delete asyncIO[i];
@@ -192,30 +197,31 @@ TransferSlot::~TransferSlot()
             }
         }
 
-        for (int j = 0; connections > 0; j++)
+        bool anyData = true;
+        while (anyData)
         {
-            int i = j >= connections ? 0 : j;  
-
-            // synchronous writes for all remaining outstanding data, including data from any failed async above
-            // check each connection first and then all that were not yet on a connection
-            TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
-            if (outputPiece)
+            anyData = false;
+            for (int i = 0; i < connections; ++i)
             {
-                if (fa && fa->fwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos))
+                // synchronous writes for all remaining outstanding data (for raid, there can be a sequence of output pieces.  for non-raid, one piece per connection)
+                // check each connection first and then all that were not yet on a connection
+                TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                if (outputPiece)
                 {
+                    anyData = true;
+                    if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
+                    {
 
-                    LOG_verbose << "Sync write succeeded";
-                    transferbuf.bufferWriteCompleted(i);
-                    cachetransfer = true;
+                        LOG_verbose << "Sync write succeeded";
+                        transferbuf.bufferWriteCompleted(i, true);
+                        cachetransfer = true;
+                    }
+                    else
+                    {
+                        LOG_err << "Error caching data at: " << outputPiece->pos;
+                        transferbuf.bufferWriteCompleted(i, false);  // throws the data away so we can move on to the next one
+                    }
                 }
-                else
-                {
-                    LOG_err << "Error caching data at: " << outputPiece->pos;
-                }
-            }
-            else if (j >= connections)
-            {
-                break;
             }
         }
 
@@ -302,12 +308,11 @@ void TransferSlot::disconnect()
 }
 
 // coalesce block macs into file mac
-int64_t TransferSlot::macsmac(chunkmac_map* macs)
+int64_t chunkmac_map::macsmac(SymmCipher *cipher)
 {
     byte mac[SymmCipher::BLOCKSIZE] = { 0 };
 
-    SymmCipher *cipher = transfer->transfercipher();
-    for (chunkmac_map::iterator it = macs->begin(); it != macs->end(); it++)
+    for (chunkmac_map::iterator it = begin(); it != end(); it++)
     {
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
@@ -351,6 +356,41 @@ bool chunkmac_map::unserialize(const char*& ptr, const char* end)
         ptr += sizeof(ChunkMAC);
     }
     return true;
+}
+
+int64_t TransferSlot::macsmac(chunkmac_map* m)
+{
+    return m->macsmac(transfer->transfercipher());
+}
+
+void chunkmac_map::calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& progresscompleted, m_off_t* lastblockprogress)
+{
+    chunkpos = 0;
+    progresscompleted = 0;
+
+    for (chunkmac_map::iterator it = begin(); it != end(); ++it)
+    {
+        m_off_t chunkceil = ChunkedHash::chunkceil(it->first, size);
+
+        if (chunkpos == it->first && it->second.finished)
+        {
+            chunkpos = chunkceil;
+            progresscompleted = chunkceil;
+        }
+        else if (it->second.finished)
+        {
+            m_off_t chunksize = chunkceil - ChunkedHash::chunkfloor(it->first);
+            progresscompleted += chunksize;
+        }
+        else
+        {
+            progresscompleted += it->second.offset;
+            if (lastblockprogress)
+            {
+                *lastblockprogress += it->second.offset;
+            }
+        }
+    }
 }
 
 // file transfer state machine
@@ -653,15 +693,15 @@ void TransferSlot::doio(MegaClient* client)
                                     p += outputPiece->buf.datalen();
 
                                     LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
-                                    asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos);
+                                    asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
                                     reqs[i]->status = REQ_ASYNCIO;
                                 }
                                 else
                                 {
-                                    if (fa->fwrite(outputPiece->buf.datastart(), outputPiece->buf.datalen(), outputPiece->pos))
+                                    if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                                     {
                                         LOG_verbose << "Sync write succeeded";
-                                        transferbuf.bufferWriteCompleted(i);
+                                        transferbuf.bufferWriteCompleted(i, true);
                                         errorcount = 0;
                                         transfer->failcount = 0;
                                         updatecontiguousprogress();
@@ -671,6 +711,7 @@ void TransferSlot::doio(MegaClient* client)
                                         LOG_err << "Error saving finished chunk";
                                         if (!fa->retry)
                                         {
+                                            transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
                                             return transfer->failed(API_EWRITE);
                                         }
                                         lasterror = API_EWRITE;
@@ -786,7 +827,7 @@ void TransferSlot::doio(MegaClient* client)
                             else
                             {
                                 LOG_verbose << "Async write succeeded";
-                                transferbuf.bufferWriteCompleted(i);
+                                transferbuf.bufferWriteCompleted(i, true);
                                 errorcount = 0;
                                 transfer->failcount = 0;
 
@@ -847,6 +888,7 @@ void TransferSlot::doio(MegaClient* client)
                             LOG_warn << "Async operation failed: " << asyncIO[i]->retry;
                             if (!asyncIO[i]->retry)
                             {
+                                transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
                                 return transfer->failed(transfer->type == PUT ? API_EREAD : API_EWRITE);
@@ -912,12 +954,17 @@ void TransferSlot::doio(MegaClient* client)
 
                         return transfer->failed(API_EOVERQUOTA, backoff);
                     }
-                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404 || reqs[i]->httpstatus == 0)
+                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404)
                     {
                         if (!tryRaidRecoveryFromHttpGetError(i))
                         {
                             return transfer->failed(API_EAGAIN);
                         }
+                    }
+                    else if (reqs[i]->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(i))
+                    {
+                        // status 0 indicates network error or timeout; no headers recevied.
+                        // tryRaidRecoveryFromHttpGetError has switched to loading a different part instead of this one.
                     }
                     else
                     {

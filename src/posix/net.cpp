@@ -35,22 +35,22 @@ extern JavaVM *MEGAjvm;
 
 namespace mega {
 
-MUTEX_CLASS CurlHttpIO::curlMutex(false);
+std::mutex CurlHttpIO::curlMutex;
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
-MUTEX_CLASS **CurlHttpIO::sslMutexes = NULL;
-static MUTEX_CLASS lock_init_mutex(false);
+std::recursive_mutex **CurlHttpIO::sslMutexes = NULL;
+static std::mutex lock_init_mutex;
 void CurlHttpIO::locking_function(int mode, int lockNumber, const char *, int)
 {
-    MUTEX_CLASS *mutex = sslMutexes[lockNumber];
+    std::recursive_mutex *mutex = sslMutexes[lockNumber];
     if (mutex == NULL)
     {
         // we still have to be careful about multiple threads getting to this point simultaneously
         lock_init_mutex.lock();
         if (!(mutex = sslMutexes[lockNumber]))
         {
-            mutex = sslMutexes[lockNumber] = new MUTEX_CLASS(true);
+            mutex = sslMutexes[lockNumber] = new std::recursive_mutex;
         }
         lock_init_mutex.unlock();
     }
@@ -92,7 +92,7 @@ CurlHttpIO::CurlHttpIO()
         LOG_debug << "SSL version: " << data->ssl_version;
 
         string curlssl = data->ssl_version;
-        std::transform(curlssl.begin(), curlssl.end(), curlssl.begin(), ::tolower);
+        tolower_string(curlssl);
         if (strstr(curlssl.c_str(), "gskit"))
         {
             LOG_fatal << "Unsupported SSL backend (GSKit). Aborting.";
@@ -158,8 +158,8 @@ CurlHttpIO::CurlHttpIO()
     {
         LOG_debug << "Initializing OpenSSL locking callbacks";
         int numLocks = CRYPTO_num_locks();
-        sslMutexes = new MUTEX_CLASS*[numLocks];
-        memset(sslMutexes, 0, numLocks * sizeof(MUTEX_CLASS*));
+        sslMutexes = new std::recursive_mutex*[numLocks];
+        memset(sslMutexes, 0, numLocks * sizeof(std::recursive_mutex*));
 #if OPENSSL_VERSION_NUMBER >= 0x10000000  || defined (LIBRESSL_VERSION_NUMBER)
         CRYPTO_THREADID_set_callback(CurlHttpIO::id_function);
 #else
@@ -1251,7 +1251,14 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        LOG_debug << httpctx->req->logname << "Sending: " << *req->out;
+        if (req->out->size() < 10240)
+        {
+            LOG_debug << httpctx->req->logname << "Sending: " << *req->out;
+        }
+        else
+        {
+            LOG_debug << httpctx->req->logname << "Sending: " << req->out->substr(0, 5116) << " [...] " << req->out->substr(req->out->size() - 5116, string::npos);
+        }
     }
 
     httpctx->headers = clone_curl_slist(req->type == REQ_JSON ? httpio->contenttypejson : httpio->contenttypebinary);
@@ -1481,7 +1488,7 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
     scheme->clear();
     hostname->clear();
 
-    size_t starthost, endhost, startport, endport;
+    size_t starthost, endhost = 0, startport, endport;
 
     starthost = url->find("://");
 
@@ -2009,7 +2016,9 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     pkpErrors = 0;
                 }
 
-                curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &req->httpstatus);
+                long httpstatus;
+                curl_easy_getinfo(msg->easy_handle, CURLINFO_RESPONSE_CODE, &httpstatus);
+                req->httpstatus = int(httpstatus);
 
                 LOG_debug << "CURLMSG_DONE with HTTP status: " << req->httpstatus << " from "
                           << (req->httpiohandle ? (((CurlHttpContext*)req->httpiohandle)->hostname + " - " + ((CurlHttpContext*)req->httpiohandle)->hostip) : "(unknown) ");
@@ -2342,12 +2351,12 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     {
         if (req->contentlength < 0)
         {
-            req->setcontentlength(atol((char*)ptr + 15));
+            req->setcontentlength(atoll((char*)ptr + 15));
         }
     }
     else if (len > 24 && !memcmp(ptr, "Original-Content-Length:", 24))
     {
-        req->setcontentlength(atol((char*)ptr + 24));
+        req->setcontentlength(atoll((char*)ptr + 24));
     }
     else if (len > 17 && !memcmp(ptr, "X-MEGA-Time-Left:", 17))
     {
@@ -2673,7 +2682,7 @@ bool CurlDNSEntry::isIPv6Expired()
 
 SockInfo::SockInfo()
 {
-    fd = -1;
+    fd = curl_socket_t(-1);
     mode = NONE;
 #if defined(_WIN32)
     handle = WSA_INVALID_EVENT;

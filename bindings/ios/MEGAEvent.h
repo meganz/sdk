@@ -28,7 +28,10 @@ typedef NS_ENUM(NSUInteger, Event) {
     EventDisconnect = 3,
     EventAccountBlocked = 4,
     EventStorage = 5,
-    EventNodesCurrent = 6
+    EventNodesCurrent = 6,
+    EventMediaInfoReady = 7,
+    EventStorageSumChanged = 8,
+    EventBusinessStatus = 9
 };
 
 /**

@@ -89,7 +89,7 @@ void Request::process(MegaClient* client)
         }
     }
     json = client->json;
-    if (processindex == cmds.size())
+    if (processindex == cmds.size() || stopProcessing)
     {
         clear();
     }

@@ -25,6 +25,16 @@
 #include "types.h"
 #include "mega/logging.h"
 
+// Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
+#if defined(_WIN32) && _MSC_VER <= 1800 && __cplusplus < 201103L && !defined(_TIMESPEC_DEFINED) && ! __struct_timespec_defined
+struct timespec
+{
+    long long	tv_sec; 	/* seconds */
+    long        tv_nsec;	/* nanoseconds */
+};
+# define __struct_timespec_defined  1
+#endif
+
 namespace mega {
 // convert 2...8 character ID to int64 integer (endian agnostic)
 #define MAKENAMEID2(a, b) (nameid)(((a) << 8) + (b))
@@ -349,6 +359,9 @@ std::string webdavurlescape(const std::string &value);
 std::string escapewebdavchar(const char c);
 std::string webdavnameescape(const std::string &value);
 
+void tolower_string(std::string& str);
+
+
 struct CacheableWriter
 {
     CacheableWriter(string& d);
@@ -362,6 +375,7 @@ struct CacheableWriter
     void serializehandle(handle field);
     void serializebool(bool field);
     void serializebyte(byte field);
+    void serializedouble(double field);
     void serializechunkmacs(const chunkmac_map& m);
 
     // Each class that might get extended should store expansion flags at the end
@@ -383,6 +397,7 @@ struct CacheableReader
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
     bool unserializebyte(byte& s);
+    bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);

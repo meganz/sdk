@@ -89,6 +89,7 @@
 #include <string>
 #include <array>
 #include <mutex>
+#include <assert.h>
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
@@ -149,8 +150,8 @@ public:
             case logWarning: return "warn";
             case logError: return "err";
             case logFatal: return "FATAL";
-            default: return "";
         }
+        assert(false);
         return "";
     }
 
