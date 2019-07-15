@@ -1154,6 +1154,10 @@ bool User::setChanged(attr_t at)
             changed.pushSettings = true;
             break;
 
+        case ATTR_ALIAS:
+            changed.alias = true;
+            break;
+
         default:
             return false;
     }
