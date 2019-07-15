@@ -21,6 +21,8 @@ LIBS += -lgtest
 include(../../../../bindings/qt/sdk.pri)
 
 SOURCES += ../../../../tests/sdk_test.cpp \
+           ../../../../tests/commands_test.cpp \
+           ../../../../tests/megaapi_test.cpp \
            ../../../../tests/sdktests.cpp
 
 HEADERS += \

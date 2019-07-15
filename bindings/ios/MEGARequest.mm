@@ -25,6 +25,7 @@
 #import "MEGAAchievementsDetails+init.h"
 #import "MEGAFolderInfo+init.h"
 #import "MEGATimeZoneDetails+init.h"
+#import "MEGAStringList+init.h"
 
 using namespace mega;
 
@@ -185,12 +186,36 @@ using namespace mega;
     return self.megaRequest ? [[MEGAFolderInfo alloc] initWithMegaFolderInfo:self.megaRequest->getMegaFolderInfo()->copy() cMemoryOwn:YES] : nil;
 }
 
+- (NSDictionary<NSString *, MEGAStringList *> *)megaStringListDictionary {
+    MegaStringListMap *map = self.megaRequest->getMegaStringListMap();
+    NSMutableDictionary *dict = [NSMutableDictionary dictionaryWithCapacity:map->size()];
+    MegaStringList *keyList = map->getKeys();
+    for (int i = 0; i < keyList->size(); i++) {
+        const char *key = MegaApi::strdup(keyList->get(i));
+        dict[@(key)] = [[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)map->get(key)->copy() cMemoryOwn:YES];
+    }
+    
+    delete keyList;
+    
+    return [dict copy];
+}
+
 - (NSInteger)transferTag {
     return self.megaRequest ? self.megaRequest->getTransferTag() : 0;
 }
 
 - (NSInteger)numDetails {
     return self.megaRequest ? self.megaRequest->getNumDetails() : 0;
+}
+
+- (NSArray<MEGAStringList *> *)megaStringTableArray {
+    MegaStringTable *table = self.megaRequest ? self.megaRequest->getMegaStringTable() : nil;
+    NSMutableArray<MEGAStringList *> *array = NSMutableArray.alloc.init;
+    for (int i = 0; i < table->size(); i++) {
+        [array addObject:[[MEGAStringList alloc] initWithMegaStringList:(MegaStringList *)table->get(i) cMemoryOwn:YES]];
+    }
+    
+    return array.copy;
 }
 
 @end

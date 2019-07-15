@@ -28,6 +28,10 @@
 #include "http.h"
 
 namespace mega {
+
+struct JSON;
+struct MegaApp;
+
 // request command component
 class MEGA_API Command
 {
@@ -43,7 +47,7 @@ protected:
     string json;
 
 public:
-    MegaClient* client;
+    MegaClient* client; // non-owning
 
     int tag;
 
@@ -86,7 +90,9 @@ public:
     const char* getstring() const;
 
     Command();
-    virtual ~Command() { }
+    virtual ~Command() = default;
+
+    MEGA_DEFAULT_COPY_MOVE(Command)
 };
 
 // list of new file attributes to write
@@ -1127,6 +1133,51 @@ public:
     void procresult();
 
     CommandSetLastAcknowledged(MegaClient*);
+};
+
+class MEGA_API CommandSMSVerificationSend : public Command
+{
+public:
+    void procresult() override;
+
+    // don't request if it's definitely not a phone number
+    static bool isPhoneNumber(const string& s);
+
+    CommandSMSVerificationSend(MegaClient*, const string& phoneNumber, bool reVerifyingWhitelisted);
+};
+
+class MEGA_API CommandSMSVerificationCheck : public Command
+{
+public:
+    void procresult() override;
+
+    // don't request if it's definitely not a verification code
+    static bool isVerificationCode(const string& s);
+
+    CommandSMSVerificationCheck(MegaClient*, const string& code);
+};
+
+class MEGA_API CommandGetRegisteredContacts : public Command
+{
+public:
+    // static to be called from unit tests
+    static void processResult(MegaApp& app, JSON& json);
+
+    void procresult() override;
+
+    CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts);
+};
+
+class MEGA_API CommandGetCountryCallingCodes : public Command
+{
+public:
+    // static to be called from unit tests
+    static void processResult(MegaApp& app, JSON& json);
+
+    void procresult() override;
+
+    explicit
+    CommandGetCountryCallingCodes(MegaClient* client);
 };
 
 class MEGA_API CommandFolderLinkInfo: public Command

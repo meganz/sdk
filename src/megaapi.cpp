@@ -95,20 +95,84 @@ MegaStringList::~MegaStringList()
 
 }
 
-MegaStringList *MegaStringList::copy()
+MegaStringList *MegaStringList::copy() const
 {
     return NULL;
 }
 
-const char *MegaStringList::get(int)
+const char *MegaStringList::get(int) const
 {
     return NULL;
 }
 
-int MegaStringList::size()
+int MegaStringList::size() const
 {
     return 0;
 }
+
+
+MegaStringListMap::~MegaStringListMap()
+{
+}
+
+MegaStringListMap* MegaStringListMap::createInstance()
+{
+    return new MegaStringListMapPrivate;
+}
+
+MegaStringListMap* MegaStringListMap::copy() const
+{
+    return nullptr;
+}
+
+const MegaStringList* MegaStringListMap::get(const char*) const
+{
+    return nullptr;
+}
+
+MegaStringList *MegaStringListMap::getKeys() const
+{
+    return nullptr;
+}
+
+void MegaStringListMap::set(const char*, const MegaStringList*)
+{
+}
+
+int MegaStringListMap::size() const
+{
+    return 0;
+}
+
+
+MegaStringTable::~MegaStringTable()
+{
+}
+
+MegaStringTable* MegaStringTable::createInstance()
+{
+    return new MegaStringTablePrivate;
+}
+
+MegaStringTable* MegaStringTable::copy() const
+{
+    return nullptr;
+}
+
+void MegaStringTable::append(const MegaStringList*)
+{
+}
+
+const MegaStringList* MegaStringTable::get(int) const
+{
+    return nullptr;
+}
+
+int MegaStringTable::size() const
+{
+    return 0;
+}
+
 
 MegaNodeList *MegaNodeList::createInstance()
 {
@@ -922,6 +986,16 @@ MegaTextChatList *MegaRequest::getMegaTextChatList() const
 MegaStringMap *MegaRequest::getMegaStringMap() const
 {
     return NULL;
+}
+
+MegaStringListMap* MegaRequest::getMegaStringListMap() const
+{
+    return nullptr;
+}
+
+MegaStringTable* MegaRequest::getMegaStringTable() const
+{
+    return nullptr;
 }
 
 MegaFolderInfo *MegaRequest::getMegaFolderInfo() const
@@ -1809,6 +1883,16 @@ bool MegaApi::serverSideRubbishBinAutopurgeEnabled()
 bool MegaApi::appleVoipPushEnabled()
 {
     return pImpl->appleVoipPushEnabled();
+}
+
+int MegaApi::smsAllowedState()
+{
+    return pImpl->smsAllowedState();
+}
+
+char* MegaApi::smsVerifiedPhoneNumber()
+{
+    return pImpl->smsVerifiedPhoneNumber();
 }
 
 bool MegaApi::multiFactorAuthAvailable()
@@ -3792,6 +3876,27 @@ void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestLi
 {
     pImpl->getPublicLinkInformation(megaFolderLink, listener);
 }
+
+void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
+{
+    pImpl->sendSMSVerificationCode(phoneNumber, listener, reverifying_whitelisted);
+}
+
+void MegaApi::checkSMSVerificationCode(const char* verificationCode, MegaRequestListener *listener)
+{
+    pImpl->checkSMSVerificationCode(verificationCode, listener);
+}
+
+void MegaApi::getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener)
+{
+    pImpl->getRegisteredContacts(contacts, listener);
+}
+
+void MegaApi::getCountryCallingCodes(MegaRequestListener *listener)
+{
+    pImpl->getCountryCallingCodes(listener);
+}
+
 
 #ifdef HAVE_LIBUV
 bool MegaApi::httpServerStart(bool localOnly, int port, bool useTLS, const char * certificatepath, const char * keypath, bool useIPv6)

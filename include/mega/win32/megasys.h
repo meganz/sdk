@@ -81,7 +81,7 @@
 
 #ifndef WINDOWS_PHONE
 #ifdef __MINGW32__
-#include <wincrypt.h>
+ //#include <wincrypt.h> // x509 define clashes with webrtc
 #endif
  //#include <wincrypt.h> // x509 define clashes with webrtc
  #include <shlwapi.h>

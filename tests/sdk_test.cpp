@@ -391,6 +391,20 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 
+    case MegaRequest::TYPE_GET_REGISTERED_CONTACTS:
+        if (lastError[apiIndex] == API_OK)
+        {
+            stringTable.reset(request->getMegaStringTable()->copy());
+        }
+        break;
+
+    case MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES:
+        if (lastError[apiIndex] == API_OK)
+        {
+            stringListMap.reset(request->getMegaStringListMap()->copy());
+        }
+        break;
+
     }
 }
 
@@ -922,6 +936,32 @@ void SdkTest::createFolder(unsigned int apiIndex, char *name, MegaNode *n, int t
     ASSERT_TRUE( waitForResponse(&requestFlags[apiIndex][MegaRequest::TYPE_CREATE_FOLDER], timeout) )
             << "Folder creation failed after " << timeout  << " seconds";
     ASSERT_EQ(MegaError::API_OK, lastError[apiIndex]) << "Cannot create a folder (error: " << lastError[apiIndex] << ")";
+}
+
+void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts, const int timeout)
+{
+    auto contactsStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
+    for  (const auto& pair : contacts)
+    {
+        contactsStringMap->set(pair.first.c_str(), pair.second.c_str());
+    }
+
+    requestFlags[0][MegaRequest::TYPE_GET_REGISTERED_CONTACTS] = false;
+    megaApi[0]->getRegisteredContacts(contactsStringMap.get(), this);
+
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_GET_REGISTERED_CONTACTS], timeout) )
+            << "Get registered contacts not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Get registered contacts failed (error: " << lastError[0] << ")";
+}
+
+void SdkTest::getCountryCallingCodes(const int timeout)
+{
+    requestFlags[0][MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES] = false;
+    megaApi[0]->getCountryCallingCodes(this);
+
+    ASSERT_TRUE( waitForResponse(&requestFlags[0][MegaRequest::TYPE_GET_COUNTRY_CALLING_CODES], timeout) )
+            << "Get country calling codes not finished after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, lastError[0]) << "Get country calling codes failed (error: " << lastError[0] << ")";
 }
 
 MegaLoggerSDK::MegaLoggerSDK(const char *filename)
@@ -3946,8 +3986,6 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 #endif
 }
 
-
-
 TEST_F(SdkTest, SdkRecentsTest)
 {
     megaApi[0]->log(MegaApi::LOG_LEVEL_INFO, "___TEST SdkRecentsTest___");
@@ -4005,5 +4043,62 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_TRUE(buckets->get(0)->getNodes()->size() > 1);
     ASSERT_EQ(DOWNFILE, string(buckets->get(0)->getNodes()->get(0)->getName()));
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
+}
+
+// TODO: Enable this test when API command (smslc) becomes available in production
+TEST_F(SdkTest, DISABLED_SdkGetCountryCallingCodes)
+{
+    getCountryCallingCodes();
+    ASSERT_NE(nullptr, stringListMap);
+    ASSERT_GT(stringListMap->size(), 0);
+    // sanity check a few country codes
+    const MegaStringList* const nz = stringListMap->get("NZ");
+    ASSERT_NE(nullptr, nz);
+    ASSERT_EQ(1, nz->size());
+    ASSERT_EQ(0, strcmp("64", nz->get(0)));
+    const MegaStringList* const de = stringListMap->get("DE");
+    ASSERT_NE(nullptr, de);
+    ASSERT_EQ(1, de->size());
+    ASSERT_EQ(0, strcmp("49", de->get(0)));
+}
+
+// TODO: Enable this test when API command (usabd) becomes available in production
+TEST_F(SdkTest, DISABLED_SdkGetRegisteredContacts)
+{
+    const std::string js1 = "+0000000010";
+    const std::string js2 = "+0000000011";
+    const std::map<std::string, std::string> contacts{
+        {js1, "John Smith"}, // sms verified
+        {js2, "John Smith"}, // sms verified
+        {"+640", "John Smith"}, // not sms verified
+    };
+    getRegisteredContacts(contacts);
+    ASSERT_NE(nullptr, stringTable);
+    ASSERT_EQ(2, stringTable->size());
+
+    // repacking and sorting result
+    using row_t = std::tuple<std::string, std::string, std::string>;
+    std::vector<row_t> table;
+    for (int i = 0; i < stringTable->size(); ++i)
+    {
+        const MegaStringList* const stringList = stringTable->get(i);
+        ASSERT_EQ(3, stringList->size());
+        table.emplace_back(stringList->get(0), stringList->get(1), stringList->get(2));
+    }
+
+    std::sort(table.begin(), table.end(), [](const row_t& lhs, const row_t& rhs)
+                                          {
+                                              return std::get<0>(lhs) < std::get<0>(rhs);
+                                          });
+
+    // Check johnsmith1
+    ASSERT_EQ(js1, std::get<0>(table[0])); // eud
+    ASSERT_GT(std::get<1>(table[0]).size(), 0); // id
+    ASSERT_EQ(js1, std::get<2>(table[0])); // ud
+
+    // Check johnsmith2
+    ASSERT_EQ(js2, std::get<0>(table[1])); // eud
+    ASSERT_GT(std::get<1>(table[1]).size(), 0); // id
+    ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 

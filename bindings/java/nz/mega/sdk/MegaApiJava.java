@@ -8397,6 +8397,78 @@ public class MegaApiJava {
     }
 
     /**
+     * Provide a phone number to get verification code.
+     *
+     * @param phoneNumber the phone number to receive the txt with verification code.
+     * @param listener callback of this request.
+     */
+    public void sendSMSVerificationCode(String phoneNumber,nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.sendSMSVerificationCode(phoneNumber,createDelegateRequestListener(listener));
+    }
+
+    public void sendSMSVerificationCode(String phoneNumber,nz.mega.sdk.MegaRequestListenerInterface listener,boolean reverifying_whitelisted) {
+        megaApi.sendSMSVerificationCode(phoneNumber,createDelegateRequestListener(listener),reverifying_whitelisted);
+    }
+
+    /**
+     * Send the verification code to verifiy phone number.
+     *
+     * @param verificationCode received 6 digits verification code.
+     * @param listener callback of this request.
+     */
+    public void checkSMSVerificationCode(String verificationCode,nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.checkSMSVerificationCode(verificationCode,createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the verified phone number of the mega account.
+     *
+     * @return verified phone number.
+     */
+    public String smsVerifiedPhoneNumber() {
+        return megaApi.smsVerifiedPhoneNumber();
+    }
+    
+    /**
+     * Requests the contacts that are registered at MEGA (currently verified through SMS)
+     *
+     * @param contacts The map of contacts to get registered contacts from
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getRegisteredContacts(MegaStringMap contacts, nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.getRegisteredContacts(contacts, createDelegateRequestListener(listener));
+    }
+    
+    /**
+     * Requests the currently available country calling codes
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getCountryCallingCodes(nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.getCountryCallingCodes(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the state to see whether blocked account could do SMS verification
+     * 
+     * @return the state 
+     */
+    public int smsAllowedState() {
+        return megaApi.smsAllowedState();
+    }
+
+    /**
+     * @brief Returns the email of the user who made the changes
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRecentActionBucket object is deleted.
+     *
+     * @return The associated user's email
+     */
+    public void getUserEmail(long handle, nz.mega.sdk.MegaRequestListenerInterface listener) {
+        megaApi.getUserEmail(handle, createDelegateRequestListener(listener));
+
+    /**
      * @brief Cancel a registration process
      *
      * If a signup link has been generated during registration process, call this function

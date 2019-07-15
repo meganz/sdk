@@ -84,10 +84,12 @@ doc/example/lsmega
 Debug
 Release
 /contrib/QtCreator/build-*
+/contrib/QtCreator/MEGAsdk.pro.user
 /contrib/QtCreator/MEGAcli/MEGAcli.pro.user
 /contrib/QtCreator/MEGAtests/MEGAtests.pro.user
 /contrib/QtCreator/MEGAsymplesync/MEGAsymplesync.pro.user
 /contrib/QtCreator/megacli.creator.user
+/contrib/build-MEGAsdk-Desktop-*
 /contrib/cmake/cmake-build-*
 /contrib/build-cmake-Desktop-*
 /contrib/cmake/CMakeLists.txt.user
