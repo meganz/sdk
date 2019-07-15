@@ -22,10 +22,9 @@
 *.exe
 *.out
 *.app
-/tests/sdk_test
-/tests/misc_test
-/tests/purge_account
-/tests/sync_test
+/tests/test_unit
+/tests/test_integration
+/tests/tool_purge_account
 examples/megacli
 examples/megasimplesync
 examples/linux/megafuse

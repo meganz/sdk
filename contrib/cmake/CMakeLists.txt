@@ -599,24 +599,32 @@ target_link_libraries(Mega PUBLIC crypt32.lib)
 endif(WIN32)
 
 #test apps
-add_executable(test_sdk             ${MegaDir}/tests/sdk_test.cpp 
-                                    ${MegaDir}/tests/sdktests.cpp)
-add_executable(test_misc            ${MegaDir}/tests/commands_test.cpp
-                                    ${MegaDir}/tests/crypto_test.cpp
-                                    ${MegaDir}/tests/megaapi_test.cpp
-                                    ${MegaDir}/tests/paycrypt_test.cpp
-                                    ${MegaDir}/tests/tests.cpp)
-add_executable(test_purge_account   ${MegaDir}/tests/purge_account.cpp)
-add_executable(test_sync            ${MegaDir}/tests/synctests.cpp)
+add_executable(test_unit            ${MegaDir}/tests/unit/Commands_test.cpp
+                                    ${MegaDir}/tests/unit/Crypto_test.cpp
+                                    ${MegaDir}/tests/unit/Serialization_test.cpp
+                                    ${MegaDir}/tests/unit/main.cpp
+                                    ${MegaDir}/tests/unit/MegaApi_test.cpp
+                                    ${MegaDir}/tests/unit/PayCrypter_test.cpp)
 
-target_compile_definitions(test_sdk PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_misc PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_sync PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_link_libraries(test_sdk gtest Mega )
-target_link_libraries(test_misc gtest Mega )
-target_link_libraries(test_purge_account gtest Mega )
-target_link_libraries(test_sync gtest Mega )
+add_executable(test_integration     ${MegaDir}/tests/integration/main.cpp
+                                    ${MegaDir}/tests/integration/SdkTest_test.cpp
+                                    ${MegaDir}/tests/integration/Sync_test.cpp)
+
+add_executable(tool_purge_account   ${MegaDir}/tests/tool/purge_account.cpp)
+
+target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+target_link_libraries(test_unit gtest Mega )
+target_link_libraries(test_integration gtest Mega )
+target_link_libraries(tool_purge_account gtest Mega )
+
+if(WIN32)
+add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
+target_include_directories(tool_tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
+target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
+target_link_libraries(tool_tcprelay Mega Dnsapi.lib)
+endif(WIN32)
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
@@ -635,14 +643,6 @@ target_link_libraries(megasimplesync Mega )
 if(WIN32)
 add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
 target_link_libraries(testmega Mega )
-endif(WIN32)
-
-if(WIN32)
-
-add_executable(tcprelay "${MegaDir}/tests/tcprelay/main.cpp" "${MegaDir}/tests/tcprelay/tcprelay.cpp")
-target_include_directories(tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
-target_compile_definitions(tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
-target_link_libraries(tcprelay Mega Dnsapi.lib)
 endif(WIN32)
 
 #enable_testing()
