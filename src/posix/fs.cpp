@@ -1763,8 +1763,13 @@ bool PosixDirNotify::fsstableids() const
         return true;
     }
 
+#ifdef __APPLE__
+    return statfsbuf.f_type != 0x1c // FAT32
+        && statfsbuf.f_type != 0x1d; // exFAT
+#else
     return statfsbuf.f_type != 0x4d44 // FAT
         && statfsbuf.f_type != 0x65735546; // FUSE
+#endif
 }
 
 FileAccess* PosixFileSystemAccess::newfileaccess()
