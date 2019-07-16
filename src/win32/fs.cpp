@@ -1261,7 +1261,21 @@ fsfp_t WinDirNotify::fsfingerprint() const
 
 bool WinDirNotify::fsstableids() const
 {
-    // TODO implement!
+#ifndef WINDOWS_PHONE
+    TCHAR volume[MAX_PATH + 1];
+    if (GetVolumePathNameW((LPCWSTR)localbasepath.data(), volume, MAX_PATH + 1))
+    {
+        TCHAR fs[MAX_PATH + 1];
+        if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
+        {
+            return wcsicmp(fs, L"FAT")
+                && wcsicmp(fs, L"FAT32")
+                && wcsicmp(fs, L"exFAT");
+        }
+    }
+#else
+#error "Not implemented"
+#endif
     return true;
 }
 
